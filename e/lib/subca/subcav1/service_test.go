@@ -17,6 +17,7 @@
 package subcav1_test
 
 import (
+	gocmp "cmp"
 	"context"
 	"crypto/rand"
 	"crypto/x509"
@@ -28,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -1115,8 +1117,8 @@ func TestService_Update(t *testing.T) {
 
 		// Verify audit.
 		assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
-			Code:    events.CertAuthOverrideUpdateCode,
 			Type:    events.CertAuthOverrideUpdateEvent,
+			Code:    events.CertAuthOverrideUpdateCode,
 			Success: true,
 		})
 	})
@@ -1136,6 +1138,7 @@ func TestService_Update_errors(t *testing.T) {
 		},
 	})
 	subCA := env.SubCAClient
+	emitter := env.MockEmitter
 
 	// Prepare CA override to update.
 	createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
@@ -1182,17 +1185,22 @@ func TestService_Update_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			caOverride := proto.CloneOf(baseCAOverride)
 			req := test.makeReq(caOverride)
 
+			emitter.Reset()
 			_, err := subCA.UpdateCertAuthorityOverride(t.Context(), req)
 			if test.assertErr != nil {
 				test.assertErr(t, err)
 			} else {
 				assert.ErrorContains(t, err, test.wantErr, "Update error mismatch")
 			}
+
+			assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+				Type:    events.CertAuthOverrideUpdateEvent,
+				Code:    events.CertAuthOverrideUpdateCode,
+				WantErr: test.wantErr,
+			})
 		})
 	}
 }
@@ -1663,6 +1671,7 @@ func TestService_Write_errors(t *testing.T) {
 		},
 	})
 	subCA := env.SubCAClient
+	emitter := env.MockEmitter
 
 	// Cloned by tests. Note that it doesn't exist on storage.
 	baseCAOverride := env.NewOverrideForCAType(t, caType)
@@ -1675,13 +1684,25 @@ func TestService_Write_errors(t *testing.T) {
 		wantErr        string
 	}
 
-	assertTestCae := func(t *testing.T, tc *testCase, err error) {
+	assertTestCase := func(
+		t *testing.T,
+		tc *testCase,
+		err error,
+		eventType string,
+		eventCode string,
+	) {
 		t.Helper()
 		if tc.assertErr != nil {
 			tc.assertErr(t, err)
 		} else {
 			assert.ErrorContains(t, err, tc.wantErr, "error mismatch")
 		}
+
+		assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+			Type:    eventType,
+			Code:    eventCode,
+			WantErr: tc.wantErr,
+		})
 	}
 
 	runTestCase := func(t *testing.T, tc *testCase, baseCAOverride *subcapb.CertAuthorityOverride) {
@@ -1691,30 +1712,40 @@ func TestService_Write_errors(t *testing.T) {
 		}
 
 		t.Run("create", func(t *testing.T) {
+			emitter.Reset()
 			_, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 				CaOverride: caOverride,
 			}.Build())
-			assertTestCae(t, tc, err)
+			assertTestCase(t, tc, err,
+				events.CertAuthOverrideCreateEvent,
+				events.CertAuthOverrideCreateCode,
+			)
 		})
 		if !tc.skipUpdate {
 			t.Run("update", func(t *testing.T) {
+				emitter.Reset()
 				_, err := subCA.UpdateCertAuthorityOverride(t.Context(), subcapb.UpdateCertAuthorityOverrideRequest_builder{
 					CaOverride: caOverride,
 				}.Build())
-				assertTestCae(t, tc, err)
+				assertTestCase(t, tc, err,
+					events.CertAuthOverrideUpdateEvent,
+					events.CertAuthOverrideUpdateCode,
+				)
 			})
 		}
 		t.Run("upsert", func(t *testing.T) {
+			emitter.Reset()
 			_, err := subCA.UpsertCertAuthorityOverride(t.Context(), subcapb.UpsertCertAuthorityOverrideRequest_builder{
 				CaOverride: caOverride,
 			}.Build())
-			assertTestCae(t, tc, err)
+			assertTestCase(t, tc, err,
+				events.CertAuthOverrideUpsertEvent,
+				events.CertAuthOverrideUpsertCode,
+			)
 		})
 	}
 
 	t.Run("invalid cluster name", func(t *testing.T) {
-		t.Parallel()
-
 		// Fetch the certificate we want to override.
 		const loadKeys = false
 		ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
@@ -1745,8 +1776,6 @@ func TestService_Write_errors(t *testing.T) {
 	})
 
 	t.Run("override certificate lasts too long", func(t *testing.T) {
-		t.Parallel()
-
 		// Fetch the CA we want to override.
 		const loadKeys = false
 		ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
@@ -1846,7 +1875,6 @@ func TestService_Write_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
 			runTestCase(t, &test, baseCAOverride)
 		})
 	}
@@ -2227,6 +2255,7 @@ func TestService_AddCertificateOverride_errors(t *testing.T) {
 		},
 	})
 	subCA := env.SubCAClient
+	emitter := env.MockEmitter
 
 	caID := subcapb.CertAuthorityOverrideID_builder{
 		CaType: string(caType),
@@ -2284,10 +2313,15 @@ func TestService_AddCertificateOverride_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
+			emitter.Reset()
 			_, err := subCA.AddCertificateOverride(t.Context(), test.req)
 			assert.ErrorContains(t, err, test.wantErr, "AddCertificateOverride error mismatch")
+
+			assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+				Type:    events.CertAuthOverrideCreateEvent,
+				Code:    events.CertAuthOverrideCreateCode,
+				WantErr: test.wantErr,
+			})
 		})
 	}
 
@@ -2299,13 +2333,21 @@ func TestService_AddCertificateOverride_errors(t *testing.T) {
 		created := resp.GetCaOverride()
 
 		// Adding a duplicate override for the same public key is forbidden.
+		emitter.Reset()
 		_, err = subCA.AddCertificateOverride(t.Context(), subcapb.AddCertificateOverrideRequest_builder{
 			CaId: subcapb.CertAuthorityOverrideID_builder{
 				CaType: string(caType),
 			}.Build(),
 			CertificateOverride: created.GetSpec().GetCertificateOverrides()[0],
 		}.Build())
-		assert.ErrorContains(t, err, "duplicate override for public key")
+		const wantErr = "duplicate override for public key"
+		assert.ErrorContains(t, err, wantErr)
+
+		assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+			Type:    events.CertAuthOverrideUpdateEvent,
+			Code:    events.CertAuthOverrideUpdateCode,
+			WantErr: wantErr,
+		})
 	})
 }
 
@@ -2453,6 +2495,7 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 		},
 	})
 	subCA := env.SubCAClient
+	emitter := env.MockEmitter
 
 	addKeysToCA(t, env, addKeysToCAParams{
 		CAType:        caType,
@@ -2582,8 +2625,8 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 			if test.wantErr == "" && test.wantErrType == nil {
 				t.Fatal("Invalid test spec. Set one of wantErr of wantErrType.")
 			}
-			t.Parallel()
 
+			emitter.Reset()
 			_, err := subCA.UpdateCertificateOverride(t.Context(), test.req)
 			if test.wantErr != "" {
 				assert.ErrorContains(t, err, test.wantErr, "UpdateCertificateOverride error mismatch")
@@ -2591,6 +2634,12 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 			if test.wantErrType != nil {
 				assert.ErrorAs(t, err, test.wantErrType, "UpdateCertificateOverride error type mismatch")
 			}
+
+			assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+				Type:    events.CertAuthOverrideUpdateEvent,
+				Code:    events.CertAuthOverrideUpdateCode,
+				WantErr: test.wantErr,
+			})
 		})
 	}
 }
@@ -2870,6 +2919,7 @@ func TestService_RemoveCertificateOverride_errors(t *testing.T) {
 		},
 	})
 	subCA := env.SubCAClient
+	emitter := env.MockEmitter
 
 	// Create a CA override to serve as target
 	var co *subcapb.CertificateOverride
@@ -2955,8 +3005,8 @@ func TestService_RemoveCertificateOverride_errors(t *testing.T) {
 			if test.wantErr == "" && test.wantErrType == nil {
 				t.Fatal("Invalid test spec. Set one of wantErr of wantErrType.")
 			}
-			t.Parallel()
 
+			emitter.Reset()
 			_, err := subCA.RemoveCertificateOverride(t.Context(), test.req)
 			if test.wantErr != "" {
 				assert.ErrorContains(t, err, test.wantErr, "RemoveCertificateOverride error mismatch")
@@ -2964,6 +3014,12 @@ func TestService_RemoveCertificateOverride_errors(t *testing.T) {
 			if test.wantErrType != nil {
 				assert.ErrorAs(t, err, test.wantErrType, "RemoveCertificateOverride error type mismatch")
 			}
+
+			assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+				Type:    events.CertAuthOverrideUpdateEvent,
+				Code:    events.CertAuthOverrideUpdateCode,
+				WantErr: test.wantErr,
+			})
 		})
 	}
 }
@@ -3042,21 +3098,25 @@ func TestService_Delete(t *testing.T) {
 		},
 	})
 	subCA := env.SubCAClient
+	emitter := env.MockEmitter
 
 	t.Run("not found", func(t *testing.T) {
-		t.Parallel()
-
+		emitter.Reset()
 		_, err := subCA.DeleteCertAuthorityOverride(t.Context(), subcapb.DeleteCertAuthorityOverrideRequest_builder{
 			CaId: subcapb.CertAuthorityOverrideID_builder{
 				CaType: string(caTypeOther),
 			}.Build(),
 		}.Build())
 		assert.ErrorAs(t, err, new(*trace.NotFoundError), "Delete error mismatch")
+
+		assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+			Type:    events.CertAuthOverrideDeleteEvent,
+			Code:    events.CertAuthOverrideDeleteCode,
+			WantErr: "read CA override",
+		})
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := t.Context()
 
 		// Prepare override to delete.
@@ -3066,13 +3126,13 @@ func TestService_Delete(t *testing.T) {
 		}.Build())
 		require.NoError(t, err, "Create errored")
 
-		emitter := env.MockEmitter
 		emitter.Reset()
 
 		// Delete.
 		id := subcapb.CertAuthorityOverrideID_builder{
 			CaType: created.GetCaOverride().GetSubKind(),
 		}.Build()
+		emitter.Reset()
 		_, err = subCA.DeleteCertAuthorityOverride(ctx, subcapb.DeleteCertAuthorityOverrideRequest_builder{
 			CaId: id,
 		}.Build())
@@ -3106,27 +3166,36 @@ func TestService_Delete(t *testing.T) {
 }
 
 type wantEvent struct {
-	Code    string
 	Type    string
+	Code    string
 	Success bool
+	WantErr string
 }
 
 func assertCAOverrideEvent(
 	t *testing.T,
 	events []apievents.AuditEvent,
-	want *wantEvent,
+	wantSpec *wantEvent,
 ) {
 	t.Helper()
 	require.Len(t, events, 1, "Number of audit events")
 
 	e := events[0]
 	require.IsType(t, &apievents.CertAuthorityOverrideEvent{}, e, "Event type mismatch")
-	caoEvent := e.(*apievents.CertAuthorityOverrideEvent)
+	got := e.(*apievents.CertAuthorityOverrideEvent)
 
-	assert.Equal(t, want.Type, caoEvent.Type, "Event.Type mismatch")
-	assert.Equal(t, want.Code, caoEvent.Code, "Event.Code mismatch")
-	assert.Equal(t, want.Success, caoEvent.Success, "Event.Success mismatch")
+	want := gogoproto.Clone(got).(*apievents.CertAuthorityOverrideEvent)
+	want.Type = wantSpec.Type
+	want.Code = wantSpec.Code
+	want.Success = wantSpec.Success
+	caType := gocmp.Or(got.CaOverride.CaType, "<unknown>")
+	clusterName := gocmp.Or(got.CaOverride.ClusterName, "<unknown>")
+	want.Name = caType + "/" + clusterName
+	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		t.Errorf("Audit event mismatch (-want +got)\n%s", diff)
+	}
 
-	wantName := caoEvent.CaOverride.CaType + "/" + caoEvent.CaOverride.ClusterName
-	assert.Equal(t, wantName, caoEvent.Name, "Event.Name mismatch")
+	if wantSpec.WantErr != "" {
+		assert.Contains(t, got.Error, wantSpec.WantErr, "Event.Error mismatch")
+	}
 }

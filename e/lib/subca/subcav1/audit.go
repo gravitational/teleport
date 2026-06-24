@@ -17,52 +17,87 @@
 package subcav1
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
+	"log/slog"
 
-	"github.com/gravitational/trace"
-
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/subca"
 )
 
-func (s *Service) emitCAOverrideEvent(
-	ctx context.Context,
-	parsed *subca.ParsedCertAuthorityOverride,
-	err error,
-	eventType, eventCode string,
-) {
-	// Sanity check input.
-	// This is a private helper, so we can ensure all callers pass a non-nil
-	// parsed override.
-	if parsed == nil ||
-		parsed.CAOverride == nil ||
-		parsed.CAOverride.GetSubKind() == "" ||
-		parsed.CAOverride.GetMetadata().GetName() == "" {
-		s.logger.ErrorContext(ctx,
-			"CA override required to issue audit event",
-			"error", trace.BadParameter("parsed CA override required"), // capture trace
-			"event_type", eventType,
-			"event_code", eventCode,
-			"parsed_ca_override", parsed,
-		)
-		return
+type auditWriter struct {
+	logger  *slog.Logger
+	emitter apievents.Emitter
+
+	eventType, eventCode string
+	caOverride           *subcav1.CertAuthorityOverride
+	parsed               *subca.ParsedCertAuthorityOverride
+}
+
+func (s *Service) newAuditWriter(
+	eventType string,
+	eventCode string,
+	caOverride *subcav1.CertAuthorityOverride,
+) *auditWriter {
+	return &auditWriter{
+		logger:     s.logger,
+		emitter:    s.emitter,
+		eventType:  eventType,
+		eventCode:  eventCode,
+		caOverride: caOverride,
 	}
+}
 
-	um := authz.ClientUserMetadata(ctx)
+func (w *auditWriter) setParsed(parsed *subca.ParsedCertAuthorityOverride) {
+	w.caOverride = nil
+	w.parsed = parsed
+}
 
+func (w *auditWriter) emitAuditEvent(ctx context.Context, err error) {
 	var errorMessage string
 	if err != nil {
 		errorMessage = err.Error()
 	}
 
-	auditName := parsed.CAOverride.GetSubKind() + "/" + parsed.CAOverride.GetMetadata().GetName()
+	switch {
+	case w.parsed == nil && w.caOverride == nil:
+		w.logger.DebugContext(ctx,
+			"Audit event lacks both parsed and non-parsed CA override. Continuing with minimal data.",
+		)
+		w.parsed = &subca.ParsedCertAuthorityOverride{
+			CAOverride: &subcav1.CertAuthorityOverride{},
+		}
+	case w.parsed == nil:
+		var err error
+		w.parsed, err = subca.ParseCAOverride(w.caOverride)
+		if err != nil {
+			w.logger.DebugContext(ctx,
+				"Failed to parse CA override for audit event. Continuing with minimal data.",
+				"error", err,
+			)
+			w.parsed = &subca.ParsedCertAuthorityOverride{
+				CAOverride: w.caOverride,
+			}
+		}
+	}
+	parsed := w.parsed
+
+	var auditName string
+	{
+		caType := cmp.Or(parsed.CAOverride.GetSubKind(), "<unknown>")
+		clusterName := cmp.Or(parsed.CAOverride.GetMetadata().GetName(), "<unknown>")
+		auditName = caType + "/" + clusterName
+	}
+
+	um := authz.ClientUserMetadata(ctx)
 
 	e := &apievents.CertAuthorityOverrideEvent{
 		Metadata: apievents.Metadata{
-			Type: eventType,
-			Code: eventCode,
+			Type: w.eventType,
+			Code: w.eventCode,
 		},
 		UserMetadata: um,
 		ResourceMetadata: apievents.ResourceMetadata{
@@ -76,8 +111,8 @@ func (s *Service) emitCAOverrideEvent(
 		CaOverride: caOverrideToEventMetadata(parsed),
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, e); err != nil {
-		s.logger.WarnContext(ctx,
+	if err := w.emitter.EmitAuditEvent(ctx, e); err != nil {
+		w.logger.WarnContext(ctx,
 			"Failed to emit audit event",
 			"error", err,
 			"type", e.GetType(),

@@ -24,7 +24,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"log/slog"
 	"maps"
 	"slices"
@@ -381,9 +380,21 @@ func (s *Service) getCandidateCSRSigners(
 func (s *Service) CreateCertAuthorityOverride(
 	ctx context.Context,
 	req *subcav1.CreateCertAuthorityOverrideRequest,
-) (*subcav1.CreateCertAuthorityOverrideResponse, error) {
+) (_ *subcav1.CreateCertAuthorityOverrideResponse, err error) {
+	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	audit := s.newAuditWriter(
+		events.CertAuthOverrideCreateEvent,
+		events.CertAuthOverrideCreateCode,
+		req.GetCaOverride(),
+	)
+	defer func() { audit.emitAuditEvent(ctx, err) }()
+
 	created, err := s.writeCAOverride(ctx, writeCAOverrideParams{
 		mode:          writeCreate,
+		audit:         audit,
 		newCAOverride: req.GetCaOverride(),
 	})
 	if err != nil {
@@ -398,9 +409,21 @@ func (s *Service) CreateCertAuthorityOverride(
 func (s *Service) UpdateCertAuthorityOverride(
 	ctx context.Context,
 	req *subcav1.UpdateCertAuthorityOverrideRequest,
-) (*subcav1.UpdateCertAuthorityOverrideResponse, error) {
+) (_ *subcav1.UpdateCertAuthorityOverrideResponse, err error) {
+	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	audit := s.newAuditWriter(
+		events.CertAuthOverrideUpdateEvent,
+		events.CertAuthOverrideUpdateCode,
+		req.GetCaOverride(),
+	)
+	defer func() { audit.emitAuditEvent(ctx, err) }()
+
 	updated, err := s.writeCAOverride(ctx, writeCAOverrideParams{
 		mode:                  writeUpdate,
+		audit:                 audit,
 		newCAOverride:         req.GetCaOverride(),
 		forceImmediateDisable: req.GetForceImmediateDisable(),
 	})
@@ -416,9 +439,21 @@ func (s *Service) UpdateCertAuthorityOverride(
 func (s *Service) UpsertCertAuthorityOverride(
 	ctx context.Context,
 	req *subcav1.UpsertCertAuthorityOverrideRequest,
-) (*subcav1.UpsertCertAuthorityOverrideResponse, error) {
+) (_ *subcav1.UpsertCertAuthorityOverrideResponse, err error) {
+	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	audit := s.newAuditWriter(
+		events.CertAuthOverrideUpsertEvent,
+		events.CertAuthOverrideUpsertCode,
+		req.GetCaOverride(),
+	)
+	defer func() { audit.emitAuditEvent(ctx, err) }()
+
 	updated, err := s.writeCAOverride(ctx, writeCAOverrideParams{
 		mode:                  writeUpsert,
+		audit:                 audit,
 		newCAOverride:         req.GetCaOverride(),
 		forceImmediateDisable: req.GetForceImmediateDisable(),
 	})
@@ -434,20 +469,40 @@ func (s *Service) UpsertCertAuthorityOverride(
 func (s *Service) AddCertificateOverride(
 	ctx context.Context,
 	req *subcav1.AddCertificateOverrideRequest,
-) (*subcav1.AddCertificateOverrideResponse, error) {
+) (_ *subcav1.AddCertificateOverrideResponse, err error) {
+	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	audit := s.newAuditWriter(
+		// Assume the operation is a create to begin with.
+		events.CertAuthOverrideCreateEvent,
+		events.CertAuthOverrideCreateCode,
+		// Start with a basic representation of the override we intend to write.
+		// It gets updated as we query and parse the override.
+		subcav1.CertAuthorityOverride_builder{
+			SubKind:  req.GetCaId().GetCaType(),
+			Metadata: &headerv1.Metadata{},
+			Spec: subcav1.CertAuthorityOverrideSpec_builder{
+				CertificateOverrides: []*subcav1.CertificateOverride{
+					req.GetCertificateOverride(),
+				},
+			}.Build(),
+		}.Build(),
+	)
+	defer func() { audit.emitAuditEvent(ctx, err) }()
+
+	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	audit.caOverride.GetMetadata().SetName(cn.GetClusterName())
+
 	switch {
 	case req.GetCaId().GetCaType() == "":
 		return nil, trace.BadParameter("ca_id.ca_type required")
 	case !req.HasCertificateOverride():
 		return nil, trace.BadParameter("certificate_override required")
-	}
-
-	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Discover if the underlying operation is a create or update.
@@ -461,6 +516,8 @@ func (s *Service) AddCertificateOverride(
 	switch {
 	case err == nil:
 		mode = writeUpdate
+		audit.eventType = events.CertAuthOverrideUpdateEvent
+		audit.eventCode = events.CertAuthOverrideUpdateCode
 		// Append new CO. Validation ensures the same public key can't be targeted
 		// twice.
 		newCAOverride = proto.CloneOf(existingCAOverride)
@@ -476,16 +533,17 @@ func (s *Service) AddCertificateOverride(
 	default:
 		return nil, trace.Wrap(err)
 	}
+	audit.caOverride = newCAOverride
 
 	// Create or update.
 	if _, err := s.writeCAOverride(ctx, writeCAOverrideParams{
 		mode:          mode,
+		audit:         audit,
 		newCAOverride: newCAOverride,
 		// Adds can never be an enabled-to-disabled transition, but --force skips CA
 		// lateral validation as well. To be consistent with other RPCs we pass it
 		// along.
 		forceImmediateDisable: req.GetForceImmediateDisable(),
-		skipAuthorization:     true,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -517,16 +575,39 @@ func makeCAOverrideForCertificate(
 func (s *Service) UpdateCertificateOverride(
 	ctx context.Context,
 	req *subcav1.UpdateCertificateOverrideRequest,
-) (*subcav1.UpdateCertificateOverrideResponse, error) {
+) (_ *subcav1.UpdateCertificateOverrideResponse, err error) {
+	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	audit := s.newAuditWriter(
+		events.CertAuthOverrideUpdateEvent,
+		events.CertAuthOverrideUpdateCode,
+		// Start with a basic representation of the override we intend to write.
+		// It gets updated as we query and parse the override.
+		subcav1.CertAuthorityOverride_builder{
+			SubKind:  req.GetCaId().GetCaType(),
+			Metadata: &headerv1.Metadata{},
+			Spec: subcav1.CertAuthorityOverrideSpec_builder{
+				CertificateOverrides: []*subcav1.CertificateOverride{
+					req.GetCertificateOverride(),
+				},
+			}.Build(),
+		}.Build(),
+	)
+	defer func() { audit.emitAuditEvent(ctx, err) }()
+
+	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	audit.caOverride.GetMetadata().SetName(cn.GetClusterName())
+
 	switch {
 	case req.GetCaId().GetCaType() == "":
 		return nil, trace.BadParameter("ca_id.ca_type required")
 	case !req.HasCertificateOverride():
 		return nil, trace.BadParameter("certificate_override required")
-	}
-
-	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Optimistically determine the target public key hash.
@@ -545,19 +626,25 @@ func (s *Service) UpdateCertificateOverride(
 	}
 
 	// Find the override to update.
-	parsed, index, err := s.findCertificateOverride(ctx, req.GetCaId().GetCaType(), pkh)
+	parsed, index, err := s.findCertificateOverride(
+		ctx,
+		cn.GetClusterName(),
+		req.GetCaId().GetCaType(),
+		pkh,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	audit.setParsed(parsed)
 
 	parsed.CAOverride.GetSpec().GetCertificateOverrides()[index] = co
 
 	// Update.
 	if _, err := s.writeCAOverride(ctx, writeCAOverrideParams{
 		mode:                  writeUpdate,
+		audit:                 audit,
 		newCAOverride:         parsed.CAOverride,
 		forceImmediateDisable: req.GetForceImmediateDisable(),
-		skipAuthorization:     true,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -570,7 +657,37 @@ func (s *Service) UpdateCertificateOverride(
 func (s *Service) RemoveCertificateOverride(
 	ctx context.Context,
 	req *subcav1.RemoveCertificateOverrideRequest,
-) (*subcav1.RemoveCertificateOverrideResponse, error) {
+) (_ *subcav1.RemoveCertificateOverrideResponse, err error) {
+	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbUpdate, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	audit := s.newAuditWriter(
+		// Assume the operation is an update to begin with.
+		events.CertAuthOverrideUpdateEvent,
+		events.CertAuthOverrideUpdateCode,
+		// Start with a basic representation of the override we intend to write.
+		// It gets updated as we query and parse the override.
+		subcav1.CertAuthorityOverride_builder{
+			SubKind:  req.GetCertificateOverrideId().GetCaType(),
+			Metadata: &headerv1.Metadata{},
+			Spec: subcav1.CertAuthorityOverrideSpec_builder{
+				CertificateOverrides: []*subcav1.CertificateOverride{
+					subcav1.CertificateOverride_builder{
+						PublicKey: req.GetCertificateOverrideId().GetPublicKeyHash().GetValue(),
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	)
+	defer func() { audit.emitAuditEvent(ctx, err) }()
+
+	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	audit.caOverride.GetMetadata().SetName(cn.GetClusterName())
+
 	switch {
 	case req.GetCertificateOverrideId().GetCaType() == "":
 		return nil, trace.BadParameter("certificate_override_id.ca_type required")
@@ -578,19 +695,20 @@ func (s *Service) RemoveCertificateOverride(
 		return nil, trace.BadParameter("certificate_override_id.public_key_hash required")
 	}
 
-	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbUpdate, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	parsed, index, err := s.findCertificateOverride(ctx,
+	parsed, index, err := s.findCertificateOverride(
+		ctx,
+		cn.GetClusterName(),
 		req.GetCertificateOverrideId().GetCaType(),
 		req.GetCertificateOverrideId().GetPublicKeyHash().GetValue())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	audit.setParsed(parsed)
 
 	// Escalate to Delete if this is the last certificate override in the spec.
 	if len(parsed.CertificateOverrides) == 1 {
+		audit.eventType = events.CertAuthOverrideDeleteEvent
+		audit.eventCode = events.CertAuthOverrideDeleteCode
 		const unconditional = false
 		err := s.deleteCAOverride(ctx, parsed, req.GetForceImmediateDelete(), unconditional)
 		return &subcav1.RemoveCertificateOverrideResponse{}, trace.Wrap(err)
@@ -605,24 +723,21 @@ func (s *Service) RemoveCertificateOverride(
 	// Update.
 	_, err = s.writeCAOverride(ctx, writeCAOverrideParams{
 		mode:                  writeUpdate,
+		audit:                 audit,
 		newCAOverride:         parsed.CAOverride,
 		forceImmediateDisable: req.GetForceImmediateDelete(),
-		skipAuthorization:     true,
 	})
 	return &subcav1.RemoveCertificateOverrideResponse{}, trace.Wrap(err)
 }
 
 func (s *Service) findCertificateOverride(
 	ctx context.Context,
+	clusterName string,
 	caType string,
 	publicKeyHash string,
 ) (parsed *subca.ParsedCertAuthorityOverride, certificateOverrideIndex int, _ error) {
-	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
-	if err != nil {
-		return nil, 0, trace.Wrap(err)
-	}
 	id := local.CertAuthorityOverrideID{
-		ClusterName: cn.GetClusterName(),
+		ClusterName: clusterName,
 		CAType:      caType,
 	}
 	caOverride, err := s.subCA.GetCertAuthorityOverride(ctx, id)
@@ -656,17 +771,15 @@ const (
 
 type writeCAOverrideParams struct {
 	mode                  writeMode
+	audit                 *auditWriter
 	newCAOverride         *subcav1.CertAuthorityOverride
 	forceImmediateDisable bool
-	skipAuthorization     bool
 }
 
 func (s *Service) writeCAOverride(
 	ctx context.Context,
 	params writeCAOverrideParams,
-) (*subcav1.CertAuthorityOverride, error) {
-	mode := params.mode
-
+) (_ *subcav1.CertAuthorityOverride, err error) {
 	switch {
 	case params.newCAOverride.GetMetadata().GetName() == "":
 		return nil, trace.BadParameter("ca_override.metadata.name required")
@@ -674,35 +787,11 @@ func (s *Service) writeCAOverride(
 		return nil, trace.BadParameter("ca_override.sub_kind required")
 	}
 
-	// Decide authz verbs and audit event type/code.
-	var verbs []string
-	var eventType, eventCode string
-	switch mode {
-	case writeCreate:
-		verbs = []string{types.VerbCreate}
-		eventType = events.CertAuthOverrideCreateEvent
-		eventCode = events.CertAuthOverrideCreateCode
-	case writeUpdate:
-		verbs = []string{types.VerbUpdate}
-		eventType = events.CertAuthOverrideUpdateEvent
-		eventCode = events.CertAuthOverrideUpdateCode
-	case writeUpsert:
-		verbs = []string{types.VerbCreate, types.VerbUpdate}
-		eventType = events.CertAuthOverrideUpsertEvent
-		eventCode = events.CertAuthOverrideUpsertCode
-	default:
-		return nil, trace.Wrap(fmt.Errorf("unknown write mode: %d", mode))
-	}
-	if !params.skipAuthorization {
-		if err := s.authorizeCAOverride(ctx, adminActionYes, verbs[0], verbs[1:]...); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	parsed, err := subca.ValidateAndParseCAOverride(params.newCAOverride)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	params.audit.setParsed(parsed)
 
 	// Only allow overrides for the current cluster.
 	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
@@ -729,6 +818,7 @@ func (s *Service) writeCAOverride(
 
 	// Read existing CA override.
 	// Needed for lateral validation and to consolidate the Status field.
+	mode := params.mode
 	var existingCAOverride *subcav1.CertAuthorityOverride
 	if mode != writeCreate {
 		id := local.CertAuthorityOverrideIDFromResource(parsed.CAOverride)
@@ -793,12 +883,6 @@ func (s *Service) writeCAOverride(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.emitCAOverrideEvent(ctx,
-		parsed,
-		nil, // err
-		eventType,
-		eventCode,
-	)
 
 	return updated, nil
 }
@@ -1058,17 +1142,31 @@ func (s *Service) ListCertAuthorityOverride(
 func (s *Service) DeleteCertAuthorityOverride(
 	ctx context.Context,
 	req *subcav1.DeleteCertAuthorityOverrideRequest,
-) (*subcav1.DeleteCertAuthorityOverrideResponse, error) {
-	if req.GetCaId().GetCaType() == "" {
-		return nil, trace.BadParameter("ca_id.ca_type required")
-	}
+) (_ *subcav1.DeleteCertAuthorityOverrideResponse, err error) {
 	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	audit := s.newAuditWriter(
+		events.CertAuthOverrideDeleteEvent,
+		events.CertAuthOverrideDeleteCode,
+		// Start with a basic representation of the override we intend to delete.
+		// It gets updated as/if we query and parse the override.
+		subcav1.CertAuthorityOverride_builder{
+			SubKind:  req.GetCaId().GetCaType(),
+			Metadata: &headerv1.Metadata{},
+		}.Build(),
+	)
+	defer func() { audit.emitAuditEvent(ctx, err) }()
+
 	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "read cluster name")
+	}
+	audit.caOverride.GetMetadata().SetName(cn.GetClusterName())
+
+	if req.GetCaId().GetCaType() == "" {
+		return nil, trace.BadParameter("ca_id.ca_type required")
 	}
 
 	var parsed *subca.ParsedCertAuthorityOverride
@@ -1098,6 +1196,7 @@ func (s *Service) DeleteCertAuthorityOverride(
 			return nil, trace.Wrap(err, "parse CA override")
 		}
 	}
+	audit.setParsed(parsed)
 
 	unconditional := force
 	if err := s.deleteCAOverride(ctx, parsed, force, unconditional); err != nil {
@@ -1132,14 +1231,6 @@ func (s *Service) deleteCAOverride(
 			return trace.Wrap(err)
 		}
 	}
-
-	s.emitCAOverrideEvent(
-		ctx,
-		parsed,
-		nil, // error
-		events.CertAuthOverrideDeleteEvent,
-		events.CertAuthOverrideDeleteCode,
-	)
 
 	return nil
 }
