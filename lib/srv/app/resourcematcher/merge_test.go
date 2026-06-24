@@ -98,9 +98,9 @@ func TestPrefixMergeDesugar(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			desugared, err := DesugarRoles([]Role{{Name: "r", Rules: []Rule{{Paths: tt.paths}}}})
+			desugared, err := DesugarResources(Role{Name: "r", Resources: []Rule{{Paths: tt.paths}}})
 			require.NoError(t, err)
-			require.Equal(t, tt.want, desugared[0].Rules[0].Pred)
+			require.Equal(t, tt.want, desugared[0])
 		})
 	}
 }
@@ -206,7 +206,7 @@ func TestPrefixMergeEqualsRootUnion(t *testing.T) {
 	for _, p := range paths {
 		unmergedRules = append(unmergedRules, Rule{Paths: []string{p}})
 	}
-	unmerged, err := CompileRoles([]Role{{Name: "r", Rules: unmergedRules}})
+	unmerged, err := CompileRoles([]Role{{Name: "r", Resources: unmergedRules}})
 	require.NoError(t, err)
 
 	for _, path := range []string{

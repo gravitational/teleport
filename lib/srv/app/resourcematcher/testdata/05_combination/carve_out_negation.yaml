@@ -1,15 +1,11 @@
 description: carve-out (negation)
-rules:
-    - paths:
-        - /**
-      where: '!path.match(literal("admin", greedy()))'
-rules_desugared:
-    - pred: |-
-        path.match(
-          greedy()) &&
-        !path.match(
-          literal("admin",
-            greedy()))
+app_resources_expression:
+    # Allow every path, then carve out the admin subtree with a negated
+    # path.match. Path matching lives in the expression, never in a sugared
+    # where, so the grant and the carve-out share one predicate.
+    - |-
+      path.match(greedy()) &&
+      !path.match(literal("admin", greedy()))
 identity:
     name: bob
     roles:

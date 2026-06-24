@@ -180,10 +180,7 @@ func TestCarveOutCapturesDoNotLeak(t *testing.T) {
 // stays on one decode policy and dodges the fail-open inversion a negated match
 // carries.
 func TestCarveOutSingleMatchRule(t *testing.T) {
-	rule := Rule{
-		Pred: `path.match(literal("files", greedy_without("secret")))`,
-	}
-	compiled, err := rule.Compile()
+	compiled, err := compileExpression(`path.match(literal("files", greedy_without("secret")))`)
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -204,10 +201,7 @@ func TestCarveOutSingleMatchRule(t *testing.T) {
 // TestCarveOutGlobWithoutRule pins glob_without through the predicate surface,
 // excluding single segment values via set().
 func TestCarveOutGlobWithoutRule(t *testing.T) {
-	rule := Rule{
-		Pred: `path.match(literal("files", glob_without(set("secret", "private"))))`,
-	}
-	compiled, err := rule.Compile()
+	compiled, err := compileExpression(`path.match(literal("files", glob_without(set("secret", "private"))))`)
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -229,8 +223,6 @@ func TestCarveOutGlobWithoutRule(t *testing.T) {
 // inside a greedy_except is a deny test that binds nothing, so a rule that
 // writes one is rejected when the rule is compiled, not silently at evaluation.
 func TestCarveOutRejectsCaptureInException(t *testing.T) {
-	_, err := Rule{
-		Pred: `path.match(literal("files", greedy_except(capture("x", greedy()))))`,
-	}.Compile()
+	_, err := compileExpression(`path.match(literal("files", greedy_except(capture("x", greedy()))))`)
 	require.Error(t, err)
 }

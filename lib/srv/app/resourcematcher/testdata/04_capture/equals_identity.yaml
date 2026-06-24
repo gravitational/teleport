@@ -1,14 +1,14 @@
 description: equals identity
-rules:
+app_resources:
     - paths:
         - /api/v4/user/{username}
       where: user.name == vars.username
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("api/v4/user",
-            capture("username"))) &&
-        user.name == vars.username
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("api/v4/user",
+          capture("username"))) &&
+      user.name == vars.username
 identity:
     name: alice
     roles:

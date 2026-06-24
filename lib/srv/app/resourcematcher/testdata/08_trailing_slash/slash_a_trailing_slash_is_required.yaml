@@ -1,11 +1,6 @@
 description: 'slash: a trailing slash is required'
-rules:
-    - where: path.match(literal("files", slash()))
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("files",
-            slash()))
+app_resources_expression:
+    - path.match(literal("files", slash()))
 identity:
     name: bob
     roles:

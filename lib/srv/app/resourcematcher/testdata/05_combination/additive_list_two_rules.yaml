@@ -1,18 +1,18 @@
 description: additive list (two rules)
-rules:
+app_resources:
     - paths:
         - /public/**
     - paths:
         - /static/**
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("public",
-            greedy()))
-    - pred: |-
-        path.match(
-          literal("static",
-            greedy()))
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("public",
+          greedy()))
+    - |-
+      path.match(
+        literal("static",
+          greedy()))
 identity:
     name: bob
     roles:

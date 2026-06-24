@@ -82,7 +82,7 @@ func TestOptionalRule(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			compiled, err := Rule{Pred: tt.pred}.Compile()
+			compiled, err := compileExpression(tt.pred)
 			require.NoError(t, err)
 			got, err := compiled.Evaluate(Request{Method: "GET", Path: tt.path}, Identity{})
 			require.NoError(t, err)
@@ -104,7 +104,7 @@ func TestOptionalNoChildren(t *testing.T) {
 // never guaranteed, so a rule that reads it is a load error: the empty-match
 // branch leaves the capture unbound on the path that ends early.
 func TestOptionalCaptureNotGuaranteed(t *testing.T) {
-	_, err := Rule{Pred: `path.match(literal("files", optional(capture("x")))) && vars.x == "y"`}.Compile()
+	_, err := compileExpression(`path.match(literal("files", optional(capture("x")))) && vars.x == "y"`)
 	require.Error(t, err)
 }
 
@@ -113,7 +113,7 @@ func TestOptionalCaptureNotGuaranteed(t *testing.T) {
 // the zero-length tail, which refuses greedy's match-zero and silently forbids
 // the bare prefix, so the rule fails to compile rather than wrongly denying.
 func TestOptionalInGreedyExceptRejected(t *testing.T) {
-	_, err := Rule{Pred: `path.match(literal("files", greedy_except(optional(literal("secret")))))`}.Compile()
+	_, err := compileExpression(`path.match(literal("files", greedy_except(optional(literal("secret")))))`)
 	require.Error(t, err)
 
 	// The constructor enforces the same rule as a backstop for a direct Go

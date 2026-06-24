@@ -25,14 +25,26 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ruleFromYAML unmarshals a single rule from YAML. The test surface is YAML on
-// purpose: the cases below are written in the exact form an author would put
-// under app_resources, so the test doubles as a worked example.
+// ruleFromYAML unmarshals a single sugared rule from YAML. The test surface is
+// YAML on purpose: the cases below are written in the exact form an author would
+// put under app_resources, so the test doubles as a worked example.
 func ruleFromYAML(t *testing.T, doc string) Rule {
 	t.Helper()
 	var r Rule
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &r))
 	return r
+}
+
+// exprFromYAML reads a bare predicate from a YAML "pred:" key and compiles it as
+// an app_resources_expression entry. It mirrors how a desugared rule is written
+// as one predicate string, the parallel of node_labels_expression.
+func exprFromYAML(t *testing.T, doc string) (*CompiledRule, error) {
+	t.Helper()
+	var d struct {
+		Pred string `yaml:"pred"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(doc), &d))
+	return compileExpression(d.Pred)
 }
 
 // probe is one request evaluated against a rule, with the decision expected.
@@ -220,7 +232,7 @@ pred: |
 		t.Run(sc.name, func(t *testing.T) {
 			sugared, err := ruleFromYAML(t, sc.sugared).Compile()
 			require.NoError(t, err)
-			desugared, err := ruleFromYAML(t, sc.desugared).Compile()
+			desugared, err := exprFromYAML(t, sc.desugared)
 			require.NoError(t, err)
 
 			for _, p := range sc.probes {
@@ -251,7 +263,7 @@ pred: |
 func TestRoleSetUnion(t *testing.T) {
 	set, err := CompileRoles([]Role{{
 		Name: "reader",
-		Rules: []Rule{
+		Resources: []Rule{
 			ruleFromYAML(t, `
 paths: ["/api/v4/projects/{project}/repository/**"]
 methods: [GET]
@@ -292,7 +304,7 @@ func TestRoleSetUnionAcrossRoles(t *testing.T) {
 	set, err := CompileRoles([]Role{
 		{
 			Name: "reader",
-			Rules: []Rule{ruleFromYAML(t, `
+			Resources: []Rule{ruleFromYAML(t, `
 paths: ["/api/v4/projects/{project}/repository/**"]
 methods: [GET]
 allow_code: reader_grant
@@ -300,7 +312,7 @@ allow_code: reader_grant
 		},
 		{
 			Name: "writer",
-			Rules: []Rule{ruleFromYAML(t, `
+			Resources: []Rule{ruleFromYAML(t, `
 paths: ["/api/v4/projects/{project}/repository/**"]
 methods: [POST]
 allow_code: writer_grant
@@ -341,7 +353,7 @@ allow_code: writer_grant
 func TestRoleSetInvalidRequest(t *testing.T) {
 	set, err := CompileRoles([]Role{{
 		Name: "self",
-		Rules: []Rule{ruleFromYAML(t, `
+		Resources: []Rule{ruleFromYAML(t, `
 paths: ["/api/v4/user"]
 methods: [GET]
 `)},
@@ -381,10 +393,7 @@ func TestRoleSetMisconfiguredDefaultDeny(t *testing.T) {
 func TestEncodedSlashCapture(t *testing.T) {
 	// capture_encoded, paired with the allow_encoded option, admits both a
 	// plain id and an encoded id, binding the raw bytes either way.
-	encoded := Rule{
-		Pred: `path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`,
-	}
-	c, err := encoded.Compile()
+	c, err := compileExpression(`path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`)
 	require.NoError(t, err)
 
 	got, err := c.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/mygroup%2Fmyproject/issues"}, Identity{})
@@ -400,10 +409,7 @@ func TestEncodedSlashCapture(t *testing.T) {
 	// A plain capture is safe-only, and the match did not opt into encoded
 	// chars, so the encoded id does not match and the rule denies rather than
 	// binding the encoded value.
-	plain := Rule{
-		Pred: `path.match(literal("api/v4/projects", capture("project", greedy())))`,
-	}
-	cp, err := plain.Compile()
+	cp, err := compileExpression(`path.match(literal("api/v4/projects", capture("project", greedy())))`)
 	require.NoError(t, err)
 	gotPlain, err := cp.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/mygroup%2Fmyproject/issues"}, Identity{})
 	require.NoError(t, err)
@@ -417,9 +423,9 @@ func TestEncodedSlashCapture(t *testing.T) {
 func TestDoubleEncodedSlashIsInvalid(t *testing.T) {
 	set, err := CompileRoles([]Role{{
 		Name: "developer",
-		Rules: []Rule{{
-			Pred: `path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`,
-		}},
+		Expressions: []string{
+			`path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`,
+		},
 	}})
 	require.NoError(t, err)
 	got, err := set.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/a%252Fb/issues"}, Identity{})
@@ -428,12 +434,38 @@ func TestDoubleEncodedSlashIsInvalid(t *testing.T) {
 	require.Equal(t, DenyInvalidRequest, got.Deny.Kind)
 }
 
-func TestCompileRejectsBothSurfaces(t *testing.T) {
-	_, err := Rule{
-		Paths: []string{"/api/**"},
-		Pred:  `path.match(greedy())`,
-	}.Compile()
-	require.Error(t, err)
+// TestResourcesAndExpressionsCoexist pins that a role may carry both
+// app_resources and app_resources_expression, the parallel of node_labels and
+// node_labels_expression. The two are an additive union: a request that matches
+// either field is allowed.
+func TestResourcesAndExpressionsCoexist(t *testing.T) {
+	set, err := CompileRoles([]Role{{
+		Name: "mixed",
+		Resources: []Rule{ruleFromYAML(t, `
+paths: ["/api/v4/user"]
+methods: [GET]
+`)},
+		Expressions: []string{
+			`path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`,
+		},
+	}})
+	require.NoError(t, err)
+
+	// The sugared rule grants the user endpoint.
+	got, err := set.Evaluate(Request{Method: "GET", Path: "/api/v4/user"}, Identity{})
+	require.NoError(t, err)
+	require.True(t, got.Allowed)
+
+	// The expression rule grants an encoded project id the sugar cannot express.
+	got, err = set.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/mygroup%2Fmyproject/issues"}, Identity{})
+	require.NoError(t, err)
+	require.True(t, got.Allowed)
+	require.Equal(t, "mygroup%2Fmyproject", got.Allow.Vars["project"])
+
+	// A path neither field grants is denied.
+	got, err = set.Evaluate(Request{Method: "GET", Path: "/api/v4/groups"}, Identity{})
+	require.NoError(t, err)
+	require.False(t, got.Allowed)
 }
 
 func TestCompileRejectsEmptyRule(t *testing.T) {

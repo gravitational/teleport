@@ -31,38 +31,45 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// update regenerates the generated sections (rules_desugared and each case's
-// expect) of every golden file in place. Run
+// update regenerates the generated sections (app_resources_desugared and each
+// case's expect) of every golden file in place. Run
 // "go test ./lib/srv/app/resourcematcher/ -run TestGolden -update" after
-// changing engine behaviour or adding a case, then review the diff.
+// changing engine behavior or adding a case, then review the diff.
 var update = flag.Bool("update", false, "regenerate golden testdata files")
 
 // A golden case is one YAML file under testdata/. The whole file is one
 // document so it loads natively in Go and in the web playground, with no custom
 // parser. Its keys:
 //
-//	description:     optional human note, shown in the playground.
-//	rules:           authored app_resources rules, sugared (paths/methods/
-//	                 where), with no surrounding role. Role selection and
-//	                 role-holding are a separate, upstream concern, so the
-//	                 engine golden tests carry only the rule set.
-//	rules_desugared: generated, the same rules lowered to bare pred form.
-//	identity:        optional default identity, overridable per case.
-//	cases:           a list of {request, identity?, expect}.
-//	error:           optional, the rules are expected to fail to compile.
+//	description:               optional human note, shown in the playground.
+//	app_resources:             authored sugared rules (paths/methods/where),
+//	                           with no surrounding role. Role selection and
+//	                           role-holding are a separate, upstream concern, so
+//	                           the engine golden tests carry only the rule set.
+//	app_resources_expression:  authored bare predicate strings, the parallel of
+//	                           node_labels_expression.
+//	app_resources_desugared:   generated, the app_resources rules lowered to
+//	                           bare predicate strings.
+//	identity:                  optional default identity, overridable per case.
+//	cases:                     a list of {request, identity?, expect}.
+//	error:                     optional, the rules are expected to fail to
+//	                           compile.
 //
-// The runner wraps the rules in one synthetic role, then asserts three things
-// per file: the sugared rules evaluate to the stored expect, the desugared
-// rules evaluate identically, and the stored rules_desugared equals the freshly
-// generated one. So one golden decision pins both authoring surfaces and the
-// lowering between them.
+// The runner wraps both rule lists in one synthetic role, then asserts: the
+// sugared rules evaluate to the stored expect, the lowered rules reach the same
+// allow decision, and the stored app_resources_desugared equals the freshly
+// generated lowering. So one golden decision pins both authoring surfaces and
+// the lowering between them. The deny code is a sugar-only audit feature with
+// no predicate form, so the lowered rules carry no deny hint; the lowered form
+// is therefore compared on its allow decision, not its deny hints.
 type goldenFile struct {
-	Description    string      `yaml:"description,omitempty"`
-	Rules          []Rule      `yaml:"rules"`
-	RulesDesugared []Rule      `yaml:"rules_desugared,omitempty"`
-	Identity       *tcIdentity `yaml:"identity,omitempty"`
-	Cases          []tcCase    `yaml:"cases,omitempty"`
-	Error          string      `yaml:"error,omitempty"`
+	Description      string      `yaml:"description,omitempty"`
+	AppResources     []Rule      `yaml:"app_resources,omitempty"`
+	AppResourcesExpr []string    `yaml:"app_resources_expression,omitempty"`
+	AppResourcesDesu []string    `yaml:"app_resources_desugared,omitempty"`
+	Identity         *tcIdentity `yaml:"identity,omitempty"`
+	Cases            []tcCase    `yaml:"cases,omitempty"`
+	Error            string      `yaml:"error,omitempty"`
 }
 
 // tcIdentity is the caller identity in golden form, every field omitempty so a
@@ -127,10 +134,11 @@ func runGolden(t *testing.T, file string) {
 	var g goldenFile
 	require.NoError(t, yaml.Unmarshal(raw, &g), "parsing %s", file)
 
-	// Wrap the rules in one synthetic role. The engine evaluates a role's rule
-	// set; which roles a caller holds is decided upstream, so the golden tests
-	// supply the rules directly.
-	roles := []Role{{Name: "test", Rules: g.Rules}}
+	// Wrap both rule lists in one synthetic role. The engine evaluates a role's
+	// rule set; which roles a caller holds is decided upstream, so the golden
+	// tests supply the rules directly.
+	role := Role{Name: "test", Resources: g.AppResources, Expressions: g.AppResourcesExpr}
+	roles := []Role{role}
 
 	// A file may assert that its rules do not compile.
 	if g.Error != "" {
@@ -143,11 +151,21 @@ func runGolden(t *testing.T, file string) {
 	sugared, err := CompileRoles(roles)
 	require.NoError(t, err, "compiling sugared rules")
 
-	desugaredRoles, err := DesugarRoles(roles)
-	require.NoError(t, err, "desugaring rules")
-	desugared, err := CompileRoles(desugaredRoles)
+	// Lower the sugared resources to bare predicates, then evaluate them ahead
+	// of the authored expression rules, preserving the resources-first order
+	// the sugared form uses. The expression rules are already predicates and
+	// pass through unchanged.
+	wantDesugared, err := DesugarResources(role)
+	require.NoError(t, err, "desugaring resources")
+	// An expression-only file has no sugared resources to lower, so it carries
+	// no app_resources_desugared block. Normalize the empty slice to nil so it
+	// compares equal to the absent field.
+	if len(wantDesugared) == 0 {
+		wantDesugared = nil
+	}
+	loweredExpr := append(append([]string{}, wantDesugared...), g.AppResourcesExpr...)
+	desugared, err := CompileRoles([]Role{{Name: "test", Expressions: loweredExpr}})
 	require.NoError(t, err, "compiling desugared rules")
-	wantDesugared := desugaredRoles[0].Rules
 
 	defaultIdentity := g.Identity.toIdentity()
 
@@ -157,9 +175,11 @@ func runGolden(t *testing.T, file string) {
 			identity = g.Cases[i].Identity.toIdentity()
 		}
 		// Evaluate the request twice: once against the sugared rules the author
-		// wrote, once against the desugared (bare predicate) rules. The golden
-		// expect must hold for both, which is what proves the declarative form
-		// and its lowering decide a request identically.
+		// wrote, once against the lowered (bare predicate) rules. The two must
+		// reach the same allow decision, which proves the declarative form and
+		// its lowering decide a request identically. The lowered form carries no
+		// deny code, a sugar-only feature, so the deny hints are compared only
+		// against the sugared form's stored expect.
 		fromSugared := evaluate(sugared, g.Cases[i].Request, identity)
 		fromDesugared := evaluate(desugared, g.Cases[i].Request, identity)
 		if *update {
@@ -167,34 +187,39 @@ func runGolden(t *testing.T, file string) {
 			continue
 		}
 		at := fmt.Sprintf("case %d %s %s", i, g.Cases[i].Request.Method, g.Cases[i].Request.Path)
-		// Two distinct failure modes, each with its own message. First, the
-		// declarative form and its lowering must decide the request the same
-		// way. Second, both must match the stored golden expect.
-		require.Equal(t, fromSugared, fromDesugared,
-			"%s: sugared and desugared forms decide differently", at)
+		require.Equal(t, allowView(fromSugared), allowView(fromDesugared),
+			"%s: sugared and lowered forms reach different allow decisions", at)
 		require.Equal(t, g.Cases[i].Expect, fromSugared,
-			"%s [sugared]: stored expect is stale; rerun with -update", at)
-		require.Equal(t, g.Cases[i].Expect, fromDesugared,
-			"%s [desugared]: stored expect is stale; rerun with -update", at)
+			"%s: stored expect is stale; rerun with -update", at)
 	}
 
 	if !*update {
-		require.Equal(t, wantDesugared, g.RulesDesugared,
-			"rules_desugared is stale; rerun with -update")
+		require.Equal(t, wantDesugared, g.AppResourcesDesu,
+			"app_resources_desugared is stale; rerun with -update")
 		return
 	}
 
 	require.NoError(t, rewriteGenerated(file, raw, wantDesugared, g.Cases))
 }
 
+// allowView returns a copy of e with the deny hints cleared, so the sugared and
+// lowered forms can be compared on their allow decision alone. The deny code is
+// a sugar-only audit feature that the lowered predicate form does not carry, so
+// the hints are expected to differ and are checked against the stored expect
+// instead.
+func allowView(e tcExpect) tcExpect {
+	e.DenyHints = nil
+	return e
+}
+
 // rewriteGenerated regenerates only the derived sections of a golden file, the
-// rules_desugared block and each case's expect, while leaving every authored
-// node, including its comments, byte-for-byte. It round-trips through a
+// app_resources_desugared block and each case's expect, while leaving every
+// authored node, including its comments, byte-for-byte. It round-trips through a
 // yaml.Node so a plain yaml.Marshal of the whole struct, which drops comments,
-// is never used. rules_desugared is placed right after rules, and each expect
-// right after its request, so a freshly authored file gains them in a readable
-// order.
-func rewriteGenerated(file string, raw []byte, desugared []Rule, cases []tcCase) error {
+// is never used. app_resources_desugared is placed right after app_resources,
+// and each expect right after its request, so a freshly authored file gains
+// them in a readable order.
+func rewriteGenerated(file string, raw []byte, desugared []string, cases []tcCase) error {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return err
@@ -203,11 +228,15 @@ func rewriteGenerated(file string, raw []byte, desugared []Rule, cases []tcCase)
 		return fmt.Errorf("%s: empty document", file)
 	}
 	root := doc.Content[0]
-	desugaredNode, err := encodeNode(desugared)
-	if err != nil {
-		return err
+	// A file with no sugared app_resources, only expression rules, has nothing
+	// to lower, so it carries no app_resources_desugared block.
+	if len(desugared) > 0 {
+		desugaredNode, err := encodeNode(desugared)
+		if err != nil {
+			return err
+		}
+		mapSetAfter(root, "app_resources", "app_resources_desugared", desugaredNode)
 	}
-	mapSetAfter(root, "rules", "rules_desugared", desugaredNode)
 	if casesNode := mapValue(root, "cases"); casesNode != nil {
 		for i, caseNode := range casesNode.Content {
 			if i >= len(cases) {

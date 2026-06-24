@@ -1,15 +1,8 @@
 description: 'greedy_except: add greedy() to exclude the whole subtree'
-rules:
-    - where: |-
-        path.match(literal("files",
-            greedy_except(literal("secret", greedy()))))
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("files",
-            greedy_except(
-              literal("secret",
-                greedy()))))
+app_resources_expression:
+    - |-
+      path.match(literal("files",
+          greedy_except(literal("secret", greedy()))))
 identity:
     name: bob
     roles:

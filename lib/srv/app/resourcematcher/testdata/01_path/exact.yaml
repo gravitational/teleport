@@ -1,11 +1,11 @@
 description: exact
-rules:
+app_resources:
     - paths:
         - /api/v4/health
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("api/v4/health"))
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("api/v4/health"))
 identity:
     name: bob
     roles:

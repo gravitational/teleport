@@ -65,7 +65,7 @@ func TestEmptyLiteralRejected(t *testing.T) {
 	}
 	for _, tt := range predTests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Rule{Pred: tt.pred}.Compile()
+			_, err := compileExpression(tt.pred)
 			require.Error(t, err)
 		})
 	}

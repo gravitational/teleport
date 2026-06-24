@@ -1,13 +1,8 @@
 description: 'greedy_without: exclude subtrees (string sugar)'
-rules:
-    - where: |-
-        path.match(literal("files",
-            greedy_without("secret", "private")))
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("files",
-            greedy_without("secret", "private")))
+app_resources_expression:
+    - |-
+      path.match(literal("files",
+          greedy_without("secret", "private")))
 identity:
     name: bob
     roles:

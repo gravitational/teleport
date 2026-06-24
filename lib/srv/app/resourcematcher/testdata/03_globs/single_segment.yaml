@@ -1,13 +1,13 @@
 description: single segment *
-rules:
+app_resources:
     - paths:
         - /api/*/health
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("api",
-            glob(
-              literal("health"))))
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("api",
+          glob(
+            literal("health"))))
 identity:
     name: bob
     roles:

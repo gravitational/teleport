@@ -1,17 +1,9 @@
 description: 'root: a path under no root is denied'
-rules:
-    - where: |-
-        path.match(root(
-            literal("api", greedy()),
-            literal("admin", greedy())))
-rules_desugared:
-    - pred: |-
-        path.match(
-          root(
-            literal("api",
-              greedy()),
-            literal("admin",
-              greedy())))
+app_resources_expression:
+    - |-
+      path.match(root(
+          literal("api", greedy()),
+          literal("admin", greedy())))
 identity:
     name: bob
     roles:

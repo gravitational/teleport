@@ -1,13 +1,8 @@
 description: 'greedy_without: the carved subtree is denied'
-rules:
-    - where: |-
-        path.match(literal("files",
-            greedy_without("secret", "private")))
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("files",
-            greedy_without("secret", "private")))
+app_resources_expression:
+    - |-
+      path.match(literal("files",
+          greedy_without("secret", "private")))
 identity:
     name: bob
     roles:

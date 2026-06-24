@@ -1,14 +1,14 @@
 description: multiple exact
-rules:
+app_resources:
     - paths:
         - /api/v4/health
         - /api/v4/status
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("api/v4",
-            literal("health"),
-            literal("status")))
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("api/v4",
+          literal("health"),
+          literal("status")))
 identity:
     name: bob
     roles:

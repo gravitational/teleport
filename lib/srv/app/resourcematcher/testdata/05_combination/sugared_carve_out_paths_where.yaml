@@ -1,22 +1,14 @@
-description: sugared carve-out (paths + where)
-rules:
+description: carve-out (paths grant, negated subtree)
+app_resources_expression:
     # Allow all of /files, then carve out the
     # /files/secret subtree with a negated
-    # path.match in where. paths set the
-    # territory, where removes a slice.
-    - paths:
-        - /files/**
-      where: |-
-        !path.match(literal("files",
-            literal("secret", greedy())))
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("files",
-            greedy())) &&
-        !path.match(
-          literal("files/secret",
-            greedy()))
+    # path.match. The grant and the carve-out
+    # share one expression, since path matching
+    # never lives in a sugared where.
+    - |-
+      path.match(literal("files", greedy())) &&
+      !path.match(literal("files",
+          literal("secret", greedy())))
 identity:
     name: bob
     roles:

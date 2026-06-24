@@ -31,6 +31,7 @@ func TestCaptureLoadCheck(t *testing.T) {
 	tests := []struct {
 		name    string
 		yaml    string
+		expr    string
 		wantErr bool
 	}{
 		{
@@ -82,20 +83,14 @@ where: vars.project == user.name
 `,
 		},
 		{
-			name: "predicate: reads a bound capture",
-			yaml: `
-pred: |
-  path.match(literal("api", capture("project", greedy()))) &&
-  contains(user.traits["allowed_projects"], vars.project)
-`,
+			name: "expression: reads a bound capture",
+			expr: `path.match(literal("api", capture("project", greedy()))) &&
+				contains(user.traits["allowed_projects"], vars.project)`,
 		},
 		{
-			name: "predicate: reads an unbound capture",
-			yaml: `
-pred: |
-  path.match(literal("api", capture("project", greedy()))) &&
-  vars.repo == user.name
-`,
+			name: "expression: reads an unbound capture",
+			expr: `path.match(literal("api", capture("project", greedy()))) &&
+				vars.repo == user.name`,
 			wantErr: true,
 		},
 		{
@@ -108,7 +103,12 @@ methods: [GET]
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ruleFromYAML(t, tt.yaml).Compile()
+			var err error
+			if tt.expr != "" {
+				_, err = compileExpression(tt.expr)
+			} else {
+				_, err = ruleFromYAML(t, tt.yaml).Compile()
+			}
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -128,12 +128,8 @@ methods: [GET]
 func TestUnboundCaptureFailsClosed(t *testing.T) {
 	// The read precedes the match. && evaluates the left side first, so
 	// vars.project is read before path.match binds it.
-	rule := ruleFromYAML(t, `
-pred: |
-  vars.project != "forbidden" &&
-  path.match(literal("api", capture("project", greedy())))
-`)
-	compiled, err := rule.Compile()
+	compiled, err := compileExpression(`vars.project != "forbidden" &&
+		path.match(literal("api", capture("project", greedy())))`)
 	require.NoError(t, err)
 
 	got, err := compiled.Evaluate(Request{Method: "GET", Path: "/api/allowed"}, Identity{})

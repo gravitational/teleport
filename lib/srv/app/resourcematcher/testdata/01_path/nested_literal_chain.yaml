@@ -1,20 +1,16 @@
 description: nested literal chain
-rules:
+app_resources_expression:
     # literal() splits its text on "/".
     # This nested chain is the same matcher
     # as literal("api/v4/buildinfo").
-    - where: |-
-        path.match(
+    - |-
+      path.match(
+        literal(
+          "api",
           literal(
-            "api",
+            "v4",
             literal(
-              "v4",
-              literal(
-                "buildinfo"))))
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("api/v4/buildinfo"))
+              "buildinfo"))))
 identity:
     name: bob
     roles:

@@ -1,44 +1,27 @@
 description: deny hints across rules, only some fire
-rules:
+app_resources:
     - paths:
         - /api/v4/projects/{project}/**
       where: contains(user.traits["allowed_projects"], vars.project)
-      deny_hint:
-        - deny_code: denied_project
-          deny_reason: Not allowed on this project
+      deny_code: denied_project
+      deny_reason: Not allowed on this project
     - paths:
         - /api/v4/admin/**
       where: contains(user.roles, "admin")
-      deny_hint:
-        - deny_code: denied_admin
-          deny_reason: Admin role required
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("api/v4/projects",
-            capture("project",
-              greedy()))) &&
-        contains(user.traits["allowed_projects"], vars.project)
-      deny_hint:
-        - "on": |-
-            path.match(
-              literal("api/v4/projects",
-                capture("project",
-                  greedy())))
-          deny_code: denied_project
-          deny_reason: Not allowed on this project
-    - pred: |-
-        path.match(
-          literal("api/v4/admin",
-            greedy())) &&
-        contains(user.roles, "admin")
-      deny_hint:
-        - "on": |-
-            path.match(
-              literal("api/v4/admin",
-                greedy()))
-          deny_code: denied_admin
-          deny_reason: Admin role required
+      deny_code: denied_admin
+      deny_reason: Admin role required
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("api/v4/projects",
+          capture("project",
+            greedy()))) &&
+      contains(user.traits["allowed_projects"], vars.project)
+    - |-
+      path.match(
+        literal("api/v4/admin",
+          greedy())) &&
+      contains(user.roles, "admin")
 identity:
     name: bob
     roles:

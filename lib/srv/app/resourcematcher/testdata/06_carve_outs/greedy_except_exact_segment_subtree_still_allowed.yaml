@@ -1,14 +1,8 @@
 description: 'greedy_except: exact segment, subtree still allowed'
-rules:
-    - where: |-
-        path.match(literal("files",
-            greedy_except(literal("secret"))))
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("files",
-            greedy_except(
-              literal("secret"))))
+app_resources_expression:
+    - |-
+      path.match(literal("files",
+          greedy_except(literal("secret"))))
 identity:
     name: bob
     roles:

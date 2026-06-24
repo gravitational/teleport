@@ -77,7 +77,7 @@ func TestEncodedCharsRejectedAtLoad(t *testing.T) {
 	}
 	for _, p := range bad {
 		t.Run("bad/"+p, func(t *testing.T) {
-			_, err := Rule{Pred: p}.Compile()
+			_, err := compileExpression(p)
 			require.Error(t, err, "expected a load error for %q", p)
 		})
 	}
@@ -88,7 +88,7 @@ func TestEncodedCharsRejectedAtLoad(t *testing.T) {
 	}
 	for _, p := range good {
 		t.Run("good/"+p, func(t *testing.T) {
-			_, err := Rule{Pred: p}.Compile()
+			_, err := compileExpression(p)
 			require.NoError(t, err)
 		})
 	}
@@ -132,7 +132,7 @@ func TestEncodedCharsEndToEnd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			set, err := CompileRoles([]Role{{Name: "r", Rules: []Rule{{Pred: tt.pred}}}})
+			set, err := CompileRoles([]Role{{Name: "r", Expressions: []string{tt.pred}}})
 			require.NoError(t, err)
 			got, err := set.Evaluate(Request{Method: "GET", Path: tt.path}, Identity{})
 			require.NoError(t, err)
@@ -216,7 +216,7 @@ func TestEncodedLiteralEndToEnd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			set, err := CompileRoles([]Role{{Name: "r", Rules: []Rule{{Pred: tt.pred}}}})
+			set, err := CompileRoles([]Role{{Name: "r", Expressions: []string{tt.pred}}})
 			require.NoError(t, err)
 			got, err := set.Evaluate(Request{Method: "GET", Path: tt.path}, Identity{})
 			require.NoError(t, err)
@@ -238,7 +238,7 @@ func TestEncodedLiteralEndToEnd(t *testing.T) {
 func TestByteFidelityNeverReEncode(t *testing.T) {
 	// A plain capture binds the raw segment, with every legal pchar punctuation
 	// kept exactly as sent.
-	plain, err := Rule{Pred: `path.match(literal("p", capture("x")))`}.Compile()
+	plain, err := compileExpression(`path.match(literal("p", capture("x")))`)
 	require.NoError(t, err)
 	got, err := plain.Evaluate(Request{Method: "GET", Path: "/p/a~b@c:d-e._f~"}, Identity{})
 	require.NoError(t, err)
@@ -247,7 +247,7 @@ func TestByteFidelityNeverReEncode(t *testing.T) {
 
 	// capture_encoded keeps the same chars raw alongside the encoded separator,
 	// so the "~" and "@" are never re-encoded even on the encoded-slash path.
-	enc, err := Rule{Pred: `path.match(literal("p", capture_encoded("x", set("/"))), allow_encoded(set("/")))`}.Compile()
+	enc, err := compileExpression(`path.match(literal("p", capture_encoded("x", set("/"))), allow_encoded(set("/")))`)
 	require.NoError(t, err)
 	got, err = enc.Evaluate(Request{Method: "GET", Path: "/p/a~b@c%2Fd:e"}, Identity{})
 	require.NoError(t, err)
@@ -257,9 +257,9 @@ func TestByteFidelityNeverReEncode(t *testing.T) {
 	// The encoded form of a non-separator char is rejected at tokenize, so it can
 	// never be matched or forwarded. This is why a "~" never needs re-encoding:
 	// an encoded "~" simply does not get in.
-	set, err := CompileRoles([]Role{{Name: "r", Rules: []Rule{{
-		Pred: `path.match(literal("p", glob_encoded(set("/"))), allow_encoded(set("/")))`,
-	}}}})
+	set, err := CompileRoles([]Role{{Name: "r", Expressions: []string{
+		`path.match(literal("p", glob_encoded(set("/"))), allow_encoded(set("/")))`,
+	}}})
 	require.NoError(t, err)
 	for _, escape := range []string{"%7E", "%7e", "%40", "%3A", "%2E"} {
 		got, err := set.Evaluate(Request{Method: "GET", Path: "/p/a" + escape + "b"}, Identity{})

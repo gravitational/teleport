@@ -1,17 +1,9 @@
 description: 'root: several first segments in one tree'
-rules:
-    - where: |-
-        path.match(root(
-            literal("api", greedy()),
-            literal("admin", greedy())))
-rules_desugared:
-    - pred: |-
-        path.match(
-          root(
-            literal("api",
-              greedy()),
-            literal("admin",
-              greedy())))
+app_resources_expression:
+    - |-
+      path.match(root(
+          literal("api", greedy()),
+          literal("admin", greedy())))
 identity:
     name: bob
     roles:

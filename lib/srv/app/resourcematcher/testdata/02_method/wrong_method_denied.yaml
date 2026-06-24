@@ -1,16 +1,16 @@
 description: wrong method denied
-rules:
+app_resources:
     - paths:
         - /api/**
       methods:
         - GET
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("api",
-            greedy())) &&
-        contains(
-          set("GET"), request.method)
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("api",
+          greedy())) &&
+      contains(
+        set("GET"), request.method)
 identity:
     name: bob
     roles:

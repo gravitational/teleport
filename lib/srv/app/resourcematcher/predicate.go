@@ -150,6 +150,14 @@ type evalState struct {
 	// path.match fail closed on an encoded segment instead of inverting the miss
 	// into an allow.
 	encodedNotAllowed bool
+	// allowCode and allowReason hold the audit code and reason a set_allow_code
+	// call recorded. They are read only when the predicate evaluates to true, and
+	// validateAllowCodePlacement requires every set_allow_code to sit in tail
+	// position, so the call runs only on the path that makes the predicate true
+	// and the committed code is the one the matching path set. When several
+	// set_allow_code calls run, the last one wins.
+	allowCode   string
+	allowReason string
 }
 
 // predicate is a parsed, type-checked app-access predicate ready to evaluate.
@@ -231,6 +239,30 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 					return Option{}, trace.Wrap(err)
 				}
 				return Option{allowEncoded: allowed}, nil
+			}),
+			// set_allow_code records the structured audit code, and an optional
+			// human reason, emitted on the allow event when this rule matches. It
+			// is a side-effecting boolean like path.match: it writes the code into
+			// the environment and returns true, so it composes with && at the tail
+			// of a predicate, as in path.match(...) && set_allow_code("my_code").
+			// The code is read only when the whole predicate evaluates to true, and
+			// validateAllowCodePlacement requires the call to sit in tail position,
+			// so it runs only on the matching path and the committed code cannot be
+			// one a later || branch rescued. When several calls run the last one
+			// wins. The sugared allow_code and allow_reason fields lower to this
+			// call, so both authoring surfaces share one representation.
+			"set_allow_code": typical.BinaryVariadicFunctionWithEnv(func(e env, code string, reason ...string) (bool, error) {
+				if err := validateCode(code); err != nil {
+					return false, trace.Wrap(err)
+				}
+				if len(reason) > 1 {
+					return false, trace.BadParameter("set_allow_code takes a code and at most one reason, got %d reasons", len(reason))
+				}
+				e.state.allowCode = code
+				if len(reason) == 1 {
+					e.state.allowReason = reason[0]
+				}
+				return true, nil
 			}),
 			// Matcher constructors. Each returns one Node, so they nest and
 			// type-check at parse time: every child argument must itself

@@ -30,8 +30,7 @@ import (
 // boolean would have been true. A readable non-matching path still negates
 // normally, and a readable matching path is still excluded.
 func TestNegatedPathMatchFailsClosed(t *testing.T) {
-	rule := Rule{Pred: `!path.match(literal("admin", greedy()))`}
-	compiled, err := rule.Compile()
+	compiled, err := compileExpression(`!path.match(literal("admin", greedy()))`)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -73,8 +72,7 @@ func TestNegatedPathMatchFailsClosed(t *testing.T) {
 // never tokenizes the path, so an otherwise unreadable path does not block an
 // identity-only rule from matching.
 func TestNoPathMatchSkipsTokenize(t *testing.T) {
-	rule := Rule{Pred: `contains(user.roles, "admin")`}
-	compiled, err := rule.Compile()
+	compiled, err := compileExpression(`contains(user.roles, "admin")`)
 	require.NoError(t, err)
 
 	// The path would fail to tokenize under the strict default decode, but the

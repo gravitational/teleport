@@ -1,14 +1,8 @@
 description: 'glob_without: one segment only, deeper is denied'
-rules:
-    - where: |-
-        path.match(literal("files",
-            glob_without(set("private", "secret"))))
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("files",
-            glob_without(
-              set("private", "secret"))))
+app_resources_expression:
+    - |-
+      path.match(literal("files",
+          glob_without(set("private", "secret"))))
 identity:
     name: bob
     roles:

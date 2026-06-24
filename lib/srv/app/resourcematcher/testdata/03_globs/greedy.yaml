@@ -1,12 +1,12 @@
 description: greedy **
-rules:
+app_resources:
     - paths:
         - /api/v4/**
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("api/v4",
-            greedy()))
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("api/v4",
+          greedy()))
 identity:
     name: bob
     roles:

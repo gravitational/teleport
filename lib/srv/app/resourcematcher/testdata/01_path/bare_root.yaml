@@ -1,13 +1,13 @@
 description: bare root
-rules:
+app_resources:
     # The bare root matches only the
     # request "/".
     - paths:
         - /
-rules_desugared:
-    - pred: |-
-        path.match(
-          slash())
+app_resources_desugared:
+    - |-
+      path.match(
+        slash())
 identity:
     name: bob
     roles:

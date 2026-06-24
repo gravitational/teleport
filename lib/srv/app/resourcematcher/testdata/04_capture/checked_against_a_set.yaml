@@ -1,17 +1,17 @@
 description: checked against a set
-rules:
+app_resources:
     - paths:
         - /data/*/{letter}/**
       where: contains(set("a", "b", "c"), vars.letter)
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("data",
-            glob(
-              capture("letter",
-                greedy())))) &&
-        contains(
-          set("a", "b", "c"), vars.letter)
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("data",
+          glob(
+            capture("letter",
+              greedy())))) &&
+      contains(
+        set("a", "b", "c"), vars.letter)
 identity:
     name: bob
     roles:

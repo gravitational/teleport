@@ -1,14 +1,8 @@
 description: 'optional: match with or without a trailing slash'
-rules:
-    - where: |-
-        path.match(literal("files",
-            optional(slash())))
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("files",
-            optional(
-              slash())))
+app_resources_expression:
+    - |-
+      path.match(literal("files",
+          optional(slash())))
 identity:
     name: bob
     roles:

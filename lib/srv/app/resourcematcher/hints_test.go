@@ -64,130 +64,140 @@ allow_code: `+strconv.Quote(code)+`
 	}
 }
 
-// TestDenyHintDefaultOn pins the default-on rule: with no on, a hint fires on a
-// deny exactly when the path and method matched but where failed.
-func TestDenyHintDefaultOn(t *testing.T) {
+// TestDenyCodeNearMiss pins the collapsed deny code: the scalar deny_code and
+// deny_reason fire on a deny exactly when the path and method matched but where
+// failed, the near-miss territory.
+func TestDenyCodeNearMiss(t *testing.T) {
 	rule, err := ruleFromYAML(t, `
 paths: ["/api/v4/projects/{project}/**"]
 methods: [GET]
 where: contains(user.traits["allowed_projects"], vars.project)
 allow_code: project_read
-deny_hint:
-  - deny_code: not_in_allowlist
-    deny_reason: "Project is not in your allowlist."
+deny_code: not_in_allowlist
+deny_reason: "Project is not in your allowlist."
 `).Compile()
 	require.NoError(t, err)
 
 	allowed := Identity{Traits: map[string][]string{"allowed_projects": {"ok"}}}
 
-	// Allow: path, method, and where all hold. The hint does not fire.
+	// Allow: path, method, and where all hold. The deny code does not fire.
 	got, err := rule.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/ok/issues"}, allowed)
 	require.NoError(t, err)
 	require.True(t, got.Allowed)
 	require.Equal(t, "project_read", got.Allow.Code)
 	require.Nil(t, got.Deny)
 
-	// Near miss: path and method match, where fails. The default-on hint fires.
+	// Near miss: path and method match, where fails. The deny code fires.
 	got, err = rule.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/secret/issues"}, allowed)
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
 	require.Equal(t, []Hint{{Code: "not_in_allowlist", Reason: "Project is not in your allowlist."}}, got.Deny.Hints)
 
-	// Method miss: the path matches but the method does not, so the default-on
-	// hint, which requires both, does not fire.
+	// Method miss: the path matches but the method does not, so the near-miss
+	// territory, which requires both, does not fire.
 	got, err = rule.Evaluate(Request{Method: "POST", Path: "/api/v4/projects/secret/issues"}, allowed)
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
 	require.Empty(t, got.Deny.Hints)
 
-	// Path miss: outside the rule's territory entirely. No hint.
+	// Path miss: outside the rule's territory entirely. No deny code.
 	got, err = rule.Evaluate(Request{Method: "GET", Path: "/api/v4/groups/secret"}, allowed)
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
 	require.Empty(t, got.Deny.Hints)
 }
 
-// TestDenyHintSugaredEqualsDesugared pins that the declarative default-on hint
-// and its explicit desugared equivalent fire identically. The desugared form
-// must spell out on as the path and method clauses, because a predicate-form
-// rule has no separate path and method to default from.
-func TestDenyHintSugaredEqualsDesugared(t *testing.T) {
-	sugared, err := ruleFromYAML(t, `
-paths: ["/api/v4/projects/{project}/**"]
-methods: [GET]
-where: contains(user.traits["allowed_projects"], vars.project)
-deny_hint:
-  - deny_code: not_in_allowlist
-    deny_reason: "Project is not in your allowlist."
+// TestDenyCodeWhereOnly pins that a where-only rule, with no path or method to
+// scope the near-miss, fires its deny code on any deny in the rule's scope.
+func TestDenyCodeWhereOnly(t *testing.T) {
+	rule, err := ruleFromYAML(t, `
+where: contains(user.roles, "admin")
+deny_code: needs_admin
+deny_reason: "You need the admin role."
 `).Compile()
 	require.NoError(t, err)
 
-	desugared, err := ruleFromYAML(t, `
-pred: |
-  path.match(literal("api/v4/projects", capture("project", greedy()))) &&
-  contains(set("GET"), request.method) &&
-  contains(user.traits["allowed_projects"], vars.project)
-deny_hint:
-  - on: |
-      path.match(literal("api/v4/projects", capture("project", greedy()))) &&
-      contains(set("GET"), request.method)
-    deny_code: not_in_allowlist
-    deny_reason: "Project is not in your allowlist."
-`).Compile()
+	// The identity qualifies: allow, no deny code.
+	got, err := rule.Evaluate(Request{Method: "GET", Path: "/anything"}, Identity{Roles: []string{"admin"}})
 	require.NoError(t, err)
+	require.True(t, got.Allowed)
 
-	id := Identity{Traits: map[string][]string{"allowed_projects": {"ok"}}}
-	for _, req := range []Request{
-		{Method: "GET", Path: "/api/v4/projects/ok/issues"},     // allow
-		{Method: "GET", Path: "/api/v4/projects/secret/issues"}, // near miss, hint fires
-		{Method: "POST", Path: "/api/v4/projects/secret/x"},     // method miss, no hint
-		{Method: "GET", Path: "/api/v4/groups/x"},               // path miss, no hint
-	} {
-		gotS, err := sugared.Evaluate(req, id)
-		require.NoError(t, err)
-		gotD, err := desugared.Evaluate(req, id)
-		require.NoError(t, err)
-		require.Equal(t, gotS.Allowed, gotD.Allowed, "%s %s", req.Method, req.Path)
-		require.Equal(t, gotS.Deny, gotD.Deny, "%s %s", req.Method, req.Path)
-	}
+	// The identity does not qualify: the deny code fires, with no path or method
+	// to scope it.
+	got, err = rule.Evaluate(Request{Method: "GET", Path: "/anything"}, Identity{Roles: []string{"viewer"}})
+	require.NoError(t, err)
+	require.False(t, got.Allowed)
+	require.Equal(t, []Hint{{Code: "needs_admin", Reason: "You need the admin role."}}, got.Deny.Hints)
 }
 
-// TestDenyHintRequiresOnInPredicateForm pins that a predicate-form rule cannot
-// default the hint territory and must set on explicitly.
-func TestDenyHintRequiresOnInPredicateForm(t *testing.T) {
+// TestDenyReasonWithoutCodeRejected pins that a deny_reason with no deny_code is
+// a load error: the reason has no code to ride on.
+func TestDenyReasonWithoutCodeRejected(t *testing.T) {
 	_, err := ruleFromYAML(t, `
-pred: path.match(literal("api", greedy()))
-deny_hint:
-  - deny_code: nope
-    deny_reason: "no on, no territory"
+paths: ["/api/health"]
+deny_reason: "orphan reason"
 `).Compile()
 	require.Error(t, err)
 }
 
-// TestDenyHintExplicitOn pins that an explicit on fires the hint when, and only
-// when, the on predicate holds on a deny. Several matching hints all fire.
-func TestDenyHintExplicitOn(t *testing.T) {
-	rule, err := ruleFromYAML(t, `
-paths: ["/api/v4/projects/{project}/**"]
-methods: [GET, POST]
-where: contains(user.traits["allowed_projects"], vars.project)
-deny_hint:
-  - on: contains(set("POST"), request.method)
-    deny_code: writes_need_review
-    deny_reason: "Writes require a review."
-  - on: path.match(literal("api/v4/projects", capture("project", greedy())))
-    deny_code: project_scope
-    deny_reason: "Check the project scope."
-`).Compile()
+// TestSetAllowCodeInExpression pins that an expression rule carries its allow
+// code through a set_allow_code call, the primitive the sugared allow_code field
+// lowers to, and that an expression rule has no deny mechanism.
+func TestSetAllowCodeInExpression(t *testing.T) {
+	rule, err := compileExpression(
+		`path.match(literal("api/v4/user")) && set_allow_code("self_read", "Read your own user.")`)
 	require.NoError(t, err)
 
-	// A POST to an in-territory path that fails where fires both hints: the
-	// method-specific one and the path-territory one.
-	got, err := rule.Evaluate(Request{Method: "POST", Path: "/api/v4/projects/secret/x"}, Identity{})
+	got, err := rule.Evaluate(Request{Method: "GET", Path: "/api/v4/user"}, Identity{})
+	require.NoError(t, err)
+	require.True(t, got.Allowed)
+	require.Equal(t, "self_read", got.Allow.Code)
+	require.Equal(t, "Read your own user.", got.Allow.Reason)
+
+	// A deny from an expression rule carries no hint: the deny code is sugar-only.
+	got, err = rule.Evaluate(Request{Method: "GET", Path: "/api/v4/groups"}, Identity{})
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
-	require.Equal(t, []Hint{
-		{Code: "writes_need_review", Reason: "Writes require a review."},
-		{Code: "project_scope", Reason: "Check the project scope."},
-	}, got.Deny.Hints)
+	require.Empty(t, got.Deny.Hints)
+}
+
+// TestSetAllowCodeMustBeTail pins the placement check. A set_allow_code that is
+// not the last term of its && chain is rejected at load, because a code
+// committed before a later term could leak into an allow that a different ||
+// branch granted. The fix is to put set_allow_code at the tail.
+func TestSetAllowCodeMustBeTail(t *testing.T) {
+	// set_allow_code sits before a trailing && term, so it could run on a branch
+	// that is not the one granting the allow. Rejected at load.
+	_, err := compileExpression(
+		`path.match(literal("api/v4/user")) && set_allow_code("self_read") && contains(user.roles, "admin")`)
+	require.Error(t, err)
+
+	// The leak the check prevents: set_allow_code on a false && branch that a
+	// later || branch rescues. Rejected at load rather than leaking "leaked".
+	_, err = compileExpression(
+		`(set_allow_code("leaked") && path.match(literal("never"))) || path.match(literal("api/v4/user"))`)
+	require.Error(t, err)
+
+	// A negated set_allow_code is never tail-safe.
+	_, err = compileExpression(`!set_allow_code("neg") || path.match(literal("api/v4/user"))`)
+	require.Error(t, err)
+}
+
+// TestSetAllowCodeBranchSpecific pins the expressiveness a per-rule field
+// cannot reach: the code depends on which alternative matched.
+func TestSetAllowCodeBranchSpecific(t *testing.T) {
+	rule, err := compileExpression(
+		`(path.match(literal("api/v4/user")) && set_allow_code("user_read")) || ` +
+			`(path.match(literal("api/v4/version")) && set_allow_code("version_read"))`)
+	require.NoError(t, err)
+
+	got, err := rule.Evaluate(Request{Method: "GET", Path: "/api/v4/user"}, Identity{})
+	require.NoError(t, err)
+	require.True(t, got.Allowed)
+	require.Equal(t, "user_read", got.Allow.Code)
+
+	got, err = rule.Evaluate(Request{Method: "GET", Path: "/api/v4/version"}, Identity{})
+	require.NoError(t, err)
+	require.True(t, got.Allowed)
+	require.Equal(t, "version_read", got.Allow.Code)
 }

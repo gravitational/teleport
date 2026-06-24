@@ -76,10 +76,7 @@ func TestRootConstructorEmpty(t *testing.T) {
 // TestRootSingleMatchRule pins the design goal: several first segments fold into
 // one path.match through root(), instead of an || of separate matches.
 func TestRootSingleMatchRule(t *testing.T) {
-	rule := Rule{
-		Pred: `path.match(root(literal("api", greedy()), literal("admin", greedy())))`,
-	}
-	compiled, err := rule.Compile()
+	compiled, err := compileExpression(`path.match(root(literal("api", greedy()), literal("admin", greedy())))`)
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -115,7 +112,7 @@ func TestRootRejectsNesting(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Rule{Pred: tt.pred}.Compile()
+			_, err := compileExpression(tt.pred)
 			require.Error(t, err)
 		})
 	}
@@ -124,9 +121,7 @@ func TestRootRejectsNesting(t *testing.T) {
 // TestRootAtTopCompiles pins that a well-placed root, as the matcher argument of
 // path.match, compiles.
 func TestRootAtTopCompiles(t *testing.T) {
-	_, err := Rule{
-		Pred: `path.match(root(literal("api", greedy()), literal("admin", greedy())))`,
-	}.Compile()
+	_, err := compileExpression(`path.match(root(literal("api", greedy()), literal("admin", greedy())))`)
 	require.NoError(t, err)
 }
 

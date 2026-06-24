@@ -26,18 +26,20 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Rule is one app_resources entry. It has two authoring surfaces, and a rule
-// uses one of them, never both:
+// Rule is one app_resources entry, the sugared declarative authoring surface.
+// It reads compactly for the common HTTP case and lowers to one predicate:
+// Paths matches the request path, Methods the request method, and Where the
+// caller identity and request. Where holds identity and request conditions
+// only and may not call path.match, so all path matching flows through Paths;
+// a full predicate that needs the matcher language directly is the separate
+// app_resources_expression field, a list of predicate strings.
 //
-//   - The declarative form: Paths, Methods, and Where, which read compactly
-//     for the common HTTP case and desugar to one predicate.
-//   - The predicate form: a single Pred holding one true/false predicate. This
-//     is the foundation; the declarative form compiles to it.
-//
-// Both surfaces compile to one internal predicate and evaluate through one
-// engine, so the declarative form is sugar over the predicate form rather than
-// a parallel mechanism. AllowCode and DenyHints are metadata that attach to
-// either surface.
+// AllowCode and AllowReason lower to a set_allow_code call appended to the
+// predicate, so the sugared field and the expression primitive share one
+// representation. DenyCode and DenyReason are a sugar-only audit feature: they
+// explain a near-miss, when the rule's path and method matched but it did not
+// allow, and have no expression form, so they do not appear in the desugared
+// predicate.
 type Rule struct {
 	// Paths are declarative path patterns, OR-ed. A request matches the rule's
 	// path territory if any pattern matches. Omit to match any path.
@@ -46,36 +48,19 @@ type Rule struct {
 	// method.
 	Methods []string `yaml:"methods,omitempty"`
 	// Where is a condition over the caller identity, the request, and this
-	// rule's captures. It does not match paths.
+	// rule's captures. It does not match paths and may not call path.match.
 	Where string `yaml:"where,omitempty"`
-	// Pred is the bare predicate form. It is mutually exclusive with the
-	// declarative path, method, and where fields.
-	Pred string `yaml:"pred,omitempty"`
 	// AllowCode is the structured code emitted on the allow audit event when
-	// this rule matches. Without it, an allow emits no event.
+	// this rule matches. Without it, an allow emits no code.
 	AllowCode string `yaml:"allow_code,omitempty"`
 	// AllowReason is the human-readable explanation emitted alongside
 	// AllowCode on an allow.
 	AllowReason string `yaml:"allow_reason,omitempty"`
-	// DenyHints explain a deny. On a deny, every hint whose On predicate
-	// matches contributes its DenyCode and DenyReason to the decision.
-	DenyHints []DenyHint `yaml:"deny_hint,omitempty"`
-}
-
-// DenyHint is one near-miss explanation. On a deny, the hint fires when its On
-// predicate is true. On is the territory the hint speaks for: when omitted in
-// the declarative form it defaults to "the rule's path and method matched", so
-// the hint fires exactly when the path and method matched but where failed. In
-// the predicate form there is no separate path and method to default from, so
-// On is required.
-type DenyHint struct {
-	// On is the predicate that decides whether the hint fires on a deny. Omit
-	// in the declarative form to default to the rule's path and method
-	// clauses.
-	On string `yaml:"on,omitempty"`
 	// DenyCode is the structured code emitted on the deny audit event when the
-	// hint fires.
-	DenyCode string `yaml:"deny_code"`
+	// rule's path and method matched but the rule did not allow. A where-only
+	// rule, with no path or method to scope the near-miss, emits it on any deny
+	// in the rule's scope.
+	DenyCode string `yaml:"deny_code,omitempty"`
 	// DenyReason is the human-readable explanation emitted alongside DenyCode.
 	DenyReason string `yaml:"deny_reason,omitempty"`
 }
@@ -145,43 +130,85 @@ type Hint struct {
 	Reason string
 }
 
-// CompiledRule is a parsed, ready-to-evaluate rule.
+// CompiledRule is a parsed, ready-to-evaluate rule, built from a sugared Rule
+// or from an app_resources_expression predicate string. The allow code and
+// reason ride in the predicate as a set_allow_code call, read off the
+// evaluation state on a match, so they are not fields here.
 type CompiledRule struct {
-	pred        predicate
-	allowCode   string
-	allowReason string
-	denyHints   []compiledHint
-}
-
-// compiledHint is a parsed deny hint.
-type compiledHint struct {
-	on         predicate
+	pred predicate
+	// denyOn is the near-miss territory: the rule's path and method clauses. On
+	// a deny the rule contributes its deny code when denyOn matches the request.
+	// It is nil when the rule sets no deny code, when denyAlways fires the code
+	// unconditionally, and for every expression rule, which carries no deny
+	// mechanism.
+	denyOn predicate
+	// denyAlways fires the deny code on every deny in the rule's scope. It is
+	// set for a where-only sugared rule, which has no path or method clause to
+	// scope the near-miss.
+	denyAlways bool
 	denyCode   string
 	denyReason string
 }
 
-// Compile validates a rule and compiles its authoring surface to one internal
-// predicate. Setting both Pred and any declarative path, method, or where
-// field, or setting none of them, is a load error: a rule must constrain
-// something through exactly one surface.
+// Compile validates a sugared rule and lowers it to one internal predicate. A
+// rule must constrain something through at least one of paths, methods, or
+// where; setting none is a load error.
 func (r Rule) Compile() (*CompiledRule, error) {
-	hasDeclarative := len(r.Paths) > 0 || len(r.Methods) > 0 || r.Where != ""
-	if r.Pred != "" && hasDeclarative {
-		return nil, trace.BadParameter("a rule sets either pred or the declarative fields, not both")
+	if len(r.Paths) == 0 && len(r.Methods) == 0 && r.Where == "" {
+		return nil, trace.BadParameter("a rule must set at least one of paths, methods, where")
 	}
-	if r.Pred == "" && !hasDeclarative {
-		return nil, trace.BadParameter("a rule must set pred or at least one of paths, methods, where")
+	if err := validateWhereNoPathMatch(r.Where); err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	expr := r.Pred
-	if hasDeclarative {
-		var err error
-		expr, err = r.desugar()
-		if err != nil {
-			return nil, trace.Wrap(err)
+	if r.AllowCode != "" {
+		if err := validateCode(r.AllowCode); err != nil {
+			return nil, trace.Wrap(err, "invalid allow_code")
 		}
 	}
 
+	expr, err := r.desugar()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pred, err := compilePredicate(expr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	denyOn, denyAlways, err := r.compileDenyOn()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &CompiledRule{
+		pred:       pred,
+		denyOn:     denyOn,
+		denyAlways: denyAlways,
+		denyCode:   r.DenyCode,
+		denyReason: r.DenyReason,
+	}, nil
+}
+
+// compileExpression compiles one app_resources_expression entry, a bare
+// predicate string. Unlike a sugared rule's where clause, it may call
+// path.match and use the full matcher language directly. It carries no deny
+// mechanism: the deny code is a sugar-only feature, so an expression rule never
+// contributes a deny hint.
+func compileExpression(expr string) (*CompiledRule, error) {
+	if strings.TrimSpace(expr) == "" {
+		return nil, trace.BadParameter("an app_resources_expression entry cannot be empty")
+	}
+	pred, err := compilePredicate(expr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &CompiledRule{pred: pred}, nil
+}
+
+// compilePredicate parses a predicate string and runs the load-time validators
+// every predicate must pass, whether it came from a desugared sugar rule or a
+// bare expression entry.
+func compilePredicate(expr string) (predicate, error) {
 	pred, err := parsePredicate(expr)
 	if err != nil {
 		return nil, trace.Wrap(err, "compiling rule predicate %q", expr)
@@ -201,114 +228,84 @@ func (r Rule) Compile() (*CompiledRule, error) {
 	if err := validateEncodedSets(expr); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if r.AllowCode != "" {
-		if err := validateCode(r.AllowCode); err != nil {
-			return nil, trace.Wrap(err, "invalid allow_code")
-		}
-	}
-
-	hints, err := r.compileDenyHints()
-	if err != nil {
+	if err := validateAllowCodes(expr); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return &CompiledRule{
-		pred:        pred,
-		allowCode:   r.AllowCode,
-		allowReason: r.AllowReason,
-		denyHints:   hints,
-	}, nil
-}
-
-// compileDenyHints parses each deny hint. A hint with no On defaults to the
-// rule's path and method clauses, which is only possible in the declarative
-// form. In the predicate form an omitted On is a load error, since there is no
-// separate path and method clause to default from.
-func (r Rule) compileDenyHints() ([]compiledHint, error) {
-	if len(r.DenyHints) == 0 {
-		return nil, nil
-	}
-
-	defaultOn, err := r.defaultHintOn()
-	if err != nil {
+	if err := validateAllowCodePlacement(expr); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	hints := make([]compiledHint, 0, len(r.DenyHints))
-	for i, h := range r.DenyHints {
-		if h.DenyCode == "" {
-			return nil, trace.BadParameter("deny_hint %d must set deny_code", i)
-		}
-		if err := validateCode(h.DenyCode); err != nil {
-			return nil, trace.Wrap(err, "deny_hint %d has an invalid deny_code", i)
-		}
-
-		on := h.On
-		if on == "" {
-			if defaultOn == "" {
-				return nil, trace.BadParameter(
-					"deny_hint %d must set on: a predicate-form rule has no path or method to default the hint territory from", i)
-			}
-			on = defaultOn
-		}
-
-		onPred, err := parsePredicate(on)
-		if err != nil {
-			return nil, trace.Wrap(err, "compiling deny_hint %d on %q", i, on)
-		}
-		if err := validateCaptures(on); err != nil {
-			return nil, trace.Wrap(err, "deny_hint %d", i)
-		}
-		if err := validateExclusions(on); err != nil {
-			return nil, trace.Wrap(err, "deny_hint %d", i)
-		}
-		if err := validateRoot(on); err != nil {
-			return nil, trace.Wrap(err, "deny_hint %d", i)
-		}
-		if err := validateLiterals(on); err != nil {
-			return nil, trace.Wrap(err, "deny_hint %d", i)
-		}
-		if err := validateEncodedSets(on); err != nil {
-			return nil, trace.Wrap(err, "deny_hint %d", i)
-		}
-		hints = append(hints, compiledHint{on: onPred, denyCode: h.DenyCode, denyReason: h.DenyReason})
-	}
-	return hints, nil
+	return pred, nil
 }
 
-// defaultHintOn returns the predicate a hint with no On falls back to: the
-// rule's path and method clauses ANDed. It is empty for a rule with neither, so
-// the predicate form cannot default a hint.
-func (r Rule) defaultHintOn() (string, error) {
+// compileDenyOn parses the near-miss territory for a rule's deny code, the
+// rule's path and method clauses ANDed. It returns a nil predicate and false
+// when the rule sets no deny code. It returns denyAlways=true for a where-only
+// rule, which has no path or method to scope the near-miss, so the deny code
+// fires on any deny in the rule's scope.
+func (r Rule) compileDenyOn() (predicate, bool, error) {
+	if r.DenyCode == "" {
+		if r.DenyReason != "" {
+			return nil, false, trace.BadParameter("deny_reason set without deny_code")
+		}
+		return nil, false, nil
+	}
+	if err := validateCode(r.DenyCode); err != nil {
+		return nil, false, trace.Wrap(err, "invalid deny_code")
+	}
 	path, err := r.pathClause()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
-	return joinClauses(path, r.methodClause()), nil
+	on := joinClauses(path, r.methodClause())
+	if on == "" {
+		return nil, true, nil
+	}
+	onPred, err := parsePredicate(on)
+	if err != nil {
+		return nil, false, trace.Wrap(err, "compiling deny territory %q", on)
+	}
+	return onPred, false, nil
 }
 
 // desugar lowers the declarative fields to an equivalent predicate string,
-// ANDing the path, method, and where clauses. The path clause compiles each
-// pattern to the canonical matcher tree and emits the matcher constructors as
-// source, so the desugared declarative form parses to exactly the tree a
-// hand-written predicate would.
+// ANDing the path, method, where, and allow-code clauses. The path clause
+// compiles each pattern to the canonical matcher tree and emits the matcher
+// constructors as source, so the desugared declarative form parses to exactly
+// the tree a hand-written predicate would. The allow code, when set, lowers to
+// a trailing set_allow_code call, so the sugared field and the expression
+// primitive share one representation. The deny code does not appear: it is a
+// sugar-only audit feature with no expression form.
 func (r Rule) desugar() (string, error) {
 	path, err := r.pathClause()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	method := r.methodClause()
+	allowCode := r.allowCodeClause()
 	var where string
 	if r.Where != "" {
-		// Wrap the where in parentheses only when it is ANDed with a path or
-		// method clause, where the grouping matters. When the where is the
-		// whole predicate, the parentheses add nothing.
+		// Wrap the where in parentheses only when it is ANDed with another
+		// clause, where the grouping matters. When the where is the whole
+		// predicate, the parentheses add nothing.
 		where = r.Where
-		if path != "" || r.methodClause() != "" {
+		if path != "" || method != "" || allowCode != "" {
 			where = "(" + where + ")"
 		}
 	}
-	return joinClauses(path, r.methodClause(), where), nil
+	return joinClauses(path, method, where, allowCode), nil
+}
+
+// allowCodeClause renders the allow code and optional reason as a
+// set_allow_code call, the predicate primitive the sugared fields lower to. It
+// is empty when no allow code is set.
+func (r Rule) allowCodeClause() string {
+	if r.AllowCode == "" {
+		return ""
+	}
+	if r.AllowReason != "" {
+		return fmt.Sprintf("set_allow_code(%s, %s)", strconv.Quote(r.AllowCode), strconv.Quote(r.AllowReason))
+	}
+	return fmt.Sprintf("set_allow_code(%s)", strconv.Quote(r.AllowCode))
 }
 
 // pathClause renders the Paths as one path.match over a root() of the compiled
@@ -453,18 +450,22 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 	if allowed && !e.state.unboundRead && !e.state.tokenizeFailed && !e.state.encodedNotAllowed {
 		return Decision{
 			Allowed: true,
-			Allow:   &AllowDetails{Vars: e.vars, Code: c.allowCode, Reason: c.allowReason},
+			Allow:   &AllowDetails{Vars: e.vars, Code: e.state.allowCode, Reason: e.state.allowReason},
 		}, nil
 	}
 
 	var fired []Hint
-	for _, h := range c.denyHints {
-		ok, err := evalPredicate(h.on, request, identity)
-		if err != nil {
-			return Decision{}, trace.Wrap(err)
+	if c.denyCode != "" {
+		matched := c.denyAlways
+		if !matched && c.denyOn != nil {
+			ok, err := evalPredicate(c.denyOn, request, identity)
+			if err != nil {
+				return Decision{}, trace.Wrap(err)
+			}
+			matched = ok
 		}
-		if ok {
-			fired = append(fired, Hint{Code: h.denyCode, Reason: h.denyReason})
+		if matched {
+			fired = append(fired, Hint{Code: c.denyCode, Reason: c.denyReason})
 		}
 	}
 	return Decision{Deny: &DenyDetails{Kind: DenyNotAllowed, Hints: fired}}, nil
@@ -511,14 +512,22 @@ func validateCode(code string) error {
 	return nil
 }
 
-// Role is one role's app_resources, the unit the union is built from. It
-// mirrors how a Teleport role carries app_resources under spec.allow, the same
-// way services.RoleSet gathers its per-role matchers from each role.
+// Role is one role's app_resources and app_resources_expression, the unit the
+// union is built from. It mirrors how a Teleport role carries its matchers
+// under spec.allow, the same way services.RoleSet gathers its per-role matchers
+// from each role. The two fields parallel the node_labels and
+// node_labels_expression pair: Resources is the sugared declarative surface and
+// Expressions is the bare predicate surface. A request is allowed if any rule
+// in either field matches, so the two are an additive union, not a conjunction.
 type Role struct {
 	// Name is the role name, surfaced as an evaluated role on a decision.
 	Name string
-	// Rules are the role's app_resources entries, OR-ed within the role.
-	Rules []Rule
+	// Resources are the role's app_resources entries, the sugared rules, OR-ed
+	// within the role.
+	Resources []Rule
+	// Expressions are the role's app_resources_expression entries, bare
+	// predicate strings, OR-ed within the role and with Resources.
+	Expressions []string
 }
 
 // RoleSet is the additive-OR union of the app_resources a caller holds, built
@@ -534,15 +543,26 @@ type compiledRole struct {
 	rules []*CompiledRule
 }
 
-// CompileRoles compiles the roles a caller holds into a RoleSet.
+// CompileRoles compiles the roles a caller holds into a RoleSet. Within each
+// role the sugared Resources compile first, then the Expressions, so a
+// matching sugared rule's captures and allow code surface ahead of an
+// expression rule's. The order is cosmetic: rules are allow-only, so it never
+// changes whether a request is allowed, only which detail a caller sees.
 func CompileRoles(roles []Role) (RoleSet, error) {
 	set := make(RoleSet, 0, len(roles))
 	for _, role := range roles {
-		cr := compiledRole{name: role.Name, rules: make([]*CompiledRule, 0, len(role.Rules))}
-		for i, r := range role.Rules {
+		cr := compiledRole{name: role.Name, rules: make([]*CompiledRule, 0, len(role.Resources)+len(role.Expressions))}
+		for i, r := range role.Resources {
 			c, err := r.Compile()
 			if err != nil {
-				return nil, trace.Wrap(err, "role %q rule %d", role.Name, i)
+				return nil, trace.Wrap(err, "role %q app_resources %d", role.Name, i)
+			}
+			cr.rules = append(cr.rules, c)
+		}
+		for i, expr := range role.Expressions {
+			c, err := compileExpression(expr)
+			if err != nil {
+				return nil, trace.Wrap(err, "role %q app_resources_expression %d", role.Name, i)
 			}
 			cr.rules = append(cr.rules, c)
 		}

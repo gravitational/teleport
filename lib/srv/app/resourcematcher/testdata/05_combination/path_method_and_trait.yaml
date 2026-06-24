@@ -1,19 +1,19 @@
 description: path, method, and trait
-rules:
+app_resources:
     - paths:
         - /teams/{team}/**
       methods:
         - GET
       where: contains(user.traits["teams"], vars.team)
-rules_desugared:
-    - pred: |-
-        path.match(
-          literal("teams",
-            capture("team",
-              greedy()))) &&
-        contains(
-          set("GET"), request.method) &&
-        contains(user.traits["teams"], vars.team)
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("teams",
+          capture("team",
+            greedy()))) &&
+      contains(
+        set("GET"), request.method) &&
+      contains(user.traits["teams"], vars.team)
 identity:
     name: alice
     roles:

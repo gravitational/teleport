@@ -1,10 +1,6 @@
 description: 'slash: the bare root path /'
-rules:
-    - where: path.match(slash())
-rules_desugared:
-    - pred: |-
-        path.match(
-          slash())
+app_resources_expression:
+    - path.match(slash())
 identity:
     name: bob
     roles:

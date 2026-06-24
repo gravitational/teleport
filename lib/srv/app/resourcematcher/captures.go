@@ -105,7 +105,7 @@ func guaranteedCaptures(node ast.Node) map[string]bool {
 				return map[string]bool{}
 			}
 			// Pass the matcher tree, not the whole path.match call, so a
-			// top-level root() is recognised and its alternatives intersected.
+			// top-level root() is recognized and its alternatives intersected.
 			return capturesIn(n.Args[0])
 		}
 		return map[string]bool{}
@@ -420,6 +420,124 @@ func validateExclusions(expr string) error {
 			"a greedy_except matcher cannot contain optional: its empty-match branch makes the exclusion match the zero-length tail and silently forbids the bare prefix")
 	}
 	return nil
+}
+
+// validateWhereNoPathMatch rejects a path.match call inside a sugared rule's
+// where clause. Path matching in the sugared form flows through paths, so the
+// where holds identity and request conditions only. A predicate that needs to
+// call path.match directly belongs in app_resources_expression. The matcher
+// constructors return a Node, not a bool, so they cannot stand alone in a
+// boolean where in the first place; only path.match itself type-checks there,
+// so it is the one call this rejects.
+func validateWhereNoPathMatch(where string) error {
+	if where == "" {
+		return nil
+	}
+	parsed, err := goparser.ParseExpr(where)
+	if err != nil {
+		return nil
+	}
+	var bad bool
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok && isPathMatch(call) {
+			bad = true
+		}
+		return true
+	})
+	if bad {
+		return trace.BadParameter(
+			"where may not call path.match: express path matching through paths, " +
+				"or move the whole rule to app_resources_expression")
+	}
+	return nil
+}
+
+// validateAllowCodes rejects an illegal code in a set_allow_code("...") call
+// whose code is a string constant. It is the load-time check for the code a
+// sugared allow_code field lowers to and for a code written directly in an
+// expression, so an illegal code fails when the rule compiles rather than per
+// request. A dynamic code cannot be checked here and is backstopped by the
+// function at evaluation.
+func validateAllowCodes(expr string) error {
+	parsed, err := goparser.ParseExpr(expr)
+	if err != nil {
+		return nil
+	}
+	var bad error
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isIdentCall(call, "set_allow_code") || len(call.Args) == 0 {
+			return true
+		}
+		lit, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		s, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		if err := validateCode(s); err != nil {
+			bad = err
+		}
+		return true
+	})
+	return trace.Wrap(bad)
+}
+
+// validateAllowCodePlacement rejects a set_allow_code call that is not in tail
+// position. The code is committed eagerly into the evaluation state and read
+// only on a match, so a set_allow_code on a branch that a later || can rescue
+// would leak its code into an allow that a different branch granted. Tail
+// position, the right operand of every && on the way to the call with || taken
+// either side, guarantees the call runs only on the path that makes the
+// predicate true, so the committed code is the one the matching path set. The
+// sugared form always lowers set_allow_code to the final && term, so this only
+// constrains a hand-written expression.
+func validateAllowCodePlacement(expr string) error {
+	parsed, err := goparser.ParseExpr(expr)
+	if err != nil {
+		return nil
+	}
+	safe := map[ast.Node]bool{}
+	markTailSafe(parsed, safe)
+	var bad bool
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok && isIdentCall(call, "set_allow_code") && !safe[call] {
+			bad = true
+		}
+		return true
+	})
+	if bad {
+		return trace.BadParameter(
+			"set_allow_code must be the last term of its && chain, and of each || branch, " +
+				"so its code is committed only on the matching path; move it to the tail")
+	}
+	return nil
+}
+
+// markTailSafe records the set_allow_code calls reachable in tail position: the
+// right operand of an &&, either operand of an ||, through parentheses, down to
+// a set_allow_code call. A call reached any other way, such as the left operand
+// of an && or under a negation, is not recorded and so fails the placement
+// check.
+func markTailSafe(node ast.Node, safe map[ast.Node]bool) {
+	switch n := node.(type) {
+	case *ast.ParenExpr:
+		markTailSafe(n.X, safe)
+	case *ast.BinaryExpr:
+		switch n.Op {
+		case token.LAND:
+			markTailSafe(n.Y, safe)
+		case token.LOR:
+			markTailSafe(n.X, safe)
+			markTailSafe(n.Y, safe)
+		}
+	case *ast.CallExpr:
+		if isIdentCall(n, "set_allow_code") {
+			safe[n] = true
+		}
+	}
 }
 
 // referencedVars returns the names read through the vars.<name> namespace.

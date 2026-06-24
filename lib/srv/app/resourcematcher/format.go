@@ -20,69 +20,25 @@ package resourcematcher
 
 import "strings"
 
-// DesugarRoles returns a parallel role set in which every rule is lowered to
-// its bare predicate form, pretty-printed with FormatPredicate. It is the
-// role-level desugaring the playground used to own: a rule already in predicate
-// form keeps its predicate, and a declarative rule is lowered through the same
-// desugar() the engine uses, so the two authoring surfaces cannot diverge. The
-// result is a []Role whose rules carry only Pred, suitable for re-marshalling
-// to the desugared YAML view or for compiling and evaluating alongside the
-// sugared form.
-func DesugarRoles(roles []Role) ([]Role, error) {
-	out := make([]Role, len(roles))
-	for i, role := range roles {
-		rules := make([]Rule, len(role.Rules))
-		for j, rule := range role.Rules {
-			pred := rule.Pred
-			if pred == "" {
-				lowered, err := rule.desugar()
-				if err != nil {
-					return nil, err
-				}
-				pred = lowered
-			}
-			// A predicate-form rule cannot default a deny hint's territory from
-			// a path or method clause, so materialize each hint's On from the
-			// declarative default when it was left implicit. The decode options
-			// are already baked into the lowered pred by desugar(), so the
-			// predicate-form rule carries only the lowered pred.
-			hints, err := desugarHints(rule)
-			if err != nil {
-				return nil, err
-			}
-			rules[j] = Rule{
-				Pred:        FormatPredicate(pred),
-				AllowCode:   rule.AllowCode,
-				AllowReason: rule.AllowReason,
-				DenyHints:   hints,
-			}
+// DesugarResources lowers a role's sugared app_resources rules to their bare
+// predicate strings, each pretty-printed with FormatPredicate. It is the
+// lowering the engine's desugar() performs, surfaced so the playground and the
+// golden tests can show what a declarative rule becomes as a predicate, and so
+// they can compile and evaluate the lowered form alongside the sugared one to
+// prove the two cannot diverge. The expression rules are already bare
+// predicates, so they are not lowered here. The allow code rides in the
+// predicate as a set_allow_code call; the deny code is a sugar-only audit
+// feature with no predicate form, so it does not appear in the result.
+func DesugarResources(role Role) ([]string, error) {
+	out := make([]string, len(role.Resources))
+	for j, rule := range role.Resources {
+		lowered, err := rule.desugar()
+		if err != nil {
+			return nil, err
 		}
-		out[i] = Role{Name: role.Name, Rules: rules}
+		out[j] = FormatPredicate(lowered)
 	}
 	return out, nil
-}
-
-// desugarHints lowers a rule's deny hints to the predicate form: each hint's On
-// territory, left implicit in the declarative form, is materialized from the
-// rule's default and pretty-printed, so the desugared rule states explicitly
-// what the declarative rule defaulted. A rule with no hints returns nil.
-func desugarHints(rule Rule) ([]DenyHint, error) {
-	if len(rule.DenyHints) == 0 {
-		return nil, nil
-	}
-	defaultOn, err := rule.defaultHintOn()
-	if err != nil {
-		return nil, err
-	}
-	hints := make([]DenyHint, len(rule.DenyHints))
-	for i, h := range rule.DenyHints {
-		if h.On == "" {
-			h.On = defaultOn
-		}
-		h.On = FormatPredicate(h.On)
-		hints[i] = h
-	}
-	return hints, nil
 }
 
 // FormatPredicate reformats a predicate so the matcher tree reads as a path. A
