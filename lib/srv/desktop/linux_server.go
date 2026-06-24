@@ -185,7 +185,7 @@ func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
 		return nil, trace.BadParameter("Teleport was built without required desktop_access_rdp tag")
 	}
 	if !x11.IsBackendPresent() {
-		cfg.Logger.WarnContext(context.Background(), "Xvfb is not installed, Linux desktops sessions will fail to start until it's fixed")
+		cfg.Logger.WarnContext(context.Background(), "Backend is not installed, Linux desktops sessions will fail to start until it's fixed", "backend", x11.BackendName())
 	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

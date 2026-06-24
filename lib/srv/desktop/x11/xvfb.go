@@ -147,6 +147,17 @@ func isBackendSafe() bool {
 	}
 }
 
+func BackendName() string {
+	switch backend := os.Getenv("TELEPORT_LINUX_DESKTOP_BACKEND"); backend {
+	case "", "xvfb", "xvfb-tcp":
+		return "Xvfb"
+	case "xephyr":
+		return "Xephyr"
+	default:
+		return backend
+	}
+}
+
 func getBackendCommand(ctx context.Context, authorityFile string) (*exec.Cmd, error) {
 	switch backend := os.Getenv("TELEPORT_LINUX_DESKTOP_BACKEND"); backend {
 	case "", "xvfb":
@@ -207,7 +218,7 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	}
 
 	if !IsBackendPresent() {
-		return nil, trace.NotFound("Xvfb is not installed")
+		return nil, trace.NotFound("%s is not installed", BackendName())
 	}
 
 	if !isBackendSafe() {
