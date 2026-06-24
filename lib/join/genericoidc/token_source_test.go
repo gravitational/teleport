@@ -92,8 +92,6 @@ func TestGetIDTokenFromCommand(t *testing.T) {
 		}
 	}
 
-	const keyName = "OIDC_TEST"
-
 	tests := []struct {
 		name        string
 		runner      commandRunner
