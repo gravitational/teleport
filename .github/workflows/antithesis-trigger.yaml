@@ -153,6 +153,7 @@ jobs:
       - name: Resolve image references
         id: images
         run: |
+          ls -lahR
           source e/tests/antithesis/.env 2>/dev/null || true
           source e/tests/antithesis/sut/${SUT}/.env
           source e/tests/antithesis/sut/${SUT}/images.sh
