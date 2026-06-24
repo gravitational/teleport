@@ -5592,6 +5592,19 @@ func checkRoleFeatureSupport(mod modules.Modules, role types.Role) error {
 	}
 }
 
+// GetRole returns a role by name, supporting both scoped and unscoped callers.
+func (a *ScopedServerWithRoles) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.GetRole(ctx, name)
+	}
+
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadRole, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetRole(ctx, name)
+}
+
 // GetRole returns role by name
 func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role, error) {
 	// Current-user exception: we always allow users to read roles

@@ -2504,11 +2504,11 @@ func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semv
 
 // GetRole retrieves a role by name.
 func (g *GRPCServer) GetRole(ctx context.Context, req *authpb.GetRoleRequest) (*types.RoleV6, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleI, err := auth.ServerWithRoles.GetRole(ctx, req.Name)
+	roleI, err := auth.GetRole(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
