@@ -24,7 +24,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
@@ -77,12 +77,15 @@ func (c *gitLogoutCommand) run(cf *CLIConf) error {
 	fmt.Fprintf(cf.Stdout(), "Logged out of git server %q.\n", gitServer.GetName())
 
 	if types.GitServerHTTPEnabled(github) {
-		ok, err := promptYesNo(cf, "Do you also want to revoke your stored GitHub credentials? (y/N) ")
+		fmt.Fprintln(cf.Stdout(), "")
+		fmt.Fprintln(cf.Stdout(), "Warning: revoking GitHub credentials will require you to run")
+		fmt.Fprintf(cf.Stdout(), "\"tsh git login\" again to re-authorize with GitHub.\n")
+		ok, err := promptYesNo(cf, "Revoke stored GitHub credentials? (y/N) ")
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if ok {
-			if err := deleteGitCredentials(cf, tc, github.Integration); err != nil {
+			if err := revokeGitCredentials(cf, tc, gitServer.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
 			fmt.Fprintln(cf.Stdout(), "GitHub credentials revoked.")
@@ -100,7 +103,7 @@ func promptYesNo(cf *CLIConf, message string) (bool, error) {
 	return response == "y" || response == "Y" || response == "yes", nil
 }
 
-func deleteGitCredentials(cf *CLIConf, tc *client.TeleportClient, integration string) error {
+func revokeGitCredentials(cf *CLIConf, tc *client.TeleportClient, gitServerName string) error {
 	return client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
@@ -108,9 +111,9 @@ func deleteGitCredentials(cf *CLIConf, tc *client.TeleportClient, integration st
 		}
 		defer clusterClient.Close()
 
-		_, err = clusterClient.AuthClient.IntegrationsClient().DeleteGitCredentials(cf.Context, &integrationpb.DeleteGitCredentialsRequest{
-			Integration: integration,
-		})
+		revokeReq := &gitserverv1.RevokeGitCredentialsRequest{}
+		revokeReq.SetGitServerName(gitServerName)
+		_, err = clusterClient.AuthClient.GitCredentialsClient().RevokeGitCredentials(cf.Context, revokeReq)
 		return trace.Wrap(err)
 	})
 }

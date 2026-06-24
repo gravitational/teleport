@@ -20,7 +20,6 @@ package integrationv1
 
 import (
 	"context"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -114,7 +113,7 @@ func (s *Service) createGitHubCredentials(ctx context.Context, ig types.Integrat
 		creds = append(creds, oauthCred)
 	}
 
-	if !ig.GetGitHubIntegrationSpec().DisableSSHCA {
+	if ig.GetGitHubIntegrationSpec().SSHEnabled() {
 		// TODO(greedy52) support per auth CA like HSM.
 		if caCred, err := s.newGitHubSSHCA(ctx); err != nil {
 			return trace.Wrap(err)
@@ -249,9 +248,9 @@ func (s *Service) getStaticCredentialsWithPurpose(ctx context.Context, ig types.
 }
 
 // maybeCreateGitHubSSHCA creates an SSH CA credential if one doesn't exist and
-// DisableSSHCA is false. Existing SSH CA credentials are never removed.
+// AllowProtocols includes "ssh". Existing SSH CA credentials are never removed.
 func (s *Service) maybeCreateGitHubSSHCA(ctx context.Context, ig types.Integration) error {
-	if ig.GetGitHubIntegrationSpec().DisableSSHCA {
+	if !ig.GetGitHubIntegrationSpec().SSHEnabled() {
 		return nil
 	}
 	ref := ig.GetCredentials().GetStaticCredentialsRef()
@@ -275,25 +274,31 @@ func (s *Service) maybeCreateGitHubSSHCA(ctx context.Context, ig types.Integrati
 // setGitHubIntegrationStatus populates the GitHub integration status fields.
 // SSHCAConfigured is true if the spec enables it OR if it was previously configured
 // (credentials are never removed).
-func setGitHubIntegrationStatus(ig types.Integration) {
+func setGitHubIntegrationStatus(ig types.Integration, existingClientID string) {
 	spec := ig.GetGitHubIntegrationSpec()
 	if spec == nil {
 		return
 	}
 
 	status := ig.GetStatus()
-	sshCAConfigured := !spec.DisableSSHCA
-	if status.GitHub != nil && status.GitHub.SSHCAConfigured {
-		sshCAConfigured = true
+	sshCAConfigured := spec.SSHEnabled()
+	if status.GitHub != nil {
+		if status.GitHub.SSHCAConfigured {
+			sshCAConfigured = true
+		}
 	}
 
 	status.GitHub = &types.GitHubIntegrationStatusV1{
 		SSHCAConfigured: sshCAConfigured,
 	}
 
-	// GitHub App client IDs start with "Iv1." or "Iv23.".
-	if idSecret := ig.GetCredentials().GetIdSecret(); idSecret != nil {
-		status.GitHub.GitHubApp = strings.HasPrefix(idSecret.Id, "Iv")
+	if creds := ig.GetCredentials(); creds != nil {
+		if idSecret := creds.GetIdSecret(); idSecret != nil {
+			status.GitHub.ClientID = idSecret.Id
+		}
+	}
+	if status.GitHub.ClientID == "" && existingClientID != "" {
+		status.GitHub.ClientID = existingClientID
 	}
 
 	ig.SetStatus(status)

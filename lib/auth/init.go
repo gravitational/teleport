@@ -1463,8 +1463,7 @@ func populateGitHubIntegrationStatus(ctx context.Context, asrv *Server, ig types
 	if ref != nil {
 		oauthCred, err := igcredentials.GetByPurpose(ctx, ref, igcredentials.PurposeGitHubOAuth, asrv.Services)
 		if err == nil {
-			clientID := oauthCred.GetOAuthClientID()
-			status.GitHubApp = strings.HasPrefix(clientID, "Iv") // GitHub App client IDs start with "Iv1." or "Iv23."
+			status.ClientID = oauthCred.GetOAuthClientID()
 		} else if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -1479,7 +1478,7 @@ func populateGitHubIntegrationStatus(ctx context.Context, asrv *Server, ig types
 	asrv.logger.InfoContext(ctx, "Migrated GitHub integration status",
 		"integration", ig.GetName(),
 		"ssh_ca_configured", status.SSHCAConfigured,
-		"github_app", status.GitHubApp,
+		"client_id", status.ClientID,
 	)
 	return nil
 }

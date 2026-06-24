@@ -2160,8 +2160,9 @@ export const formatters: Formatters = {
   [eventCodes.GIT_COMMAND_FAILURE]: {
     type: 'git.command',
     desc: 'Git Command Failed',
-    format: ({ user, exitError, service, path }) => {
-      return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
+    format: ({ user, service, path, exitCode, http_status_code }) => {
+      const code = http_status_code || exitCode || 'unknown';
+      return `User [${user}] Git Command [${service}] at [${path}] failed [${code}]`;
     },
   },
   [eventCodes.GIT_HTTP_REQUEST]: {
@@ -2176,6 +2177,27 @@ export const formatters: Formatters = {
     desc: 'Git Session Chunk',
     format: ({ user, session_chunk_id, git_server_name }) => {
       return `User [${user}] git session chunk [${session_chunk_id}] for [${git_server_name}]`;
+    },
+  },
+  [eventCodes.GIT_CREDENTIAL_CREATE]: {
+    type: 'git.credential.create',
+    desc: 'Git Credential Created',
+    format: ({ user, organization }) => {
+      return `User [${user}] completed GitHub OAuth flow for [${organization}]`;
+    },
+  },
+  [eventCodes.GIT_CREDENTIAL_REVOKE]: {
+    type: 'git.credential.revoke',
+    desc: 'Git Credential Revoked',
+    format: ({ user, organization }) => {
+      return `User [${user}] revoked GitHub credentials for [${organization}]`;
+    },
+  },
+  [eventCodes.GIT_SESSION_START]: {
+    type: 'git.session.start',
+    desc: 'Git Session Started',
+    format: ({ user, sid, git_server_name }) => {
+      return `User [${user}] started git session [${sid}] for [${git_server_name}]`;
     },
   },
   [eventCodes.STABLE_UNIX_USER_CREATE]: {

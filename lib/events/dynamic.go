@@ -430,6 +430,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.GitHTTPRequest{}
 	case GitSessionChunkEvent:
 		e = &events.GitSessionChunk{}
+	case GitCredentialCreateEvent:
+		e = &events.GitCredentialCreate{}
+	case GitCredentialRevokeEvent:
+		e = &events.GitCredentialRevoke{}
+	case GitSessionStartEvent:
+		e = &events.GitSessionStart{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

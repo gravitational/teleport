@@ -839,9 +839,44 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 		return nil, trace.Wrap(err)
 	}
 
+	// In test flow, skip saving credentials. Verify the token works by making
+	// a test API call and record diagnostic info.
+	if req.SSOTestFlow {
+		diagCtx.Info.TestFlow = true
+		diagCtx.Info.GithubClaims = &types.GithubClaims{
+			Username: githubUser.Login,
+		}
+		diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
+			TokenType: oauthToken.TokenType,
+			Scope:     "",
+		}
+
+		diagCtx.Info.Success = true
+		return &authclient.GithubAuthResponse{
+			Req:      GithubAuthRequestFromProto(req),
+			Identity: githubUser.makeExternalIdentity(req.ConnectorID),
+			Username: req.AuthenticatedUser,
+		}, nil
+	}
+
 	// Save the access token for later use (e.g. GitHub API proxying).
-	if err := a.saveGitHubOAuthCredentials(ctx, req.AuthenticatedUser, connector.GetClientID(), oauthToken, logger); err != nil {
+	if err := a.saveGitHubOAuthCredentials(ctx, req.AuthenticatedUser, connector.GetClientID(), oauthToken, githubUser, logger); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.GitCredentialCreate{
+		Metadata: apievents.Metadata{
+			Type: events.GitCredentialCreateEvent,
+			Code: events.GitCredentialCreateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: req.AuthenticatedUser,
+		},
+		GitMetadata: apievents.GitMetadata{
+			Integration: req.ConnectorID,
+		},
+	}); err != nil {
+		logger.WarnContext(ctx, "Failed to emit git credential create event", "error", err)
 	}
 
 	// Attach the new (but secondary) identity.
@@ -863,10 +898,12 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 }
 
 // TODO(greedy52) save and use refresh token for token refresh support.
-func (a *Server) saveGitHubOAuthCredentials(ctx context.Context, username, clientID string, token *oauth2.Token, logger *slog.Logger) error {
+func (a *Server) saveGitHubOAuthCredentials(ctx context.Context, username, clientID string, token *oauth2.Token, githubUser *GithubUserResponse, logger *slog.Logger) error {
 	ghCreds := userexternalcredentialsv1.GitHubOAuthCredentials_builder{
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
+		Username:     githubUser.Login,
+		UserId:       githubUser.getIDStr(),
 	}
 	if !token.Expiry.IsZero() {
 		ghCreds.AccessTokenExpiry = timestamppb.New(token.Expiry)
@@ -887,6 +924,10 @@ func (a *Server) saveGitHubOAuthCredentials(ctx context.Context, username, clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// Set initial credential TTL using the default. The integration's
+	// max_credential_ttl takes effect on subsequent token refreshes.
+	creds.GetMetadata().Expires = timestamppb.New(time.Now().Add(7 * 24 * time.Hour))
+
 	if _, err := a.UserExternalCredentials.UpsertUserExternalCredentials(ctx, creds); err != nil {
 		return trace.Wrap(err)
 	}

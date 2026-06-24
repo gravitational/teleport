@@ -176,10 +176,10 @@ func printGitServersAsText(cf *CLIConf, servers []types.Server) error {
 func gitServerProtocols(github *types.GitHubServerMetadata) string {
 	var protos []string
 	if types.GitServerSSHEnabled(github) {
-		protos = append(protos, "ssh")
+		protos = append(protos, "SSH")
 	}
 	if types.GitServerHTTPEnabled(github) {
-		protos = append(protos, "https")
+		protos = append(protos, "HTTPS")
 	}
 	if len(protos) == 0 {
 		return "(none)"

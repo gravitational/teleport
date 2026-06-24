@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"time"
 
@@ -99,4 +100,44 @@ func (s *UserExternalCredentialsService) UpsertUserExternalCredentials(ctx conte
 // DeleteUserExternalCredentials deletes a UserExternalCredentials resource by user and name.
 func (s *UserExternalCredentialsService) DeleteUserExternalCredentials(ctx context.Context, user, name string) error {
 	return trace.Wrap(s.backend.Delete(ctx, s.backendKey(user, name)))
+}
+
+// IterateUserExternalCredentials returns an iterator over user external
+// credentials, filtered by the request parameters.
+func (s *UserExternalCredentialsService) IterateUserExternalCredentials(ctx context.Context, req services.IterateUserExternalCredentialsRequest) iter.Seq2[*userexternalcredentialsv1.UserExternalCredentials, error] {
+	var startKey backend.Key
+	if req.User != "" {
+		startKey = backend.NewKey(userExternalCredentialsPrefix, req.User)
+	} else {
+		startKey = backend.NewKey(userExternalCredentialsPrefix)
+	}
+
+	var keySuffix backend.Key
+	if req.Name != "" {
+		keySuffix = backend.NewKey(req.Name)
+	}
+
+	items := s.backend.Items(ctx, backend.ItemsParams{
+		StartKey: startKey,
+		EndKey:   backend.RangeEnd(startKey),
+	})
+	return func(yield func(*userexternalcredentialsv1.UserExternalCredentials, error) bool) {
+		for item, err := range items {
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			if keySuffix.String() != "" && !item.Key.HasSuffix(keySuffix) {
+				continue
+			}
+			creds, err := services.UnmarshalProtoResource[*userexternalcredentialsv1.UserExternalCredentials](item.Value)
+			if err != nil {
+				slog.WarnContext(ctx, "Failed to unmarshal user external credentials", "key", item.Key.String(), "error", err)
+				continue
+			}
+			if !yield(creds, nil) {
+				return
+			}
+		}
+	}
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
 // gitCloneCommand implements `tsh git clone`.
@@ -103,9 +104,11 @@ func (c *gitCloneCommand) runHTTPS(cf *CLIConf) error {
 		return trace.BadParameter("git server %v does not have HTTP proxying enabled", gitServer.GetName())
 	}
 
-	valid, reason := hasValidGitCert(tc, gitServer.GetName())
+	valid, _ := hasValidGitCert(tc, gitServer.GetName())
 	if !valid {
-		return trace.BadParameter("No valid git certificate found (%s). Please run: tsh git login %s", reason, gitServer.GetName())
+		if err := ensureGitCredentialsAndCert(cf, tc, gitServer); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	ensureGitRemoteHelper(cf)
@@ -117,7 +120,12 @@ func (c *gitCloneCommand) runHTTPS(cf *CLIConf) error {
 	}
 
 	fmt.Fprintf(cf.Stdout(), "Cloning via Teleport git server %q\n", gitServer.GetName())
-	return trace.Wrap(execGit(cf, args...))
+	if err := execGit(cf, args...); err != nil {
+		// git already printed the error to stderr. Use ExitCodeError to
+		// exit without printing the error again.
+		return trace.Wrap(&toolcommon.ExitCodeError{Code: 1})
+	}
+	return nil
 }
 
 func isHTTPSGitURL(url string) bool {

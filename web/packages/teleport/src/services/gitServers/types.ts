@@ -32,4 +32,6 @@ export interface GitServer {
 export type GitHubMetadata = {
   integration: string;
   organization: string;
+  sshEnabled?: boolean;
+  httpEnabled?: boolean;
 };

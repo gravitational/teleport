@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -3990,11 +3991,45 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if isScoped {
 			return nil, trace.Wrap(services.ErrScopedIdentity, "creating git session")
 		}
-		ws, err := a.authServer.CreateGitSession(ctx, req.Username, req.RouteToGit.GitServerName, a.getIdentity(), checker)
+		if a.getIdentity().PrivateKeyPolicy == keys.PrivateKeyPolicyWebSession {
+			return nil, trace.AccessDenied("web sessions cannot create git certificates")
+		}
+		// Generate a session ID for recording correlation only. No backend
+		// session is created (session-less auth per RFD 0315).
+		gitSessionID, err = utils.CryptoRandomHex(defaults.SessionTokenBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		gitSessionID = ws.GetName()
+
+		gitServer, err := a.authServer.GetGitServer(ctx, req.RouteToGit.GitServerName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		github := gitServer.GetGitHub()
+		if github == nil {
+			return nil, trace.BadParameter("git server %v is not a GitHub server", req.RouteToGit.GitServerName)
+		}
+
+		if emitErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.GitSessionStart{
+			Metadata: apievents.Metadata{
+				Type: events.GitSessionStartEvent,
+				Code: events.GitSessionStartCode,
+			},
+			UserMetadata: authz.ClientUserMetadata(ctx),
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: gitSessionID,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: a.getIdentity().LoginIP,
+			},
+			GitMetadata: apievents.GitMetadata{
+				GitServerName: gitServer.GetName(),
+				Organization:  github.Organization,
+				Integration:   github.Integration,
+			},
+		}); emitErr != nil {
+			a.authServer.logger.WarnContext(ctx, "Failed to emit git session start event", "error", emitErr)
+		}
 	} else if req.RouteToApp.Name != "" {
 		if isScoped {
 			return nil, trace.Wrap(services.ErrScopedIdentity, "creating app session")

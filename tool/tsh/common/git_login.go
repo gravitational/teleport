@@ -24,8 +24,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	proto "github.com/gravitational/teleport/api/client/proto"
+	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
@@ -145,7 +145,7 @@ func ensureGitHubCredentials(cf *CLIConf, tc *client.TeleportClient, gitServer t
 		}
 	}
 	if !needOAuth && needHTTP {
-		hasCredentials, err := checkGitHubCredentials(cf, tc, github.Integration)
+		hasCredentials, err := checkGitHubCredentials(cf, tc, gitServer.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -197,8 +197,8 @@ func issueGitCert(cf *CLIConf, tc *client.TeleportClient, gitServerName string) 
 	})
 }
 
-func checkGitHubCredentials(cf *CLIConf, tc *client.TeleportClient, integration string) (bool, error) {
-	var exists bool
+func checkGitHubCredentials(cf *CLIConf, tc *client.TeleportClient, gitServerName string) (bool, error) {
+	var valid bool
 	err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
@@ -206,16 +206,16 @@ func checkGitHubCredentials(cf *CLIConf, tc *client.TeleportClient, integration 
 		}
 		defer clusterClient.Close()
 
-		resp, err := clusterClient.AuthClient.IntegrationsClient().GetGitCredentialsStatus(cf.Context, &integrationpb.GetGitCredentialsStatusRequest{
-			Integration: integration,
-		})
+		checkReq := &gitserverv1.CheckGitCredentialsRequest{}
+		checkReq.SetGitServerName(gitServerName)
+		resp, err := clusterClient.AuthClient.GitCredentialsClient().CheckGitCredentials(cf.Context, checkReq)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		exists = resp.Exists
+		valid = resp.GetValid()
 		return nil
 	})
-	return exists, trace.Wrap(err)
+	return valid, trace.Wrap(err)
 }
 
 // resolveGitServer finds a git server by name, org, or auto-selects if only

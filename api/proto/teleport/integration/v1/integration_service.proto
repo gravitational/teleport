@@ -58,41 +58,7 @@ service IntegrationService {
 
   // GenerateAWSRACredentials generates a set of AWS Credentials using the AWS IAM Roles Anywhere integration.
   rpc GenerateAWSRACredentials(GenerateAWSRACredentialsRequest) returns (GenerateAWSRACredentialsResponse);
-
-  // GenerateGitHubAppToken generates a GitHub App access token for git operations.
-  rpc GenerateGitHubAppToken(GenerateGitHubAppTokenRequest) returns (GenerateGitHubAppTokenResponse);
-
-  // GetGitCredentialsStatus checks whether stored git credentials exist for
-  // the calling user.
-  rpc GetGitCredentialsStatus(GetGitCredentialsStatusRequest) returns (GetGitCredentialsStatusResponse);
-
-  // DeleteGitCredentials deletes stored git credentials for the calling user.
-  rpc DeleteGitCredentials(DeleteGitCredentialsRequest) returns (DeleteGitCredentialsResponse);
 }
-
-// GetGitCredentialsStatusRequest is a request to check the status of stored
-// git credentials for the calling user.
-message GetGitCredentialsStatusRequest {
-  // Integration is the name of the integration.
-  string integration = 1;
-}
-
-// GetGitCredentialsStatusResponse contains the status of stored git credentials.
-message GetGitCredentialsStatusResponse {
-  // Exists indicates whether credentials exist for this user.
-  bool exists = 1;
-  // AccessTokenExpiry is the expiration time of the access token, if it exists.
-  google.protobuf.Timestamp access_token_expiry = 2;
-}
-
-// DeleteGitCredentialsRequest is a request to delete stored git credentials.
-message DeleteGitCredentialsRequest {
-  // Integration is the name of the integration.
-  string integration = 1;
-}
-
-// DeleteGitCredentialsResponse is the response to DeleteGitCredentials.
-message DeleteGitCredentialsResponse {}
 
 // ListIntegrationsRequest is a request for a paginated list of Integrations.
 message ListIntegrationsRequest {
@@ -248,20 +214,4 @@ message GenerateAWSRACredentialsResponse {
   string session_token = 3;
   // Expiration is the timestamp string when the credentials expires.
   google.protobuf.Timestamp expiration = 4;
-}
-
-// GenerateGitHubAppTokenRequest is a request to issue a GitHub access token.
-// Used by the old IntegrationService RPC.
-// TODO(greedy52) remove in v20.
-message GenerateGitHubAppTokenRequest {
-  // SessionID is the git session ID.
-  string session_id = 1;
-}
-
-// GenerateGitHubAppTokenResponse contains the issued GitHub access token.
-// Used by the old IntegrationService RPC.
-// TODO(greedy52) remove in v20.
-message GenerateGitHubAppTokenResponse {
-  // AccessToken is the GitHub access token.
-  string access_token = 1;
 }

@@ -73,6 +73,7 @@ func Commands() []CLICommand {
 		&webauthnwinCommand{},
 		&touchIDCommand{},
 		&TerraformCommand{},
+		&IntegrationCommand{},
 		&AutoUpdateCommand{},
 		&stableunixusers.Command{},
 		&decision.Command{},

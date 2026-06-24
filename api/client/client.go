@@ -5575,6 +5575,11 @@ func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
 	return c.GitServerClient()
 }
 
+// GitCredentialsClient returns a client for the GitCredentialsService.
+func (c *Client) GitCredentialsClient() gitserverpb.GitCredentialsServiceClient {
+	return gitserverpb.NewGitCredentialsServiceClient(c.conn)
+}
+
 // StableUNIXUsersClient returns a client for the stable UNIX users API.
 func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient {
 	return stableunixusersv1.NewStableUNIXUsersServiceClient(c.conn)

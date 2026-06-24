@@ -151,6 +151,8 @@ export interface UnifiedResourceGitServer {
   github: {
     organization: string;
     integration: string;
+    sshEnabled?: boolean;
+    httpEnabled?: boolean;
   };
   requiresRequest?: boolean;
 }

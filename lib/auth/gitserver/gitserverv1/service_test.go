@@ -259,16 +259,26 @@ func (f fakeAccessChecker) CheckAccess(services.AccessCheckable, services.Access
 
 type testBackend struct {
 	services.GitServers
+	allowProtocols []string
+}
+
+func (b testBackend) ListIntegrations(_ context.Context, _ int, _ string) ([]types.Integration, string, error) {
+	ig, err := b.GetIntegration(nil, "")
+	if err != nil {
+		return nil, "", err
+	}
+	return []types.Integration{ig}, "", nil
 }
 
 // GetIntegration returns a fake integration.
-func (b testBackend) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+func (b testBackend) GetIntegration(_ context.Context, name string) (types.Integration, error) {
 	ig, err := types.NewIntegrationGitHub(
 		types.Metadata{
 			Name: name,
 		},
 		&types.GitHubIntegrationSpecV1{
-			Organization: name,
+			Organization:   name,
+			AllowProtocols: b.allowProtocols,
 		},
 	)
 	if err != nil {
@@ -355,4 +365,134 @@ func newService(t *testing.T, checker services.AccessChecker, existing ...*types
 	})
 	require.NoError(t, err)
 	return service
+}
+
+func newServiceWithAllowProtocols(t *testing.T, checker services.AccessChecker, allowProtocols []string, existing ...*types.ServerV2) *Service {
+	t.Helper()
+
+	b, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	gitServersService, err := local.NewGitServerService(b)
+	require.NoError(t, err)
+
+	for _, server := range existing {
+		_, err := gitServersService.CreateGitServer(context.Background(), server)
+		require.NoError(t, err)
+	}
+
+	clock := clockwork.NewFakeClock()
+	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+		user, err := types.NewUser(fakeTeleportUser)
+		if err != nil {
+			return nil, err
+		}
+		return &authz.Context{
+			User:    user,
+			Checker: checker,
+			Identity: authz.WrapIdentity(tlsca.Identity{
+				Expires: clock.Now().Add(fakeIdentityTTL),
+			}),
+		}, nil
+	})
+
+	service, err := NewService(Config{
+		Authorizer: authorizer,
+		Backend: testBackend{
+			GitServers:     gitServersService,
+			allowProtocols: allowProtocols,
+		},
+		ProxyPublicAddrGetter: func(context.Context) string {
+			return fakeProxyAddr
+		},
+		GitHubAuthRequestCreator: func(_ context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
+			return &req, nil
+		},
+		clock: clock,
+	})
+	require.NoError(t, err)
+	return service
+}
+
+func TestGitServerNameValidation(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	checker := &fakeAccessChecker{
+		allowVerbs:    []string{types.VerbCreate, types.VerbUpdate},
+		allowResource: true,
+	}
+
+	tests := []struct {
+		name       string
+		serverName string
+		wantErr    bool
+	}{
+		{
+			name:       "valid DNS label",
+			serverName: "github-my-org",
+		},
+		{
+			name:       "valid with numbers",
+			serverName: "github-org-123",
+		},
+		{
+			name:       "invalid uppercase",
+			serverName: "GitHub-My-Org",
+			wantErr:    true,
+		},
+		{
+			name:       "invalid dots",
+			serverName: "github.my.org",
+			wantErr:    true,
+		},
+		{
+			name:       "invalid too long",
+			serverName: "a234567890123456789012345678901234567890123456789012345678901234",
+			wantErr:    true,
+		},
+		{
+			name:       "invalid starts with dash",
+			serverName: "-github-org",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("create/"+tt.name, func(t *testing.T) {
+			service := newService(t, checker)
+			server, err := types.NewGitHubServer(types.GitHubServerMetadata{
+				Integration:  "my-integration",
+				Organization: "my-org",
+			})
+			require.NoError(t, err)
+			serverV2 := server.(*types.ServerV2)
+			serverV2.SetName(tt.serverName)
+
+			_, err = service.CreateGitServer(ctx, &pb.CreateGitServerRequest{Server: serverV2})
+			if tt.wantErr {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+
+		t.Run("upsert/"+tt.name, func(t *testing.T) {
+			service := newService(t, checker)
+			server, err := types.NewGitHubServer(types.GitHubServerMetadata{
+				Integration:  "my-integration",
+				Organization: "my-org",
+			})
+			require.NoError(t, err)
+			serverV2 := server.(*types.ServerV2)
+			serverV2.SetName(tt.serverName)
+
+			_, err = service.UpsertGitServer(ctx, &pb.UpsertGitServerRequest{Server: serverV2})
+			if tt.wantErr {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

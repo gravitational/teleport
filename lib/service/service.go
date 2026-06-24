@@ -5617,7 +5617,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		gitHTTPHandler, err := git.NewHTTPHandler(process.GracefulExitContext(), git.HTTPHandlerConfig{
-			IntegrationsClient: conn.Client.IntegrationsClient(),
+			GitCredentialsClient: conn.Client.GitCredentialsClient(),
 			GitServerGetter:    conn.Client.GitServerReadOnlyClient(),
 			Authorizer:         authorizer,
 			AccessPoint:        accessPoint,

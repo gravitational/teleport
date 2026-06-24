@@ -8934,9 +8934,9 @@ message IntegrationStatusV1 {
 message GitHubIntegrationStatusV1 {
   // SSHCAConfigured indicates whether the SSH CA has been created and configured.
   bool SSHCAConfigured = 1 [(gogoproto.jsontag) = "ssh_ca_configured,omitempty"];
-  // GitHubApp indicates the OAuth client is a GitHub App (vs OAuth App),
-  // determined from the client ID prefix.
-  bool GitHubApp = 2 [(gogoproto.jsontag) = "github_app,omitempty"];
+  // ClientID is the GitHub App/OAuth App client ID. This is a public
+  // identifier, not a secret.
+  string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -8985,8 +8985,18 @@ message AzureOIDCIntegrationSpecV1 {
 message GitHubIntegrationSpecV1 {
   // Organization specifies the name of the organization for the GitHub integration.
   string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
-  // DisableSSHCA disables SSH CA creation for this integration.
-  bool DisableSSHCA = 2 [(gogoproto.jsontag) = "disable_ssh_ca,omitempty"];
+  // AllowProtocols is the list of allowed protocols (e.g. "ssh", "http").
+  // If empty, defaults to ["ssh"] for backwards compatibility.
+  // If includes "ssh", Auth creates an SSH CA for the integration.
+  repeated string AllowProtocols = 2 [(gogoproto.jsontag) = "allow_protocols,omitempty"];
+  // MaxCredentialTTL controls how long user credentials are kept alive without
+  // active use. On each token refresh, the TTL is extended by this duration.
+  // Default: 7 days.
+  google.protobuf.Duration MaxCredentialTTL = 3 [(gogoproto.jsontag) = "max_credential_ttl,omitempty"];
+  // OAuthAppCallbackURL is the callback URL used for the GitHub OAuth flow.
+  // New HTTP integrations use "/web/github/integration/callback" (authenticated).
+  // Legacy SSH-only integrations may use the old unauthenticated callback.
+  string OAuthAppCallbackURL = 4 [(gogoproto.jsontag) = "oauth_app_callback_url,omitempty"];
 }
 
 // AWSRAIntegrationSpecV1 contains the spec properties for the AWS IAM Roles Anywhere SubKind Integration.

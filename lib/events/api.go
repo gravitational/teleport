@@ -912,6 +912,12 @@ const (
 	GitHTTPRequestEvent = "git.http_request"
 	// GitSessionChunkEvent is emitted at the start of a session chunk for Git HTTPS access.
 	GitSessionChunkEvent = "git.session.chunk"
+	// GitCredentialCreateEvent is emitted when a user completes the GitHub OAuth flow.
+	GitCredentialCreateEvent = "git.credential.create"
+	// GitCredentialRevokeEvent is emitted when a user revokes their git credentials.
+	GitCredentialRevokeEvent = "git.credential.revoke"
+	// GitSessionStartEvent is emitted when a RouteToGit certificate is issued.
+	GitSessionStartEvent = "git.session.start"
 
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"

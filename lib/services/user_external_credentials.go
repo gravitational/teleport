@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 
 	userexternalcredentialsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 )
@@ -33,4 +34,15 @@ type UserExternalCredentialsService interface {
 	UpsertUserExternalCredentials(ctx context.Context, creds *userexternalcredentialsv1.UserExternalCredentials) (*userexternalcredentialsv1.UserExternalCredentials, error)
 	// DeleteUserExternalCredentials deletes a UserExternalCredentials resource by user and name.
 	DeleteUserExternalCredentials(ctx context.Context, user, name string) error
+	// IterateUserExternalCredentials returns an iterator over user external
+	// credentials, filtered by the request parameters.
+	IterateUserExternalCredentials(ctx context.Context, req IterateUserExternalCredentialsRequest) iter.Seq2[*userexternalcredentialsv1.UserExternalCredentials, error]
+}
+
+// IterateUserExternalCredentialsRequest configures IterateUserExternalCredentials.
+type IterateUserExternalCredentialsRequest struct {
+	// User filters by user. Empty means all users.
+	User string
+	// Name filters by credential name (e.g. client ID). Empty means all names.
+	Name string
 }

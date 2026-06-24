@@ -41,6 +41,7 @@ import { Login } from './Login';
 import { LoginClose } from './Login/LoginClose';
 import { LoginFailed } from './Login/LoginFailed';
 import { GitHubIntegrationCallback } from './GitHubIntegrationCallback';
+import { GitHubIntegrationLogin } from './GitHubIntegrationLogin';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
 import { Main } from './Main';
@@ -219,6 +220,12 @@ export function getSharedPrivateRoutes() {
       title="GitHub Integration"
       path={cfg.routes.githubIntegrationCallback}
       element={<GitHubIntegrationCallback />}
+    />,
+    <Route
+      key="github-integration-login"
+      title="GitHub Authorization"
+      path={cfg.routes.githubIntegrationLogin}
+      element={<GitHubIntegrationLogin />}
     />,
     <Route
       key="desktop"

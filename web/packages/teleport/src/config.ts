@@ -155,6 +155,7 @@ export const ossRoutes = {
   player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
   login: '/web/login',
   githubIntegrationCallback: '/web/github/integration/callback',
+  githubIntegrationLogin: '/web/github/integration/login/:org',
   loginSuccess: '/web/msg/info/login_success',
   loginTerminalRedirect: '/web/msg/info/login_terminal',
   loginClose: '/web/msg/info/login_close',
@@ -347,6 +348,7 @@ const cfg = {
     gitServer: {
       createOrOverwrite: '/v1/webapi/sites/:clusterId/gitservers',
       delete: '/v1/webapi/sites/:clusterId/gitservers/:name',
+      credentials: '/v1/webapi/sites/:clusterId/gitservers/:name/credentials',
     },
 
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
@@ -409,6 +411,7 @@ const cfg = {
     listRequestableRolesPath:
       '/v1/webapi/requestableroles?startKey=:startKey?&search=:search?&limit=:limit?',
     githubIntegrationCallbackPath: '/v1/webapi/github/integration/callback',
+    githubIntegrationLoginPath: '/v1/webapi/github/integration/login',
     githubIntegrationManifestPath: '/v1/webapi/github/integration/manifest',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
@@ -1256,6 +1259,10 @@ const cfg = {
     if (action === 'delete') {
       return generatePath(cfg.api.gitServer.delete, params);
     }
+  },
+
+  getGitServerCredentialsUrl(params: { clusterId: string; name: string }) {
+    return generatePath(cfg.api.gitServer.credentials, params);
   },
 
   getDatabaseServicesUrl(clusterId: string) {

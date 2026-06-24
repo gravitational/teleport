@@ -3042,3 +3042,18 @@ func (m *GitHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *GitSessionChunk) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *GitCredentialCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *GitCredentialRevoke) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *GitSessionStart) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

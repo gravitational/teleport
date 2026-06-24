@@ -36,8 +36,9 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
-	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -48,8 +49,8 @@ import (
 
 // HTTPHandlerConfig is the configuration for the git HTTP handler.
 type HTTPHandlerConfig struct {
-	// IntegrationsClient issues GitHub access tokens.
-	IntegrationsClient IntegrationsClient
+	// GitCredentialsClient issues GitHub access tokens.
+	GitCredentialsClient GitCredentialsClient
 	// GitServerGetter looks up git server resources for audit metadata.
 	GitServerGetter GitServerGetter
 	// Authorizer authorizes requests.
@@ -70,6 +71,9 @@ type HTTPHandlerConfig struct {
 	NewSessionRecorder func(ctx context.Context, sessionID string) (events.SessionPreparerRecorder, error)
 	// HostID is the proxy host ID for audit events.
 	HostID string
+	// Transport is the HTTP transport for upstream requests. If nil,
+	// defaults.Transport() is used.
+	Transport http.RoundTripper
 	// Logger is the logger.
 	Logger *slog.Logger
 }
@@ -79,9 +83,9 @@ type GitServerGetter interface {
 	GetGitServer(ctx context.Context, name string) (types.Server, error)
 }
 
-// IntegrationsClient generates GitHub access tokens.
-type IntegrationsClient interface {
-	GenerateGitHubAppToken(ctx context.Context, in *integrationv1.GenerateGitHubAppTokenRequest, opts ...grpc.CallOption) (*integrationv1.GenerateGitHubAppTokenResponse, error)
+// GitCredentialsClient generates GitHub access tokens.
+type GitCredentialsClient interface {
+	GenerateGitHubAppToken(ctx context.Context, in *gitserverv1.GenerateGitHubAppTokenRequest, opts ...grpc.CallOption) (*gitserverv1.GenerateGitHubAppTokenResponse, error)
 }
 
 // HTTPHandler handles HTTP requests for Git HTTPS proxying (git clone/fetch/push
@@ -99,11 +103,18 @@ type HTTPHandler struct {
 // control the handler's lifecycle -- when canceled, background goroutines
 // stop and pending session recordings are flushed.
 func NewHTTPHandler(closeCtx context.Context, cfg HTTPHandlerConfig) (*HTTPHandler, error) {
-	if cfg.IntegrationsClient == nil {
-		return nil, trace.BadParameter("missing IntegrationsClient")
+	if cfg.GitCredentialsClient == nil {
+		return nil, trace.BadParameter("missing GitCredentialsClient")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentGit)
+	}
+	if cfg.Transport == nil {
+		tr, err := defaults.Transport()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.Transport = tr
 	}
 
 	closeCtx, cancel := context.WithCancel(closeCtx)
@@ -209,18 +220,18 @@ func (h *HTTPHandler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		return trace.Wrap(err)
 	}
 
-	tokenResp, err := h.cfg.IntegrationsClient.GenerateGitHubAppToken(ctx, &integrationv1.GenerateGitHubAppTokenRequest{
-		SessionId: routeToGit.SessionID,
-	})
+	tokenReq := &gitserverv1.GenerateGitHubAppTokenRequest{}
+	tokenReq.SetUserCert(r.TLS.PeerCertificates[0].Raw)
+	tokenResp, err := h.cfg.GitCredentialsClient.GenerateGitHubAppToken(ctx, tokenReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch r.Host {
 	case "github.com":
-		return h.handleGitCommand(ctx, w, r, identity, routeToGit, tokenResp.AccessToken)
+		return h.handleGitCommand(ctx, w, r, identity, routeToGit, tokenResp.GetAccessToken())
 	case "api.github.com":
-		return h.handleAPI(ctx, w, r, identity, routeToGit, tokenResp.AccessToken)
+		return h.handleAPI(ctx, w, r, identity, routeToGit, tokenResp.GetAccessToken())
 	default:
 		return trace.AccessDenied("unsupported host %q", r.Host)
 	}
@@ -302,8 +313,9 @@ func (h *HTTPHandler) handleGitCommand(ctx context.Context, w http.ResponseWrite
 	// Record all requests (including discovery) in session chunks.
 	h.recordRequest(ctx, routeToGit, identity, r, rw.statusCode, "")
 
-	// Emit separate GitCommand audit event for actual operations (not discovery).
-	if !isDiscovery {
+	// Emit GitCommand audit event for actual operations, and also for
+	// discovery requests that failed (e.g. 403 from GitHub).
+	if !isDiscovery || rw.statusCode >= 400 {
 		h.emitGitCommandEventWithRecorder(ctx, identity, routeToGit, r, rw.statusCode, cmdRecorder)
 	}
 	return nil
@@ -417,7 +429,8 @@ func (h *HTTPHandler) getOrCreateRecorder(ctx context.Context, sessionID string,
 
 func (h *HTTPHandler) forward(w http.ResponseWriter, r *http.Request, accessToken string) {
 	proxy := &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
+		Transport: h.cfg.Transport,
+		Director:  func(req *http.Request) {
 			req.URL.Scheme = "https"
 			req.URL.Host = req.Host
 			req.URL.User = nil

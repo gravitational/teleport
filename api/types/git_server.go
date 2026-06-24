@@ -46,3 +46,23 @@ func GitServerHTTPEnabled(github *GitHubServerMetadata) bool {
 	}
 	return slices.Contains(github.AllowProtocols, GitProtocolHTTP)
 }
+
+// SSHEnabled returns whether SSH is allowed for this GitHub integration.
+// If AllowProtocols is empty, defaults to true for backwards compatibility.
+func (s *GitHubIntegrationSpecV1) SSHEnabled() bool {
+	if s == nil {
+		return false
+	}
+	if len(s.AllowProtocols) == 0 {
+		return true
+	}
+	return slices.Contains(s.AllowProtocols, GitProtocolSSH)
+}
+
+// HTTPEnabled returns whether HTTP is allowed for this GitHub integration.
+func (s *GitHubIntegrationSpecV1) HTTPEnabled() bool {
+	if s == nil {
+		return false
+	}
+	return slices.Contains(s.AllowProtocols, GitProtocolHTTP)
+}

@@ -1076,6 +1076,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/github/integration/callback", h.WithAuth(h.githubIntegrationCallback))
 	h.POST("/webapi/github/integration/manifest", h.WithAuth(h.githubIntegrationManifest))
 	h.Handle("GET", "/webapi/github/integration/manifest/redirect", h.githubManifestRedirectRaw)
+	h.POST("/webapi/github/integration/login", h.WithAuth(h.githubIntegrationLogin))
 
 	// MFA public endpoints.
 	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMFARequired))
@@ -1331,6 +1332,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/gitservers", h.WithClusterAuth(h.gitServerCreateOrUpsert))
 	h.GET("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerGet))
 	h.DELETE("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerDelete))
+
+	h.GET("/webapi/sites/:site/gitservers/:name/credentials", h.WithClusterAuth(h.gitCredentialsStatus))
+	h.DELETE("/webapi/sites/:site/gitservers/:name/credentials", h.WithClusterAuth(h.gitCredentialsRevoke))
 
 	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
@@ -2621,6 +2625,37 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	return redirectURL.String()
 }
 
+// githubIntegrationLogin initiates the GitHub OAuth flow for the authenticated
+// user. It creates a GitHub auth request via the git server service and returns
+// the redirect URL. The frontend redirects the user to GitHub for authorization.
+func (h *Handler) githubIntegrationLogin(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+	var req struct {
+		Organization string `json:"organization"`
+	}
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.Organization == "" {
+		return nil, trace.BadParameter("missing organization")
+	}
+
+	clt, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authReq, err := clt.GitServerClient().CreateGitHubAuthRequest(r.Context(), &types.GithubAuthRequest{}, req.Organization)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create GitHub auth request")
+	}
+
+	return &struct {
+		RedirectURL string `json:"redirectUrl"`
+	}{
+		RedirectURL: authReq.RedirectURL,
+	}, nil
+}
+
 // githubIntegrationCallback handles the authenticated GitHub OAuth callback for
 // git integration. Called by the web UI page after extracting code/state from
 // the GitHub redirect URL. Requires a valid web session + CSRF token, ensuring
@@ -2663,26 +2698,32 @@ func (h *Handler) githubIntegrationCallback(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	// Build the redirect URL for tsh's local callback server.
-	redirectURL, err := ConstructSSHResponse(AuthParams{
-		ClientRedirectURL: response.Req.ClientRedirectURL,
-		Username:          response.Username,
-		Identity:          response.Identity,
-		Session:           response.Session,
-		Cert:              response.Cert,
-		TLSCert:           response.TLSCert,
-		HostSigners:       response.HostSigners,
-		FIPS:              h.cfg.FIPS,
-		ClientOptions:     response.ClientOptions,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	result := map[string]interface{}{
+		"username": response.Username,
 	}
 
-	return map[string]interface{}{
-		"username":     response.Username,
-		"redirect_url": redirectURL.String(),
-	}, nil
+	// When ClientRedirectURL is set (tsh flow), build the SSH response for
+	// tsh's local callback server. When empty (web UI flow), just return
+	// success -- credentials are already stored by the callback handler.
+	if response.Req.ClientRedirectURL != "" {
+		redirectURL, err := ConstructSSHResponse(AuthParams{
+			ClientRedirectURL: response.Req.ClientRedirectURL,
+			Username:          response.Username,
+			Identity:          response.Identity,
+			Session:           response.Session,
+			Cert:              response.Cert,
+			TLSCert:           response.TLSCert,
+			HostSigners:       response.HostSigners,
+			FIPS:              h.cfg.FIPS,
+			ClientOptions:     response.ClientOptions,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["redirect_url"] = redirectURL.String()
+	}
+
+	return result, nil
 }
 
 // BuildDeviceWebRedirectPath constructs the redirect path for device web authorization.

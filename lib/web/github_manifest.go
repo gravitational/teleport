@@ -67,7 +67,7 @@ func (h *Handler) githubManifestRedirectRaw(w http.ResponseWriter, r *http.Reque
 		"url":          baseURL,
 		"redirect_url": fmt.Sprintf("%s/web/integrations/new/github", baseURL),
 		"callback_urls": []string{
-			fmt.Sprintf("%s/v1/webapi/github/callback", baseURL),
+			fmt.Sprintf("%s/web/github/integration/callback", baseURL),
 		},
 		"hook_attributes": map[string]interface{}{
 			"url":    fmt.Sprintf("%s/webapi/github/webhook", baseURL),
@@ -147,10 +147,19 @@ func (h *Handler) githubIntegrationManifest(w http.ResponseWriter, r *http.Reque
 	}
 
 	integrationName := fmt.Sprintf("github-%s", req.Org)
+
+	var allowProtocols []string
+	if req.SSHEnabled {
+		allowProtocols = append(allowProtocols, types.GitProtocolSSH)
+	}
+	if req.HTTPEnabled {
+		allowProtocols = append(allowProtocols, types.GitProtocolHTTP)
+	}
 	integration, err := types.NewIntegrationGitHub(
 		types.Metadata{Name: integrationName},
 		&types.GitHubIntegrationSpecV1{
-			Organization: req.Org,
+			Organization:   req.Org,
+			AllowProtocols: allowProtocols,
 		},
 	)
 	if err != nil {
@@ -179,13 +188,6 @@ func (h *Handler) githubIntegrationManifest(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	var allowProtocols []string
-	if req.SSHEnabled {
-		allowProtocols = append(allowProtocols, types.GitProtocolSSH)
-	}
-	if req.HTTPEnabled {
-		allowProtocols = append(allowProtocols, types.GitProtocolHTTP)
-	}
 	gitServer, err := types.NewGitHubServerWithName(integrationName, types.GitHubServerMetadata{
 		Organization:   req.Org,
 		Integration:    integrationName,

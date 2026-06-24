@@ -54,10 +54,19 @@ export function GitHubIntegrationCallback() {
     api
       .post(cfg.api.githubIntegrationCallbackPath, { code, state })
       .then((resp: { redirect_url?: string }) => {
+        // Notify the opener tab (connect dialog) that OAuth completed.
+        try {
+          const channel = new BroadcastChannel('github-oauth-complete');
+          channel.postMessage('done');
+          channel.close();
+        } catch {
+          // BroadcastChannel not supported, dialog will use manual refresh.
+        }
+
         if (resp.redirect_url) {
           window.location.replace(resp.redirect_url);
         } else {
-          window.location.replace(cfg.routes.loginSuccess);
+          setProcessing(false);
         }
       })
       .catch(err => {

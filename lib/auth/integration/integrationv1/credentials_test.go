@@ -31,6 +31,76 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 )
 
+func TestSetGitHubIntegrationStatus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("new integration with IdSecret populates ClientID", func(t *testing.T) {
+		ig, err := types.NewIntegrationGitHub(
+			types.Metadata{Name: "test-ig"},
+			&types.GitHubIntegrationSpecV1{
+				Organization:   "my-org",
+				AllowProtocols: []string{"ssh", "http"},
+			},
+		)
+		require.NoError(t, err)
+		ig.SetCredentials(&types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_IdSecret{
+				IdSecret: &types.PluginIdSecretCredential{
+					Id:     "Iv23liTestID",
+					Secret: "secret",
+				},
+			},
+		})
+
+		setGitHubIntegrationStatus(ig, "")
+
+		status := ig.GetStatus().GitHub
+		require.NotNil(t, status)
+		assert.Equal(t, "Iv23liTestID", status.ClientID)
+		assert.True(t, status.SSHCAConfigured)
+	})
+
+	t.Run("update without IdSecret preserves existing ClientID", func(t *testing.T) {
+		ig, err := types.NewIntegrationGitHub(
+			types.Metadata{Name: "test-ig"},
+			&types.GitHubIntegrationSpecV1{
+				Organization:   "my-org",
+				AllowProtocols: []string{"http"},
+			},
+		)
+		require.NoError(t, err)
+
+		setGitHubIntegrationStatus(ig, "Iv23liExistingID")
+
+		status := ig.GetStatus().GitHub
+		require.NotNil(t, status)
+		assert.Equal(t, "Iv23liExistingID", status.ClientID)
+	})
+
+	t.Run("SSHCAConfigured preserved from existing status", func(t *testing.T) {
+		ig, err := types.NewIntegrationGitHub(
+			types.Metadata{Name: "test-ig"},
+			&types.GitHubIntegrationSpecV1{
+				Organization:   "my-org",
+				AllowProtocols: []string{"http"},
+			},
+		)
+		require.NoError(t, err)
+
+		ig.SetStatus(types.IntegrationStatusV1{
+			GitHub: &types.GitHubIntegrationStatusV1{
+				SSHCAConfigured: true,
+			},
+		})
+
+		setGitHubIntegrationStatus(ig, "")
+
+		status := ig.GetStatus().GitHub
+		require.NotNil(t, status)
+		assert.True(t, status.SSHCAConfigured)
+	})
+}
+
 func TestExportIntegrationCertAuthorities(t *testing.T) {
 	t.Parallel()
 	ca := newCertAuthority(t, types.HostCA, "test-cluster")

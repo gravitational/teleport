@@ -97,9 +97,11 @@ func (c *gitGHCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("git server %v does not have HTTP proxying enabled", gitServer.GetName())
 	}
 
-	valid, reason := hasValidGitCert(tc, gitServer.GetName())
+	valid, _ := hasValidGitCert(tc, gitServer.GetName())
 	if !valid {
-		return trace.BadParameter("No valid git certificate found (%s). Please run: tsh git login %s", reason, gitServer.GetName())
+		if err := ensureGitCredentialsAndCert(cf, tc, gitServer); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	proxy, err := startGitProxy(cf, tc, gitServer.GetName())
@@ -449,6 +451,43 @@ func (h *gitHTTPProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 				return net.Dial("tcp", h.proxyAddr)
 			},
 		},
+		ModifyResponse: gitHTTPProxyModifyResponse,
 	}
 	proxy.ServeHTTP(w, r)
+}
+
+// gitHTTPProxyModifyResponse intercepts responses from the Teleport proxy and
+// adds a hint when GitHub credentials have expired.
+func gitHTTPProxyModifyResponse(resp *http.Response) error {
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		resp.Header.Set("X-Teleport-Git-Error", "GitHub authorization required. Run \"tsh git login\" and retry.")
+		logger.WarnContext(resp.Request.Context(), "GitHub authorization required, run \"tsh git login\" and retry")
+	}
+	return nil
+}
+
+// ensureGitCredentialsAndCert checks for stored credentials and triggers OAuth
+// if needed, then issues a git cert. Called only when no valid git cert exists
+// (first-time use).
+func ensureGitCredentialsAndCert(cf *CLIConf, tc *client.TeleportClient, gitServer types.Server) error {
+	github := gitServer.GetGitHub()
+	if github == nil {
+		return trace.BadParameter("git server %v is not a GitHub server", gitServer.GetName())
+	}
+
+	hasCredentials, err := checkGitHubCredentials(cf, tc, gitServer.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !hasCredentials {
+		fmt.Fprintln(cf.Stderr(), "GitHub authorization required. Starting OAuth flow...")
+		if _, err := getGitHubIdentity(cf, github.Organization, withForceOAuthFlow(true)); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := issueGitCert(cf, tc, gitServer.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

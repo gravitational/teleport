@@ -39,28 +39,41 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 	if err := types.ValidateGitHubOrganizationName(in.Organization); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if in.Request.SSOTestFlow {
-		return nil, trace.BadParameter("sso test flow is not supported when creating GitHub auth request for authenticated user")
-	}
+	// SSOTestFlow is allowed for integration testing via tctl integration test.
 	if in.Request.CreateWebSession {
 		return nil, trace.BadParameter("CreateWebSession is not supported when creating GitHub auth request for authenticated user")
 	}
 
-	authCtx, gitServer, findErr := s.authAndFindServerByOrg(ctx, in.Organization)
-	if findErr != nil {
-		return nil, trace.Wrap(findErr)
+	var authCtx *authz.Context
+	var integrationName string
+	if in.Request.SSOTestFlow {
+		// Test flow: check integration RBAC instead of git server RBAC.
+		// The admin is testing the integration setup, not using it as a developer.
+		var findErr error
+		authCtx, integrationName, findErr = s.authAndFindIntegrationByOrg(ctx, in.Organization)
+		if findErr != nil {
+			return nil, trace.Wrap(findErr)
+		}
+	} else {
+		var gitServer types.Server
+		var findErr error
+		authCtx, gitServer, findErr = s.authAndFindServerByOrg(ctx, in.Organization)
+		if findErr != nil {
+			return nil, trace.Wrap(findErr)
+		}
+		integrationName = gitServer.GetGitHub().Integration
 	}
 
 	s.cfg.Log.DebugContext(ctx, "Creating GitHub auth request for authenticated user.",
 		"user", authCtx.User.GetName(),
-		"org", gitServer.GetGitHub().Organization,
-		"integration", gitServer.GetGitHub().Integration,
-		"git_server", gitServer.GetName(),
+		"org", in.Organization,
+		"integration", integrationName,
+		"test_flow", in.Request.SSOTestFlow,
 	)
 
 	// Make a "temporary" connector spec and save it in the request.
 	uuid := uuid.NewString()
-	spec, err := s.makeGithubConnectorSpec(ctx, uuid, gitServer)
+	spec, err := s.makeGithubConnectorSpec(ctx, uuid, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -75,6 +88,37 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 	// s.cfg.GitHubAuthRequestCreator.
 	request, err := s.cfg.GitHubAuthRequestCreator(ctx, *in.Request)
 	return request, trace.Wrap(err)
+}
+
+func (s *Service) authAndFindIntegrationByOrg(ctx context.Context, org string) (*authz.Context, string, error) {
+	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if _, ok := authCtx.UnmappedIdentity.(authz.BuiltinRole); ok {
+		return nil, "", trace.BadParameter("this command requires a user identity; make sure tctl is connected through the Proxy, not directly to Auth")
+	}
+
+	var next string
+	for {
+		integrations, token, err := s.cfg.Backend.ListIntegrations(ctx, apidefaults.DefaultChunkSize, next)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		for _, ig := range integrations {
+			if spec := ig.GetGitHubIntegrationSpec(); spec != nil && spec.Organization == org {
+				return authCtx, ig.GetName(), nil
+			}
+		}
+		if token == "" {
+			break
+		}
+		next = token
+	}
+	return nil, "", trace.NotFound("GitHub integration for organization %q not found", org)
 }
 
 func (s *Service) authAndFindServerByOrg(ctx context.Context, org string) (*authz.Context, types.Server, error) {
@@ -106,11 +150,7 @@ func (s *Service) authAndFindServerByOrg(ctx context.Context, org string) (*auth
 	return nil, nil, trace.NotFound("git server with organization %q not found", org)
 }
 
-func (s *Service) makeGithubConnectorSpec(ctx context.Context, uuid string, gitServer types.Server) (*types.GithubConnectorSpecV3, error) {
-	github := gitServer.GetGitHub()
-	org := github.Organization
-	integration := github.Integration
-
+func (s *Service) makeGithubConnectorSpec(ctx context.Context, uuid string, integration string) (*types.GithubConnectorSpecV3, error) {
 	ref, err := credentials.GetIntegrationRef(ctx, integration, s.cfg.Backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,17 +166,29 @@ func (s *Service) makeGithubConnectorSpec(ctx context.Context, uuid string, gitS
 		return nil, trace.BadParameter("no OAuth client ID or secret found for integration %v", integration)
 	}
 
+	ig, err := s.cfg.Backend.GetIntegration(ctx, integration)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ghSpec := ig.GetGitHubIntegrationSpec()
+	callbackPath := "/v1/webapi/github/callback"
+	if ghSpec.HTTPEnabled() {
+		callbackPath = "/web/github/integration/callback"
+	} else if ghSpec.OAuthAppCallbackURL != "" {
+		callbackPath = ghSpec.OAuthAppCallbackURL
+	}
+
 	return &types.GithubConnectorSpecV3{
 		ClientID:       clientID,
 		ClientSecret:   clientSecret,
-		RedirectURL:    fmt.Sprintf("https://%s/v1/webapi/github/callback", s.cfg.ProxyPublicAddrGetter(ctx)),
+		RedirectURL:    fmt.Sprintf("https://%s%s", s.cfg.ProxyPublicAddrGetter(ctx), callbackPath),
 		EndpointURL:    types.GithubURL,
 		APIEndpointURL: types.GithubAPIURL,
 		// TODO(greedy52) the GitHub OAuth flow for authenticated user does not
 		// require team-to-roles mapping. Put some placeholders for now to make
 		// param-checks happy.
 		TeamsToRoles: []types.TeamRolesMapping{{
-			Organization: org,
+			Organization: ghSpec.Organization,
 			Team:         uuid,
 			Roles:        []string{uuid},
 		}},

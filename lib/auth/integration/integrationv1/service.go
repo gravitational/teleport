@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
@@ -98,8 +99,6 @@ type Backend interface {
 	services.DiscoveryConfigs
 	services.Presence
 	services.UserExternalCredentialsService
-	// GetAppSession gets an application web session (used for git sessions too).
-	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 }
 
 // ServiceConfig holds configuration options for
@@ -271,7 +270,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		setGitHubIntegrationStatus(req.Integration)
+		setGitHubIntegrationStatus(req.Integration, "")
 	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
 		if err := awscommon.ValidIntegrationName(req.Integration.GetName()); err != nil {
 			return nil, trace.Wrap(err)
@@ -340,7 +339,15 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		if err := s.maybeCreateGitHubSSHCA(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		setGitHubIntegrationStatus(req.Integration)
+		var existingClientID string
+		if req.Integration.GetCredentials().GetIdSecret() == nil {
+			if existing, err := s.cache.GetIntegration(ctx, req.Integration.GetName()); err == nil {
+				if s := existing.GetStatus().GitHub; s != nil {
+					existingClientID = s.ClientID
+				}
+			}
+		}
+		setGitHubIntegrationStatus(req.Integration, existingClientID)
 	}
 
 	ig, err := s.backend.UpdateIntegration(ctx, req.Integration)
@@ -441,6 +448,10 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
+	if ig.GetSubKind() == types.IntegrationSubKindGitHub {
+		s.cleanupGitHubCredentials(ctx, ig)
+	}
+
 	igMeta, err := getIntegrationMetadata(ig)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Failed to build all integration metadata for audit event.", "error", err)
@@ -462,6 +473,66 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// cleanupGitHubCredentials removes all user credentials associated with a
+// GitHub integration and calls GitHub's token revocation API for each.
+func (s *Service) cleanupGitHubCredentials(ctx context.Context, ig types.Integration) {
+	clientID := s.resolveGitHubClientID(ctx, ig)
+	if clientID == "" {
+		return
+	}
+
+	clientSecret := s.resolveGitHubClientSecret(ctx, ig)
+
+	for creds, err := range s.backend.IterateUserExternalCredentials(ctx, services.IterateUserExternalCredentialsRequest{
+		Name: clientID,
+	}) {
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to iterate user external credentials",
+				"integration", ig.GetName(),
+				"error", err,
+			)
+			break
+		}
+		username := creds.GetSpec().GetUser()
+
+		if clientSecret != "" {
+			accessToken := creds.GetSpec().GetGithubOauth().GetAccessToken()
+			if accessToken != "" {
+				if err := credentials.RevokeGitHubTokenGrant(ctx, clientID, clientSecret, accessToken); err != nil {
+					s.logger.WarnContext(ctx, "Failed to revoke GitHub token",
+						"user", username,
+						"error", err,
+					)
+				}
+			}
+		}
+
+		if err := s.backend.DeleteUserExternalCredentials(ctx, username, clientID); err != nil {
+			s.logger.WarnContext(ctx, "Failed to delete user external credentials",
+				"user", username,
+				"client_id", clientID,
+				"error", err,
+			)
+		}
+	}
+}
+
+func (s *Service) resolveGitHubClientSecret(ctx context.Context, ig types.Integration) string {
+	cred, err := s.getStaticCredentialsWithPurpose(ctx, ig, "github-oauth")
+	if err != nil {
+		return ""
+	}
+	_, secret := cred.GetOAuthClientSecret()
+	return secret
+}
+
+func (s *Service) resolveGitHubClientID(_ context.Context, ig types.Integration) string {
+	if status := ig.GetStatus().GitHub; status != nil {
+		return status.ClientID
+	}
+	return ""
 }
 
 func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata, error) {

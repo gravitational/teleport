@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -6171,6 +6172,25 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Reporter:   cfg.AuthServer.Services.UsageReporter,
 		Clock:      cfg.AuthServer.GetClock(),
 		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "users.service"),
+		OnUserDelete: func(ctx context.Context, username string) {
+			for creds, err := range cfg.AuthServer.Services.IterateUserExternalCredentials(ctx, services.IterateUserExternalCredentialsRequest{
+				User: username,
+			}) {
+				if err != nil {
+					cfg.AuthServer.logger.WarnContext(ctx, "Failed to iterate user external credentials for cleanup",
+						"user", username,
+						"error", err,
+					)
+					break
+				}
+				if err := cfg.AuthServer.Services.DeleteUserExternalCredentials(ctx, username, creds.GetMetadata().GetName()); err != nil {
+					cfg.AuthServer.logger.WarnContext(ctx, "Failed to delete user external credentials",
+						"user", username,
+						"error", err,
+					)
+				}
+			}
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6702,6 +6722,42 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	gitserverv1pb.RegisterGitServerServiceServer(server, gitServerService)
+
+	gitCredentialsService, err := gitserverv1.NewCredentialsService(gitserverv1.CredentialsServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+		Backend:    cfg.AuthServer.Services,
+		Emitter:    cfg.Emitter,
+		CertVerifier: func(certDER []byte) (*x509.Certificate, error) {
+			cert, err := x509.ParseCertificate(certDER)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			clusterName, err := cfg.AuthServer.GetClusterName(context.Background())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tlsCA, _, _, err := cfg.AuthServer.getSigningCAs(context.Background(), clusterName.GetClusterName(), types.UserCA)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			roots := x509.NewCertPool()
+			roots.AddCert(tlsCA.Cert)
+			if _, err := cert.Verify(x509.VerifyOptions{
+				Roots:       roots,
+				CurrentTime: cfg.AuthServer.clock.Now(),
+				KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+			}); err != nil {
+				return nil, trace.AccessDenied("certificate not signed by this cluster's CA: %v", err)
+			}
+			return cert, nil
+		},
+		Clock: cfg.AuthServer.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gitserverv1pb.RegisterGitCredentialsServiceServer(server, gitCredentialsService)
 
 	// Only register the following services if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all
