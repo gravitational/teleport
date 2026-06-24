@@ -319,3 +319,136 @@ securityContext: null
 #
 # By default, this is unset.
 podSecurityContext: null
+
+# updater -- controls whether the Kube Agent Updater should be deployed alongside
+# tbot. The updater fetches the target Teleport version, validates the
+# image signature, and updates the tbot deployment.
+#
+# The updater can fetch the update information using two protocols:
+# - the webapi update protocol (in this case the Teleport Proxy Service is the one driving the version rollout)
+# - the version server protocol (this is an HTTP server serving static files specifying the version and if the update is critical).
+#
+# The webapi protocol takes precedence over the version server one if the Teleport Proxy Service supports it.
+# The version server protocol failover can be disabled by unsetting `updater.versionServer`.
+# The webapi protocol can be disabled by setting `updater.proxyAddr` to `""`.
+# For backward compatibility reasons, the webapi protocol is not enabled if a custom `updater.versionServer` is set.
+#
+# All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+# ... default to the tbot values. However, they can be overridden from the
+# `updater` object. For example:
+#
+# ```yaml
+# # the tbot pod requests 1cpu and 2 GiB of memory. It also has a memory limit.
+# resources:
+#   requests:
+#     cpu: "1"
+#     memory: "2Gi"
+#   limits:
+#     memory: "2Gi"
+#
+# # the updater pod requests 0.5 cpu and 512MiB of memory. The memory limit has also been unset.
+# updater:
+#   resources:
+#     requests:
+#       cpu: "0.5"
+#       memory: "512Mi"
+#     limits: ~
+# ```
+#
+# Other updater-specific values that can be defined in `updater` are described
+# below.
+updater:
+  # updater.enabled(bool) -- Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
+  # You can enable this when:
+  #
+  # - using Teleport Cloud and your tenant is enrolled into automatic updates.
+  #   (You can check this through the web UI, choose `Add Kubernetes` and
+  #   `Enroll New Resource of type Kubernetes`, and check if the value is turned
+  #   on.)
+  # - using self-hosted Teleport and you maintain your own version server.
+  #
+  # You must not enable this when:
+  #
+  # - you are a Teleport Cloud customer not enrolled in automatic updates.
+  # - you are a self-hosted Teleport user and have not set up your Teleport cluster to
+  #   support automatic updates.
+  enabled: false
+
+  # updater.versionServer(string) -- is the URL of the version server the agent
+  # fetches the target version from. The complete version endpoint is built by
+  # concatenating [`versionServer`](#updaterversionserver) and [`releaseChannel`
+  # ](#updaterreleasechannel).
+  # This field supports gotemplate.
+  #
+  # Setting this field makes the updater fetch the version using the version server protocol.
+  # Setting this field to a custom value disables the webapi update protocol to ensure backward compatibility.
+  versionServer: "https://{{ .Values.teleportProxyAddress }}/v1/webapi/automaticupgrades/channel"
+
+  # updater.releaseChannel(string) -- is the release channel the updater
+  # subscribes to.
+  #
+  # The complete version endpoint is built by concatenating
+  # [`versionServer`](#updaterversionserver) and [`releaseChannel`](#updaterreleasechannel).
+  # You must not change the default value if you are a Teleport Cloud user unless
+  # instructed by Teleport support.
+  #
+  # This value is used when the updater is fetching the version using the version server protocol.
+  # It is also used as a failover when fetching the version using the webapi protocol if `updater.group` is unset.
+  releaseChannel: "stable/cloud"
+
+  # updater.group(string) -- is the update group used when fetching the version using the webapi protocol.
+  # When unset, the group defaults to `default`.
+  group: ""
+
+  # updater.image(string) -- sets the container image used for Teleport updater
+  # pods run when `updater.enabled` is true.
+  #
+  # You can override this to use your own Teleport Kube Agent Updater image rather
+  # than a Teleport-published image.
+  image: public.ecr.aws/gravitational/teleport-kube-agent-updater
+
+  # updater.serviceAccount --
+  serviceAccount:
+    # updater.serviceAccount.name(string) -- is the updater Kubernetes Service
+    # Account name. When unset, it defaults to `<tbot sa name>-updater`
+    name: ""
+
+  # updater.pullCredentials(string) -- configures how the updater attempts to
+  # get the image pull credentials used to validate the image signature.
+  #
+  # This is not required when pulling images from official public Teleport
+  # registries (chart's default).
+  #
+  # Supported values are `amazon`, `google`, `docker` and `none`.
+  pullCredentials: ""
+
+  # updater.extraArgs(list) -- contains additional arguments to pass to the updater
+  # binary.
+  extraArgs: []
+
+  # updater.extraVolumes(list) -- contains extra volumes to mount into the Updater pods.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumes:
+  #   - name: myvolume
+  #     secret:
+  #       secretName: testSecret
+  # ```
+  extraVolumes: []
+
+  # updater.extraVolumeMounts(list) -- contains extra volumes mounts for the updater.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumesMounts:
+  #   - name: myvolume
+  #     mountPath: /path/on/host
+  # ```
+  extraVolumeMounts: []
