@@ -309,6 +309,32 @@ func validateRoot(expr string) error {
 	return nil
 }
 
+// validateTerminals rejects a greedy() or slash() call that carries arguments.
+// Both are terminal matchers that take no children, so a call with arguments is
+// a malformed pattern rather than one whose children are silently dropped.
+// Checking at load turns a per-request evaluation error into a clear compile
+// failure; the constructors backstop it at evaluation.
+func validateTerminals(expr string) error {
+	parsed, err := goparser.ParseExpr(expr)
+	if err != nil {
+		return nil
+	}
+	var bad error
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		for _, name := range []string{"greedy", "slash"} {
+			if isIdentCall(call, name) && len(call.Args) > 0 {
+				bad = trace.BadParameter("%s() takes no arguments, got %d", name, len(call.Args))
+			}
+		}
+		return true
+	})
+	return bad
+}
+
 // validateEncodedSets rejects an encoded-char set literal that names any char
 // other than the separator "/". The encoded-char matchers glob_encoded and
 // capture_encoded, and the allow_encoded option, each take a set(...) of
