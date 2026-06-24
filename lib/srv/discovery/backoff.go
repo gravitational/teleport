@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	maxInstallBackoff = 120 * time.Minute
+	maxInstallBackoff = 6 * time.Hour
 	minInstallBackoff = 5 * time.Minute
 )
 
