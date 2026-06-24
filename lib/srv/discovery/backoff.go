@@ -33,8 +33,8 @@ const (
 
 // installBackoffScalingFactors is a lookup array for the scaling factor to use
 // when calculating the backoff delay.
-// minInstallBackoff * 128 = 640 > maxInstallBackoff, so we only need a scaling
-// factor up to 128.
+// minInstallBackoff * 128 = 640 minutes > maxInstallBackoff, so we only need a
+// scaling factor up to 128.
 var installBackoffScalingFactors = [...]int{1, 2, 4, 8, 16, 32, 64, 128}
 
 type installerBackoffEntry struct {
