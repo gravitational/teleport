@@ -87,6 +87,19 @@ func New(cfg Config) (*Server, error) {
 	}, nil
 }
 
+// callerName returns a display name for the calling identity, suitable for logging.
+// authzContext.User is nil for non-user (agent/builtin) identities, so fall back to
+// the identity's username to avoid a nil dereference.
+func callerName(authzContext *authz.ScopedContext) string {
+	if authzContext.User != nil {
+		return authzContext.User.GetName()
+	}
+	if authzContext.Identity != nil {
+		return authzContext.Identity.GetIdentity().Username
+	}
+	return ""
+}
+
 // CreateScopedRole implements [scopedaccessv1.ScopedRoleServiceServer].
 func (s *Server) CreateScopedRole(ctx context.Context, req *scopedaccessv1.CreateScopedRoleRequest) (*scopedaccessv1.CreateScopedRoleResponse, error) {
 	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
@@ -106,7 +119,7 @@ func (s *Server) CreateScopedRole(ctx context.Context, req *scopedaccessv1.Creat
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbCreate)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to create scoped roles in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", callerName(authzContext),
 			"scope", req.GetRole().GetScope())
 		return nil, trace.Wrap(err)
 	}
@@ -158,7 +171,7 @@ func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedacce
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbCreate)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to create scoped role assignments in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", callerName(authzContext),
 			"scope", req.GetAssignment().GetScope())
 		return nil, trace.Wrap(err)
 	}
@@ -205,7 +218,7 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbDelete)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to delete scoped roles in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", callerName(authzContext),
 			"scope", grsp.GetRole().GetScope(),
 			"role", req.GetName(),
 			"error", err,
@@ -260,7 +273,7 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbDelete)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to delete scoped role assignments in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", callerName(authzContext),
 			"scope", grsp.GetAssignment().GetScope(),
 			"assignment", req.GetName(),
 			"error", err,
@@ -302,7 +315,7 @@ func (s *Server) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScope
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbReadNoSecrets)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to read scoped role",
-			"user", authzContext.User.GetName(),
+			"user", callerName(authzContext),
 			"scope", preAuthzRsp.GetRole().GetScope(),
 			"role", req.GetName(),
 			"error", err,
@@ -344,7 +357,7 @@ func (s *Server) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbReadNoSecrets)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to read scoped role assignment",
-			"user", authzContext.User.GetName(),
+			"user", callerName(authzContext),
 			"scope", preAuthzRsp.GetAssignment().GetScope(),
 			"assignment", req.GetName(),
 			"error", err,
@@ -454,7 +467,7 @@ func (s *Server) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.Updat
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbUpdate)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to update scoped roles in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", callerName(authzContext),
 			"scope", req.GetRole().GetScope())
 		return nil, trace.Wrap(err)
 	}
@@ -483,7 +496,7 @@ func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedacce
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbUpdate)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to update scoped role assignments in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", callerName(authzContext),
 			"scope", req.GetAssignment().GetScope())
 		return nil, trace.Wrap(err)
 	}
@@ -515,7 +528,7 @@ func (s *Server) UpsertScopedRole(ctx context.Context, req *scopedaccessv1.Upser
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbCreate, types.VerbUpdate)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to upsert scoped roles in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", callerName(authzContext),
 			"scope", req.GetRole().GetScope())
 		return nil, trace.Wrap(err)
 	}
@@ -540,7 +553,7 @@ func (s *Server) UpsertScopedRoleAssignment(ctx context.Context, req *scopedacce
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbCreate, types.VerbUpdate)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to upsert scoped role assignments in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", callerName(authzContext),
 			"scope", req.GetAssignment().GetScope())
 		return nil, trace.Wrap(err)
 	}

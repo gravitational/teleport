@@ -140,6 +140,10 @@ func currentUserAction(scopedCtx *authz.ScopedContext, username string) error {
 		return trace.AccessDenied("scoped users can not create other users")
 	}
 
+	if authz.IsCurrentUser(*unscopedCtx, username) {
+		return nil
+	}
+
 	return unscopedCtx.Checker.CheckAccessToRule(&services.Context{User: unscopedCtx.User},
 		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
