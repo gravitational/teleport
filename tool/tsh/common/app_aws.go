@@ -31,13 +31,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/prompt"
@@ -280,6 +283,80 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 		printAWSRoles(cf.Stdout(), rolesMatched)
 		return "", trace.BadParameter("provided role name %q is ambiguous, please specify full role ARN", cf.AWSRole)
 	}
+}
+
+// awsRole is a mirror of awsutils.Role for maintaining the schema consistency (snake case for
+// JSON and YAML keys).
+type awsRole struct {
+	Name            string `yaml:"name" json:"name"`
+	Display         string `yaml:"display" json:"display"`
+	AccountID       string `yaml:"account_id" json:"account_id"`
+	ARN             string `yaml:"arn" json:"arn"`
+	RequiresRequest bool   `yaml:"requires_request,omitempty" json:"requires_request,omitempty"`
+}
+
+type cloudAppLogins struct {
+	AWSRoles []awsRole `yaml:"aws_roles,omitempty" json:"aws_roles,omitempty"`
+}
+
+// cloudAppInfo is a json/yaml schema for the "apps logins" command.
+type cloudAppInfo struct {
+	AppName string         `yaml:"app_name" json:"app_name"`
+	Logins  cloudAppLogins `yaml:"logins" json:"logins"`
+}
+
+func serializeAWSLogins(app types.Application, roles awsutils.Roles) cloudAppInfo {
+	roles.Sort()
+
+	awsRoles := make([]awsRole, 0, len(roles))
+	for _, role := range roles {
+		awsRoles = append(awsRoles, awsRole{
+			Name:            role.Name,
+			Display:         role.Display,
+			AccountID:       role.AccountID,
+			ARN:             role.ARN,
+			RequiresRequest: role.RequiresRequest,
+		})
+	}
+
+	return cloudAppInfo{
+		AppName: app.GetName(),
+		Logins: cloudAppLogins{
+			AWSRoles: awsRoles,
+		},
+	}
+}
+
+func printAWSAppLogins(cf *CLIConf, app types.Application, logins []string) error {
+	// Filter AWS roles by AWS account ID.
+	roles := awsutils.FilterAWSRoles(logins, app.GetAWSAccountID())
+
+	if len(roles) == 0 {
+		return trace.NotFound("there are no roles configured for the AWS app %q", app.GetName())
+	}
+
+	// Output based on format.
+	switch cf.Format {
+	case teleport.Text, "":
+		// Use existing printAWSRoles function for table output.
+		printAWSRoles(cf.Stdout(), roles)
+	case teleport.JSON:
+		out, err := utils.FastMarshalIndent(serializeAWSLogins(app, roles), "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(cf.Stdout(), string(out))
+	case teleport.YAML:
+		out, err := yaml.Marshal(serializeAWSLogins(app, roles))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprint(cf.Stdout(), string(out))
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+
+	return nil
 }
 
 // getARNFromRoles fetches the available AWS ARNs logins for given app.
