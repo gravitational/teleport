@@ -123,7 +123,7 @@ func TestEvaluateExpression(t *testing.T) {
 				Claims: tt.claims,
 			})
 			tt.expectError(t, err)
-			require.True(t, tt.expect == result)
+			require.Equal(t, tt.expect, result)
 		})
 	}
 }
