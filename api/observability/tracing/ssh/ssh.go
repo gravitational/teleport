@@ -41,11 +41,11 @@ const (
 	// instrumentationName is the name of this instrumentation package.
 	instrumentationName = "otelssh"
 
-	// SessionMFAAuthTimeout is the maximum amount of time to wait for the SSH authentication exchange to complete in
+	// sessionMFAAuthTimeout is the maximum amount of time to wait for the SSH authentication exchange to complete in
 	// when in-band MFA might be required. WebAuthn and SSO ceremonies can take longer than the
 	// defaults.DefaultIOTimeout, so this extended timeout prevents premature connection closure during the interactive
 	// handshake.
-	SessionMFAAuthTimeout = 3 * time.Minute
+	sessionMFAAuthTimeout = 3 * time.Minute
 )
 
 // EnvsReq contains json marshaled key:value pairs sent as the
@@ -295,7 +295,7 @@ func computeTimeout(config *ssh.ClientConfig) (timeout time.Duration, ok bool) {
 
 	timeout = cmp.Or(config.Timeout, defaults.DefaultIOTimeout)
 	if config.AuthCallback != nil {
-		timeout = max(timeout, SessionMFAAuthTimeout)
+		timeout = max(timeout, sessionMFAAuthTimeout)
 	}
 
 	return timeout, true

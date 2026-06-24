@@ -520,7 +520,7 @@ func TestComputeTimeout(t *testing.T) {
 			config: &ssh.ClientConfig{
 				AuthCallback: func(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, error) { return nil, nil },
 			},
-			wantTimeout: SessionMFAAuthTimeout,
+			wantTimeout: sessionMFAAuthTimeout,
 		},
 		{
 			name: "positive timeout less than MFA extends to MFA timeout",
@@ -528,7 +528,7 @@ func TestComputeTimeout(t *testing.T) {
 				Timeout:      10 * time.Second,
 				AuthCallback: func(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, error) { return nil, nil },
 			},
-			wantTimeout: SessionMFAAuthTimeout,
+			wantTimeout: sessionMFAAuthTimeout,
 		},
 		{
 			name: "positive timeout greater than MFA is preserved",
