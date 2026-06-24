@@ -37,6 +37,7 @@ func TestInstallerBackoffRecordFailedAttempt(t *testing.T) {
 	require.Equal(t, "first-issue", entry.issueType)
 	require.Same(t, vm, entry.vm)
 	require.Equal(t, now.Add(5*time.Minute), entry.retryAfter)
+	require.True(t, entry.seenInLastScan)
 
 	now = now.Add(time.Minute)
 	entry = backoff.recordFailedAttempt(vm, "second-issue", now)
@@ -45,6 +46,7 @@ func TestInstallerBackoffRecordFailedAttempt(t *testing.T) {
 	require.Equal(t, "second-issue", entry.issueType)
 	require.Same(t, vm, entry.vm)
 	require.Equal(t, now.Add(10*time.Minute), entry.retryAfter)
+	require.True(t, entry.seenInLastScan)
 }
 
 func TestInstallerBackoffDelayBounds(t *testing.T) {
@@ -109,39 +111,51 @@ func TestInstallerBackoffFilter(t *testing.T) {
 	require.ElementsMatch(t, []string{retryableVM.ID, neverFailedVM.ID}, notSkipped)
 	require.Len(t, skipped, 1)
 	require.Equal(t, backedOffEntry, skipped[0])
-	require.Contains(t, backoff.lastSeen, backedOffVM.ID)
-	require.Contains(t, backoff.lastSeen, retryableVM.ID)
-	require.Contains(t, backoff.lastSeen, neverFailedVM.ID)
+	require.NotContains(t, backoff.entries, neverFailedVM.ID)
+	require.Contains(t, backoff.entries, backedOffVM.ID)
+	require.Contains(t, backoff.entries, retryableVM.ID)
+	require.True(t, backoff.entries[backedOffEntry.vm.ID].seenInLastScan)
+	require.True(t, backoff.entries[retryableVM.ID].seenInLastScan)
 }
 
 func TestInstallerBackoffExpireEntries(t *testing.T) {
 	now := time.Now()
 	backoff := newInstallerBackoff(time.Minute, nil)
 
-	seenVM := backoffTestVM("attempted")
-	unseenExpiredVM := backoffTestVM("expired")
-	unseenUnexpiredVM := backoffTestVM("still-backed-off")
+	vm1 := backoffTestVM("vm1")
+	vm2 := backoffTestVM("vm2")
+	vm3 := backoffTestVM("vm3")
 
-	backoff.recordFailedAttempt(seenVM, "attempted-issue", now)
-	backoff.recordFailedAttempt(unseenExpiredVM, "expired-issue", now)
-	backoff.recordFailedAttempt(unseenUnexpiredVM, "still-backed-off-issue", now.Add(backoff.baseDelay))
+	backoff.recordFailedAttempt(vm1, "issue", now)
+	backoff.recordFailedAttempt(vm2, "issue", now)
+	backoff.recordFailedAttempt(vm3, "issue", now.Add(-2*backoff.baseDelay))
+	backoff.entries[vm3.ID].seenInLastScan = false
+	require.Contains(t, backoff.entries, vm1.ID)
+	require.Contains(t, backoff.entries, vm2.ID)
+	require.Contains(t, backoff.entries, vm3.ID)
+	require.True(t, backoff.entries[vm3.ID].retryable(now))
+	backoff.expireEntries(now)
+	require.Contains(t, backoff.entries, vm1.ID)
+	require.Contains(t, backoff.entries, vm2.ID)
+	require.NotContains(t, backoff.entries, vm3.ID, "vm3 was not seen in last scan and expired, so it should have been removed")
+	require.False(t, backoff.entries[vm1.ID].seenInLastScan)
+	require.False(t, backoff.entries[vm2.ID].seenInLastScan)
 
+	now = now.Add(backoff.baseDelay + time.Second)
 	instances := &server.AzureInstances{
-		Instances: []*azure.VirtualMachine{seenVM},
+		Instances: []*azure.VirtualMachine{vm1},
 	}
-	_ = backoff.filter(instances, now.Add(time.Minute))
+	_ = backoff.filter(instances, now)
+	require.Contains(t, backoff.entries, vm1.ID)
+	require.Contains(t, backoff.entries, vm2.ID)
+	require.True(t, backoff.entries[vm1.ID].seenInLastScan)
+	require.False(t, backoff.entries[vm2.ID].seenInLastScan)
+	require.True(t, backoff.entries[vm1.ID].retryable(now))
+	require.True(t, backoff.entries[vm2.ID].retryable(now))
 
-	backoff.expireEntries(now.Add(backoff.baseDelay * 2))
-	require.Contains(t, backoff.entries, seenVM.ID)
-	require.NotContains(t, backoff.entries, unseenExpiredVM.ID)
-	require.Contains(t, backoff.entries, unseenUnexpiredVM.ID)
-
-	backoff.resetLastSeen()
-	require.Empty(t, backoff.lastSeen)
-	require.NotEmpty(t, backoff.entries)
-	backoff.expireEntries(now.Add(backoff.baseDelay * 3))
-	require.Empty(t, backoff.entries)
-	require.Empty(t, backoff.lastSeen)
+	backoff.expireEntries(now)
+	require.Contains(t, backoff.entries, vm1.ID)
+	require.NotContains(t, backoff.entries, vm2.ID, "vm2 was not seen in last scan and expired, so it should have been removed")
 }
 
 func backoffTestVM(name string) *azure.VirtualMachine {

@@ -47,11 +47,14 @@ type installerBackoffEntry struct {
 	lastFailureAt time.Time
 	// retryAfter is the time after which the installation can be retried.
 	retryAfter time.Time
+	// seenInLastScan indicates that the VM was seen in the last discovery scan.
+	// These are the VMs that were discovered and not already enrolled.
+	seenInLastScan bool
 }
 
 // retryable returns true if the entry can be retried.
 func (e *installerBackoffEntry) retryable(t time.Time) bool {
-	return e == nil || t.After(e.retryAfter)
+	return t.After(e.retryAfter)
 }
 
 // installerBackoff tracks VMs that failed to install and backs the
@@ -63,16 +66,12 @@ type installerBackoff struct {
 	mu sync.Mutex
 	// entries is a map of failed installation attempts, by VM ID.
 	entries map[string]*installerBackoffEntry
-	// lastSeen is the set of VM IDs that the backoff has seen in the last discovery scan.
-	// These are the VMs that were discovered and not already enrolled.
-	lastSeen map[string]struct{}
 }
 
 // newInstallerBackoff creates a new [*installerBackoff].
 func newInstallerBackoff(baseDelay time.Duration, jitter retryutils.Jitter) *installerBackoff {
 	return &installerBackoff{
-		entries:  make(map[string]*installerBackoffEntry),
-		lastSeen: make(map[string]struct{}),
+		entries: make(map[string]*installerBackoffEntry),
 		// bound the base delay to [minInstallBackoff, maxInstallBackoff/4]
 		baseDelay: min(
 			max(baseDelay, minInstallBackoff),
@@ -104,30 +103,20 @@ func (b *installerBackoff) filter(instances *server.AzureInstances, t time.Time)
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	for _, vm := range instances.Instances {
-		b.lastSeen[vm.ID] = struct{}{}
-	}
-
-	if len(b.entries) == 0 {
-		return nil
-	}
-
 	var removed []installerBackoffEntry
 	instances.Instances = slices.DeleteFunc(instances.Instances, func(vm *azure.VirtualMachine) bool {
-		if entry := b.entries[vm.ID]; !entry.retryable(t) {
-			removed = append(removed, *entry)
-			return true
+		entry := b.entries[vm.ID]
+		if entry == nil {
+			return false
 		}
-		return false
+		entry.seenInLastScan = true
+		if entry.retryable(t) {
+			return false
+		}
+		removed = append(removed, *entry)
+		return true
 	})
 	return removed
-}
-
-// resetLastSeen resets the set of VMs that need to be installed.
-func (b *installerBackoff) resetLastSeen() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.lastSeen = make(map[string]struct{})
 }
 
 // recordFailedAttempt records an entry in the backoff for a failed VM
@@ -141,6 +130,7 @@ func (b *installerBackoff) recordFailedAttempt(vm *azure.VirtualMachine, issueTy
 		b.entries[vm.ID] = entry
 	}
 	entry.vm = vm
+	entry.seenInLastScan = true
 	entry.issueType = issueType
 	entry.failures++
 	entry.lastFailureAt = t
@@ -161,8 +151,10 @@ func (b *installerBackoff) expireEntries(t time.Time) {
 	defer b.mu.Unlock()
 
 	for key, entry := range b.entries {
-		if _, seen := b.lastSeen[key]; !seen && entry.retryable(t) {
+		if !entry.seenInLastScan && entry.retryable(t) {
 			delete(b.entries, key)
+		} else {
+			entry.seenInLastScan = false
 		}
 	}
 }

@@ -1713,7 +1713,6 @@ func (s *Server) startAzureServerDiscovery() {
 			// upsert user tasks for failed enrollments.
 			vmTasks.upsertAll(s.taskUpdater())
 			backoff.expireEntries(now)
-			backoff.resetLastSeen()
 		}),
 		server.WithPollInterval[*server.AzureInstances](s.PollInterval),
 		server.WithTriggerFetchC[*server.AzureInstances](s.newDiscoveryConfigChangedSub()),
