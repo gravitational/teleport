@@ -63,8 +63,14 @@ const (
 	// MetricProxyConnectionLimitHit counts the number of times the proxy connection limit was exceeded
 	MetricProxyConnectionLimitHit = "proxy_connection_limit_exceeded_total"
 
-	// MetricUserLoginCount counts user logins
+	// MetricUserLoginCount counts successful user logins
 	MetricUserLoginCount = "user_login_total"
+
+	// MetricUserLoginAttempts counts all user login attempts
+	MetricUserLoginAttempts = "user_login_attempts_total"
+
+	// MetricUserLoginLatencies measures the duration of successful user logins
+	MetricUserLoginLatencies = "user_login_seconds"
 
 	// MetricHeartbeatConnectionsReceived counts heartbeat connections received by auth
 	MetricHeartbeatConnectionsReceived = "heartbeat_connections_received_total"
@@ -120,6 +126,13 @@ const (
 
 	// UserCertificatesCreated provides total number of user certificates generated.
 	MetricUserCertificatesGenerated = "user_certificates_generated"
+
+	// MetricUserCertificatesRequested counts all user certificate generation attempts
+	MetricUserCertificatesRequested = "user_certificates_requested_total"
+
+	// MetricUserCertificatesLatencies measures the duration of successful user certificate generation
+	MetricUserCertificatesLatencies = "user_certificates_seconds"
+
 	// TagPrivateKeyPolicy is a private key policy associated with a user's certificates.
 	TagPrivateKeyPolicy = "private_key_policy"
 )
