@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -1676,6 +1677,9 @@ type UserState interface {
 	GetGithubIdentities() []types.ExternalIdentity
 	// SetGithubIdentities sets the list of connected GitHub identities
 	SetGithubIdentities(identities []types.ExternalIdentity)
+
+	// GetDelegator returns the head of the user's delegation chain.
+	GetDelegation() *delegationv1.Delegation
 }
 
 // AccessInfoFromUserState return a new AccessInfo populated from the roles and
