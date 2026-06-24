@@ -1758,6 +1758,7 @@ func (s *Server) reconcileAzureServers(instances *server.AzureInstances) (discov
 
 func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks, status discoveryGroupStatus, backoff *installerBackoff, sem *semaphore.Weighted) discoveryGroupStatus {
 	log := s.Log.With("group", instances)
+	syncTime := s.clock.Now()
 	addFailedAzureEnrollment := func(entry installerBackoffEntry) {
 		// Static matchers don't have a discovery config resource, so skip creating user tasks
 		// because validation requires a discovery config name.
@@ -1782,7 +1783,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 				Name:            entry.vm.Name,
 				DiscoveryConfig: instances.Metadata.DiscoveryConfigName,
 				DiscoveryGroup:  s.DiscoveryGroup,
-				SyncTime:        timestamppb.New(s.clock.Now()),
+				SyncTime:        timestamppb.New(syncTime),
 				LastFailureTime: timestamppb.New(entry.lastFailureAt),
 				RetryAfterTime:  timestamppb.New(entry.retryAfter),
 				Failures:        entry.failures,
@@ -1790,7 +1791,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		)
 	}
 
-	skipped := backoff.filter(instances, s.clock.Now())
+	skipped := backoff.filter(instances, syncTime)
 	if len(skipped) > 0 {
 		log.DebugContext(s.ctx, "Skipping Azure VMs with an active installation backoff",
 			"skipped", len(skipped),
@@ -1813,9 +1814,8 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		status.failed += len(instances.Instances)
 
 		issueType := classifyAzureVMEnrollmentError(err)
-		now := s.clock.Now()
 		for _, vm := range instances.Instances {
-			entry := backoff.recordFailedAttempt(vm, issueType, now)
+			entry := backoff.recordFailedAttempt(vm, issueType, syncTime)
 			addFailedAzureEnrollment(entry)
 		}
 		return status
@@ -1829,11 +1829,10 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 	status.failed += len(failures)
 
 	// Record failures as user tasks.
-	now := s.clock.Now()
 	for _, result := range failures {
 		// TODO (Tener): check exit codes and create more detailed user tasks.
 		issueType := classifyAzureInstallResultIssue(result)
-		entry := backoff.recordFailedAttempt(result.Instance, issueType, now)
+		entry := backoff.recordFailedAttempt(result.Instance, issueType, syncTime)
 		addFailedAzureEnrollment(entry)
 	}
 
