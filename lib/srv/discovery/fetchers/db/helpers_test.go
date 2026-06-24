@@ -19,7 +19,9 @@
 package db
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"testing"
 
@@ -124,10 +126,11 @@ var testAssumeRole = types.AssumeRole{
 
 // awsFetcherTest is a common test struct for AWS fetchers.
 type awsFetcherTest struct {
-	name          string
-	fetcherCfg    AWSFetcherFactoryConfig
-	inputMatchers []types.AWSMatcher
-	wantDatabases types.Databases
+	name            string
+	fetcherCfg      AWSFetcherFactoryConfig
+	inputMatchers   []types.AWSMatcher
+	wantDatabases   types.Databases
+	wantLogContains []string
 }
 
 // testAWSFetchers is a helper that tests AWS fetchers, since
@@ -142,8 +145,15 @@ func testAWSFetchers(t *testing.T, tests ...awsFetcherTest) {
 		}
 		t.Run(test.name, func(t *testing.T) {
 			t.Helper()
+			var logBuf bytes.Buffer
+			if len(test.wantLogContains) > 0 {
+				test.fetcherCfg.Logger = slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+			}
 			fetchers := mustMakeAWSFetchers(t, test.fetcherCfg, test.inputMatchers, "" /* discovery config */)
 			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
+			for _, want := range test.wantLogContains {
+				require.Contains(t, logBuf.String(), want)
+			}
 		})
 		t.Run(test.name+" with assume role", func(t *testing.T) {
 			t.Helper()
