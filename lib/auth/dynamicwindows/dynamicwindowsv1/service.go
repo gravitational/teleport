@@ -297,6 +297,13 @@ func (s *Service) UpsertDynamicWindowsDesktops(ctx context.Context, req *dynamic
 			Error: "",
 		}
 
+		// desktop is user supplied and could have a spoofed type, so make sure it
+		// is set to `dynamic_windows_desktop` before calling checkAccess
+		if err := desktop.CheckAndSetDefaults(); err != nil {
+			fail(result, trace.Wrap(err))
+			continue
+		}
+
 		d, err := s.cache.GetDynamicWindowsDesktop(ctx, desktop.GetName())
 		if !trace.IsNotFound(err) {
 			if err != nil {
