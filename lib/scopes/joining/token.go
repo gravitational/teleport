@@ -290,7 +290,7 @@ func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
 	// `validateFieldRulesContainsAnyRule` and won't catch useless nesting
 	// checks; we'll catch those at runtime to avoid an unnecessary api/ import.
 	if !hasAnyAllowAny && !hasAnyMustMatchFields {
-		return trace.BadParameter("generic_oidc: at least one must exist " +
+		return trace.BadParameter("generic_oidc: at least one rule must exist " +
 			"under either `must_match_fields` or `allow_any`")
 	}
 
@@ -303,8 +303,6 @@ func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
 			return trace.BadParameter("generic_oidc: allow_any[%d]: only one of `expression` or `conditions` may be set", i)
 		}
 
-		// Unlike with unscoped tokens, the scoped variant uses `oneof`, so we
-		// don't need to count the individual set conditions.
 		for j, cond := range rule.Conditions {
 			if cond.GetAttribute() == "" {
 				return trace.BadParameter(
