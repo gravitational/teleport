@@ -82,7 +82,7 @@ extension LandingView {
 					"""
 					In the Teleport Web UI, go to Profile Dropdown \
 					\(rightArrow) Account Settings \
-					 \(rightArrow) Enroll Trusted Device.
+					\(rightArrow) Enroll Trusted Device.
 					""",
 				)
 			}
