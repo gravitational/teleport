@@ -41,23 +41,18 @@ import (
 )
 
 // workloadIdentityReader is the read interface used to serve reads (satisfied
-// by the cache). The cache is indexed by name and currently serves unscoped
-// reads only; scope-aware reads are handled at the backend until scope-aware
-// caching lands.
+// by the cache). Reads are scope-qualified; an empty scope addresses an
+// unscoped WorkloadIdentity.
 type workloadIdentityReader interface {
-	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
+	GetWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) (*workloadidentityv1pb.WorkloadIdentity, error)
 	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 }
 
-// workloadIdentityReadWriter is the interface used to read and mutate the
-// authoritative backend, which namespaces resources by scope. Reads and writes
-// that address an existing resource are scope-qualified; create/update/upsert
-// read the scope from the resource itself.
-//
-// Scoped reads go through the backend (not the cache) because the cache is not
-// yet scope-aware. See the GetWorkloadIdentity handler.
+// workloadIdentityReadWriter is the interface used to mutate the authoritative
+// backend, which namespaces resources by scope. Writes that address an existing
+// resource are scope-qualified; create/update/upsert read the scope from the
+// resource itself.
 type workloadIdentityReadWriter interface {
-	GetWorkloadIdentityByScopedName(ctx context.Context, name scopes.QualifiedName) (*workloadidentityv1pb.WorkloadIdentity, error)
 	CreateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 	UpdateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 	DeleteWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) error
@@ -144,13 +139,7 @@ func (s *ResourceService) GetWorkloadIdentity(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	// Read scope-aware directly from the backend rather than the cache: the
-	// cache is indexed by name and not yet scope-aware, so it cannot address a
-	// scoped resource. Reading by (scope, name) means a name that does not exist
-	// within the requested scope is legitimately not found, without leaking the
-	// existence of workload identities in other scopes.
-	// TODO(noah): Serve scoped reads from the cache once it is scope-aware.
-	resource, err := s.backend.GetWorkloadIdentityByScopedName(ctx, scopes.QualifiedName{
+	resource, err := s.cache.GetWorkloadIdentity(ctx, scopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	})
@@ -198,9 +187,8 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 
 	// Check generally if this user may have the ability to list workload
 	// identities - ignoring where conditions.
-	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx,
+		new(authCtx.RuleContext()),
 		types.KindWorkloadIdentity,
 		types.VerbReadNoSecrets,
 		types.VerbList,
@@ -275,15 +263,6 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	if req.GetScope() != "" {
-		// Verify scope is valid before we perform authz checks.
-		// TODO(noah): Ask forrest/scopes team - is this necessary? Is it safe
-		// to pass bad scopes to decision?
-		if err := scopes.StrongValidate(req.GetScope()); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	// The scope is taken from the request rather than fetched from the stored
 	// resource: the caller declares the scope it is addressing. Once the backend
 	// namespaces workload identities by scope, the delete is addressed by
@@ -345,15 +324,6 @@ func (s *ResourceService) CreateWorkloadIdentity(
 	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if req.GetWorkloadIdentity().GetScope() != "" {
-		// Verify scope is valid before we perform authz checks.
-		// TODO(noah): Ask forrest/scopes team - is this necessary? Is it safe
-		// to pass bad scopes to decision?
-		if err := scopes.StrongValidate(req.GetWorkloadIdentity().GetScope()); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	ruleCtx := authCtx.RuleContext()
@@ -426,10 +396,6 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(strideynet): really this whole method is blocked from being updated
-	// until we have nice backend resource scope namespace support.
-	// we should ensure that the backend impl prevents scope transitions.
-
 	created, err := s.backend.UpdateWorkloadIdentity(ctx, req.GetWorkloadIdentity())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -483,10 +449,6 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// TODO(strideynet): really this whole method is blocked from being updated
-	// until we have nice backend resource scope namespace support.
-	// we should ensure that the backend impl prevents scope transitions.
 
 	created, err := s.backend.UpsertWorkloadIdentity(ctx, req.GetWorkloadIdentity())
 	if err != nil {

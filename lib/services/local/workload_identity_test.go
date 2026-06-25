@@ -213,7 +213,7 @@ func TestWorkloadIdentityService_GetWorkloadIdentity(t *testing.T) {
 			proto.Clone(want).(*workloadidentityv1pb.WorkloadIdentity),
 		)
 		require.NoError(t, err)
-		got, err := service.GetWorkloadIdentity(ctx, "example")
+		got, err := service.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "example"})
 		require.NoError(t, err)
 		require.NotEmpty(t, got.GetMetadata().GetRevision())
 		require.Empty(t, cmp.Diff(
@@ -224,7 +224,7 @@ func TestWorkloadIdentityService_GetWorkloadIdentity(t *testing.T) {
 		))
 	})
 	t.Run("not found", func(t *testing.T) {
-		_, err := service.GetWorkloadIdentity(ctx, "not-found")
+		_, err := service.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "not-found"})
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
@@ -240,13 +240,13 @@ func TestWorkloadIdentityService_DeleteWorkloadIdentity(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = service.GetWorkloadIdentity(ctx, "example")
+		_, err = service.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "example"})
 		require.NoError(t, err)
 
 		err = service.DeleteWorkloadIdentity(ctx, scopes.QualifiedName{Name: "example"})
 		require.NoError(t, err)
 
-		_, err = service.GetWorkloadIdentity(ctx, "example")
+		_, err = service.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "example"})
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
@@ -380,6 +380,27 @@ func TestWorkloadIdentityParser(t *testing.T) {
 		resource, err := parser.parse(event)
 		require.NoError(t, err)
 		require.Equal(t, "example", resource.GetMetadata().Name)
+	})
+	t.Run("delete scoped", func(t *testing.T) {
+		const scope = "/staging"
+		const name = "scoped-example"
+		encodedScope, err := scopes.EncodeForKey(scope)
+		require.NoError(t, err)
+		event := backend.Event{
+			Type: types.OpDelete,
+			Item: backend.Item{
+				Key: backend.NewKey(scopedPrefix, workloadIdentityPrefix, encodedScope, name),
+			},
+		}
+		require.True(t, parser.match(event.Item.Key))
+		resource, err := parser.parse(event)
+		require.NoError(t, err)
+		// A scoped delete event carries only the backend key; the parser recovers
+		// the resource cursor and smuggles it through the header name so the
+		// cache can evict the scope-keyed entry.
+		wantCursor, err := scopes.MakeResourceCursor(scope, name)
+		require.NoError(t, err)
+		require.Equal(t, wantCursor, resource.GetMetadata().Name)
 	})
 	t.Run("put", func(t *testing.T) {
 		event := backend.Event{
