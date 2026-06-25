@@ -30,13 +30,13 @@ use ironrdp_pdu::PduResult;
 use ironrdp_pdu::{pdu_other_err, PduError, PduErrorExt};
 use ironrdp_rdpdr::pdu::{
     self,
-    efs::{self, NtStatus},
+    efs::{self, DeviceIoResponse, NtStatus},
     esc, RdpdrPdu,
 };
 use log::{debug, trace, warn};
-use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt::Debug;
+use std::{collections::HashMap, vec};
 
 pub(crate) fn cast_length<T, S: TryInto<T, Error: Debug>>(
     ctx: &str,
@@ -257,24 +257,33 @@ impl FilesystemBackend {
     // cancelled. This function returns Ok(true) and actually removes the device
     // if it has no open file handlers, otherwise it returns Ok(false) and removal
     // must be retried after closing any open handles.
-    pub fn mark_device_for_deletion(&mut self, device_id: u32) -> PduResult<bool> {
+    pub fn mark_device_for_deletion(&mut self, device_id: u32) -> PduResult<(Vec<RdpdrPdu>, bool)> {
         let directory_context = self.cache.get_context_mut(device_id)?;
-        let pending_handlers: Vec<(CompletionId, ResponseKind)> =
-            directory_context.response_cache.drain().collect();
+        let cancel_pdus: Vec<RdpdrPdu> = directory_context
+            .response_cache
+            .drain()
+            .map(|(_completion, handler)| handler.cancel())
+            .collect();
 
         directory_context.marked_for_deletion = true;
         // Drain the response cache for this directory context and cancel each handler.
-        pending_handlers
-            .into_iter()
-            .for_each(|(completion_id, handler)| {
-                let _ = handler.cancel(self).inspect_err(|e| {
-                    warn!(
-                        "Failed to send cancellation response for deviceId {}, completionId {}: {}",
-                        device_id, completion_id, e
-                    )
-                });
-            });
 
+        // let cancel_pdus: Vec<RdpdrPdu> = pending_handlers
+        //     .iter()
+        //     .map(|(_completion, handler)| handler.cancel())
+        //     .collect();
+        //
+        //pending_handlers
+        //    .into_iter()
+        //    .for_each(|(completion_id, handler)| {
+        //        let _ = handler.cancel(self).inspect_err(|e| {
+        //            warn!(
+        //                "Failed to send cancellation response for deviceId {}, completionId {}: {}",
+        //                device_id, completion_id, e
+        //            )
+        //        });
+        //    });
+        //
         if self
             .cache
             .get_context_mut(device_id)?
@@ -284,11 +293,11 @@ impl FilesystemBackend {
         {
             // File cache is empty. It's safe to remove this device.
             self.cache.remove_device(device_id)?;
-            Ok(true)
+            Ok((cancel_pdus, true))
         } else {
             // File cache is not empty. We'll need to wait for the server to
             // close any open file handles first.
-            Ok(false)
+            Ok((cancel_pdus, false))
         }
     }
 
@@ -330,7 +339,12 @@ impl FilesystemBackend {
             // All other requests are cancelled.
             match req {
                 efs::ServerDriveIoRequest::DeviceCloseRequest(_) => {}
-                _ => return req.cancel(self),
+                _ => {
+                    return self
+                        .client_handle
+                        .write_rdpdr(req.cancel())
+                        .map_err(|err| err.into())
+                }
             }
         }
 
@@ -2112,133 +2126,161 @@ impl std::error::Error for FilesystemBackendError {}
 
 // Cancel allows us implement generic cancellation methods for various efs::<request> types
 trait Cancel {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()>;
+    fn cancel(&self) -> RdpdrPdu;
 }
 
 impl Cancel for efs::DeviceCreateRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.send_rdp_device_create_response(self, NtStatus::UNSUCCESSFUL, 0)
+    fn cancel(&self) -> RdpdrPdu {
+        efs::DeviceCreateResponse {
+            device_io_reply: DeviceIoResponse {
+                device_id: self.device_io_request.device_id,
+                completion_id: self.device_io_request.completion_id,
+                io_status: NtStatus::UNSUCCESSFUL,
+            },
+            file_id: 0,
+            information: efs::Information::empty(),
+        }
+        .into()
     }
 }
 
 impl Cancel for efs::ServerDriveQueryDirectoryRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.send_rdp_drive_query_dir_response(
-            self.device_io_request.clone(),
-            NtStatus::UNSUCCESSFUL,
-            None,
-        )
+    fn cancel(&self) -> RdpdrPdu {
+        efs::ClientDriveQueryDirectoryResponse {
+            device_io_reply: efs::DeviceIoResponse::new(
+                self.device_io_request.clone(),
+                NtStatus::UNSUCCESSFUL,
+            ),
+            buffer: None,
+        }
+        .into()
     }
 }
 
 impl Cancel for efs::DeviceReadRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.send_rdp_read_response(
-            self.device_io_request.clone(),
-            NtStatus::UNSUCCESSFUL,
-            vec![],
-        )
+    fn cancel(&self) -> RdpdrPdu {
+        efs::DeviceReadResponse {
+            device_io_reply: efs::DeviceIoResponse::new(
+                self.device_io_request.clone(),
+                NtStatus::UNSUCCESSFUL,
+            ),
+            read_data: vec![],
+        }
+        .into()
     }
 }
 
 impl Cancel for efs::DeviceWriteRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.send_rdp_write_response(self.device_io_request.clone(), NtStatus::UNSUCCESSFUL, 0)
+    fn cancel(&self) -> RdpdrPdu {
+        efs::DeviceWriteResponse {
+            device_io_reply: efs::DeviceIoResponse::new(
+                self.device_io_request.clone(),
+                NtStatus::UNSUCCESSFUL,
+            ),
+            length: 0,
+        }
+        .into()
     }
 }
 
 impl Cancel for efs::ServerDriveSetInformationRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.send_rdp_set_info_response(self, NtStatus::UNSUCCESSFUL)
+    fn cancel(&self) -> RdpdrPdu {
+        efs::ClientDriveSetInformationResponse::new(self, NtStatus::UNSUCCESSFUL)
+            .map(|resp| resp.into())
+            .unwrap_or(RdpdrPdu::EmptyResponse)
     }
 }
 
 impl Cancel for efs::DeviceCloseRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.send_rdp_device_close_response(self.clone(), NtStatus::UNSUCCESSFUL)
+    fn cancel(&self) -> RdpdrPdu {
+        efs::DeviceCloseResponse {
+            device_io_response: efs::DeviceIoResponse::new(
+                self.device_io_request.clone(),
+                NtStatus::UNSUCCESSFUL,
+            ),
+        }
+        .into()
     }
 }
 
 impl Cancel for efs::ServerDriveNotifyChangeDirectoryRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.client_handle
-            .write_rdpdr(RdpdrPdu::ClientDriveQueryDirectoryResponse(
-                efs::ClientDriveQueryDirectoryResponse {
-                    device_io_reply: efs::DeviceIoResponse {
-                        device_id: self.device_io_request.device_id,
-                        completion_id: self.device_io_request.completion_id,
-                        // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
-                        // STATUS_CANCELLED - 0xC0000120
-                        io_status: NtStatus::from(0xC0000120),
-                    },
-                    buffer: None,
-                },
-            ))?;
-        Ok(())
+    fn cancel(&self) -> RdpdrPdu {
+        efs::ClientDriveQueryDirectoryResponse {
+            device_io_reply: efs::DeviceIoResponse {
+                device_id: self.device_io_request.device_id,
+                completion_id: self.device_io_request.completion_id,
+                // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
+                // STATUS_CANCELLED - 0xC0000120
+                io_status: NtStatus::from(0xC0000120),
+            },
+            buffer: None,
+        }
+        .into()
     }
 }
 
 impl Cancel for efs::ServerDriveQueryInformationRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.send_rdp_client_drive_query_info_response(self.clone(), None)?;
-        Ok(())
+    fn cancel(&self) -> RdpdrPdu {
+        efs::ClientDriveQueryInformationResponse {
+            device_io_response: efs::DeviceIoResponse::new(
+                self.device_io_request.clone(),
+                NtStatus::UNSUCCESSFUL,
+            ),
+            buffer: None,
+        }
+        .into()
     }
 }
 impl Cancel for efs::ServerDriveQueryVolumeInformationRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.handle_rdp_query_volume_req(self.clone())?;
-        Ok(())
+    fn cancel(&self) -> RdpdrPdu {
+        efs::ClientDriveQueryVolumeInformationResponse::new(
+            self.device_io_request.clone(),
+            NtStatus::UNSUCCESSFUL,
+            None,
+        )
+        .into()
     }
 }
 impl Cancel for efs::DeviceControlRequest<efs::AnyIoCtlCode> {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.handle_rdp_device_control_req(self.clone())?;
-        Ok(())
+    fn cancel(&self) -> RdpdrPdu {
+        efs::DeviceControlResponse::new(self.clone(), NtStatus::UNSUCCESSFUL, None).into()
     }
 }
 impl Cancel for efs::ServerDriveLockControlRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-        this.handle_rdp_lock_req(self.clone())?;
-        Ok(())
+    fn cancel(&self) -> RdpdrPdu {
+        RdpdrPdu::EmptyResponse
     }
 }
 
-enum HandlerInput<T> {
-    Response(T),
-    Cancel,
-}
+trait HandlerFn<T>: FnOnce(&mut FilesystemBackend, T) -> PduResult<()> + Send {}
 
-trait HandlerFn<T>: FnOnce(&mut FilesystemBackend, HandlerInput<T>) -> PduResult<()> + Send {}
-
-impl<T, F> HandlerFn<T> for F where
-    F: FnOnce(&mut FilesystemBackend, HandlerInput<T>) -> PduResult<()> + Send
-{
-}
+impl<T, F> HandlerFn<T> for F where F: FnOnce(&mut FilesystemBackend, T) -> PduResult<()> + Send {}
 
 struct ResponseHandler<T> {
+    cancellable: Box<dyn Cancel + Send>,
     handler: Box<dyn HandlerFn<T>>,
 }
 
+// Write a function whose return type depends on the input
+
 // ResponseHandler is allowed to either invoke 'call' XOR 'cancel' exactly once.
 impl<T> ResponseHandler<T> {
-    fn new<R: Cancel + Send + 'static>(
+    fn new<R: Cancel + Clone + Send + 'static>(
         req: R,
         handler: impl FnOnce(&mut FilesystemBackend, T, R) -> PduResult<()> + Send + 'static,
     ) -> Self {
         Self {
-            handler: Box::new(move |this, input| match input {
-                HandlerInput::Response(res) => handler(this, res, req),
-                HandlerInput::Cancel => req.cancel(this),
-            }),
+            cancellable: Box::new(req.clone()),
+            handler: Box::new(move |this, input| handler(this, input, req)),
         }
     }
 
     fn call(self, this: &mut FilesystemBackend, res: T) -> PduResult<()> {
-        (self.handler)(this, HandlerInput::Response(res))
+        (self.handler)(this, res)
     }
 
-    fn cancel(self, this: &mut FilesystemBackend) -> PduResult<()> {
-        (self.handler)(this, HandlerInput::Cancel)
+    fn cancel(self) -> RdpdrPdu {
+        self.cancellable.cancel()
     }
 }
 
@@ -2270,16 +2312,16 @@ enum ResponseKind {
 }
 
 impl ResponseKind {
-    fn cancel(self, this: &mut FilesystemBackend) -> PduResult<()> {
+    fn cancel(self) -> RdpdrPdu {
         match self {
-            ResponseKind::Info(h) => h.cancel(this),
-            ResponseKind::Create(h) => h.cancel(this),
-            ResponseKind::Delete(h) => h.cancel(this),
-            ResponseKind::List(h) => h.cancel(this),
-            ResponseKind::Read(h) => h.cancel(this),
-            ResponseKind::Write(h) => h.cancel(this),
-            ResponseKind::Move(h) => h.cancel(this),
-            ResponseKind::Truncate(h) => h.cancel(this),
+            ResponseKind::Info(h) => h.cancel(),
+            ResponseKind::Create(h) => h.cancel(),
+            ResponseKind::Delete(h) => h.cancel(),
+            ResponseKind::List(h) => h.cancel(),
+            ResponseKind::Read(h) => h.cancel(),
+            ResponseKind::Write(h) => h.cancel(),
+            ResponseKind::Move(h) => h.cancel(),
+            ResponseKind::Truncate(h) => h.cancel(),
         }
     }
 }
@@ -2457,21 +2499,19 @@ impl ResponseCache {
 }
 
 impl Cancel for efs::ServerDriveIoRequest {
-    fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
+    fn cancel(&self) -> RdpdrPdu {
         match self {
-            efs::ServerDriveIoRequest::ServerCreateDriveRequest(h) => h.cancel(this),
-            efs::ServerDriveIoRequest::ServerDriveQueryInformationRequest(h) => h.cancel(this),
-            efs::ServerDriveIoRequest::DeviceCloseRequest(h) => h.cancel(this),
-            efs::ServerDriveIoRequest::ServerDriveQueryDirectoryRequest(h) => h.cancel(this),
-            efs::ServerDriveIoRequest::ServerDriveNotifyChangeDirectoryRequest(h) => h.cancel(this),
-            efs::ServerDriveIoRequest::ServerDriveQueryVolumeInformationRequest(h) => {
-                h.cancel(this)
-            }
-            efs::ServerDriveIoRequest::DeviceControlRequest(h) => h.cancel(this),
-            efs::ServerDriveIoRequest::DeviceReadRequest(h) => h.cancel(this),
-            efs::ServerDriveIoRequest::DeviceWriteRequest(h) => h.cancel(this),
-            efs::ServerDriveIoRequest::ServerDriveSetInformationRequest(h) => h.cancel(this),
-            efs::ServerDriveIoRequest::ServerDriveLockControlRequest(h) => h.cancel(this),
+            efs::ServerDriveIoRequest::ServerCreateDriveRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::ServerDriveQueryInformationRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::DeviceCloseRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::ServerDriveQueryDirectoryRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::ServerDriveNotifyChangeDirectoryRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::ServerDriveQueryVolumeInformationRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::DeviceControlRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::DeviceReadRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::DeviceWriteRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::ServerDriveSetInformationRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::ServerDriveLockControlRequest(h) => h.cancel(),
         }
     }
 }

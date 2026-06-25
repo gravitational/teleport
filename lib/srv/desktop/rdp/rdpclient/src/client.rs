@@ -52,7 +52,7 @@ use ironrdp_pdu::rdp::client_info::{PerformanceFlags, TimezoneInfo};
 use ironrdp_pdu::PduError;
 use ironrdp_pdu::PduResult;
 use ironrdp_pdu::{encode_err, pdu_other_err};
-use ironrdp_rdpdr::pdu::efs::{ClientDeviceListAnnounce, ClientDeviceListRemove};
+use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
@@ -710,6 +710,27 @@ impl Client {
         Ok(())
     }
 
+    async fn write_rdpdr_pdus(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        pdus: Vec<RdpdrPdu>,
+    ) -> ClientResult<()> {
+        debug!("sending rdp: {:?}", pdus);
+
+        let svc_messages: Vec<SvcMessage> = pdus.into_iter().map(SvcMessage::from).collect();
+
+        // Process the RDPDR PDU.
+        let encoded = Client::x224_process_svc_messages(
+            x224_processor,
+            SvcProcessorMessages::<Rdpdr>::new(svc_messages),
+        )
+        .await?;
+
+        // Write the RDPDR PDU to the RDP server.
+        write_stream.write_all(&encoded).await?;
+        Ok(())
+    }
+
     async fn write_rdpdr(
         write_stream: &mut RdpWriteStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
@@ -841,23 +862,31 @@ impl Client {
         sdr: tdp::SharedDirectoryRemove,
     ) -> ClientResult<()> {
         debug!("received tdp: {:?}", sdr);
-        let pdu = Self::remove_drive(x224_processor.clone(), sdr.directory_id).await;
+        // Attempt to remove the device
+        let (cancel_pdus, remove_complete) =
+            Self::remove_drive(x224_processor.clone(), sdr.directory_id).await?;
+        // Bulk send any cancellations for pending I/O requests.
+        Self::write_rdpdr_pdus(write_stream, x224_processor.clone(), cancel_pdus).await?;
 
-        match pdu {
-            Ok(remove) => {
-                Self::write_rdpdr(
-                    write_stream,
-                    x224_processor,
-                    RdpdrPdu::ClientDeviceListRemove(remove),
-                )
-                .await?;
-                Ok(())
-            }
-            Err(ClientError::UnknownDevice(id)) => {
-                warn!("attempted to remove unknown device id: {:?}", id);
-                Ok(())
-            }
-            Err(other) => Err(other),
+        // If the device was successfully removed from the backend, then remove it from
+        // the top level rdpdr instance and send the device remove pdu. Otherwise,
+        // do nothing. The the rdpdr backend will synthesize another TDP shared directory remove
+        // message once the instance is ready for deletion (leading us right back here again to retry).
+        if remove_complete {
+            let remove_pdu = Self::x224_lock(&x224_processor)?
+                .get_svc_processor_mut::<Rdpdr>()
+                .ok_or(ClientError::UnknownDevice(sdr.directory_id))?
+                .remove_device(sdr.directory_id)
+                .ok_or(ClientError::UnknownDevice(sdr.directory_id))?;
+
+            Self::write_rdpdr(
+                write_stream,
+                x224_processor,
+                RdpdrPdu::ClientDeviceListRemove(remove_pdu),
+            )
+            .await
+        } else {
+            Ok(())
         }
     }
 
@@ -991,25 +1020,17 @@ impl Client {
     async fn remove_drive(
         x224_processor: Arc<Mutex<x224::Processor>>,
         device_id: u32,
-    ) -> ClientResult<ClientDeviceListRemove> {
+    ) -> ClientResult<(Vec<RdpdrPdu>, bool)> {
         task::spawn_blocking(move || {
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
             // Remove from the device from the teleport backend. In some cases, the device needs to
             // respond to outstanding file I/O before we can actually remove it. The filesystem
             // implementation will synthesize and send a TDP "SharedDirectoryRemove" message when
             // pending I/O is complete, which will lead us back into this function to try again.
-            let can_remove = Self::rdpdr_backend(&mut x224_processor)?
+            Self::rdpdr_backend(&mut x224_processor)?
                 .remove_device(device_id)
-                .inspect_err(|e| warn!("could not remove device from teleport backend: {}", e))?;
-
-            // Check if it's safe to actually remove the device.
-            if can_remove {
-                let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-                if let Some(pdu) = rdpdr.remove_device(device_id) {
-                    return Ok(pdu);
-                }
-            }
-            Err(ClientError::UnknownDevice(device_id))
+                .inspect_err(|e| warn!("could not remove device from teleport backend: {}", e))
+                .map_err(ClientError::PduError)
         })
         .await?
     }

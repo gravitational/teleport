@@ -34,6 +34,7 @@ use ironrdp_rdpdr::pdu::efs::{
     DeviceControlRequest, NtStatus, ServerDeviceAnnounceResponse, ServerDriveIoRequest,
 };
 use ironrdp_rdpdr::pdu::esc::{ScardCall, ScardIoCtlCode};
+use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::RdpdrBackend;
 use ironrdp_svc::SvcMessage;
 
@@ -123,8 +124,8 @@ impl TeleportRdpdrBackend {
     }
 
     // It's only safe to remove the device if the result is Ok(true)
-    pub fn remove_device(&mut self, device_id: u32) -> PduResult<bool> {
-        self.fs.tombstone_device(device_id)
+    pub fn remove_device(&mut self, device_id: u32) -> PduResult<(Vec<RdpdrPdu>, bool)> {
+        self.fs.mark_device_for_deletion(device_id)
     }
 
     pub fn handle_tdp_sd_info_response(
