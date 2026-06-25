@@ -67,18 +67,20 @@ resources using access lists.
 
 ### 19.0.0
 
-#### DSQL
+#### Amazon Aurora DSQL Cluster State Backend
 
-TODO(rosstimothy)
+Teleport will support using Amazon Aurora DSQL as a backend for cluster state.
 
 #### Privilege escalation UX
 
 Teleport will support access requests privilege escalation UX for SSH nodes, Kubernetes
 clusters, databases and Windows desktops.
 
-#### In-band session MFA for SSH and Desktops
+#### In-band Per-Session MFA for SSH and Desktops
 
-TODO(rosstimothy)
+Added in-band MFA for SSH and Desktop sessions, moving MFA checks into session establishment 
+so challenges are bound to the specific session. This removes per-session MFA SSH certificates 
+and reduces MFA bypass risk.
 
 ## Teleport Cloud
 
