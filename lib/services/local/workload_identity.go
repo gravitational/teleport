@@ -77,20 +77,10 @@ func (b *WorkloadIdentityService) CreateWorkloadIdentity(
 	return created, trace.Wrap(err)
 }
 
-// GetWorkloadIdentity retrieves a specific unscoped WorkloadIdentity given a
-// name. It is name-based to remain compatible with the shared read API; use
-// GetWorkloadIdentityByScopedName to address a scoped resource.
+// GetWorkloadIdentity retrieves a WorkloadIdentity by its scope-qualified name.
+// An empty scope reads from the unscoped key range, else from the
+// scope-namespaced range.
 func (b *WorkloadIdentityService) GetWorkloadIdentity(
-	ctx context.Context, name string,
-) (*workloadidentityv1pb.WorkloadIdentity, error) {
-	resource, err := b.service.GetResource(ctx, scopes.QualifiedName{Name: name})
-	return resource, trace.Wrap(err)
-}
-
-// GetWorkloadIdentityByScopedName retrieves a WorkloadIdentity by its
-// scope-qualified name. An empty scope reads from the unscoped key range, else
-// from the scope-namespaced range.
-func (b *WorkloadIdentityService) GetWorkloadIdentityByScopedName(
 	ctx context.Context, name scopes.QualifiedName,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
 	resource, err := b.service.GetResource(ctx, name)
@@ -191,9 +181,42 @@ func (b *WorkloadIdentityService) AppendDeleteWorkloadIdentityActions(
 	}), nil
 }
 
+// workloadIdentityDeleteCursor recovers the resource cursor of a deleted
+// WorkloadIdentity from its backend key. It handles both the unscoped key range
+// (<workload_identity>/<name>) and the scope-namespaced range
+// (<scoped>/<workload_identity>/<encoded-scope>/<name>).
+func workloadIdentityDeleteCursor(key backend.Key) (string, error) {
+	scopedKeyPrefix := backend.ExactKey(scopedPrefix, workloadIdentityPrefix)
+	if key.HasPrefix(scopedKeyPrefix) {
+		components := key.TrimPrefix(scopedKeyPrefix).Components()
+		if len(components) != 2 {
+			return "", trace.NotFound("failed parsing %v", key.String())
+		}
+		scope, err := scopes.DecodeFromKey(components[0])
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		cursor, err := scopes.MakeResourceCursor(scope, components[1])
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return cursor, nil
+	}
+
+	name := strings.TrimPrefix(key.TrimPrefix(backend.NewKey(workloadIdentityPrefix)).String(), backend.SeparatorString)
+	if name == "" {
+		return "", trace.NotFound("failed parsing %v", key.String())
+	}
+	// An unscoped resource cursor is just the name.
+	return name, nil
+}
+
 func newWorkloadIdentityParser() *workloadIdentityParser {
 	return &workloadIdentityParser{
-		baseParser: newBaseParser(backend.ExactKey(workloadIdentityPrefix)),
+		baseParser: newBaseParser(
+			backend.ExactKey(workloadIdentityPrefix),
+			backend.ExactKey(scopedPrefix, workloadIdentityPrefix),
+		),
 	}
 }
 
@@ -204,16 +227,26 @@ type workloadIdentityParser struct {
 func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(workloadIdentityPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		cursor, err := workloadIdentityDeleteCursor(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		return &types.ResourceHeader{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				// The cache keys WorkloadIdentities by their resource cursor. A
+				// delete event only carries the backend key, so we recover the
+				// cursor from it and smuggle it through the (scopeless) header
+				// name: the cursor index key function returns the name verbatim
+				// when the scope is empty, so a header carrying the cursor in its
+				// name produces the same index key as the stored entry.
+				//
+				// TODO(strideynet): temporary bridge until scope-aware caching is
+				// implemented properly. It deliberately avoids changing the delete
+				// event encoding (ResourceHeader has no scope field).
+				Name:      cursor,
 				Namespace: apidefaults.Namespace,
 			},
 		}, nil

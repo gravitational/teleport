@@ -28,6 +28,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -127,18 +128,28 @@ func (c *Cache) RangeWorkloadIdentities(
 	}
 }
 
-// GetWorkloadIdentity returns a single WorkloadIdentity by name
-func (c *Cache) GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+// GetWorkloadIdentity returns a single WorkloadIdentity by its scope-qualified
+// name. An empty scope addresses an unscoped WorkloadIdentity.
+func (c *Cache) GetWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) (*workloadidentityv1pb.WorkloadIdentity, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWorkloadIdentity")
 	defer span.End()
 
-	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
-		cache:       c,
-		collection:  c.collections.workloadIdentity,
-		index:       workloadIdentityNameIndex,
-		upstreamGet: c.Config.WorkloadIdentity.GetWorkloadIdentity,
+	// The name index is keyed by resource cursor, so look up by the cursor for
+	// the requested scope-qualified name. An unscoped cursor is the bare name.
+	cursor, err := scopes.MakeResourceCursor(name.Scope, name.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	out, err := getter.get(ctx, name)
+
+	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
+		cache:      c,
+		collection: c.collections.workloadIdentity,
+		index:      workloadIdentityNameIndex,
+		upstreamGet: func(ctx context.Context, _ string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+			return c.Config.WorkloadIdentity.GetWorkloadIdentity(ctx, name)
+		},
+	}
+	out, err := getter.get(ctx, cursor)
 	return out, trace.Wrap(err)
 }
 
