@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -310,10 +311,19 @@ func (s *Server) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScope
 		return nil, trace.Wrap(err)
 	}
 
-	// evaluate the access to the role based on its scope
-	if err := authzContext.CheckerContext.Decision(ctx, preAuthzRsp.GetRole().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbReadNoSecrets)
-	}); err != nil {
+	// Evaluate access to the role based on its scope. Only agents are allowed to read ancestor scopes.
+	var err error
+	if authzContext.Identity.GetIdentity().ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		err = authzContext.CheckerContext.RiskyAuthorizeUnpinnedRead(
+			ctx,
+			services.NewUnpinnedReadAuthorization(preAuthzRsp.GetRole().GetScope(), scopedaccess.KindScopedRole, types.VerbReadNoSecrets),
+			&ruleCtx)
+	} else {
+		err = authzContext.CheckerContext.Decision(ctx, preAuthzRsp.GetRole().GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbReadNoSecrets)
+		})
+	}
+	if err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to read scoped role",
 			"user", callerName(authzContext),
 			"scope", preAuthzRsp.GetRole().GetScope(),

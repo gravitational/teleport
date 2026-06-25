@@ -222,8 +222,14 @@ func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Contex
 		// particular role. For example, if a user has a scoped role assigned at /foo which grants access to all ssh
 		// nodes, but they are pinned to scope /foo/bar, even if a role at /foo permits access, the pin restricts
 		// access to only resources subject to /foo/bar.
-		if enforcePin && !pinning.PinAppliesToResourceScope(c.pin, scope) {
-			yield(nil, trace.AccessDenied("scope pin %q does not apply to resource scope %q", c.pin.GetScope(), scope))
+		if enforcePin {
+			if !pinning.PinAppliesToResourceScope(c.pin, scope) {
+				yield(nil, trace.AccessDenied("scope pin %q does not apply to resource scope %q", c.pin.GetScope(), scope))
+				return
+			}
+		} else if !pinning.PinCompatibleWithPolicyScope(c.pin, scope) {
+			// Unpinned reads should still not allow orthogonal reads.
+			yield(nil, trace.AccessDenied("scope pin %q is orthogonal to resource scope %q", c.pin.GetScope(), scope))
 			return
 		}
 
@@ -455,6 +461,11 @@ type UnpinnedReadAuthorization struct {
 	resourceScope string
 	kind          string
 	verbs         []string
+}
+
+func NewUnpinnedReadAuthorization(resourceScope, kind string, verbs ...string) UnpinnedReadAuthorization {
+	// maybe we add a guard here not allowing root scope
+	return UnpinnedReadAuthorization{resourceScope: resourceScope, kind: kind, verbs: verbs}
 }
 
 func (a UnpinnedReadAuthorization) check() error {
