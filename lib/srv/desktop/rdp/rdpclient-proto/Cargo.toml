@@ -1,0 +1,23 @@
+[package]
+name = "rdp-client-proto"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+rdp-client-common = { path = "../rdpclient-common" }
+ironrdp-pdu.workspace = true
+ironrdp-rdpdr.workspace = true
+
+# gRPC
+tonic = "0.14"
+tonic-prost = "0.14"
+
+# Protobuf
+prost = "0.14"
+
+[build-dependencies]
+tonic-prost-build = "0.14"

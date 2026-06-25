@@ -22,8 +22,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/mfa"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
@@ -40,19 +41,23 @@ func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *sl
 
 			mfaMsg := &MFA{
 				ChannelId: channelID,
-				Challenge: &mfav1.AuthenticateChallenge{},
+				Challenge: &mfav2.AuthenticateChallenge{},
 			}
 
 			if challenge.WebauthnChallenge != nil {
-				mfaMsg.Challenge.WebauthnChallenge = challenge.WebauthnChallenge
+				mfaMsg.Challenge.SetWebauthnChallenge(webauthnpb.CredentialAssertionV1ToV2(challenge.GetWebauthnChallenge()))
 			}
 
 			if challenge.SSOChallenge != nil {
-				mfaMsg.Challenge.SsoChallenge = &mfav1.SSOChallenge{
+				mfaMsg.Challenge.SetSsoChallenge(mfav2.SSOChallenge_builder{
 					RequestId:   challenge.SSOChallenge.RequestId,
 					RedirectUrl: challenge.SSOChallenge.RedirectUrl,
-					Device:      challenge.SSOChallenge.Device,
-				}
+					Device: mfav2.SSOMFADevice_builder{
+						ConnectorId:   challenge.SSOChallenge.Device.ConnectorId,
+						ConnectorType: challenge.SSOChallenge.Device.ConnectorType,
+						DisplayName:   challenge.SSOChallenge.Device.DisplayName,
+					}.Build(),
+				}.Build())
 			}
 
 			if challenge.WebauthnChallenge == nil && challenge.SSOChallenge == nil && challenge.TOTP == nil {
@@ -72,20 +77,22 @@ func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *sl
 				return nil, trace.Errorf("MFA response is empty")
 			}
 
-			switch response := mfaMsg.AuthenticationResponse.Response.(type) {
-			case *mfav1.AuthenticateResponse_Sso:
+			switch mfaMsg.AuthenticationResponse.WhichResponse() {
+			case mfav2.AuthenticateResponse_Sso_case:
+				sso := mfaMsg.AuthenticationResponse.GetSso()
 				return &proto.MFAAuthenticateResponse{
 					Response: &proto.MFAAuthenticateResponse_SSO{
 						SSO: &proto.SSOResponse{
-							RequestId: response.Sso.RequestId,
-							Token:     response.Sso.Token,
+							RequestId: sso.GetRequestId(),
+							Token:     sso.GetToken(),
 						},
 					},
 				}, nil
-			case *mfav1.AuthenticateResponse_Webauthn:
+			case mfav2.AuthenticateResponse_Webauthn_case:
+				webauthn := mfaMsg.AuthenticationResponse.GetWebauthn()
 				return &proto.MFAAuthenticateResponse{
 					Response: &proto.MFAAuthenticateResponse_Webauthn{
-						Webauthn: response.Webauthn,
+						Webauthn: webauthnpb.CredentialAssertionResponseV2ToV1(webauthn),
 					},
 				}, nil
 			default:

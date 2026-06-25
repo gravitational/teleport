@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::client::{ClientError, ClientResult};
+use crate::error::{ClientError, ClientResult};
 use tokio::net::TcpStream;
 
 #[cfg(feature = "fips")]
@@ -73,7 +73,7 @@ pub(crate) async fn upgrade(
             Ok((
                 upgraded.0,
                 ironrdp_tls::extract_tls_server_public_key(&upgraded.1)
-                    .ok_or(ClientError::InternalError(
+                    .ok_or(ClientError::Internal(
                         "failed to retrieve public key from TLS certificate".to_string(),
                     ))?
                     .to_vec(),

@@ -17,7 +17,7 @@ syntax = "proto3";
 package teleport.desktop.v1;
 
 import "google/protobuf/descriptor.proto";
-import "teleport/mfa/v1/challenge.proto";
+import "teleport/mfa/v2/challenge.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1;tdpbv1";
 
@@ -172,8 +172,8 @@ enum MFAType {
 message MFA {
   MFAType type = 1;
   string channel_id = 2;
-  mfa.v1.AuthenticateChallenge challenge = 3;
-  mfa.v1.AuthenticateResponse authentication_response = 4;
+  teleport.mfa.v2.AuthenticateChallenge challenge = 3;
+  mfa.v2.AuthenticateResponse authentication_response = 4;
 }
 
 // Sent by client to announce a new shared directory.

@@ -27,8 +27,8 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
-import { AuthenticateResponse } from "../../mfa/v1/challenge_pb";
-import { AuthenticateChallenge } from "../../mfa/v1/challenge_pb";
+import { AuthenticateResponse } from "../../mfa/v2/challenge_pb";
+import { AuthenticateChallenge } from "../../mfa/v2/challenge_pb";
 /**
  * Sent by client to begin a TDPB connection and advertise capabilities.
  *
@@ -336,11 +336,11 @@ export interface MFA {
      */
     channelId: string;
     /**
-     * @generated from protobuf field: teleport.mfa.v1.AuthenticateChallenge challenge = 3;
+     * @generated from protobuf field: teleport.mfa.v2.AuthenticateChallenge challenge = 3;
      */
     challenge?: AuthenticateChallenge;
     /**
-     * @generated from protobuf field: teleport.mfa.v1.AuthenticateResponse authentication_response = 4;
+     * @generated from protobuf field: teleport.mfa.v2.AuthenticateResponse authentication_response = 4;
      */
     authenticationResponse?: AuthenticateResponse;
 }
@@ -2024,10 +2024,10 @@ class MFA$Type extends MessageType<MFA> {
                 case /* string channel_id */ 2:
                     message.channelId = reader.string();
                     break;
-                case /* teleport.mfa.v1.AuthenticateChallenge challenge */ 3:
+                case /* teleport.mfa.v2.AuthenticateChallenge challenge */ 3:
                     message.challenge = AuthenticateChallenge.internalBinaryRead(reader, reader.uint32(), options, message.challenge);
                     break;
-                case /* teleport.mfa.v1.AuthenticateResponse authentication_response */ 4:
+                case /* teleport.mfa.v2.AuthenticateResponse authentication_response */ 4:
                     message.authenticationResponse = AuthenticateResponse.internalBinaryRead(reader, reader.uint32(), options, message.authenticationResponse);
                     break;
                 default:
@@ -2048,10 +2048,10 @@ class MFA$Type extends MessageType<MFA> {
         /* string channel_id = 2; */
         if (message.channelId !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.channelId);
-        /* teleport.mfa.v1.AuthenticateChallenge challenge = 3; */
+        /* teleport.mfa.v2.AuthenticateChallenge challenge = 3; */
         if (message.challenge)
             AuthenticateChallenge.internalBinaryWrite(message.challenge, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.mfa.v1.AuthenticateResponse authentication_response = 4; */
+        /* teleport.mfa.v2.AuthenticateResponse authentication_response = 4; */
         if (message.authenticationResponse)
             AuthenticateResponse.internalBinaryWrite(message.authenticationResponse, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;

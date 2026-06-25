@@ -549,3 +549,58 @@ func messageFromEnvelope(e *tdpbv1.Envelope) validatableMessage {
 		return nil
 	}
 }
+
+func MessageFromEnvelope(e *tdpbv1.Envelope) tdp.Message {
+	return messageFromEnvelope(e)
+}
+
+func MessageToEnvelope(msg tdp.Message) *tdpbv1.Envelope {
+	switch m := msg.(type) {
+	case *ClientScreenSpec:
+		return tdpbv1.Envelope_builder{
+			ClientScreenSpec: proto.ValueOrDefault((*tdpbv1.ClientScreenSpec)(m)),
+		}.Build()
+	case *ClipboardData:
+		return tdpbv1.Envelope_builder{
+			ClipboardData: proto.ValueOrDefault((*tdpbv1.ClipboardData)(m)),
+		}.Build()
+	case *SharedDirectoryAnnounce:
+		return tdpbv1.Envelope_builder{
+			SharedDirectoryAnnounce: proto.ValueOrDefault((*tdpbv1.SharedDirectoryAnnounce)(m)),
+		}.Build()
+	case *SharedDirectoryRemove:
+		return tdpbv1.Envelope_builder{
+			SharedDirectoryRemove: proto.ValueOrDefault((*tdpbv1.SharedDirectoryRemove)(m)),
+		}.Build()
+	case *SharedDirectoryResponse:
+		return tdpbv1.Envelope_builder{
+			SharedDirectoryResponse: proto.ValueOrDefault((*tdpbv1.SharedDirectoryResponse)(m)),
+		}.Build()
+	case *RDPResponsePDU:
+		return tdpbv1.Envelope_builder{
+			RdpResponsePdu: proto.ValueOrDefault((*tdpbv1.RDPResponsePDU)(m)),
+		}.Build()
+	case *MouseMove:
+		return tdpbv1.Envelope_builder{
+			MouseMove: proto.ValueOrDefault((*tdpbv1.MouseMove)(m)),
+		}.Build()
+	case *MouseButton:
+		return tdpbv1.Envelope_builder{
+			MouseButton: proto.ValueOrDefault((*tdpbv1.MouseButton)(m)),
+		}.Build()
+	case *MouseWheel:
+		return tdpbv1.Envelope_builder{
+			MouseWheel: proto.ValueOrDefault((*tdpbv1.MouseWheel)(m)),
+		}.Build()
+	case *KeyboardButton:
+		return tdpbv1.Envelope_builder{
+			KeyboardButton: proto.ValueOrDefault((*tdpbv1.KeyboardButton)(m)),
+		}.Build()
+	case *SyncKeys:
+		return tdpbv1.Envelope_builder{
+			SyncKeys: proto.ValueOrDefault((*tdpbv1.SyncKeys)(m)),
+		}.Build()
+	default:
+		return nil
+	}
+}

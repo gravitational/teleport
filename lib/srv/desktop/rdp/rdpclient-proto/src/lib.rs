@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2023  Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,17 +14,26 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//! This crate contains an RDP Client with the minimum functionality required
-//! for Teleport's Desktop Access feature.
+pub mod tdpb;
 
-pub mod client;
-mod cliprdr;
-pub mod config;
-pub mod error;
-pub mod ipc;
-mod license;
-mod network_client;
-mod piv;
-mod rdpdr;
-mod ssl;
-mod util;
+pub mod desktop {
+    pub(super) mod v1 {
+        tonic::include_proto!("teleport.desktop.v1");
+    }
+
+    pub use v1::{
+        desktop_service_client::DesktopServiceClient, CertificateAndKey, License, LicenseMetadata,
+    };
+}
+
+mod mfa {
+    pub mod v2 {
+        tonic::include_proto!("teleport.mfa.v2");
+    }
+}
+
+mod webauthn {
+    pub mod v2 {
+        tonic::include_proto!("teleport.webauthn.v2");
+    }
+}

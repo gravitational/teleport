@@ -14,9 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use ironrdp_pdu::{pdu_other_err, PduResult};
-use std::ffi::CString;
-
 /// WindowsPath is a String that we assume to be in the form
 /// of a traditional DOS path:
 ///
@@ -37,6 +34,10 @@ impl WindowsPath {
     pub fn len(&self) -> u32 {
         self.path.len() as u32
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.path.is_empty()
+    }
 }
 
 impl From<String> for WindowsPath {
@@ -55,23 +56,12 @@ pub struct UnixPath {
 }
 
 impl UnixPath {
-    /// This function will create a CString from a UnixPath.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if the UnixPath contains
-    /// any characters that can't be handled by CString::new().
-    pub fn to_cstring(&self) -> PduResult<CString> {
-        CString::new(self.path.clone()).map_err(|e| {
-            pdu_other_err!(
-                "",
-                source:PathError(format!("Error converting UnixPath to CString: {}", e))
-            )
-        })
-    }
-
     pub fn len(&self) -> u32 {
         self.path.len() as u32
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.path.is_empty()
     }
 
     pub fn last(&self) -> Option<&str> {

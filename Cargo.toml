@@ -1,6 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["lib/srv/desktop/rdp/rdpclient", "lib/srv/desktop/rdp/decoder", "web/packages/shared/libs/ironrdp"]
+members = [
+    "lib/srv/desktop/rdp/*",
+    "web/packages/shared/libs/ironrdp",
+]
 
 [workspace.package]
 edition = "2021"
@@ -14,7 +17,7 @@ debug = 1
 lto = "off"
 
 [profile.release]
-debug = 1
+debug = false
 codegen-units = 1
 lto = "thin"
 

@@ -404,7 +404,7 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "grpcnotrace $(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets rdpclient session/reexec/embed/sessionhelper
+$(BUILDDIR)/teleport: ensure-webassets rdpclient rdpdecoder session/reexec/embed/sessionhelper
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "grpcnotrace webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/sessionhelper
@@ -525,11 +525,13 @@ update-vmlinux-h:
 RDPCLIENT_SKIP_CARGO ?= 0
 
 .PHONY: rdpclient
-rdpclient: rustup-toolchain-warning
+rdpclient: rustup-toolchain-warning ensure-protoc
 ifeq ("$(with_rdpclient)", "yes")
 ifneq ($(RDPCLIENT_SKIP_CARGO),1)
-	$(RDPCLIENT_ENV) \
+	$(RDPCLIENT_ENV) PROTOC=$(shell command -v protoc 2>/dev/null || echo $(PROTOC_INSTALL_DIR)/protoc) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+		mkdir -p $(BUILDDIR)
+		install target/${RUST_TARGET_ARCH}/release/rdp-client $(BUILDDIR)/
 else
 	@echo "Skipping rdp-client cargo build (RDPCLIENT_SKIP_CARGO=1)"
 endif
@@ -1604,6 +1606,20 @@ ensure-buf:
 ifeq (, $(shell command -v $(BUF)))
 	go install github.com/bufbuild/buf/cmd/buf@$(NEED_VERSION)
 endif
+
+PROTOC_INSTALL_DIR ?= $(HOME)/.local/bin
+
+#
+# Install protoc to generate code from protobuf files. Used by `tonic-prost-build` Rust crate.
+#
+.PHONY: ensure-protoc
+ensure-protoc: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-protoc-version)
+ensure-protoc: CURRENT_VERSION = $(shell $(PROTOC_INSTALL_DIR)/protoc --version 2>/dev/null | sed 's/^libprotoc //')
+# Install protoc if it's not already installed or the version is not correct.
+ensure-protoc:
+	@if [ "$(CURRENT_VERSION)" != "$(NEED_VERSION)" ]; then \
+		build.assets/install-protoc.sh "$(PROTOC_INSTALL_DIR)" "$(NEED_VERSION)"; \
+	fi
 
 # protos/all runs build, lint and format on all protos.
 # Use `make grpc` to regenerate protos inside buildbox.
