@@ -175,7 +175,7 @@ func TestGetTokens(t *testing.T) {
 			},
 		},
 		{
-			name: "system tokens are hidden from the UI",
+			name: "system tokens are shown but marked as system resources",
 			tokenData: []tokenData{
 				{
 					name: "beam-system-token",
@@ -188,8 +188,15 @@ func TestGetTokens(t *testing.T) {
 					expiry: expiry,
 				},
 			},
-			// The system-labeled token is filtered out, only the static token is returned.
 			expected: []ui.JoinToken{
+				{
+					ID:               "beam-system-token",
+					SafeName:         "************token",
+					Expiry:           expiry,
+					Roles:            types.SystemRoles{types.RoleNode},
+					IsSystemResource: true,
+					Method:           "token",
+				},
 				staticUIToken,
 			},
 		},
