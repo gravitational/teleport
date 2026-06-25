@@ -125,7 +125,10 @@ func isCrossOriginWebSocketUpgrade(r *http.Request) bool {
 	if err != nil {
 		return true // unparseable Origin: treat as foreign
 	}
-	return !strings.EqualFold(u.Host, r.Host)
+	// An origin is (scheme, host, port), so compare scheme too (port is part of
+	// Host). App access is always TLS, so a plain-HTTP page on the same host is a
+	// foreign origin whose wss:// handshake still carries the Secure cookies.
+	return !strings.EqualFold(u.Scheme, "https") || !strings.EqualFold(u.Host, r.Host)
 }
 
 // isWebSocketUpgrade reports whether r is a WebSocket upgrade handshake. A

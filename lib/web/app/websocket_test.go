@@ -181,8 +181,21 @@ func TestIsCrossOriginWebSocketUpgrade(t *testing.T) {
 			want:    true,
 		},
 		{
-			name:    "origin scheme differs but host matches",
+			// A plain-HTTP page on the same host is a foreign origin: its
+			// wss:// handshake still carries the Secure session cookies, so the
+			// scheme mismatch must be treated as cross-origin.
+			name:    "origin scheme differs (http) but host matches",
 			headers: originWS("http://app.example.com"),
+			want:    true,
+		},
+		{
+			name:    "origin scheme differs (ws) but host matches",
+			headers: originWS("ws://app.example.com"),
+			want:    true,
+		},
+		{
+			name:    "origin scheme uppercase https matches",
+			headers: originWS("HTTPS://app.example.com"),
 			want:    false,
 		},
 		{
@@ -245,6 +258,14 @@ func TestGuardCrossSiteWebSocket(t *testing.T) {
 			name:    "block allows same-origin WebSocket",
 			action:  cswshAction{block: true},
 			headers: ws("https://app.example.com"),
+		},
+		{
+			// Plain-HTTP page on the same host (e.g. injected before HSTS is
+			// effective) is a foreign origin and must be blocked.
+			name:        "block rejects same-host cross-scheme (http) WebSocket",
+			action:      cswshAction{block: true},
+			headers:     ws("http://app.example.com"),
+			wantBlocked: true,
 		},
 		{
 			name:    "block allows non-browser WebSocket with no Origin",
