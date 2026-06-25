@@ -171,7 +171,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	defer outw.Close()
 
 	go func() {
-		logger := cfg.Logger.With("xsession", cfg.Command)
+		logger := cfg.Logger.With("xsession", cmdd)
 		scanner := bufio.NewScanner(outr)
 		for scanner.Scan() {
 			line := scanner.Text()
