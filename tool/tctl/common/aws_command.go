@@ -115,23 +115,12 @@ type testOIDCOutput struct {
 	UserID         string `json:"user_id"`
 }
 
-func (t *testOIDCOutput) output(out io.Writer) error {
-	if _, err := fmt.Fprint(out, bold("AWS OIDC integration is operational.")+"\n\n"); err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := fmt.Fprintf(out, "Integration Name: %s\n", t.Integration); err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := fmt.Fprintf(out, "Account ID: %s\n", t.AccountID); err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := fmt.Fprintf(out, "Assumed Role ARN: %s\n", t.AssumedRoleARN); err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := fmt.Fprintf(out, "User ID: %s\n", t.UserID); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+func (t *testOIDCOutput) output(out io.Writer) {
+	fmt.Fprint(out, bold("AWS OIDC integration is operational.")+"\n\n")
+	fmt.Fprintf(out, "Integration Name: %s\n", t.Integration)
+	fmt.Fprintf(out, "Account ID: %s\n", t.AccountID)
+	fmt.Fprintf(out, "Assumed Role ARN: %s\n", t.AssumedRoleARN)
+	fmt.Fprintf(out, "User ID: %s\n", t.UserID)
 }
 
 // AWSCommand implements AWS-related helper commands.
