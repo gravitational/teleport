@@ -390,7 +390,8 @@ func (r resourceTeleportKubeCluster) ModifyPlan(ctx context.Context, req tfsdk.M
 
 	kubeCluster = kubeClusterResource
 
-	resp.Diagnostics.Append(tfschema.CopyKubernetesClusterV3ToTerraform(ctx, kubeCluster, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(tfschema.CopyKubernetesClusterV3ToTerraformPreserveUnknown(ctx, kubeCluster, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

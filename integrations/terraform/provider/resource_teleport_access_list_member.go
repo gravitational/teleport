@@ -412,7 +412,8 @@ func (r resourceTeleportMember) ModifyPlan(ctx context.Context, req tfsdk.Modify
 
 	accessListMember = convert.ToMemberProto(accessListMemberResource)
 
-	resp.Diagnostics.Append(schemav1.CopyMemberToTerraform(ctx, accessListMember, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(schemav1.CopyMemberToTerraformPreserveUnknown(ctx, accessListMember, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

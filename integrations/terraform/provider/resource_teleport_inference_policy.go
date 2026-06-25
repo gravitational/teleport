@@ -370,7 +370,8 @@ func (r resourceTeleportInferencePolicy) ModifyPlan(ctx context.Context, req tfs
 
 	inferencePolicy = inferencePolicyResource
 
-	resp.Diagnostics.Append(schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(schemav1.CopyInferencePolicyToTerraformPreserveUnknown(ctx, inferencePolicy, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
