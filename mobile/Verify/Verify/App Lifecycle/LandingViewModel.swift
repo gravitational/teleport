@@ -23,9 +23,18 @@ final class LandingViewModel {
 	enum Destination {
 		case deviceEnrollment(EnrollDeviceViewModel)
 		case deepLinkParsingAlert(errorMessage: String)
+		case cameraScanner(EnrollCameraScannerViewModel)
 	}
 
 	var destination: Destination? = nil
+}
+
+// MARK: - User Actions
+
+extension LandingViewModel {
+	func userTappedOnScanQRCode() {
+		destination = .cameraScanner(EnrollCameraScannerViewModel())
+	}
 }
 
 // MARK: - Programmatic Navigation

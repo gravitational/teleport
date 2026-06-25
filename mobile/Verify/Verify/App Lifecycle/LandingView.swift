@@ -41,12 +41,12 @@ struct LandingView: View {
 
 			// MARK: Navigation
 
-			.navigationDestination(
-				item: $viewModel.destination.deviceEnrollment,
-				destination: { deviceEnrollmentViewModel in
-					EnrollDeviceView(viewModel: deviceEnrollmentViewModel)
-				},
-			)
+			.navigationDestination(item: $viewModel.destination.deviceEnrollment) { deviceEnrollmentViewModel in
+				EnrollDeviceView(viewModel: deviceEnrollmentViewModel)
+			}
+			.sheet(item: $viewModel.destination.cameraScanner, id: \.presentationID) { _ in
+				QRScannerView(validateScan: { _ in false }, onScan: { _ in })
+			}
 			.alert(
 				item: $viewModel.destination.deepLinkParsingAlert,
 				title: { errorMessage in
@@ -97,7 +97,7 @@ extension LandingView {
 
 	private var scanQRCodeButton: some View {
 		Button {
-			print("scanning has not been built yet")
+			viewModel.userTappedOnScanQRCode()
 		} label: {
 			Text("Scan QR Code")
 				.padding(.vertical, .xsmall)
