@@ -149,6 +149,21 @@ func (m *mockAutoUpdateClient) ListAutoUpdateAgentReports(_ context.Context, pag
 	return args.Get(0).([]*autoupdatepb.AutoUpdateAgentReport), "", args.Error(1)
 }
 
+func (m *mockAutoUpdateClient) TriggerAutoUpdateAgentGroup(_ context.Context, groups []string, state autoupdatepb.AutoUpdateAgentGroupState) (*autoupdatepb.AutoUpdateAgentRollout, error) {
+	args := m.Called(groups, state)
+	return args.Get(0).(*autoupdatepb.AutoUpdateAgentRollout), args.Error(1)
+}
+
+func (m *mockAutoUpdateClient) ForceAutoUpdateAgentGroup(_ context.Context, groups []string) (*autoupdatepb.AutoUpdateAgentRollout, error) {
+	args := m.Called(groups)
+	return args.Get(0).(*autoupdatepb.AutoUpdateAgentRollout), args.Error(1)
+}
+
+func (m *mockAutoUpdateClient) RollbackAutoUpdateAgentGroup(_ context.Context, groups []string, allStartedGroups bool) (*autoupdatepb.AutoUpdateAgentRollout, error) {
+	args := m.Called(groups, allStartedGroups)
+	return args.Get(0).(*autoupdatepb.AutoUpdateAgentRollout), args.Error(1)
+}
+
 func TestAutoUpdateAgentStatusCommand(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
@@ -740,6 +755,108 @@ func TestAutoUpdateAgentReportStructuredOutput(t *testing.T) {
 			}
 			require.Equal(t, newAgentReportSummary(reports), got)
 			clt.AssertExpectations(t)
+		})
+	}
+}
+
+// rolloutFixture is the rollout returned by the mocked rollout mutation
+// methods, used to verify structured output of start-update/mark-done/rollback.
+func rolloutFixture() *autoupdatepb.AutoUpdateAgentRollout {
+	return autoupdatepb.AutoUpdateAgentRollout_builder{
+		Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+			AutoupdateMode: "enabled",
+			StartVersion:   "1.2.3",
+			TargetVersion:  "1.2.4",
+			Schedule:       "regular",
+			Strategy:       "time-based",
+		}.Build(),
+		Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
+			State: autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
+			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
+				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+					Name:          "dev",
+					State:         autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+					PresentCount:  3,
+					UpToDateCount: 2,
+				}.Build(),
+			},
+		}.Build(),
+	}.Build()
+}
+
+func TestAutoUpdateAgentRolloutMutationStructuredOutput(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	rollout := rolloutFixture()
+
+	// Each rollout mutation command shares the same structured output shape, so
+	// we exercise all three against json and yaml, plus an invalid format.
+	tests := []struct {
+		name   string
+		groups []string
+		setup  func(clt *mockAutoUpdateClient)
+		run    func(cmd *AutoUpdateCommand, clt autoupdateClient) error
+	}{
+		{
+			name:   "start-update",
+			groups: []string{"dev"},
+			setup: func(clt *mockAutoUpdateClient) {
+				clt.On("TriggerAutoUpdateAgentGroup", mock.Anything, mock.Anything).Return(rollout, nil).Once()
+			},
+			run: func(cmd *AutoUpdateCommand, clt autoupdateClient) error {
+				return cmd.agentsStartUpdateCommand(ctx, clt)
+			},
+		},
+		{
+			name: "mark-done",
+			setup: func(clt *mockAutoUpdateClient) {
+				clt.On("ForceAutoUpdateAgentGroup", mock.Anything).Return(rollout, nil).Once()
+			},
+			run: func(cmd *AutoUpdateCommand, clt autoupdateClient) error {
+				return cmd.agentsMarkDoneCommand(ctx, clt)
+			},
+		},
+		{
+			name: "rollback",
+			setup: func(clt *mockAutoUpdateClient) {
+				clt.On("RollbackAutoUpdateAgentGroup", mock.Anything, mock.Anything).Return(rollout, nil).Once()
+			},
+			run: func(cmd *AutoUpdateCommand, clt autoupdateClient) error {
+				return cmd.agentsRollbackCommand(ctx, clt)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, format := range []string{teleport.JSON, teleport.YAML} {
+				t.Run(format, func(t *testing.T) {
+					clt := &mockAutoUpdateClient{}
+					tt.setup(clt)
+
+					output := &bytes.Buffer{}
+					cmd := AutoUpdateCommand{stdout: output, format: format, groups: tt.groups}
+					require.NoError(t, tt.run(&cmd, clt))
+
+					var got agentStatusOutput
+					if format == teleport.YAML {
+						got = mustDecodeJSON[agentStatusOutput](t, bytes.NewReader(mustTranscodeYAMLToJSON(t, output)))
+					} else {
+						got = mustDecodeJSON[agentStatusOutput](t, output)
+					}
+					require.Equal(t, newAgentStatusOutput(rollout), got)
+					clt.AssertExpectations(t)
+				})
+			}
+
+			t.Run("invalid format", func(t *testing.T) {
+				clt := &mockAutoUpdateClient{}
+				tt.setup(clt)
+
+				cmd := AutoUpdateCommand{stdout: &bytes.Buffer{}, format: "bogus", groups: tt.groups}
+				err := tt.run(&cmd, clt)
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			})
 		})
 	}
 }
