@@ -454,7 +454,7 @@ func TestCrossSiteWebSocketProtection(t *testing.T) {
 	authClient := &mockAuthClient{
 		clusterName: clusterName,
 		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
-		appServers:  []types.AppServer{createAppServer(t, publicAddr)},
+		appServers:  []types.AppServer{createNamedAppServer(t, "testapp", publicAddr)},
 		caKey:       key,
 		caCert:      cert,
 	}
