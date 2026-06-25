@@ -2714,14 +2714,14 @@ Configure SAML using [Quick GitHub/SAML/OIDC Setup Tips] and
    `Audit queue initialized.`, `audit event queue above soft limit`,
    `Audit queue is full.`, orphan adoption errors, dead-letter expiry.
 
-### 13. Versioning & on-disk format
+### 12. Versioning & on-disk format
 
-- [ ] **13.1 Version recorded**
+- [ ] **12.1 Version recorded**
 1. Read `teleport_info` from `queue.db` (read-only):
    `sqlite3 'file:queue.db?mode=ro' 'SELECT key,value FROM teleport_info;'`.
    Expected: a row recording the running Teleport version.
 
-- [ ] **13.2 Schema & inspectability**
+- [ ] **12.2 Schema & inspectability**
 1. `.tables` shows `audit_queue`, `audit_dead_letter`, `teleport_info`,
    `corrupt_events`. Confirms the RFD's "well-understood file format / standard
    tooling" criterion (ops can inspect/back up with `sqlite3`).
