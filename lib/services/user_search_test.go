@@ -46,10 +46,10 @@ func (l *testUserSearchLister) ListUsers(ctx context.Context, req *userspb.ListU
 		return nil, l.err
 	}
 
-	return &userspb.ListUsersResponse{
+	return userspb.ListUsersResponse_builder{
 		Users:         l.users,
 		NextPageToken: l.nextKey,
-	}, nil
+	}.Build(), nil
 }
 
 func TestFindUsernamesBySearchKeywords(t *testing.T) {

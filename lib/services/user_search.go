@@ -47,13 +47,13 @@ func FindUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, 
 		return nil, nil
 	}
 
-	rsp, err := users.ListUsers(ctx, &userspb.ListUsersRequest{
+	rsp, err := users.ListUsers(ctx, userspb.ListUsersRequest_builder{
 		PageSize: apidefaults.DefaultChunkSize,
 		Filter: &types.UserFilter{
 			SearchKeywords:  searchKeywords,
 			SkipSystemUsers: true,
 		},
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
