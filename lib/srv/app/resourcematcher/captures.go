@@ -485,6 +485,40 @@ func validateAllowCodes(expr string) error {
 	return trace.Wrap(bad)
 }
 
+// validateDenyHintCodes rejects an illegal code in an append_deny_hint("...")
+// call whose code is a string constant, the load-time check for the code a
+// sugared deny_code field lowers to and for a code written directly in an
+// expression. A dynamic code cannot be checked here and is backstopped by the
+// function at evaluation. append_deny_hint always returns false, so unlike
+// set_allow_code it needs no placement check: a misplaced call can record a
+// stray hint but can never turn a deny into an allow.
+func validateDenyHintCodes(expr string) error {
+	parsed, err := goparser.ParseExpr(expr)
+	if err != nil {
+		return nil
+	}
+	var bad error
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isIdentCall(call, "append_deny_hint") || len(call.Args) == 0 {
+			return true
+		}
+		lit, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		s, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		if err := validateCode(s); err != nil {
+			bad = err
+		}
+		return true
+	})
+	return trace.Wrap(bad)
+}
+
 // validateAllowCodePlacement rejects a set_allow_code call that is not in tail
 // position. The code is committed eagerly into the evaluation state and read
 // only on a match, so a set_allow_code on a branch that a later || can rescue

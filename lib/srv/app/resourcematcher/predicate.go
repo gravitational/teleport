@@ -158,6 +158,13 @@ type evalState struct {
 	// set_allow_code calls run, the last one wins.
 	allowCode   string
 	allowReason string
+	// denyHints holds the near-miss hints an append_deny_hint call recorded.
+	// append_deny_hint records a hint and returns false, so it sits on the deny
+	// branch of a rule, as in (where || append_deny_hint(...)), and fires
+	// exactly when the path and method matched but the allow condition failed.
+	// They are read only when the rule denies; on an allow the deny branch never
+	// runs, so the slice stays empty.
+	denyHints []Hint
 }
 
 // predicate is a parsed, type-checked app-access predicate ready to evaluate.
@@ -268,6 +275,31 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 					e.state.allowReason = reason[0]
 				}
 				return true, nil
+			}),
+			// append_deny_hint records a near-miss deny hint, the structured code
+			// and optional reason emitted on the deny event when the rule's path
+			// and method matched but the allow condition failed. It is the deny
+			// mirror of set_allow_code: a side-effecting boolean that records its
+			// hint and returns false, so it never turns a deny into an allow. It
+			// sits on the deny branch of a rule, as in
+			// (where || append_deny_hint("code", "reason")), gated by the path and
+			// method on its left, so it fires exactly on the near-miss. The hint is
+			// read only when the rule denies. The sugared deny_code and deny_reason
+			// fields lower to this call, so both authoring surfaces share one
+			// representation.
+			"append_deny_hint": typical.BinaryVariadicFunctionWithEnv(func(e env, code string, reason ...string) (bool, error) {
+				if err := validateCode(code); err != nil {
+					return false, trace.Wrap(err)
+				}
+				if len(reason) > 1 {
+					return false, trace.BadParameter("append_deny_hint takes a code and at most one reason, got %d reasons", len(reason))
+				}
+				hint := Hint{Code: code}
+				if len(reason) == 1 {
+					hint.Reason = reason[0]
+				}
+				e.state.denyHints = append(e.state.denyHints, hint)
+				return false, nil
 			}),
 			// Matcher constructors. Each returns one Node, so they nest and
 			// type-check at parse time: every child argument must itself

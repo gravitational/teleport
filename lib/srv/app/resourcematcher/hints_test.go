@@ -120,6 +120,41 @@ deny_reason: "You need the admin role."
 	require.Error(t, err)
 }
 
+// TestAppendDenyHintExpression pins that an expression rule can carry a deny
+// hint through append_deny_hint, the primitive the sugared deny_code lowers to,
+// so the expression and sugared surfaces share one deny mechanism. The call
+// returns false, so it records the hint without ever turning the deny into an
+// allow, and an illegal code is rejected at load.
+func TestAppendDenyHintExpression(t *testing.T) {
+	rule, err := compileExpression(
+		`path.match(literal("api/v4/projects", capture("project", greedy()))) && ` +
+			`(contains(user.traits["allowed_projects"], vars.project) || append_deny_hint("denied_project", "No access."))`)
+	require.NoError(t, err)
+
+	allowed := Identity{Traits: map[string][]string{"allowed_projects": {"ok"}}}
+
+	// Path matches, where holds: allow, no hint.
+	got, err := rule.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/ok/issues"}, allowed)
+	require.NoError(t, err)
+	require.True(t, got.Allowed)
+
+	// Path matches, where fails: the hint fires on the near-miss.
+	got, err = rule.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/secret/issues"}, allowed)
+	require.NoError(t, err)
+	require.False(t, got.Allowed)
+	require.Equal(t, []Hint{{Code: "denied_project", Reason: "No access."}}, got.Deny.Hints)
+
+	// Path does not match: no near-miss, no hint.
+	got, err = rule.Evaluate(Request{Method: "GET", Path: "/other"}, allowed)
+	require.NoError(t, err)
+	require.False(t, got.Allowed)
+	require.Empty(t, got.Deny.Hints)
+
+	// An illegal code is rejected at load.
+	_, err = compileExpression(`path.match(greedy()) || append_deny_hint("Bad Code")`)
+	require.Error(t, err)
+}
+
 // TestDenyReasonWithoutCodeRejected pins that a deny_reason with no deny_code is
 // a load error: the reason has no code to ride on.
 func TestDenyReasonWithoutCodeRejected(t *testing.T) {

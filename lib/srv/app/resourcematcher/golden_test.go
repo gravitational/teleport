@@ -57,11 +57,11 @@ var update = flag.Bool("update", false, "regenerate golden testdata files")
 //
 // The runner wraps both rule lists in one synthetic role, then asserts: the
 // sugared rules evaluate to the stored expect, the lowered rules reach the same
-// allow decision, and the stored app_resources_desugared equals the freshly
-// generated lowering. So one golden decision pins both authoring surfaces and
-// the lowering between them. The deny code is a sugar-only audit feature with
-// no predicate form, so the lowered rules carry no deny hint; the lowered form
-// is therefore compared on its allow decision, not its deny hints.
+// decision, and the stored app_resources_desugared equals the freshly generated
+// lowering. So one golden decision pins both authoring surfaces and the lowering
+// between them. The deny code lowers to an append_deny_hint call, so the lowered
+// rules carry the same deny hints as the sugared ones and the two are compared
+// on the whole decision, hints included.
 type goldenFile struct {
 	Description      string      `yaml:"description,omitempty"`
 	AppResources     []Rule      `yaml:"app_resources,omitempty"`
@@ -187,8 +187,8 @@ func runGolden(t *testing.T, file string) {
 			continue
 		}
 		at := fmt.Sprintf("case %d %s %s", i, g.Cases[i].Request.Method, g.Cases[i].Request.Path)
-		require.Equal(t, allowView(fromSugared), allowView(fromDesugared),
-			"%s: sugared and lowered forms reach different allow decisions", at)
+		require.Equal(t, fromSugared, fromDesugared,
+			"%s: sugared and lowered forms reach different decisions", at)
 		require.Equal(t, g.Cases[i].Expect, fromSugared,
 			"%s: stored expect is stale; rerun with -update", at)
 	}
@@ -200,16 +200,6 @@ func runGolden(t *testing.T, file string) {
 	}
 
 	require.NoError(t, rewriteGenerated(file, raw, wantDesugared, g.Cases))
-}
-
-// allowView returns a copy of e with the deny hints cleared, so the sugared and
-// lowered forms can be compared on their allow decision alone. The deny code is
-// a sugar-only audit feature that the lowered predicate form does not carry, so
-// the hints are expected to differ and are checked against the stored expect
-// instead.
-func allowView(e tcExpect) tcExpect {
-	e.DenyHints = nil
-	return e
 }
 
 // rewriteGenerated regenerates only the derived sections of a golden file, the

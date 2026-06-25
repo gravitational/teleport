@@ -155,22 +155,12 @@ type Hint struct {
 
 // CompiledRule is a parsed, ready-to-evaluate rule, built from a sugared Rule
 // or from an app_resources_expression predicate string. The allow code and
-// reason ride in the predicate as a set_allow_code call, read off the
-// evaluation state on a match, so they are not fields here.
+// reason ride in the predicate as a set_allow_code call, and the deny hints as
+// append_deny_hint calls, read off the evaluation state on a match or a deny,
+// so neither is a field here. One predicate captures the whole rule, so the
+// sugared and the expression surfaces are exactly 1:1.
 type CompiledRule struct {
 	pred predicate
-	// denyOn is the near-miss territory: the rule's path and method clauses. On
-	// a deny the rule contributes its deny code when denyOn matches the request.
-	// It is nil when the rule sets no deny code, when denyAlways fires the code
-	// unconditionally, and for every expression rule, which carries no deny
-	// mechanism.
-	denyOn predicate
-	// denyAlways fires the deny code on every deny in the rule's scope. It is
-	// set for a where-only sugared rule, which has no path or method clause to
-	// scope the near-miss.
-	denyAlways bool
-	denyCode   string
-	denyReason string
 	// unsafeAllowAll marks a rule compiled from UnsafeAllowAll. The rule's
 	// predicate is the constant true, so it allows every request, and the flag
 	// lets the rule set skip the request tokenizer's pre-rule rejection so a
@@ -207,26 +197,15 @@ func (r Rule) Compile() (*CompiledRule, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	denyOn, denyAlways, err := r.compileDenyOn()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &CompiledRule{
-		pred:       pred,
-		denyOn:     denyOn,
-		denyAlways: denyAlways,
-		denyCode:   r.DenyCode,
-		denyReason: r.DenyReason,
-	}, nil
+	return &CompiledRule{pred: pred}, nil
 }
 
 // compileExpression compiles one app_resources_expression entry, a bare
 // predicate string. Unlike a sugared rule's where clause, it may call
-// path.match and use the full matcher language directly. It carries no deny
-// mechanism: the deny code is a sugar-only feature, so an expression rule never
-// contributes a deny hint.
+// path.match and use the full matcher language directly. It may also call
+// append_deny_hint to contribute a near-miss hint, the same primitive the
+// sugared deny_code lowers to, so an expression rule and a sugared rule share
+// one deny mechanism.
 func compileExpression(expr string) (*CompiledRule, error) {
 	if strings.TrimSpace(expr) == "" {
 		return nil, trace.BadParameter("an app_resources_expression entry cannot be empty")
@@ -267,50 +246,24 @@ func compilePredicate(expr string) (predicate, error) {
 	if err := validateAllowCodePlacement(expr); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := validateDenyHintCodes(expr); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return pred, nil
 }
 
-// compileDenyOn parses the near-miss territory for a rule's deny code, the
-// rule's path and method clauses ANDed. It returns a nil predicate and false
-// when the rule sets no deny code. It returns denyAlways=true for a where-only
-// rule, which has no path or method to scope the near-miss, so the deny code
-// fires on any deny in the rule's scope.
-func (r Rule) compileDenyOn() (predicate, bool, error) {
-	if r.DenyCode == "" {
-		if r.DenyReason != "" {
-			return nil, false, trace.BadParameter("deny_reason set without deny_code")
-		}
-		return nil, false, nil
-	}
-	if err := validateCode(r.DenyCode); err != nil {
-		return nil, false, trace.Wrap(err, "invalid deny_code")
-	}
-	path, err := r.pathClause()
-	if err != nil {
-		return nil, false, trace.Wrap(err)
-	}
-	on := joinClauses(path, r.methodClause())
-	if on == "" {
-		return nil, true, nil
-	}
-	onPred, err := parsePredicate(on)
-	if err != nil {
-		return nil, false, trace.Wrap(err, "compiling deny territory %q", on)
-	}
-	return onPred, false, nil
-}
-
 // desugar lowers the declarative fields to an equivalent predicate string,
-// ANDing the path, method, where, and allow-code clauses. The path clause
-// compiles each pattern to the canonical matcher tree and emits the matcher
-// constructors as source, so the desugared declarative form parses to exactly
-// the tree a hand-written predicate would. The allow code, when set, lowers to
-// a trailing set_allow_code call, so the sugared field and the expression
-// primitive share one representation. The deny code does not appear: it is a
-// sugar-only audit feature with no expression form. unsafe_allow_all lowers to
-// the constant true, which allows every request; its bypass of the request
-// tokenizer is a property of the rule set, not the predicate, so the lowered
-// form alone does not reproduce it on a malformed path.
+// ANDing the path, method, where-and-deny, and allow-code clauses. The path
+// clause compiles each pattern to the canonical matcher tree and emits the
+// matcher constructors as source, so the desugared declarative form parses to
+// exactly the tree a hand-written predicate would. The allow code, when set,
+// lowers to a trailing set_allow_code call, and the deny code to an
+// append_deny_hint call on the deny branch of the where, so both audit fields
+// share one representation with the expression surface and the lowering is
+// exactly 1:1. unsafe_allow_all lowers to the constant true, which allows every
+// request; its bypass of the request tokenizer is a property of the rule set,
+// not the predicate, so the lowered form alone does not reproduce it on a
+// malformed path.
 func (r Rule) desugar() (string, error) {
 	if err := r.validate(); err != nil {
 		return "", trace.Wrap(err)
@@ -322,19 +275,27 @@ func (r Rule) desugar() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	method := r.methodClause()
-	allowCode := r.allowCodeClause()
-	var where string
-	if r.Where != "" {
-		// Wrap the where in parentheses only when it is ANDed with another
-		// clause, where the grouping matters. When the where is the whole
-		// predicate, the parentheses add nothing.
-		where = r.Where
-		if path != "" || method != "" || allowCode != "" {
-			where = "(" + where + ")"
-		}
+	return joinClauses(path, r.methodClause(), r.whereDenyClause(), r.allowCodeClause()), nil
+}
+
+// whereDenyClause renders the where condition together with the deny hint, the
+// pair that decides the near-miss. The deny hint lowers to an append_deny_hint
+// call on the deny branch of the where, as in
+// (where || append_deny_hint("code", "reason")): the path and method on its
+// left gate it to the rule's territory, and the where on its left of the || skips
+// it on an allow, so it records exactly when the path and method matched but
+// the where failed. A deny code with no where has no near-miss branch to sit
+// on, so the hint can never fire and the clause omits it, the same as the rule
+// behaved before the deny code became a predicate primitive.
+func (r Rule) whereDenyClause() string {
+	if r.Where == "" {
+		return ""
 	}
-	return joinClauses(path, method, where, allowCode), nil
+	deny := r.denyHintClause()
+	if deny == "" {
+		return "(" + r.Where + ")"
+	}
+	return "(" + r.Where + " || " + deny + ")"
 }
 
 // allowCodeClause renders the allow code and optional reason as a
@@ -348,6 +309,19 @@ func (r Rule) allowCodeClause() string {
 		return fmt.Sprintf("set_allow_code(%s, %s)", strconv.Quote(r.AllowCode), strconv.Quote(r.AllowReason))
 	}
 	return fmt.Sprintf("set_allow_code(%s)", strconv.Quote(r.AllowCode))
+}
+
+// denyHintClause renders the deny code and optional reason as an
+// append_deny_hint call, the predicate primitive the sugared fields lower to.
+// It is empty when no deny code is set.
+func (r Rule) denyHintClause() string {
+	if r.DenyCode == "" {
+		return ""
+	}
+	if r.DenyReason != "" {
+		return fmt.Sprintf("append_deny_hint(%s, %s)", strconv.Quote(r.DenyCode), strconv.Quote(r.DenyReason))
+	}
+	return fmt.Sprintf("append_deny_hint(%s)", strconv.Quote(r.DenyCode))
 }
 
 // pathClause renders the Paths as one path.match over a root() of the compiled
@@ -459,6 +433,14 @@ func (r Rule) validate() error {
 	if r.AllowCode != "" {
 		if err := validateCode(r.AllowCode); err != nil {
 			return trace.Wrap(err, "invalid allow_code")
+		}
+	}
+	if r.DenyReason != "" && r.DenyCode == "" {
+		return trace.BadParameter("deny_reason set without deny_code")
+	}
+	if r.DenyCode != "" {
+		if err := validateCode(r.DenyCode); err != nil {
+			return trace.Wrap(err, "invalid deny_code")
 		}
 	}
 	return nil
@@ -595,21 +577,12 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 		}, nil
 	}
 
-	var fired []Hint
-	if c.denyCode != "" {
-		matched := c.denyAlways
-		if !matched && c.denyOn != nil {
-			ok, err := evalPredicate(c.denyOn, request, identity)
-			if err != nil {
-				return Decision{}, trace.Wrap(err)
-			}
-			matched = ok
-		}
-		if matched {
-			fired = append(fired, Hint{Code: c.denyCode, Reason: c.denyReason})
-		}
-	}
-	return Decision{Deny: &DenyDetails{Kind: DenyNotAllowed, Hints: fired}}, nil
+	// On a deny, surface any near-miss hints the predicate recorded. An
+	// append_deny_hint call runs only on the deny branch of the where, so the
+	// hints are exactly the ones whose path and method matched but whose allow
+	// condition failed. An allow short-circuits before that branch, so a rule
+	// that allowed records none.
+	return Decision{Deny: &DenyDetails{Kind: DenyNotAllowed, Hints: e.state.denyHints}}, nil
 }
 
 // newEnv builds a fresh evaluation environment for one request. The first
@@ -621,19 +594,6 @@ func newEnv(request Request, identity Identity) env {
 		vars:    map[string]string{},
 		state:   &evalState{},
 	}
-}
-
-// evalPredicate evaluates a predicate against a fresh environment and applies
-// the no-match guards, returning whether it matched. An unbound capture read, a
-// path the tokenizer rejected, or an encoded char in a match that did not opt
-// in forces a no-match.
-func evalPredicate(p predicate, request Request, identity Identity) (bool, error) {
-	e := newEnv(request, identity)
-	ok, err := p.Evaluate(e)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	return ok && !e.state.unboundRead && !e.state.tokenizeFailed && !e.state.encodedNotAllowed, nil
 }
 
 // validateCode checks an allow or deny code: 1 to 64 of [a-z0-9_], and not the

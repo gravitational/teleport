@@ -235,10 +235,12 @@ func readQuoted(s string, i int) (string, int) {
 	return s[i+1 : j], j + 1
 }
 
-// hasTopLevelAnd reports whether s contains a "&&" outside any nested
-// parenthesis and outside string literals. Parentheses around an expression
-// with a top-level "&&" carry precedence and must not be stripped.
-func hasTopLevelAnd(s string) bool {
+// hasTopLevelBinaryOp reports whether s contains a "&&" or "||" outside any
+// nested parenthesis and outside string literals. Parentheses around an
+// expression with a top-level binary operator carry precedence and must not be
+// stripped: a "||" group such as (where || append_deny_hint(...)) loses its
+// meaning if the parentheses are removed, the same as an "&&" group.
+func hasTopLevelBinaryOp(s string) bool {
 	depth, inString := 0, false
 	for i := 0; i < len(s); i++ {
 		c := s[i]
@@ -253,7 +255,7 @@ func hasTopLevelAnd(s string) bool {
 			depth++
 		case c == ')':
 			depth--
-		case c == '&' && depth == 0 && i+1 < len(s) && s[i+1] == '&':
+		case depth == 0 && i+1 < len(s) && (c == '&' && s[i+1] == '&' || c == '|' && s[i+1] == '|'):
 			return true
 		}
 	}
@@ -311,11 +313,12 @@ func contractLiterals(s string) string {
 }
 
 // stripRedundantParens removes a grouping parenthesis whose content carries no
-// top-level "&&", since such a wrapper only adds noise. The desugarer wraps a
-// rule's where clause in parentheses when joining it to the path and method
-// clauses; once that clause is a single term, the wrapper is redundant. A
-// parenthesis that follows an identifier opens a call argument list and is never
-// touched.
+// top-level "&&" or "||", since such a wrapper only adds noise. The desugarer
+// wraps a rule's where clause in parentheses when joining it to the path and
+// method clauses; once that clause is a single term, the wrapper is redundant.
+// A group that carries a top-level operator, such as a where ORed with an
+// append_deny_hint, is kept so its precedence holds. A parenthesis that follows
+// an identifier opens a call argument list and is never touched.
 func stripRedundantParens(s string) string {
 	inString := false
 	for i := 0; i < len(s); i++ {
@@ -340,7 +343,7 @@ func stripRedundantParens(s string) string {
 				continue
 			}
 			inner := s[i+1 : closeIdx]
-			if strings.TrimSpace(inner) == "" || hasTopLevelAnd(inner) {
+			if strings.TrimSpace(inner) == "" || hasTopLevelBinaryOp(inner) {
 				continue
 			}
 			return stripRedundantParens(s[:i] + inner + s[closeIdx+1:])
