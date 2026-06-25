@@ -42,19 +42,29 @@ Beams access inference models securely through an LLM proxy hosted by the
 cluster. The proxy translates and forwards requests to the inference provider
 (Amazon Bedrock) and passes responses back to the beam. Beams are free to use
 tools and SDKs that support the Anthropic Messages API or OpenAI-compatible
-APIs. Switching inference providers is simply a process of creating a new LLM
-proxy for the provider and configuring beams to use it.
+APIs.
+
+Switching inference providers is simply a process of creating a new LLM
+proxy for the provider and configuring beams to use it. Beams have two provider
+_slots_, one supporting providers using the Anthropic Messages API and the
+other supporting providers using OpenAI-compatible APIs.
+
+Existing beams will continue to use the providers configured when they were
+created, while new beams will use the newly set LLM proxy.
 
 ## Prerequisites
 
 - `tsh` and `tctl` version 18.8.0 or newer. See [Download Client Tools](https://goteleport.com/download/client-tools/).
 - An active Teleport session (`tsh login`).
+- `aws` CLI installed.
+- An active `aws` session
 
 ## Step 1/5. Configure an AWS OIDC integration
 
 This guide assumes you will not be using an existing AWS OIDC integration. To
 list existing integrations use `tctl get integration` and look out for
-`aws-oidc` as the integration type.
+`aws-oidc` as the integration type. Skip this step if you which to use an
+existing integration.
 
 To configure a new integration, start by creating an identity provider in AWS.
 Use the `aws iam create-open-id-connect-provider` CLI command, or create the
@@ -68,7 +78,7 @@ identity provider through the AWS Console. Use the following configuration:
   - teleport.dev/origin: integration_awsoidc
   - teleport.dev/integration: <Var name="my-integration"/>
 
-Next, create a IAM role using `aws iam create-role` or the AWS Console to
+Next, create an IAM role using `aws iam create-role` or the AWS Console to
 establish a Trust Relationship between AWS and the Beams cluster.
 
 Note the role's ARN as this will be used later.
@@ -127,13 +137,13 @@ for more details.
 ## Step 2/5. Create an Amazon Bedrock inference profile
 
 Create an inference profile for the model you which to provision. Use the
-`aws bedrock create-inference-profile CLI command` or the AWS Console.
+`aws bedrock create-inference-profile` CLI command or the AWS Console.
 
 Specify a system profile to use as the basis for the inference profile. The
 `aws bedrock list-inference-profiles` CLI command can be used to list all
 system profiles using the `--type-equals SYSTEM_DEFINED` flag.
 
-Note the inference profile's ARN, as this will be used later.
+Note the created inference profile's ARN, as this will be used later.
 
 ## Step 3/5. Grant Amazon Bedrock permissions
 
@@ -209,6 +219,8 @@ curl -sS -X POST "$ANTHROPIC_BASE_URL/v1/messages" \
   -d '{"model":"claude-opus-4-8","max_tokens":256,"messages":[{"role":"user","content":"Hello!"}]}' | jq '.content[0].text'
 ```
 
+A successful response from the model means the LLM proxy is operational.
+
 ## Step 5/5. Update global beams config
 
 Update the beams global config to route Anthropic traffic the new LLM proxy for
@@ -266,7 +278,3 @@ tsh beams exec <beam-id> 'echo "tell me a joke about an AI" | claude -p'
 You've provisioned an Anthropic model for use within a Beam and configured new
 beams to use the new provider. You've upgraded the beams experience while
 improving privacy, scalability and flexibility.
-
-## Next steps
-
-// TODO Do we have any suggested next steps to link to?
