@@ -92,11 +92,28 @@ intuitive, explicit, and least-privilege by default.
   resolved role grants multiple principals, the requester gets them all once the resource is reachable, so the final
   access can be "over-granted" and exceed the requester's intent.
 
+### Applicable resource kinds
+
+The following resource kinds have user-selectable principals that can be scoped via constraints:
+
+| Resource Kind       | Role Field(s)                                     | Principals                     |
+| ------------------- | ------------------------------------------------- | ------------------------------ |
+| AWS Console App     | `AWSRoleARNs`                                     | AWS IAM role ARNs              |
+| SSH Node            | `Logins`                                          | SSH login usernames            |
+| Windows Desktop     | `WindowsDesktopLogins`                            | Windows RDP logins             |
+| Database            | `DatabaseUsers`, `DatabaseNames`, `DatabaseRoles` | DB users, schemas, roles       |
+| Kubernetes Cluster  | `KubeUsers`, `KubeGroups`                         | K8s RBAC users/groups          |
+| Azure App           | `AzureIdentities`                                 | Azure managed identities       |
+| GCP App             | `GCPServiceAccounts`                              | GCP service accounts           |
+| AWS Identity Center | `AccountAssignments`                              | Permission set + account pairs |
+
 ## UX
 
-**Goal**: Let users pick constraints per resource, see what's **granted** vs. **requestable**, and either launch
-immediately or create a scoped Access Request, using one unified dropdown where the "connect"/"request" button currently
-sits on resource cards.
+**Goal**: Let users pick constraints per-resource, see what's **granted** vs. **requestable**, and either launch
+immediately or create a scoped Access Request. In the Web UI, this is a unified dropdown where the "connect"/"request"
+button currently sits on resource cards. In `tsh`, constraints are specified inline on `--resource` (or as JSON) when
+creating a request, and granted vs. requestable principals are surfaced by `tsh request search` and `tsh request
+preview`.
 
 **User stories**:
 
@@ -109,11 +126,16 @@ sits on resource cards.
   Ben operates in AWS IAM IC with a default `contributor` permission set but occasionally needs `BillingAdmin`. In
   Teleport's Web UI, he clicks the AWS IAM IC app's connect dropdown, selects `BillingAdmin` under the **requestable**
   section, submits the request, and once approved uses only that permission set without receiving extra IC permissions.
-- **SSH node (login + optional sudo)**:
-  Diego can SSH to a service host as `deploy` but needs a temporary `admin` login (and possibly `sudo`) to perform
-  maintenance. In Teleport's Web UI, he clicks the connect dropdown for the service node, and sees `deploy` under his
-  **granted** roles, and `admin` under the **requestable** section. He selects `admin`, checks "allow sudo", submits
-  the request, and after approval, connects with just `admin`.
+- **SSH node (login elevation)**:
+  Diego can SSH to a service host as `deploy` but needs a temporary `web` login to perform maintenance. In Teleport's
+  Web UI, he clicks the connect dropdown for the service node, and sees `deploy` under his **granted** logins, and `web`
+  under the **requestable** section. He selects `web`, submits the request, and after approval, connects with just
+  `web`.
+- **SSH node via tsh**:
+  Diego can also accomplish this via the CLI. He runs `tsh request search --kind node` to find requestable nodes, then
+  `tsh request preview /cluster/node/web-1` to see which logins are granted vs. requestable. He
+  then runs `tsh request create --resource '/cluster/node/web-1|logins=admin' --reason "maintenance"` to
+  create the constrained request.
 - **Database (role/user)**:
   Chandra has read-only access to a Postgres DB as `report_reader` and needs `migration_admin` for a one-off schema
   change. In Teleport's Web UI, she clicks the connect dropdown for the Postgres app, selects `migration_admin` under
@@ -271,38 +293,350 @@ principal-bearing matchers (e.g., `loginMatcher`, `AWSRoleARNMatcher`) to additi
 the constraint's allowed set. If a role grants multiple principals on a resource, only the requested principals are
 allowed.
 
-### Web/API (high-level)
+### Web/API
 
-- Listing `UnifiedResources` surfaces per-constraint status when "show requestable" is enabled. For each item (ARN,
-  permission set, SSH login), a `requiresRequest: true|false` marker is provided so the UI can render a single menu with
-  "Granted" and "Requestable" sections.
-- Resource Access Requests that include `ConstrainedResourceID`s present both the requested constraint(s) and the
-  resolved role(s) to reviewers.
+- The granted vs. requestable split is computed in Auth's `ListUnifiedResources`, not per-client in the proxy web
+  handler. Auth already evaluates the caller's access against each listed resource both with their current roles
+  (granted) and with their search-as-roles expansion (the requestable union), so the response carries both sets. Web,
+  Connect, and `tsh` render that response rather than each recomputing the split.
+- The split is carried on the listing response per principal kind. The granted set is a new field alongside the existing
+  flat principal list, so a client that reads only the old field still works, while a constraint-aware client
+  reconstructs the granted/requestable sets (requestable is the union minus the granted set). For each principal the UI
+  renders a single dropdown with "Granted" and "Requestable" sections.
+- Principals are populated for every constraint-applicable kind so the split is uniform across resource types (the same
+  enrichment applied to nodes, desktops, and apps covers databases, Kubernetes, and the cloud apps).
+- Feature
+  advertisement ([RFD 0230](https://github.com/gravitational/teleport/blob/master/rfd/0230-component-feature-advertisement.md))
+  gates constraint UI per resource. Proxy intersects `ComponentFeatures` from Auth, Proxy, and the resource's agent(s)
+  and exposes a `supportedFeatureIds` field on each resource. Web UI only renders constraint dropdowns when
+  `RESOURCE_CONSTRAINTS_V1` is present.
+
+### TSH & TCTL
+
+[RFD 0000's CLI UX guidance](https://github.com/gravitational/teleport/blob/master/rfd/0000-rfds.md#cli-ux) treats the
+CLI as a primary interface for agents as well as humans. The design below keeps the human path short, makes
+`--format json` the canonical path for automation, and avoids order-dependent flags and interactive prompts.
+
+#### Specifying constraints on `tsh request create`
+
+`tsh request create` accepts repeatable `--resource` flags. Each value is a slash-delimited `ResourceID` string (e.g.
+`/cluster/node/web-1`); we extend it to accept three forms, where constraints attach to a single resource so flag order
+does not matter:
+
+1. A plain `ResourceID` (unchanged, unconstrained):
+
+   ```
+   --resource /cluster/node/web-1
+   ```
+
+2. Inline constraints, for convenience, appended to the resource string after a `|` as `key=v1,v2` pairs joined by `|`:
+
+   ```
+   tsh request create \
+     --resource '/cluster/node/web-1|logins=root,admin' \
+     --resource '/cluster/db/postgres|db_users=admin|db_names=production' \
+     --reason "incident response"
+   ```
+
+3. A JSON `ResourceAccessID`, the canonical form for automation and agents and the fallback for any value the inline
+   form cannot express. This is the shape serialized into the request and cert, and reuses the existing
+   `ResourceAccessID` parsing and validation:
+
+   ```
+   --resource '{"id":{"cluster":"main","kind":"node","name":"web-1"},"constraints":{"version":"v1","ssh":{"logins":["root","admin"]}}}'
+   ```
+
+   (For larger or generated requests, the same JSON list may optionally be supplied via `--resource-file <path>` or
+   stdin, avoiding shell-quoting many blobs.)
+
+The CLI selects the form per value: a leading `{` is parsed as JSON; otherwise the value is a `ResourceID` string, split
+into id + constraints if it carries an inline suffix (below).
+
+The inline form is split from its constraints with an anchored-key rule. A `ResourceID` string treats its name as the
+opaque trailing segment, and resource names are not restricted to a fixed character set: databases and Kubernetes
+clusters reject `|` in their names,
+but nodes and apps do not. So rather than assume `|` is absent from names, the parser splits on the first occurrence of
+`|<key>=`, where `<key>` is a recognized constraint key from the table below. Everything before is parsed as a plain
+`ResourceID`; everything after is the constraint suffix. A false split would require a resource name containing the
+literal substring `|logins=` (or another key); the JSON form covers that case if it ever arises.
+
+| Key                    | Constraint Kind      | Example                                                |
+| ---------------------- | -------------------- | ------------------------------------------------------ |
+| `logins`               | SSH logins           | `logins=root,admin`                                    |
+| `role_arns`            | AWS Console ARNs     | `role_arns=arn:aws:iam::123:role/Admin`                |
+| `db_users`             | Database users       | `db_users=postgres,admin`                              |
+| `db_names`             | Database names       | `db_names=production`                                  |
+| `db_roles`             | Database roles       | `db_roles=admin`                                       |
+| `kube_users`           | Kubernetes users     | `kube_users=system:admin`                              |
+| `kube_groups`          | Kubernetes groups    | `kube_groups=system:masters`                           |
+| `azure_identities`     | Azure identities     | `azure_identities=/sub/.../identity`                   |
+| `gcp_service_accounts` | GCP service accounts | `gcp_service_accounts=sa@proj.iam.gserviceaccount.com` |
+
+Each key maps to a `ResourceConstraints` variant (`ssh` and `aws_console` first; the rest are added per kind under the
+same `oneof`). The CLI rejects a key whose variant or agent support does not yet exist.
+
+No supported principal value contains `=`, `,`, or `|` (ARNs and `system:`-prefixed names use `:` and `/`, never these
+three), so the `key=v1,v2|key2=...` grammar is unambiguous on the value side; the only collision risk is the
+resource-name side, handled above.
+
+The CLI validates the following before sending the request:
+
+- The key must be a recognized constraint kind.
+- The key must apply to the resource kind of its `ResourceID` (e.g. `logins` only for `node`, `db_users` only for `db`);
+  the kind is read from the `ResourceID`.
+- Duplicate keys on one resource are merged.
+- Empty values are rejected.
+
+When constraints are present (inline or JSON), the CLI builds a `ResourceAccessID` with the matching
+`ResourceConstraints` variant; otherwise the resource is sent as an unconstrained `ResourceAccessID` (current behavior).
+
+#### Discovering principals via `tsh request search`
+
+`tsh request search --kind <kind>` lists requestable resources. To choose constraints, a user (or agent) needs to know
+which principals are granted vs. requestable per resource. As described in [Web/API](#webapi), Auth computes this split
+in `ListUnifiedResources` and returns it directly, so `tsh`, Teleport Connect, and the Web UI render the same response
+rather than each recomputing it.
+
+Principals are surfaced at three levels of detail:
+
+The default table stays compact. Rather than per-principal columns, which do not scale across kinds or to
+dozens of ARNs, each resource gets a single summary cell, `<n> granted, <m> requestable`, with either side omitted when
+zero:
+
+```
+$ tsh request search --kind node
+
+Name   Hostname    Labels     Access
+----   ---------   --------   ------------------------
+web-1  web-1.dc1   env=prod   1 granted, 2 requestable
+db-2   db-2.dc1    env=prod   3 granted
+
+hint: use 'tsh request preview <resource-id>' to view granted & requestable principals
+hint: to request access, run 'tsh request create --resource <resource-id> --reason <reason>'
+```
+
+`tsh request preview <resource-id>` is the human detail view: a per-resource listing of every principal grouped granted
+vs. requestable, adapting to the resource kind. It takes a `ResourceID`, so it covers all kinds, and is separate from
+`tsh request show`, which takes an access _request_ ID:
+
+```
+$ tsh request preview /cluster/node/web-1
+
+Resource:  /cluster/node/web-1
+Name:      web-1
+Hostname:  web-1.dc1
+Labels:    env=prod
+
+Logins:
+  deploy   granted
+  root     requestable
+  admin    requestable
+
+hint: tsh request create --resource '/cluster/node/web-1|logins=root,admin' --reason "..."
+```
+
+Resources with multiple principal types (databases, for example) list each type under its own heading (Database Users,
+Database Names), each split into granted and requestable.
+
+For automation and agents, `tsh request search --format json` and `tsh request preview --format json` emit the complete
+granted and requestable sets per principal kind, untruncated. This is the agent path: one call returns everything needed
+to construct a constrained `tsh request create`, with no second round-trip and no interactive step.
+
+#### Agentic use
+
+The flows above follow [RFD 0000's CLI UX principles](https://github.com/gravitational/teleport/blob/master/rfd/0000-rfds.md#cli-ux):
+
+- Structured output is the interface. `search` and `preview` support `--format json`, returning granted/requestable
+  principals per resource so an agent enumerates options in one call, and `tsh request create --format json` returns the
+  created request (id, state, resolved roles) so the agent can confirm the outcome.
+- Flag order never matters and nothing blocks on a prompt, since constraints attach to a resource (inline or JSON). The
+  JSON `--resource` form (and `--resource-file`) is the reliable input path for generated requests.
+- The granted/requestable split is computed server-side and returned with the listing, so an agent does not chain
+  `search` with a second principal-fetch call.
+
+An end-to-end agent flow (discover, then request):
+
+```
+# 1. Enumerate requestable principals (one structured call)
+tsh request search --kind node --format json
+
+# 2. Create a constrained request (JSON resource form, structured result)
+tsh request create \
+  --resource '{"id":{"cluster":"main","kind":"node","name":"web-1"},"constraints":{"version":"v1","ssh":{"logins":["admin"]}}}' \
+  --reason "automated remediation" --format json
+```
+
+#### Agent Skill
+
+Per [RFD 0000's Agent Skills guidance](https://github.com/gravitational/teleport/blob/master/rfd/0000-rfds.md#agent-skills),
+we will ship a reference Agent Skill covering the full flow: enumerate requestable principals, create a scoped request,
+wait for approval, and assume. The skill documents the JSON `--resource` form and `--format json` output so an agent
+need not rediscover the CLI grammar, and passes through validation errors so the agent can correct its input.
+
+#### Display in `tsh request show`, `tsh request ls`, and `tctl`
+
+`tsh request show` renders the constraints on each requested resource in the `resource_id (key=value,value)` format, for
+every variant.
+
+`tsh request ls` omits constraints from its compact table, which is fine for the overview, but `tsh request ls --format
+json` includes full constraint information.
+
+`tctl requests get` and `tctl requests ls` follow the same pattern: compact text by default, complete `ResourceAccessID`s
+(constraints included) under `--format json`, so constrained requests are fully inspectable from automation.
 
 ## Compatibility
 
-- Providing `ConstrainedResourceID`s is optional; existing clients and requests without constraints continue to work
-  unchanged.
-- RBAC semantics are additive. Constraint matchers are considered only when `ConstrainedResourceID`s are present in a
-  request.
-- Web UI can adopt the per-constraint "granted vs requestable" grouping incrementally by resource type.
-- Older Agents ignore the new cert extension and only see non-constrained `ResourceID`s (if any) in
-  `AllowedResourceIDs`, preventing potential over-granting.
-    - This requires gating by Agent version on the Web UI side to avoid presenting constraint options to users when the
-      given Agent version is incompatible and the approved request would be rendered unusable (see Rollout & Gating).
+- Providing `ResourceAccessID`s with constraints is optional; existing clients and requests without constraints continue
+  to work unchanged.
+- `tsh request create --resource` accepts plain slash-delimited `ResourceID` strings unchanged; the inline (`|`) and
+  JSON forms are additive and selected by the value's shape, so existing scripts keep working.
+- RBAC semantics are additive. Constraint matchers are considered only when constraints are present on a
+  `ResourceAccessID`.
+- All cert paths that re-issue or re-encode an identity (web, app, and database sessions, and leaf-cluster routing)
+  propagate the constraint extension, so constraints survive session and routing cert exchanges rather than being
+  dropped at a hop.
+
+### Mixed-version behavior
+
+Enforcement is fail-closed across version skew. A component that does not understand the `AllowedResourceAccessIDs`
+extension does not see the constrained resources in the legacy `AllowedResourceIDs` (only the sentinel from
+[Serialization & Parsing](#serialization--parsing)), so it denies them rather than granting them unconstrained.
+
+This is a deliberate security choice. Duplicating constrained resources into the legacy field so older components could
+still serve them would let those components grant access without applying the constraint, making the feature unreliable
+for least-privilege (see [Alternatives Considered](#alternatives-considered)).
+
+- When a new client sends a constrained request to an old Auth, the unknown `RequestedResourceAccessIDs` field is
+  dropped and the request degrades to unconstrained (the legacy `RequestedResourceIDs` is still honored). To keep a user
+  from thinking they scoped a request that was not, the client gates on constraint support (feature advertisement / Auth
+  version) and refuses to send constraints to an Auth that cannot enforce them.
+- An old client against a new Auth works unchanged: it neither sends nor displays constraints.
+- When a new Auth issues a constrained cert to an old Proxy or agent, the agent ignores the extension and sees only
+  unconstrained `ResourceID`s, so it cannot over-grant. Constraint UI is withheld for that resource via feature
+  advertisement, so the flow is not offered where it would dead-end in denial.
+- When a new client or Proxy lists against an old Auth, `ListUnifiedResources` returns only the principal union, not the
+  granted/requestable split, so clients fall back to the union (principals shown without the distinction) rather than
+  failing.
+- Across trusted clusters (root/leaf), a request may target leaf resources whose owning cluster runs a different
+  version. Constraints are only offered when every component on the access path supports them, so feature advertisement
+  ([RFD 0230](https://github.com/gravitational/teleport/blob/master/rfd/0230-component-feature-advertisement.md))
+  intersects `ComponentFeatures` across the root Auth/Proxy and the leaf's Auth and agent(s), not just local components.
+  A constrained cert reaching an older leaf is enforced by denial (above); the gating keeps the flow from being offered
+  for leaf resources whose components are too old.
+- Web UI adopts the per-principal "granted vs requestable" grouping incrementally by resource kind, gated by
+  `supportedFeatureIds` from feature advertisement. The new per-principal fields are added alongside the existing flat
+  ones, so older Web UIs keep working with newer proxies.
 
 ## Rollout & Gating
 
-This feature must be gated by component feature advertisement (RFD 230) to ensure Web UI only surfaces constraint UI
-for resources whose Agent(s) support it.
+This feature is gated by component feature
+advertisement ([RFD 0230](https://github.com/gravitational/teleport/blob/master/rfd/0230-component-feature-advertisement.md))
+to ensure Web UI only surfaces constraint flows for resources whose Agent(s) support them.
 
-This gating is strictly for UX enablement; server-side validation and enforcement remains fail-closed. However, we
-consider RFD 230 a prerequisite for shipping this RFD to avoid presenting actions that older components cannot fulfill.
+This gating is strictly for UX enablement; server-side validation and enforcement remain fail-closed. We consider RFD
+0230 a prerequisite for shipping constraint UI to avoid presenting actions that older components cannot fulfill.
 
-## Next Steps
+For `tsh`/`tctl`, constraint support does not require feature advertisement gating. CLI users explicitly opt in by
+providing inline or JSON constraints on `--resource`, and server-side validation will reject constraints that are not
+supported. A clear error message should be returned if constraints are provided for a resource whose agent does not
+support them.
 
-- Implement and ship RFD 230 feature advertisement for Proxy and App Service, surface `CONSTRAINED_RESOURCE_IDS`
-  capability in APIs used by Web UI in order to gate constraint UI by resource agent support.
-- Finalize UI designs and UX specifics (layout, grouping visuals, request checkout/review details).
-- `tsh request` commands and Teleport Connect flows.
-- More exhaustive resource/constraint coverage beyond the initial AWS Console/AWS IC focus.
+## Scale
+
+- Producing the split evaluates the caller's access against each listed resource twice, for the granted set and for the
+  requestable union. This is the access-check work any granted-vs-requestable computation requires; keeping it in Auth
+  avoids the Proxy and Auth each running a separate pass. It runs only when the listing requests requestable principals,
+  and listing stays paginated.
+- Constraint payloads are bounded by the existing cert and request size limits (see
+  [Serialization & Parsing](#serialization--parsing)). JSON is larger than binary proto but within budget for typical
+  requests.
+- `tsh request preview` resolves a single `ResourceID` and adds no list-time cost.
+
+## Audit Events
+
+No new event types are required; constraints extend existing access-request events.
+
+- `AccessRequestCreate` carries `RequestedResourceAccessIDs` (`[]ResourceAccessID`, constraints included) alongside the
+  legacy `RequestedResourceIDs`, so the audit log records the requested `(resource, constraints)` pairs.
+- The certificate-issuance event's embedded `Identity` records the enforced `AllowedResourceAccessIDs`, so the issued
+  grant is auditable, not only the request.
+- `AccessRequestResourceSearch` records `tsh request search`; it carries no constraint data, since the search does not
+  select constraints.
+- Events serialize constraints with a variant per kind plus an unknown-variant fallback, so future constraint kinds are
+  preserved in the log rather than dropped.
+
+## Observability
+
+- The `*ResourceAccessIDs` fields above are enough to trace a constrained request end to end (create, approve, issued
+  cert) from the audit log.
+- A constraint that fails validation returns a clear error naming the offending key and resource; this surfaces in
+  `tsh` / `tctl` output and Auth logs.
+- No new Prometheus metrics for the initial release. Constrained-request volume can be derived from the audit events if
+  needed.
+
+## Test Plan
+
+The following items are added to the [Test Plan](../.github/ISSUE_TEMPLATE/testplan.md), under its Access Requests
+section:
+
+- Creating a constrained request via each `--resource` form (plain, inline `|`, JSON), verifying the resolved roles and
+  issued cert match the requested constraints.
+- `tsh request preview` and `tsh request search` (text and `--format json`) showing correct granted vs. requestable
+  principals per kind.
+- Enforcement: assuming a constrained request grants only the requested principals, even when the resolved role grants
+  more.
+- Mixed-version behavior from [Compatibility](#compatibility): a constrained request is denied (not over-granted) on an
+  older agent, and the CLI refuses to send constraints to an Auth that cannot enforce them.
+
+These are end-to-end checks; the inline anchored-key parser and JSON `--resource` parsing (including resource names
+containing `|` and malformed or unknown-variant entries) are covered by unit tests.
+
+## Non-goals and Future Work
+
+### Non-goals
+
+- Role-based Access Requests are permanently out of scope, not deferred: constraints are per-resource, and a role-based
+  request names no target resource, so there is nothing to scope.
+
+### Out of scope for this draft
+
+- Enforcement for kinds beyond AWS Console and SSH. The `ResourceConstraints` oneof currently contains `aws_console` and
+  `ssh`; the other keys in the CLI table are part of the surface but are not yet enforceable.
+- AWS Identity Center. IC access is already modeled as synthetic account-assignment resources that scope to a
+  permission-set + account pair, so it reaches a similar result by another route. Bringing it under this framework needs
+  deeper refactoring of that model, not a new constraint variant.
+- Interactive CLI prompting and review-time constraint editing. The CLI takes constraints up front (inline or JSON), and
+  a reviewer approves or denies the requested `(resource, constraints)` pairs as submitted.
+
+### Planned
+
+- Resource-kind coverage. Database (users/names/roles), Kubernetes (users/groups), Windows Desktop logins, Azure
+  identities, and GCP service accounts, each adding a `ResourceConstraints` variant under the existing oneof with
+  matching agent-side enforcement. AWS Identity Center follows once the account-assignment model is refactored.
+- CLI and agent support. Broader `--format json` coverage, the reference Agent Skill described above, and possibly an
+  interactive selection flow for humans.
+- Teleport Connect. The same granted vs. requestable dropdown as the Web UI, reading the same listing response as Web
+  and `tsh`.
+
+## Alternatives Considered
+
+- Duplicating constrained resources into the legacy `AllowedResourceIDs` field, so older components keep serving them,
+  was decided against on security grounds. An older component would reach the resource without applying the constraint,
+  so the requested principal scoping would silently not hold on that path, which makes the feature unsafe to rely on for
+  least-privilege. The fail-closed alternative (constrained resources are absent from the legacy field, so older
+  components deny them; see [Mixed-version behavior](#mixed-version-behavior)) was chosen instead.
+- A dedicated principal-discovery RPC (e.g. `GetResourcePrincipals`) instead of extending `ListUnifiedResources` was
+  rejected: it repeats the access-check work the resource listing already performs, adds a second round-trip, and leaves
+  Web, Connect, and `tsh` on separate paths. Extending the existing listing keeps one path and one computation.
+- Order-dependent `--constraint` flags, where a constraint applies to the preceding `--resource`, were rejected: flag
+  order changing meaning is a CLI anti-pattern and is hard for agents to produce reliably. Constraints attach to the
+  resource value instead (inline `|` or JSON).
+- JSON as the only CLI constraint form was rejected: reliable for agents but tedious for humans. The inline `|` form
+  covers the common case, with JSON as the canonical form for automation and the fallback for values the inline form
+  cannot express.
+- A domain enum instead of a proto oneof for `ResourceConstraints` was rejected: the oneof gives compile-time type
+  safety and removes a separate step to match a domain to its detail payload (see
+  [ResourceID & Constraints](#resourceid--constraints)).
+- Deterministic binary proto encoding in the cert extension was rejected: Go's `x509` rejects non-string ASN.1 in name
+  attributes, so binary fails to encode and parse. The extension carries JSON text instead (see
+  [Serialization & Parsing](#serialization--parsing)).
