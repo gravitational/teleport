@@ -372,7 +372,8 @@ func (r resourceTeleportRetrievalModel) ModifyPlan(ctx context.Context, req tfsd
 
 	retrievalModel = retrievalModelResource
 
-	resp.Diagnostics.Append(schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(schemav1.CopyRetrievalModelToTerraformPreserveUnknown(ctx, retrievalModel, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

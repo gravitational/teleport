@@ -381,7 +381,8 @@ func (r resourceTeleportDiscoveryConfig) ModifyPlan(ctx context.Context, req tfs
 
 	discoveryConfig = convert.ToProto(discoveryConfigResource)
 
-	resp.Diagnostics.Append(schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(schemav1.CopyDiscoveryConfigToTerraformPreserveUnknown(ctx, discoveryConfig, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

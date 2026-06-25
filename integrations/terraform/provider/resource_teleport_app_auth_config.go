@@ -370,7 +370,8 @@ func (r resourceTeleportAppAuthConfig) ModifyPlan(ctx context.Context, req tfsdk
 
 	appauthconfig = appauthconfigResource
 
-	resp.Diagnostics.Append(schemav1.CopyAppAuthConfigToTerraform(ctx, appauthconfig, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(schemav1.CopyAppAuthConfigToTerraformPreserveUnknown(ctx, appauthconfig, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

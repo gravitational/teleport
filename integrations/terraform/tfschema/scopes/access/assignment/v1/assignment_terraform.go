@@ -459,6 +459,12 @@ func CopyScopedRoleAssignmentFromTerraform(_ context.Context, tf github_com_hash
 
 // CopyScopedRoleAssignmentToTerraform copies contents of the source Terraform object into a target struct
 func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleAssignment, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyScopedRoleAssignmentToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyScopedRoleAssignmentToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyScopedRoleAssignmentToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleAssignment, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -487,7 +493,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -513,7 +521,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -539,7 +549,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -592,7 +604,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -618,7 +632,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -644,7 +660,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -690,18 +708,24 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -728,7 +752,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 			v.Null = false
 			v.Value = string(obj.Scope)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["scope"] = v
 		}
 	}
@@ -781,7 +807,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 							v.Null = false
 							v.Value = string(obj.User)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["user"] = v
 						}
 					}
@@ -810,7 +838,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Assignments) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Assignments))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Assignments))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Assignments {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -853,7 +883,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 													v.Null = false
 													v.Value = string(obj.Role)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["role"] = v
 												}
 											}
@@ -879,17 +911,23 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 													v.Null = false
 													v.Value = string(obj.Scope)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["scope"] = v
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["assignments"] = c
 							}
 						}
@@ -916,7 +954,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 							v.Null = false
 							v.Value = string(obj.BotName)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["bot_name"] = v
 						}
 					}
@@ -942,12 +982,16 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 
 							v.Null = false
 							v.Value = string(obj.BotScope)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["bot_scope"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}

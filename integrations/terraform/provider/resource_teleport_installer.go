@@ -390,7 +390,8 @@ func (r resourceTeleportInstaller) ModifyPlan(ctx context.Context, req tfsdk.Mod
 
 	installer = installerResource
 
-	resp.Diagnostics.Append(tfschema.CopyInstallerV1ToTerraform(ctx, installer, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(tfschema.CopyInstallerV1ToTerraformPreserveUnknown(ctx, installer, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

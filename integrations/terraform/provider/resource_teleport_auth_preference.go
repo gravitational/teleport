@@ -377,7 +377,8 @@ func (r resourceTeleportAuthPreference) ModifyPlan(ctx context.Context, req tfsd
 
 	authPreference = authPreferenceResource
 
-	resp.Diagnostics.Append(tfschema.CopyAuthPreferenceV2ToTerraform(ctx, authPreference, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(tfschema.CopyAuthPreferenceV2ToTerraformPreserveUnknown(ctx, authPreference, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
