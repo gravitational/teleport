@@ -1666,6 +1666,7 @@ type ClientI interface {
 	DynamicDesktopClient() *dynamicwindows.Client
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+	UpsertDynamicWindowsDesktops(ctx context.Context, desktops []types.DynamicWindowsDesktop) ([]dynamicwindows.UpsertDynamicWindowsDesktopResult, error)
 
 	LinuxDesktopClient() *linuxdesktop.Client
 

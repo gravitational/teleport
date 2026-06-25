@@ -467,6 +467,202 @@ func (b0 UpsertDynamicWindowsDesktopRequest_builder) Build() *UpsertDynamicWindo
 	return m0
 }
 
+// UpsertDynamicWindowsDesktopsRequest is used for upserting multiple dynamic Windows desktops.
+type UpsertDynamicWindowsDesktopsRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// desktops to be upserted
+	Desktops      []*types.DynamicWindowsDesktopV1 `protobuf:"bytes,1,rep,name=desktops,proto3" json:"desktops,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertDynamicWindowsDesktopsRequest) Reset() {
+	*x = UpsertDynamicWindowsDesktopsRequest{}
+	mi := &file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertDynamicWindowsDesktopsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertDynamicWindowsDesktopsRequest) ProtoMessage() {}
+
+func (x *UpsertDynamicWindowsDesktopsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertDynamicWindowsDesktopsRequest) GetDesktops() []*types.DynamicWindowsDesktopV1 {
+	if x != nil {
+		return x.Desktops
+	}
+	return nil
+}
+
+func (x *UpsertDynamicWindowsDesktopsRequest) SetDesktops(v []*types.DynamicWindowsDesktopV1) {
+	x.Desktops = v
+}
+
+type UpsertDynamicWindowsDesktopsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// desktops to be upserted
+	Desktops []*types.DynamicWindowsDesktopV1
+}
+
+func (b0 UpsertDynamicWindowsDesktopsRequest_builder) Build() *UpsertDynamicWindowsDesktopsRequest {
+	m0 := &UpsertDynamicWindowsDesktopsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Desktops = b.Desktops
+	return m0
+}
+
+// UpsertDynamicWindowsDesktopsResponse is the response for upserting multiple dynamic Windows desktops.
+type UpsertDynamicWindowsDesktopsResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// results of upserted desktops
+	Results       []*UpsertDynamicWindowsDesktopResult `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertDynamicWindowsDesktopsResponse) Reset() {
+	*x = UpsertDynamicWindowsDesktopsResponse{}
+	mi := &file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertDynamicWindowsDesktopsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertDynamicWindowsDesktopsResponse) ProtoMessage() {}
+
+func (x *UpsertDynamicWindowsDesktopsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertDynamicWindowsDesktopsResponse) GetResults() []*UpsertDynamicWindowsDesktopResult {
+	if x != nil {
+		return x.Results
+	}
+	return nil
+}
+
+func (x *UpsertDynamicWindowsDesktopsResponse) SetResults(v []*UpsertDynamicWindowsDesktopResult) {
+	x.Results = v
+}
+
+type UpsertDynamicWindowsDesktopsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// results of upserted desktops
+	Results []*UpsertDynamicWindowsDesktopResult
+}
+
+func (b0 UpsertDynamicWindowsDesktopsResponse_builder) Build() *UpsertDynamicWindowsDesktopsResponse {
+	m0 := &UpsertDynamicWindowsDesktopsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Results = b.Results
+	return m0
+}
+
+// UpsertDynamicWindowsDesktopResult is the result of upserting a dynamic Windows desktop.
+type UpsertDynamicWindowsDesktopResult struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// name is the name of the dynamic Windows desktop.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// error is the failure message, empty if the upsert was successful.
+	Error         string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertDynamicWindowsDesktopResult) Reset() {
+	*x = UpsertDynamicWindowsDesktopResult{}
+	mi := &file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertDynamicWindowsDesktopResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertDynamicWindowsDesktopResult) ProtoMessage() {}
+
+func (x *UpsertDynamicWindowsDesktopResult) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertDynamicWindowsDesktopResult) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *UpsertDynamicWindowsDesktopResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *UpsertDynamicWindowsDesktopResult) SetName(v string) {
+	x.Name = v
+}
+
+func (x *UpsertDynamicWindowsDesktopResult) SetError(v string) {
+	x.Error = v
+}
+
+type UpsertDynamicWindowsDesktopResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the dynamic Windows desktop.
+	Name string
+	// error is the failure message, empty if the upsert was successful.
+	Error string
+}
+
+func (b0 UpsertDynamicWindowsDesktopResult_builder) Build() *UpsertDynamicWindowsDesktopResult {
+	m0 := &UpsertDynamicWindowsDesktopResult{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Error = b.Error
+	return m0
+}
+
 // DeleteDynamicWindowsDesktopRequest is a request to delete a Windows desktop host.
 type DeleteDynamicWindowsDesktopRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -478,7 +674,7 @@ type DeleteDynamicWindowsDesktopRequest struct {
 
 func (x *DeleteDynamicWindowsDesktopRequest) Reset() {
 	*x = DeleteDynamicWindowsDesktopRequest{}
-	mi := &file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes[6]
+	mi := &file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -490,7 +686,7 @@ func (x *DeleteDynamicWindowsDesktopRequest) String() string {
 func (*DeleteDynamicWindowsDesktopRequest) ProtoMessage() {}
 
 func (x *DeleteDynamicWindowsDesktopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes[6]
+	mi := &file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -546,51 +742,66 @@ const file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDesc = "" 
 	"\"UpdateDynamicWindowsDesktopRequest\x128\n" +
 	"\adesktop\x18\x01 \x01(\v2\x1e.types.DynamicWindowsDesktopV1R\adesktop\"^\n" +
 	"\"UpsertDynamicWindowsDesktopRequest\x128\n" +
-	"\adesktop\x18\x01 \x01(\v2\x1e.types.DynamicWindowsDesktopV1R\adesktop\"8\n" +
+	"\adesktop\x18\x01 \x01(\v2\x1e.types.DynamicWindowsDesktopV1R\adesktop\"a\n" +
+	"#UpsertDynamicWindowsDesktopsRequest\x12:\n" +
+	"\bdesktops\x18\x01 \x03(\v2\x1e.types.DynamicWindowsDesktopV1R\bdesktops\"\x7f\n" +
+	"$UpsertDynamicWindowsDesktopsResponse\x12W\n" +
+	"\aresults\x18\x01 \x03(\v2=.teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopResultR\aresults\"M\n" +
+	"!UpsertDynamicWindowsDesktopResult\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"8\n" +
 	"\"DeleteDynamicWindowsDesktopRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name2\xa2\x06\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name2\xc6\a\n" +
 	"\x15DynamicWindowsService\x12\x9b\x01\n" +
 	"\x1aListDynamicWindowsDesktops\x12=.teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsRequest\x1a>.teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsResponse\x12w\n" +
 	"\x18GetDynamicWindowsDesktop\x12;.teleport.dynamicwindows.v1.GetDynamicWindowsDesktopRequest\x1a\x1e.types.DynamicWindowsDesktopV1\x12}\n" +
 	"\x1bCreateDynamicWindowsDesktop\x12>.teleport.dynamicwindows.v1.CreateDynamicWindowsDesktopRequest\x1a\x1e.types.DynamicWindowsDesktopV1\x12}\n" +
 	"\x1bUpdateDynamicWindowsDesktop\x12>.teleport.dynamicwindows.v1.UpdateDynamicWindowsDesktopRequest\x1a\x1e.types.DynamicWindowsDesktopV1\x12}\n" +
-	"\x1bUpsertDynamicWindowsDesktop\x12>.teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopRequest\x1a\x1e.types.DynamicWindowsDesktopV1\x12u\n" +
+	"\x1bUpsertDynamicWindowsDesktop\x12>.teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopRequest\x1a\x1e.types.DynamicWindowsDesktopV1\x12\xa1\x01\n" +
+	"\x1cUpsertDynamicWindowsDesktops\x12?.teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopsRequest\x1a@.teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopsResponse\x12u\n" +
 	"\x1bDeleteDynamicWindowsDesktop\x12>.teleport.dynamicwindows.v1.DeleteDynamicWindowsDesktopRequest\x1a\x16.google.protobuf.EmptyB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1;dynamicwindowsv1b\x06proto3"
 
-var file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_goTypes = []any{
-	(*ListDynamicWindowsDesktopsRequest)(nil),  // 0: teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsRequest
-	(*ListDynamicWindowsDesktopsResponse)(nil), // 1: teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsResponse
-	(*GetDynamicWindowsDesktopRequest)(nil),    // 2: teleport.dynamicwindows.v1.GetDynamicWindowsDesktopRequest
-	(*CreateDynamicWindowsDesktopRequest)(nil), // 3: teleport.dynamicwindows.v1.CreateDynamicWindowsDesktopRequest
-	(*UpdateDynamicWindowsDesktopRequest)(nil), // 4: teleport.dynamicwindows.v1.UpdateDynamicWindowsDesktopRequest
-	(*UpsertDynamicWindowsDesktopRequest)(nil), // 5: teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopRequest
-	(*DeleteDynamicWindowsDesktopRequest)(nil), // 6: teleport.dynamicwindows.v1.DeleteDynamicWindowsDesktopRequest
-	(*types.DynamicWindowsDesktopV1)(nil),      // 7: types.DynamicWindowsDesktopV1
-	(*emptypb.Empty)(nil),                      // 8: google.protobuf.Empty
+	(*ListDynamicWindowsDesktopsRequest)(nil),    // 0: teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsRequest
+	(*ListDynamicWindowsDesktopsResponse)(nil),   // 1: teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsResponse
+	(*GetDynamicWindowsDesktopRequest)(nil),      // 2: teleport.dynamicwindows.v1.GetDynamicWindowsDesktopRequest
+	(*CreateDynamicWindowsDesktopRequest)(nil),   // 3: teleport.dynamicwindows.v1.CreateDynamicWindowsDesktopRequest
+	(*UpdateDynamicWindowsDesktopRequest)(nil),   // 4: teleport.dynamicwindows.v1.UpdateDynamicWindowsDesktopRequest
+	(*UpsertDynamicWindowsDesktopRequest)(nil),   // 5: teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopRequest
+	(*UpsertDynamicWindowsDesktopsRequest)(nil),  // 6: teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopsRequest
+	(*UpsertDynamicWindowsDesktopsResponse)(nil), // 7: teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopsResponse
+	(*UpsertDynamicWindowsDesktopResult)(nil),    // 8: teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopResult
+	(*DeleteDynamicWindowsDesktopRequest)(nil),   // 9: teleport.dynamicwindows.v1.DeleteDynamicWindowsDesktopRequest
+	(*types.DynamicWindowsDesktopV1)(nil),        // 10: types.DynamicWindowsDesktopV1
+	(*emptypb.Empty)(nil),                        // 11: google.protobuf.Empty
 }
 var file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_depIdxs = []int32{
-	7,  // 0: teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsResponse.desktops:type_name -> types.DynamicWindowsDesktopV1
-	7,  // 1: teleport.dynamicwindows.v1.CreateDynamicWindowsDesktopRequest.desktop:type_name -> types.DynamicWindowsDesktopV1
-	7,  // 2: teleport.dynamicwindows.v1.UpdateDynamicWindowsDesktopRequest.desktop:type_name -> types.DynamicWindowsDesktopV1
-	7,  // 3: teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopRequest.desktop:type_name -> types.DynamicWindowsDesktopV1
-	0,  // 4: teleport.dynamicwindows.v1.DynamicWindowsService.ListDynamicWindowsDesktops:input_type -> teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsRequest
-	2,  // 5: teleport.dynamicwindows.v1.DynamicWindowsService.GetDynamicWindowsDesktop:input_type -> teleport.dynamicwindows.v1.GetDynamicWindowsDesktopRequest
-	3,  // 6: teleport.dynamicwindows.v1.DynamicWindowsService.CreateDynamicWindowsDesktop:input_type -> teleport.dynamicwindows.v1.CreateDynamicWindowsDesktopRequest
-	4,  // 7: teleport.dynamicwindows.v1.DynamicWindowsService.UpdateDynamicWindowsDesktop:input_type -> teleport.dynamicwindows.v1.UpdateDynamicWindowsDesktopRequest
-	5,  // 8: teleport.dynamicwindows.v1.DynamicWindowsService.UpsertDynamicWindowsDesktop:input_type -> teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopRequest
-	6,  // 9: teleport.dynamicwindows.v1.DynamicWindowsService.DeleteDynamicWindowsDesktop:input_type -> teleport.dynamicwindows.v1.DeleteDynamicWindowsDesktopRequest
-	1,  // 10: teleport.dynamicwindows.v1.DynamicWindowsService.ListDynamicWindowsDesktops:output_type -> teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsResponse
-	7,  // 11: teleport.dynamicwindows.v1.DynamicWindowsService.GetDynamicWindowsDesktop:output_type -> types.DynamicWindowsDesktopV1
-	7,  // 12: teleport.dynamicwindows.v1.DynamicWindowsService.CreateDynamicWindowsDesktop:output_type -> types.DynamicWindowsDesktopV1
-	7,  // 13: teleport.dynamicwindows.v1.DynamicWindowsService.UpdateDynamicWindowsDesktop:output_type -> types.DynamicWindowsDesktopV1
-	7,  // 14: teleport.dynamicwindows.v1.DynamicWindowsService.UpsertDynamicWindowsDesktop:output_type -> types.DynamicWindowsDesktopV1
-	8,  // 15: teleport.dynamicwindows.v1.DynamicWindowsService.DeleteDynamicWindowsDesktop:output_type -> google.protobuf.Empty
-	10, // [10:16] is the sub-list for method output_type
-	4,  // [4:10] is the sub-list for method input_type
-	4,  // [4:4] is the sub-list for extension type_name
-	4,  // [4:4] is the sub-list for extension extendee
-	0,  // [0:4] is the sub-list for field type_name
+	10, // 0: teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsResponse.desktops:type_name -> types.DynamicWindowsDesktopV1
+	10, // 1: teleport.dynamicwindows.v1.CreateDynamicWindowsDesktopRequest.desktop:type_name -> types.DynamicWindowsDesktopV1
+	10, // 2: teleport.dynamicwindows.v1.UpdateDynamicWindowsDesktopRequest.desktop:type_name -> types.DynamicWindowsDesktopV1
+	10, // 3: teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopRequest.desktop:type_name -> types.DynamicWindowsDesktopV1
+	10, // 4: teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopsRequest.desktops:type_name -> types.DynamicWindowsDesktopV1
+	8,  // 5: teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopsResponse.results:type_name -> teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopResult
+	0,  // 6: teleport.dynamicwindows.v1.DynamicWindowsService.ListDynamicWindowsDesktops:input_type -> teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsRequest
+	2,  // 7: teleport.dynamicwindows.v1.DynamicWindowsService.GetDynamicWindowsDesktop:input_type -> teleport.dynamicwindows.v1.GetDynamicWindowsDesktopRequest
+	3,  // 8: teleport.dynamicwindows.v1.DynamicWindowsService.CreateDynamicWindowsDesktop:input_type -> teleport.dynamicwindows.v1.CreateDynamicWindowsDesktopRequest
+	4,  // 9: teleport.dynamicwindows.v1.DynamicWindowsService.UpdateDynamicWindowsDesktop:input_type -> teleport.dynamicwindows.v1.UpdateDynamicWindowsDesktopRequest
+	5,  // 10: teleport.dynamicwindows.v1.DynamicWindowsService.UpsertDynamicWindowsDesktop:input_type -> teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopRequest
+	6,  // 11: teleport.dynamicwindows.v1.DynamicWindowsService.UpsertDynamicWindowsDesktops:input_type -> teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopsRequest
+	9,  // 12: teleport.dynamicwindows.v1.DynamicWindowsService.DeleteDynamicWindowsDesktop:input_type -> teleport.dynamicwindows.v1.DeleteDynamicWindowsDesktopRequest
+	1,  // 13: teleport.dynamicwindows.v1.DynamicWindowsService.ListDynamicWindowsDesktops:output_type -> teleport.dynamicwindows.v1.ListDynamicWindowsDesktopsResponse
+	10, // 14: teleport.dynamicwindows.v1.DynamicWindowsService.GetDynamicWindowsDesktop:output_type -> types.DynamicWindowsDesktopV1
+	10, // 15: teleport.dynamicwindows.v1.DynamicWindowsService.CreateDynamicWindowsDesktop:output_type -> types.DynamicWindowsDesktopV1
+	10, // 16: teleport.dynamicwindows.v1.DynamicWindowsService.UpdateDynamicWindowsDesktop:output_type -> types.DynamicWindowsDesktopV1
+	10, // 17: teleport.dynamicwindows.v1.DynamicWindowsService.UpsertDynamicWindowsDesktop:output_type -> types.DynamicWindowsDesktopV1
+	7,  // 18: teleport.dynamicwindows.v1.DynamicWindowsService.UpsertDynamicWindowsDesktops:output_type -> teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopsResponse
+	11, // 19: teleport.dynamicwindows.v1.DynamicWindowsService.DeleteDynamicWindowsDesktop:output_type -> google.protobuf.Empty
+	13, // [13:20] is the sub-list for method output_type
+	6,  // [6:13] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_init() }
@@ -604,7 +815,7 @@ func file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDesc), len(file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -33,6 +33,8 @@ service DynamicWindowsService {
   rpc UpdateDynamicWindowsDesktop(UpdateDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
   // UpsertDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
   rpc UpsertDynamicWindowsDesktop(UpsertDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
+  // UpsertDynamicWindowsDesktops updates existing dynamic Windows desktops or creates new ones if they don't exist.
+  rpc UpsertDynamicWindowsDesktops(UpsertDynamicWindowsDesktopsRequest) returns (UpsertDynamicWindowsDesktopsResponse);
   // DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
   rpc DeleteDynamicWindowsDesktop(DeleteDynamicWindowsDesktopRequest) returns (google.protobuf.Empty);
 }
@@ -77,6 +79,26 @@ message UpdateDynamicWindowsDesktopRequest {
 message UpsertDynamicWindowsDesktopRequest {
   // desktop to be upserted
   types.DynamicWindowsDesktopV1 desktop = 1;
+}
+
+// UpsertDynamicWindowsDesktopsRequest is used for upserting multiple dynamic Windows desktops.
+message UpsertDynamicWindowsDesktopsRequest {
+  // desktops to be upserted
+  repeated types.DynamicWindowsDesktopV1 desktops = 1;
+}
+
+// UpsertDynamicWindowsDesktopsResponse is the response for upserting multiple dynamic Windows desktops.
+message UpsertDynamicWindowsDesktopsResponse {
+  // results of upserted desktops
+  repeated UpsertDynamicWindowsDesktopResult results = 1;
+}
+
+// UpsertDynamicWindowsDesktopResult is the result of upserting a dynamic Windows desktop.
+message UpsertDynamicWindowsDesktopResult {
+  // name is the name of the dynamic Windows desktop.
+  string name = 1;
+  // error is the failure message, empty if the upsert was successful.
+  string error = 2;
 }
 
 // DeleteDynamicWindowsDesktopRequest is a request to delete a Windows desktop host.

@@ -32,6 +32,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// maxDynamicWindowsDesktopsPerUpsert is the maximum number of desktops accepted
+// in a single UpsertDynamicWindowsDesktops request. The caller will need to
+// batch requests. The limit for a gRPC request is 4MB, so this allows for a
+// record size of ~4KB per desktop, which should be more than enough.
+const maxDynamicWindowsDesktopsPerUpsert = 1000
+
 // Service implements the teleport.trust.v1.TrustService RPC service.
 type Service struct {
 	dynamicwindowspb.UnimplementedDynamicWindowsServiceServer
@@ -255,6 +261,70 @@ func (s *Service) UpsertDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	}
 
 	return updatedDesktop, nil
+}
+
+// UpsertDynamicWindowsDesktops updates existing dynamic Windows desktops or
+// creates new ones if they don't exist. The function will attempt to upsert
+// each desktop in the request and return a list of results. An empty error
+// means a desktop was upserted successfully. Requests must be batched to
+// 1000 desktops or fewer at a time.
+func (s *Service) UpsertDynamicWindowsDesktops(ctx context.Context, req *dynamicwindowspb.UpsertDynamicWindowsDesktopsRequest) (*dynamicwindowspb.UpsertDynamicWindowsDesktopsResponse, error) {
+	auth, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	desktops := req.GetDesktops()
+	if len(desktops) > maxDynamicWindowsDesktopsPerUpsert {
+		return nil, trace.BadParameter("too many desktops in request: got %d, at most %d are allowed", len(desktops), maxDynamicWindowsDesktopsPerUpsert)
+	}
+
+	results := make([]*dynamicwindowspb.UpsertDynamicWindowsDesktopResult, 0, len(desktops))
+	fail := func(result *dynamicwindowspb.UpsertDynamicWindowsDesktopResult, err error) {
+		result.Error = err.Error()
+		results = append(results, result)
+	}
+
+	for _, desktop := range desktops {
+		result := &dynamicwindowspb.UpsertDynamicWindowsDesktopResult{
+			Name:  desktop.GetName(),
+			Error: "",
+		}
+
+		d, err := s.cache.GetDynamicWindowsDesktop(ctx, desktop.GetName())
+		if !trace.IsNotFound(err) {
+			if err != nil {
+				fail(result, err)
+				continue
+			}
+			if err := checkAccess(auth, d); err != nil {
+				fail(result, err)
+				continue
+			}
+		}
+		if err := checkAccess(auth, desktop); err != nil {
+			fail(result, err)
+			continue
+		}
+		d, err = s.backend.UpsertDynamicWindowsDesktop(ctx, desktop)
+		if err != nil {
+			fail(result, err)
+			continue
+		}
+
+		results = append(results, result)
+	}
+
+	response := &dynamicwindowspb.UpsertDynamicWindowsDesktopsResponse{
+		Results: results,
+	}
+	return response, nil
 }
 
 // DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.

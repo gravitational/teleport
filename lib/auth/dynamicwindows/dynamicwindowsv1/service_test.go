@@ -74,6 +74,46 @@ func TestFailedAccessCheck(t *testing.T) {
 	})
 }
 
+// TestUpsertDynamicWindowsDesktopsFailedAccessCheck covers the failed access
+// check path for the bulk UpsertDynamicWindowsDesktops RPC. Unlike the methods
+// in TestFailedAccessCheck, this RPC performs per-resource access checks and
+// doesn't fail the entire RPC if one fails, so a new test is needed to verify
+// that the per-resource access denials are recorded in the response.
+func TestUpsertDynamicWindowsDesktopsFailedAccessCheck(t *testing.T) {
+	t.Parallel()
+	checker := fakeChecker{
+		allowedVerbs: []string{types.VerbRead, types.VerbList, types.VerbCreate, types.VerbUpdate},
+	}
+	s := newService(t, authz.AdminActionAuthMFAVerified, &checker)
+
+	// Add an existing desktop to test the update path
+	existing, err := types.NewDynamicWindowsDesktopV1("existing", nil, types.DynamicWindowsDesktopSpecV1{Addr: "addr"})
+	require.NoError(t, err)
+	_, err = s.CreateDynamicWindowsDesktop(context.Background(), dynamicwindowsv1.CreateDynamicWindowsDesktopRequest_builder{
+		Desktop: existing,
+	}.Build())
+	require.NoError(t, err)
+
+	// Now deny per-resource access for the upsert.
+	checker.failAccess = true
+
+	created, err := types.NewDynamicWindowsDesktopV1("created", nil, types.DynamicWindowsDesktopSpecV1{Addr: "addr"})
+	require.NoError(t, err)
+
+	resp, err := s.UpsertDynamicWindowsDesktops(context.Background(), dynamicwindowsv1.UpsertDynamicWindowsDesktopsRequest_builder{
+		Desktops: []*types.DynamicWindowsDesktopV1{existing, created},
+	}.Build())
+	// The kind-level access check passes, so the RPC itself succeeds.
+	// The per-desktop denials are recorded on each result instead.
+	require.NoError(t, err)
+
+	results := resp.GetResults()
+	require.Len(t, results, 2)
+	for _, result := range results {
+		require.NotEmpty(t, result.GetError(), "expected access denied recorded for desktop %q", result.GetName())
+	}
+}
+
 func TestServiceAccess(t *testing.T) {
 	t.Parallel()
 
@@ -133,6 +173,15 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
 			allowedVerbs: []string{types.VerbRead},
+		},
+		{
+			name: "UpsertDynamicWindowsDesktops",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate, types.VerbUpdate},
 		},
 	}
 

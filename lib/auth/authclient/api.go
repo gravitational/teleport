@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -1018,6 +1019,9 @@ type DiscoveryAccessPoint interface {
 
 	// UpsertUserTask creates or updates an User Task
 	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
+
+	// UpsertDynamicWindowsDesktops upserts multiple Windows Desktops.
+	UpsertDynamicWindowsDesktops(ctx context.Context, desktops []types.DynamicWindowsDesktop) ([]dynamicwindows.UpsertDynamicWindowsDesktopResult, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1904,6 +1908,10 @@ func (w *DiscoveryWrapper) GetDiscoveryConfig(ctx context.Context, name string) 
 // UpserUserTask creates or updates an User Task.
 func (w *DiscoveryWrapper) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
 	return w.NoCache.UpsertUserTask(ctx, req)
+}
+
+func (w *DiscoveryWrapper) UpsertDynamicWindowsDesktops(ctx context.Context, desktops []types.DynamicWindowsDesktop) ([]dynamicwindows.UpsertDynamicWindowsDesktopResult, error) {
+	return w.NoCache.UpsertDynamicWindowsDesktops(ctx, desktops)
 }
 
 // Close closes all associated resources

@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -325,6 +326,97 @@ func testDynamicWindowsDiscovery(t *testing.T, client *authclient.Client, auth *
 	desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
 	require.Empty(t, desktops)
+}
+
+// TestUpsertDynamicWindowsDesktops exercises the bulk UpsertDynamicWindowsDesktops
+// RPC end-to-end through a real gRPC client and auth server. It covers a bulk
+// create, a bulk update, and partial success (one valid desktop alongside an
+// invalid one), verifying that per-desktop failures are reported in the results
+// rather than failing the whole call.
+func TestUpsertDynamicWindowsDesktops(t *testing.T) {
+	t.Parallel()
+
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		ClusterName: "test",
+		Dir:         t.TempDir(),
+		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+
+	tlsServer, err := authServer.NewTestTLSServer(authtest.WithBufconnListener())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+	ctx := t.Context()
+	dynamicWindowsClient := client.DynamicDesktopClient()
+
+	// Bulk create a batch of valid desktops.
+	names := []string{"desktop-1", "desktop-2", "desktop-3"}
+	var desktops []types.DynamicWindowsDesktop
+	for _, name := range names {
+		d, err := types.NewDynamicWindowsDesktopV1(name, nil, types.DynamicWindowsDesktopSpecV1{Addr: "addr"})
+		require.NoError(t, err)
+		desktops = append(desktops, d)
+	}
+
+	results, err := dynamicWindowsClient.UpsertDynamicWindowsDesktops(ctx, desktops)
+	require.NoError(t, err)
+	require.Len(t, results, len(desktops))
+	for _, result := range results {
+		require.NoError(t, result.Err, "desktop %q should have been upserted", result.Name)
+	}
+
+	// Test 1: All desktops should exist after the bulk create.
+	for _, name := range names {
+		_, err := dynamicWindowsClient.GetDynamicWindowsDesktop(ctx, name)
+		require.NoError(t, err, "desktop %q should exist", name)
+	}
+
+	// Test 2: All Addr fields should be updated after a bulk update.
+	for _, d := range desktops {
+		d.(*types.DynamicWindowsDesktopV1).Spec.Addr = "addr2"
+	}
+	results, err = dynamicWindowsClient.UpsertDynamicWindowsDesktops(ctx, desktops)
+	require.NoError(t, err)
+	for _, result := range results {
+		require.NoError(t, result.Err)
+	}
+	updated, err := dynamicWindowsClient.GetDynamicWindowsDesktop(ctx, "desktop-1")
+	require.NoError(t, err)
+	require.Equal(t, "addr2", updated.GetAddr())
+
+	// Test 3: An invalid desktop should not be created and an error should be
+	// returned.
+	valid, err := types.NewDynamicWindowsDesktopV1("desktop-valid", nil, types.DynamicWindowsDesktopSpecV1{Addr: "addr"})
+	require.NoError(t, err)
+	// Manually create an invalid desktop by mising out the Addr field.
+	invalid := &types.DynamicWindowsDesktopV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{Name: "desktop-invalid"},
+		},
+	}
+
+	results, err = dynamicWindowsClient.UpsertDynamicWindowsDesktops(ctx, []types.DynamicWindowsDesktop{valid, invalid})
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	errByName := make(map[string]error, len(results))
+	for _, result := range results {
+		errByName[result.Name] = result.Err
+	}
+	require.NoError(t, errByName["desktop-valid"])
+	require.Error(t, errByName["desktop-invalid"])
+
+	// Test that the valid desktop is present and the invalid desktop is not.
+	_, err = dynamicWindowsClient.GetDynamicWindowsDesktop(ctx, "desktop-valid")
+	require.NoError(t, err)
+	_, err = dynamicWindowsClient.GetDynamicWindowsDesktop(ctx, "desktop-invalid")
+	require.True(t, trace.IsNotFound(err), "invalid desktop should not have been created, got err=%v", err)
 }
 
 func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {

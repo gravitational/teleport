@@ -93,6 +93,52 @@ func (c *Client) UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.
 	}
 }
 
+// UpsertDynamicWindowsDesktopResult is the outcome of upserting a single dynamic
+// Windows desktop as part of a bulk UpsertDynamicWindowsDesktops call.
+type UpsertDynamicWindowsDesktopResult struct {
+	// Name identifies which desktop this result refers to.
+	Name string
+	// Err is the error encountered while upserting the desktop, or nil on success.
+	Err error
+}
+
+// UpsertDynamicWindowsDesktops upserts multiple dynamic Windows desktops in a
+// single request. The returned slice contains one result per desktop, which
+// contains the desktop name and an error that is nil if successfully upserted.
+//
+// At most 1000 desktops may be upserted per request. Exceeding the limit fails
+// the whole request with a BadParameter error.
+func (c *Client) UpsertDynamicWindowsDesktops(ctx context.Context, desktops []types.DynamicWindowsDesktop) ([]UpsertDynamicWindowsDesktopResult, error) {
+	req := make([]*types.DynamicWindowsDesktopV1, 0, len(desktops))
+	for _, desktop := range desktops {
+		d, ok := desktop.(*types.DynamicWindowsDesktopV1)
+		if !ok {
+			return nil, trace.BadParameter("unknown desktop type: %T", desktop)
+		}
+		req = append(req, d)
+	}
+
+	resp, err := c.grpcClient.UpsertDynamicWindowsDesktops(ctx, &dynamicwindows.UpsertDynamicWindowsDesktopsRequest{
+		Desktops: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	results := make([]UpsertDynamicWindowsDesktopResult, 0, len(resp.GetResults()))
+	for _, result := range resp.GetResults() {
+		var resultErr error
+		if result.GetError() != "" {
+			resultErr = trace.Errorf("%s", result.GetError())
+		}
+		results = append(results, UpsertDynamicWindowsDesktopResult{
+			Name: result.GetName(),
+			Err:  resultErr,
+		})
+	}
+	return results, nil
+}
+
 func (c *Client) DeleteDynamicWindowsDesktop(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteDynamicWindowsDesktop(ctx, &dynamicwindows.DeleteDynamicWindowsDesktopRequest{
 		Name: name,
