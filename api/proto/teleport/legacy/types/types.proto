@@ -2349,7 +2349,10 @@ message ProvisionTokenSpecV2GenericOIDC {
   //
   // Note that at least one rule, either in `must_match_fields` or `allow_any`,
   // must be specified for any join attempts to succeed.
-  google.protobuf.Struct MustMatchFields = 6 [(gogoproto.jsontag) = "must_match_fields"];
+  google.protobuf.Struct MustMatchFields = 6 [
+    (gogoproto.jsontag) = "must_match_fields",
+    (gogoproto.casttype) = "Struct"
+  ];
 
   // AllowAny evaluates complex rules using "OR" semantics. If any rules are
   // specified, at least one rule must evaluate to `true` for the join attempt

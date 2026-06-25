@@ -27,7 +27,6 @@ import (
 	"strings"
 	"time"
 
-	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -861,7 +860,7 @@ func convertGenericOIDCCondition(c *joiningv1.GenericOIDC_Condition) (*types.Pro
 func (t *Token) GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error) {
 	spec := t.scoped.GetSpec().GetGenericOidc()
 
-	var globalMatchers *gogotypes.Struct
+	var globalMatchers *types.Struct
 	if gm := spec.GetMustMatchFields(); gm != nil {
 		gogo, err := convertStructPB(spec.GetMustMatchFields())
 		if err != nil {

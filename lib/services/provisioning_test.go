@@ -211,28 +211,26 @@ func TestGenericOIDCStructSurvivesRoundTrip(t *testing.T) {
 			GenericOIDC: &types.ProvisionTokenSpecV2GenericOIDC{
 				Issuer:   "https://example.com",
 				Audience: "example.teleport.sh/generic-oidc-token",
-				MustMatchFields: &gogotypes.Struct{
-					Fields: map[string]*gogotypes.Value{
-						"example": {Kind: &gogotypes.Value_StringValue{
-							StringValue: "foo",
-						}},
-						"nested": {
-							Kind: &gogotypes.Value_StructValue{
-								StructValue: &gogotypes.Struct{Fields: map[string]*gogotypes.Value{
-									"number": {Kind: &gogotypes.Value_NumberValue{
-										NumberValue: 123.456,
-									}},
-									"string": {Kind: &gogotypes.Value_StringValue{
-										StringValue: "string value",
-									}},
-									"bool": {Kind: &gogotypes.Value_BoolValue{
-										BoolValue: true,
-									}},
+				MustMatchFields: types.NewStructFromGogoValues(map[string]*gogotypes.Value{
+					"example": {Kind: &gogotypes.Value_StringValue{
+						StringValue: "foo",
+					}},
+					"nested": {
+						Kind: &gogotypes.Value_StructValue{
+							StructValue: &gogotypes.Struct{Fields: map[string]*gogotypes.Value{
+								"number": {Kind: &gogotypes.Value_NumberValue{
+									NumberValue: 123.456,
 								}},
-							},
+								"string": {Kind: &gogotypes.Value_StringValue{
+									StringValue: "string value",
+								}},
+								"bool": {Kind: &gogotypes.Value_BoolValue{
+									BoolValue: true,
+								}},
+							}},
 						},
 					},
-				},
+				}),
 				AllowAny: []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
 					{
 						Expression: "claims.foo == \"bar\"",
@@ -308,13 +306,11 @@ func TestGenericOIDCStructSurvivesRoundTrip_FastMarshal(t *testing.T) {
 	want := &types.ProvisionTokenSpecV2GenericOIDC{
 		Issuer:   "https://example.com",
 		Audience: "example",
-		MustMatchFields: &gogotypes.Struct{
-			Fields: map[string]*gogotypes.Value{
-				"sub":    {Kind: &gogotypes.Value_StringValue{StringValue: "repo:foo/bar"}},
-				"count":  {Kind: &gogotypes.Value_NumberValue{NumberValue: 3}},
-				"active": {Kind: &gogotypes.Value_BoolValue{BoolValue: true}},
-			},
-		},
+		MustMatchFields: types.NewStructFromGogoValues(map[string]*gogotypes.Value{
+			"sub":    {Kind: &gogotypes.Value_StringValue{StringValue: "repo:foo/bar"}},
+			"count":  {Kind: &gogotypes.Value_NumberValue{NumberValue: 3}},
+			"active": {Kind: &gogotypes.Value_BoolValue{BoolValue: true}},
+		}),
 	}
 
 	// Explicitly route through FastMarshal to ensure it calls our overridden
@@ -327,4 +323,30 @@ func TestGenericOIDCStructSurvivesRoundTrip_FastMarshal(t *testing.T) {
 	require.NoError(t, utils.FastUnmarshal(data, &got))
 
 	require.Empty(t, cmp.Diff(want, &got, protocmp.Transform()), "generic_oidc must_match_fields must survive round-trip")
+}
+
+func TestGenericOIDCUnmarshalDocumentedFieldNames(t *testing.T) {
+	raw := []byte(`{
+		"kind": "token",
+		"version": "v2",
+		"metadata": {"name":"go"},
+		"spec":{
+			"roles": ["Node"],
+			"join_method": "generic_oidc",
+			"generic_oidc": {
+				"issuer": "https://example.com",
+				"audience": "aud",
+				"allow_any":[{"expression":"x == 1"}],
+				"must_match_fields": {"sub":"repo:foo/bar"}
+			}
+		}
+	}`)
+
+	tok, err := services.UnmarshalProvisionToken(raw)
+	require.NoError(t, err) // fails today: CheckAndSetDefaults rejects empty config
+	spec, err := tok.GetGenericOIDC()
+	require.NoError(t, err)
+	require.Equal(t, "https://example.com", spec.Issuer)
+	require.Len(t, spec.AllowAny, 1)
+	require.Equal(t, "repo:foo/bar", spec.MustMatchFields.GetFields()["sub"].GetStringValue())
 }

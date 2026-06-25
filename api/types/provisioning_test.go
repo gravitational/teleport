@@ -1920,15 +1920,13 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						Audience:                "example.teleport.sh",
 						StaticJWKS:              "asdf",
 						TLSCA:                   "zxcv",
-						MustMatchFields: &types.Struct{
-							Fields: map[string]*types.Value{
-								"foo": {
-									Kind: &types.Value_StringValue{
-										StringValue: "bar",
-									},
+						MustMatchFields: NewStructFromGogoValues(map[string]*types.Value{
+							"foo": {
+								Kind: &types.Value_StringValue{
+									StringValue: "bar",
 								},
 							},
-						},
+						}),
 						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
 							{
 								Expression: "claims.foo == \"bar\"",
@@ -1962,10 +1960,8 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						Audience:                "example.teleport.sh",
 						StaticJWKS:              "asdf",
 						TLSCA:                   "zxcv",
-						MustMatchFields: &types.Struct{
-							Fields: map[string]*types.Value{},
-						},
-						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{},
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
+						AllowAny:                []*ProvisionTokenSpecV2GenericOIDC_Rule{},
 					},
 				},
 			},
@@ -1986,9 +1982,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						Audience:                "example.teleport.sh",
 						StaticJWKS:              "asdf",
 						TLSCA:                   "zxcv",
-						MustMatchFields: &types.Struct{
-							Fields: map[string]*types.Value{},
-						},
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
 						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
 							{Expression: "claims.foo == \"bar\""},
 						},
@@ -2012,9 +2006,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						Audience:                "example.teleport.sh",
 						StaticJWKS:              "asdf",
 						TLSCA:                   "zxcv",
-						MustMatchFields: &types.Struct{
-							Fields: map[string]*types.Value{},
-						},
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
 						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
 							{Expression: "claims.foo == \"bar\""},
 						},
@@ -2038,9 +2030,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						Audience:                "example.teleport.sh",
 						StaticJWKS:              "asdf",
 						TLSCA:                   "zxcv",
-						MustMatchFields: &types.Struct{
-							Fields: map[string]*types.Value{},
-						},
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
 						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
 							{Expression: "claims.foo == \"bar\""},
 						},

@@ -20,22 +20,23 @@ import (
 	"bytes"
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility with gogoproto-generated types.Struct
-	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // convertStructPB converts a structpb.Struct to a gogo-compatible
 // `types.Struct`. Inspired by `apievents.Resource153ToStruct()`] but avoiding a
 // potentially heavyweight import.
-func convertStructPB(s *structpb.Struct) (*gogotypes.Struct, error) {
+func convertStructPB(s *structpb.Struct) (*types.Struct, error) {
 	encoded, err := protojson.Marshal(s)
 	if err != nil {
 		return nil, trace.Wrap(err, "marshaling protojson")
 	}
 
-	out := &gogotypes.Struct{}
+	out := &types.Struct{}
 	if err = (&jsonpb.Unmarshaler{
 		AllowUnknownFields: true,
 	}).Unmarshal(bytes.NewReader(encoded), out); err != nil {
