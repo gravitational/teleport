@@ -354,6 +354,15 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			"contains": typical.BinaryFunction[env](func(list []string, item string) (bool, error) {
 				return slices.Contains(list, item), nil
 			}),
+			// String helpers for case-insensitive comparisons in a where clause,
+			// such as contains(set("get", "head"), lower(request.method)). They
+			// fold ASCII and Unicode case the way strings.ToLower and ToUpper do.
+			"lower": typical.UnaryFunction[env](func(s string) (string, error) {
+				return strings.ToLower(s), nil
+			}),
+			"upper": typical.UnaryFunction[env](func(s string) (string, error) {
+				return strings.ToUpper(s), nil
+			}),
 		},
 		// vars.<name> reads a capture bound by this evaluation's matcher. Names
 		// are dynamic (each rule's {captures} define them), so they cannot be

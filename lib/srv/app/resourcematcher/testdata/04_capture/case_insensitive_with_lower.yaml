@@ -1,0 +1,45 @@
+description: case-insensitive capture check with lower
+app_resources:
+    # lower folds the captured project so the
+    # trait check matches regardless of case,
+    # so "Alpha" and "alpha" both qualify.
+    - paths:
+        - /api/v4/projects/{project}/**
+      where: contains(user.traits["allowed_projects"], lower(vars.project))
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("api/v4/projects",
+          capture("project",
+            greedy()))) &&
+      contains(user.traits["allowed_projects"],
+        lower(vars.project))
+identity:
+    name: alice
+    roles:
+        - developer
+    traits:
+        allowed_projects:
+            - alpha
+            - beta
+cases:
+    - request:
+        method: GET
+        path: /api/v4/projects/Alpha/issues
+      expect:
+        allowed: true
+        vars:
+            project: Alpha
+    - request:
+        method: GET
+        path: /api/v4/projects/BETA/issues
+      expect:
+        allowed: true
+        vars:
+            project: BETA
+    - request:
+        method: GET
+        path: /api/v4/projects/gamma/issues
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
