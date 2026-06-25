@@ -947,7 +947,8 @@ func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req tfsdk.Mod
 	{{.VarName}} = {{.VarName}}Resource
 {{- end }}
 
-	resp.Diagnostics.Append({{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append({{.SchemaPackage}}.Copy{{.TypeName}}ToTerraformPreserveUnknown(ctx, {{.VarName}}, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
