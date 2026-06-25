@@ -127,83 +127,59 @@ satisfy them.
 
 ### ResourceID & Constraints
 
-We add a new `ResourceConstraints` message that enumerates supported constraint domains (initially, AWS Console and AWS
-IC) and carries domain-specific constraint details (e.g., ARNs, permission sets), along with a new
-`ConstrainedResourceID` message that pairs a `ResourceID` with its `ResourceConstraints`.
+We add a `ResourceConstraints` message that carries domain-specific constraint details via a `oneof`, along with a
+`ResourceAccessID` message that pairs a `ResourceID` with optional `ResourceConstraints`. A new
+`RequestedResourceAccessIDs` field on `AccessRequestSpecV3` carries these when constraints are present.
 
-```grpc
-// Existing ResourceID type
-message ResourceID {
-  string Cluster                  = 1 [(gogoproto.jsontag) = "cluster"];
-  string Kind                     = 2 [(gogoproto.jsontag) = "kind"];
-  string Name                     = 3 [(gogoproto.jsontag) = "name"];
-  string SubResource              = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
-}
+> [!NOTE]
+> The implementation uses `ResourceAccessID` and `ResourceConstraints` (not the `ConstrainedResourceID` /
+> `ResourceConstraintDomain` names from the original draft). The `oneof` was chosen over a domain enum to use proto's
+> type safety, avoiding a separate step to confirm the domain matches the detail type.
 
-// New ConstrainedResourceID type, pairing a ResourceID with its ResourceConstraints
-message ConstrainedResourceID {
-  ResourceID Resource = 1 [(gogoproto.jsontag) = "resource"];
-  ResourceConstraints Constraints = 2 [(gogoproto.jsontag) = "constraints"];
-}
-
-message ConstrainedResourceIDs {
-  repeated ConstrainedResourceID Items = 1 [(gogoproto.jsontag) = "items"];
-}
-
-enum ResourceConstraintDomain {
-  CONSTRAINT_DOMAIN_UNSPECIFIED         = 0;
-  CONSTRAINT_DOMAIN_AWS_CONSOLE         = 1;
-  CONSTRAINT_DOMAIN_AWS_IDENTITY_CENTER = 2;
-  CONSTRAINT_DOMAIN_SSH                 = 3;
-  CONSTRAINT_DOMAIN_DATABASE            = 4;
-}
-
+```protobuf
+// ResourceConstraints is a domain-specific payload that narrows what principals
+// or options are allowed on the associated ResourceID. Exactly one detail is set.
 message ResourceConstraints {
-  ResourceConstraintDomain Domain = 1 [(gogoproto.jsontag) = "domain"];
-  string Version                  = 2 [(gogoproto.jsontag) = "version"];
+  // version is the constraint format version; supported values are: "v1".
+  string version = 1;
 
   oneof details {
-    AWSConsoleConstraints AWSConsole   = 10 [(gogoproto.jsontag) = "aws_console"];
-    AWSIdentityCenterConstraints AWSIC = 11 [(gogoproto.jsontag) = "aws_ic"];
-
-    // Examples for future expansion:
-    SSHConstraints SSH = 12 [(gogoproto.jsontag) = "ssh"];
-    DBConstraints DB   = 13 [(gogoproto.jsontag) = "db"];
+    // aws_console scopes an AWS Console app to a subset of role ARNs.
+    AWSConsoleResourceConstraints aws_console = 10;
+    // ssh scopes an SSH node to a subset of logins.
+    SSHResourceConstraints ssh = 11;
   }
 }
 
-message AWSConsoleConstraints {
-    repeated string RoleARNs = 1 [
-        (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "arns"
-    ];
+message AWSConsoleResourceConstraints {
+  repeated string role_arns = 1;
 }
 
-message AWSIdentityCenterConstraints {
-    repeated IdentityCenterAccountAssignment AccountAssignments = 1 [
-        (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "icaas"
-    ];
+message SSHResourceConstraints {
+  repeated string logins = 1;
 }
 
-message SSHConstraints {
-  repeated string logins = 1 [(gogoproto.jsontag) = "logins"];
+// ResourceAccessID represents a ResourceID in an Access Request context,
+// where additional information such as ResourceConstraints may be provided.
+message ResourceAccessID {
+  ResourceID id = 1;
+  ResourceConstraints constraints = 2;
 }
 
-message DBConstraints {
-  repeated string database_users = 1 [(gogoproto.jsontag) = "roles"];
+message ResourceAccessIDList {
+  repeated ResourceAccessID resources = 1;
 }
 ```
 
-We then define a new `AllowedConstrainedResourceIDs` field on `tlsca.Identity`, containing any present
-`ConstrainedResourceID`s. This is in addition to the existing `AllowedResourceIDs`, which continues to carry any
-non-constrained `ResourceID`s for backwards-compatibility, and a sentinel value if all requested resources were
-constrained (see Encoding section below).
+On `AccessRequestSpecV3`, a new field carries constrained resources:
 
-```go
-type Identity struct {
-	// ...[existing fields]
-	AllowedConstrainedResourceIDs []types.ConstrainedResourceID
+```protobuf
+message AccessRequestSpecV3 {
+  // ...existing fields...
+
+  // When present, RequestedResourceAccessIDs should be treated as authoritative
+  // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+  repeated ResourceAccessID RequestedResourceAccessIDs = 26;
 }
 ```
 
@@ -211,43 +187,62 @@ type Identity struct {
 
 #### Encoding format
 
-`ConstrainedResourceID`s are carried in the new `AllowedConstrainedResourceIDs` cert extension as the deterministic
-proto3 binary encoding of the `ConstrainedResourceIDs` message above. We serialize with
-`proto.MarshalOptions{Deterministic:true}`.
+`ResourceAccessID`s with constraints are carried in the new `AllowedResourceAccessIDs` cert extension as JSON-encoded
+text, marshaled with Go's standard `encoding/json`. The `ResourceConstraints` payload is the one exception: a protobuf
+`oneof` does not round-trip through `encoding/json`, so `ResourceConstraints` defines custom `MarshalJSON`/`UnmarshalJSON`
+methods backed by `jsonpb` (`OrigName: true`). These flatten the active variant to its proto field name. A serialized
+entry is therefore:
+
+```json
+{
+  "id": { "cluster": "main", "kind": "node", "name": "web-1" },
+  "constraints": { "version": "v1", "ssh": { "logins": ["root", "admin"] } }
+}
+```
+
+> [!NOTE]
+> The original design called for deterministic proto3 binary encoding (`proto.MarshalOptions{Deterministic:true}`), but
+> Go's `x509` package rejects certificates containing non-string ASN.1 types in name attributes; binary data (e.g.,
+> OCTET STRING) causes encoding and parsing to fail with `"x509: invalid RDNSequence: invalid attribute value"`.
+> See [golang/go#48371](https://github.com/golang/go/issues/48371).
 
 #### Unconstrained resources
 
-If a requested resource has no constraints, we serialize it as today's slash-delimited `ResourceID` string under
+If a requested resource has no constraints, we serialize it as the slash-delimited `ResourceID` string under
 `tlsca.Identity.AllowedResourceIDs`.
 
 #### All-constrained case
 
-If all requested resources are constrained, we add a single sentinel value (e.g.,
-"/placeholder/placeholder/placeholder") to `AllowedResourceIDs`, as older agents (which will ignore the new extension)
-don't treat an empty list as a wildcard.
+If all requested resources are constrained, `AllowedResourceIDs` would otherwise be empty, which an older Auth/Proxy
+(ignoring the new extension) reads through `AccessInfo` as "no resource-specific restrictions". To keep those components
+fail-closed, a single sentinel `ResourceID` (`CreateSentinelResourceID()`, serialized as
+`/__SENTINEL__/node/__SENTINEL__`) is added to `AllowedResourceIDs`. It matches no real resource, so an older component
+denies access rather than treating the identity as unrestricted.
 
 #### Parsing
 
-1. Read `ConstrainedResourceIDs` from the new extension and unmarshal with `DiscardUnknown:true`.
-2. If any `ConstrainedResourceID` entry is malformed or its domain/version is unknown, it is omitted to avoid potential
-   over-granting.
+1. Read `ResourceAccessIDList` JSON from the new extension and unmarshal. Unknown fields are ignored for forward
+   compatibility.
+2. If any entry is malformed or its constraint variant is unknown, it is omitted to avoid potential over-granting.
 3. Parse legacy `tlsca.Identity.AllowedResourceIDs` as today; for consistency in code paths, "upgrade" each parsed
-   `ResourceID` to a `ConstrainedResourceID` with empty `Constraints`.
+   `ResourceID` to a `ResourceAccessID` with nil `Constraints`.
 4. Presence of the sentinel in `AllowedResourceIDs` has no effect for new agents; it is only consumed by older agents
    that ignore the new extension.
 
 #### Limits & Safety
 
 - **Size limits**:
-  Enforce <= 10KiB for the encoded `ConstrainedResourceIDs` payload per cert. This helps keep cert sizes reasonable and
-  avoid hard-to-debug transport issues we've hit in the past, namely, default gRPC message size limits.
+  Enforce existing size limits for the encoded payload per cert. This helps keep cert sizes reasonable and avoid
+  hard-to-debug transport issues we've hit in the past, namely, default gRPC message size limits.
+  JSON encoding is slightly larger than binary proto, but well within this budget for typical request sizes.
 
   If exceeded, fail validation with a clear error message and guidance to reduce/split the request, similar to existing
   UX for long-term resource requests unable to be satisfied by a single Access List.
+
 - **Safety**:
-    - Deserialization errors from a `ConstrainedResourceID` cause request validation to fail.
-    - Older binaries without knowledge of the new cert extension will ignore it, and only see the non-constrained
-      `ResourceID`s in `AllowedResourceIDs`, preventing accidental over-granting.
+  - Deserialization errors from a `ResourceAccessID` cause request validation to fail.
+  - Older binaries without knowledge of the new cert extension will ignore it, and only see the non-constrained
+    `ResourceID`s in `AllowedResourceIDs`, preventing accidental over-granting.
 
 ### RBAC Semantics with Constraints
 
@@ -259,23 +254,22 @@ requestable, even if another role in the RoleSet would allow requesting or assum
 
 #### Validation & Resolution
 
-Resource-based Access Requests including constraints are validated using constraint-aware role matchers derived from each
-`ConstrainedResourceID.Constraints` (e.g., ARN/permission set/SSH login matchers). `RequestValidator` extends the
-existing `applicableSearchAsRoles`/`roleAllowsResource` flow by passing these matchers, so a role only qualifies if it
-allows the requested resource *and* the specified constraints. Resources are still pre-filtered by current access and
-requested `ConstrainedResourceIDs` are still deduplicated and size-capped, as they are currently. The resulting role list
-is the set of requestable/search-as roles that satisfies all `(resource, constraints)` pairs (when multiple roles
-qualify, behavior matches current semantics). If no roles qualify, existing failure behavior and errors apply.
+Resource-based Access Requests including constraints are validated using constraint-aware role matchers derived from
+each `ResourceAccessID.Constraints` (e.g., ARN/SSH login matchers). `RequestValidator` extends the existing
+`applicableSearchAsRoles`/`roleAllowsResource` flow by passing these matchers, so a role only qualifies if it allows the
+requested resource _and_ the specified constraints. Resources are still pre-filtered by current access and requested
+`ResourceAccessID`s are still deduplicated and size-capped, as they are currently. The resulting role list is the set of
+requestable/search-as roles that satisfies all `(resource, constraints)` pairs (when multiple roles qualify, behavior
+matches current semantics). If no roles qualify, existing failure behavior and errors apply.
 
 #### Authorization
 
 On approval/assumption, certs carry the exact `(resource, constraints)` information via
-`tlsca.Identity.AllowedConstrainedResourceIDs` (in addition to the existing `AllowedResourceIDs` for backwards
-compatibility). `AccessChecker` enforces those constraints: if a role grants multiple principals on a resource, approving
-a request for a narrower set (e.g., a single ARN, specific SSH logins, or IC permission sets) must only allow those
-requested items. By reading `ConstrainedResourceID.Constraints` from `AllowedConstrainedResourceIDs`, `AccessChecker`
-can scope evaluation accordingly and deny any not-requested principals even if the resolved role(s) in the
-`AccessChecker`'s RoleSet would otherwise permit them.
+`tlsca.Identity.AllowedResourceAccessIDs` (in addition to the existing `AllowedResourceIDs` for backwards
+compatibility). `AccessChecker` enforces those constraints via `WithConstraints`, a matcher transform that wraps
+principal-bearing matchers (e.g., `loginMatcher`, `AWSRoleARNMatcher`) to additionally check that the principal is in
+the constraint's allowed set. If a role grants multiple principals on a resource, only the requested principals are
+allowed.
 
 ### Web/API (high-level)
 
