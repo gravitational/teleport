@@ -20,7 +20,7 @@ import { useTheme } from 'styled-components';
 import styled from 'styled-components';
 
 import { Flex, Text, TopNav } from 'design';
-import { Clipboard } from 'design/Icon';
+import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import {
   DirectoryItem,
@@ -55,8 +55,14 @@ export default function TopBar(props: Props) {
     canRemoveSharedDirectory,
     maxSharedDirectories,
     directorySharingMessage,
+    multidirectorySharingSupported,
   } = props;
   const theme = useTheme();
+
+  const maxDirectoriesReached = multidirectorySharingSupported
+    ? sharedDirectories.length >= maxSharedDirectories
+    : sharedDirectories.length > 0;
+  const isSharingDirectory = sharedDirectories.length > 0;
 
   const primaryOnTrue = (b: boolean): any => {
     return {
@@ -77,15 +83,31 @@ export default function TopBar(props: Props) {
       {isConnected && (
         <Flex gap={3} alignItems="center">
           {latency && <LatencyDiagnostic latency={latency} />}
-          <SharedDirectoryList
-            sharedDirectories={sharedDirectories}
-            onRemoveSharedDirectory={onRemoveSharedDirectory}
-            onAddSharedDirectory={onAddSharedDirectory}
-            canRemoveSharedDirectory={canRemoveSharedDirectory}
-            canShareDirectories={canShareDirectory}
-            maxSharedDirectories={maxSharedDirectories}
-            directorySharingMessage={directorySharingMessage}
-          />
+
+          {/*// TODO(rhammonds): Remove in v20
+            // WDS v19 and on should support multi-directory sharing by default */}
+          {multidirectorySharingSupported ? (
+            <SharedDirectoryList
+              sharedDirectories={sharedDirectories}
+              onRemoveSharedDirectory={onRemoveSharedDirectory}
+              onAddSharedDirectory={onAddSharedDirectory}
+              canRemoveSharedDirectory={canRemoveSharedDirectory}
+              canShareDirectories={canShareDirectory}
+              maxSharedDirectories={maxSharedDirectories}
+              directorySharingMessage={directorySharingMessage}
+            />
+          ) : (
+            <HoverTooltip
+              tipContent={directorySharingToolTip(
+                canShareDirectory,
+                isSharingDirectory
+              )}
+              placement="bottom"
+            >
+              <FolderShared style={primaryOnTrue(isSharingDirectory)} />
+            </HoverTooltip>
+          )}
+
           <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} />
           </HoverTooltip>
@@ -101,10 +123,7 @@ export default function TopBar(props: Props) {
           />
           {/* TODO(rhammonds): Remove sharing from the action menu in v20 */}
           <ActionMenu
-            showShareDirectory={
-              canShareDirectory &&
-              sharedDirectories.length < maxSharedDirectories
-            }
+            showShareDirectory={canShareDirectory && !maxDirectoriesReached}
             onShareDirectory={onAddSharedDirectory}
             onDisconnect={onDisconnect}
             onCtrlAltDel={onCtrlAltDel}
@@ -113,6 +132,19 @@ export default function TopBar(props: Props) {
       )}
     </TopNav>
   );
+}
+
+function directorySharingToolTip(
+  canShare: boolean,
+  isSharing: boolean
+): string {
+  if (!canShare) {
+    return 'Directory Sharing Disabled';
+  }
+  if (!isSharing) {
+    return 'Directory Sharing Inactive';
+  }
+  return 'Directory Sharing Enabled';
 }
 
 type Props = {
@@ -139,6 +171,7 @@ type Props = {
   canRemoveSharedDirectory: boolean;
   maxSharedDirectories: number;
   directorySharingMessage: string;
+  multidirectorySharingSupported: boolean;
 };
 
 const Divider = styled.div`

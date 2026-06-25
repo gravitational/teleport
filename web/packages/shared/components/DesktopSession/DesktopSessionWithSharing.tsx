@@ -75,6 +75,7 @@ export function DesktopSessionWithSharing(
           onAddSharedDirectory={controls.onAddSharedDirectory}
           maxSharedDirectories={controls.maxSharedDirectories}
           directorySharingMessage={controls.directorySharingMessage}
+          multidirectorySharingSupported={controls.canShareMultipleDirectories}
         />
       )}
     />
