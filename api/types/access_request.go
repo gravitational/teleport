@@ -744,12 +744,17 @@ func (r *AccessRequestV3) GetAllLabels() map[string]string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (r *AccessRequestV3) MatchSearch(values []string) bool {
+	return MatchSearch(r.SearchableFields(), values, nil)
+}
+
+// SearchableFields returns the stored access request values used for search.
+func (r *AccessRequestV3) SearchableFields() []string {
 	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName(), r.GetUser())
 	fieldVals = append(fieldVals, r.GetRoles()...)
 	for _, resource := range r.GetRequestedResourceIDs() {
 		fieldVals = append(fieldVals, resource.Name)
 	}
-	return MatchSearch(fieldVals, values, nil)
+	return fieldVals
 }
 
 // Origin returns the origin value of the resource.

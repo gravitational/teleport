@@ -264,6 +264,64 @@ func waitForAccessRequests(t *testing.T, ctx context.Context, getter services.Ac
 	}
 }
 
+func upsertUser(t *testing.T, ctx context.Context, authServer *auth.Server, name string, roles []string, traits map[string][]string) {
+	t.Helper()
+
+	user, err := types.NewUser(name)
+	require.NoError(t, err)
+	user.SetRoles(roles)
+	user.SetTraits(traits)
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+}
+
+func upsertAccessRequest(t *testing.T, ctx context.Context, authServer *auth.Server, name string, user string, roles []string, mutate func(types.AccessRequest)) {
+	t.Helper()
+
+	req, err := types.NewAccessRequest(name, user, roles...)
+	require.NoError(t, err)
+	if mutate != nil {
+		mutate(req)
+	}
+	require.NoError(t, authServer.UpsertAccessRequest(ctx, req))
+}
+
+func waitForUserSearchMatch(t *testing.T, ctx context.Context, users services.UserSearchLister, searchKeywords []string, username string) {
+	t.Helper()
+
+	timeout := time.After(time.Second * 30)
+	for {
+		usernames, err := services.FindUsernamesBySearchKeywords(ctx, users, searchKeywords)
+		require.NoError(t, err)
+		if _, ok := usernames[username]; ok {
+			return
+		}
+
+		select {
+		case <-time.After(time.Millisecond * 150):
+		case <-timeout:
+			require.FailNow(t, "timeout waiting for user search match")
+		}
+	}
+}
+
+func collectAccessRequestNames(t *testing.T, ctx context.Context, getter services.AccessRequestGetter, req proto.ListAccessRequestsRequest) []string {
+	t.Helper()
+
+	var names []string
+	for {
+		rsp, err := getter.ListAccessRequests(ctx, &req)
+		require.NoError(t, err)
+		for _, accessRequest := range rsp.AccessRequests {
+			names = append(names, accessRequest.GetName())
+		}
+		req.StartKey = rsp.NextKey
+		if req.StartKey == "" {
+			return names
+		}
+	}
+}
+
 // TestAccessRequestResourceRBACLimits verifies the special constraint conditions put on resource-level access
 // request permissions (create/update) to mitigate their power.
 func TestAccessRequestResourceRBACLimits(t *testing.T) {
@@ -636,6 +694,213 @@ func TestListAccessRequests(t *testing.T) {
 	require.False(t, slices.IsSortedFunc(reqs, func(a, b *types.AccessRequestV3) int {
 		return b.GetCreationTime().Compare(a.GetCreationTime())
 	}))
+}
+
+func TestListAccessRequestsRequesterDisplaySearch(t *testing.T) {
+	t.Parallel()
+
+	const (
+		existingRequestID = "00000000-0000-0000-0000-000000000001"
+		displayRequestID  = "00000000-0000-0000-0000-000000000002"
+		displayRoleName   = "display-role"
+		storedRoleName    = "stored-role"
+		displayUserName   = "123456"
+		storedUserName    = "stored-user"
+	)
+
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	ctx := t.Context()
+	authServerClient := tlsServer.Auth()
+
+	upsertUser(t, ctx, authServerClient, displayUserName, nil, map[string][]string{
+		"okta/displayName": {"Jane Garcia"},
+		"okta/email":       {"jane.garcia@example.com"},
+	})
+	upsertUser(t, ctx, authServerClient, storedUserName, nil, nil)
+	waitForUserSearchMatch(t, ctx, authServerClient, []string{"Jane"}, displayUserName)
+
+	upsertAccessRequest(t, ctx, authServerClient, existingRequestID, storedUserName, []string{storedRoleName}, func(req types.AccessRequest) {
+		req.SetStaticLabels(map[string]string{"owner": "Jane"})
+	})
+	upsertAccessRequest(t, ctx, authServerClient, displayRequestID, displayUserName, []string{displayRoleName}, func(req types.AccessRequest) {
+		req.SetState(types.RequestState_APPROVED)
+	})
+
+	waitForAccessRequests(t, ctx, authServerClient, func(reqs []*types.AccessRequestV3) bool {
+		return len(reqs) == 2
+	})
+
+	for _, tc := range []struct {
+		name     string
+		filter   *types.AccessRequestFilter
+		limit    int32
+		expected []string
+	}{
+		{
+			name: "display primary partial first name",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{"Jane"},
+			},
+			// existingRequestID has a label with "Jane" in it,
+			// displayRequestID has a requester whose display name contains "Jane", so both should match
+			expected: []string{existingRequestID, displayRequestID},
+		},
+		{
+			name: "display secondary",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{"jane.garcia@example.com"},
+			},
+			// displayRequestID has a requester whose email is "jane.garcia@example.com", so it should match
+			expected: []string{displayRequestID},
+		},
+		{
+			name: "display primary multi token",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{"Jane", "Garcia"},
+			},
+			// displayRequestID has a requester whose display name contains both "Jane" and "Garcia", so it should match
+			expected: []string{displayRequestID},
+		},
+		{
+			name: "requester username search still works",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{displayUserName},
+			},
+			expected: []string{displayRequestID},
+		},
+		{
+			name: "mixed display and role terms",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{"Jane", displayRoleName},
+			},
+			expected: []string{displayRequestID},
+		},
+		{
+			name: "existing role search still works",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{storedRoleName},
+			},
+			expected: []string{existingRequestID},
+		},
+		{
+			name: "state filter still ANDs with display search",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{"Jane", "Garcia"},
+				State:          types.RequestState_PENDING,
+			},
+			// No requests are set up to be PENDING so this should return no results
+			expected: nil,
+		},
+		{
+			name: "approved state filter still returns display search match",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{"Jane", "Garcia"},
+				State:          types.RequestState_APPROVED,
+			},
+			// displayRequestID is set up to be APPROVED and has a requester whose display name contains both "Jane" and "Garcia", so it should match
+			expected: []string{displayRequestID},
+		},
+		{
+			name: "no match",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{"NoSuchPerson"},
+			},
+			expected: nil,
+		},
+		{
+			name: "mixed existing and display pagination",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{"Jane"},
+			},
+			// force pagination to be exercised with search
+			limit:    1,
+			expected: []string{existingRequestID, displayRequestID},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := proto.ListAccessRequestsRequest{
+				Filter: tc.filter,
+				Limit:  tc.limit,
+			}
+			require.Equal(t, tc.expected, collectAccessRequestNames(t, ctx, authServerClient, req))
+		})
+	}
+}
+
+func TestListAccessRequestsRequesterDisplaySearchPreservesRBAC(t *testing.T) {
+	t.Parallel()
+
+	const (
+		reviewableRequestID = "00000000-0000-0000-0000-000000000011"
+		displayUserName     = "123456"
+		reviewerUserName    = "reviewer"
+		reviewableRole      = "reviewable-role"
+		unreviewableRole    = "unreviewable-role"
+		reviewerRole        = "reviewer-role"
+	)
+
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	ctx := t.Context()
+	authServerClient := tlsServer.Auth()
+
+	for roleName, roleSpec := range map[string]types.RoleSpecV6{
+		reviewableRole:   {},
+		unreviewableRole: {},
+		reviewerRole: {
+			Allow: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					Roles: []string{reviewableRole},
+				},
+			},
+		},
+	} {
+		role, err := types.NewRole(roleName, roleSpec)
+		require.NoError(t, err)
+		_, err = authServerClient.UpsertRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	upsertUser(t, ctx, authServerClient, displayUserName, nil, map[string][]string{
+		"okta/displayName": {"Jane Garcia"},
+	})
+	upsertUser(t, ctx, authServerClient, reviewerUserName, []string{reviewerRole}, nil)
+	waitForUserSearchMatch(t, ctx, authServerClient, []string{"Jane"}, displayUserName)
+
+	upsertAccessRequest(t, ctx, authServerClient, reviewableRequestID, displayUserName, []string{reviewableRole}, nil)
+	upsertAccessRequest(t, ctx, authServerClient, "00000000-0000-0000-0000-000000000012", displayUserName, []string{unreviewableRole}, nil)
+
+	waitForAccessRequests(t, ctx, authServerClient, func(reqs []*types.AccessRequestV3) bool {
+		return len(reqs) == 2
+	})
+
+	reviewerClient, err := tlsServer.NewClient(authtest.TestUser(reviewerUserName))
+	require.NoError(t, err)
+	defer reviewerClient.Close()
+
+	names := collectAccessRequestNames(t, ctx, reviewerClient, proto.ListAccessRequestsRequest{
+		Filter: &types.AccessRequestFilter{
+			SearchKeywords: []string{"Jane"},
+		},
+	})
+	require.Equal(t, []string{reviewableRequestID}, names)
 }
 
 func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {

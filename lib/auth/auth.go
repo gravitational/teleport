@@ -5992,7 +5992,9 @@ func (a *Server) ListAccessRequests(ctx context.Context, req *proto.ListAccessRe
 	// immediately after writing, but listing requires support for custom sort orders so we route it to
 	// a special cache. note that the access request cache will still end up forwarding single-request
 	// reads to the real backend due to the read after write issue.
-	return a.AccessRequestCache.ListAccessRequests(ctx, req)
+	return a.listMatchingAccessRequests(ctx, req, func(_ *types.AccessRequestV3) bool {
+		return true
+	})
 }
 
 // ListMatchingAccessRequests is equivalent to ListAccessRequests except that it adds the ability to provide an arbitrary matcher function. This method
@@ -6002,7 +6004,39 @@ func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.List
 	// immediately after writing, but listing requires support for custom sort orders so we route it to
 	// a special cache. note that the access request cache will still end up forwarding single-request
 	// reads to the real backend due to the read after write issue.
-	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
+	return a.listMatchingAccessRequests(ctx, req, match)
+}
+
+func (a *Server) listMatchingAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*proto.ListAccessRequestsResponse, error) {
+	searchKeywords := accessRequestSearchKeywords(req)
+	searchMatcher := services.NewAccessRequestSearchMatcher(ctx, searchKeywords, a)
+
+	cacheReq := req
+	if len(searchKeywords) > 0 {
+		reqCopy := *req
+		if req.Filter != nil {
+			filterCopy := *req.Filter
+			// Strip search keywords because it can contain user display names,
+			// which are not stored in the backend and will cause the cache to return no results.
+			// The searchMatcher will handle filtering by display name, along with any other search keywords.
+			filterCopy.SearchKeywords = nil
+			reqCopy.Filter = &filterCopy
+		}
+		cacheReq = &reqCopy
+	}
+
+	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, cacheReq, func(accessRequest *types.AccessRequestV3) bool {
+		// searchMatcher decides whether the request matches the query. match
+		// preserves the caller-specific visibility filter, such as RBAC.
+		return searchMatcher(accessRequest) && match(accessRequest)
+	})
+}
+
+func accessRequestSearchKeywords(req *proto.ListAccessRequestsRequest) []string {
+	if req.Filter == nil {
+		return nil
+	}
+	return req.Filter.SearchKeywords
 }
 
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
