@@ -110,6 +110,7 @@ export type TableProps<T> = {
 
 type TableColumnBase<T> = {
   headerText?: string;
+  renderHeader?: () => React.ReactNode;
   render?: (row: T) => JSX.Element;
   isSortable?: boolean;
   onSort?: (a: T, b: T) => number;

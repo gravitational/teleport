@@ -18,7 +18,8 @@
 
 import { useState } from 'react';
 
-import { ClickableLabelCell, DateCell, LabelCell } from './Cells';
+import { CheckboxInput } from '../Checkbox/Checkbox';
+import { Cell, ClickableLabelCell, DateCell, LabelCell } from './Cells';
 import Table from './Table';
 import { TableProps } from './types';
 
@@ -108,6 +109,53 @@ export function ISODateStrings() {
   props.emptyText = 'No Dummy Data Found';
   props.isSearchable = true;
   return <Table<DummyDataISOStringType> {...props} />;
+}
+
+export function CustomHeaders() {
+  const names = ['alpha', 'bravo', 'charlie'];
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const allSelected = selected.size === names.length;
+  const someSelected = selected.size > 0 && !allSelected;
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(names));
+  const toggleOne = (name: string, checked: boolean) =>
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(name);
+      else next.delete(name);
+      return next;
+    });
+
+  return (
+    <Table<{ name: string }>
+      data={names.map(name => ({ name }))}
+      emptyText="No data"
+      columns={[
+        {
+          altKey: 'select',
+          renderHeader: () => (
+            <CheckboxInput
+              size="small"
+              aria-label="Select all"
+              checked={allSelected}
+              indeterminate={someSelected}
+              onChange={toggleAll}
+            />
+          ),
+          render: row => (
+            <Cell style={{ width: 32 }}>
+              <CheckboxInput
+                size="small"
+                aria-label={`Select ${row.name}`}
+                checked={selected.has(row.name)}
+                onChange={e => toggleOne(row.name, e.target.checked)}
+              />
+            </Cell>
+          ),
+        },
+        { key: 'name', headerText: 'Name' },
+      ]}
+    />
+  );
 }
 
 // default basic table with interactive cells

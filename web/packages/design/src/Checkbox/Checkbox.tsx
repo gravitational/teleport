@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import * as Icon from 'design/Icon';
@@ -42,7 +42,9 @@ interface CheckboxInputProps {
   // and this field is equivalent to field "disabled".
   readOnly?: boolean;
 
-  // TODO(bl-nero): Support the "indeterminate" property.
+  // When true, renders a horizontal bar in place of the checkmark and sets
+  // the native `indeterminate` DOM property for accessibility.
+  indeterminate?: boolean;
 
   // Container properties
   className?: string;
@@ -53,26 +55,37 @@ interface CheckboxInputProps {
 
 export const CheckboxInput = forwardRef<HTMLInputElement, CheckboxInputProps>(
   (props, ref) => {
-    const { style, className, size, ...inputProps } = props;
+    const { style, className, size, indeterminate, ...inputProps } = props;
+
+    const internalRef = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+      if (internalRef.current) {
+        internalRef.current.indeterminate = !!indeterminate;
+      }
+    }, [indeterminate]);
+
     return (
       // The outer wrapper and inner wrapper are separate to allow using
       // positioning CSS attributes on the checkbox while still maintaining its
       // internal integrity that requires the internal wrapper to be positioned.
       <OuterWrapper style={style} className={className}>
         <InnerWrapper>
-          {/* The checkbox is rendered as two items placed on top of each other:
-            the actual checkbox, which is a native input control, and an SVG
-            checkmark. Note that we avoid the usual "label with content" trick,
-            because we want to be able to use this component both with and
-            without surrounding labels. Instead, we use absolute positioning and
-            an actually rendered input with a custom appearance. */}
+          {/* The checkbox is rendered as three layered items: the actual
+              checkbox (a native input control), an SVG checkmark for the
+              checked state, and an SVG horizontal bar for the indeterminate
+              state. The overlays fade visa opacity to show/hide them. */}
           <CheckboxInternal
-            ref={ref}
+            ref={node => {
+              internalRef.current = node;
+              if (typeof ref === 'function') ref(node);
+              else if (ref) ref.current = node;
+            }}
             cbSize={size}
             {...inputProps}
             disabled={inputProps.disabled || inputProps.readOnly}
           />
           <Checkmark />
+          <IndeterminateMark />
         </InnerWrapper>
       </OuterWrapper>
     );
@@ -106,7 +119,32 @@ const Checkmark = styled(Icon.CheckThick)`
     opacity: 1;
   }
 
+  input:indeterminate + & {
+    opacity: 0;
+  }
+
   input:disabled + & {
+    color: ${props => props.theme.colors.text.main};
+  }
+`;
+
+const IndeterminateMark = styled(Icon.MinusThick)`
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  pointer-events: none;
+  color: ${props => props.theme.colors.text.primaryInverse};
+  opacity: 0;
+
+  transition: all 150ms;
+
+  input:indeterminate ~ & {
+    opacity: 1;
+  }
+
+  input:disabled ~ & {
     color: ${props => props.theme.colors.text.main};
   }
 `;
@@ -120,7 +158,7 @@ const CheckboxInternal = styled.input.attrs(props => ({
   -moz-appearance: none;
   appearance: none;
   border: 1.5px solid ${props => props.theme.colors.text.muted};
-  border-radius: ${props => props.theme.radii[2]}px;
+  border-radius: ${props => props.theme.radii[1]}px;
   background: transparent;
   cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
 
@@ -137,7 +175,8 @@ const CheckboxInternal = styled.input.attrs(props => ({
   // Storybook, where we want to show all the states, even though we can't
   // enforce them.
   &:enabled {
-    &:checked {
+    &:checked,
+    &:indeterminate {
       background-color: ${props => props.theme.colors.buttons.primary.default};
       border-color: transparent;
     }
@@ -148,7 +187,8 @@ const CheckboxInternal = styled.input.attrs(props => ({
         props.theme.colors.interactive.tonal.neutral[0]};
       border-color: ${props => props.theme.colors.text.slightlyMuted};
 
-      &:checked {
+      &:checked,
+      &:indeterminate {
         background-color: ${props => props.theme.colors.buttons.primary.hover};
         border-color: transparent;
         box-shadow:
@@ -166,7 +206,8 @@ const CheckboxInternal = styled.input.attrs(props => ({
       outline: none;
       border-width: 2px;
 
-      &:checked {
+      &:checked,
+      &:indeterminate {
         background-color: ${props =>
           props.theme.colors.buttons.primary.default};
         border-color: transparent;
@@ -182,7 +223,8 @@ const CheckboxInternal = styled.input.attrs(props => ({
         props.theme.colors.interactive.tonal.neutral[1]};
       border-color: ${props => props.theme.colors.text.slightlyMuted};
 
-      &:checked {
+      &:checked,
+      &:indeterminate {
         background-color: ${props => props.theme.colors.buttons.primary.active};
         border-color: transparent;
       }

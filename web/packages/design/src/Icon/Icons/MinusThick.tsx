@@ -50,16 +50,16 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export const CheckThick = forwardRef<HTMLSpanElement, IconProps>(
+export const MinusThick = forwardRef<HTMLSpanElement, IconProps>(
   ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
-      className="icon icon-checkthick"
+      className="icon icon-minusthick"
       {...otherProps}
       ref={ref}
     >
-      <path d="M16.814 6.94a1.5 1.5 0 1 1 2.121 2.12l-8 8a1.5 1.5 0 0 1-2.12 0l-3.5-3.5a1.5 1.5 0 1 1 2.12-2.12l2.44 2.439z" />
+      <path d="M18.5 10.5a1.5 1.5 0 0 1 0 3h-13a1.5 1.5 0 0 1 0-3z" />
     </Icon>
   )
 );
