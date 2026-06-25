@@ -371,7 +371,8 @@ func (r resourceTeleportUser) ModifyPlan(ctx context.Context, req tfsdk.ModifyRe
 
 	user = userResource
 
-	resp.Diagnostics.Append(tfschema.CopyUserV2ToTerraform(ctx, user, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(tfschema.CopyUserV2ToTerraformPreserveUnknown(ctx, user, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
