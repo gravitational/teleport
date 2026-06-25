@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/clientiprestriction/v1/clientiprestriction_service.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package clientiprestrictionv1
 
@@ -39,10 +39,10 @@ const (
 // Request for GetClientIPRestriction.
 // The name field, if set, must equal MetaNameClientIPRestriction.
 type GetClientIPRestrictionRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GetClientIPRestrictionRequest) Reset() {
@@ -72,13 +72,13 @@ func (x *GetClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 func (x *GetClientIPRestrictionRequest) GetName() string {
 	if x != nil {
-		return x.Name
+		return x.xxx_hidden_Name
 	}
 	return ""
 }
 
 func (x *GetClientIPRestrictionRequest) SetName(v string) {
-	x.Name = v
+	x.xxx_hidden_Name = v
 }
 
 type GetClientIPRestrictionRequest_builder struct {
@@ -91,17 +91,16 @@ func (b0 GetClientIPRestrictionRequest_builder) Build() *GetClientIPRestrictionR
 	m0 := &GetClientIPRestrictionRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Name = b.Name
+	x.xxx_hidden_Name = b.Name
 	return m0
 }
 
 // Request for CreateClientIPRestriction.
 type CreateClientIPRestrictionRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// The ClientIPRestriction resource to create.
-	ClientIpRestriction *ClientIPRestriction `protobuf:"bytes,1,opt,name=client_ip_restriction,json=clientIpRestriction,proto3" json:"client_ip_restriction,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ClientIpRestriction *ClientIPRestriction   `protobuf:"bytes,1,opt,name=client_ip_restriction,json=clientIpRestriction,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
 func (x *CreateClientIPRestrictionRequest) Reset() {
@@ -131,24 +130,24 @@ func (x *CreateClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 func (x *CreateClientIPRestrictionRequest) GetClientIpRestriction() *ClientIPRestriction {
 	if x != nil {
-		return x.ClientIpRestriction
+		return x.xxx_hidden_ClientIpRestriction
 	}
 	return nil
 }
 
 func (x *CreateClientIPRestrictionRequest) SetClientIpRestriction(v *ClientIPRestriction) {
-	x.ClientIpRestriction = v
+	x.xxx_hidden_ClientIpRestriction = v
 }
 
 func (x *CreateClientIPRestrictionRequest) HasClientIpRestriction() bool {
 	if x == nil {
 		return false
 	}
-	return x.ClientIpRestriction != nil
+	return x.xxx_hidden_ClientIpRestriction != nil
 }
 
 func (x *CreateClientIPRestrictionRequest) ClearClientIpRestriction() {
-	x.ClientIpRestriction = nil
+	x.xxx_hidden_ClientIpRestriction = nil
 }
 
 type CreateClientIPRestrictionRequest_builder struct {
@@ -162,18 +161,16 @@ func (b0 CreateClientIPRestrictionRequest_builder) Build() *CreateClientIPRestri
 	m0 := &CreateClientIPRestrictionRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.ClientIpRestriction = b.ClientIpRestriction
+	x.xxx_hidden_ClientIpRestriction = b.ClientIpRestriction
 	return m0
 }
 
 // Request for UpdateClientIPRestriction.
 type UpdateClientIPRestrictionRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// The ClientIPRestriction resource to update. The metadata.revision field must be
-	// set to the current revision for the update to succeed.
-	ClientIpRestriction *ClientIPRestriction `protobuf:"bytes,1,opt,name=client_ip_restriction,json=clientIpRestriction,proto3" json:"client_ip_restriction,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ClientIpRestriction *ClientIPRestriction   `protobuf:"bytes,1,opt,name=client_ip_restriction,json=clientIpRestriction,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
 func (x *UpdateClientIPRestrictionRequest) Reset() {
@@ -203,24 +200,24 @@ func (x *UpdateClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 func (x *UpdateClientIPRestrictionRequest) GetClientIpRestriction() *ClientIPRestriction {
 	if x != nil {
-		return x.ClientIpRestriction
+		return x.xxx_hidden_ClientIpRestriction
 	}
 	return nil
 }
 
 func (x *UpdateClientIPRestrictionRequest) SetClientIpRestriction(v *ClientIPRestriction) {
-	x.ClientIpRestriction = v
+	x.xxx_hidden_ClientIpRestriction = v
 }
 
 func (x *UpdateClientIPRestrictionRequest) HasClientIpRestriction() bool {
 	if x == nil {
 		return false
 	}
-	return x.ClientIpRestriction != nil
+	return x.xxx_hidden_ClientIpRestriction != nil
 }
 
 func (x *UpdateClientIPRestrictionRequest) ClearClientIpRestriction() {
-	x.ClientIpRestriction = nil
+	x.xxx_hidden_ClientIpRestriction = nil
 }
 
 type UpdateClientIPRestrictionRequest_builder struct {
@@ -235,17 +232,16 @@ func (b0 UpdateClientIPRestrictionRequest_builder) Build() *UpdateClientIPRestri
 	m0 := &UpdateClientIPRestrictionRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.ClientIpRestriction = b.ClientIpRestriction
+	x.xxx_hidden_ClientIpRestriction = b.ClientIpRestriction
 	return m0
 }
 
 // Request for UpsertClientIPRestriction.
 type UpsertClientIPRestrictionRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// The ClientIPRestriction resource to create or replace.
-	ClientIpRestriction *ClientIPRestriction `protobuf:"bytes,1,opt,name=client_ip_restriction,json=clientIpRestriction,proto3" json:"client_ip_restriction,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ClientIpRestriction *ClientIPRestriction   `protobuf:"bytes,1,opt,name=client_ip_restriction,json=clientIpRestriction,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
 func (x *UpsertClientIPRestrictionRequest) Reset() {
@@ -275,24 +271,24 @@ func (x *UpsertClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 func (x *UpsertClientIPRestrictionRequest) GetClientIpRestriction() *ClientIPRestriction {
 	if x != nil {
-		return x.ClientIpRestriction
+		return x.xxx_hidden_ClientIpRestriction
 	}
 	return nil
 }
 
 func (x *UpsertClientIPRestrictionRequest) SetClientIpRestriction(v *ClientIPRestriction) {
-	x.ClientIpRestriction = v
+	x.xxx_hidden_ClientIpRestriction = v
 }
 
 func (x *UpsertClientIPRestrictionRequest) HasClientIpRestriction() bool {
 	if x == nil {
 		return false
 	}
-	return x.ClientIpRestriction != nil
+	return x.xxx_hidden_ClientIpRestriction != nil
 }
 
 func (x *UpsertClientIPRestrictionRequest) ClearClientIpRestriction() {
-	x.ClientIpRestriction = nil
+	x.xxx_hidden_ClientIpRestriction = nil
 }
 
 type UpsertClientIPRestrictionRequest_builder struct {
@@ -306,17 +302,17 @@ func (b0 UpsertClientIPRestrictionRequest_builder) Build() *UpsertClientIPRestri
 	m0 := &UpsertClientIPRestrictionRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.ClientIpRestriction = b.ClientIpRestriction
+	x.xxx_hidden_ClientIpRestriction = b.ClientIpRestriction
 	return m0
 }
 
 // Request for DeleteClientIPRestriction.
 // The name field, if set, must equal MetaNameClientIPRestriction.
 type DeleteClientIPRestrictionRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DeleteClientIPRestrictionRequest) Reset() {
@@ -346,13 +342,13 @@ func (x *DeleteClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 func (x *DeleteClientIPRestrictionRequest) GetName() string {
 	if x != nil {
-		return x.Name
+		return x.xxx_hidden_Name
 	}
 	return ""
 }
 
 func (x *DeleteClientIPRestrictionRequest) SetName(v string) {
-	x.Name = v
+	x.xxx_hidden_Name = v
 }
 
 type DeleteClientIPRestrictionRequest_builder struct {
@@ -365,13 +361,13 @@ func (b0 DeleteClientIPRestrictionRequest_builder) Build() *DeleteClientIPRestri
 	m0 := &DeleteClientIPRestrictionRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Name = b.Name
+	x.xxx_hidden_Name = b.Name
 	return m0
 }
 
 // Response for DeleteClientIPRestriction.
 type DeleteClientIPRestrictionResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
