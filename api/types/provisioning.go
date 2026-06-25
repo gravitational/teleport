@@ -210,6 +210,10 @@ type ProvisionToken interface {
 	// unscoped
 	GetAssignedScope() string
 
+	// GetScope always returns an empty string because a [ProvisionToken] is always
+	// unscoped
+	GetScope() string
+
 	// GetSecret returns the token's secret value and a bool representing whether
 	// or not the token had a secret..
 	GetSecret() (string, bool)
@@ -757,6 +761,12 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 // GetAssignedScope always returns an empty string because a [ProvisionTokenV2] is always
 // unscoped
 func (p *ProvisionTokenV2) GetAssignedScope() string {
+	return ""
+}
+
+// GetScope always returns an empty string because a [ProvisionTokenV2] is always
+// unscoped
+func (p *ProvisionTokenV2) GetScope() string {
 	return ""
 }
 
