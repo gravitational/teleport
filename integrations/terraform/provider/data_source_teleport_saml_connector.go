@@ -59,7 +59,7 @@ func (r dataSourceTeleportSAMLConnector) Read(ctx context.Context, req tfsdk.Rea
 		return
 	}
 
-	samlConnectorI, err := r.p.Client.GetSAMLConnector(ctx, id.Value, true)
+	samlConnectorI, err := r.p.Client.GetSAMLConnector(ctx, id.Value, false)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(err), "saml"))
 		return
