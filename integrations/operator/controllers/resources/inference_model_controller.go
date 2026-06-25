@@ -37,10 +37,10 @@ type inferenceModelClient struct {
 
 // Get gets an inference model with a given name from Teleport.
 func (c inferenceModelClient) Get(
-	ctx context.Context, name string,
+	ctx context.Context, key reconcilers.ResourceKey,
 ) (*summarizerv1.InferenceModel, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferenceModel(
-		ctx, summarizerv1.GetInferenceModelRequest_builder{Name: name}.Build(),
+		ctx, summarizerv1.GetInferenceModelRequest_builder{Name: key.Name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,9 +70,9 @@ func (c inferenceModelClient) Update(
 }
 
 // Delete deletes an inference model with a given name from Teleport.
-func (c inferenceModelClient) Delete(ctx context.Context, name string) error {
+func (c inferenceModelClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferenceModel(
-		ctx, summarizerv1.DeleteInferenceModelRequest_builder{Name: name}.Build(),
+		ctx, summarizerv1.DeleteInferenceModelRequest_builder{Name: key.Name}.Build(),
 	)
 	return trace.Wrap(err)
 }
