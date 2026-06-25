@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -1252,6 +1254,32 @@ func (a *ProvisionTokenSpecV2Env0) checkAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// MarshalJSON is a custom marshal implementation that uses jsonpb instead of
+// jsoniter-based `utils.FastMarshal`, which does not support struct fields and
+// instead silently discards their content. This uses jsonpb instead, which
+// properly preserves content.
+func (s *ProvisionTokenSpecV2GenericOIDC) MarshalJSON() ([]byte, error) {
+	// Note, preexisting precedent for this evil impl in PluginSyncFilter and
+	// others
+	var buf bytes.Buffer
+	if err := (&jsonpb.Marshaler{}).Marshal(&buf, s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalJSON is a custom unmarshal implementation that uses jsonpb instead
+// of the jsoniter-based `utils.FastUnmarshal`, which does not support struct
+// fields and instead silently discards their content.
+func (s *ProvisionTokenSpecV2GenericOIDC) UnmarshalJSON(data []byte) error {
+	unmarshaler := jsonpb.Unmarshaler{
+		AllowUnknownFields: true,
+	}
+
+	return trace.Wrap(unmarshaler.Unmarshal(bytes.NewReader(data), s))
 }
 
 func (a *ProvisionTokenSpecV2GenericOIDC) checkAndSetDefaults() error {
