@@ -285,7 +285,7 @@ func TestUnsafeAllowAllStandsAlone(t *testing.T) {
 		{UnsafeAllowAll: true, Where: `contains(user.roles, "admin")`},
 		{UnsafeAllowAll: true, AllowEncoded: []string{"/"}},
 		{UnsafeAllowAll: true, AllowCode: "x"},
-		{UnsafeAllowAll: true, DenyCode: "x"},
+		{UnsafeAllowAll: true, DenyCodeHint: "x"},
 	}
 	for i, r := range combos {
 		_, err := r.Compile()

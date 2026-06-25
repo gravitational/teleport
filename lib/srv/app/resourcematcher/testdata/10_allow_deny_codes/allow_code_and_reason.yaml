@@ -5,8 +5,8 @@ app_resources:
       where: contains(user.traits["allowed_projects"], vars.project)
       allow_code: allowed_project
       allow_reason: User has access to project
-      deny_code: denied_project
-      deny_reason: User has NO access to project
+      deny_code_hint: denied_project
+      deny_reason_hint: User has NO access to project
 app_resources_desugared:
     - |-
       path.match(

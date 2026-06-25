@@ -35,11 +35,10 @@ import (
 // app_resources_expression field, a list of predicate strings.
 //
 // AllowCode and AllowReason lower to a set_allow_code call appended to the
-// predicate, so the sugared field and the expression primitive share one
-// representation. DenyCode and DenyReason are a sugar-only audit feature: they
-// explain a near-miss, when the rule's path and method matched but it did not
-// allow, and have no expression form, so they do not appear in the desugared
-// predicate.
+// predicate, and DenyCodeHint and DenyReasonHint to an append_deny_hint call on
+// the deny branch of the where, so each sugared field and its expression
+// primitive share one representation. A deny hint explains a near-miss, when
+// the rule's path and method matched but it did not allow.
 type Rule struct {
 	// Paths are declarative path patterns, OR-ed. A request matches the rule's
 	// path territory if any pattern matches. A rule must set either Paths or
@@ -70,12 +69,13 @@ type Rule struct {
 	// AllowReason is the human-readable explanation emitted alongside
 	// AllowCode on an allow.
 	AllowReason string `yaml:"allow_reason,omitempty"`
-	// DenyCode is the structured code emitted on the deny audit event when the
-	// rule's path and method matched but the rule did not allow. It explains
+	// DenyCodeHint is the structured code emitted on the deny audit event when
+	// the rule's path and method matched but the rule did not allow. It explains
 	// the near-miss within the rule's path-and-method scope.
-	DenyCode string `yaml:"deny_code,omitempty"`
-	// DenyReason is the human-readable explanation emitted alongside DenyCode.
-	DenyReason string `yaml:"deny_reason,omitempty"`
+	DenyCodeHint string `yaml:"deny_code_hint,omitempty"`
+	// DenyReasonHint is the human-readable explanation emitted alongside
+	// DenyCodeHint.
+	DenyReasonHint string `yaml:"deny_reason_hint,omitempty"`
 	// UnsafeAllowAll grants unrestricted access to every path and method,
 	// restoring the pre-v9 behavior where a role that granted an app granted
 	// all of it. It is the deliberate escape hatch for when the safe path
@@ -204,8 +204,8 @@ func (r Rule) Compile() (*CompiledRule, error) {
 // predicate string. Unlike a sugared rule's where clause, it may call
 // path.match and use the full matcher language directly. It may also call
 // append_deny_hint to contribute a near-miss hint, the same primitive the
-// sugared deny_code lowers to, so an expression rule and a sugared rule share
-// one deny mechanism.
+// sugared deny_code_hint lowers to, so an expression rule and a sugared rule
+// share one deny mechanism.
 func compileExpression(expr string) (*CompiledRule, error) {
 	if strings.TrimSpace(expr) == "" {
 		return nil, trace.BadParameter("an app_resources_expression entry cannot be empty")
@@ -315,13 +315,13 @@ func (r Rule) allowCodeClause() string {
 // append_deny_hint call, the predicate primitive the sugared fields lower to.
 // It is empty when no deny code is set.
 func (r Rule) denyHintClause() string {
-	if r.DenyCode == "" {
+	if r.DenyCodeHint == "" {
 		return ""
 	}
-	if r.DenyReason != "" {
-		return fmt.Sprintf("append_deny_hint(%s, %s)", strconv.Quote(r.DenyCode), strconv.Quote(r.DenyReason))
+	if r.DenyReasonHint != "" {
+		return fmt.Sprintf("append_deny_hint(%s, %s)", strconv.Quote(r.DenyCodeHint), strconv.Quote(r.DenyReasonHint))
 	}
-	return fmt.Sprintf("append_deny_hint(%s)", strconv.Quote(r.DenyCode))
+	return fmt.Sprintf("append_deny_hint(%s)", strconv.Quote(r.DenyCodeHint))
 }
 
 // pathClause renders the Paths as one path.match over a root() of the compiled
@@ -435,12 +435,12 @@ func (r Rule) validate() error {
 			return trace.Wrap(err, "invalid allow_code")
 		}
 	}
-	if r.DenyReason != "" && r.DenyCode == "" {
-		return trace.BadParameter("deny_reason set without deny_code")
+	if r.DenyReasonHint != "" && r.DenyCodeHint == "" {
+		return trace.BadParameter("deny_reason_hint set without deny_code_hint")
 	}
-	if r.DenyCode != "" {
-		if err := validateCode(r.DenyCode); err != nil {
-			return trace.Wrap(err, "invalid deny_code")
+	if r.DenyCodeHint != "" {
+		if err := validateCode(r.DenyCodeHint); err != nil {
+			return trace.Wrap(err, "invalid deny_code_hint")
 		}
 	}
 	return nil
@@ -453,7 +453,7 @@ func (r Rule) validate() error {
 func (r Rule) validateUnsafeAllowAllStandsAlone() error {
 	if len(r.Paths) > 0 || len(r.Methods) > 0 || r.Where != "" ||
 		len(r.AllowEncoded) > 0 || r.AllowCode != "" || r.AllowReason != "" ||
-		r.DenyCode != "" || r.DenyReason != "" {
+		r.DenyCodeHint != "" || r.DenyReasonHint != "" {
 		return trace.BadParameter("unsafe_allow_all cannot be combined with any other field")
 	}
 	return nil

@@ -487,7 +487,7 @@ func validateAllowCodes(expr string) error {
 
 // validateDenyHintCodes rejects an illegal code in an append_deny_hint("...")
 // call whose code is a string constant, the load-time check for the code a
-// sugared deny_code field lowers to and for a code written directly in an
+// sugared deny_code_hint field lowers to and for a code written directly in an
 // expression. A dynamic code cannot be checked here and is backstopped by the
 // function at evaluation. append_deny_hint always returns false, so unlike
 // set_allow_code it needs no placement check: a misplaced call can record a

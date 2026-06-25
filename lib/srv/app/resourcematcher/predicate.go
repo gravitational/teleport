@@ -284,9 +284,9 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			// sits on the deny branch of a rule, as in
 			// (where || append_deny_hint("code", "reason")), gated by the path and
 			// method on its left, so it fires exactly on the near-miss. The hint is
-			// read only when the rule denies. The sugared deny_code and deny_reason
-			// fields lower to this call, so both authoring surfaces share one
-			// representation.
+			// read only when the rule denies. The sugared deny_code_hint and
+			// deny_reason_hint fields lower to this call, so both authoring
+			// surfaces share one representation.
 			"append_deny_hint": typical.BinaryVariadicFunctionWithEnv(func(e env, code string, reason ...string) (bool, error) {
 				if err := validateCode(code); err != nil {
 					return false, trace.Wrap(err)

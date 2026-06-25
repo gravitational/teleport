@@ -64,17 +64,17 @@ allow_code: `+strconv.Quote(code)+`
 	}
 }
 
-// TestDenyCodeNearMiss pins the collapsed deny code: the scalar deny_code and
-// deny_reason fire on a deny exactly when the path and method matched but where
-// failed, the near-miss territory.
+// TestDenyCodeNearMiss pins the collapsed deny hint: the scalar deny_code_hint
+// and deny_reason_hint fire on a deny exactly when the path and method matched
+// but where failed, the near-miss territory.
 func TestDenyCodeNearMiss(t *testing.T) {
 	rule, err := ruleFromYAML(t, `
 paths: ["/api/v4/projects/{project}/**"]
 methods: [GET]
 where: contains(user.traits["allowed_projects"], vars.project)
 allow_code: project_read
-deny_code: not_in_allowlist
-deny_reason: "Project is not in your allowlist."
+deny_code_hint: not_in_allowlist
+deny_reason_hint: "Project is not in your allowlist."
 `).Compile()
 	require.NoError(t, err)
 
@@ -114,17 +114,17 @@ deny_reason: "Project is not in your allowlist."
 func TestWhereOnlyRejected(t *testing.T) {
 	_, err := ruleFromYAML(t, `
 where: contains(user.roles, "admin")
-deny_code: needs_admin
-deny_reason: "You need the admin role."
+deny_code_hint: needs_admin
+deny_reason_hint: "You need the admin role."
 `).Compile()
 	require.Error(t, err)
 }
 
 // TestAppendDenyHintExpression pins that an expression rule can carry a deny
-// hint through append_deny_hint, the primitive the sugared deny_code lowers to,
-// so the expression and sugared surfaces share one deny mechanism. The call
-// returns false, so it records the hint without ever turning the deny into an
-// allow, and an illegal code is rejected at load.
+// hint through append_deny_hint, the primitive the sugared deny_code_hint
+// lowers to, so the expression and sugared surfaces share one deny mechanism.
+// The call returns false, so it records the hint without ever turning the deny
+// into an allow, and an illegal code is rejected at load.
 func TestAppendDenyHintExpression(t *testing.T) {
 	rule, err := compileExpression(
 		`path.match(literal("api/v4/projects", capture("project", greedy()))) && ` +
@@ -155,19 +155,20 @@ func TestAppendDenyHintExpression(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestDenyReasonWithoutCodeRejected pins that a deny_reason with no deny_code is
-// a load error: the reason has no code to ride on.
+// TestDenyReasonWithoutCodeRejected pins that a deny_reason_hint with no
+// deny_code_hint is a load error: the reason has no code to ride on.
 func TestDenyReasonWithoutCodeRejected(t *testing.T) {
 	_, err := ruleFromYAML(t, `
 paths: ["/api/health"]
-deny_reason: "orphan reason"
+deny_reason_hint: "orphan reason"
 `).Compile()
 	require.Error(t, err)
 }
 
 // TestSetAllowCodeInExpression pins that an expression rule carries its allow
-// code through a set_allow_code call, the primitive the sugared allow_code field
-// lowers to, and that an expression rule has no deny mechanism.
+// code through a set_allow_code call, the primitive the sugared allow_code
+// field lowers to, and that an expression rule with no append_deny_hint call
+// carries no deny hint.
 func TestSetAllowCodeInExpression(t *testing.T) {
 	rule, err := compileExpression(
 		`path.match(literal("api/v4/user")) && set_allow_code("self_read", "Read your own user.")`)
@@ -179,7 +180,7 @@ func TestSetAllowCodeInExpression(t *testing.T) {
 	require.Equal(t, "self_read", got.Allow.Code)
 	require.Equal(t, "Read your own user.", got.Allow.Reason)
 
-	// A deny from an expression rule carries no hint: the deny code is sugar-only.
+	// A deny from this expression carries no hint: it calls no append_deny_hint.
 	got, err = rule.Evaluate(Request{Method: "GET", Path: "/api/v4/groups"}, Identity{})
 	require.NoError(t, err)
 	require.False(t, got.Allowed)

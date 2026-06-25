@@ -3,13 +3,13 @@ app_resources:
     - paths:
         - /api/v4/projects/{project}/**
       where: contains(user.traits["allowed_projects"], vars.project)
-      deny_code: denied_project
-      deny_reason: Not allowed on this project
+      deny_code_hint: denied_project
+      deny_reason_hint: Not allowed on this project
     - paths:
         - /api/v4/admin/**
       where: contains(user.roles, "admin")
-      deny_code: denied_admin
-      deny_reason: Admin role required
+      deny_code_hint: denied_admin
+      deny_reason_hint: Admin role required
 app_resources_desugared:
     - |-
       path.match(
