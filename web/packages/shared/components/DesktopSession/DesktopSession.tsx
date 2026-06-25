@@ -64,6 +64,7 @@ import useDesktopSession, {
 
 export interface ServerCapabilities {
   canRemoveSharedDirectories: boolean;
+  canShareMultipleDirectories: boolean;
 }
 
 export interface DesktopSessionProps {
@@ -111,6 +112,7 @@ export interface DesktopSessionControlsRenderProps {
   canRemoveSharedDirectory: boolean;
   maxSharedDirectories: number;
   directorySharingMessage: string;
+  canShareMultipleDirectories: boolean;
 }
 
 export function DesktopSession({
@@ -279,12 +281,13 @@ export function DesktopSession({
 
   const [serverCapabilities, setServerCapabilities] = useState<
     ServerCapabilities | undefined
-  >({ canRemoveSharedDirectories: false });
+  >({ canRemoveSharedDirectories: false, canShareMultipleDirectories: false });
   useListener(
     client.onServerCapabilities,
     useCallback(caps => {
       setServerCapabilities({
         canRemoveSharedDirectories: caps.directoryRemoval,
+        canShareMultipleDirectories: caps.multidirectorySharing,
       });
     }, [])
   );
@@ -473,6 +476,7 @@ export function DesktopSession({
     onAddSharedDirectory: addSharedDirectory,
     onRemoveSharedDirectory: removeSharedDirectory,
     canRemoveSharedDirectory: serverCapabilities.canRemoveSharedDirectories,
+    canShareMultipleDirectories: serverCapabilities.canShareMultipleDirectories,
     maxSharedDirectories: MAX_SHARED_DIRECTORIES,
     directorySharingMessage: directorySharingMessage(directorySharingState),
   };

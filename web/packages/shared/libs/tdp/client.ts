@@ -161,6 +161,7 @@ type ConnectPolicy = { mode: 'tdpb' } | { mode: 'tdp' };
 
 type ServerCapabilities = {
   directoryRemoval: boolean;
+  multidirectorySharing: boolean;
 };
 
 export interface Logger {
@@ -539,6 +540,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.hidpiSupported = hello.hidpiSupported;
     this.emit(TdpClientEvent.SERVER_CAPABILITIES, {
       directoryRemoval: hello.directoryRemovalSupport,
+      multidirectorySharing: hello.multidirectorySharingSupported,
     });
     this.handleRdpConnectionActivated(hello.activationEvent);
   }

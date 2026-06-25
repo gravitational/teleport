@@ -371,6 +371,7 @@ export type ServerHello = {
   hidpiSupported: boolean;
   activationEvent: RdpConnectionActivated;
   directoryRemovalSupport: boolean;
+  multidirectorySharingSupported: boolean;
 };
 
 export type ClientHello = {
@@ -653,6 +654,8 @@ export class TdpbCodec implements Codec {
             activationEvent: envelope.payload.serverHello.activationSpec,
             directoryRemovalSupport:
               envelope.payload.serverHello.directoryRemoveSupported,
+            multidirectorySharingSupported:
+              envelope.payload.serverHello.multidirectorySharingSupported,
           },
         };
       case 'pngFrame':
