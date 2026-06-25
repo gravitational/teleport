@@ -259,31 +259,20 @@ impl FilesystemBackend {
     // must be retried after closing any open handles.
     pub fn mark_device_for_deletion(&mut self, device_id: u32) -> PduResult<(Vec<RdpdrPdu>, bool)> {
         let directory_context = self.cache.get_context_mut(device_id)?;
+        // Drain all pending I/O handlers and collect a list of cancellation responses.
         let cancel_pdus: Vec<RdpdrPdu> = directory_context
             .response_cache
             .drain()
             .map(|(_completion, handler)| handler.cancel())
             .collect();
 
+        // Mark as pending deletion. The FilesystemBackend will inspect this flag
+        // and automatically cancel any new I/O requests from the server.
         directory_context.marked_for_deletion = true;
-        // Drain the response cache for this directory context and cancel each handler.
 
-        // let cancel_pdus: Vec<RdpdrPdu> = pending_handlers
-        //     .iter()
-        //     .map(|(_completion, handler)| handler.cancel())
-        //     .collect();
-        //
-        //pending_handlers
-        //    .into_iter()
-        //    .for_each(|(completion_id, handler)| {
-        //        let _ = handler.cancel(self).inspect_err(|e| {
-        //            warn!(
-        //                "Failed to send cancellation response for deviceId {}, completionId {}: {}",
-        //                device_id, completion_id, e
-        //            )
-        //        });
-        //    });
-        //
+        // If the file cache is empty, then we can remove the device right away.
+        // Otherwise, we'll wait for the next device close request to try again.
+        // Pending I/O responses will be sent immediately regardless.
         if self
             .cache
             .get_context_mut(device_id)?
