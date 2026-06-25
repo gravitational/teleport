@@ -110,7 +110,7 @@ spec:
 Create the resource:
 
 ```code
-$ tctl create -f awsoidc-integration.yaml
+$ tctl create awsoidc-integration.yaml
 ```
 
 Validate the new integration is operational using the `tctl` test
@@ -187,7 +187,7 @@ spec:
 Create the resource:
 
 ```bash
-tctl create -f llm-proxy.yaml
+tctl create llm-proxy.yaml
 ```
 
 Validate the new LLM proxy is operational by sending a test request via a local
@@ -238,7 +238,7 @@ spec:
 Update (or create) the beams config resource:
 
 ```bash
-tctl create -f beams-config.yaml
+tctl create beams-config.yaml
 ```
 
 Alternatively, for an interactive editing experience:
