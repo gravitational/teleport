@@ -54,6 +54,8 @@ func validateFieldRulesContainsAnyRule(str *gogotypes.Struct) (bool, error) {
 			} else if hasAny {
 				return true, nil
 			}
+
+			// no default branch, fails closed if nothing matches
 		}
 	}
 
@@ -144,6 +146,8 @@ func evaluateFieldRules(specStruct *gogotypes.Struct, claimStruct map[string]any
 			if err := evaluateFieldRules(spec.StructValue, claimNest, fieldPath...); err != nil {
 				return trace.Wrap(err)
 			}
+		default:
+			return trace.BadParameter("unsupported comparison field type %T", spec)
 		}
 	}
 
