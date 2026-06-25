@@ -54,9 +54,9 @@ struct DirectoryContext {
     ///
     /// See the documentation for [`FileCacheObject`].
     file_cache: FileCache,
-    /// tombstoned indicates that this DirectoryContext has been
+    /// marked_for_deletion indicates that this DirectoryContext has been
     /// marked for deletion. All inbound requests will be canceled.
-    tombstoned: bool,
+    marked_for_deletion: bool,
     /// response_cache holds all pending I/O response handlers for
     /// I/O requests against this DirectoryContext.
     response_cache: ResponseCache,
@@ -66,7 +66,7 @@ impl DirectoryContext {
     fn new() -> Self {
         DirectoryContext {
             file_cache: FileCache::new(),
-            tombstoned: false,
+            marked_for_deletion: false,
             response_cache: ResponseCache::new(),
         }
     }
@@ -253,16 +253,16 @@ impl FilesystemBackend {
     }
 
     // Cancels all pending I/O requests on this device and marks the device as
-    // "tombstoned", which means all pending I/O requests will be automatically
+    // for deletion, which means all pending I/O requests will be automatically
     // cancelled. This function returns Ok(true) and actually removes the device
     // if it has no open file handlers, otherwise it returns Ok(false) and removal
     // must be retried after closing any open handles.
-    pub fn tombstone_device(&mut self, device_id: u32) -> PduResult<bool> {
+    pub fn mark_device_for_deletion(&mut self, device_id: u32) -> PduResult<bool> {
         let directory_context = self.cache.get_context_mut(device_id)?;
         let pending_handlers: Vec<(CompletionId, ResponseKind)> =
             directory_context.response_cache.drain().collect();
 
-        directory_context.tombstoned = true;
+        directory_context.marked_for_deletion = true;
         // Drain the response cache for this directory context and cancel each handler.
         pending_handlers
             .into_iter()
@@ -321,12 +321,12 @@ impl FilesystemBackend {
     pub fn handle_rdp_drive_io_request(&mut self, req: efs::ServerDriveIoRequest) -> PduResult<()> {
         trace!("received {:?}", &req);
 
-        let device_is_tombstoned = self
+        let device_pending_deletion = self
             .cache
             .get_context(DeviceId::from(&req).into())?
-            .tombstoned;
-        if device_is_tombstoned {
-            // A tombstoned device is only allowed to handle device close requests.
+            .marked_for_deletion;
+        if device_pending_deletion {
+            // A device pending deletion is only allowed to handle device close requests.
             // All other requests are cancelled.
             match req {
                 efs::ServerDriveIoRequest::DeviceCloseRequest(_) => {}
@@ -342,11 +342,11 @@ impl FilesystemBackend {
                 self.handle_rdp_query_information_req(req)
             }
             efs::ServerDriveIoRequest::DeviceCloseRequest(req) => {
-                // If the device is tombstoned AND this request closes that final file
+                // If the device is marked for deltion AND this request closes that final file
                 // in the cache, then we'll finally send the request to remove the device.
                 let device_id = req.device_io_request.device_id;
                 let res = self.handle_rdp_device_close_req(req);
-                if device_is_tombstoned {
+                if device_pending_deletion {
                     // HACK(rhammonds): We need to remove this device id from the rdpdr ServiceProcessor,
                     // but can't obtain a reference to it because the 'rdpdr' instance already holds
                     // a reference to us. We'll synthesize a new directory removal message for the for
