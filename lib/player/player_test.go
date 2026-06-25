@@ -86,13 +86,29 @@ func TestPlayPause(t *testing.T) {
 	require.Equal(t, 3, count)
 }
 
+type errorStreamer struct {
+	errCh chan error
+}
+
+func (e errorStreamer) StreamSessionEvents(ctx context.Context, _ session.ID, _ int64) (chan apievents.AuditEvent, chan error) {
+	stream := make(chan apievents.AuditEvent)
+	go func() {
+		defer close(stream)
+		select {
+		case <-ctx.Done():
+		case <-e.errCh:
+		}
+	}()
+	return stream, e.errCh
+}
+
 func TestPlayerError(t *testing.T) {
 	clk := clockwork.NewFakeClock()
 	errCh := make(chan error)
 	p, err := player.New(&player.Config{
 		Clock:     clk,
 		SessionID: "test-session",
-		Streamer:  &simpleStreamer{count: 1, errCh: errCh},
+		Streamer:  &errorStreamer{errCh: errCh},
 		Log:       slog.New(slog.DiscardHandler),
 	})
 	require.NoError(t, err)
