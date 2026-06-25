@@ -91,7 +91,7 @@ export const JoinTokens = () => {
   );
 
   function getRowStyle(row: JoinToken): React.CSSProperties {
-    if (row.isCloudSystem) {
+    if (row.isCloudSystem || row.isSystemResource) {
       return {
         background: theme.colors.interactive.tonal.neutral[0],
         color: theme.colors.text.muted,
