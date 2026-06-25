@@ -372,6 +372,8 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 	s.mu.RLock()
 	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
+
+	copy.Scope = s.c.GetScope()
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
