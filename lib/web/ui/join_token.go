@@ -43,6 +43,8 @@ type JoinToken struct {
 	IsStatic bool `json:"isStatic"`
 	// IsCloudSystem is true if the token is managed by the Teleport Cloud system.
 	IsCloudSystem bool `json:"isCloudSystem"`
+	// IsSystemResource is true if the token is a Teleport-internal system resource
+	IsSystemResource bool `json:"isSystemResource"`
 	// Method is the join method that the token supports
 	Method types.JoinMethod `json:"method"`
 	// Allow is a list of allow rules
@@ -69,16 +71,17 @@ func MakeJoinToken(token types.ProvisionToken) (*JoinToken, error) {
 	// site reflects scopedness.
 	botName, _ := token.GetBot()
 	uiToken := &JoinToken{
-		ID:            token.GetName(),
-		SafeName:      token.GetSafeName(),
-		BotName:       botName,
-		Expiry:        token.Expiry(),
-		Roles:         token.GetRoles(),
-		IsStatic:      token.IsStatic(),
-		IsCloudSystem: isCloudSystem,
-		Method:        token.GetJoinMethod(),
-		Allow:         token.GetAWSAllowRules(),
-		Content:       string(content[:]),
+		ID:               token.GetName(),
+		SafeName:         token.GetSafeName(),
+		BotName:          botName,
+		Expiry:           token.Expiry(),
+		Roles:            token.GetRoles(),
+		IsStatic:         token.IsStatic(),
+		IsCloudSystem:    isCloudSystem,
+		IsSystemResource: types.IsSystemResource(token),
+		Method:           token.GetJoinMethod(),
+		Allow:            token.GetAWSAllowRules(),
+		Content:          string(content[:]),
 	}
 
 	if uiToken.Method == types.JoinMethodGCP {

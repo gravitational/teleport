@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -157,11 +156,6 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 			tokens = append(tokens, tok)
 		}
 	}
-
-	// Hide system tokens (e.g. beam join tokens) from the UI.
-	tokens = slices.DeleteFunc(tokens, func(t types.ProvisionToken) bool {
-		return types.IsSystemResource(t)
-	})
 
 	uiTokens, err := webui.MakeJoinTokens(tokens)
 	if err != nil {
