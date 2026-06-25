@@ -356,7 +356,8 @@ func (r resourceTeleportClusterNetworkingConfig) ModifyPlan(ctx context.Context,
 
 	clusterNetworkingConfig = clusterNetworkingConfigResource
 
-	resp.Diagnostics.Append(tfschema.CopyClusterNetworkingConfigV2ToTerraform(ctx, clusterNetworkingConfig, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(tfschema.CopyClusterNetworkingConfigV2ToTerraformPreserveUnknown(ctx, clusterNetworkingConfig, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

@@ -382,7 +382,8 @@ func (r resourceTeleportProvisionToken) ModifyPlan(ctx context.Context, req tfsd
 
 	provisionToken = provisionTokenResource
 
-	resp.Diagnostics.Append(token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(token.CopyProvisionTokenV2ToTerraformPreserveUnknown(ctx, provisionToken, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
