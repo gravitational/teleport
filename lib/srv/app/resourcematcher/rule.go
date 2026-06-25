@@ -42,10 +42,17 @@ import (
 // predicate.
 type Rule struct {
 	// Paths are declarative path patterns, OR-ed. A request matches the rule's
-	// path territory if any pattern matches. Omit to match any path.
+	// path territory if any pattern matches. A rule must set either Paths or
+	// UnsafeAllowAll, since a rule that scopes nothing by path would grant
+	// unrestricted access by accident; UnsafeAllowAll is the explicit way to
+	// ask for that.
 	Paths []string `yaml:"paths,omitempty"`
-	// Methods are HTTP methods, OR-ed and upper-cased. Omit to match any
-	// method.
+	// Methods are HTTP methods that further scope a Paths rule, OR-ed. If
+	// Methods is empty, any method is permitted. Otherwise the request method
+	// must appear in the list. Names are case-insensitive and validated
+	// against the standard HTTP methods (GET, HEAD, POST, PUT, PATCH, DELETE,
+	// CONNECT, OPTIONS, TRACE); an unknown method is a load error, so a typo
+	// fails loudly rather than silently never matching.
 	Methods []string `yaml:"methods,omitempty"`
 	// Where is a condition over the caller identity, the request, and this
 	// rule's captures. It does not match paths and may not call path.match.
@@ -64,12 +71,21 @@ type Rule struct {
 	// AllowCode on an allow.
 	AllowReason string `yaml:"allow_reason,omitempty"`
 	// DenyCode is the structured code emitted on the deny audit event when the
-	// rule's path and method matched but the rule did not allow. A where-only
-	// rule, with no path or method to scope the near-miss, emits it on any deny
-	// in the rule's scope.
+	// rule's path and method matched but the rule did not allow. It explains
+	// the near-miss within the rule's path-and-method scope.
 	DenyCode string `yaml:"deny_code,omitempty"`
 	// DenyReason is the human-readable explanation emitted alongside DenyCode.
 	DenyReason string `yaml:"deny_reason,omitempty"`
+	// UnsafeAllowAll grants unrestricted access to every path and method,
+	// restoring the pre-v9 behavior where a role that granted an app granted
+	// all of it. It is the deliberate escape hatch for when the safe path
+	// surface is too restrictive, such as traffic that carries percent-encoding
+	// the matcher would otherwise reject. It bypasses every safety layer,
+	// including the request tokenizer, so a path that would be rejected as
+	// malformed or unsafe is forwarded as-is. Because it is all-or-nothing, it
+	// cannot be combined with any other field; setting it alongside one is a
+	// load error.
+	UnsafeAllowAll bool `yaml:"unsafe_allow_all,omitempty"`
 }
 
 // DenyKind is the structured reason a request was denied. Its values are the
@@ -155,14 +171,38 @@ type CompiledRule struct {
 	denyAlways bool
 	denyCode   string
 	denyReason string
+	// unsafeAllowAll marks a rule compiled from UnsafeAllowAll. The rule's
+	// predicate is the constant true, so it allows every request, and the flag
+	// lets the rule set skip the request tokenizer's pre-rule rejection so a
+	// path that would be rejected as malformed still reaches this allow.
+	unsafeAllowAll bool
 }
 
 // Compile validates a sugared rule and lowers it to one internal predicate. A
-// rule must constrain something through at least one of paths, methods, or
-// where; setting none is a load error.
+// rule must scope its access through paths, or opt into unrestricted access
+// through unsafe_allow_all; setting neither is a load error. Methods and where
+// further narrow a paths rule. unsafe_allow_all is all-or-nothing, so it cannot
+// be combined with any other field.
 func (r Rule) Compile() (*CompiledRule, error) {
-	if len(r.Paths) == 0 && len(r.Methods) == 0 && r.Where == "" {
-		return nil, trace.BadParameter("a rule must set at least one of paths, methods, where")
+	if r.UnsafeAllowAll {
+		if err := r.validateUnsafeAllowAllStandsAlone(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// unsafe_allow_all lowers to the constant true: it allows every request
+		// outright. The rule set reads unsafeAllowAll to skip the tokenizer's
+		// pre-rule rejection too, so even a path the tokenizer would reject as
+		// malformed reaches this allow.
+		pred, err := compilePredicate("true")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &CompiledRule{pred: pred, unsafeAllowAll: true}, nil
+	}
+	if len(r.Paths) == 0 {
+		return nil, trace.BadParameter("a rule must set paths or unsafe_allow_all")
+	}
+	if err := validateMethods(r.Methods); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := validateWhereNoPathMatch(r.Where); err != nil {
 		return nil, trace.Wrap(err)
@@ -281,8 +321,14 @@ func (r Rule) compileDenyOn() (predicate, bool, error) {
 // the tree a hand-written predicate would. The allow code, when set, lowers to
 // a trailing set_allow_code call, so the sugared field and the expression
 // primitive share one representation. The deny code does not appear: it is a
-// sugar-only audit feature with no expression form.
+// sugar-only audit feature with no expression form. unsafe_allow_all lowers to
+// the constant true, which allows every request; its bypass of the request
+// tokenizer is a property of the rule set, not the predicate, so the lowered
+// form alone does not reproduce it on a malformed path.
 func (r Rule) desugar() (string, error) {
+	if r.UnsafeAllowAll {
+		return "true", nil
+	}
 	path, err := r.pathClause()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -370,6 +416,49 @@ func (r Rule) methodClause() string {
 		quoted = append(quoted, strconv.Quote(strings.ToUpper(m)))
 	}
 	return fmt.Sprintf("contains(set(%s), request.method)", strings.Join(quoted, ", "))
+}
+
+// standardMethods is the set of HTTP methods a rule may name, the request
+// methods defined by RFC 9110. A rule that names anything else has a typo, so
+// validateMethods rejects it at load rather than compiling a rule that can
+// never match.
+var standardMethods = map[string]bool{
+	"GET":     true,
+	"HEAD":    true,
+	"POST":    true,
+	"PUT":     true,
+	"PATCH":   true,
+	"DELETE":  true,
+	"CONNECT": true,
+	"OPTIONS": true,
+	"TRACE":   true,
+}
+
+// validateMethods rejects a method that is not a standard HTTP method. The
+// comparison is case-insensitive, matching how methodClause upper-cases before
+// the membership test, so "get" and "GET" are the same method and a typo such
+// as "GTE" fails loudly at load rather than silently never matching.
+func validateMethods(methods []string) error {
+	for _, m := range methods {
+		if !standardMethods[strings.ToUpper(m)] {
+			return trace.BadParameter(
+				"method %q is not a standard HTTP method (GET, HEAD, POST, PUT, PATCH, DELETE, CONNECT, OPTIONS, TRACE)", m)
+		}
+	}
+	return nil
+}
+
+// validateUnsafeAllowAllStandsAlone rejects an unsafe_allow_all rule that also
+// sets another field. unsafe_allow_all grants everything, so any companion
+// field is either redundant or a contradiction, and silently ignoring it would
+// hide an authoring mistake.
+func (r Rule) validateUnsafeAllowAllStandsAlone() error {
+	if len(r.Paths) > 0 || len(r.Methods) > 0 || r.Where != "" ||
+		len(r.AllowEncoded) > 0 || r.AllowCode != "" || r.AllowReason != "" ||
+		r.DenyCode != "" || r.DenyReason != "" {
+		return trace.BadParameter("unsafe_allow_all cannot be combined with any other field")
+	}
+	return nil
 }
 
 // joinClauses ANDs the non-empty clauses.
@@ -630,10 +719,12 @@ func (s RoleSet) EvaluatedRoles() []string {
 // byte, a percent-escape other than the encoded separator %2F, a "." or ".."
 // segment, or consecutive slashes), so it is denied with DenyInvalidRequest
 // before any rule runs, mirroring the agent's pre-rule rejection. Tokenizing is
-// rule-independent, so a single check at the top serves the whole set.
+// rule-independent, so a single check at the top serves the whole set. An
+// unsafe_allow_all rule anywhere in the set turns this floor off, since it
+// grants everything by design, including a path the tokenizer would reject.
 func (s RoleSet) Evaluate(request Request, identity Identity) (Decision, error) {
 	roles := s.EvaluatedRoles()
-	if hasRules, ok := s.canTokenize(request.Path); hasRules && !ok {
+	if hasRules, ok := s.canTokenize(request.Path); hasRules && !ok && !s.hasUnsafeAllowAll() {
 		return Decision{
 			Deny:           &DenyDetails{Kind: DenyInvalidRequest},
 			EvaluatedRoles: roles,
@@ -676,4 +767,20 @@ func (s RoleSet) canTokenize(path string) (hasRules, ok bool) {
 	}
 	_, err := Tokenize(path)
 	return true, err == nil
+}
+
+// hasUnsafeAllowAll reports whether any rule in the set was compiled from
+// unsafe_allow_all. Such a rule allows every request outright, so its presence
+// turns off the tokenizer floor for the whole set: a path the tokenizer would
+// reject as malformed is still forwarded, restoring the pre-v9 behavior the
+// field opts into.
+func (s RoleSet) hasUnsafeAllowAll() bool {
+	for _, role := range s {
+		for _, rule := range role.rules {
+			if rule.unsafeAllowAll {
+				return true
+			}
+		}
+	}
+	return false
 }

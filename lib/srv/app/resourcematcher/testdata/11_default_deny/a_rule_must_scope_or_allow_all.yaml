@@ -1,0 +1,9 @@
+description: a rule must set paths or unsafe_allow_all
+app_resources:
+    # In default-deny v9 a rule must scope its
+    # access through paths, or opt into all of
+    # it through unsafe_allow_all. A where-only
+    # rule scopes nothing by path, so it is a
+    # load error.
+    - where: contains(user.roles, "admin")
+error: a rule must set paths or unsafe_allow_all

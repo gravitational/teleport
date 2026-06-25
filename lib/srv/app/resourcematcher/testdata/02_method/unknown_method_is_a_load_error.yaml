@@ -1,0 +1,10 @@
+description: an unknown method is a load error
+app_resources:
+    # Methods are checked against the standard
+    # HTTP methods, so a typo like GTE fails at
+    # load rather than silently never matching.
+    - paths:
+        - /api/**
+      methods:
+        - GTE
+error: not a standard HTTP method

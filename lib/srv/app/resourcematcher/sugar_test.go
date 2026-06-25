@@ -235,3 +235,79 @@ func TestAllowEncodedClause(t *testing.T) {
 	_, err = Rule{Paths: []string{"/x"}, AllowEncoded: []string{"x"}}.pathClause()
 	require.Error(t, err)
 }
+
+// TestUnsafeAllowAll pins the escape hatch: it desugars to the constant true,
+// allows every request, and bypasses even the tokenizer floor, so a path that a
+// normal rule set would reject as malformed is still allowed. This last part is
+// a property of the rule set, not the lowered predicate, so it cannot be a
+// golden case (the desugared true would be denied by the floor); it is pinned
+// here instead.
+func TestUnsafeAllowAll(t *testing.T) {
+	expr, err := Rule{UnsafeAllowAll: true}.desugar()
+	require.NoError(t, err)
+	require.Equal(t, "true", expr)
+
+	set, err := CompileRoles([]Role{{Name: "r", Resources: []Rule{{UnsafeAllowAll: true}}}})
+	require.NoError(t, err)
+
+	// Every well-formed request is allowed, regardless of method or path.
+	for _, path := range []string{"/anything", "/a/b/c", "/api/v4/projects/g%2Fp/issues"} {
+		got, err := set.Evaluate(Request{Method: "DELETE", Path: path}, Identity{})
+		require.NoError(t, err)
+		require.True(t, got.Allowed, "path %q", path)
+	}
+
+	// A path the tokenizer rejects as malformed (a "." segment, consecutive
+	// slashes, or a non-slash percent-escape) is still allowed: unsafe_allow_all
+	// turns the floor off for the whole set.
+	for _, path := range []string{"/a/../b", "/a//b", "/a/%20/b"} {
+		got, err := set.Evaluate(Request{Method: "GET", Path: path}, Identity{})
+		require.NoError(t, err)
+		require.True(t, got.Allowed, "malformed path %q should still be allowed", path)
+	}
+
+	// Without unsafe_allow_all, the same malformed path is an invalid request.
+	safe, err := CompileRoles([]Role{{Name: "r", Resources: []Rule{{Paths: []string{"/**"}}}}})
+	require.NoError(t, err)
+	got, err := safe.Evaluate(Request{Method: "GET", Path: "/a/../b"}, Identity{})
+	require.NoError(t, err)
+	require.False(t, got.Allowed)
+	require.Equal(t, DenyInvalidRequest, got.Deny.Kind)
+}
+
+// TestUnsafeAllowAllStandsAlone pins that unsafe_allow_all is all-or-nothing: it
+// cannot be combined with any other field, and a rule that sets neither paths
+// nor unsafe_allow_all is rejected.
+func TestUnsafeAllowAllStandsAlone(t *testing.T) {
+	combos := []Rule{
+		{UnsafeAllowAll: true, Paths: []string{"/api"}},
+		{UnsafeAllowAll: true, Methods: []string{"GET"}},
+		{UnsafeAllowAll: true, Where: `contains(user.roles, "admin")`},
+		{UnsafeAllowAll: true, AllowEncoded: []string{"/"}},
+		{UnsafeAllowAll: true, AllowCode: "x"},
+		{UnsafeAllowAll: true, DenyCode: "x"},
+	}
+	for i, r := range combos {
+		_, err := r.Compile()
+		require.Error(t, err, "combo %d should be rejected", i)
+	}
+
+	// A rule that scopes nothing and does not opt into everything is rejected.
+	_, err := Rule{Methods: []string{"GET"}}.Compile()
+	require.Error(t, err)
+	_, err = Rule{Where: `contains(user.roles, "admin")`}.Compile()
+	require.Error(t, err)
+}
+
+// TestValidateMethods pins that a rule's methods are checked against the
+// standard HTTP methods, case-insensitively, so a typo is a load error while a
+// lower-cased standard method is accepted.
+func TestValidateMethods(t *testing.T) {
+	_, err := Rule{Paths: []string{"/api"}, Methods: []string{"GET", "post", "PATCH"}}.Compile()
+	require.NoError(t, err)
+
+	for _, m := range []string{"GTE", "FETCH", "get ", ""} {
+		_, err := Rule{Paths: []string{"/api"}, Methods: []string{m}}.Compile()
+		require.Error(t, err, "method %q should be rejected", m)
+	}
+}

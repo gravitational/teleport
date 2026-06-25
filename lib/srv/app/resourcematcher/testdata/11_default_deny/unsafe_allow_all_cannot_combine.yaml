@@ -1,0 +1,9 @@
+description: unsafe_allow_all cannot be combined with another field
+app_resources:
+    # unsafe_allow_all is all-or-nothing, so
+    # pairing it with paths (or any field) is
+    # a load error rather than a silent ignore.
+    - unsafe_allow_all: true
+      paths:
+        - /api/**
+error: unsafe_allow_all cannot be combined with any other field

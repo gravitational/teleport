@@ -1,0 +1,30 @@
+description: unsafe_allow_all grants every path and method
+app_resources:
+    # The escape hatch: grant the whole app,
+    # any method, any path, even an encoded
+    # slash mid-path that /** would reject.
+    # allows GET /anything/at/all
+    # allows a mid-path %2F
+    - unsafe_allow_all: true
+app_resources_desugared:
+    - "true"
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /anything/at/all
+      expect:
+        allowed: true
+    - request:
+        method: POST
+        path: /admin/settings
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/v4/projects/mygroup%2Fmyproject/issues
+      expect:
+        allowed: true

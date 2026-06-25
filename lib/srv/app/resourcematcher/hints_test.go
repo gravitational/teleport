@@ -107,27 +107,17 @@ deny_reason: "Project is not in your allowlist."
 	require.Empty(t, got.Deny.Hints)
 }
 
-// TestDenyCodeWhereOnly pins that a where-only rule, with no path or method to
-// scope the near-miss, fires its deny code on any deny in the rule's scope.
-func TestDenyCodeWhereOnly(t *testing.T) {
-	rule, err := ruleFromYAML(t, `
+// TestWhereOnlyRejected pins that a where-only rule is a load error in v9: a
+// rule must scope its access through paths or opt into everything through
+// unsafe_allow_all, so a rule with only a where clause, even one carrying a deny
+// code, no longer compiles.
+func TestWhereOnlyRejected(t *testing.T) {
+	_, err := ruleFromYAML(t, `
 where: contains(user.roles, "admin")
 deny_code: needs_admin
 deny_reason: "You need the admin role."
 `).Compile()
-	require.NoError(t, err)
-
-	// The identity qualifies: allow, no deny code.
-	got, err := rule.Evaluate(Request{Method: "GET", Path: "/anything"}, Identity{Roles: []string{"admin"}})
-	require.NoError(t, err)
-	require.True(t, got.Allowed)
-
-	// The identity does not qualify: the deny code fires, with no path or method
-	// to scope it.
-	got, err = rule.Evaluate(Request{Method: "GET", Path: "/anything"}, Identity{Roles: []string{"viewer"}})
-	require.NoError(t, err)
-	require.False(t, got.Allowed)
-	require.Equal(t, []Hint{{Code: "needs_admin", Reason: "You need the admin role."}}, got.Deny.Hints)
+	require.Error(t, err)
 }
 
 // TestDenyReasonWithoutCodeRejected pins that a deny_reason with no deny_code is

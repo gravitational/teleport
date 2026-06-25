@@ -179,6 +179,11 @@ func mustNewParser() *typical.CachedParser[env, bool] {
 func newParser() (*typical.CachedParser[env, bool], error) {
 	p, err := typical.NewCachedParser[env, bool](typical.ParserSpec[env]{
 		Variables: map[string]typical.Variable{
+			// true is the constant that unsafe_allow_all lowers to: a rule that
+			// allows every request outright. It is a real boolean literal in the
+			// language, so the lowered predicate "true" parses and evaluates like
+			// any other expression rather than failing as an unknown identifier.
+			"true": true,
 			"user.name": typical.DynamicVariable(func(e env) (string, error) {
 				return e.user.Name, nil
 			}),
