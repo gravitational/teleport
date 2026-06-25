@@ -45,6 +45,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -1059,7 +1060,10 @@ func testAppServerScoped(initialScope, serverScope, appScope string, expectOK bo
 						Version:  types.V3,
 						Scope:    appScope,
 						Metadata: types.Metadata{Name: "app"},
-						Spec:     types.AppSpecV3{URI: "http://localhost:8080"},
+						Spec: types.AppSpecV3{
+							URI:        "http://localhost:8080",
+							PublicAddr: scopedapp.ScopedAppPublicAddr(appScope, "app", "teleport.example.com"),
+						},
 					},
 				},
 			},
