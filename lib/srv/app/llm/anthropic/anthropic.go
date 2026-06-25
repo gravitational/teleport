@@ -30,46 +30,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	"github.com/gravitational/teleport/lib/srv/app/llm/models"
+	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// NewRequestConfig is config used to create a new provide request.
-type NewRequestConfig struct {
-	// LLM inference endpoint configuration.
-	LLM *types.LLM
-	// DownstreamRequest is the received downstream request.
-	DownstreamRequest *http.Request
-	// ProviderURL is the provider URL address.
-	ProviderURL *url.URL
-	// GetAPIKeyFunc is the function used to retrieve Anthropic API keys.
-	GetAPIKeyFunc func() string
-}
-
-func (c *NewRequestConfig) CheckAndSetDefaults() error {
-	if c.LLM == nil {
-		return trace.BadParameter("llm information is required")
-	}
-	if c.DownstreamRequest == nil {
-		return trace.BadParameter("downstream request is required")
-	}
-	if c.GetAPIKeyFunc == nil {
-		return trace.BadParameter("get api key function is required")
-	}
-
-	// Default URL address.
-	//
-	// https://platform.claude.com/docs/en/api/overview
-	c.ProviderURL = cmp.Or(c.ProviderURL, &url.URL{
-		Scheme: "https",
-		Host:   "api.anthropic.com",
-		Path:   "/v1",
-	})
-	return nil
-}
-
 // NewRequest creates a new provider request based on the downstream request,
 // and inference endpoint configuration.
-func NewRequest(cfg *NewRequestConfig) (*http.Request, *RequestInfo, error) {
+func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
 	var (
 		info            = &RequestInfo{}
 		providerPath    string
@@ -80,6 +47,15 @@ func NewRequest(cfg *NewRequestConfig) (*http.Request, *RequestInfo, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, info, trace.Wrap(err)
 	}
+
+	// Default URL address.
+	//
+	// https://platform.claude.com/docs/en/api/overview
+	cfg.ProviderURL = cmp.Or(cfg.ProviderURL, &url.URL{
+		Scheme: "https",
+		Host:   "api.anthropic.com",
+		Path:   "/v1",
+	})
 
 	// TODO(gabrielcorado): add support for bedrock provider.
 	switch cfg.LLM.Provider {
