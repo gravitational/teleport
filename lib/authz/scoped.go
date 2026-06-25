@@ -292,3 +292,17 @@ func (s *ScopedContext) LockTargets() []types.LockTarget {
 	}
 	return lockTargets
 }
+
+// DisplayName returns a display name for the calling identity.
+// authzContext.User is nil for non-user (agent/builtin) identities, so fall back to
+// the identity's username.
+// TODO (williamo/scopes) - consider implementing slog.LogValuer if we end up only needing this for logging.
+func (s *ScopedContext) DisplayName() string {
+	if s.User != nil {
+		return s.User.GetName()
+	}
+	if s.Identity != nil {
+		return s.Identity.GetIdentity().Username
+	}
+	return ""
+}

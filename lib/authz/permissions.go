@@ -2125,12 +2125,7 @@ func IsLocalOrRemoteUser(authContext Context) bool {
 
 // IsLocalOrRemoteService checks if the identity is either a local or remote service.
 func IsLocalOrRemoteService(authContext Context) bool {
-	switch authContext.UnmappedIdentity.(type) {
-	case BuiltinRole, RemoteBuiltinRole:
-		return true
-	default:
-		return false
-	}
+	return isLocalOrRemoteService(authContext.UnmappedIdentity)
 }
 
 // IsCurrentUser checks if the identity is a local user matching the given username
@@ -2142,6 +2137,30 @@ func IsCurrentUser(authContext Context, username string) bool {
 func ScopedIsCurrentUser(scopedContext *ScopedContext, username string) bool {
 	_, isLocal := scopedContext.Identity.(LocalUser)
 	return isLocal && scopedContext.User.GetName() == username
+}
+
+// ScopedIsLocalOrRemoteService checks if the scoped identity is either a local or
+// remote service, for scoped or unscoped agents alike. This is the
+// scoped aware counterpart to [IsLocalOrRemoteService].
+// RemoteBuiltinRoles continue to be only available for unscoped identities.
+func ScopedIsLocalOrRemoteService(scopedContext *ScopedContext) bool {
+	if scopedContext == nil {
+		return false
+	}
+
+	if scopedContext.unscopedContext != nil {
+		return isLocalOrRemoteService(scopedContext.unscopedContext.UnmappedIdentity)
+	}
+	return isLocalOrRemoteService(scopedContext.Identity)
+}
+
+func isLocalOrRemoteService(identity IdentityGetter) bool {
+	switch identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole, ScopedBuiltinRole:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsRemoteUser checks if the identity is a remote user.
