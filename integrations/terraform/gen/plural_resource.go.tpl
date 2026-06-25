@@ -52,6 +52,9 @@ import (
 {{- if .Namespaced }}
 	"github.com/gravitational/teleport/api/defaults"
 {{- end }}
+{{- if .Scoped }}
+	"github.com/gravitational/teleport/lib/scopes"
+{{- end }}
 
 	{{ schemaImport . }}
 )
@@ -157,10 +160,16 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	idPrefix := {{.VarName}}Resource.{{ join (slice (split .IDPrefix ".") 1) "." }}
 	{{ end -}}
 	id := {{.VarName}}Resource.Metadata.Name
+	{{- if .Scoped }}
+	scope := {{.VarName}}Resource.GetScope()
+	{{- end }}
 {{- if .RequestWrapper}}
 
 	_, err = r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: id,
+		{{- if .Scoped}}
+		Scope: scope,
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: {{.VarName}}Resource.SubKind,
 		{{- end}}
@@ -170,7 +179,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	})
 {{- else}}
 
-	_, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	_, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if .Scoped}}, scope{{end}}{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 {{- end}}
 	if !trace.IsNotFound(err) {
 		if err == nil {
@@ -226,6 +235,9 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{- if .RequestWrapper}}
 		{{.VarName}}GetResp, getErr := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 			Name: id,
+			{{- if .Scoped}}
+			Scope: scope,
+			{{- end}}
 			{{- if .DefaultSubKind}}
 			SubKind: {{.VarName}}Resource.SubKind,
 			{{- end}}
@@ -242,7 +254,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		{{- end}}
 		}
 	{{- else}}
-		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if .Scoped}}, scope{{end}}{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	{{- end}}
 		if trace.IsNotFound(err) {
 		    select {
@@ -337,7 +349,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 			{{ .VarName }} := {{ .VarName }}Resp.Get{{ .RequestWrapper.RequestResourceField }}()
 			{{- end}}
 		{{- else }}
-			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, id)
+			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, id{{if .Scoped}}, scope{{end}})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
@@ -404,6 +416,18 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .Scoped}}
+	var scope types.String
+	{{- if .ConvertPackagePath}}
+	diags = req.State.GetAttribute(ctx, path.Root("header").AtName("scope"), &scope)
+	{{- else }}
+	diags = req.State.GetAttribute(ctx, path.Root("scope"), &scope)
+	{{- end}}
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+{{- end}}
 {{- if .DefaultSubKind}}
 	var subKind types.String
 	diags = req.State.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
@@ -419,6 +443,9 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: id.Value,
+		{{- if .Scoped}}
+		Scope: scope.Value,
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: subKind.Value,
 		{{- end}}
@@ -428,7 +455,7 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 	})
 {{- else}}
 
-	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if .Scoped}}, scope.Value{{end}}{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 {{- end}}
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
@@ -517,10 +544,16 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	idPrefix := {{.VarName}}Resource.{{$idPrefix}}
 	{{ end -}}
 	name := {{.VarName}}Resource.Metadata.Name
+	{{- if .Scoped }}
+	scope := {{.VarName}}Resource.GetScope()
+	{{- end }}
 {{- if .RequestWrapper}}
 
 	{{.VarName}}BeforeResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: name,
+		{{- if .Scoped}}
+		Scope: scope,
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: {{.VarName}}Resource.SubKind,
 		{{- end}}
@@ -539,7 +572,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	{{- end}}
 {{- else}}
 
-	{{.VarName}}Before, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}Before, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if .Scoped}}, scope{{end}}{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
 		return
@@ -605,7 +638,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		{{- end}}
 		}
 	{{- else}}
-		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if .Scoped}}, scope{{end}}{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	{{- end}}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
@@ -683,7 +716,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 			{{ .VarName }} := {{ .VarName }}Resp.Get{{ .RequestWrapper.RequestResourceField }}()
 			{{- end}}
 		{{- else }}
-			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, name)
+			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, name{{if .Scoped}}, scope{{end}})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
@@ -743,6 +776,18 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .Scoped}}
+	var scope types.String
+	{{- if .ConvertPackagePath}}
+	diags = req.State.GetAttribute(ctx, path.Root("header").AtName("scope"), &scope)
+	{{- else }}
+	diags = req.State.GetAttribute(ctx, path.Root("scope"), &scope)
+	{{- end}}
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+{{- end}}
 {{- if .DefaultSubKind}}
 	var subKind types.String
 	diags = req.State.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
@@ -758,13 +803,16 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 
 	_, err := r.p.Client.{{.DeleteMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.DeleteRequest}}{
 		Name: id.Value,
+		{{- if .Scoped}}
+		Scope: scope.Value,
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: subKind.Value,
 		{{- end}}
 	})
 {{- else}}
 
-	err := r.p.Client.{{.DeleteMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value)
+	err := r.p.Client.{{.DeleteMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if .Scoped}}, scope.Value{{end}})
 {{- end}}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting {{.TypeName}}", trace.Wrap(err), "{{.Kind}}"))
@@ -785,9 +833,19 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		name = after
 	}
 {{- end}}
+{{- if .Scoped}}
+	qn, err := scopes.ParseQualifiedName(req.ID)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error parsing {{.Name}} ID", trace.Wrap(err), "{{.Kind}}"))
+		return
+	}
+{{- end}}
 {{- if .RequestWrapper}}
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
-		Name: {{if .DefaultSubKind}}name{{else}}req.ID{{end}},
+		Name: {{if .Scoped}}qn.Name{{else}}{{if .DefaultSubKind}}name{{else}}req.ID{{end}}{{end}},
+		{{- if .Scoped}}
+		Scope: qn.Scope,
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: subKind,
 		{{- end}}
@@ -813,7 +871,7 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 	}
 	{{.VarName}}, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}idPrefix, name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	{{- else}}
-	{{.VarName}}, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}req.ID{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .Scoped}}qn.Name, qn.Scope{{else}}req.ID{{end}}{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	{{- end}}
 {{- end}}
 	if err != nil {

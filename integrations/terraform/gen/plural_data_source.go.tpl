@@ -74,6 +74,15 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+{{- if .Scoped}}
+	var scope types.String
+	diags = req.Config.GetAttribute(ctx, path.Root({{ if .ConvertPackagePath }}"header").AtName({{ end }}"scope"), &scope)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+{{- end}}
 {{- if .DefaultSubKind}}
 	var subKind types.String
 	diags = req.Config.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
@@ -97,8 +106,13 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 		{{- end}}
 	})
 {{- else}}
+{{- if .Scoped }}
+
+	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value, scope.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+{{- else }}
 
 	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+{{- end }}
 {{- end}}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
