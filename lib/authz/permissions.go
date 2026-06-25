@@ -1399,6 +1399,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindUserTask, services.RW()),
+						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
 					},
 					// Discovery service should only access kubes/apps/dbs that originated from discovery.
 					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
