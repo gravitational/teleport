@@ -221,8 +221,9 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Scheme = t.uri.Scheme
 	r.URL.Host = t.uri.Host
 
-	// Add in JWT headers.
+	// Add in the JWT headers.
 	r.Header.Set(teleport.AppJWTHeader, t.jwt)
+
 	// Add headers from rewrite configuration.
 	rewriteHeaders := common.AppRewriteHeaders(r.Context(), t.app.GetRewrite(), t.log)
 	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.rewriteTraits, t.log)

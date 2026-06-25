@@ -151,7 +151,8 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
 	// TODO(greedy52) consider using a shorter ttl for the token. The chunk is
 	// only 5 minutes anyway.
-	jwt, rewriteTraits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient, identity.Expires)
+	var err error
+	jwt, rewriteTraits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient, identity.Expires, app.GetScope())
 	if err != nil {
 		return trace.Wrap(err)
 	}

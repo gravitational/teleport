@@ -20,6 +20,7 @@ package usersv1
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -176,9 +177,54 @@ func (s *Service) getCurrentUser(ctx context.Context, scopedCtx *authz.ScopedCon
 	return v2, nil
 }
 
+// getUserScoped serves GetUser for scoped identities. Scoped callers — such as
+// scope-pinned agents resolving a connecting user while authorizing a connection
+// — may read a single named user without secrets. Users are cluster-global, so
+// the read is authorized as an unpinned root read regardless of the caller's pin.
+func (s *Service) getUserScoped(ctx context.Context, req *userspb.GetUserRequest, sa authz.ScopedAuthorizer) (*userspb.GetUserResponse, error) {
+	if req.GetWithSecrets() {
+		return nil, trace.AccessDenied("scoped identities cannot read users with secrets")
+	}
+	if req.GetCurrentUser() || req.GetName() == "" {
+		return nil, trace.AccessDenied("scoped identities must request a named user")
+	}
+
+	scopedCtx, err := sa.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := scopedCtx.RuleContext()
+	if err := scopedCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadUsers, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	user, err := s.cache.GetUser(ctx, req.GetName(), false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v2, ok := user.(*types.UserV2)
+	if !ok {
+		s.logger.WarnContext(ctx, "unexpected user type",
+			"got_type", logutils.TypeAttr(user),
+			"expected_type", "UserV2",
+			"user", user.GetName(),
+		)
+		return nil, trace.BadParameter("encountered unexpected user type")
+	}
+	return userspb.GetUserResponse_builder{User: v2}.Build(), nil
+}
+
 func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*userspb.GetUserResponse, error) {
 	scopedCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
+		// Scoped identities cannot use standard authz. A scope-pinned agent still
+		// needs to read a connecting user (without secrets) to authorize the
+		// connection, so route those reads through the scoped unpinned-read path.
+		if errors.Is(err, services.ErrScopedIdentity) {
+			if sa, ok := s.authorizer.(authz.ScopedAuthorizer); ok {
+				return s.getUserScoped(ctx, req, sa)
+			}
+		}
 		return nil, trace.Wrap(err)
 	}
 

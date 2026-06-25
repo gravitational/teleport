@@ -436,6 +436,21 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 	return tracker, nil
 }
 
+// CreateSessionTracker is the scoped equivalent of [ServerWithRoles.CreateSessionTracker].
+func (a *ScopedServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.CreateSessionTracker(ctx, tracker)
+	}
+	if _, isServer := getBuiltinServerID(a.scopedContext.Identity); !isServer {
+		return nil, trace.AccessDenied("this request can be only executed by a teleport built-in server")
+	}
+	tracker, err := a.authServer.CreateSessionTracker(ctx, tracker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tracker, nil
+}
+
 func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
 	// Apply RFD 45 RBAC rules to the session if it's SSH.
 	// This is a bit of a hack. It converts to the old legacy format
@@ -672,6 +687,17 @@ func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.U
 		return trace.Wrap(err)
 	}
 
+	return a.authServer.UpdateSessionTracker(ctx, req)
+}
+
+// UpdateSessionTracker is the scoped equivalent of [ServerWithRoles.UpdateSessionTracker].
+func (a *ScopedServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.UpdateSessionTracker(ctx, req)
+	}
+	if _, isServer := getBuiltinServerID(a.scopedContext.Identity); !isServer {
+		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
+	}
 	return a.authServer.UpdateSessionTracker(ctx, req)
 }
 
@@ -5639,6 +5665,22 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	return role, nil
 }
 
+// GetRole is the scoped equivalent of [ServerWithRoles.GetRole]. Roles are
+// cluster-global: agents read the roles of a connecting user to authorize the
+// connection, regardless of the agent's pinned scope. Unscoped callers defer to
+// the full unscoped implementation (preserving the current-user exception and
+// per-role access checks); scoped callers are authorized via an unpinned root read.
+func (a *ScopedServerWithRoles) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.GetRole(ctx, name)
+	}
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadRoles, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetRole(ctx, name)
+}
+
 // DeleteRole deletes role by name
 func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	// See if the user has access to this individual role. If this get fails,
@@ -6665,6 +6707,29 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 
+	token, err := a.authServer.generateAppToken(ctx, req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
+}
+
+// GenerateAppToken is the scoped equivalent of [ServerWithRoles.GenerateAppToken].
+// Minting an app JWT is a cluster-global signing operation (it uses the cluster JWT
+// CA), not a scope-partitioned resource, so the jwt:create grant is enforced as an
+// unpinned write. Scoped app agents carry jwt RW in their built-in role, so the check
+// resolves there; agents without the grant (e.g. node) are denied.
+func (a *ScopedServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.GenerateAppToken(ctx, req)
+	}
+	ruleCtx := a.scopedContext.RuleContext()
+	scope := a.scopedContext.Identity.GetIdentity().GetAgentScope() // the GenerateAppTokenRequest
+	if err := a.scopedContext.CheckerContext.Decision(ctx, scope, func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, types.VerbCreate)
+	}); err != nil {
+		return "", trace.Wrap(err)
+	}
 	token, err := a.authServer.generateAppToken(ctx, req)
 	if err != nil {
 		return "", trace.Wrap(err)
