@@ -38,23 +38,31 @@ struct LandingView: View {
 				.scrollBounceBehavior(.basedOnSize)
 			}
 			.padding(.horizontal)
+
+			// MARK: Navigation
+
 			.navigationDestination(
 				item: $viewModel.destination.deviceEnrollment,
 				destination: { deviceEnrollmentViewModel in
 					EnrollDeviceView(viewModel: deviceEnrollmentViewModel)
 				},
 			)
-			.alert(item: $viewModel.destination.deepLinkParsingAlert, title: { errorMessage in
-				Text(errorMessage)
-			}, actions: { _ in
-				Button("OK") {}
-			})
+			.alert(
+				item: $viewModel.destination.deepLinkParsingAlert,
+				title: { errorMessage in
+					Text(errorMessage)
+				},
+				actions: { _ in
+					Button("OK") {}
+				},
+			)
 		}
 	}
+}
 
-	// MARK: Subviews
+// MARK: - Subviews
 
-	@ViewBuilder
+extension LandingView {
 	private var titleBlock: some View {
 		VStack(spacing: .small) {
 			Text("Scan QR code")
