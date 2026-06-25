@@ -372,7 +372,8 @@ func (r resourceTeleportAccessList) ModifyPlan(ctx context.Context, req tfsdk.Mo
 
 	accessList = convert.ToProto(accessListResource)
 
-	resp.Diagnostics.Append(schemav1.CopyAccessListToTerraform(ctx, accessList, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(schemav1.CopyAccessListToTerraformPreserveUnknown(ctx, accessList, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

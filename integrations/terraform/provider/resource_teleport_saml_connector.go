@@ -371,7 +371,8 @@ func (r resourceTeleportSAMLConnector) ModifyPlan(ctx context.Context, req tfsdk
 
 	samlConnector = samlConnectorResource
 
-	resp.Diagnostics.Append(tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(tfschema.CopySAMLConnectorV2ToTerraformPreserveUnknown(ctx, samlConnector, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
