@@ -6,16 +6,13 @@ tags:
  - conceptual
  - zero-trust
  - privileged-access
+page_type: reference
 ---
 
-This guide explains the way the Teleport Kubernetes Service applies role-based
-access controls when a Teleport user interacts with a Kubernetes cluster. The
-Kubernetes Service intercepts requests to a Kubernetes API server and modifies
-each request depending on the user's Teleport roles.
-
-In this guide, we will show you how to configure the fields available in a
-Teleport role to manage access to Kubernetes clusters you have connected to
-Teleport.
+This guide lists the fields that Teleport roles provide for managing access to
+Teleport-protected Kubernetes clusters. The Kubernetes Service intercepts
+requests to a Kubernetes API server and modifies each request depending on the
+user's Teleport roles.
 
 For an example of how to use Teleport roles to manage access to Kubernetes with
 a local `minikube` cluster, see our [RBAC how-to guide](./manage-access.mdx).
