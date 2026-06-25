@@ -184,10 +184,10 @@ type CompiledRule struct {
 // further narrow a paths rule. unsafe_allow_all is all-or-nothing, so it cannot
 // be combined with any other field.
 func (r Rule) Compile() (*CompiledRule, error) {
+	if err := r.validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if r.UnsafeAllowAll {
-		if err := r.validateUnsafeAllowAllStandsAlone(); err != nil {
-			return nil, trace.Wrap(err)
-		}
 		// unsafe_allow_all lowers to the constant true: it allows every request
 		// outright. The rule set reads unsafeAllowAll to skip the tokenizer's
 		// pre-rule rejection too, so even a path the tokenizer would reject as
@@ -197,20 +197,6 @@ func (r Rule) Compile() (*CompiledRule, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &CompiledRule{pred: pred, unsafeAllowAll: true}, nil
-	}
-	if len(r.Paths) == 0 {
-		return nil, trace.BadParameter("a rule must set paths or unsafe_allow_all")
-	}
-	if err := validateMethods(r.Methods); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := validateWhereNoPathMatch(r.Where); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if r.AllowCode != "" {
-		if err := validateCode(r.AllowCode); err != nil {
-			return nil, trace.Wrap(err, "invalid allow_code")
-		}
 	}
 
 	expr, err := r.desugar()
@@ -326,6 +312,9 @@ func (r Rule) compileDenyOn() (predicate, bool, error) {
 // tokenizer is a property of the rule set, not the predicate, so the lowered
 // form alone does not reproduce it on a malformed path.
 func (r Rule) desugar() (string, error) {
+	if err := r.validate(); err != nil {
+		return "", trace.Wrap(err)
+	}
 	if r.UnsafeAllowAll {
 		return "true", nil
 	}
@@ -443,6 +432,33 @@ func validateMethods(methods []string) error {
 		if !standardMethods[strings.ToUpper(m)] {
 			return trace.BadParameter(
 				"method %q is not a standard HTTP method (GET, HEAD, POST, PUT, PATCH, DELETE, CONNECT, OPTIONS, TRACE)", m)
+		}
+	}
+	return nil
+}
+
+// validate checks a rule's structural constraints, the ones that decide whether
+// the rule may be lowered at all. Both Compile and desugar call it, so the
+// sugared and desugared surfaces agree on exactly which rules are valid: a rule
+// that fails here errors the same way whether it is compiled or merely lowered
+// for display. Value-level checks that the desugared predicate would itself
+// reject, such as a malformed path pattern, are left to compilation.
+func (r Rule) validate() error {
+	if r.UnsafeAllowAll {
+		return r.validateUnsafeAllowAllStandsAlone()
+	}
+	if len(r.Paths) == 0 {
+		return trace.BadParameter("a rule must set paths or unsafe_allow_all")
+	}
+	if err := validateMethods(r.Methods); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateWhereNoPathMatch(r.Where); err != nil {
+		return trace.Wrap(err)
+	}
+	if r.AllowCode != "" {
+		if err := validateCode(r.AllowCode); err != nil {
+			return trace.Wrap(err, "invalid allow_code")
 		}
 	}
 	return nil
