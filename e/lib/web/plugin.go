@@ -298,7 +298,9 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.DELETE("/enterprise/accessrequest/:requestId", h.WithAuth(p.deleteAccessRequestHandle))
 	h.GET("/enterprise/accessrequest/:requestId", h.WithClusterClientProvider(p.getAccessRequestHandle))
 	h.GET("/enterprise/accessrequest", h.WithClusterClientProvider(p.getAccessRequestsHandle))
+	//nolint:staticcheck // TODO(kiosion): DELETE IN v20.0
 	h.GET("/enterprise/resourcerequestroles", h.WithClusterClientProvider(p.getResourceRequestRolesHandle))
+	h.POST("/enterprise/resourcerequestroles", h.WithClusterClientProvider(p.getResourceRequestRolesV2Handle))
 	h.GET("/enterprise/accessrequest/:requestId/suggestions/accesslist", h.WithClusterClientProvider(p.getSuggestedAccessListsHandle))
 	h.POST("/enterprise/accessrequest/:requestId/promote", h.WithClusterClientProvider(p.accessRequestPromoteHandle))
 

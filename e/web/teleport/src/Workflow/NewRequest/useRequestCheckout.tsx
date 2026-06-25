@@ -21,6 +21,7 @@ import {
   CreateAccessRequest,
 } from 'e-teleport/services/workflow';
 import Ctx from 'e-teleport/teleportContextE';
+import { ApiError } from 'teleport/services/api/parseError';
 import KubeService from 'teleport/services/kube';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
@@ -113,7 +114,7 @@ export function useRequestCheckout({
       }
     }
     return () => abortController.abort();
-  }, [addedResources, numAddedResources]);
+  }, [addedResources, addedResourceConstraints, numAddedResources]);
 
   // If adding constraints, switch to a short-term request.
   useEffect(() => {
@@ -240,30 +241,59 @@ export function useRequestCheckout({
   }
 
   // Fetches the necessary roles for a resource request
-  // TODO(kiosion): update to handle ResourceAccessId.
-  function fetchResourceRequestRoles(signal: AbortSignal) {
+  async function fetchResourceRequestRoles(signal: AbortSignal) {
     fetchResourceRequestRolesAttempt.setAttempt({ status: 'processing' });
-    const resourceIdRequest: ResourceId[] = getResourceIDsForRequest({
+    const resourceAccessIds = getResourceIDsForRequest({
       resources: pendingAccessRequestsWithoutParentResource,
       resourceConstraints: addedResourceConstraints,
       cluster: clusterId,
-    }).map(r => r.id);
+    });
 
-    ctx.workflowService
-      .fetchResourceRequestRoles(resourceIdRequest, signal)
-      .then(roles => {
+    // Try the V2 endpoint first if any resources carry constraints.
+    if (resourceAccessIds.some(r => !!r.constraints)) {
+      try {
+        const roles = await ctx.workflowService.fetchResourceRequestRolesV2(
+          resourceAccessIds,
+          signal
+        );
         fetchResourceRequestRolesAttempt.setAttempt({ status: 'success' });
         setResourceRequestRoles(roles);
         setSelectedResourceRequestRoles(roles);
-      })
-      .catch((err: Error) => {
-        if (!signal.aborted) {
+        return;
+      } catch (err) {
+        if (signal.aborted) return;
+        // Old Proxies without the V2 POST endpoint return 404; fall back to V1.
+        if (
+          err instanceof ApiError &&
+          ![404, 405].includes(err?.response?.status)
+        ) {
           fetchResourceRequestRolesAttempt.setAttempt({
             status: 'failed',
             statusText: err.message,
           });
+          return;
         }
-      });
+      }
+    }
+
+    // TODO(kiosion): DELETE IN v20.0
+    // Fallback to V1 endpoint (no constraints, or V2 failed on older proxy).
+    try {
+      const roles = await ctx.workflowService.fetchResourceRequestRoles(
+        resourceAccessIds.map(r => r.id),
+        signal
+      );
+      fetchResourceRequestRolesAttempt.setAttempt({ status: 'success' });
+      setResourceRequestRoles(roles);
+      setSelectedResourceRequestRoles(roles);
+    } catch (err) {
+      if (!signal.aborted) {
+        fetchResourceRequestRolesAttempt.setAttempt({
+          status: 'failed',
+          statusText: (err as Error).message,
+        });
+      }
+    }
   }
 
   function clearAttempt() {

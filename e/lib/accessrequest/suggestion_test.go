@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -286,6 +287,365 @@ func TestGenerateAccessRequestPromotions(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGenerateAccessRequestPromotions_WithConstraints(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name               string
+		nodes              []testNodeDesc
+		apps               []testAppDesc
+		roles              []testRoleDesc
+		users              []testUserDesc
+		accessLists        []testAccessListDesc
+		accessRequest      testAccessRequestDesc
+		expectedPromotions []string
+	}{
+		{
+			name: "AL not promoted when its role lacks the requested role_arns",
+			apps: []testAppDesc{
+				{name: "awsconsole", labels: map[string]string{"env": "prod"}},
+			},
+			roles: []testRoleDesc{
+				{
+					name: "app-no-arns",
+					allow: types.RoleConditions{
+						AppLabels: types.Labels{"env": []string{"prod"}},
+					},
+				},
+			},
+			users: []testUserDesc{{name: "user1"}},
+			accessLists: []testAccessListDesc{
+				{
+					name:         "al-no-match",
+					owners:       []string{"test-owner"},
+					grantedRoles: []string{"app-no-arns"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name: "req",
+				user: "user1",
+				resourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{ClusterName: "test-cluster", Kind: types.KindApp, Name: "awsconsole"},
+						Constraints: &types.ResourceConstraints{
+							Details: &types.ResourceConstraints_AwsConsole{
+								AwsConsole: &types.AWSConsoleResourceConstraints{
+									RoleArns: []string{"arn:aws:iam::123456789012:role/test-role"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPromotions: []string{},
+		},
+		{
+			name: "AL promoted when its role grants the requested role_arns",
+			apps: []testAppDesc{
+				{name: "awsconsole", labels: map[string]string{"env": "prod"}},
+			},
+			roles: []testRoleDesc{
+				{
+					name: "app-with-arns",
+					allow: types.RoleConditions{
+						AppLabels:   types.Labels{"env": []string{"prod"}},
+						AWSRoleARNs: []string{"arn:aws:iam::123456789012:role/test-role"},
+					},
+				},
+			},
+			users: []testUserDesc{{name: "user1"}},
+			accessLists: []testAccessListDesc{
+				{
+					name:         "al-match",
+					owners:       []string{"test-owner"},
+					grantedRoles: []string{"app-with-arns"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name: "req",
+				user: "user1",
+				resourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{ClusterName: "test-cluster", Kind: types.KindApp, Name: "awsconsole"},
+						Constraints: &types.ResourceConstraints{
+							Details: &types.ResourceConstraints_AwsConsole{
+								AwsConsole: &types.AWSConsoleResourceConstraints{
+									RoleArns: []string{"arn:aws:iam::123456789012:role/test-role"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPromotions: []string{"al-match"},
+		},
+		{
+			name: "unconstrained request still matches AL (backwards-compatible)",
+			apps: []testAppDesc{
+				{name: "awsconsole", labels: map[string]string{"env": "prod"}},
+			},
+			roles: []testRoleDesc{
+				{
+					name: "app-access",
+					allow: types.RoleConditions{
+						AppLabels: types.Labels{"env": []string{"prod"}},
+					},
+				},
+			},
+			users: []testUserDesc{{name: "user1"}},
+			accessLists: []testAccessListDesc{
+				{
+					name:         "al-broad",
+					owners:       []string{"test-owner"},
+					grantedRoles: []string{"app-access"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name: "req",
+				user: "user1",
+				resourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{ClusterName: "test-cluster", Kind: types.KindApp, Name: "awsconsole"},
+					},
+				},
+			},
+			expectedPromotions: []string{"al-broad"},
+		},
+		{
+			name: "SSH login constraint filters AL promotions",
+			nodes: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"env": "prod"}},
+			},
+			roles: []testRoleDesc{
+				{
+					name: "ssh-basic",
+					allow: types.RoleConditions{
+						NodeLabels: types.Labels{"env": []string{"prod"}},
+						Logins:     []string{"ubuntu"},
+					},
+				},
+				{
+					name: "ssh-root",
+					allow: types.RoleConditions{
+						NodeLabels: types.Labels{"env": []string{"prod"}},
+						Logins:     []string{"ubuntu", "root"},
+					},
+				},
+			},
+			users: []testUserDesc{{name: "user1"}},
+			accessLists: []testAccessListDesc{
+				{
+					name:         "al-basic",
+					owners:       []string{"test-owner"},
+					grantedRoles: []string{"ssh-basic"},
+				},
+				{
+					name:         "al-root",
+					owners:       []string{"test-owner"},
+					grantedRoles: []string{"ssh-root"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name: "req",
+				user: "user1",
+				resourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{ClusterName: "test-cluster", Kind: types.KindNode, Name: "server1"},
+						Constraints: &types.ResourceConstraints{
+							Details: &types.ResourceConstraints_Ssh{
+								Ssh: &types.SSHResourceConstraints{
+									Logins: []string{"root"},
+								},
+							},
+						},
+					},
+				},
+			},
+			// Only al-root's role grants "root" login.
+			expectedPromotions: []string{"al-root"},
+		},
+		{
+			name: "AL with superset of ARNs still promoted when constraint requests a subset",
+			apps: []testAppDesc{
+				{name: "awsconsole", labels: map[string]string{"env": "prod"}},
+			},
+			roles: []testRoleDesc{
+				{
+					name: "aws-multi-arn",
+					allow: types.RoleConditions{
+						AppLabels: types.Labels{"env": []string{"prod"}},
+						AWSRoleARNs: []string{
+							"arn:aws:iam::123456789012:role/readonly",
+							"arn:aws:iam::123456789012:role/admin",
+						},
+					},
+				},
+			},
+			users: []testUserDesc{{name: "user1"}},
+			accessLists: []testAccessListDesc{
+				{
+					name:         "al-superset",
+					owners:       []string{"test-owner"},
+					grantedRoles: []string{"aws-multi-arn"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name: "req",
+				user: "user1",
+				resourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{ClusterName: "test-cluster", Kind: types.KindApp, Name: "awsconsole"},
+						Constraints: &types.ResourceConstraints{
+							Details: &types.ResourceConstraints_AwsConsole{
+								AwsConsole: &types.AWSConsoleResourceConstraints{
+									RoleArns: []string{"arn:aws:iam::123456789012:role/admin"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPromotions: []string{"al-superset"},
+		},
+		{
+			name: "mixed: constrained app + unconstrained node, single-resource ALs are not promoted",
+			nodes: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"env": "prod"}},
+			},
+			apps: []testAppDesc{
+				{name: "awsconsole", labels: map[string]string{"env": "prod"}},
+			},
+			roles: []testRoleDesc{
+				{
+					name: "app-with-arns",
+					allow: types.RoleConditions{
+						AppLabels:   types.Labels{"env": []string{"prod"}},
+						AWSRoleARNs: []string{"arn:aws:iam::123456789012:role/admin"},
+					},
+				},
+				{
+					name: "node-access",
+					allow: types.RoleConditions{
+						NodeLabels: types.Labels{"env": []string{"prod"}},
+						Logins:     []string{"ubuntu"},
+					},
+				},
+			},
+			users: []testUserDesc{{name: "user1"}},
+			accessLists: []testAccessListDesc{
+				{
+					name:         "al-app-only",
+					owners:       []string{"test-owner"},
+					grantedRoles: []string{"app-with-arns"},
+				},
+				{
+					name:         "al-node-only",
+					owners:       []string{"test-owner"},
+					grantedRoles: []string{"node-access"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name: "req",
+				user: "user1",
+				resourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{ClusterName: "test-cluster", Kind: types.KindApp, Name: "awsconsole"},
+						Constraints: &types.ResourceConstraints{
+							Details: &types.ResourceConstraints_AwsConsole{
+								AwsConsole: &types.AWSConsoleResourceConstraints{
+									RoleArns: []string{"arn:aws:iam::123456789012:role/admin"},
+								},
+							},
+						},
+					},
+					{
+						Id: types.ResourceID{ClusterName: "test-cluster", Kind: types.KindNode, Name: "server1"},
+					},
+				},
+			},
+			// Each AL covers only one resource; promotion requires covering all, so neither is promoted.
+			expectedPromotions: []string{},
+		},
+		{
+			name: "mixed: AL with both roles promoted when it covers constrained and unconstrained resources",
+			nodes: []testNodeDesc{
+				{name: "server1", labels: map[string]string{"env": "prod"}},
+			},
+			apps: []testAppDesc{
+				{name: "awsconsole", labels: map[string]string{"env": "prod"}},
+			},
+			roles: []testRoleDesc{
+				{
+					name: "app-with-arns",
+					allow: types.RoleConditions{
+						AppLabels:   types.Labels{"env": []string{"prod"}},
+						AWSRoleARNs: []string{"arn:aws:iam::123456789012:role/admin"},
+					},
+				},
+				{
+					name: "node-access",
+					allow: types.RoleConditions{
+						NodeLabels: types.Labels{"env": []string{"prod"}},
+						Logins:     []string{"ubuntu"},
+					},
+				},
+			},
+			users: []testUserDesc{{name: "user1"}},
+			accessLists: []testAccessListDesc{
+				{
+					name:         "al-both",
+					owners:       []string{"test-owner"},
+					grantedRoles: []string{"app-with-arns", "node-access"},
+				},
+			},
+			accessRequest: testAccessRequestDesc{
+				name: "req",
+				user: "user1",
+				resourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{ClusterName: "test-cluster", Kind: types.KindApp, Name: "awsconsole"},
+						Constraints: &types.ResourceConstraints{
+							Details: &types.ResourceConstraints_AwsConsole{
+								AwsConsole: &types.AWSConsoleResourceConstraints{
+									RoleArns: []string{"arn:aws:iam::123456789012:role/admin"},
+								},
+							},
+						},
+					},
+					{
+						Id: types.ResourceID{ClusterName: "test-cluster", Kind: types.KindNode, Name: "server1"},
+					},
+				},
+			},
+			// The AL grants both roles, covering both the constrained app and unconstrained node.
+			expectedPromotions: []string{"al-both"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			g := &mockAccessResourcesGetter{}
+			testSetupNodes(t, g, tc.nodes)
+			testSetupApps(t, g, tc.apps)
+			testSetupRoles(t, g, tc.roles)
+			testSetupUsers(t, g, tc.users)
+			testSetupAccessListsWithMembers(t, g, tc.accessLists)
+
+			ar := testNewAccessRequest(t, tc.accessRequest)
+			promotions, err := GenerateAccessRequestPromotions(ctx, g, ar)
+			require.NoError(t, err)
+
+			var actualPromotions []string
+			for _, p := range promotions.Promotions {
+				actualPromotions = append(actualPromotions, p.AccessListName)
+			}
+			require.ElementsMatch(t, tc.expectedPromotions, actualPromotions)
+		})
+	}
 }
 
 func TestGenerateAccessRequestSuggestedReviewers(t *testing.T) {
@@ -865,28 +1225,58 @@ func TestGenerateLongTermResourceGrouping(t *testing.T) {
 }
 
 type testAccessRequestDesc struct {
-	name             string
-	user             string
-	requestedServers []string
-	requestedRoles   []string
+	name              string
+	user              string
+	requestedServers  []string
+	requestedRoles    []string
+	resourceAccessIDs []types.ResourceAccessID
 }
 
 func testNewAccessRequest(t *testing.T, desc testAccessRequestDesc) types.AccessRequest {
 	t.Helper()
 
-	var resourcesIDs []types.ResourceID
+	var resourceAccessIDs []types.ResourceAccessID
 	for _, n := range desc.requestedServers {
-		id := types.ResourceID{
-			ClusterName: "test-cluster",
-			Kind:        types.KindNode,
-			Name:        n,
-		}
-		resourcesIDs = append(resourcesIDs, id)
+		resourceAccessIDs = append(resourceAccessIDs, types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName: "test-cluster",
+				Kind:        types.KindNode,
+				Name:        n,
+			},
+		})
 	}
-	ar, err := types.NewAccessRequestWithResources(desc.name, desc.user, desc.requestedRoles, types.ResourceIDsToResourceAccessIDs(resourcesIDs))
+	resourceAccessIDs = append(resourceAccessIDs, desc.resourceAccessIDs...)
+
+	ar, err := types.NewAccessRequestWithResources(desc.name, desc.user, desc.requestedRoles, resourceAccessIDs)
 	require.NoError(t, err, "types.NewAccessRequest")
 
 	return ar
+}
+
+type testAppDesc struct {
+	name   string
+	labels map[string]string
+}
+
+func testSetupApp(t *testing.T, g *mockAccessResourcesGetter, desc testAppDesc) {
+	t.Helper()
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name:   desc.name,
+		Labels: desc.labels,
+	}, types.AppSpecV3{
+		URI: constants.AWSConsoleURL,
+	})
+	require.NoError(t, err, "types.NewAppV3")
+
+	g.resources = append(g.resources, app)
+}
+
+func testSetupApps(t *testing.T, g *mockAccessResourcesGetter, descs []testAppDesc) {
+	t.Helper()
+	for _, d := range descs {
+		testSetupApp(t, g, d)
+	}
 }
 
 type testUserDesc struct {

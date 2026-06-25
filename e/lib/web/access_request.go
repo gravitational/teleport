@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -160,6 +161,9 @@ func createAccessRequest(ctx context.Context, clt accessRequestGetCreator, reque
 	return uiResp, nil
 }
 
+// getResourceRequestRolesHandle handles GET requests for resource request roles.
+//
+// Deprecated: Use getResourceRequestRolesV2Handle which supports ResourceAccessIDs with constraints.
 func (p *Plugin) getResourceRequestRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -172,29 +176,52 @@ func (p *Plugin) getResourceRequestRolesHandle(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	resourceAccessIDs := sliceutils.Map(req, func(id ui.ResourceID) ui.ResourceAccessID { return ui.ResourceAccessID{ID: id} })
 
-	return getResourceRequestRoles(r.Context(), clt, req, ctx.GetUser(), ctx, clusterClientProvider)
+	return getResourceRequestRoles(r.Context(), clt, resourceAccessIDs, ctx.GetUser(), ctx, clusterClientProvider)
 }
 
-// repackUIResourceIDs repacks the supplied list of [ui.ResourceID] values into a
-// list of [types.ResourceID]. This is necessary due to wire format differences
-// in the two resource ID types.
-func repackUIResourceIDs(req []ui.ResourceID) []types.ResourceID {
-	resourceIDs := make([]types.ResourceID, 0, len(req))
-	for _, resourceID := range req {
-		resourceIDs = append(resourceIDs, types.ResourceID{
-			Name:            resourceID.Name,
-			Kind:            resourceID.Kind,
-			ClusterName:     resourceID.ClusterName,
-			SubResourceName: resourceID.SubResourceName,
-		})
+// resourceRequestRolesRequest is the request body for the POST /enterprise/resourcerequestroles endpoint.
+type resourceRequestRolesRequest struct {
+	// ResourceAccessIDs is the list of resources (with optional constraints) to find applicable roles for.
+	ResourceAccessIDs []ui.ResourceAccessID `json:"resourceAccessIds"`
+}
+
+// getResourceRequestRolesV2Handle handles POST requests for resource request roles,
+// accepting ResourceAccessIDs with optional constraints.
+func (p *Plugin) getResourceRequestRolesV2Handle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return resourceIDs
+
+	var req resourceRequestRolesRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return getResourceRequestRoles(r.Context(), clt, req.ResourceAccessIDs, ctx.GetUser(), ctx, clusterClientProvider)
+}
+
+// repackUIResourceAccessIDs repacks a given list of [ui.ResourceAccessID] values into a
+// list of [types.ResourceAccessID].
+func repackUIResourceAccessIDs(req []ui.ResourceAccessID) []types.ResourceAccessID {
+	return sliceutils.Map(req, func(r ui.ResourceAccessID) types.ResourceAccessID {
+		return types.ResourceAccessID{
+			Id: types.ResourceID{
+				Name:            r.ID.Name,
+				Kind:            r.ID.Kind,
+				SubResourceName: r.ID.SubResourceName,
+				ClusterName:     r.ID.ClusterName,
+			},
+			Constraints: r.Constraints,
+		}
+	})
 }
 
 // getResourceRequestRoles returns the list of necessary roles to access a list of resources
 // given their resource IDs.
-func getResourceRequestRoles(ctx context.Context, clt authclient.ClientI, req []ui.ResourceID, user string, sessionContext *web.SessionContext, clusterClientProvider web.ClusterClientProvider) ([]string, error) {
+func getResourceRequestRoles(ctx context.Context, clt authclient.ClientI, req []ui.ResourceAccessID, user string, sessionContext *web.SessionContext, clusterClientProvider web.ClusterClientProvider) ([]string, error) {
 	if len(req) == 0 {
 		return []string{}, nil
 	}
@@ -209,15 +236,19 @@ func getResourceRequestRoles(ctx context.Context, clt authclient.ClientI, req []
 	// be straightforward to group the requests by cluster and the map/reduce
 	// the per-cluster resources
 	var cluster string
-	for _, rID := range req {
-		if cluster != "" && cluster != rID.ClusterName {
+	for _, raid := range req {
+		if cluster != "" && cluster != raid.ID.ClusterName {
 			return nil, trace.BadParameter("all requested resources must be from the same cluster")
 		}
-		cluster = rID.ClusterName
+		cluster = raid.ID.ClusterName
 	}
 	targetCluster := cmp.Or(cluster, localClusterName.GetClusterName())
 
-	resourceIDs := repackUIResourceIDs(req)
+	resourceAccessIDs := repackUIResourceAccessIDs(req)
+	// For backwards-compat with an old Auth that only reads ResourceIDs,
+	// also send all resources as ResourceIDs. Updated Auth deduplicates
+	// and prefers the ResourceAccessID version if present.
+	unwrappedResourceIDs := types.RiskyExtractResourceIDs(resourceAccessIDs)
 
 	if targetCluster != localClusterName.GetClusterName() {
 		slog.DebugContext(ctx, "Delegating role selection to remote cluster", "remote_cluster", targetCluster)
@@ -234,9 +265,10 @@ func getResourceRequestRoles(ctx context.Context, clt authclient.ClientI, req []
 		}
 
 		accessCaps, err := clusterClient.GetRemoteAccessCapabilities(ctx, types.RemoteAccessCapabilitiesRequest{
-			User:          user,
-			ResourceIDs:   resourceIDs,
-			SearchAsRoles: searchAsRoles,
+			User:              user,
+			SearchAsRoles:     searchAsRoles,
+			ResourceIDs:       unwrappedResourceIDs,
+			ResourceAccessIds: resourceAccessIDs,
 		})
 		switch {
 		case err == nil:
@@ -249,7 +281,11 @@ func getResourceRequestRoles(ctx context.Context, clt authclient.ClientI, req []
 		}
 	}
 
-	accessCaps, err := clt.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{User: user, ResourceIDs: resourceIDs})
+	accessCaps, err := clt.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+		User:              user,
+		ResourceIDs:       unwrappedResourceIDs,
+		ResourceAccessIds: resourceAccessIDs,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

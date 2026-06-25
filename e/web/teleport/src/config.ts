@@ -165,6 +165,7 @@ const cfg = {
       '/v1/enterprise/accessrequest?user=:user?&limit=:limit?&startKey=:startKey?&search=:search?&sort=:sort?&scope=:scope?',
     resourceRequestRolesPath:
       '/v1/enterprise/resourcerequestroles?resourceIds=:resourceIds?',
+    resourceRequestRolesPathV2: '/v1/enterprise/resourcerequestroles',
 
     authConnectorsListPath: '/v1/enterprise/authconnectors',
     samlConnectorsPath: '/v1/enterprise/saml/:name?',
@@ -447,12 +448,17 @@ const cfg = {
     return generateFullPath(cfg.api.accessRequestFilterPath, { ...filter });
   },
 
+  // TODO(kiosion): DELETE IN v20.0
   getResourceRequestRolesUrl(resourceIds: ResourceId[]) {
     const stringified = JSON.stringify(resourceIds);
 
     return generateFullPath(cfg.api.resourceRequestRolesPath, {
       resourceIds: stringified,
     });
+  },
+
+  getResourceRequestRolesUrlV2() {
+    return generatePath(cfg.api.resourceRequestRolesPathV2);
   },
 
   getAuthConnectorsListUrl() {

@@ -1,4 +1,8 @@
-import { makeAccessRequest, ResourceId } from 'shared/services/accessRequests';
+import {
+  makeAccessRequest,
+  ResourceAccessId,
+  ResourceId,
+} from 'shared/services/accessRequests';
 
 import cfg from 'e-teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
@@ -25,12 +29,22 @@ class WorkflowService {
     return api.get(cfg.getAccessRequestFilterUrl(filter), signal);
   }
 
+  // TODO(kiosion): DELETE IN v20.0
   fetchResourceRequestRoles(
     resourceIds: ResourceId[],
     signal?: AbortSignal
   ): Promise<string[]> {
     return api
       .get(cfg.getResourceRequestRolesUrl(resourceIds), signal)
+      .then(roles => roles || []);
+  }
+
+  fetchResourceRequestRolesV2(
+    resourceAccessIds: ResourceAccessId[],
+    signal?: AbortSignal
+  ): Promise<string[]> {
+    return api
+      .post(cfg.getResourceRequestRolesUrlV2(), { resourceAccessIds }, signal)
       .then(roles => roles || []);
   }
 

@@ -164,6 +164,132 @@ func TestCreateAccessRequestHandle_PlainResourcesInResourceAccessIDs(t *testing.
 	require.Equal(t, 200, resp.Code())
 }
 
+// TestGetResourceRequestRolesV2Handle verifies that the POST /enterprise/resourcerequestroles
+// endpoint correctly filters applicable roles based on resource constraints.
+func TestGetResourceRequestRolesV2Handle(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewRealClock()
+	s := newWebSuite(t, withClock(clock), withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+	}))
+	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	t.Cleanup(cancel)
+
+	authClient := s.newAdminAuthClient(ctx, t)
+
+	// Role granting app access with a specific ARN.
+	_, err := authtest.CreateRole(ctx, authClient, "aws-admin", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:   types.Labels{"env": []string{"prod"}},
+			AWSRoleARNs: []string{"arn:aws:iam::111111111111:role/admin"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Role granting app access with a different ARN.
+	_, err = authtest.CreateRole(ctx, authClient, "aws-readonly", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:   types.Labels{"env": []string{"prod"}},
+			AWSRoleARNs: []string{"arn:aws:iam::111111111111:role/readonly"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Requester role with SearchAsRoles covering both.
+	_, err = authtest.CreateRole(ctx, authClient, "requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"aws-admin", "aws-readonly"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create an AWS console app.
+	awsApp, err := types.NewAppV3(types.Metadata{
+		Name:   "awsconsole",
+		Labels: map[string]string{"env": "prod"},
+	}, types.AppSpecV3{
+		URI: "https://console.aws.amazon.com",
+	})
+	require.NoError(t, err)
+	awsAppServer, err := types.NewAppServerV3FromApp(awsApp, "aws-host", "aws-host")
+	require.NoError(t, err)
+	_, err = authClient.UpsertApplicationServer(ctx, awsAppServer)
+	require.NoError(t, err)
+
+	// Create user with requester role.
+	createUserWithOpts(t, s, "requester-user", withRoles("requester"), withPassword())
+	pack := s.newAuthWebPack(t, "requester-user", skipUserCreation())
+
+	clusterName, err := authClient.GetClusterName(ctx)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		body          resourceRequestRolesRequest
+		expectedRoles []string
+	}{
+		{
+			name: "constrained request returns only matching role",
+			body: resourceRequestRolesRequest{
+				ResourceAccessIDs: []ui.ResourceAccessID{
+					{
+						ID: ui.ResourceID{
+							ClusterName: clusterName.GetClusterName(),
+							Kind:        types.KindApp,
+							Name:        "awsconsole",
+						},
+						Constraints: &types.ResourceConstraints{
+							Version: types.V1,
+							Details: &types.ResourceConstraints_AwsConsole{
+								AwsConsole: &types.AWSConsoleResourceConstraints{
+									RoleArns: []string{"arn:aws:iam::111111111111:role/admin"},
+								},
+							},
+						},
+					},
+				},
+			},
+			// Only aws-admin has the admin ARN.
+			expectedRoles: []string{"aws-admin"},
+		},
+		{
+			name: "unconstrained request returns all applicable roles",
+			body: resourceRequestRolesRequest{
+				ResourceAccessIDs: []ui.ResourceAccessID{
+					{
+						ID: ui.ResourceID{
+							ClusterName: clusterName.GetClusterName(),
+							Kind:        types.KindApp,
+							Name:        "awsconsole",
+						},
+					},
+				},
+			},
+			expectedRoles: []string{"aws-admin", "aws-readonly"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			body, err := json.Marshal(tc.body)
+			require.NoError(t, err)
+
+			resp, err := pack.clt.PostJSON(ctx,
+				pack.clt.Endpoint("enterprise", "resourcerequestroles"),
+				json.RawMessage(body),
+			)
+			require.NoError(t, err)
+			require.Equal(t, 200, resp.Code())
+
+			var roles []string
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &roles))
+			require.ElementsMatch(t, tc.expectedRoles, roles)
+		})
+	}
+}
+
 func TestCreateAccessRequest_ConstrainedResource(t *testing.T) {
 	m := &mockedAccessRequestAPIGetter{}
 	var createdReq types.AccessRequest

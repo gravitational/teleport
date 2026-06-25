@@ -26,6 +26,49 @@ test('handling of empty resource request roles response', async () => {
   expect(response).toHaveLength(0);
 });
 
+test('fetchResourceRequestRolesV2 sends POST with constraints', async () => {
+  const postSpy = jest.spyOn(api, 'post').mockResolvedValue(['aws-admin']);
+
+  const workflow = new Workflow();
+  const response = await workflow.fetchResourceRequestRolesV2([
+    {
+      id: { clusterName: 'cluster', name: 'awsconsole', kind: 'app' },
+      constraints: {
+        aws_console: {
+          role_arns: ['arn:aws:iam::123:role/admin'],
+        },
+      },
+    },
+  ]);
+
+  expect(response).toEqual(['aws-admin']);
+  expect(postSpy).toHaveBeenCalledWith(
+    expect.any(String),
+    {
+      resourceAccessIds: [
+        {
+          id: { clusterName: 'cluster', name: 'awsconsole', kind: 'app' },
+          constraints: {
+            aws_console: {
+              role_arns: ['arn:aws:iam::123:role/admin'],
+            },
+          },
+        },
+      ],
+    },
+    undefined
+  );
+});
+
+test('fetchResourceRequestRolesV2 handles empty response', async () => {
+  jest.spyOn(api, 'post').mockResolvedValue(null);
+
+  const workflow = new Workflow();
+  const response = await workflow.fetchResourceRequestRolesV2([]);
+
+  expect(response).toHaveLength(0);
+});
+
 test('correct formatting of access request json response', async () => {
   jest.useFakeTimers().setSystemTime(new Date('2024-02-15'));
 

@@ -40,7 +40,7 @@ type AccessListLister interface {
 // and returns information about optimal groupings for long-term access. This helps users
 // understand which resources can be requested together for long-term access.
 func GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessResourcesGetter, request types.AccessRequest) (*types.LongTermResourceGrouping, error) {
-	var resourceIDs []types.ResourceID
+	var resourceAccessIDs []types.ResourceAccessID
 
 	suggestion := &types.LongTermResourceGrouping{
 		AccessListToResources: make(map[string]types.ResourceIDList),
@@ -51,16 +51,16 @@ func GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessRes
 
 	// Filter out any 'namespace' or 'windows_desktop' resource IDs, they are not supported.
 	// TODO(kiosion): These should be supported by `ListResources`, see #58184
-	for _, rid := range request.GetRequestedResourceIDs() {
-		switch rid.Kind {
+	for _, rid := range request.GetAllRequestedResourceIDs() {
+		switch rid.GetResourceID().Kind {
 		case types.KindWindowsDesktop, types.KindNamespace:
 			continue
 		default:
-			resourceIDs = append(resourceIDs, rid)
+			resourceAccessIDs = append(resourceAccessIDs, rid)
 		}
 	}
 
-	if len(resourceIDs) == 0 {
+	if len(resourceAccessIDs) == 0 {
 		suggestion.CanProceed = false
 		suggestion.ValidationMessage = "No resources are available for long-term access"
 		return suggestion, nil
@@ -74,14 +74,14 @@ func GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessRes
 	// We don't allow long-term requests where the resources are in different clusters.
 	// This is to match the current behavior of request Promotions, which are not available
 	// for resources in different clusters.
-	if err := validateResourcesAreFromSameCluster(resourceIDs); err != nil {
+	if err := validateResourcesAreFromSameCluster(types.RiskyExtractResourceIDs(resourceAccessIDs)); err != nil {
 		suggestion.CanProceed = false
 		suggestion.ValidationMessage = err.Error()
 		return suggestion, nil
 	}
 
 	// Get the actual resources from the backend to ensure we're using verified data
-	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, clt, resourceIDs)
+	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, clt, types.RiskyExtractResourceIDs(resourceAccessIDs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,11 +90,11 @@ func GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessRes
 	var recommendedList string
 
 	analysisInput := accessListAnalysisInput{
-		Clock:       clockwork.NewRealClock(),
-		Clt:         clt,
-		Requester:   requester,
-		ResourceIDs: resourceIDs,
-		Resources:   resources,
+		Clock:             clockwork.NewRealClock(),
+		Clt:               clt,
+		Requester:         requester,
+		ResourceAccessIDs: resourceAccessIDs,
+		Resources:         resources,
 	}
 
 	allAccessLists, err := clt.GetAccessLists(ctx)
@@ -203,12 +203,12 @@ func findUncoveredResources(
 }
 
 type accessListAnalysisInput struct {
-	Clock       clockwork.Clock
-	Clt         modules.AccessResourcesGetter
-	Requester   types.User
-	ResourceIDs []types.ResourceID
-	Resources   []types.ResourceWithLabels
-	AccessList  *accesslist.AccessList
+	Clock             clockwork.Clock
+	Clt               modules.AccessResourcesGetter
+	Requester         types.User
+	ResourceAccessIDs []types.ResourceAccessID
+	Resources         []types.ResourceWithLabels
+	AccessList        *accesslist.AccessList
 }
 
 // analyzeAccessListForLongTermAccess checks requester membership and requirements for the access list,
@@ -238,10 +238,17 @@ func analyzeAccessListForLongTermAccess(ctx context.Context, in accessListAnalys
 
 	// Check which resources this access list would grant access to
 	for _, res := range in.Resources {
-		if err := checker.CheckAccess(res, services.AccessState{MFAVerified: true}); err != nil {
+		matchers, err := services.BuildResourceConstraintMatchers(in.ResourceAccessIDs, res)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// If the access list doesn't grant access to this resource (possibly with constraints),
+		// skip it and continue checking the remaining resources.
+		if err := checker.CheckAccess(res, services.AccessState{MFAVerified: true}, matchers...); err != nil {
 			continue
 		}
-		for _, rid := range in.ResourceIDs {
+		for _, raid := range in.ResourceAccessIDs {
+			rid := raid.GetResourceID()
 			// TODO(kiosion): Should be some helper for this check; single 'source-of-truth' for ResourceID->Resource mapping
 			if rid.Name == res.GetName() && rid.Kind == res.GetKind() {
 				covered = append(covered, rid)
@@ -468,6 +475,7 @@ type suggestionValidator struct {
 	dataGetter         userDataGetter
 	requester          types.User
 	requestedResources []types.ResourceWithLabels
+	resourceAccessIDs  []types.ResourceAccessID
 	requestedRoles     []string
 	requestKind        types.AccessRequestKind
 
@@ -588,7 +596,15 @@ func (v *suggestionValidator) isValidPromotionSuggestion(ctx context.Context, li
 		default:
 		}
 
-		err := accessChecker.CheckAccess(resource, services.AccessState{MFAVerified: true})
+		// Build constraint matchers for this resource, if any constraints were
+		// requested. This ensures the access list's grants cover the specific
+		// principals (e.g. SSH logins, AWS role ARNs) that were requested.
+		matchers, err := services.BuildResourceConstraintMatchers(v.resourceAccessIDs, resource)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		err = accessChecker.CheckAccess(resource, services.AccessState{MFAVerified: true}, matchers...)
 		switch {
 		case trace.IsAccessDenied(err):
 			return false, nil
@@ -708,11 +724,8 @@ func newSuggestionValidator(ctx context.Context, resourceGetter modules.AccessRe
 		return nil, trace.Wrap(err)
 	}
 
-	// We can reduce ResourceAccessIDs here to just ResourceIDs as Constraints are not
-	// applicable for constraining membership in an Access List.
-	allResourceIDs := types.RiskyExtractResourceIDs(accessRequest.GetAllRequestedResourceIDs())
-
-	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, resourceGetter, allResourceIDs)
+	allResourceAccessIDs := accessRequest.GetAllRequestedResourceIDs()
+	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, resourceGetter, types.RiskyExtractResourceIDs(allResourceAccessIDs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -721,6 +734,7 @@ func newSuggestionValidator(ctx context.Context, resourceGetter modules.AccessRe
 		dataGetter:         resourceGetter,
 		requester:          requester,
 		requestedResources: resources,
+		resourceAccessIDs:  allResourceAccessIDs,
 		requestedRoles:     accessRequest.GetRoles(),
 		requestKind:        accessRequest.GetRequestKind(),
 		clock:              clockwork.NewRealClock(),
