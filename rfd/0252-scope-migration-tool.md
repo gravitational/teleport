@@ -847,6 +847,30 @@ decommission status; those live in `tmig`'s local run state until a durable clus
 migration audit events land. A high AUTO:MANUAL ratio (from run state) points at gaps in `teleport-update` coverage or
 unscopable join methods, and is the most useful investment signal.
 
+### Implementation plan
+
+v1 builds in four phases, sequenced by the dependencies above; each ships behind `TELEPORT_UNSTABLE_SCOPES` and is
+testable on its own. The destructive stages come last, after the reversible ones are proven.
+
+1. **Foundations (no cluster contact).** The config-transform primitive (`teleport reconfigure`, the pushed
+   node-local helper, and the operator-side fallback, with the four critical edits, loader validation, and
+   redaction); the run-state machinery (tuple keying, atomic 0600 writes, per-tuple locking, hash validation); and
+   the versioned capability table. Everything else rests on these, and both are tested in isolation.
+2. **Read-only stages.** `inventory` and `preflight`: enumeration and SSH probes, mapping resolution, classification
+   and selector trust, the cross-cluster and capability checks, and the readiness report. Asserted to make no
+   cluster writes.
+3. **Enroll and verify (reversible mutation).** The RBAC canary, single-use token minting, per-host mechanics and
+   marker planting, the suffixed install, and `verify` via `ListUnifiedResources`/`KindNode`. `enroll`'s worst case
+   still leaves the original serving, so this phase stays recoverable by stop + `uninstall`.
+4. **Gated cutover.** `validate`, `drain`, and `decommission`: the sign-off gate, fail-closed blockers and waivers,
+   the detached-disable job, and the two marker-proof paths. Only here does anything become irreversible.
+
+Each phase depends on the one before it. The JSON contract and the reference Agent Skill can be built alongside
+Phase 3 onward, and the 10,000-host load test gates Phase 4's exit so scale isn't deferred past cutover. The three
+server companions — `scoped_token.*` audit events, the read-only capability query, and scope-aware instance/audit
+reads (see [dependency table](#mvp-boundary-and-dependencies)) — run as parallel tracks that improve the tool but
+gate none of these phases. All of v1 stays behind `TELEPORT_UNSTABLE_SCOPES` until scopes reach GA on TARGET.
+
 ### Test Plan
 
 This is out-of-tree tooling, so there's no in-repo `testplan.md` entry to extend
