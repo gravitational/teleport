@@ -25,8 +25,8 @@ have Teleport:
 1. Resolve a minimal role set that satisfies those per-resource constraints, and
 2. Scope authorization to the requested `(resource, constraints)` pairs.
 
-Initial focus: AWS Console & AWS IC. The shape is generic and able to support SSH logins, database roles, and other
-future resource-specific constraints.
+Initial focus: AWS Console & SSH nodes. The shape is generic and able to support database principals, Kubernetes
+users/groups, Windows Desktop logins, Azure/GCP identities, and other future resource-specific constraints.
 
 ## Why
 
@@ -43,7 +43,7 @@ intuitive, explicit, and least-privilege by default.
 
 - **Principal (RFD-specific)**: Umbrella term for the resource-scoped identity a user selects when connecting (e.g., AWS
   role ARN, AWS IC permission set, database role/user, SSH login).
-- **Constraint**: A per-resource selector that narrows what principals user wants to–or is allowed to–use on that
+- **Constraint**: A per-resource selector that narrows what principals a user wants to, or is allowed to, use on that
   resource.
 - **Granted**: Immediately usable given the requester's current login state (no request needed).
 - **Requestable**: Not currently usable, but eligible to be approved via Access Request per policy.
