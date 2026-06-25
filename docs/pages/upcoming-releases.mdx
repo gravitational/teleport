@@ -30,16 +30,13 @@ We continue to support the following major versions of Teleport:
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                 |
-|---------|----------------------|
-| 18.10.0 | Week of July 6, 2026 |
-| 19.0.0  | August 2026          |
+| Version | Date                       |
+|---------|----------------------------|
+| 18.10.0 | Week of July 6, 2026       |
+| 18.11.0 | Week of August 3, 2026     |
+| 19.0.0  | Week of September 14, 2026 |
 
 ### 18.10.0
-
-#### Linux Desktop Access
-
-Teleport will support remote desktop sessions to Linux hosts.
 
 #### Directory sharing enhancements for Windows desktop access
 
@@ -51,6 +48,41 @@ the session.
 
 Identity Security will support AI summarization for Windows desktop access
 session recordings.
+
+### 18.11.0
+
+#### Audit log reliability improvements
+
+Teleport will improve audit log stability and durability in the face of failure
+scenarios like control plane, networking issues and agent restarts.
+
+#### Agentic UX for access configuration
+
+Teleport will provide a custom agent skill for configuring access to connected
+resources using access lists.
+
+#### Linux Desktop Access
+
+Teleport will support remote desktop sessions to Linux hosts.
+
+_Delayed from Teleport 18.10.0._
+
+### 19.0.0
+
+#### Amazon Aurora DSQL Cluster State Backend
+
+Teleport will support using Amazon Aurora DSQL as a backend for cluster state.
+
+#### Privilege escalation UX
+
+Teleport will support access requests privilege escalation UX for SSH nodes, Kubernetes
+clusters, databases and Windows desktops.
+
+#### In-band Per-Session MFA for SSH and Desktops
+
+Added in-band MFA for SSH and Desktop sessions, moving MFA checks into session establishment 
+so challenges are bound to the specific session. This removes per-session MFA SSH certificates 
+and reduces MFA bypass risk.
 
 ## Teleport Cloud
 
