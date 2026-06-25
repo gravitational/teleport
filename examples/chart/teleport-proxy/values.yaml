@@ -37,11 +37,56 @@ join_params:
   # Azure: https://goteleport.com/docs/reference/deployment/join-methods/#azure-managed-identity-azure
   # GCP: https://goteleport.com/docs/reference/deployment/join-methods/#gcp-service-account-gcp
   method: kubernetes
+  # If method is 'token' and joinTokenSecre.create is true, token_name is
+  # actually the token secret value obtained from running `tctl tokens add`.
+  # This is **NOT** recommended. If possible, use the kubernetes join method or
+  # one of the cloud join methods above to avoid using static, long-lived
+  # secrets.
   token_name: ""
 
 ##################################################
 # Values that you may need to change.
 ##################################################
+
+# joinTokenSecret -- manages the join token secret creation and its name.
+# See join_params above.
+joinTokenSecret:
+  # joinTokenSecret.create(bool) -- controls whether the chart creates the
+  # Kubernetes `Secret` containing the Teleport join token.
+  # If true, set join_params.token_name to the secret value.
+  # If false, you must create a Kubernetes Secret with the configured name in
+  # the Helm release namespace.
+  create: true
+  # joinTokenSecret.name(string) -- is the name of the Kubernetes Secret
+  # containing the Teleport join token used by the chart.
+  #
+  # If `joinTokenSecret.create` is `false`, the chart will not attempt to create the secret itself.
+  # Instead, it will read the value from an existing secret. `joinTokenSecret.name`
+  # configures the name of this secret. This allows you to configure this secret externally and avoid having a plaintext
+  # join token stored in your Teleport chart values.
+  #
+  # To create your own join token secret, you can use a command like this:
+  #
+  # ```code
+  # $ kubectl --namespace teleport create secret generic my-token-secret --from-literal=auth-token=<replace-with-actual-token>
+  # ```
+  #
+  # <Admonition type="note">
+  #   The key used for the auth token inside the secret must be `auth-token`, as in the command above.
+  # </Admonition>
+  #
+  # For example:
+  #
+  # ```yaml
+  # joinTokenSecret:
+  #   create: false
+  #   name: my-token-secret
+  #
+  # joinParams:
+  #   method: "token"
+  #   tokenName: ""
+  # ```
+  name: teleport-proxy-join-token
 
 # Version of teleport image, if different from chart version in Chart.yaml.
 # DANGER: `teleportVersionOverride` MUST NOT be used to control the Teleport version.
@@ -363,6 +408,8 @@ annotations:
   config: {}
   # Annotations for the Deployment
   deployment: {}
+  # Annotations for the join token Secret
+  joinTokenSecret: {}
   # Annotations for each Pod in the Deployment
   pod: {}
   # Annotations for the Service object
@@ -402,6 +449,8 @@ extraLabels:
   # extraLabels.jobPod(object) -- are labels to set on the Pods created by the
   # Job run by the Helm hook.
   jobPod: {}
+  # extraLabels.joinTokenSecret(object) - labels to add to the join token secret
+  joinTokenSecret: {}
   # extraLabels.persistentVolumeClaim(object) -- are labels to set on the PersistentVolumeClaim.
   persistentVolumeClaim: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the

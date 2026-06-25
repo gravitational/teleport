@@ -59,6 +59,24 @@
             },
             "additionalProperties": true
         },
+        "joinTokenSecret": {
+            "$id": "#/properties/joinTokenSecret",
+            "type":"object",
+            "default": {},
+            "required": ["create", "name"],
+            "properties": {
+                "create": {
+                    "$id":"#/properties/joinTokenSecret/create",
+                    "type": "boolean",
+                    "default": "true"
+                },
+                "name": {
+                    "$id":"#/properties/joinTokenSecret/name",
+                    "type": "string",
+                    "default": "teleport-proxy-join-token"
+                }
+            }
+        },
         "nameOverride": {
             "$id": "#/properties/nameOverride",
             "type": "string",

@@ -1,0 +1,45 @@
+suite: Static Join Token Proxy
+templates:
+- proxy.yaml
+tests:
+
+- it: Doesn't set join token to projected secret when method isn't 'token'
+  set:
+    auth_server: my-server
+    clusterName: my-cluster
+    join_params:
+      method: kubernetes
+      token_name: my-token  
+  documentIndex: 2
+  asserts:
+  - isKind:
+      of: ConfigMap
+  - matchRegex:
+      path: data.teleport\.yaml
+      pattern: "token_name: /etc/teleport-secrets/auth-token"
+    not: true
+
+- it: Mounts projected secret volume when method is 'token'
+  values:
+  - ../.lint/static-join-token.yaml
+  documentIndex: 1
+  asserts:
+  - isKind:
+      of: Deployment
+  - equal:
+      path: spec.template.spec.volumes[3].name
+      value: "auth-token"
+  - equal:
+      path: spec.template.spec.containers[0].volumeMounts[3].name
+      value: "auth-token"
+
+- it: Sets join token to projected secret when method is 'token'
+  values:
+  - ../.lint/static-join-token.yaml
+  documentIndex: 2
+  asserts:
+  - isKind:
+      of: ConfigMap
+  - matchRegex:
+      path: data.teleport\.yaml
+      pattern: "token_name: /etc/teleport-secrets/auth-token"

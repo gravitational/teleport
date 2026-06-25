@@ -1,0 +1,5 @@
+auth_server: "auth.teleport.example.com"
+clusterName: my-fake-cluster
+join_params:
+  method: token
+  token_name: "i'm actually a token secert"

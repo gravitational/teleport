@@ -65,7 +65,7 @@ validate their expected inputs at render time instead.
   "tunnelPublicAddr"
 ) -}}
 {{- if and (hasKey $.Values $k) (not (kindIs "slice" (index $.Values $k))) -}}
-{{- fail (printf "%s must be a list in teleport-proxy-lib values" $k) -}}
+{{- fail (printf "%s must be a list (got %s) in teleport-proxy-lib values" $k (kindOf (index $.Values $k))) -}}
 {{- end -}}
 {{- end -}}
 {{- /* Map inputs: must be a map when set. */ -}}
