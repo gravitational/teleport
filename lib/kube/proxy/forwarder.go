@@ -1252,15 +1252,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			// results in the intersection of roles that match the "kubernetes_labels" and
 			// roles that allow access to the desired "kubernetes_resource".
 			// If from the intersection results an empty set, the request is denied.
-			//
-			// requiredRBACResources returns one tuple per (resource, verb) the request needs.
-			// Most requests need exactly one, adding an ephemeral container needs both exec and the mutation verb.
-			isClusterWideResource := actx.metaResource.isClusterWideResource()
-			required := actx.metaResource.requiredRBACResources()
-			roleMatchers = make(services.RoleMatchers, 0, len(required))
-			for i := range required {
-				roleMatchers = append(roleMatchers,
-					services.NewKubernetesResourceMatcher(required[i], isClusterWideResource))
+			roleMatchers = services.RoleMatchers{
+				services.NewKubernetesResourceMatcher(*rbacResource, actx.metaResource.isClusterWideResource()),
 			}
 		}
 	}
@@ -1289,6 +1282,26 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		}
 		if !errors.Is(err, errNoMatchingCluster) {
 			return trace.AccessDenied("%s", accessDeniedMsg)
+		}
+	}
+
+	// Adding an ephemeral container (e.g. `kubectl debug`) executes code in the
+	// pod like exec, and also mutates it. The matcher above required the
+	// mutation verb; also require exec. A separate check keeps it additive: the
+	// two verbs may come from different roles.
+	if !isScoped && !actx.metaResource.isList &&
+		actx.metaResource.requestedResource.resourceKind == ephemeralContainersResourceKind {
+		if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil {
+			execResource := *rbacResource
+			execResource.Verbs = []string{types.KubeVerbExec}
+			execMatcher := services.NewKubernetesResourceMatcher(execResource, actx.metaResource.isClusterWideResource())
+			if _, err := f.getKubeAccessDetails(ctx, actx, execMatcher); err != nil {
+				return trace.AccessDenied("%s", f.kubeResourceDeniedAccessMsg(
+					actx.User.GetName(),
+					types.KubeVerbExec,
+					actx.metaResource.requestedResource,
+				))
+			}
 		}
 	}
 

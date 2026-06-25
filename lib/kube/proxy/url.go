@@ -67,25 +67,6 @@ func (mr *metaResource) rbacResource() *types.KubernetesResource {
 // ephemeral container to a running pod (the endpoint `kubectl debug` targets).
 const ephemeralContainersResourceKind = "pods/ephemeralcontainers"
 
-// requiredRBACResources returns the set of Kubernetes resources the caller must be granted to perform this request.
-// Most requests need a single (resource, verb) tuple, the one returned by rbacResource.
-// Adding an ephemeral container runs code in the target pod the same way exec does,
-// and the request also mutates the pod object (it is a patch/update),
-// so it requires both the exec verb and the mutation verb the HTTP method maps to.
-// Returning both keeps either verb on its own from being enough to add an ephemeral container.
-func (mr *metaResource) requiredRBACResources() []types.KubernetesResource {
-	base := mr.rbacResource()
-	if base == nil {
-		return nil
-	}
-	if mr.requestedResource.resourceKind != ephemeralContainersResourceKind {
-		return []types.KubernetesResource{*base}
-	}
-	execResource := *base
-	execResource.Verbs = []string{types.KubeVerbExec}
-	return []types.KubernetesResource{*base, execResource}
-}
-
 // apiResource represents the resource requested by the user.
 type apiResource struct {
 	apiGroup        string
