@@ -727,7 +727,8 @@ impl FilesystemBackend {
         rdp_req: efs::ServerDriveNotifyChangeDirectoryRequest,
     ) -> PduResult<()> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L661
-        debug!("Received NotifyChangeDirectory, ignoring: {:?}", rdp_req);
+        debug!("Received NotifyChangeDirectory, cancelling: {:?}", rdp_req);
+        self.client_handle.write_rdpdr(rdp_req.cancel())?;
         Ok(())
     }
 
@@ -2213,7 +2214,9 @@ impl Cancel for efs::ServerDriveQueryInformationRequest {
         efs::ClientDriveQueryInformationResponse {
             device_io_response: efs::DeviceIoResponse::new(
                 self.device_io_request.clone(),
-                NtStatus::UNSUCCESSFUL,
+                // Testing shows that we MUST set this to "cancel" rather than UNSUCCESSFUL
+                // otherwise the rdpdr channel can end up in a broken state upon device removal.
+                NtStatus::from(0xC0000120),
             ),
             buffer: None,
         }
