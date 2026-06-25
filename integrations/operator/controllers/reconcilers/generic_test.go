@@ -222,7 +222,7 @@ func TestTeleportResourceReconciler_Delete(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resourceClient := &fakeTeleportResourceClient{tt.store}
 			reconciler := resourceReconciler[*fakeTeleportResource, *fakeTeleportKubernetesResource]{
-				resourceClient: resourceClient,
+				resourceClient: unscopedResourceClientAdapter[*fakeTeleportResource]{client: resourceClient},
 				adapter:        fakeResourceAdapter[*fakeTeleportResource]{},
 			}
 			tt.assertErr(t, reconciler.Delete(ctx, kubeResource))
@@ -231,11 +231,27 @@ func TestTeleportResourceReconciler_Delete(t *testing.T) {
 	}
 }
 
+func TestScopeFromUnstructuredObject(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]any{
+		"scope": "/team/a",
+		"spec": map[string]any{
+			"invalid": func() {},
+		},
+	}}
+	scope, err := scopeFromUnstructuredObject(obj)
+	require.NoError(t, err)
+	require.Equal(t, "/team/a", scope)
+
+	obj = &unstructured.Unstructured{Object: map[string]any{}}
+	_, err = scopeFromUnstructuredObject(obj)
+	require.True(t, trace.IsBadParameter(err))
+}
+
 func TestCheckOwnership(t *testing.T) {
 	emptyStore := map[string]types.Metadata{}
 	rc := &fakeTeleportResourceClient{emptyStore}
 	reconciler := resourceReconciler[*fakeTeleportResource, *fakeTeleportKubernetesResource]{
-		resourceClient: rc,
+		resourceClient: unscopedResourceClientAdapter[*fakeTeleportResource]{client: rc},
 		adapter:        fakeResourceAdapter[*fakeTeleportResource]{},
 	}
 	tests := []struct {

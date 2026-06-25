@@ -68,6 +68,21 @@ type Adapter[T Resource] interface {
 	SetResourceLabels(T, map[string]string)
 }
 
+// ScopedResource153 extends [types.Resource153] for Teleport
+// resources that are scoped.
+type ScopedResource153 interface {
+	types.Resource153
+	GetScope() string
+}
+
+type ScopedResource153Adapter[T ScopedResource153] struct {
+	Resource153Adapter[T]
+}
+
+func (a ScopedResource153Adapter[T]) GetResourceScope(res T) string {
+	return res.GetScope()
+}
+
 // KubernetesCR is a Kubernetes CustomResource representing a Teleport Resource.
 type KubernetesCR[T Resource] interface {
 	kclient.Object
@@ -75,16 +90,89 @@ type KubernetesCR[T Resource] interface {
 	StatusConditions() *[]metav1.Condition
 }
 
+// ResourceKey identifies a Teleport resource. Unscoped resources use an empty
+// scope. Scoped resources are identified by the pair of name and scope.
+type ResourceKey struct {
+	Name  string
+	Scope string
+}
+
+// scopedResourceClient is a CRUD client for a specific scoped Teleport Resource.
+// Implementing this interface allows to be reconciled by the resourceReconciler
+// instead of writing a new specific reconciliation loop.
+// resourceClient implementations can optionally implement the resourceMutator
+// interface.
+type scopedResourceClient[T Resource] interface {
+	Get(ctx context.Context, name, scope string) (T, error)
+	Create(context.Context, T) error
+	Update(context.Context, T) error
+	Delete(ctx context.Context, name, scope string) error
+}
+
 // resourceClient is a CRUD client for a specific Teleport Resource.
 // Implementing this interface allows to be reconciled by the resourceReconciler
 // instead of writing a new specific reconciliation loop.
 // resourceClient implementations can optionally implement the resourceMutator
-// and resourceMutator interfaces.
+// interface.
 type resourceClient[T Resource] interface {
 	Get(context.Context, string) (T, error)
 	Create(context.Context, T) error
 	Update(context.Context, T) error
 	Delete(context.Context, string) error
+}
+
+type unscopedResourceClientAdapter[T Resource] struct {
+	client resourceClient[T]
+}
+
+func (a unscopedResourceClientAdapter[T]) Get(ctx context.Context, key ResourceKey) (T, error) {
+	return a.client.Get(ctx, key.Name)
+}
+
+func (a unscopedResourceClientAdapter[T]) Create(ctx context.Context, resource T) error {
+	return a.client.Create(ctx, resource)
+}
+
+func (a unscopedResourceClientAdapter[T]) Update(ctx context.Context, resource T) error {
+	return a.client.Update(ctx, resource)
+}
+
+func (a unscopedResourceClientAdapter[T]) Delete(ctx context.Context, key ResourceKey) error {
+	return a.client.Delete(ctx, key.Name)
+}
+
+func (a unscopedResourceClientAdapter[T]) Mutate(ctx context.Context, new, existing T, crKey kclient.ObjectKey) error {
+	if mutator, ok := a.client.(resourceMutator[T]); ok {
+		return mutator.Mutate(ctx, new, existing, crKey)
+	}
+	return nil
+}
+
+type scopedResourceClientAdapter[T Resource] struct {
+	client scopedResourceClient[T]
+}
+
+func (a scopedResourceClientAdapter[T]) Get(ctx context.Context, key ResourceKey) (T, error) {
+	return a.client.Get(ctx, key.Name, key.Scope)
+}
+
+func (a scopedResourceClientAdapter[T]) Create(ctx context.Context, resource T) error {
+	return a.client.Create(ctx, resource)
+}
+
+func (a scopedResourceClientAdapter[T]) Update(ctx context.Context, resource T) error {
+	return a.client.Update(ctx, resource)
+}
+
+func (a scopedResourceClientAdapter[T]) Delete(ctx context.Context, key ResourceKey) error {
+	return a.client.Delete(ctx, key.Name, key.Scope)
+}
+
+func (a scopedResourceClientAdapter[T]) Mutate(ctx context.Context, new, existing T, crKey kclient.ObjectKey) error {
+	if mutator, ok := a.client.(resourceMutator[T]); ok {
+		return mutator.Mutate(ctx, new, existing, crKey)
+	}
+	return nil
 }
 
 // resourceMutator can be implemented by TeleportResourceClients
@@ -104,15 +192,26 @@ type Config struct {
 	CheckFeatures controllers.CheckFeaturesFunc
 }
 
+// keyedResourceClient is the internal client shape used by resourceReconciler.
+// Public constructors adapt scoped and unscoped resource clients to this shape.
+type keyedResourceClient[T Resource] interface {
+	Get(context.Context, ResourceKey) (T, error)
+	Create(context.Context, T) error
+	Update(context.Context, T) error
+	Delete(context.Context, ResourceKey) error
+	Mutate(context.Context, T, T, kclient.ObjectKey) error
+}
+
 // resourceReconciler is a Teleport generic reconciler.
 type resourceReconciler[T any, K KubernetesCR[T]] struct {
-	kubeClient     kclient.Client
-	resourceClient resourceClient[T]
-	gvk            schema.GroupVersionKind
-	adapter        Adapter[T]
-	scoped         bool
-	teleportKind   string
-	checkFeatures  controllers.CheckFeaturesFunc
+	kubeClient      kclient.Client
+	resourceClient  keyedResourceClient[T]
+	gvk             schema.GroupVersionKind
+	adapter         Adapter[T]
+	scopeFromObject func(kclient.Object) (string, error)
+	scoped          bool
+	teleportKind    string
+	checkFeatures   controllers.CheckFeaturesFunc
 }
 
 func (r resourceReconciler[T, K]) GVK() schema.GroupVersionKind {
@@ -162,8 +261,8 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	teleportResource := k8sResource.ToTeleport()
 
 	debugLog.Info("Converting resource to teleport")
-	name := r.adapter.GetResourceName(teleportResource)
-	existingResource, err := r.resourceClient.Get(ctx, name)
+	key := r.resourceKey(teleportResource)
+	existingResource, err := r.resourceClient.Get(ctx, key)
 	updateErr = updateStatus(updateStatusConfig{
 		ctx:         ctx,
 		client:      r.kubeClient,
@@ -190,7 +289,7 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 			return trace.Wrap(updateErr)
 		}
 		if !isOwned {
-			return trace.AlreadyExists("unowned Resource '%s' already exists", name)
+			return trace.AlreadyExists("unowned Resource '%s' already exists", key.Name)
 		}
 	} else {
 		debugLog.Info("Resource does not exist yet")
@@ -211,25 +310,22 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	r.adapter.SetResourceLabels(teleportResource, teleportLabels)
 	debugLog.Info("Propagating labels from kube resource", "kubeLabels", kubeLabels, "teleportLabels", teleportLabels)
 
-	if mutator, ok := r.resourceClient.(resourceMutator[T]); ok {
-		debugLog.Info("Mutating resource")
-		objKey := kclient.ObjectKeyFromObject(k8sResource)
-		if err := mutator.Mutate(ctx, teleportResource, existingResource, objKey); err != nil {
-			// If an error happens we want to put it in status.conditions before returning.
-			updateErr = updateStatus(updateStatusConfig{
-				ctx:         ctx,
-				client:      r.kubeClient,
-				k8sResource: k8sResource,
-				condition: metav1.Condition{
-					Type:    ConditionTypeSuccessfullyReconciled,
-					Status:  metav1.ConditionFalse,
-					Reason:  ConditionReasonMutationError,
-					Message: fmt.Sprintf("The reconciliation failed, the operator failed to mutate the resource before creating it in Teleport. Mutation failed with error: %s", err),
-				},
-			})
+	objKey := kclient.ObjectKeyFromObject(k8sResource)
+	if err := r.resourceClient.Mutate(ctx, teleportResource, existingResource, objKey); err != nil {
+		// If an error happens we want to put it in status.conditions before returning.
+		updateErr = updateStatus(updateStatusConfig{
+			ctx:         ctx,
+			client:      r.kubeClient,
+			k8sResource: k8sResource,
+			condition: metav1.Condition{
+				Type:    ConditionTypeSuccessfullyReconciled,
+				Status:  metav1.ConditionFalse,
+				Reason:  ConditionReasonMutationError,
+				Message: fmt.Sprintf("The reconciliation failed, the operator failed to mutate the resource before creating it in Teleport. Mutation failed with error: %s", err),
+			},
+		})
 
-			return trace.NewAggregate(err, updateErr)
-		}
+		return trace.NewAggregate(err, updateErr)
 	}
 
 	if !exists {
@@ -254,11 +350,44 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	return trace.NewAggregate(err, updateErr)
 }
 
+func (r resourceReconciler[T, K]) resourceKey(resource T) ResourceKey {
+	key := ResourceKey{Name: r.adapter.GetResourceName(resource)}
+
+	if scopedAdapter, ok := r.adapter.(interface{ GetResourceScope(T) string }); ok {
+		key.Scope = scopedAdapter.GetResourceScope(resource)
+	}
+	return key
+}
+
+func scopeFromUnstructuredObject(obj kclient.Object) (string, error) {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return "", trace.BadParameter("failed to convert Object into Resource object: %T", obj)
+	}
+	scope, found, err := unstructured.NestedString(u.Object, "scope")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if !found {
+		return "", trace.BadParameter("scope is required")
+	}
+	return scope, nil
+}
+
 // Delete is the resourceReconciler of the ResourceBaseReconciler DeleteExertal
 func (r resourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object) error {
+	key := ResourceKey{Name: obj.GetName()}
+	if r.scopeFromObject != nil {
+		scope, err := r.scopeFromObject(obj)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		key.Scope = scope
+	}
+
 	// This call catches non-existing resources or subkind mismatch (e.g. openssh nodes)
 	// We can then check that we own the Resource before deleting it.
-	resource, err := r.resourceClient.Get(ctx, obj.GetName())
+	resource, err := r.resourceClient.Get(ctx, key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -271,7 +400,7 @@ func (r resourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object
 	// This GET->check->DELETE dance is race-prone, but it's good enough for what
 	// we want to do. No one should reconcile the same Resource as the operator.
 	// If they do, it's their fault as the Resource was clearly flagged as belonging to us.
-	return r.resourceClient.Delete(ctx, obj.GetName())
+	return r.resourceClient.Delete(ctx, key)
 }
 
 // Reconcile receives an update request and reconcile the Resource,
