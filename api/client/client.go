@@ -6266,6 +6266,37 @@ func (c *Client) ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestr
 	return clientiprestrictionv1.NewClientIPRestrictionServiceClient(c.conn)
 }
 
+// GetClientIPRestriction returns the ClientIPRestriction singleton. The name is
+// resolved server-side, so no name needs to be provided.
+func (c *Client) GetClientIPRestriction(ctx context.Context) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	cir, err := c.ClientIPRestrictionClient().GetClientIPRestriction(ctx, &clientiprestrictionv1.GetClientIPRestrictionRequest{})
+	return cir, trace.Wrap(err)
+}
+
+// CreateClientIPRestriction creates the ClientIPRestriction singleton. It fails if
+// one already exists.
+func (c *Client) CreateClientIPRestriction(ctx context.Context, cir *clientiprestrictionv1.ClientIPRestriction) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	req := &clientiprestrictionv1.CreateClientIPRestrictionRequest{}
+	req.SetClientIpRestriction(cir)
+	created, err := c.ClientIPRestrictionClient().CreateClientIPRestriction(ctx, req)
+	return created, trace.Wrap(err)
+}
+
+// UpsertClientIPRestriction creates or replaces the ClientIPRestriction singleton.
+func (c *Client) UpsertClientIPRestriction(ctx context.Context, cir *clientiprestrictionv1.ClientIPRestriction) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	req := &clientiprestrictionv1.UpsertClientIPRestrictionRequest{}
+	req.SetClientIpRestriction(cir)
+	upserted, err := c.ClientIPRestrictionClient().UpsertClientIPRestriction(ctx, req)
+	return upserted, trace.Wrap(err)
+}
+
+// DeleteClientIPRestriction deletes the ClientIPRestriction singleton. The name is
+// resolved server-side, so no name needs to be provided.
+func (c *Client) DeleteClientIPRestriction(ctx context.Context) error {
+	_, err := c.ClientIPRestrictionClient().DeleteClientIPRestriction(ctx, &clientiprestrictionv1.DeleteClientIPRestrictionRequest{})
+	return trace.Wrap(err)
+}
+
 // ListWorkloadClusters returns a list of WorkloadClusters.
 func (c *Client) ListWorkloadClusters(ctx context.Context, pageSize int, nextToken string) ([]*workloadclusterv1.WorkloadCluster, string, error) {
 	resp, err := c.WorkloadClustersClient().ListWorkloadClusters(ctx, &workloadclusterv1.ListWorkloadClustersRequest{
