@@ -436,6 +436,21 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 	return tracker, nil
 }
 
+// CreateSessionTracker is the scoped equivalent of [ServerWithRoles.CreateSessionTracker].
+func (a *ScopedServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.CreateSessionTracker(ctx, tracker)
+	}
+	if _, isServer := getBuiltinServerID(a.scopedContext.Identity); !isServer {
+		return nil, trace.AccessDenied("this request can be only executed by a teleport built-in server")
+	}
+	tracker, err := a.authServer.CreateSessionTracker(ctx, tracker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tracker, nil
+}
+
 func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
 	// Apply RFD 45 RBAC rules to the session if it's SSH.
 	// This is a bit of a hack. It converts to the old legacy format
@@ -672,6 +687,17 @@ func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.U
 		return trace.Wrap(err)
 	}
 
+	return a.authServer.UpdateSessionTracker(ctx, req)
+}
+
+// UpdateSessionTracker is the scoped equivalent of [ServerWithRoles.UpdateSessionTracker].
+func (a *ScopedServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.UpdateSessionTracker(ctx, req)
+	}
+	if _, isServer := getBuiltinServerID(a.scopedContext.Identity); !isServer {
+		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
+	}
 	return a.authServer.UpdateSessionTracker(ctx, req)
 }
 
@@ -6667,6 +6693,37 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 
+	token, err := a.authServer.generateAppToken(ctx, req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
+}
+
+// GenerateAppToken is the scoped equivalent of [ServerWithRoles.GenerateAppToken].
+func (a *ScopedServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.GenerateAppToken(ctx, req)
+	}
+
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, types.VerbCreate)
+	}); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// TODO(williamo/scopes): bind req.Scope to the generated token.
+	//
+	// The app JWT is signed by a single cluster wide JWT CA, so its trust anchor spans every scope.
+	// A compromised app could replay a valid signed token against another
+	// app they can access, including one in a different scope, if that app
+	// verifies only the signature and not the "aud" claim. Setting "aud" to the
+	// app's address is a partial mitigation, but enforcement is up to the
+	// downstream app.
+	//
+	// This cross app replay risk is not strictly scope specific, but attackers
+	// can use this path to reach out to other applications not in the user's scope.
 	token, err := a.authServer.generateAppToken(ctx, req)
 	if err != nil {
 		return "", trace.Wrap(err)
