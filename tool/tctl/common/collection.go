@@ -19,7 +19,6 @@
 package common
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -43,7 +42,6 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -2126,45 +2124,6 @@ type autoUpdateBotInstanceReportCollection struct {
 
 func (c *autoUpdateBotInstanceReportCollection) Resources() []types.Resource {
 	return []types.Resource{types.ProtoResource153ToLegacy(c.report)}
-}
-
-func scopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *bytes.Buffer {
-	headers := []string{
-		"Token",
-		"Type",
-		"Scope",
-		"Assigns Scope",
-		"Labels",
-		"Expiry Time (UTC)",
-	}
-	if withSecrets {
-		headers = slices.Insert(headers, 1, "Secret")
-	}
-	table := asciitable.MakeTable(headers)
-
-	now := time.Now()
-	for _, t := range tokens {
-		expiry := "never"
-		expiresAt := t.GetMetadata().GetExpires().AsTime()
-		if !expiresAt.IsZero() && expiresAt.Unix() != 0 {
-			exptime := expiresAt.Format(time.RFC822)
-			expdur := expiresAt.Sub(now).Round(time.Second)
-			expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
-		}
-		row := []string{
-			t.GetMetadata().GetName(),
-			strings.Join(t.GetSpec().GetRoles(), ","),
-			t.GetScope(),
-			t.GetSpec().GetAssignedScope(),
-			printMetadataLabels(t.GetMetadata().Labels),
-			expiry,
-		}
-		if withSecrets {
-			row = slices.Insert(row, 1, t.GetStatus().GetSecret())
-		}
-		table.AddRow(row)
-	}
-	return table.AsBuffer()
 }
 
 func (c *autoUpdateBotInstanceReportCollection) WriteText(w io.Writer, _ bool) error {

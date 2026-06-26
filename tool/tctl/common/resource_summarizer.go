@@ -87,12 +87,12 @@ func (rc *ResourceCommand) updateInferenceModel(
 
 // getInferenceModels retrieves one or more inference model resources.
 func (rc *ResourceCommand) getInferenceModels(
-	ctx context.Context, clt *authclient.Client,
+	ctx context.Context, clt *authclient.Client, ref services.Ref,
 ) (resources.Collection, error) {
 	ssclt := clt.SummarizerServiceClient()
-	if rc.ref.Name != "" {
+	if ref.Name != "" {
 		req := &summarizerv1.GetInferenceModelRequest{
-			Name: rc.ref.Name,
+			Name: ref.Name,
 		}
 		res, err := ssclt.GetInferenceModel(ctx, req)
 		if err != nil {
@@ -121,15 +121,15 @@ func (rc *ResourceCommand) getInferenceModels(
 
 // deleteInferenceModel deletes an inference model resource.
 func (rc *ResourceCommand) deleteInferenceModel(
-	ctx context.Context, clt *authclient.Client,
+	ctx context.Context, clt *authclient.Client, ref services.Ref,
 ) error {
 	req := &summarizerv1.DeleteInferenceModelRequest{
-		Name: rc.ref.Name,
+		Name: ref.Name,
 	}
 	if _, err := clt.SummarizerServiceClient().DeleteInferenceModel(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("inference_model %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("inference_model %q has been deleted\n", ref.Name)
 	return nil
 }
 
@@ -211,12 +211,12 @@ func (rc *ResourceCommand) createInferenceSecret(
 
 // getInferenceSecrets retrieves one or more inference secret resources.
 func (rc *ResourceCommand) getInferenceSecrets(
-	ctx context.Context, clt *authclient.Client,
+	ctx context.Context, clt *authclient.Client, ref services.Ref,
 ) (resources.Collection, error) {
 	ssclt := clt.SummarizerServiceClient()
-	if rc.ref.Name != "" {
+	if ref.Name != "" {
 		req := &summarizerv1.GetInferenceSecretRequest{
-			Name: rc.ref.Name,
+			Name: ref.Name,
 		}
 		res, err := ssclt.GetInferenceSecret(ctx, req)
 		if err != nil {
@@ -244,15 +244,15 @@ func (rc *ResourceCommand) getInferenceSecrets(
 }
 
 func (rc *ResourceCommand) deleteInferenceSecret(
-	ctx context.Context, clt *authclient.Client,
+	ctx context.Context, clt *authclient.Client, ref services.Ref,
 ) error {
 	req := &summarizerv1.DeleteInferenceSecretRequest{
-		Name: rc.ref.Name,
+		Name: ref.Name,
 	}
 	if _, err := clt.SummarizerServiceClient().DeleteInferenceSecret(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("inference_secret %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("inference_secret %q has been deleted\n", ref.Name)
 	return nil
 }
 
@@ -344,12 +344,12 @@ func (rc *ResourceCommand) updateInferencePolicy(
 
 // getInferencePolicies retrieves one or more inference policy resources.
 func (rc *ResourceCommand) getInferencePolicies(
-	ctx context.Context, clt *authclient.Client,
+	ctx context.Context, clt *authclient.Client, ref services.Ref,
 ) (resources.Collection, error) {
 	ssclt := clt.SummarizerServiceClient()
-	if rc.ref.Name != "" {
+	if ref.Name != "" {
 		req := &summarizerv1.GetInferencePolicyRequest{
-			Name: rc.ref.Name,
+			Name: ref.Name,
 		}
 		res, err := ssclt.GetInferencePolicy(ctx, req)
 		if err != nil {
@@ -378,15 +378,15 @@ func (rc *ResourceCommand) getInferencePolicies(
 
 // deleteInferencePolicy deletes an inference policy resource.
 func (rc *ResourceCommand) deleteInferencePolicy(
-	ctx context.Context, clt *authclient.Client,
+	ctx context.Context, clt *authclient.Client, ref services.Ref,
 ) error {
 	req := &summarizerv1.DeleteInferencePolicyRequest{
-		Name: rc.ref.Name,
+		Name: ref.Name,
 	}
 	if _, err := clt.SummarizerServiceClient().DeleteInferencePolicy(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("inference_policy %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("inference_policy %q has been deleted\n", ref.Name)
 	return nil
 }
 
