@@ -32,11 +32,6 @@ import (
 // Any other value, including unset, does nothing.
 const cswshActionEnv = "TELEPORT_UNSTABLE_APP_CSWSH_ACTION"
 
-// cswshDetectedMarker is a stable, unique token included in the log line emitted
-// when a cross-origin WebSocket upgrade is detected, so detections can be grepped
-// out of proxy logs.
-const cswshDetectedMarker = "app_access_cswsh_detected"
-
 // cswshAction is the parsed TELEPORT_UNSTABLE_APP_CSWSH_ACTION behavior. report
 // and block are independent: unset of both is the default no-op.
 type cswshAction struct {
@@ -86,7 +81,6 @@ func (h *Handler) guardCrossSiteWebSocket(r *http.Request) error {
 
 	if h.cswshAction.report {
 		h.logger.WarnContext(r.Context(), "Detected cross-origin WebSocket upgrade to application",
-			"marker", cswshDetectedMarker,
 			"blocked", h.cswshAction.block,
 			"sec_fetch_site", r.Header.Get("Sec-Fetch-Site"),
 			"origin", r.Header.Get("Origin"),
