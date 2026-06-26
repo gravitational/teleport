@@ -19,7 +19,7 @@ package types
 import (
 	"bytes"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 )
