@@ -251,7 +251,7 @@ func (e *localExec) String() string {
 func (e *localExec) transformSecureCopy() error {
 	isSCPCmd, err := checkSCPAllowed(e.Ctx, e.GetCommand())
 	if err != nil {
-		e.Ctx.GetServer().EmitAuditEvent(context.WithoutCancel(e.Ctx.Context), &apievents.SFTP{
+		e.Ctx.GetServer().EmitAuditEvent(context.WithoutCancel(e.Ctx.CancelContext()), &apievents.SFTP{
 			Metadata: apievents.Metadata{
 				Code: events.SFTPDisallowedCode,
 				Type: events.SFTPEvent,
@@ -293,7 +293,7 @@ func (e *localExec) transformSecureCopy() error {
 func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	// split up command by space to grab the first word. if we don't have anything
 	// it's an interactive shell the user requested and not scp, return
-	args := strings.Split(command, " ")
+	args := strings.Fields(command)
 	if len(args) == 0 {
 		return false, nil
 	}

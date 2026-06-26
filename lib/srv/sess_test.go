@@ -1851,8 +1851,9 @@ func (f *fakeServer) Context() context.Context {
 
 type fakeAccessChecker struct {
 	services.AccessChecker
-	err      error
-	hostInfo services.HostUsersInfo
+	err          error
+	hostInfo     services.HostUsersInfo
+	canCopyFiles bool
 }
 
 func (f *fakeAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
@@ -1861,6 +1862,10 @@ func (f *fakeAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 
 func (f *fakeAccessChecker) HostUsers(srv types.Server) (*services.HostUsersInfo, error) {
 	return &f.hostInfo, f.err
+}
+
+func (f *fakeAccessChecker) CanCopyFiles() bool {
+	return f.canCopyFiles
 }
 
 type fakeUser struct {
