@@ -101,6 +101,7 @@ require (
 	github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.9
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.11.0
 	github.com/beevik/etree v1.6.0
+	github.com/boombuler/barcode v1.0.1
 	github.com/buildkite/bintest/v3 v3.3.0
 	github.com/charlievieth/strcase v0.0.5
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7
@@ -343,7 +344,6 @@ require (
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.9.1 // indirect
-	github.com/boombuler/barcode v1.0.1 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
