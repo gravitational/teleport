@@ -26,6 +26,9 @@ import (
 {{- if .DefaultSubKind }}
 	"strings"
 {{- end }}
+{{- if .StatePoll }}
+	"time"
+{{- end }}
 {{- range $i, $a := .ExtraImports }}
 	{{$a}}
 {{- end }}
@@ -42,6 +45,9 @@ import (
 {{- end }}
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+{{- if .StatePoll }}
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+{{- end }}
 
 	{{ schemaImport . }}
 )
@@ -286,6 +292,75 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .StatePoll }}
+
+	stateConf := resource.StateChangeConf{
+		Pending: []string{
+		{{- range $state := .StatePoll.PendingStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Target:  []string{
+		{{- range $state := .StatePoll.TargetStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Timeout:      {{ .StatePoll.StateTimeoutSeconds }} * time.Second,
+		PollInterval: {{ .StatePoll.StatePollIntervalSeconds }} * time.Second,
+		Refresh: func() (any, string, error) {
+		{{- if .RequestWrapper }}
+			{{ .VarName }}Resp, err := r.p.Client.{{ .GetMethod }}(ctx, &{{ .ProtoPackage }}.{{ .RequestWrapper.GetRequest }}{
+				Name: {{ .DefaultName }},
+				{{- if .DefaultSubKind }}
+				SubKind: {{ .VarName }}.SubKind,
+				{{- end }}
+				{{- if ne .WithSecrets "" }}
+				WithSecrets: {{ .WithSecrets }},
+				{{- end }}
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+			{{ .VarName }} := {{ .VarName }}Resp
+			{{- else }}
+			{{ .VarName }} := {{ .VarName }}Resp.Get{{ .RequestWrapper.RequestResourceField }}()
+			{{- end}}
+		{{- else }}
+			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+		{{- end }}
+
+			if {{ .VarName }} == nil {
+				return nil, "", trace.Errorf("response from {{ .GetMethod }} was nil")
+			}
+
+			{{- $root := . }}
+			{{- $lastIndex := -1 }}
+			{{- range $i, $p := .StatePoll.StatePath }}
+				{{- $lastIndex = $i }}
+			{{- end }}
+			{{- $currentPath := "" }}
+			{{- range $i, $p := .StatePoll.StatePath }}
+				{{- if eq $i $lastIndex }}
+					{{- break }}
+				{{- end }}
+				{{- $currentPath = print $currentPath "." $p }}
+			if {{ $root.VarName }}{{ $currentPath }} == nil {
+				return nil, "", trace.Errorf("response from {{ $root.GetMethod }} at {{ $currentPath }} was nil")
+			}
+			{{- end }}
+
+			return {{ .VarName }}, {{ .VarName }}{{ range $p := .StatePoll.StatePath }}. {{- $p }}{{ end }}, nil
+		},
+	}
+
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
+	}
+{{- end }}
 }
 
 // Read reads teleport {{.Name}}
@@ -532,6 +607,75 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .StatePoll }}
+
+	stateConf := resource.StateChangeConf{
+		Pending: []string{
+		{{- range $state := .StatePoll.PendingStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Target:  []string{
+		{{- range $state := .StatePoll.TargetStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Timeout:      {{ .StatePoll.StateTimeoutSeconds }} * time.Second,
+		PollInterval: {{ .StatePoll.StatePollIntervalSeconds }} * time.Second,
+		Refresh: func() (any, string, error) {
+		{{- if .RequestWrapper }}
+			{{ .VarName }}Resp, err := r.p.Client.{{ .GetMethod }}(ctx, &{{ .ProtoPackage }}.{{ .RequestWrapper.GetRequest }}{
+				Name: {{ .DefaultName }},
+				{{- if .DefaultSubKind }}
+				SubKind: {{ .VarName }}.SubKind,
+				{{- end }}
+				{{- if ne .WithSecrets "" }}
+				WithSecrets: {{ .WithSecrets }},
+				{{- end }}
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+			{{ .VarName }} := {{ .VarName }}Resp
+			{{- else }}
+			{{ .VarName }} := {{ .VarName }}Resp.Get{{ .RequestWrapper.RequestResourceField }}()
+			{{- end}}
+		{{- else }}
+			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+		{{- end }}
+
+			if {{ .VarName }} == nil {
+				return nil, "", trace.Errorf("response from {{ .GetMethod }} was nil")
+			}
+
+			{{- $root := . }}
+			{{- $lastIndex := -1 }}
+			{{- range $i, $p := .StatePoll.StatePath }}
+				{{- $lastIndex = $i }}
+			{{- end }}
+			{{- $currentPath := "" }}
+			{{- range $i, $p := .StatePoll.StatePath }}
+				{{- if eq $i $lastIndex }}
+					{{- break }}
+				{{- end }}
+				{{- $currentPath = print $currentPath "." $p }}
+			if {{ $root.VarName }}{{ $currentPath }} == nil {
+				return nil, "", trace.Errorf("response from {{ $root.GetMethod }} at {{ $currentPath }} was nil")
+			}
+			{{- end }}
+
+			return {{ .VarName }}, {{ .VarName }}{{ range $p := .StatePoll.StatePath }}. {{- $p }}{{ end }}, nil
+		},
+	}
+
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
+	}
+{{- end }}
 }
 
 // Delete deletes Teleport {{.Name}}
