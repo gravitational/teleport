@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 // NewBeamService creates a new BeamService with the given configuration.
@@ -49,6 +50,8 @@ func NewBeamService(cfg BeamsServiceConfig) (*BeamsService, error) {
 		return nil, trace.BadParameter("ComputeServiceClient is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("Authorizer is required")
+	case cfg.UsageReporter == nil:
+		return nil, trace.BadParameter("UsageReporter is required")
 	case cfg.Logger == nil:
 		return nil, trace.BadParameter("Logger is required")
 	}
@@ -72,6 +75,8 @@ func NewBeamService(cfg BeamsServiceConfig) (*BeamsService, error) {
 		workloadIdentityWriter:  cfg.WorkloadIdentityWriter,
 		computeService:          cfg.ComputeServiceClient,
 		authorizer:              cfg.Authorizer,
+		usageReporter:           cfg.UsageReporter,
+		region:                  cfg.Region,
 		generateAlias:           cfg.AliasGenerator,
 		logger:                  cfg.Logger,
 	}, nil
@@ -126,6 +131,12 @@ type BeamsServiceConfig struct {
 	// AliasGenerator is called to generate a human-friendly alias when creating
 	// a beam.
 	AliasGenerator func() (string, error)
+
+	// UsageReporter is used to emit usage events.
+	UsageReporter usagereporter.UsageReporter
+
+	// Region is the AWS region where this beam service is running.
+	Region string
 
 	// Logger to which errors and messages will be written.
 	Logger *slog.Logger
@@ -255,6 +266,8 @@ type BeamsService struct {
 	storageBackend StorageBackend
 	computeService compute.BeamsOrchestratorServiceClient
 	authorizer     authz.Authorizer
+	usageReporter  usagereporter.UsageReporter
+	region         string
 	generateAlias  func() (string, error)
 	logger         *slog.Logger
 }

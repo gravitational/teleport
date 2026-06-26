@@ -15,8 +15,10 @@ import (
 	beamsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -90,6 +92,9 @@ type GarbageCollectorConfig struct {
 	// at once.
 	RateLimitBurst int
 
+	// UsageReporter is used to emit usage events.
+	UsageReporter usagereporter.UsageReporter
+
 	// Logger emits collector logs.
 	Logger *slog.Logger
 }
@@ -107,6 +112,8 @@ func (c *GarbageCollectorConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("Semaphores is required")
 	case c.HostID == "":
 		return trace.BadParameter("HostID is required")
+	case c.UsageReporter == nil:
+		return trace.BadParameter("UsageReporter is required")
 	case c.Logger == nil:
 		return trace.BadParameter("Logger is required")
 	}
@@ -238,9 +245,15 @@ func (g *GarbageCollector) deleteExpiredBeam(ctx context.Context, beam *beamsv1p
 		return trace.Wrap(err)
 	}
 
+	beamID := beam.GetMetadata().GetName()
 	err := g.cfg.BeamService.deleteBeam(ctx, beam)
 	switch {
 	case err == nil:
+		g.cfg.UsageReporter.AnonymizeAndSubmit(&usagereporter.BeamsDestroyedEvent{
+			BeamId: beamID,
+			Reason: prehogv1a.BeamDestroyReason_BEAM_DESTROY_REASON_GC_EXPIRED,
+			Region: g.cfg.BeamService.region,
+		})
 		return nil
 	case !errors.Is(err, backend.ErrConditionFailed):
 		return trace.Wrap(err)
@@ -250,12 +263,20 @@ func (g *GarbageCollector) deleteExpiredBeam(ctx context.Context, beam *beamsv1p
 	// storage backend to get the latest revision, and try again. Do this rather
 	// than unconditionally deleting the beam in case the beam has been published
 	// and there's a new app resource to delete.
-	beam, err = g.cfg.Backend.GetBeam(ctx, beam.GetMetadata().GetName())
+	beam, err = g.cfg.Backend.GetBeam(ctx, beamID)
 	switch {
 	case trace.IsNotFound(err):
 		return nil
 	case err != nil:
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(g.cfg.BeamService.deleteBeam(ctx, beam))
+	if err := g.cfg.BeamService.deleteBeam(ctx, beam); err != nil {
+		return trace.Wrap(err)
+	}
+	g.cfg.UsageReporter.AnonymizeAndSubmit(&usagereporter.BeamsDestroyedEvent{
+		BeamId: beamID,
+		Reason: prehogv1a.BeamDestroyReason_BEAM_DESTROY_REASON_GC_EXPIRED,
+		Region: g.cfg.BeamService.region,
+	})
+	return nil
 }

@@ -12,8 +12,10 @@ import (
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/types"
 	compute "github.com/gravitational/teleport/e/api/beamservice/v1"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/backend"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 func (s *BeamsService) DeleteBeam(ctx context.Context, req *beamsv1.DeleteBeamRequest) (*emptypb.Empty, error) {
@@ -49,6 +51,12 @@ func (s *BeamsService) DeleteBeam(ctx context.Context, req *beamsv1.DeleteBeamRe
 		logger.ErrorContext(ctx, "Failed to delete beam record", "error", err)
 		return nil, trace.Wrap(err)
 	}
+
+	s.usageReporter.AnonymizeAndSubmit(&usagereporter.BeamsDestroyedEvent{
+		BeamId: req.GetName(),
+		Reason: prehogv1a.BeamDestroyReason_BEAM_DESTROY_REASON_USER_DELETED,
+		Region: s.region,
+	})
 
 	return &emptypb.Empty{}, nil
 }

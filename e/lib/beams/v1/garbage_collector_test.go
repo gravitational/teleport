@@ -13,6 +13,7 @@ import (
 
 	beamsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	compute "github.com/gravitational/teleport/e/api/beamservice/v1"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -148,12 +149,13 @@ func (p *beamServiceTestPack) newGarbageCollector(t *testing.T) *GarbageCollecto
 	t.Helper()
 
 	gc, err := NewGarbageCollector(GarbageCollectorConfig{
-		Cache:       p.beam,
-		Backend:     p.beam,
-		BeamService: p.service(t, p.admin(t)),
-		Semaphores:  p.presence,
-		HostID:      "test-auth",
-		Logger:      logtest.NewLogger(),
+		Cache:         p.beam,
+		Backend:       p.beam,
+		BeamService:   p.service(t, p.admin(t)),
+		Semaphores:    p.presence,
+		HostID:        "test-auth",
+		UsageReporter: usagereporter.DiscardUsageReporter{},
+		Logger:        logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 

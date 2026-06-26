@@ -654,6 +654,12 @@ func (p *Plugin) registerBeamsService(ctx context.Context, grpcServer *grpc.Serv
 		client = beamservicev1.NewBeamsOrchestratorServiceClient(conn)
 	}
 
+	// Assume the beams region is the same until gravitational/rfd#54 lands
+	auditCfg, err := p.authServer.AuthServer.GetClusterAuditConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting cluster audit config for beams")
+	}
+
 	srv, err := beamsv1.NewBeamService(beamsv1.BeamsServiceConfig{
 		ClusterName:             clusterName,
 		AuthPreferenceGetter:    p.authServer.AuthServer,
@@ -669,6 +675,8 @@ func (p *Plugin) registerBeamsService(ctx context.Context, grpcServer *grpc.Serv
 		WorkloadIdentityWriter:  p.authServer.AuthServer,
 		ComputeServiceClient:    client,
 		Authorizer:              p.authServer.Authorizer,
+		UsageReporter:           p.authServer.AuthServer.UsageReporter,
+		Region:                  auditCfg.Region(),
 		Logger:                  logger.With(teleport.ComponentKey, "beams-service"),
 	})
 	if err != nil {
@@ -677,12 +685,13 @@ func (p *Plugin) registerBeamsService(ctx context.Context, grpcServer *grpc.Serv
 	beamsv1pb.RegisterBeamServiceServer(grpcServer, srv)
 
 	gc, err := beamsv1.NewGarbageCollector(beamsv1.GarbageCollectorConfig{
-		Cache:       p.authServer.AuthServer,
-		Backend:     p.authServer.AuthServer.Services,
-		BeamService: srv,
-		Semaphores:  p.authServer.AuthServer,
-		HostID:      p.authServer.AuthServer.ServerID,
-		Logger:      logger.With(teleport.ComponentTeleport, "beams-garbage-collector"),
+		Cache:         p.authServer.AuthServer,
+		Backend:       p.authServer.AuthServer.Services,
+		BeamService:   srv,
+		Semaphores:    p.authServer.AuthServer,
+		HostID:        p.authServer.AuthServer.ServerID,
+		UsageReporter: p.authServer.AuthServer.UsageReporter,
+		Logger:        logger.With(teleport.ComponentTeleport, "beams-garbage-collector"),
 	})
 	if err != nil {
 		return trace.Wrap(err, "creating beams garbage collector")

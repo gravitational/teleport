@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -48,6 +49,8 @@ func (s *BeamsService) CreateBeam(ctx context.Context, req *beamsv1.CreateBeamRe
 	if err := authCtx.CheckAccessToKind(types.KindBeam, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	start := time.Now()
 
 	// Create the initial beam record before calling the compute service, so
 	// that if a subsequent step fails, we've got a record of the beam and the
@@ -173,6 +176,12 @@ retry:
 		return nil, trace.Wrap(err)
 	}
 	beam.GetMetadata().SetRevision(revision)
+
+	s.usageReporter.AnonymizeAndSubmit(&usagereporter.BeamsCreatedEvent{
+		BeamId:            beam.GetMetadata().GetName(),
+		Region:            s.region,
+		StartupDurationMs: time.Since(start).Milliseconds(),
+	})
 
 	return beamsv1.CreateBeamResponse_builder{
 		Beam: beam,

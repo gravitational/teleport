@@ -22,6 +22,7 @@ import (
 	localservices "github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -173,6 +174,7 @@ func (p *beamServiceTestPack) service(t *testing.T, user types.User) *BeamsServi
 		WorkloadIdentityWriter:  p.workloadIdentity,
 		ComputeServiceClient:    p.compute,
 		Authorizer:              authorizer,
+		UsageReporter:           usagereporter.DiscardUsageReporter{},
 		AliasGenerator:          p.aliasGenerator,
 		Logger:                  logtest.NewLogger(),
 	})
