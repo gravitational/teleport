@@ -40,8 +40,8 @@ type UserSearchLister interface {
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 }
 
-// FindUsernamesBySearchKeywords returns usernames whose searchable user fields match the keywords.
-func FindUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, searchKeywords []string) (map[string]struct{}, error) {
+// findUsernamesBySearchKeywords returns usernames whose searchable user fields match the keywords.
+func findUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, searchKeywords []string) (map[string]struct{}, error) {
 	searchKeywords = cleanSearchKeywords(searchKeywords)
 	if len(searchKeywords) == 0 {
 		return nil, nil
@@ -80,7 +80,8 @@ type searchKeywordUsernameResolver struct {
 	usernamesBySearchKeyword map[string]map[string]struct{}
 }
 
-func newSearchKeywordUsernameResolver(ctx context.Context, users UserSearchLister) func(string) map[string]struct{} {
+// NewSearchKeywordUsernameResolver returns a memoizing resolver for search-keyword username matches.
+func NewSearchKeywordUsernameResolver(ctx context.Context, users UserSearchLister) func(string) map[string]struct{} {
 	resolver := &searchKeywordUsernameResolver{
 		ctx:                      ctx,
 		users:                    users,
@@ -99,7 +100,7 @@ func (r *searchKeywordUsernameResolver) resolveUsernames(searchKeyword string) m
 		return usernames
 	}
 
-	usernames, err := FindUsernamesBySearchKeywords(r.ctx, r.users, []string{searchKeyword})
+	usernames, err := findUsernamesBySearchKeywords(r.ctx, r.users, []string{searchKeyword})
 	if err != nil {
 		userSearchLogger.WarnContext(r.ctx, "Failed to resolve search keyword to users",
 			logKeySearchKeywords, []string{searchKeyword},

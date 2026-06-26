@@ -27,7 +27,7 @@ import (
 // NewAccessRequestSearchMatcher returns a matcher that checks stored request fields and requester user-search matches.
 func NewAccessRequestSearchMatcher(ctx context.Context, searchKeywords []string, users UserSearchLister) func(*types.AccessRequestV3) bool {
 	searchKeywords = cleanSearchKeywords(searchKeywords)
-	resolveToUsernames := newSearchKeywordUsernameResolver(ctx, users)
+	resolveToUsernames := NewSearchKeywordUsernameResolver(ctx, users)
 
 	return func(accessRequest *types.AccessRequestV3) bool {
 		return types.MatchSearch(accessRequest.SearchableFields(), searchKeywords, func(searchKeyword string) bool {

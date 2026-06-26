@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package services_test
+package services
 
 import (
 	"context"
@@ -28,7 +28,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 type testUserSearchLister struct {
@@ -64,7 +63,7 @@ func TestFindUsernamesBySearchKeywords(t *testing.T) {
 		users: []*types.UserV2{jane.(*types.UserV2)},
 	}
 
-	usernames, err := services.FindUsernamesBySearchKeywords(t.Context(), lister, []string{"Jane", "Garcia"})
+	usernames, err := findUsernamesBySearchKeywords(t.Context(), lister, []string{"Jane", "Garcia"})
 	require.NoError(t, err)
 	require.Equal(t, map[string]struct{}{janeUsername: {}}, usernames)
 
@@ -74,7 +73,7 @@ func TestFindUsernamesBySearchKeywords(t *testing.T) {
 	require.Equal(t, []string{"Jane", "Garcia"}, lister.request.GetFilter().SearchKeywords)
 	require.True(t, lister.request.GetFilter().SkipSystemUsers)
 
-	_, err = services.FindUsernamesBySearchKeywords(t.Context(), &testUserSearchLister{err: errors.New("backend unavailable")}, []string{"Jane"})
+	_, err = findUsernamesBySearchKeywords(t.Context(), &testUserSearchLister{err: errors.New("backend unavailable")}, []string{"Jane"})
 	require.Error(t, err)
 }
 
@@ -82,7 +81,7 @@ func TestFindUsernamesBySearchKeywordsSkipsBlankSearch(t *testing.T) {
 	t.Parallel()
 
 	lister := &testUserSearchLister{}
-	usernames, err := services.FindUsernamesBySearchKeywords(t.Context(), lister, []string{"", "   "})
+	usernames, err := findUsernamesBySearchKeywords(t.Context(), lister, []string{"", "   "})
 	require.NoError(t, err)
 	require.Nil(t, usernames)
 	require.Zero(t, lister.calls)

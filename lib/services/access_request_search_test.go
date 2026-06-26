@@ -19,14 +19,31 @@
 package services_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+type accessRequestSearchUserLister struct {
+	users []*types.UserV2
+	err   error
+}
+
+func (l *accessRequestSearchUserLister) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	if l.err != nil {
+		return nil, l.err
+	}
+
+	return userspb.ListUsersResponse_builder{
+		Users: l.users,
+	}.Build(), nil
+}
 
 func TestNewAccessRequestSearchMatcherDegradesGracefullyOnUserLookupFailure(t *testing.T) {
 	t.Parallel()
@@ -40,11 +57,11 @@ func TestNewAccessRequestSearchMatcherDegradesGracefullyOnUserLookupFailure(t *t
 	require.NoError(t, err)
 	resolvedUsers := []*types.UserV2{resolvedUser.(*types.UserV2)}
 
-	successLister := &testUserSearchLister{users: resolvedUsers}
+	successLister := &accessRequestSearchUserLister{users: resolvedUsers}
 	successMatcher := services.NewAccessRequestSearchMatcher(t.Context(), []string{"Jane"}, successLister)
 	require.True(t, successMatcher(displayOnly.(*types.AccessRequestV3)), "display-only match should pass when user lookup resolves the requester")
 
-	failedLister := &testUserSearchLister{
+	failedLister := &accessRequestSearchUserLister{
 		users: resolvedUsers,
 		err:   errors.New("backend unavailable"),
 	}

@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -291,10 +292,18 @@ func waitForUserSearchMatch(t *testing.T, ctx context.Context, users services.Us
 
 	timeout := time.After(time.Second * 30)
 	for {
-		usernames, err := services.FindUsernamesBySearchKeywords(ctx, users, searchKeywords)
+		rsp, err := users.ListUsers(ctx, userspb.ListUsersRequest_builder{
+			PageSize: defaults.DefaultChunkSize,
+			Filter: &types.UserFilter{
+				SearchKeywords:  searchKeywords,
+				SkipSystemUsers: true,
+			},
+		}.Build())
 		require.NoError(t, err)
-		if _, ok := usernames[username]; ok {
-			return
+		for _, user := range rsp.GetUsers() {
+			if user.GetName() == username {
+				return
+			}
 		}
 
 		select {
