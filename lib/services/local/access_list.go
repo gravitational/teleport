@@ -926,13 +926,17 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if !slices.ContainsFunc(accessList.Spec.Owners, func(owner accesslist.Owner) bool {
+			isStillAnOwnerList := slices.ContainsFunc(accessList.Spec.Owners, func(owner accesslist.Owner) bool {
+				if !owner.IsMembershipKindList() {
+					return false
+				}
 				ownerName, err := accesslists.OwnerScopeQualifiedName(owner)
 				if err != nil {
 					return false
 				}
 				return ownerName == existingOwnerName
-			}) {
+			})
+			if !isStillAnOwnerList {
 				if err := a.updateAccessListOwnerOf(ctx, existingAccessList.GetScopeQualifiedName(), existingOwnerName, false); err != nil {
 					return trace.Wrap(err)
 				}
