@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -351,4 +352,28 @@ func (m *mockSessionTrackerService) CreateSessionTracker(_ context.Context, trac
 
 func (m *mockSessionTrackerService) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
 	return nil, "", nil
+}
+
+// TestMultiResizeQueueNextEvictsClosedChannel is a regression test for the CPU hot-spin in (*multiResizeQueue).Next():
+// a closed party channel must be dropped from the select set, not re-selected forever.
+// See https://github.com/gravitational/teleport/issues/68140.
+func TestMultiResizeQueueNextEvictsClosedChannel(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		q := newMultiResizeQueue(t.Context())
+		q.callback = func(terminalResizeMessage) {}
+
+		// A disconnected party: its resize channel is closed but never removed.
+		closedCh := make(chan terminalResizeMessage)
+		close(closedCh)
+		q.add("disconnected-party", closedCh)
+
+		go q.Next()
+
+		// Hangs on the unfixed code: Next() spins instead of durably blocking.
+		synctest.Wait()
+
+		q.mutex.Lock()
+		defer q.mutex.Unlock()
+		require.Empty(t, q.queues, "closed resize channel was not evicted from the select set")
+	})
 }
