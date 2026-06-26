@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -1600,15 +1601,25 @@ func (s *Server) startAzureServerDiscovery() {
 	}
 
 	var azureWatcher *server.Watcher[*server.AzureInstances]
+	configChangeCh := s.newDiscoveryConfigChangedSub()
 
 	// a full refresh is somewhat wasteful, however not overly so due to inexpensive operations involved.
 	// a more selective approach would necessitate deeper refactoring.
-	refreshFetchers := func() {
+	refreshFetchers := func(drainConfigNotifications bool) {
 		s.Log.DebugContext(s.ctx, "Refreshing Azure server fetchers")
 		replaceMap := make(map[string][]server.Fetcher[*server.AzureInstances])
 		replaceMap[noDiscoveryConfig] = s.azureServerFetchersFromMatchers(s.Matchers.Azure, noDiscoveryConfig)
 
 		s.dynamicDiscoveryConfigMu.RLock()
+		if drainConfigNotifications {
+			select {
+			// Config change notifications are only sent under a write lock, so
+			// we can be sure that any pending notification is stale after we
+			// acquire the read lock.
+			case <-configChangeCh:
+			default:
+			}
+		}
 		// avoid holding the read lock while converting matchers to fetchers,
 		// in case of API calls, e.g., to expand subscription wildcard.
 		dynamicConfigs := make(map[string][]types.AzureMatcher, len(s.dynamicDiscoveryConfig))
@@ -1700,7 +1711,9 @@ func (s *Server) startAzureServerDiscovery() {
 		}),
 		server.WithPostFetchHookFn[*server.AzureInstances](func() {
 			// refresh the fetchers after every iteration to avoid stale config
-			defer refreshFetchers()
+			// but don't drain the notifications channel in post fetch - if
+			// config changed during the last fetch then we want to fetch again.
+			defer refreshFetchers(false)
 
 			_ = eg.Wait()
 			now := s.clock.Now()
@@ -1713,9 +1726,10 @@ func (s *Server) startAzureServerDiscovery() {
 			backoff.expireEntries(now)
 		}),
 		server.WithPollInterval[*server.AzureInstances](s.PollInterval),
-		server.WithTriggerFetchC[*server.AzureInstances](s.newDiscoveryConfigChangedSub()),
+		server.WithTriggerFetchC[*server.AzureInstances](configChangeCh),
 		server.WithTriggerFetchHookFn[*server.AzureInstances](func() {
-			refreshFetchers()
+			s.Log.DebugContext(s.ctx, "Fetch triggered by discovery config change")
+			refreshFetchers(true)
 			// users should be able to adjust discovery config to fix issues
 			// without waiting for the backoff entries to expire
 			backoff.reset()
@@ -1724,7 +1738,7 @@ func (s *Server) startAzureServerDiscovery() {
 	)
 
 	// refresh dynamic fetchers once at the beginning.
-	refreshFetchers()
+	refreshFetchers(true)
 
 	s.Log.DebugContext(s.ctx, "Azure VM watcher starting.")
 	go azureWatcher.Run()
@@ -2065,7 +2079,6 @@ func (s *Server) Start() error {
 // loadExistingDynamicDiscoveryConfigs loads all the dynamic discovery configs for the current discovery group
 // and setups their matchers.
 func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
-	hasDynamicMatchers := false
 	discoveryConfigsMap := make(map[string]*discoveryconfig.DiscoveryConfig)
 	// Add all existing DiscoveryConfigs as matchers.
 	nextKey := ""
@@ -2085,7 +2098,6 @@ func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
 				continue
 			}
 			discoveryConfigsMap[dc.GetName()] = dc
-			hasDynamicMatchers = true
 		}
 		if respNextKey == "" {
 			break
@@ -2093,14 +2105,7 @@ func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
 		nextKey = respNextKey
 	}
 
-	s.dynamicDiscoveryConfigMu.Lock()
-	s.dynamicDiscoveryConfig = discoveryConfigsMap
-	s.dynamicDiscoveryConfigMu.Unlock()
-
-	if hasDynamicMatchers {
-		s.notifyDiscoveryConfigChanged()
-	}
-
+	s.setDynamicDiscoveryConfigMap(discoveryConfigsMap)
 	return nil
 }
 
@@ -2137,10 +2142,7 @@ func (s *Server) startDynamicWatcherUpdater(ctx context.Context, dynamicMatcherW
 					// If the user updates the DiscoveryGroup to DG2, then DC1 must be removed from the scope of this process.
 					// We blindly delete it, in the worst case, this is a no-op.
 					s.deleteDynamicFetchers(name)
-					s.dynamicDiscoveryConfigMu.Lock()
-					delete(s.dynamicDiscoveryConfig, name)
-					s.dynamicDiscoveryConfigMu.Unlock()
-					s.notifyDiscoveryConfigChanged()
+					s.deleteDynamicDiscoveryConfig(name)
 					continue
 				}
 				s.dynamicDiscoveryConfigMu.RLock()
@@ -2151,16 +2153,14 @@ func (s *Server) startDynamicWatcherUpdater(ctx context.Context, dynamicMatcherW
 				if oldDiscoveryConfig.IsEqual(dc) {
 					continue
 				}
-
 				if err := s.upsertDynamicMatchers(ctx, dc); err != nil {
-					s.Log.WarnContext(ctx, "Failed to update dynamic matchers for discovery config", "discovery_config", dc.GetName(), "error", err)
+					s.Log.WarnContext(ctx, "Failed to update dynamic matchers for discovery config",
+						"discovery_config", dc.GetName(),
+						"error", err,
+					)
 					continue
 				}
-				s.dynamicDiscoveryConfigMu.Lock()
-				s.dynamicDiscoveryConfig[dc.GetName()] = dc
-				s.dynamicDiscoveryConfigMu.Unlock()
-				s.notifyDiscoveryConfigChanged()
-
+				s.updateDynamicDiscoveryConfig(dc)
 			case types.OpDelete:
 				name := event.Resource.GetName()
 				s.dynamicDiscoveryConfigMu.RLock()
@@ -2172,10 +2172,7 @@ func (s *Server) startDynamicWatcherUpdater(ctx context.Context, dynamicMatcherW
 					continue
 				}
 				s.deleteDynamicFetchers(name)
-				s.dynamicDiscoveryConfigMu.Lock()
-				delete(s.dynamicDiscoveryConfig, name)
-				s.dynamicDiscoveryConfigMu.Unlock()
-				s.notifyDiscoveryConfigChanged()
+				s.deleteDynamicDiscoveryConfig(name)
 			default:
 				s.Log.WarnContext(ctx, "Skipping unknown event type %s", "got", event.Type)
 			}
@@ -2183,6 +2180,35 @@ func (s *Server) startDynamicWatcherUpdater(ctx context.Context, dynamicMatcherW
 			return trace.Wrap(dynamicMatcherWatcher.Error())
 		}
 	}
+}
+
+func (s *Server) setDynamicDiscoveryConfigMap(new map[string]*discoveryconfig.DiscoveryConfig) {
+	s.dynamicDiscoveryConfigMu.Lock()
+	defer s.dynamicDiscoveryConfigMu.Unlock()
+	if !isEqualDiscoveryConfigMap(s.dynamicDiscoveryConfig, new) {
+		s.dynamicDiscoveryConfig = new
+		s.notifyDiscoveryConfigChanged()
+	}
+}
+
+func isEqualDiscoveryConfigMap(a, b map[string]*discoveryconfig.DiscoveryConfig) bool {
+	return maps.EqualFunc(a, b, func(aDC, bDC *discoveryconfig.DiscoveryConfig) bool {
+		return aDC.IsEqual(bDC)
+	})
+}
+
+func (s *Server) updateDynamicDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig) {
+	s.dynamicDiscoveryConfigMu.Lock()
+	defer s.dynamicDiscoveryConfigMu.Unlock()
+	s.dynamicDiscoveryConfig[dc.GetName()] = dc
+	s.notifyDiscoveryConfigChanged()
+}
+
+func (s *Server) deleteDynamicDiscoveryConfig(name string) {
+	s.dynamicDiscoveryConfigMu.Lock()
+	defer s.dynamicDiscoveryConfigMu.Unlock()
+	delete(s.dynamicDiscoveryConfig, name)
+	s.notifyDiscoveryConfigChanged()
 }
 
 // newDiscoveryConfigChangedSub creates a new subscription for DiscoveryConfig events.
