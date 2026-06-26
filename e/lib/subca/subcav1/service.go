@@ -310,7 +310,7 @@ func (s *Service) getCandidateCSRSigners(
 	}
 
 	// Make sure comparisons are case-insensitive.
-	publicKeyHash = strings.ToLower(publicKeyHash)
+	publicKeyHash = subca.NormalizePublicKey(publicKeyHash)
 
 	pkhPresent := publicKeyHash != ""
 	var pkhMatched bool
@@ -750,7 +750,7 @@ func (s *Service) findCertificateOverride(
 	}
 
 	// Make sure comparisons are case-insensitive.
-	publicKeyHash = strings.ToLower(publicKeyHash)
+	publicKeyHash = subca.NormalizePublicKey(publicKeyHash)
 
 	for i, parsedCO := range parsed.CertificateOverrides {
 		if parsedCO.PublicKey == publicKeyHash {
@@ -860,7 +860,7 @@ func (s *Service) writeCAOverride(
 	maps.Copy(status.GetPublicKeyHashToCrl(), existingCAOverride.GetStatus().GetPublicKeyHashToCrl())
 	// Input keys are normalized to lowercase for trivial comparison.
 	for k, v := range parsed.CAOverride.GetStatus().GetPublicKeyHashToCrl() {
-		status.GetPublicKeyHashToCrl()[strings.ToLower(k)] = v
+		status.GetPublicKeyHashToCrl()[subca.NormalizePublicKey(k)] = v
 	}
 	parsed.CAOverride.SetStatus(status)
 
