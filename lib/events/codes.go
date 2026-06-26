@@ -138,6 +138,8 @@ const (
 	AppSessionLLMRequestSuccessCode = "T2014I"
 	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
 	AppSessionLLMRequestFailureCode = "T2014E"
+	// AppSessionTargetDialDeniedCode is the application target dial denied event code.
+	AppSessionTargetDialDeniedCode = "T2015E"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"

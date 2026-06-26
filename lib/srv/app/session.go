@@ -169,6 +169,9 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 			insecureMode:        c.cfg.InsecureMode,
 			clusterName:         c.clusterName,
 			certAuthorityGetter: c.cfg.AccessPoint,
+			emitter:             c.cfg.Emitter,
+			identity:            identity,
+			targetHostPolicy:    c.cfg.TargetHostPolicy,
 		})
 	if err != nil {
 		return trace.Wrap(err)

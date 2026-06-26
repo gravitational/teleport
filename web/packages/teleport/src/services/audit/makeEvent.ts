@@ -636,6 +636,34 @@ export const formatters: Formatters = {
       return `User [${user}] has disconnected from application [${app_name}]`;
     },
   },
+  [eventCodes.APP_SESSION_TARGET_DIAL_DENIED]: {
+    type: 'app.session.target.dial.denied',
+    desc: 'App Target Dial Denied',
+    format: event => {
+      const {
+        user,
+        app_name,
+        target_host,
+        target_port,
+        policy,
+        blocked_ip,
+        blocked_prefix,
+      } = event;
+      let target = target_host;
+      if (target_port) {
+        target += `:${target_port}`;
+      }
+
+      let message = `User [${user}] was blocked from connecting to target [${target}] for application [${app_name}] by [${policy}]`;
+      if (blocked_ip) {
+        message += `, blocked IP: [${blocked_ip}]`;
+      }
+      if (blocked_prefix) {
+        message += `, matched prefix: [${blocked_prefix}]`;
+      }
+      return message;
+    },
+  },
   [eventCodes.APP_SESSION_CHUNK]: {
     type: 'app.session.chunk',
     desc: 'App Session Data',

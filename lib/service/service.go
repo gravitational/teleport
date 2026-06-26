@@ -174,6 +174,7 @@ import (
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
@@ -7035,6 +7036,20 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		targetHostPolicy := appcommon.TargetHostPolicy{
+			AllowedPrefixes: process.Config.Apps.AllowedHosts,
+			DeniedPrefixes:  process.Config.Apps.DeniedHosts,
+		}
+		// The target host policy enforces restrictions on the resolved target
+		// IP, which a forward proxy hides for HTTP and MCP traffic. Rather than
+		// silently overriding the operator's proxy (a no-op for TCP apps but a
+		// surprising change for everything else), fail fast when both are set.
+		if targetHostPolicy.Enabled() {
+			if proxyVar, ok := appcommon.HTTPProxyConfiguredInEnv(); ok {
+				return trace.BadParameter("app_service target host restrictions (allowed_hosts/denied_hosts) are incompatible with an HTTP(S) proxy configured via %s; the policy cannot enforce restrictions on targets reached through a forward proxy. Unset the proxy environment variable or remove the target host restrictions.", proxyVar)
+			}
+		}
+
 		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
 			InsecureMode:      process.Config.InsecureMode,
 			Clock:             process.Config.Clock,
@@ -7051,6 +7066,7 @@ func (process *TeleportProcess) initApps() {
 			Logger:            logger,
 			LimiterConfig:     process.Config.Apps.Limiter,
 			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
+			TargetHostPolicy:  targetHostPolicy,
 		})
 		if err != nil {
 			return trace.Wrap(err)

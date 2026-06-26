@@ -75,6 +75,7 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.APP_SESSION_START]: Icons.Info,
   [eventCodes.APP_SESSION_START_FAILURE]: Icons.Warning,
   [eventCodes.APP_SESSION_END]: Icons.Info,
+  [eventCodes.APP_SESSION_TARGET_DIAL_DENIED]: Icons.Warning,
   [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.APP_CREATED]: Icons.Code,
   [eventCodes.APP_UPDATED]: Icons.Code,
