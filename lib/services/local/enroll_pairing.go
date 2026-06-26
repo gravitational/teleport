@@ -170,6 +170,68 @@ func (s *EnrollPairingService) GetCurrentEnrollPairing(ctx context.Context, user
 	return pairing, trace.Wrap(err)
 }
 
+// GetEnrollPairingByToken returns the EnrollPairing whose status token matches
+// token, or NotFound if none matches.
+func (s *EnrollPairingService) GetEnrollPairingByToken(ctx context.Context, token string) (*devicepb.EnrollPairing, error) {
+	if token == "" {
+		return nil, trace.BadParameter("token required")
+	}
+
+	item, err := s.backend.Get(ctx, enrollPairingByTokenKey(token))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pairing, err := s.service.GetResource(ctx, string(item.Value))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Verify that the index and the pairing have the same token, in case the
+	// pairing was updated between the two Gets.
+	if pairing.GetStatus().GetToken() != token {
+		return nil, trace.NotFound("enroll pairing not found")
+	}
+
+	return pairing, nil
+}
+
+// RequestEnrollPairingApproval transitions the pairing identified by token from
+// AWAITING_DEVICE to AWAITING_APPROVAL, persisting device, and returns the
+// updated pairing.
+func (s *EnrollPairingService) RequestEnrollPairingApproval(ctx context.Context, token string, device *devicepb.EnrollPairingDevice) (*devicepb.EnrollPairing, error) {
+	if token == "" {
+		return nil, trace.BadParameter("token required")
+	}
+	if device == nil {
+		return nil, trace.BadParameter("device required")
+	}
+
+	pairing, err := s.GetEnrollPairingByToken(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if pairing.GetStatus().GetState() != devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE {
+		return nil, trace.CompareFailed("enroll pairing is not awaiting a device")
+	}
+
+	pairing.GetStatus().SetState(devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_APPROVAL)
+	pairing.GetStatus().SetDevice(device)
+
+	updated, err := s.service.ConditionalUpdateResource(ctx, pairing)
+	if trace.IsCompareFailed(err) {
+		// Lost the CAS to a concurrent claim — same outcome as the state check above.
+		return nil, trace.CompareFailed("enroll pairing is not awaiting a device")
+	}
+	return updated, trace.Wrap(err)
+}
+
+func enrollPairingByTokenKey(token string) backend.Key {
+	hash := sha256.Sum256([]byte(token))
+	return backend.NewKey("devices", "enroll_pairing_by_token", hex.EncodeToString(hash[:]))
+}
+
 func validateEnrollPairing(pairing *devicepb.EnrollPairing) error {
 	if pairing.GetMetadata().GetName() == "" {
 		return trace.BadParameter("enroll pairing metadata.name is missing")
