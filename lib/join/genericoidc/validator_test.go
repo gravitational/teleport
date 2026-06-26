@@ -944,9 +944,10 @@ func TestAllowedAlgorithmsFromJWKS(t *testing.T) {
 	}
 
 	tests := []struct {
-		name string
-		keys []jose.JSONWebKey
-		want []jose.SignatureAlgorithm
+		name     string
+		keys     []jose.JSONWebKey
+		wantAlgs []jose.SignatureAlgorithm
+		wantKeys []jose.JSONWebKey
 	}{
 		{
 			name: "acceptable algorithms are passed through",
@@ -959,10 +960,19 @@ func TestAllowedAlgorithmsFromJWKS(t *testing.T) {
 				key(ecP521, jose.ES512),
 				key(edPub, jose.EdDSA),
 			),
-			want: algs(
+			wantAlgs: algs(
 				jose.RS256, jose.RS384, jose.RS512,
 				jose.ES256, jose.ES384, jose.ES512,
 				jose.EdDSA,
+			),
+			wantKeys: keys(
+				key(rsaPub, jose.RS256),
+				key(rsaPub, jose.RS384),
+				key(rsaPub, jose.RS512),
+				key(ecP256, jose.ES256),
+				key(ecP384, jose.ES384),
+				key(ecP521, jose.ES512),
+				key(edPub, jose.EdDSA),
 			),
 		},
 		{
@@ -972,7 +982,8 @@ func TestAllowedAlgorithmsFromJWKS(t *testing.T) {
 				key(rsaPub, jose.HS384),
 				key(rsaPub, jose.HS512),
 			),
-			want: algs(), // empty
+			wantAlgs: algs(), // empty
+			wantKeys: keys(),
 		},
 		{
 			name: "only allowed keys pass",
@@ -991,53 +1002,70 @@ func TestAllowedAlgorithmsFromJWKS(t *testing.T) {
 				key(rsaPub, jose.HS384),
 				key(rsaPub, jose.HS512),
 			),
-			want: algs(
+			wantAlgs: algs(
 				jose.RS256, jose.RS384, jose.RS512,
 				jose.ES256, jose.ES384, jose.ES512,
 				jose.EdDSA,
 			),
+			wantKeys: keys(
+				key(rsaPub, jose.RS256),
+				key(rsaPub, jose.RS384),
+				key(rsaPub, jose.RS512),
+				key(ecP256, jose.ES256),
+				key(ecP384, jose.ES384),
+				key(ecP521, jose.ES512),
+				key(edPub, jose.EdDSA),
+			),
 		},
 		{
-			name: "rsa without alg defaults to RS256",
-			keys: keys(key(rsaPub, "")),
-			want: algs(jose.RS256),
+			name:     "rsa without alg defaults to RS256",
+			keys:     keys(key(rsaPub, "")),
+			wantAlgs: algs(jose.RS256),
+			wantKeys: keys(key(rsaPub, "")), // alg passes through unmodified
 		},
 		{
-			name: "ecdsa P-256 without alg",
-			keys: keys(key(ecP256, "")),
-			want: algs(jose.ES256),
+			name:     "ecdsa P-256 without alg",
+			keys:     keys(key(ecP256, "")),
+			wantAlgs: algs(jose.ES256),
+			wantKeys: keys(key(ecP256, "")),
 		},
 		{
-			name: "ecdsa P-384 without alg",
-			keys: keys(key(ecP384, "")),
-			want: algs(jose.ES384),
+			name:     "ecdsa P-384 without alg",
+			keys:     keys(key(ecP384, "")),
+			wantAlgs: algs(jose.ES384),
+			wantKeys: keys(key(ecP384, "")),
 		},
 		{
-			name: "ecdsa P-521 without alg maps to ES512",
-			keys: keys(key(ecP521, "")),
-			want: algs(jose.ES512),
+			name:     "ecdsa P-521 without alg maps to ES512",
+			keys:     keys(key(ecP521, "")),
+			wantAlgs: algs(jose.ES512),
+			wantKeys: keys(key(ecP521, "")),
 		},
 		{
-			name: "ed25519 without alg",
-			keys: keys(key(edPub, "")),
-			want: algs(jose.EdDSA),
+			name:     "ed25519 without alg",
+			keys:     keys(key(edPub, "")),
+			wantAlgs: algs(jose.EdDSA),
+			wantKeys: keys(key(edPub, "")),
 		},
 		{
-			name: "duplicates are removed",
-			keys: keys(key(rsaPub, jose.RS256), key(rsaPub, jose.RS256)),
-			want: algs(jose.RS256),
+			name:     "duplicates are removed",
+			keys:     keys(key(rsaPub, jose.RS256), key(rsaPub, jose.RS256)),
+			wantAlgs: algs(jose.RS256),
+
+			// keys are not deduped, only algs
+			wantKeys: keys(key(rsaPub, jose.RS256), key(rsaPub, jose.RS256)),
 		},
 		{
 			name: "none is ignored",
 			keys: keys(
 				key([]byte{}, jose.SignatureAlgorithm("none")),
 			),
-			want: []jose.SignatureAlgorithm{},
+			wantAlgs: []jose.SignatureAlgorithm{},
 		},
 		{
-			name: "encryption-use key is skipped",
-			keys: keys(jose.JSONWebKey{Key: rsaPub, Use: "enc"}),
-			want: []jose.SignatureAlgorithm{},
+			name:     "encryption-use key is skipped",
+			keys:     keys(jose.JSONWebKey{Key: rsaPub, Use: "enc"}),
+			wantAlgs: []jose.SignatureAlgorithm{},
 		},
 		{
 			name: "empty",
@@ -1051,8 +1079,9 @@ func TestAllowedAlgorithmsFromJWKS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := allowedAlgorithmsFromJWKS(jose.JSONWebKeySet{Keys: tt.keys})
-			require.ElementsMatch(t, tt.want, got)
+			algs, keys := filterAllowedAlgorithmsFromJWKS(jose.JSONWebKeySet{Keys: tt.keys})
+			require.ElementsMatch(t, tt.wantAlgs, algs)
+			require.ElementsMatch(t, tt.wantKeys, keys.Keys)
 		})
 	}
 }
