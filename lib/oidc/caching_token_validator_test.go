@@ -541,7 +541,7 @@ func TestCachingTokenValidatorWithClientMutator(t *testing.T) {
 		require.Equal(t, "a", claims.Subject)
 
 		// Still should not be incremented, despite including the mutator.
-		require.Zero(t, crt.count.Load(), uint32(0))
+		require.Zero(t, crt.count.Load())
 	})
 
 	t.Run("mutator error fails construction", func(t *testing.T) {
