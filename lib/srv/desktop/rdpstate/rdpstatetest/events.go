@@ -64,6 +64,16 @@ func EncodeTDPBFastPathPDU(pdu []byte) (*apievents.DesktopRecording, error) {
 	return TDPBEvent(data), nil
 }
 
+// EncodeTDPBMouseButton creates a DesktopRecording event containing a TDPB MouseButton message.
+func EncodeTDPBMouseButton(pressed bool) (*apievents.DesktopRecording, error) {
+	data, err := (&tdpb.MouseButton{Pressed: pressed}).Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	return TDPBEvent(data), nil
+}
+
 // LegacyConnectionActivated creates a DesktopRecording event containing a legacy ConnectionActivated message with the
 // given screen dimensions.
 func LegacyConnectionActivated(width, height uint16) (*apievents.DesktopRecording, error) {

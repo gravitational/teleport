@@ -3023,6 +3023,8 @@ func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
 			newStrTrimmer(m.Path, &out.Path),
 			newStrTrimmer(m.Method, &out.Method),
 			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
+			newStrTrimmer(m.Model, &out.Model),
+			newGenericTrimmer(&m.Status, &out.Status),
 		}
 	})
 }
@@ -3036,5 +3038,17 @@ func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
 }
 
 func (m *BeamsConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *ClassifierCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *ClassifierUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *ClassifierDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }

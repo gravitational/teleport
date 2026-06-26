@@ -1690,15 +1690,15 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 		require.NoError(t, clt.UpsertTunnelConnection(ctx, c))
 	}
 
-	resp, err := clt.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
-		Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: clusterName},
-	})
+	resp, err := clt.TrustClient().ListTunnelConnections(ctx, trustpb.ListTunnelConnectionsRequest_builder{
+		Filter: trustpb.ListTunnelConnectionsFilter_builder{ClusterName: clusterName}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.Len(t, resp.GetTunnelConnections(), 3)
 
-	resp, err = clt.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
-		Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: "other.example.com"},
-	})
+	resp, err = clt.TrustClient().ListTunnelConnections(ctx, trustpb.ListTunnelConnectionsRequest_builder{
+		Filter: trustpb.ListTunnelConnectionsFilter_builder{ClusterName: "other.example.com"}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, resp.GetTunnelConnections())
 }
@@ -2239,6 +2239,26 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, ns)
+
+	// Extending also works calling the gRPC RPC directly.
+	grpcResp, err := web.APIClient.ExtendWebSession(ctx, &proto.ExtendWebSessionRequest{
+		User:          user,
+		PrevSessionId: ws.GetName(),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, grpcResp.GetSession())
+
+	// Extending also works calling the legacy HTTP endpoint directly.
+	// TODO(strideynet): DELETE IN v20.0.0 - remove alongside the legacy HTTP
+	// endpoint.
+	out, err := web.HTTPClient.PostJSON(ctx, web.HTTPClient.Endpoint("users", user, "web", "sessions"), authclient.WebSessionReq{
+		User:          user,
+		PrevSessionID: ws.GetName(),
+	})
+	require.NoError(t, err)
+	httpSess, err := services.UnmarshalWebSession(out.Bytes())
+	require.NoError(t, err)
+	require.NotNil(t, httpSess)
 
 	// Requesting forbidden action for user fails
 	err = web.DeleteUser(ctx, user)

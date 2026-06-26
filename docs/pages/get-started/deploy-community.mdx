@@ -4,6 +4,7 @@ description: "Deploy a self-hosted Teleport Community Edition cluster using the 
 tags:
   - get-started
   - platform-wide
+page_type: how-to
 ---
 
 import Button from '@site/src/components/Button';
@@ -12,13 +13,13 @@ import Button from '@site/src/components/Button';
    You can try out Teleport Enterprise capabilities like SSO, session recording summaries, and just-in-time Access Requests for free. No payment information required.
 </EnterpriseFeatureWidget>
 
-This guide will walk you through deploying Teleport Community Edition. 
+In this guide, you will deploy Teleport Community Edition. 
 
 You'll spin up a single-instance Teleport cluster on a Linux server, ideal for small-scale demos or home lab environments. Once deployed, you can move ahead in the guide to connecting your infrastructure, setting up role-based access control (RBAC), and auditing your access.
 
 ## How it works
 
-The Teleport cluster consists of two services:
+The Teleport cluster we set up in this guide consists of three services:
 
 - **Teleport Auth Service:** The certificate authority for your cluster. It
   issues certificates and conducts authentication challenges. The Auth Service
@@ -29,6 +30,11 @@ The Teleport cluster consists of two services:
 - **Teleport SSH Service:** An SSH server that enforces Teleport access
   controls, records sessions, and logs activity as Teleport audit events,
   enabling you to protect a Linux server with Teleport.
+
+The Teleport Auth Service and Proxy Service are considered the **control
+plane**. In Teleport Cloud, they run on Teleport-managed infrastructure. The
+Teleport SSH Service is an example of a **Teleport Agent** service, which
+proxies connections to and from a resource in your infrastructure.
 
 ![Architecture of the setup you will complete in this
 guide](../../img/linux-server-diagram.png)

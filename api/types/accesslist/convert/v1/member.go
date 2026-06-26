@@ -38,7 +38,7 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.AccessListMemberSpec{
+	member, err := accesslist.NewAccessListMemberWithScope(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.AccessListMemberSpec{
 		AccessList: msg.GetSpec().GetAccessList(),
 		Name:       msg.GetSpec().GetName(),
 		Joined:     utils.TimeFromProto(msg.GetSpec().GetJoined()),
@@ -49,7 +49,7 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		// Must provide as options to set it with the provided value.
 		IneligibleStatus: "",
 		MembershipKind:   msg.Spec.MembershipKind.String(),
-	})
+	}, msg.Scope)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,6 +88,7 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 
 	return &accesslistv1.Member{
 		Header: headerv1.ToResourceHeaderProto(member.ResourceHeader),
+		Scope:  member.Scope,
 		Spec: &accesslistv1.MemberSpec{
 			AccessList:       member.Spec.AccessList,
 			Name:             member.Spec.Name,

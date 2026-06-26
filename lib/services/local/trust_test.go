@@ -542,9 +542,9 @@ func TestCA_TunnelConnections_CorruptItem(t *testing.T) {
 	got = nil
 	pageToken = ""
 	for {
-		page, next, err := trustService.ListTunnelConnections(ctx, 2, pageToken, &trustpb.ListTunnelConnectionsFilter{
+		page, next, err := trustService.ListTunnelConnections(ctx, 2, pageToken, trustpb.ListTunnelConnectionsFilter_builder{
 			ClusterName: cluster,
-		})
+		}.Build())
 		require.NoError(t, err)
 		for _, c := range page {
 			got = append(got, c.GetName())

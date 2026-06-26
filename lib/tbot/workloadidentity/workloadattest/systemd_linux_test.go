@@ -47,10 +47,10 @@ func TestSystemdAttestor_Success(t *testing.T) {
 	attrs, err := attestor.Attest(context.Background(), 1)
 	require.NoError(t, err)
 
-	expected := &workloadidentityv1.WorkloadAttrsSystemd{
+	expected := workloadidentityv1.WorkloadAttrsSystemd_builder{
 		Attested: true,
 		Service:  "foo",
-	}
+	}.Build()
 	require.Empty(t, cmp.Diff(expected, attrs, protocmp.Transform()))
 }
 

@@ -73,3 +73,15 @@ Example invocations:
 - What did bot CI-deployer do yesterday?
 - Show me who accessed the production-database resource this month
 - Show me what activity was performed during the following access request <uuid>
+
+### teleport-discovery
+
+Enroll cloud resources (Azure VMs) into Teleport using Auto-Discovery. Provides
+a guided workflow to generate a Terraform configuration to create an OIDC
+integration. Use for checking status of the Discovery Service or troubleshooting
+resource enrollment.
+
+Example invocations:
+
+- Enroll my Azure resources into Teleport
+- Why are my VMs not enrolling into teleport?

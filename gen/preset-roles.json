@@ -651,6 +651,14 @@
           },
           {
             "resources": [
+              "mobile_device"
+            ],
+            "verbs": [
+              "create_enroll_token"
+            ]
+          },
+          {
+            "resources": [
               "db_service"
             ],
             "verbs": [
@@ -1168,6 +1176,18 @@
           {
             "resources": [
               "inference_policy"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "classifier"
             ],
             "verbs": [
               "list",

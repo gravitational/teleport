@@ -233,17 +233,17 @@ func (b0 ScopedRoleAssignment_builder) Build() *ScopedRoleAssignment {
 type ScopedRoleAssignmentSpec struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// User is the user to whom all contained assignments apply.
-	// Mutually exclusive with `bot_name`.
+	// Mutually exclusive with `bot`.
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// Assignments is a list of individual role @ scope assignments.
 	Assignments []*Assignment `protobuf:"bytes,2,rep,name=assignments,proto3" json:"assignments,omitempty"`
-	// Name of the Bot to whom all contained assignments apply.
+	// The Bot to whom all contained assignments apply, as a scope-qualified name
+	// of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
 	// Mutually exclusive with `user`.
-	BotName string `protobuf:"bytes,3,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
-	// Scope of the Bot to whom all contained assignments apply.
-	// Required if `bot_name` is set.
-	// If specified, assignment scopes must be equal or descendent of this scope.
-	BotScope      string `protobuf:"bytes,4,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
+	//
+	// When specified, assignment scopes must be equal or descendent of the scope
+	// indicated by this field.
+	Bot           string `protobuf:"bytes,5,opt,name=bot,proto3" json:"bot,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -287,16 +287,9 @@ func (x *ScopedRoleAssignmentSpec) GetAssignments() []*Assignment {
 	return nil
 }
 
-func (x *ScopedRoleAssignmentSpec) GetBotName() string {
+func (x *ScopedRoleAssignmentSpec) GetBot() string {
 	if x != nil {
-		return x.BotName
-	}
-	return ""
-}
-
-func (x *ScopedRoleAssignmentSpec) GetBotScope() string {
-	if x != nil {
-		return x.BotScope
+		return x.Bot
 	}
 	return ""
 }
@@ -309,29 +302,25 @@ func (x *ScopedRoleAssignmentSpec) SetAssignments(v []*Assignment) {
 	x.Assignments = v
 }
 
-func (x *ScopedRoleAssignmentSpec) SetBotName(v string) {
-	x.BotName = v
-}
-
-func (x *ScopedRoleAssignmentSpec) SetBotScope(v string) {
-	x.BotScope = v
+func (x *ScopedRoleAssignmentSpec) SetBot(v string) {
+	x.Bot = v
 }
 
 type ScopedRoleAssignmentSpec_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	// User is the user to whom all contained assignments apply.
-	// Mutually exclusive with `bot_name`.
+	// Mutually exclusive with `bot`.
 	User string
 	// Assignments is a list of individual role @ scope assignments.
 	Assignments []*Assignment
-	// Name of the Bot to whom all contained assignments apply.
+	// The Bot to whom all contained assignments apply, as a scope-qualified name
+	// of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
 	// Mutually exclusive with `user`.
-	BotName string
-	// Scope of the Bot to whom all contained assignments apply.
-	// Required if `bot_name` is set.
-	// If specified, assignment scopes must be equal or descendent of this scope.
-	BotScope string
+	//
+	// When specified, assignment scopes must be equal or descendent of the scope
+	// indicated by this field.
+	Bot string
 }
 
 func (b0 ScopedRoleAssignmentSpec_builder) Build() *ScopedRoleAssignmentSpec {
@@ -340,8 +329,7 @@ func (b0 ScopedRoleAssignmentSpec_builder) Build() *ScopedRoleAssignmentSpec {
 	_, _ = b, x
 	x.User = b.User
 	x.Assignments = b.Assignments
-	x.BotName = b.BotName
-	x.BotScope = b.BotScope
+	x.Bot = b.Bot
 	return m0
 }
 
@@ -582,12 +570,11 @@ const file_teleport_scopes_access_v1_assignment_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12G\n" +
 	"\x04spec\x18\x06 \x01(\v23.teleport.scopes.access.v1.ScopedRoleAssignmentSpecR\x04spec\x12M\n" +
-	"\x06status\x18\a \x01(\v25.teleport.scopes.access.v1.ScopedRoleAssignmentStatusR\x06status\"\xaf\x01\n" +
+	"\x06status\x18\a \x01(\v25.teleport.scopes.access.v1.ScopedRoleAssignmentStatusR\x06status\"\xaa\x01\n" +
 	"\x18ScopedRoleAssignmentSpec\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12G\n" +
-	"\vassignments\x18\x02 \x03(\v2%.teleport.scopes.access.v1.AssignmentR\vassignments\x12\x19\n" +
-	"\bbot_name\x18\x03 \x01(\tR\abotName\x12\x1b\n" +
-	"\tbot_scope\x18\x04 \x01(\tR\bbotScope\"6\n" +
+	"\vassignments\x18\x02 \x03(\v2%.teleport.scopes.access.v1.AssignmentR\vassignments\x12\x10\n" +
+	"\x03bot\x18\x05 \x01(\tR\x03botJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\bbot_nameR\tbot_scope\"6\n" +
 	"\n" +
 	"Assignment\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x14\n" +

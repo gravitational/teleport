@@ -150,6 +150,8 @@ const (
 	MembershipKind_MEMBERSHIP_KIND_USER MembershipKind = 1
 	// MEMBERSHIP_KIND_LIST represents list members that are nested Access Lists
 	MembershipKind_MEMBERSHIP_KIND_LIST MembershipKind = 2
+	// MEMBERSHIP_KIND_SCOPED_LIST represents list members that are nested scoped Access Lists
+	MembershipKind_MEMBERSHIP_KIND_SCOPED_LIST MembershipKind = 3
 )
 
 // Enum value maps for MembershipKind.
@@ -158,11 +160,13 @@ var (
 		0: "MEMBERSHIP_KIND_UNSPECIFIED",
 		1: "MEMBERSHIP_KIND_USER",
 		2: "MEMBERSHIP_KIND_LIST",
+		3: "MEMBERSHIP_KIND_SCOPED_LIST",
 	}
 	MembershipKind_value = map[string]int32{
 		"MEMBERSHIP_KIND_UNSPECIFIED": 0,
 		"MEMBERSHIP_KIND_USER":        1,
 		"MEMBERSHIP_KIND_LIST":        2,
+		"MEMBERSHIP_KIND_SCOPED_LIST": 3,
 	}
 )
 
@@ -248,8 +252,8 @@ func (x IneligibleStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// AccessListUserAssignmentType describes the type of membership anr/or ownership
-// a user has in an access list.
+// AccessListUserAssignmentType describes the type of membership and/or ownership
+// a user has in an Access List.
 type AccessListUserAssignmentType int32
 
 const (
@@ -307,7 +311,9 @@ type AccessList struct {
 	// spec is the specification for the Access List.
 	Spec *AccessListSpec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
 	// status contains dynamically calculated fields.
-	Status        *AccessListStatus `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	Status *AccessListStatus `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	// scope is the scope of the Access List.
+	Scope         string `protobuf:"bytes,4,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -358,6 +364,13 @@ func (x *AccessList) GetStatus() *AccessListStatus {
 	return nil
 }
 
+func (x *AccessList) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 func (x *AccessList) SetHeader(v *v1.ResourceHeader) {
 	x.Header = v
 }
@@ -368,6 +381,10 @@ func (x *AccessList) SetSpec(v *AccessListSpec) {
 
 func (x *AccessList) SetStatus(v *AccessListStatus) {
 	x.Status = v
+}
+
+func (x *AccessList) SetScope(v string) {
+	x.Scope = v
 }
 
 func (x *AccessList) HasHeader() bool {
@@ -412,6 +429,8 @@ type AccessList_builder struct {
 	Spec *AccessListSpec
 	// status contains dynamically calculated fields.
 	Status *AccessListStatus
+	// scope is the scope of the Access List.
+	Scope string
 }
 
 func (b0 AccessList_builder) Build() *AccessList {
@@ -421,6 +440,7 @@ func (b0 AccessList_builder) Build() *AccessList {
 	x.Header = b.Header
 	x.Spec = b.Spec
 	x.Status = b.Status
+	x.Scope = b.Scope
 	return m0
 }
 
@@ -686,7 +706,10 @@ func (b0 AccessListSpec_builder) Build() *AccessListSpec {
 // AccessListOwner is an owner of an Access List.
 type AccessListOwner struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// name is the username of the owner.
+	// name is the name of the owner, depending on MembershipKind:
+	// MEMBERSHIP_KIND_USER: the username of the owner.
+	// MEMBERSHIP_KIND_LIST: the name of the owner Access List.
+	// MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner Access List.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// description is the plaintext description of the owner and why they are an
 	// owner.
@@ -695,7 +718,7 @@ type AccessListOwner struct {
 	// and if not, describes how they're lacking eligibility.
 	IneligibleStatus IneligibleStatus `protobuf:"varint,3,opt,name=ineligible_status,json=ineligibleStatus,proto3,enum=teleport.accesslist.v1.IneligibleStatus" json:"ineligible_status,omitempty"`
 	// membership_kind describes the type of membership, either
-	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
 	MembershipKind MembershipKind `protobuf:"varint,4,opt,name=membership_kind,json=membershipKind,proto3,enum=teleport.accesslist.v1.MembershipKind" json:"membership_kind,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -773,7 +796,10 @@ func (x *AccessListOwner) SetMembershipKind(v MembershipKind) {
 type AccessListOwner_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// name is the username of the owner.
+	// name is the name of the owner, depending on MembershipKind:
+	// MEMBERSHIP_KIND_USER: the username of the owner.
+	// MEMBERSHIP_KIND_LIST: the name of the owner Access List.
+	// MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner Access List.
 	Name string
 	// description is the plaintext description of the owner and why they are an
 	// owner.
@@ -782,7 +808,7 @@ type AccessListOwner_builder struct {
 	// and if not, describes how they're lacking eligibility.
 	IneligibleStatus IneligibleStatus
 	// membership_kind describes the type of membership, either
-	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
 	MembershipKind MembershipKind
 }
 
@@ -1253,9 +1279,9 @@ func (b0 AccessListGrants_builder) Build() *AccessListGrants {
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
 type ScopedRoleGrant struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// role is the name of the scoped role to be granted.
+	// role is scope-qualified name of the scoped role to be granted.
 	Role string `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
-	// scope is the scope the role will be assigned at. It must be an assignable
+	// scope is the scope the role will be granted at. It must be an assignable
 	// scope of the role.
 	Scope         string `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1312,9 +1338,9 @@ func (x *ScopedRoleGrant) SetScope(v string) {
 type ScopedRoleGrant_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// role is the name of the scoped role to be granted.
+	// role is scope-qualified name of the scoped role to be granted.
 	Role string
-	// scope is the scope the role will be assigned at. It must be an assignable
+	// scope is the scope the role will be granted at. It must be an assignable
 	// scope of the role.
 	Scope string
 }
@@ -1411,8 +1437,11 @@ type Member struct {
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// spec is the specification for the Access List member.
 	Spec *MemberSpec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
+	// scope is the scope of the Access List member, it must be equal to the
+	// scope of the parent Access List.
+	Scope string `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
 	// status contains dynamically calculated fields.
-	Status        *MemberStatus `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	Status        *MemberStatus `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1456,6 +1485,13 @@ func (x *Member) GetSpec() *MemberSpec {
 	return nil
 }
 
+func (x *Member) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 func (x *Member) GetStatus() *MemberStatus {
 	if x != nil {
 		return x.Status
@@ -1469,6 +1505,10 @@ func (x *Member) SetHeader(v *v1.ResourceHeader) {
 
 func (x *Member) SetSpec(v *MemberSpec) {
 	x.Spec = v
+}
+
+func (x *Member) SetScope(v string) {
+	x.Scope = v
 }
 
 func (x *Member) SetStatus(v *MemberStatus) {
@@ -1515,6 +1555,9 @@ type Member_builder struct {
 	Header *v1.ResourceHeader
 	// spec is the specification for the Access List member.
 	Spec *MemberSpec
+	// scope is the scope of the Access List member, it must be equal to the
+	// scope of the parent Access List.
+	Scope string
 	// status contains dynamically calculated fields.
 	Status *MemberStatus
 }
@@ -1525,6 +1568,7 @@ func (b0 Member_builder) Build() *Member {
 	_, _ = b, x
 	x.Header = b.Header
 	x.Spec = b.Spec
+	x.Scope = b.Scope
 	x.Status = b.Status
 	return m0
 }
@@ -1632,7 +1676,10 @@ type MemberSpec struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// associated Access List
 	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
-	// name is the name of the member of the Access List.
+	// name is the name of the member of the Access List, depending on MembershipKind:
+	// MEMBERSHIP_KIND_USER: the username of the member.
+	// MEMBERSHIP_KIND_LIST: the name of the member Access List.
+	// MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the member scope Access List.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// joined is when the user joined the Access List.
 	Joined *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=joined,proto3" json:"joined,omitempty"`
@@ -1646,7 +1693,7 @@ type MemberSpec struct {
 	// and if not, describes how they're lacking eligibility.
 	IneligibleStatus IneligibleStatus `protobuf:"varint,7,opt,name=ineligible_status,json=ineligibleStatus,proto3,enum=teleport.accesslist.v1.IneligibleStatus" json:"ineligible_status,omitempty"`
 	// membership_kind describes the type of membership, either
-	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
 	MembershipKind MembershipKind `protobuf:"varint,9,opt,name=membership_kind,json=membershipKind,proto3,enum=teleport.accesslist.v1.MembershipKind" json:"membership_kind,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -1792,7 +1839,10 @@ type MemberSpec_builder struct {
 
 	// associated Access List
 	AccessList string
-	// name is the name of the member of the Access List.
+	// name is the name of the member of the Access List, depending on MembershipKind:
+	// MEMBERSHIP_KIND_USER: the username of the member.
+	// MEMBERSHIP_KIND_LIST: the name of the member Access List.
+	// MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the member scope Access List.
 	Name string
 	// joined is when the user joined the Access List.
 	Joined *timestamppb.Timestamp
@@ -1806,7 +1856,7 @@ type MemberSpec_builder struct {
 	// and if not, describes how they're lacking eligibility.
 	IneligibleStatus IneligibleStatus
 	// membership_kind describes the type of membership, either
-	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
 	MembershipKind MembershipKind
 }
 
@@ -1831,7 +1881,10 @@ type Review struct {
 	// header is the header for the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// spec is the specification for the Access List review.
-	Spec          *ReviewSpec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
+	Spec *ReviewSpec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
+	// scope is the scope of the Access List review. It must be equal to the
+	// scope of the reviewed Access List.
+	Scope         string `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1875,12 +1928,23 @@ func (x *Review) GetSpec() *ReviewSpec {
 	return nil
 }
 
+func (x *Review) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 func (x *Review) SetHeader(v *v1.ResourceHeader) {
 	x.Header = v
 }
 
 func (x *Review) SetSpec(v *ReviewSpec) {
 	x.Spec = v
+}
+
+func (x *Review) SetScope(v string) {
+	x.Scope = v
 }
 
 func (x *Review) HasHeader() bool {
@@ -1912,6 +1976,9 @@ type Review_builder struct {
 	Header *v1.ResourceHeader
 	// spec is the specification for the Access List review.
 	Spec *ReviewSpec
+	// scope is the scope of the Access List review. It must be equal to the
+	// scope of the reviewed Access List.
+	Scope string
 }
 
 func (b0 Review_builder) Build() *Review {
@@ -1920,6 +1987,7 @@ func (b0 Review_builder) Build() *Review {
 	_, _ = b, x
 	x.Header = b.Header
 	x.Spec = b.Spec
+	x.Scope = b.Scope
 	return m0
 }
 
@@ -1927,6 +1995,8 @@ func (b0 Review_builder) Build() *Review {
 type ReviewSpec struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// access_list is the name of the Access List that this review is for.
+	// If the review is scoped, this is the scope-qualified name of the reviewed
+	// scoped Access List.
 	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	// reviewers are the users who performed the review.
 	Reviewers []string `protobuf:"bytes,2,rep,name=reviewers,proto3" json:"reviewers,omitempty"`
@@ -2047,6 +2117,8 @@ type ReviewSpec_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	// access_list is the name of the Access List that this review is for.
+	// If the review is scoped, this is the scope-qualified name of the reviewed
+	// scoped Access List.
 	AccessList string
 	// reviewers are the users who performed the review.
 	Reviewers []string
@@ -2085,8 +2157,11 @@ type ReviewChanges struct {
 	// review_day_of_month_changed is populated if the review day of month has
 	// changed.
 	ReviewDayOfMonthChanged ReviewDayOfMonth `protobuf:"varint,5,opt,name=review_day_of_month_changed,json=reviewDayOfMonthChanged,proto3,enum=teleport.accesslist.v1.ReviewDayOfMonth" json:"review_day_of_month_changed,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// scoped_removed_members contains the scope-qualified names of members that
+	// were removed as part of this review.
+	ScopedRemovedMembers []string `protobuf:"bytes,6,rep,name=scoped_removed_members,json=scopedRemovedMembers,proto3" json:"scoped_removed_members,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ReviewChanges) Reset() {
@@ -2142,6 +2217,13 @@ func (x *ReviewChanges) GetReviewDayOfMonthChanged() ReviewDayOfMonth {
 	return ReviewDayOfMonth_REVIEW_DAY_OF_MONTH_UNSPECIFIED
 }
 
+func (x *ReviewChanges) GetScopedRemovedMembers() []string {
+	if x != nil {
+		return x.ScopedRemovedMembers
+	}
+	return nil
+}
+
 func (x *ReviewChanges) SetMembershipRequirementsChanged(v *AccessListRequires) {
 	x.MembershipRequirementsChanged = v
 }
@@ -2156,6 +2238,10 @@ func (x *ReviewChanges) SetReviewFrequencyChanged(v ReviewFrequency) {
 
 func (x *ReviewChanges) SetReviewDayOfMonthChanged(v ReviewDayOfMonth) {
 	x.ReviewDayOfMonthChanged = v
+}
+
+func (x *ReviewChanges) SetScopedRemovedMembers(v []string) {
+	x.ScopedRemovedMembers = v
 }
 
 func (x *ReviewChanges) HasMembershipRequirementsChanged() bool {
@@ -2183,6 +2269,9 @@ type ReviewChanges_builder struct {
 	// review_day_of_month_changed is populated if the review day of month has
 	// changed.
 	ReviewDayOfMonthChanged ReviewDayOfMonth
+	// scoped_removed_members contains the scope-qualified names of members that
+	// were removed as part of this review.
+	ScopedRemovedMembers []string
 }
 
 func (b0 ReviewChanges_builder) Build() *ReviewChanges {
@@ -2193,15 +2282,16 @@ func (b0 ReviewChanges_builder) Build() *ReviewChanges {
 	x.RemovedMembers = b.RemovedMembers
 	x.ReviewFrequencyChanged = b.ReviewFrequencyChanged
 	x.ReviewDayOfMonthChanged = b.ReviewDayOfMonthChanged
+	x.ScopedRemovedMembers = b.ScopedRemovedMembers
 	return m0
 }
 
-// CurrentUserAssignments describes the current user's ownership and membership status in the access list.
+// CurrentUserAssignments describes the current user's ownership and membership status in the Access List.
 type CurrentUserAssignments struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// ownership_type represents the current user's ownership type (explicit, inherited, or none) in the access list.
+	// ownership_type represents the current user's ownership type (explicit, inherited, or none) in the Access List.
 	OwnershipType AccessListUserAssignmentType `protobuf:"varint,1,opt,name=ownership_type,json=ownershipType,proto3,enum=teleport.accesslist.v1.AccessListUserAssignmentType" json:"ownership_type,omitempty"`
-	// membership_type represents the current user's membership type (explicit, inherited, or none) in the access list.
+	// membership_type represents the current user's membership type (explicit, inherited, or none) in the Access List.
 	MembershipType AccessListUserAssignmentType `protobuf:"varint,2,opt,name=membership_type,json=membershipType,proto3,enum=teleport.accesslist.v1.AccessListUserAssignmentType" json:"membership_type,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -2257,9 +2347,9 @@ func (x *CurrentUserAssignments) SetMembershipType(v AccessListUserAssignmentTyp
 type CurrentUserAssignments_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// ownership_type represents the current user's ownership type (explicit, inherited, or none) in the access list.
+	// ownership_type represents the current user's ownership type (explicit, inherited, or none) in the Access List.
 	OwnershipType AccessListUserAssignmentType
-	// membership_type represents the current user's membership type (explicit, inherited, or none) in the access list.
+	// membership_type represents the current user's membership type (explicit, inherited, or none) in the Access List.
 	MembershipType AccessListUserAssignmentType
 }
 
@@ -2272,12 +2362,12 @@ func (b0 CurrentUserAssignments_builder) Build() *CurrentUserAssignments {
 	return m0
 }
 
-// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
+// UserAssignments describes the requested user's ownership and membership assignment types in the Access List.
 type UserAssignments struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the access list.
+	// ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the Access List.
 	OwnershipType AccessListUserAssignmentType `protobuf:"varint,1,opt,name=ownership_type,json=ownershipType,proto3,enum=teleport.accesslist.v1.AccessListUserAssignmentType" json:"ownership_type,omitempty"`
-	// membership_type represents the requested user's membership type (explicit, inherited, or none) in the access list.
+	// membership_type represents the requested user's membership type (explicit, inherited, or none) in the Access List.
 	MembershipType AccessListUserAssignmentType `protobuf:"varint,2,opt,name=membership_type,json=membershipType,proto3,enum=teleport.accesslist.v1.AccessListUserAssignmentType" json:"membership_type,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -2333,9 +2423,9 @@ func (x *UserAssignments) SetMembershipType(v AccessListUserAssignmentType) {
 type UserAssignments_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the access list.
+	// ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the Access List.
 	OwnershipType AccessListUserAssignmentType
-	// membership_type represents the requested user's membership type (explicit, inherited, or none) in the access list.
+	// membership_type represents the requested user's membership type (explicit, inherited, or none) in the Access List.
 	MembershipType AccessListUserAssignmentType
 }
 
@@ -2359,12 +2449,18 @@ type AccessListStatus struct {
 	OwnerOf []string `protobuf:"bytes,3,rep,name=owner_of,json=ownerOf,proto3" json:"owner_of,omitempty"`
 	// member_of describes Access Lists where this Access List is an explicit member.
 	MemberOf []string `protobuf:"bytes,4,rep,name=member_of,json=memberOf,proto3" json:"member_of,omitempty"`
-	// current_user_assignments describes the current user's ownership and membership status in the access list.
+	// current_user_assignments describes the current user's ownership and membership status in the Access List.
 	CurrentUserAssignments *CurrentUserAssignments `protobuf:"bytes,5,opt,name=current_user_assignments,json=currentUserAssignments,proto3" json:"current_user_assignments,omitempty"`
-	// user_assignments describes the requested user's ownership and membership assignment types in the access list.
+	// user_assignments describes the requested user's ownership and membership assignment types in the Access List.
 	UserAssignments *UserAssignments `protobuf:"bytes,6,opt,name=user_assignments,json=userAssignments,proto3" json:"user_assignments,omitempty"`
+	// scoped_owner_of describes scoped Access Lists where this Access List is an explicit owner.
+	// Each item is the scope-qualified name of the owned scoped Access List.
+	ScopedOwnerOf []string `protobuf:"bytes,7,rep,name=scoped_owner_of,json=scopedOwnerOf,proto3" json:"scoped_owner_of,omitempty"`
+	// scoped_member_of describes scoped Access Lists where this Access List is an explicit member.
+	// Each item is the scope-qualified name of the parent scoped Access List.
+	ScopedMemberOf []string `protobuf:"bytes,8,rep,name=scoped_member_of,json=scopedMemberOf,proto3" json:"scoped_member_of,omitempty"`
 	// owner_displays contains display values for owners, keyed by owner username.
-	OwnerDisplays map[string]*UserDisplay `protobuf:"bytes,7,rep,name=owner_displays,json=ownerDisplays,proto3" json:"owner_displays,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	OwnerDisplays map[string]*UserDisplay `protobuf:"bytes,9,rep,name=owner_displays,json=ownerDisplays,proto3" json:"owner_displays,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2436,6 +2532,20 @@ func (x *AccessListStatus) GetUserAssignments() *UserAssignments {
 	return nil
 }
 
+func (x *AccessListStatus) GetScopedOwnerOf() []string {
+	if x != nil {
+		return x.ScopedOwnerOf
+	}
+	return nil
+}
+
+func (x *AccessListStatus) GetScopedMemberOf() []string {
+	if x != nil {
+		return x.ScopedMemberOf
+	}
+	return nil
+}
+
 func (x *AccessListStatus) GetOwnerDisplays() map[string]*UserDisplay {
 	if x != nil {
 		return x.OwnerDisplays
@@ -2465,6 +2575,14 @@ func (x *AccessListStatus) SetCurrentUserAssignments(v *CurrentUserAssignments) 
 
 func (x *AccessListStatus) SetUserAssignments(v *UserAssignments) {
 	x.UserAssignments = v
+}
+
+func (x *AccessListStatus) SetScopedOwnerOf(v []string) {
+	x.ScopedOwnerOf = v
+}
+
+func (x *AccessListStatus) SetScopedMemberOf(v []string) {
+	x.ScopedMemberOf = v
 }
 
 func (x *AccessListStatus) SetOwnerDisplays(v map[string]*UserDisplay) {
@@ -2526,10 +2644,16 @@ type AccessListStatus_builder struct {
 	OwnerOf []string
 	// member_of describes Access Lists where this Access List is an explicit member.
 	MemberOf []string
-	// current_user_assignments describes the current user's ownership and membership status in the access list.
+	// current_user_assignments describes the current user's ownership and membership status in the Access List.
 	CurrentUserAssignments *CurrentUserAssignments
-	// user_assignments describes the requested user's ownership and membership assignment types in the access list.
+	// user_assignments describes the requested user's ownership and membership assignment types in the Access List.
 	UserAssignments *UserAssignments
+	// scoped_owner_of describes scoped Access Lists where this Access List is an explicit owner.
+	// Each item is the scope-qualified name of the owned scoped Access List.
+	ScopedOwnerOf []string
+	// scoped_member_of describes scoped Access Lists where this Access List is an explicit member.
+	// Each item is the scope-qualified name of the parent scoped Access List.
+	ScopedMemberOf []string
 	// owner_displays contains display values for owners, keyed by owner username.
 	OwnerDisplays map[string]*UserDisplay
 }
@@ -2544,6 +2668,8 @@ func (b0 AccessListStatus_builder) Build() *AccessListStatus {
 	x.MemberOf = b.MemberOf
 	x.CurrentUserAssignments = b.CurrentUserAssignments
 	x.UserAssignments = b.UserAssignments
+	x.ScopedOwnerOf = b.ScopedOwnerOf
+	x.ScopedMemberOf = b.ScopedMemberOf
 	x.OwnerDisplays = b.OwnerDisplays
 	return m0
 }
@@ -2552,12 +2678,13 @@ var File_teleport_accesslist_v1_accesslist_proto protoreflect.FileDescriptor
 
 const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/accesslist/v1/accesslist.proto\x12\x16teleport.accesslist.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/header/v1/resourceheader.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xc6\x01\n" +
+	"'teleport/accesslist/v1/accesslist.proto\x12\x16teleport.accesslist.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/header/v1/resourceheader.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xdc\x01\n" +
 	"\n" +
 	"AccessList\x12:\n" +
 	"\x06header\x18\x01 \x01(\v2\".teleport.header.v1.ResourceHeaderR\x06header\x12:\n" +
 	"\x04spec\x18\x02 \x01(\v2&.teleport.accesslist.v1.AccessListSpecR\x04spec\x12@\n" +
-	"\x06status\x18\x03 \x01(\v2(.teleport.accesslist.v1.AccessListStatusR\x06status\"\xd5\x04\n" +
+	"\x06status\x18\x03 \x01(\v2(.teleport.accesslist.v1.AccessListStatusR\x06status\x12\x14\n" +
+	"\x05scope\x18\x04 \x01(\tR\x05scope\"\xd5\x04\n" +
 	"\x0eAccessListSpec\x12 \n" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x12?\n" +
 	"\x06owners\x18\x02 \x03(\v2'.teleport.accesslist.v1.AccessListOwnerR\x06owners\x12=\n" +
@@ -2601,11 +2728,12 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\x05scope\x18\x02 \x01(\tR\x05scope\"E\n" +
 	"\vUserDisplay\x12\x18\n" +
 	"\aprimary\x18\x01 \x01(\tR\aprimary\x12\x1c\n" +
-	"\tsecondary\x18\x02 \x01(\tR\tsecondary\"\xba\x01\n" +
+	"\tsecondary\x18\x02 \x01(\tR\tsecondary\"\xd0\x01\n" +
 	"\x06Member\x12:\n" +
 	"\x06header\x18\x01 \x01(\v2\".teleport.header.v1.ResourceHeaderR\x06header\x126\n" +
-	"\x04spec\x18\x02 \x01(\v2\".teleport.accesslist.v1.MemberSpecR\x04spec\x12<\n" +
-	"\x06status\x18\x03 \x01(\v2$.teleport.accesslist.v1.MemberStatusR\x06status\"\x9c\x01\n" +
+	"\x04spec\x18\x02 \x01(\v2\".teleport.accesslist.v1.MemberSpecR\x04spec\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\x12<\n" +
+	"\x06status\x18\x04 \x01(\v2$.teleport.accesslist.v1.MemberStatusR\x06status\"\x9c\x01\n" +
 	"\fMemberStatus\x12=\n" +
 	"\adisplay\x18\x01 \x01(\v2#.teleport.accesslist.v1.UserDisplayR\adisplay\x12M\n" +
 	"\x10added_by_display\x18\x02 \x01(\v2#.teleport.accesslist.v1.UserDisplayR\x0eaddedByDisplay\"\x98\x03\n" +
@@ -2620,10 +2748,11 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\badded_by\x18\x06 \x01(\tR\aaddedBy\x12U\n" +
 	"\x11ineligible_status\x18\a \x01(\x0e2(.teleport.accesslist.v1.IneligibleStatusR\x10ineligibleStatus\x12O\n" +
 	"\x0fmembership_kind\x18\t \x01(\x0e2&.teleport.accesslist.v1.MembershipKindR\x0emembershipKindJ\x04\b\b\x10\tR\n" +
-	"membership\"|\n" +
+	"membership\"\x92\x01\n" +
 	"\x06Review\x12:\n" +
 	"\x06header\x18\x01 \x01(\v2\".teleport.header.v1.ResourceHeaderR\x06header\x126\n" +
-	"\x04spec\x18\x02 \x01(\v2\".teleport.accesslist.v1.ReviewSpecR\x04spec\"\xdf\x01\n" +
+	"\x04spec\x18\x02 \x01(\v2\".teleport.accesslist.v1.ReviewSpecR\x04spec\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"\xdf\x01\n" +
 	"\n" +
 	"ReviewSpec\x12\x1f\n" +
 	"\vaccess_list\x18\x01 \x01(\tR\n" +
@@ -2632,26 +2761,29 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\vreview_date\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"reviewDate\x12\x14\n" +
 	"\x05notes\x18\x04 \x01(\tR\x05notes\x12?\n" +
-	"\achanges\x18\x05 \x01(\v2%.teleport.accesslist.v1.ReviewChangesR\achanges\"\x90\x03\n" +
+	"\achanges\x18\x05 \x01(\v2%.teleport.accesslist.v1.ReviewChangesR\achanges\"\xc6\x03\n" +
 	"\rReviewChanges\x12r\n" +
 	"\x1fmembership_requirements_changed\x18\x02 \x01(\v2*.teleport.accesslist.v1.AccessListRequiresR\x1dmembershipRequirementsChanged\x12'\n" +
 	"\x0fremoved_members\x18\x03 \x03(\tR\x0eremovedMembers\x12a\n" +
 	"\x18review_frequency_changed\x18\x04 \x01(\x0e2'.teleport.accesslist.v1.ReviewFrequencyR\x16reviewFrequencyChanged\x12f\n" +
-	"\x1breview_day_of_month_changed\x18\x05 \x01(\x0e2(.teleport.accesslist.v1.ReviewDayOfMonthR\x17reviewDayOfMonthChangedJ\x04\b\x01\x10\x02R\x11frequency_changed\"\xd4\x01\n" +
+	"\x1breview_day_of_month_changed\x18\x05 \x01(\x0e2(.teleport.accesslist.v1.ReviewDayOfMonthR\x17reviewDayOfMonthChanged\x124\n" +
+	"\x16scoped_removed_members\x18\x06 \x03(\tR\x14scopedRemovedMembersJ\x04\b\x01\x10\x02R\x11frequency_changed\"\xd4\x01\n" +
 	"\x16CurrentUserAssignments\x12[\n" +
 	"\x0eownership_type\x18\x01 \x01(\x0e24.teleport.accesslist.v1.AccessListUserAssignmentTypeR\rownershipType\x12]\n" +
 	"\x0fmembership_type\x18\x02 \x01(\x0e24.teleport.accesslist.v1.AccessListUserAssignmentTypeR\x0emembershipType\"\xcd\x01\n" +
 	"\x0fUserAssignments\x12[\n" +
 	"\x0eownership_type\x18\x01 \x01(\x0e24.teleport.accesslist.v1.AccessListUserAssignmentTypeR\rownershipType\x12]\n" +
-	"\x0fmembership_type\x18\x02 \x01(\x0e24.teleport.accesslist.v1.AccessListUserAssignmentTypeR\x0emembershipType\"\xd3\x04\n" +
+	"\x0fmembership_type\x18\x02 \x01(\x0e24.teleport.accesslist.v1.AccessListUserAssignmentTypeR\x0emembershipType\"\xa5\x05\n" +
 	"\x10AccessListStatus\x12&\n" +
 	"\fmember_count\x18\x01 \x01(\rH\x00R\vmemberCount\x88\x01\x01\x12/\n" +
 	"\x11member_list_count\x18\x02 \x01(\rH\x01R\x0fmemberListCount\x88\x01\x01\x12\x19\n" +
 	"\bowner_of\x18\x03 \x03(\tR\aownerOf\x12\x1b\n" +
 	"\tmember_of\x18\x04 \x03(\tR\bmemberOf\x12h\n" +
 	"\x18current_user_assignments\x18\x05 \x01(\v2..teleport.accesslist.v1.CurrentUserAssignmentsR\x16currentUserAssignments\x12R\n" +
-	"\x10user_assignments\x18\x06 \x01(\v2'.teleport.accesslist.v1.UserAssignmentsR\x0fuserAssignments\x12b\n" +
-	"\x0eowner_displays\x18\a \x03(\v2;.teleport.accesslist.v1.AccessListStatus.OwnerDisplaysEntryR\rownerDisplays\x1ae\n" +
+	"\x10user_assignments\x18\x06 \x01(\v2'.teleport.accesslist.v1.UserAssignmentsR\x0fuserAssignments\x12&\n" +
+	"\x0fscoped_owner_of\x18\a \x03(\tR\rscopedOwnerOf\x12(\n" +
+	"\x10scoped_member_of\x18\b \x03(\tR\x0escopedMemberOf\x12b\n" +
+	"\x0eowner_displays\x18\t \x03(\v2;.teleport.accesslist.v1.AccessListStatus.OwnerDisplaysEntryR\rownerDisplays\x1ae\n" +
 	"\x12OwnerDisplaysEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x129\n" +
 	"\x05value\x18\x02 \x01(\v2#.teleport.accesslist.v1.UserDisplayR\x05value:\x028\x01B\x0f\n" +
@@ -2667,11 +2799,12 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\x1fREVIEW_DAY_OF_MONTH_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19REVIEW_DAY_OF_MONTH_FIRST\x10\x01\x12!\n" +
 	"\x1dREVIEW_DAY_OF_MONTH_FIFTEENTH\x10\x0f\x12\x1c\n" +
-	"\x18REVIEW_DAY_OF_MONTH_LAST\x10\x1f*e\n" +
+	"\x18REVIEW_DAY_OF_MONTH_LAST\x10\x1f*\x86\x01\n" +
 	"\x0eMembershipKind\x12\x1f\n" +
 	"\x1bMEMBERSHIP_KIND_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14MEMBERSHIP_KIND_USER\x10\x01\x12\x18\n" +
-	"\x14MEMBERSHIP_KIND_LIST\x10\x02*\xc6\x01\n" +
+	"\x14MEMBERSHIP_KIND_LIST\x10\x02\x12\x1f\n" +
+	"\x1bMEMBERSHIP_KIND_SCOPED_LIST\x10\x03*\xc6\x01\n" +
 	"\x10IneligibleStatus\x12!\n" +
 	"\x1dINELIGIBLE_STATUS_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aINELIGIBLE_STATUS_ELIGIBLE\x10\x01\x12$\n" +

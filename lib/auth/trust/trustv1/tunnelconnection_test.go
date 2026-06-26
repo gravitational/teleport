@@ -267,9 +267,9 @@ func TestListTunnelConnections(t *testing.T) {
 		},
 		{
 			name: "success filter by cluster",
-			req: &trustpb.ListTunnelConnectionsRequest{
-				Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: leaf1},
-			},
+			req: trustpb.ListTunnelConnectionsRequest_builder{
+				Filter: trustpb.ListTunnelConnectionsFilter_builder{ClusterName: leaf1}.Build(),
+			}.Build(),
 			allow:     map[check]bool{{types.KindTunnelConnection, types.VerbList}: true, {types.KindTunnelConnection, types.VerbRead}: true},
 			assertErr: require.NoError,
 			want: want{
@@ -279,9 +279,9 @@ func TestListTunnelConnections(t *testing.T) {
 		},
 		{
 			name: "success filter unknown cluster returns empty",
-			req: &trustpb.ListTunnelConnectionsRequest{
-				Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: "nonexistent"},
-			},
+			req: trustpb.ListTunnelConnectionsRequest_builder{
+				Filter: trustpb.ListTunnelConnectionsFilter_builder{ClusterName: "nonexistent"}.Build(),
+			}.Build(),
 			allow:     map[check]bool{{types.KindTunnelConnection, types.VerbList}: true, {types.KindTunnelConnection, types.VerbRead}: true},
 			assertErr: require.NoError,
 		},
@@ -361,10 +361,10 @@ func TestListTunnelConnections_Pagination(t *testing.T) {
 	var gotNames []string
 	var pageToken string
 	for {
-		resp, err := service.ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
+		resp, err := service.ListTunnelConnections(ctx, trustpb.ListTunnelConnectionsRequest_builder{
 			PageSize:  2,
 			PageToken: pageToken,
-		})
+		}.Build())
 		require.NoError(t, err)
 		for _, c := range resp.GetTunnelConnections() {
 			gotNames = append(gotNames, c.GetName())

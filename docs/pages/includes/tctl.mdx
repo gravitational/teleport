@@ -1,7 +1,7 @@
-To check that you can connect to your Teleport cluster, sign in with `tsh login`, then 
-verify that you can run `tctl` commands using your current credentials. 
+To check that you can connect to your Teleport cluster, sign in with `tsh login`, then
+verify that you can run `tctl` commands using your current credentials.
 
-For example, run the following command, assigning 
+For example, run the following command, assigning
 <Var name="teleport.example.com" /> to the domain name of the Teleport Proxy Service
 in your cluster and <Var name="email@example.com" /> to your Teleport username:
 
@@ -15,5 +15,29 @@ $ tctl status
 
 If you can connect to the cluster and run the `tctl status` command, you can use your
 current credentials to run subsequent `tctl` commands from your workstation.
-If you host your own Teleport cluster, you can also run `tctl` commands on the computer that 
+If you host your own Teleport cluster, you can also run `tctl` commands on the computer that
 hosts the Teleport Auth Service for full permissions.
+
+<details>
+<summary>Running `tctl` on a Teleport beam</summary>
+
+In some environments, for example on a Teleport beam, Teleport authentication
+must take place through a local identity file. On a Teleport beam, the identity
+file is available automatically, and `tctl` reads the file path from the
+`TELEPORT_IDENTITY_FILE` environment variable.
+
+When executing `tctl` commands with an identity file, you  must pass the
+`--auth-server` flag to provide the Teleport Auth Service address, which is not
+included in the identity file. If you provide the Proxy Service address, `tctl`
+connects to the Proxy Service, which forwards traffic to and from the Teleport
+Auth Service.
+
+On a beam, you must use the Proxy Service address, as the Auth Service is not
+exposed to the public internet. You can do so by using the `TELEPORT_PROXY`
+environment variable:
+
+```code
+$ tctl status --auth-server=${TELEPORT_PROXY}
+```
+
+</details>

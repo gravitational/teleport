@@ -176,11 +176,10 @@ type ProvisionToken interface {
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
 	GetJoinMethod() JoinMethod
-	// GetBotName returns the BotName field which must be set for joining bots.
-	GetBotName() string
-	// GetBotScope returns the BotScope field which must be set for bots joining
-	// with a scoped token. It is empty for unscoped bots.
-	GetBotScope() string
+	// GetBot returns the name and scope of the bot that this token can join.
+	// An empty name indicates that this is not a bot token. Provision tokens
+	// can only refer to unscoped bots, so the scope is always empty.
+	GetBot() (name, scope string)
 	// IsStatic returns true if the token is statically configured
 	IsStatic() bool
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
@@ -205,6 +204,10 @@ type ProvisionToken interface {
 	// GetAssignedScope always returns an empty string because a [ProvisionToken] is always
 	// unscoped
 	GetAssignedScope() string
+
+	// GetScope always returns an empty string because a [ProvisionToken] is always
+	// unscoped
+	GetScope() string
 
 	// GetSecret returns the token's secret value and a bool representing whether
 	// or not the token had a secret..
@@ -609,16 +612,11 @@ func (p *ProvisionTokenV2) IsStatic() bool {
 	return p.Origin() == OriginConfigFile
 }
 
-// GetBotName returns the BotName field which must be set for joining bots.
-func (p *ProvisionTokenV2) GetBotName() string {
-	return p.Spec.BotName
-}
-
-// GetBotScope returns the BotScope field which must be set for bots joining
-// with a scoped token. It is empty for unscoped bots.
-func (p *ProvisionTokenV2) GetBotScope() string {
-	// Always empty for ProvisionTokenV2
-	return ""
+// GetBot returns the name and scope of the bot that this token can join. An
+// empty name indicates that this is not a bot token. Provision tokens can
+// only refer to unscoped bots, so the scope is always empty.
+func (p *ProvisionTokenV2) GetBot() (name, scope string) {
+	return p.Spec.BotName, ""
 }
 
 // GetKind returns resource kind
@@ -745,6 +743,12 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 // GetAssignedScope always returns an empty string because a [ProvisionTokenV2] is always
 // unscoped
 func (p *ProvisionTokenV2) GetAssignedScope() string {
+	return ""
+}
+
+// GetScope always returns an empty string because a [ProvisionTokenV2] is always
+// unscoped
+func (p *ProvisionTokenV2) GetScope() string {
 	return ""
 }
 

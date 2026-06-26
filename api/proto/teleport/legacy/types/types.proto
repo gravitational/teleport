@@ -1097,6 +1097,8 @@ message AppV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The App's scope.
+  string scope = 6;
 }
 
 // CORSPolicy defines the CORS policy for AppSpecV3
@@ -3542,6 +3544,14 @@ message AccessCapabilitiesRequest {
   // list of roles that the user can request should be filtered to only include
   // roles that allow access to the provided ResourceIDs.
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
+  // resource_access_ids is a list of resources paired with optional constraints
+  // for which we would like to view the necessary roles. When present,
+  // these are deduplicated against provided ResourceIDs to form the full set
+  // of requested resources.
+  repeated ResourceAccessID resource_access_ids = 7 [
+    (gogoproto.jsontag) = "resource_access_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // RemoteAccessCapabilities is a summary of the capabilites that a remote cluster
@@ -3568,6 +3578,15 @@ message RemoteAccessCapabilitiesRequest {
   // the necessary roles for.
   repeated ResourceID ResourceIDs = 3 [
     (gogoproto.jsontag) = "resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
+
+  // resource_access_ids is a list of resources paired with optional constraints
+  // for which we would like to view the necessary roles. When present,
+  // these are deduplicated against provided ResourceIDs to form the full set
+  // of requested resources.
+  repeated ResourceAccessID resource_access_ids = 4 [
+    (gogoproto.jsontag) = "resource_access_ids,omitempty",
     (gogoproto.nullable) = false
   ];
 }
@@ -7694,6 +7713,16 @@ message PluginOktaSyncSettings {
   // For most use cases the default value should NOT be changed.
   // A blank string results in the default value of 5min.
   string time_between_assignment_process_loops = 15;
+
+  // TargetProcessingBackoffStep controls the step value for linear backoff when reprocessing Okta assignment targets.
+  // Value is parsed as Go duration string, e.g. 1h15m. A blank string results in the default value being used.
+  // For most use cases the default value should NOT be changed.
+  string target_processing_backoff_step = 16;
+
+  // TargetProcessingBackoffMax controls the max duration for linear backoff when reprocessing Okta assignment targets.
+  // Value is parsed as Go duration string, e.g. 1h15m. A blank string results in the default value being used.
+  // For most use cases the default value should NOT be changed.
+  string target_processing_backoff_max = 17;
 }
 
 // Defines a set of discord channel IDs

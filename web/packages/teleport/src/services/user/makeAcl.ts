@@ -105,6 +105,8 @@ export function makeAcl(json): Acl {
 
   const beam = json.beam || defaultAccess;
 
+  const mobileDevice = json.mobileDevice || defaultMobileDeviceAccess;
+
   return {
     accessList,
     authConnectors,
@@ -159,6 +161,7 @@ export function makeAcl(json): Acl {
     inferenceModel,
     inferenceSecret,
     beam,
+    mobileDevice,
   };
 }
 
@@ -173,4 +176,8 @@ export const defaultAccess = {
 export const defaultAccessWithUse = {
   ...defaultAccess,
   use: false,
+};
+
+export const defaultMobileDeviceAccess = {
+  createEnrollToken: false,
 };

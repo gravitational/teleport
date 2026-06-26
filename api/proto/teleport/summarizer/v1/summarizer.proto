@@ -230,9 +230,18 @@ message ClassifierMatch {
 // SummaryState is the state of the summarization process.
 enum SummaryState {
   SUMMARY_STATE_UNSPECIFIED = 0;
-  SUMMARY_STATE_PENDING = 1;
+  // Deprecated: superseded by WAITING/IN_PROGRESS/SYNTHESIZING. Kept as the
+  // downgrade target for pre-v19 clients.
+  SUMMARY_STATE_PENDING = 1 [deprecated = true];
   SUMMARY_STATE_SUCCESS = 2;
   SUMMARY_STATE_ERROR = 3;
+  SUMMARY_STATE_NO_INFERENCE_POLICY = 4;
+  // Queued, waiting for a worker slot.
+  SUMMARY_STATE_WAITING = 5;
+  // Analyzing the recording; see processed_duration/total_duration.
+  SUMMARY_STATE_IN_PROGRESS = 6;
+  // Per-chunk analysis done; synthesizing the final summary.
+  SUMMARY_STATE_SYNTHESIZING = 7;
 }
 
 // Summary represents a summary of a session recording. This format is used to
@@ -270,6 +279,12 @@ message Summary {
   // ClassifierMatches records the classifiers that matched this session
   // summary.
   repeated ClassifierMatch classifier_matches = 10;
+  // ProcessedDuration is how much of the recording has been analyzed. Set while
+  // the state is SUMMARY_STATE_IN_PROGRESS.
+  google.protobuf.Duration processed_duration = 11;
+  // TotalDuration is the full recording length, the denominator for progress.
+  // May be unset.
+  google.protobuf.Duration total_duration = 12;
 }
 
 // The following enums and messages should be kept in sync with `e/lib/auth/summarizer/schema/command.go`

@@ -358,6 +358,25 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	dcForEC2StatusWithoutIntegrationName := uuid.NewString()
+	dcForEC2StatusWithoutIntegration, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: dcForEC2StatusWithoutIntegrationName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+			}},
+		},
+	)
+	require.NoError(t, err)
+
 	tcs := []struct {
 		name          string
 		requiresProxy bool
@@ -646,8 +665,25 @@ func TestDiscoveryServer(t *testing.T) {
 					}, ae)
 				},
 			},
-			staticMatchers:         Matchers{},
-			discoveryConfig:        defaultDiscoveryConfig,
+			staticMatchers:  Matchers{},
+			discoveryConfig: defaultDiscoveryConfig,
+			wantDiscoveryConfigStatus: &discoveryconfig.Status{
+				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				ErrorMessage:        nil,
+				DiscoveredResources: 1,
+				LastSyncTime:        time.Now().UTC(),
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+					"": {
+						IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
+							AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+								Found:    1,
+								Enrolled: 0,
+								Failed:   0,
+							}.Build(),
+						}.Build(),
+					},
+				},
+			},
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
 		{
@@ -729,6 +765,33 @@ func TestDiscoveryServer(t *testing.T) {
 				LastSyncTime:        time.Now().UTC(),
 				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					"my-integration": {
+						IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
+							AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+								Found:    0,
+								Enrolled: 0,
+								Failed:   0,
+							}.Build(),
+						}.Build(),
+					},
+				},
+			},
+			wantInstalledInstances: []string{},
+		},
+		{
+			name:              "no nodes found using DiscoveryConfig without Integration, but DiscoveryConfig Status is still updated",
+			presentInstances:  []types.Server{},
+			foundEC2Instances: []ec2types.Instance{},
+			ssm:               &mockSSMClient{},
+			emitter:           &mockEmitter{},
+			staticMatchers:    Matchers{},
+			discoveryConfig:   dcForEC2StatusWithoutIntegration,
+			wantDiscoveryConfigStatus: &discoveryconfig.Status{
+				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				ErrorMessage:        nil,
+				DiscoveredResources: 0,
+				LastSyncTime:        time.Now().UTC(),
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+					"": {
 						IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
 							AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
 								Found:    0,

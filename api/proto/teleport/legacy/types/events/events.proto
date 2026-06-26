@@ -162,6 +162,10 @@ message UserMetadata {
 
   // ScopePin specifies the current scope pin of the identity.
   ScopePin scope_pin = 17;
+
+  // BeamID is the identifier of the Beam this action is associated with, if
+  // any. It is derived from the user's certificate.
+  string BeamID = 18 [(gogoproto.jsontag) = "beam_id,omitempty"];
 }
 
 // Server is a server metadata
@@ -5201,6 +5205,9 @@ message OneOf {
     events.BeamsConfigCreate BeamsConfigCreate = 257;
     events.BeamsConfigUpdate BeamsConfigUpdate = 258;
     events.BeamsConfigDelete BeamsConfigDelete = 259;
+    events.ClassifierCreate ClassifierCreate = 260;
+    events.ClassifierUpdate ClassifierUpdate = 261;
+    events.ClassifierDelete ClassifierDelete = 262;
   }
 }
 
@@ -7492,6 +7499,10 @@ message SPIFFESVIDIssued {
   string NameSelector = 15 [(gogoproto.jsontag) = "name_selector,omitempty"];
   // The label selectors specified by the client when requesting the SVID.
   repeated LabelSelector LabelSelectors = 16 [(gogoproto.jsontag) = "label_selectors,omitempty"];
+  // WorkloadIdentityScope is the scope of the WorkloadIdentity resource that
+  // was used to issue the SVID. Empty if the WorkloadIdentity is unscoped or
+  // the legacy RPCs were used.
+  string WorkloadIdentityScope = 17 [(gogoproto.jsontag) = "workload_identity_scope,omitempty"];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.
@@ -10732,6 +10743,132 @@ message BeamsConfigDelete {
 
   // Connection holds information about the connection.
   ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// ClassifierCreate is emitted when a classifier is created.
+message ClassifierCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the classifier data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// ClassifierUpdate is emitted when a classifier is updated.
+message ClassifierUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the classifier data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// ClassifierDelete is emitted when a classifier is deleted.
+message ClassifierDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status Status = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

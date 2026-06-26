@@ -111,6 +111,7 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 	enrollCmd.Flag("current-device", "Enrolls the current device. Overrides --device-id and --asset-tag.").
 		BoolVar(&c.enroll.currentDevice)
 	enrollCmd.Flag("ttl", "Time duration for the enrollment token").DurationVar(&c.enroll.ttl)
+	enrollCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.enroll.format, formats...)
 
 	lockCmd := devicesCmd.Command("lock", "Locks a device.")
 	lockCmd.Flag("device-id", "Device identifier").StringVar(&c.lock.deviceID)
@@ -120,6 +121,7 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 	lockCmd.Flag("message", "Message to display to locked-out users").StringVar(&c.lock.message)
 	lockCmd.Flag("expires", "Time point (RFC3339) when the lock expires").StringVar(&c.lock.expires)
 	lockCmd.Flag("ttl", "Time duration after which the lock expires").DurationVar(&c.lock.ttl)
+	lockCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.lock.format, formats...)
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
@@ -392,6 +394,7 @@ type deviceEnrollCommand struct {
 
 	deviceID string
 	ttl      time.Duration
+	format   string
 
 	// stdout allows to switch the standard output source. Used in tests.
 	stdout io.Writer
@@ -432,8 +435,45 @@ func (c *deviceEnrollCommand) Run(ctx context.Context, authClient *authclient.Cl
 		return trace.Wrap(err)
 	}
 
-	printEnrollMessage(name, token, c.stdout)
-	return nil
+	return trace.Wrap(writeEnrollToken(c.format, deviceID, name, c.assetTag, token, c.stdout))
+}
+
+// deviceEnrollTokenOutput is the stable structured-output shape for a device
+// enrollment token. Device enrollment tokens are an RPC result with no
+// `tctl get`/`ls` equivalent, so we define an explicit DTO rather than leaking
+// the internal proto. The token is the intended output of the command (the
+// text format already prints it); no other secret material is exposed.
+type deviceEnrollTokenOutput struct {
+	DeviceID string     `json:"device_id,omitempty"`
+	AssetTag string     `json:"asset_tag,omitempty"`
+	Token    string     `json:"token"`
+	Expires  *time.Time `json:"expires,omitempty"`
+}
+
+func newDeviceEnrollTokenOutput(deviceID, assetTag string, token *devicepb.DeviceEnrollToken) deviceEnrollTokenOutput {
+	return deviceEnrollTokenOutput{
+		DeviceID: deviceID,
+		AssetTag: assetTag,
+		Token:    token.GetToken(),
+		Expires:  protoTimePtr(token.GetExpireTime().AsTime()),
+	}
+}
+
+// writeEnrollToken renders a freshly created device enrollment token in the
+// requested output format. For text it preserves the existing human-readable
+// enroll instructions; for json/yaml it serializes a stable DTO.
+func writeEnrollToken(format, deviceID, name, assetTag string, token *devicepb.DeviceEnrollToken, stdout io.Writer) error {
+	switch format {
+	case teleport.Text:
+		printEnrollMessage(name, token, stdout)
+		return nil
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSON(stdout, newDeviceEnrollTokenOutput(deviceID, assetTag, token)), "failed to marshal enrollment token")
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(stdout, newDeviceEnrollTokenOutput(deviceID, assetTag, token)), "failed to marshal enrollment token")
+	default:
+		return trace.BadParameter("invalid format %q", format)
+	}
 }
 
 type deviceLockCommand struct {
@@ -443,6 +483,7 @@ type deviceLockCommand struct {
 	message  string
 	expires  string
 	ttl      time.Duration
+	format   string
 
 	// stdout allows to switch the standard output source. Used in tests.
 	stdout io.Writer
@@ -457,7 +498,9 @@ func (c *deviceLockCommand) Run(ctx context.Context, authClient *authclient.Clie
 		// Print here, otherwise device information isn't apparent.
 		// In other command modes the user just wrote the ID or asset tag in the
 		// command line.
-		fmt.Fprintf(c.stdout, "Locking device %q.\n", c.assetTag)
+		if c.format == teleport.Text {
+			fmt.Fprintf(c.stdout, "Locking device %q.\n", c.assetTag)
+		}
 	}
 
 	switch {
@@ -501,8 +544,7 @@ func (c *deviceLockCommand) Run(ctx context.Context, authClient *authclient.Clie
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(c.stdout, "Created a lock with name %q.\n", lock.GetName())
-	return nil
+	return trace.Wrap(writeCreatedLock(c.format, lock, c.stdout))
 }
 
 // findDeviceID finds the device ID when supplied with either a deviceID or

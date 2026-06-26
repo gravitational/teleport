@@ -104,8 +104,9 @@ This helps to minimize the direct sharing of tokens even when they are dynamical
 ### Join your server to the cluster
 
 On your server, save `token.file` to an appropriate, secure, directory you have
-the rights and access to read. Next, generate a configuration file enabling
-Teleport's SSH Service.
+the rights and access to read. Next, generate a configuration file that enables
+the Teleport SSH Service. This also assigns the protected server the
+`env=example` label so you can search for it later:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -116,6 +117,7 @@ the `--token` flag to the path where you saved `token.file`.
 ```code
 # Generate config
 $ sudo teleport node configure \
+   --labels=env=example \
    --output=file:///etc/teleport.yaml \
    --token=/path/to/token.file \
    --proxy=tele.example.com:443
@@ -130,6 +132,7 @@ $ sudo teleport node configure \
 ```code
 # Generate config
 $ sudo teleport node configure \
+   --labels=env=example \
    --output=file:///etc/teleport.yaml \
    --token=/path/to/token.file \
    --proxy=mytenant.teleport.sh:443

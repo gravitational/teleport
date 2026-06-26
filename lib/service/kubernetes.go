@@ -262,8 +262,13 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := healthCheckManager.Start(process.ExitContext()); err != nil {
-		return trace.Wrap(err)
+
+	// TODO (eriktate): because HealthCheckConfigs do not yet support scopes, the service will never report
+	// healthy when scope pinned. We need to remove this opt-out behavior once HealthCheckConfigs support scopes
+	if conn.Scope() == "" {
+		if err := healthCheckManager.Start(process.ExitContext()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	var publicAddr string

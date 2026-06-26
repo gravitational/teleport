@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base32"
 	"iter"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // WorkloadIdentities is an interface over the WorkloadIdentities service. This
@@ -130,6 +132,20 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 		return trace.BadParameter("spec.spiffe.jwt.maximum_ttl: must be less than %s", maxMaxJWTSVIDTTL)
 	}
 
+	// When the WorkloadIdentity is scoped, the scope itself must be valid and
+	// the SPIFFE ID must conform to the scoped SPIFFE ID structure (RFD 0229c).
+	if s.GetScope() != "" {
+		if err := scopes.StrongValidate(s.GetScope()); err != nil {
+			return trace.Wrap(err, "scope")
+		}
+		if scopes.Compare(s.GetScope(), scopes.Root) == scopes.Equivalent {
+			return trace.BadParameter("scope: must not be the root scope")
+		}
+		if err := validateScopedSPIFFEID(s.GetScope(), s.GetSpec().GetSpiffe().GetId()); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	for i, rule := range s.GetSpec().GetRules().GetAllow() {
 		if rule.GetExpression() == "" {
 			if len(rule.GetConditions()) == 0 {
@@ -155,6 +171,89 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 	}
 
 	return nil
+}
+
+// scopedSPIFFEIDSeparator is the path segment that separates the scope-derived
+// section of a scoped SPIFFE ID from the administratively-defined section. A
+// scoped SPIFFE ID for a WorkloadIdentity defined in scope /security/eu looks
+// like /security/eu/_/k8s/cluster-a. See RFD 0229c.
+//
+// The separator is a valid SPIFFE ID path segment but is deliberately not a
+// valid scope segment (scope segments require at least two characters), which
+// keeps the boundary between the two sections unambiguous.
+const scopedSPIFFEIDSeparator = "_"
+
+// validateScopedSPIFFEID validates that the given SPIFFE ID path conforms to
+// the scoped SPIFFE ID structure for the given scope, as defined in RFD 0229c.
+//
+// A scoped SPIFFE ID path consists of three sections:
+//   - the scope section: segments that strictly match the scope of origin
+//   - the separator segment ("/_/")
+//   - the administratively-defined section: one or more freely-defined segments
+//
+// For example, for scope /security/eu, /security/eu/_/k8s/cluster-a is valid.
+//
+// The check is performed on segments (not raw string prefixes) so that, e.g., a
+// scope of /foo matches an ID beginning /foo/... but not /foo-buzz/.... The
+// scope section must match the scope of origin exactly: it may not be an
+// ancestor or descendant of it.
+func validateScopedSPIFFEID(scope, id string) error {
+	if !strings.HasPrefix(id, "/") {
+		return trace.BadParameter("spec.spiffe.id: must begin with a forward slash")
+	}
+	// Reject empty path segments (e.g. a trailing slash or "//"), which
+	// splitPathSegments would otherwise silently trim or mishandle.
+	if strings.HasSuffix(id, "/") || strings.Contains(id, "//") {
+		return trace.BadParameter("spec.spiffe.id %q must not contain empty path segments", id)
+	}
+
+	scopeSegments := splitPathSegments(scope)
+	idSegments := splitPathSegments(id)
+
+	separatorIndex := slices.Index(idSegments, scopedSPIFFEIDSeparator)
+	if separatorIndex < 0 {
+		return trace.BadParameter(
+			"spec.spiffe.id %q is missing the %q separator segment that delimits the scope from the administratively-defined section",
+			id, scopedSPIFFEIDSeparator,
+		)
+	}
+
+	scopeSection := idSegments[:separatorIndex]
+	adminSection := idSegments[separatorIndex+1:]
+
+	if !slices.Equal(scopeSection, scopeSegments) {
+		return trace.BadParameter(
+			"spec.spiffe.id %q must be prefixed with the scope %q, immediately followed by the %q separator segment",
+			id, scope, scopedSPIFFEIDSeparator,
+		)
+	}
+
+	if len(adminSection) == 0 {
+		return trace.BadParameter(
+			"spec.spiffe.id %q must have at least one segment after the %q separator",
+			id, scopedSPIFFEIDSeparator,
+		)
+	}
+
+	if slices.Contains(adminSection, scopedSPIFFEIDSeparator) {
+		return trace.BadParameter(
+			"spec.spiffe.id %q must not contain the %q separator segment in its administratively-defined section",
+			id, scopedSPIFFEIDSeparator,
+		)
+	}
+
+	return nil
+}
+
+// splitPathSegments splits a slash-delimited path (a scope or a SPIFFE ID path)
+// into its non-empty segments. A leading slash is expected; empty input or "/"
+// yields no segments.
+func splitPathSegments(path string) []string {
+	trimmed := strings.Trim(path, "/")
+	if trimmed == "" {
+		return nil
+	}
+	return strings.Split(trimmed, "/")
 }
 
 // WorkloadIdentitySortField identifies a field that WorkloadIdentities may be

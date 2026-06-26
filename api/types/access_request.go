@@ -620,7 +620,13 @@ func (r *AccessRequestV3) SetRequestedResourceAccessIDs(ids []ResourceAccessID) 
 	r.Spec.RequestedResourceAccessIDs = append([]ResourceAccessID{}, ids...)
 }
 
-// GetAllRequestedResourceIDs gets all [ResourceAccessID]-based representations of requested resources.
+// GetAllRequestedResourceIDs gets all [ResourceAccessID]-based representations
+// of requested resources, merging the spec's RequestedResourceIDs and
+// RequestedResourceAccessIDs fields without deduplication. The two spec fields
+// are deduplicated against each other when the request is created, with
+// constrained entries taking precedence. To merge the equivalent parallel
+// fields on API request parameters, which are not validated this way, use
+// [CombineAsResourceAccessIDs] instead.
 func (r *AccessRequestV3) GetAllRequestedResourceIDs() []ResourceAccessID {
 	wrapped := make([]ResourceAccessID, 0, len(r.Spec.RequestedResourceIDs)+len(r.Spec.RequestedResourceAccessIDs))
 	for _, rid := range r.Spec.RequestedResourceIDs {
