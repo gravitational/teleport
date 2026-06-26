@@ -111,20 +111,18 @@ func (v *IDTokenValidator) ValidateToken(
 	if spec.StaticJWKS != "" {
 		claims, err = v.validateStaticJWKS(ctx, spec, idToken, time.Now())
 		if err != nil {
-			log.InfoContext(ctx, "denying generic_oidc join attempt with static_jwks", "error", err)
-			return nil, trace.AccessDenied("unable to validate generic_oidc join attempt")
+			return nil, trace.Wrap(err, "validating via static_jwks")
 		}
 	} else {
 		claims, err = v.validateOIDC(ctx, spec, idToken)
 		if err != nil {
 			log.InfoContext(ctx, "denying generic_oidc join attempt", "error", err)
-			return nil, trace.AccessDenied("unable to validate generic_oidc join attempt")
+			return nil, trace.Wrap(err, "validating via oidc")
 		}
 	}
 
 	if err := evaluateGenericOIDCRules(spec, claims); err != nil {
-		log.InfoContext(ctx, "denying generic_oidc join attempt due to rules evaluation error", "error", err)
-		return nil, trace.AccessDenied("unable to validate generic_oidc join attempt")
+		return nil, trace.Wrap(err, "validating generic_oidc rules")
 	}
 
 	return claims, nil

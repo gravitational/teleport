@@ -373,8 +373,7 @@ func TestGenericOIDC(t *testing.T) {
 				}
 			},
 			expectError: func(t require.TestingT, err error, i ...any) {
-				// real error is logged
-				require.ErrorContains(t, err, "unable to validate generic_oidc join attempt")
+				require.ErrorContains(t, err, "incorrect value in claim: google.compute_engine.project_id must be \"foo\"")
 			},
 		},
 		{
@@ -397,8 +396,7 @@ func TestGenericOIDC(t *testing.T) {
 				}
 			},
 			expectError: func(t require.TestingT, err error, i ...any) {
-				// real error is logged
-				require.ErrorContains(t, err, "unable to validate generic_oidc join attempt")
+				require.ErrorContains(t, err, "claims matched no allow_any rules")
 			},
 		},
 		{
@@ -431,7 +429,7 @@ func TestGenericOIDC(t *testing.T) {
 			},
 			expectError: func(t require.TestingT, err error, i ...any) {
 				// real error is logged
-				require.ErrorContains(t, err, "unable to validate generic_oidc join attempt")
+				require.ErrorContains(t, err, "incorrect value in claim: google.compute_engine.project_number must be 11111")
 			},
 		},
 		{
@@ -463,14 +461,14 @@ func TestGenericOIDC(t *testing.T) {
 			},
 			expectError: func(t require.TestingT, err error, i ...any) {
 				// real error is logged
-				require.ErrorContains(t, err, "unable to validate generic_oidc join attempt")
+				require.ErrorContains(t, err, "claims matched no allow_any rules")
 			},
 		},
 		{
 			name: "error when no rules are configured",
 			expectError: func(t require.TestingT, err error, i ...any) {
 				// real error is logged
-				require.ErrorContains(t, err, "unable to validate generic_oidc join attempt")
+				require.ErrorContains(t, err, "generic OIDC token has no rules configured")
 			},
 		},
 	}
@@ -580,8 +578,7 @@ func TestGenericOIDCStaticJWKS(t *testing.T) {
 				}
 			},
 			expectError: func(t require.TestingT, err error, i ...any) {
-				// real error is logged
-				require.ErrorContains(t, err, "unable to validate generic_oidc join attempt")
+				require.ErrorContains(t, err, "claims matched no allow_any rules")
 			},
 			expectClaims: func(t *testing.T, claims *IDTokenClaims) {
 				require.Nil(t, claims)
@@ -591,7 +588,7 @@ func TestGenericOIDCStaticJWKS(t *testing.T) {
 			name: "denies with no rules configured",
 			expectError: func(t require.TestingT, err error, i ...any) {
 				// real error is logged
-				require.ErrorContains(t, err, "unable to validate generic_oidc join attempt")
+				require.ErrorContains(t, err, "generic OIDC token has no rules configured")
 			},
 			expectClaims: func(t *testing.T, claims *IDTokenClaims) {
 				require.Nil(t, claims)
@@ -610,8 +607,7 @@ func TestGenericOIDCStaticJWKS(t *testing.T) {
 				token.Spec.GenericOIDC.StaticJWKS = "{asdfasdfasdf"
 			},
 			expectError: func(t require.TestingT, err error, i ...any) {
-				// generic failure message
-				require.ErrorContains(t, err, "unable to validate generic_oidc join attempt")
+				require.ErrorContains(t, err, "parsing provided jwks")
 			},
 			expectClaims: func(t *testing.T, claims *IDTokenClaims) {
 				require.Nil(t, claims)
@@ -643,8 +639,7 @@ func TestGenericOIDCStaticJWKS(t *testing.T) {
 
 			},
 			expectError: func(t require.TestingT, err error, i ...any) {
-				// generic failure message
-				require.ErrorContains(t, err, "unable to validate generic_oidc join attempt")
+				require.ErrorContains(t, err, "validating jwt signature")
 			},
 			expectClaims: func(t *testing.T, claims *IDTokenClaims) {
 				require.Nil(t, claims)
@@ -726,8 +721,7 @@ func TestGenericOIDCWithCustomCA(t *testing.T) {
 		token,
 		[]byte(httpsIDP.issueToken(t, audience, "example", time.Hour)),
 	)
-	// real error is only logged, but should indicate a bad cert
-	require.ErrorContains(t, err, "unable to validate generic_oidc join attempt")
+	require.ErrorContains(t, err, "x509: certificate signed by unknown authority")
 	require.Nil(t, claims)
 
 	// Now make a real validation request. It should fetch using the custom CA.
