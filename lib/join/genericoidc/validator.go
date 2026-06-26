@@ -202,7 +202,7 @@ func (v *IDTokenValidator) validateStaticJWKS(
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	algs := allowedAlgorithmsFromJWKS(jwks)
+	algs, filteredKeys := filterAllowedAlgorithmsFromJWKS(jwks)
 	if len(algs) == 0 {
 		return nil, trace.BadParameter("static_jwks contains no keys with a usable signature algorithm")
 	}
@@ -220,7 +220,7 @@ func (v *IDTokenValidator) validateStaticJWKS(
 	// this.
 	stdClaims := josejwt.Claims{}
 	claims := IDTokenClaims{}
-	if err := parsed.Claims(jwks, &stdClaims, &claims); err != nil {
+	if err := parsed.Claims(filteredKeys, &stdClaims, &claims); err != nil {
 		if errors.Is(err, jose.ErrJWKSKidNotFound) {
 			log.WarnContext(
 				ctx, "unable to validate incoming jwt without a `kid`",
@@ -258,7 +258,11 @@ func (v *IDTokenValidator) validateStaticJWKS(
 // allowedAlgorithmsFromJWKS computes the list of algorithms we should pass to
 // jose, by computing the intersection of our allowed algorithms
 // (acceptableStaticJWKSAlgs) and the algorithms in the `static_jwks` keys.
-func allowedAlgorithmsFromJWKS(jwks jose.JSONWebKeySet) []jose.SignatureAlgorithm {
+func filterAllowedAlgorithmsFromJWKS(jwks jose.JSONWebKeySet) ([]jose.SignatureAlgorithm, jose.JSONWebKeySet) {
+	filteredSet := jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{},
+	}
+
 	candidates := make(map[jose.SignatureAlgorithm]struct{})
 	for _, key := range jwks.Keys {
 		if key.Use != "" && key.Use != "sig" {
@@ -268,9 +272,11 @@ func allowedAlgorithmsFromJWKS(jwks jose.JSONWebKeySet) []jose.SignatureAlgorith
 			continue
 		}
 
+		acceptable := false
 		alg := jose.SignatureAlgorithm(key.Algorithm)
 		if _, ok := acceptableStaticJWKSAlgs[alg]; ok {
 			candidates[alg] = struct{}{}
+			acceptable = true
 		} else if key.Algorithm == "" {
 			// `alg` is optional, so if not specified, include based on the key
 			// type
@@ -280,27 +286,36 @@ func allowedAlgorithmsFromJWKS(jwks jose.JSONWebKeySet) []jose.SignatureAlgorith
 				// Note, technically ambiguous between 256/384/512, but without
 				// a hint we have to guess, and RS256 is mandated.
 				candidates[jose.RS256] = struct{}{}
+				acceptable = true
 			case *ecdsa.PublicKey:
 				switch k.Curve {
 				case elliptic.P256():
 					candidates[jose.ES256] = struct{}{}
+					acceptable = true
 				case elliptic.P384():
 					candidates[jose.ES384] = struct{}{}
+					acceptable = true
 				case elliptic.P521():
 					// P521 -> ES512 (confusingly)
 					// https://datatracker.ietf.org/doc/html/rfc7518#section-3.4
 					candidates[jose.ES512] = struct{}{}
+					acceptable = true
 				}
 			case ed25519.PublicKey:
 				candidates[jose.EdDSA] = struct{}{}
+				acceptable = true
 			}
 
 			// If nothing matches, it's a no-op, it certainly wouldn't appear in
 			// our list.
 		}
+
+		if acceptable {
+			filteredSet.Keys = append(filteredSet.Keys, key)
+		}
 	}
 
-	return slices.Collect(maps.Keys(candidates))
+	return slices.Collect(maps.Keys(candidates)), filteredSet
 }
 
 // evaluateGenericOIDCRules evaluates all types of user-defined rules on a
