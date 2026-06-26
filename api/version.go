@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.9.1"
+const Version = "18.9.2-dev.github-http.1"
 
 const VersionMajor = 18
 const VersionMinor = 9
-const VersionPatch = 1
-const VersionPreRelease = ""
+const VersionPatch = 2
+const VersionPreRelease = "dev.github-http.1"
 const VersionMetadata = ""
