@@ -898,11 +898,9 @@ const (
 	AWSSSORegionLabel = TeleportNamespace + "/sso-region"
 	// SubscriptionIDLabelInternal is a hidden label (teleport.internal/) used
 	// to identify Azure VMs by subscription ID during auto-discovery.
-	// Preserved for backward compatibility; superseded by SubscriptionIDLabel.
 	SubscriptionIDLabelInternal = TeleportInternalLabelPrefix + "subscription-id"
 	// VMIDLabelInternal is a hidden label (teleport.internal/) used to identify
 	// Azure VMs by VM ID during auto-discovery.
-	// Preserved for backward compatibility; superseded by VMIDLabel.
 	VMIDLabelInternal = TeleportInternalLabelPrefix + "vm-id"
 	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
 	projectIDLabelSuffix = "project-id"
@@ -916,11 +914,9 @@ const (
 	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
 	// RegionLabelInternal is a hidden label (teleport.internal/) used to
 	// identify Azure VMs by region during auto-discovery.
-	// Preserved for backward compatibility; superseded by RegionLabel.
 	RegionLabelInternal = TeleportInternalLabelPrefix + "region"
 	// ResourceGroupLabelInternal is a hidden label (teleport.internal/) used
 	// to identify Azure VMs by resource group during auto-discovery.
-	// Preserved for backward compatibility; superseded by ResourceGroupLabel.
 	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
 	// AzureManagedIdentityRegionLabel is the label key for the Azure region for
 	// the managed identity created by the Azure discovery Terraform module.
