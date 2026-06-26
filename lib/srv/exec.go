@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/mattn/go-shellwords"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -284,7 +285,10 @@ func (e *localExec) transformSecureCopy() error {
 func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	// split up command by space to grab the first word. if we don't have anything
 	// it's an interactive shell the user requested and not scp, return
-	args := strings.Split(command, " ")
+	args, err := shellwords.Parse(command)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	if len(args) == 0 {
 		return false, nil
 	}
