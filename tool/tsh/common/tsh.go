@@ -21,6 +21,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1874,15 +1876,28 @@ func initializeTracing(cf *CLIConf) func() {
 	cf.TracingProvider = tracing.NoopProvider()
 	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
-	// flush ensures that the spans are all attempted to be written when tsh exits.
+	// flush ends the root span and ensures that the spans are all attempted to be written when tsh exits.
+	var rootSpan oteltrace.Span
 	flush := func(provider *tracing.Provider) func() {
 		return func() {
+			if rootSpan != nil {
+				rootSpan.End()
+			}
+
 			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(cf.Context), time.Second)
 			defer cancel()
 			err := provider.Shutdown(shutdownCtx)
 			if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 				log.WithError(err).Debug("failed to shutdown trace provider")
 			}
+		}
+	}
+
+	var propContext apitracing.PropagationContext
+	if traceContext := os.Getenv(tshTraceContextEnvVar); traceContext != "" {
+		logger.DebugContext(cf.Context, "found tracing context in environment", "context", traceContext)
+		if err := json.Unmarshal([]byte(traceContext), &propContext); err == nil {
+			logger.DebugContext(cf.Context, "tracing context was valid", "context", propContext)
 		}
 	}
 
@@ -1893,16 +1908,6 @@ func initializeTracing(cf *CLIConf) func() {
 	const samplingRate = 1.0
 
 	switch {
-	// kubectl is a special case because it is the only command that we re-execute
-	// in order to be able to access the exit code and stdout/stderr of the command
-	// that was run and determine if we should create a new access request from
-	// the output data.
-	// We don't want to enable tracing for the master invocation of tsh kubectl
-	// because the data that we would be tracing would be the tsh kubectl command.
-	// Instead, we want to enable tracing for the re-executed kubectl command and
-	// we do that in the kubectl command handler.
-	case cf.command == "kubectl":
-		return func() {}
 	// The user explicitly asked for traces to be sent to a particular exporter
 	// instead of forwarding them to Auth. Proceed with creating the provider.
 	case cf.SampleTraces && cf.TraceExporter != "":
@@ -1918,6 +1923,7 @@ func initializeTracing(cf *CLIConf) func() {
 
 		cf.TracingProvider = provider
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
+		cf.Context, rootSpan = cf.tracer.Start(apitracing.WithPropagationContext(cf.Context, propContext), cf.command)
 		return flush(provider)
 	// The login command cannot forward spans to Auth since there is no way to get
 	// an authenticated client to forward with until after the authentication ceremony
@@ -1967,6 +1973,7 @@ func initializeTracing(cf *CLIConf) func() {
 
 	cf.TracingProvider = provider
 	cf.tracer = provider.Tracer(teleport.ComponentTSH)
+	cf.Context, rootSpan = cf.tracer.Start(apitracing.WithPropagationContext(cf.Context, propContext), cf.command)
 	return flush(provider)
 }
 
