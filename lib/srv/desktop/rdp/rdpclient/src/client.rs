@@ -862,32 +862,12 @@ impl Client {
         sdr: tdp::SharedDirectoryRemove,
     ) -> ClientResult<()> {
         debug!("received tdp: {:?}", sdr);
-        // Attempt to remove the device
-        let (cancel_pdus, remove_complete) =
-            Self::remove_drive(x224_processor.clone(), sdr.directory_id).await?;
+
+        let cancel_pdus = Self::remove_drive(x224_processor.clone(), sdr.directory_id)?;
+
         // Bulk send any cancellations for pending I/O requests.
         Self::write_rdpdr_pdus(write_stream, x224_processor.clone(), cancel_pdus).await?;
-
-        // If the device was successfully removed from the backend, then remove it from
-        // the top level rdpdr instance and send the device remove pdu. Otherwise,
-        // do nothing. The the rdpdr backend will synthesize another TDP shared directory remove
-        // message once the instance is ready for deletion (leading us right back here again to retry).
-        if remove_complete {
-            let remove_pdu = Self::x224_lock(&x224_processor)?
-                .get_svc_processor_mut::<Rdpdr>()
-                .ok_or(ClientError::UnknownDevice(sdr.directory_id))?
-                .remove_device(sdr.directory_id)
-                .ok_or(ClientError::UnknownDevice(sdr.directory_id))?;
-
-            Self::write_rdpdr(
-                write_stream,
-                x224_processor,
-                RdpdrPdu::ClientDeviceListRemove(remove_pdu),
-            )
-            .await
-        } else {
-            Ok(())
-        }
+        Ok(())
     }
 
     async fn handle_tdp_sd_info_response(
@@ -1017,22 +997,42 @@ impl Client {
         .await?
     }
 
-    async fn remove_drive(
+    fn remove_drive(
         x224_processor: Arc<Mutex<x224::Processor>>,
         device_id: u32,
-    ) -> ClientResult<(Vec<RdpdrPdu>, bool)> {
-        task::spawn_blocking(move || {
-            let mut x224_processor = Self::x224_lock(&x224_processor)?;
-            // Remove from the device from the teleport backend. In some cases, the device needs to
-            // respond to outstanding file I/O before we can actually remove it. The filesystem
-            // implementation will synthesize and send a TDP "SharedDirectoryRemove" message when
-            // pending I/O is complete, which will lead us back into this function to try again.
-            Self::rdpdr_backend(&mut x224_processor)?
+    ) -> ClientResult<Vec<RdpdrPdu>> {
+        // Lock the x224 processor before calling "remove_drive" so that the read loop
+        // doesn't try to process an inbound message for a device that we're in the process
+        // of removing.
+        let mut processor = Self::x224_lock(&x224_processor)?;
+        let backend = Self::rdpdr_backend(&mut processor)?;
+
+        // Attempt to remove the device from the Teleport Rdpdr backend
+        let (mut cancel_pdus, remove_complete) = backend
+            .remove_device(device_id)
+            .inspect_err(|e| warn!("could not remove device from teleport backend: {}", e))
+            .map_err(ClientError::PduError)?;
+
+        if remove_complete {
+            // If the device was successfully removed from the backend, then remove it from
+            // the top level rdpdr instance and send the device remove pdu. Otherwise,
+            // do nothing. The the rdpdr backend will synthesize another TDP shared directory remove
+            // message once the instance is ready for deletion (leading us right back here again to retry).
+            let remove_pdu = processor
+                .get_svc_processor_mut::<Rdpdr>()
+                .ok_or(ClientError::UnknownDevice(device_id))?
                 .remove_device(device_id)
-                .inspect_err(|e| warn!("could not remove device from teleport backend: {}", e))
-                .map_err(ClientError::PduError)
-        })
-        .await?
+                .ok_or(ClientError::UnknownDevice(device_id))?;
+
+            // Make sure the remove PDU is pushed last.
+            cancel_pdus.push(RdpdrPdu::ClientDeviceListRemove(remove_pdu))
+        }
+
+        Ok(cancel_pdus)
+
+        // Bulk send any cancellations for pending I/O requests.
+        //Self::write_rdpdr_pdus(write_stream, x224_processor.clone(), cancel_pdus).await?;
+        //Ok(())
     }
 
     /// Processes an x224 frame on a blocking thread.
