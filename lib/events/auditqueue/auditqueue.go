@@ -66,7 +66,7 @@ type Config struct {
 
 // Item is an event yielded to a Handler.
 type Item struct {
-	ID    int64
+	id    int64
 	Event apievents.AuditEvent
 }
 

@@ -822,7 +822,7 @@ func fetchDB(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		item := Item{ID: id, Event: event}
+		item := Item{id: id, Event: event}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -842,7 +842,7 @@ func ackDB(ctx context.Context, db *sql.DB, items []Item) error {
 
 	args := make([]any, len(items))
 	for i, item := range items {
-		args[i] = item.ID
+		args[i] = item.id
 	}
 
 	_, err := db.ExecContext(ctx, query, args...)

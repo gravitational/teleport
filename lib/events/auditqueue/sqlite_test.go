@@ -137,7 +137,7 @@ func TestDequeue_WithoutAckRetainsEvents(t *testing.T) {
 	second, err := q.fetch(1)
 	require.NoError(t, err)
 	require.Len(t, second, 1)
-	require.Equal(t, first[0].ID, second[0].ID)
+	require.Equal(t, first[0].id, second[0].id)
 
 	require.NoError(t, q.ack(second))
 
@@ -580,7 +580,7 @@ func TestAckDB_DeletesOnlyAckedItems(t *testing.T) {
 
 	ackedIDs := make(map[int64]struct{}, len(items))
 	for _, item := range items {
-		ackedIDs[item.ID] = struct{}{}
+		ackedIDs[item.id] = struct{}{}
 	}
 
 	require.NoError(t, ackDB(ctx, q.db, items))
@@ -589,7 +589,7 @@ func TestAckDB_DeletesOnlyAckedItems(t *testing.T) {
 	remaining, err := q.fetch(10)
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
-	_, wasAcked := ackedIDs[remaining[0].ID]
+	_, wasAcked := ackedIDs[remaining[0].id]
 	require.False(t, wasAcked, "remaining item should not be one that was acked")
 }
 
