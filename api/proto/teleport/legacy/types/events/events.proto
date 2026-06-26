@@ -5055,6 +5055,11 @@ message OneOf {
     events.RetrievalModelDelete RetrievalModelDelete = 252;
     events.AzureRun AzureRun = 253;
     events.EnvironmentProfileUpdate EnvironmentProfileUpdate = 256;
+    events.GitHTTPRequest GitHTTPRequest = 257;
+    events.GitSessionChunk GitSessionChunk = 258;
+    events.GitCredentialCreate GitCredentialCreate = 259;
+    events.GitCredentialRevoke GitCredentialRevoke = 260;
+    events.GitSessionStart GitSessionStart = 261;
   }
 }
 
@@ -8661,6 +8666,13 @@ message GitCommand {
     (gogoproto.jsontag) = ""
   ];
 
+  // Git is common git server metadata.
+  GitMetadata Git = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
   // Service is the type of the git request like git-upload-pack or
   // git-receive-pack.
   string service = 8 [(gogoproto.jsontag) = "service"];
@@ -8669,6 +8681,12 @@ message GitCommand {
 
   // Actions defines details for a Git push.
   repeated GitCommandAction actions = 10 [(gogoproto.jsontag) = "actions,omitempty"];
+  // HTTPMethod is the HTTP method (GET, POST) when the git command is
+  // executed over HTTPS transport. Empty for SSH transport.
+  string http_method = 11 [(gogoproto.jsontag) = "http_method,omitempty"];
+  // HTTPStatusCode is the HTTP response status code when the git command is
+  // executed over HTTPS transport. Zero for SSH transport.
+  uint32 http_status_code = 12 [(gogoproto.jsontag) = "http_status_code,omitempty"];
 }
 
 // GitCommandAction defines details for a Git push.
@@ -8681,6 +8699,157 @@ message GitCommandAction {
   string Old = 3 [(gogoproto.jsontag) = "old,omitempty"];
   // New is the new hash.
   string New = 4 [(gogoproto.jsontag) = "new,omitempty"];
+}
+
+// GitMetadata contains common Git server information for audit events.
+message GitMetadata {
+  // GitServerName is the name of the git server resource.
+  string git_server_name = 1 [(gogoproto.jsontag) = "git_server_name"];
+  // Organization is the GitHub organization.
+  string organization = 2 [(gogoproto.jsontag) = "organization"];
+  // Integration is the name of the integration resource.
+  string integration = 3 [(gogoproto.jsontag) = "integration"];
+}
+
+// GitCredentialCreate is emitted when a user completes the GitHub OAuth flow
+// and Auth stores credentials.
+message GitCredentialCreate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Git is common git server metadata.
+  GitMetadata Git = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// GitCredentialRevoke is emitted when a user explicitly revokes their
+// credentials via tsh git logout.
+message GitCredentialRevoke {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Git is common git server metadata.
+  GitMetadata Git = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// GitSessionStart is emitted when a user starts an HTTP git session
+// (i.e. when a RouteToGit certificate is issued).
+message GitSessionStart {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Git is common git server metadata.
+  GitMetadata Git = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// GitSessionChunk is emitted at the start of a session chunk for Git HTTPS access.
+message GitSessionChunk {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionChunkID is the ID of the recording for this chunk.
+  string SessionChunkID = 6 [(gogoproto.jsontag) = "session_chunk_id"];
+  // Git is common git server metadata.
+  GitMetadata Git = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// GitHTTPRequest is an HTTP request and response for Git HTTPS proxying.
+message GitHTTPRequest {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // StatusCode is the HTTP response code.
+  uint32 StatusCode = 2 [(gogoproto.jsontag) = "status_code"];
+  // RequestPath is the raw request URL path.
+  string RequestPath = 3 [(gogoproto.jsontag) = "request_path"];
+  // Method is the request HTTP method.
+  string Method = 4 [(gogoproto.jsontag) = "method"];
+  // GraphQLQuery is the GraphQL query string from POST /graphql requests.
+  string GraphQLQuery = 5 [(gogoproto.jsontag) = "graphql_query,omitempty"];
 }
 
 // AccessListInvalidMetadata contains metadata about invalid access lists.

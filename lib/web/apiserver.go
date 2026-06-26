@@ -103,6 +103,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
@@ -331,6 +332,9 @@ type Config struct {
 	// IntegrationAppHandler handles App Access requests which use an Integration.
 	IntegrationAppHandler app.ServerHandler
 
+	// GitHTTPHandler handles Git HTTPS proxy requests.
+	GitHTTPHandler http.Handler
+
 	// FeatureWatchInterval is the interval between pings to the auth server
 	// to fetch new cluster features
 	FeatureWatchInterval time.Duration
@@ -366,6 +370,9 @@ type APIHandler struct {
 
 	// appHandler is a http.Handler to forward requests to applications.
 	appHandler *app.Handler
+
+	// gitHandler is a http.Handler to forward requests for Git HTTPS proxying.
+	gitHandler http.Handler
 }
 
 // ConnectionHandler defines a function for serving incoming connections.
@@ -436,6 +443,12 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// If the request has a client cert with RouteToGit, forward to the git handler.
+	if h.gitHandler != nil && hasGitClientCert(r) {
+		h.gitHandler.ServeHTTP(w, r)
+		return
+	}
+
 	// If the request is either to the fragment authentication endpoint or if the
 	// request has a session cookie or a client cert, forward to
 	// application handlers. If the request is requesting a
@@ -475,6 +488,19 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Serve the Web UI.
 	h.handler.ServeHTTP(w, r)
+}
+
+// hasGitClientCert checks if the request has a client certificate with
+// RouteToGit set, indicating it should be handled by the git handler.
+func hasGitClientCert(r *http.Request) bool {
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		return false
+	}
+	identity, err := tlsca.FromSubject(r.TLS.PeerCertificates[0].Subject, r.TLS.PeerCertificates[0].NotAfter)
+	if err != nil {
+		return false
+	}
+	return identity.RouteToGit.GitServerName != ""
 }
 
 // HandleConnection handles connections from plain TCP applications.
@@ -775,6 +801,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	return &APIHandler{
 		handler:    h,
 		appHandler: appHandler,
+		gitHandler: cfg.GitHTTPHandler,
 	}, nil
 }
 
@@ -980,6 +1007,16 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
 	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
 	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
+
+	// Authenticated GitHub integration callback. Called by the web UI page
+	// at /web/github/integration/callback after the user completes the GitHub
+	// OAuth flow. WithAuth requires session cookie + CSRF bearer token.
+	// TODO(greedy52) implement the web UI page at /web/github/integration/callback
+	// that extracts code/state from the URL and POSTs here.
+	h.POST("/webapi/github/integration/callback", h.WithAuth(h.githubIntegrationCallback))
+	h.POST("/webapi/github/integration/manifest", h.WithAuth(h.githubIntegrationManifest))
+	h.Handle("GET", "/webapi/github/integration/manifest/redirect", h.githubManifestRedirectRaw)
+	h.POST("/webapi/github/integration/login", h.WithAuth(h.githubIntegrationLogin))
 
 	// MFA public endpoints.
 	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMFARequired))
@@ -1239,6 +1276,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/gitservers", h.WithClusterAuth(h.gitServerCreateOrUpsert))
 	h.GET("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerGet))
 	h.DELETE("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerDelete))
+
+	h.GET("/webapi/sites/:site/gitservers/:name/credentials", h.WithClusterAuth(h.gitCredentialsStatus))
+	h.DELETE("/webapi/sites/:site/gitservers/:name/credentials", h.WithClusterAuth(h.gitCredentialsRevoke))
 
 	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
@@ -2440,6 +2480,17 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	logger := h.logger.With("auth", "github")
 	logger.DebugContext(r.Context(), "Callback start", "query", r.URL.Query())
 
+	// If this is an authenticated user flow (git integration), redirect to the
+	// authenticated web UI page instead of processing here. This prevents
+	// login-CSRF attacks by requiring a valid web session.
+	if state := r.URL.Query().Get("state"); state != "" {
+		if authRequest, err := h.cfg.ProxyClient.GetGithubAuthRequest(r.Context(), state); err == nil && authRequest.AuthenticatedUser != "" {
+			redirectURL := fmt.Sprintf("/web/github/integration/callback?%s", r.URL.RawQuery)
+			logger.DebugContext(r.Context(), "Redirecting authenticated user to integration callback", "redirect", redirectURL)
+			return redirectURL
+		}
+	}
+
 	response, err := h.cfg.ProxyClient.ValidateGithubAuthCallback(r.Context(), r.URL.Query())
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error while processing callback", "error", err)
@@ -2515,6 +2566,107 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	return redirectURL.String()
+}
+
+// githubIntegrationLogin initiates the GitHub OAuth flow for the authenticated
+// user. It creates a GitHub auth request via the git server service and returns
+// the redirect URL. The frontend redirects the user to GitHub for authorization.
+func (h *Handler) githubIntegrationLogin(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+	var req struct {
+		Organization string `json:"organization"`
+	}
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.Organization == "" {
+		return nil, trace.BadParameter("missing organization")
+	}
+
+	clt, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authReq, err := clt.GitServerClient().CreateGitHubAuthRequest(r.Context(), &types.GithubAuthRequest{}, req.Organization)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create GitHub auth request")
+	}
+
+	return &struct {
+		RedirectURL string `json:"redirectUrl"`
+	}{
+		RedirectURL: authReq.RedirectURL,
+	}, nil
+}
+
+// githubIntegrationCallback handles the authenticated GitHub OAuth callback for
+// git integration. Called by the web UI page after extracting code/state from
+// the GitHub redirect URL. Requires a valid web session + CSRF token, ensuring
+// the user completing the OAuth flow is the same user who initiated it.
+func (h *Handler) githubIntegrationCallback(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
+	var req struct {
+		Code  string `json:"code"`
+		State string `json:"state"`
+	}
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Code == "" || req.State == "" {
+		return nil, trace.BadParameter("missing code or state")
+	}
+
+	// Verify the auth request belongs to the authenticated user.
+	authRequest, err := h.cfg.ProxyClient.GetGithubAuthRequest(r.Context(), req.State)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if authRequest.AuthenticatedUser == "" {
+		return nil, trace.BadParameter("auth request is not for an authenticated user")
+	}
+
+	if authRequest.AuthenticatedUser != sctx.GetUser() {
+		return nil, trace.AccessDenied("session user %q does not match auth request user %q",
+			sctx.GetUser(), authRequest.AuthenticatedUser)
+	}
+
+	// Validate through the normal callback flow.
+	q := make(url.Values)
+	q.Set("code", req.Code)
+	q.Set("state", req.State)
+
+	response, err := h.cfg.ProxyClient.ValidateGithubAuthCallback(r.Context(), q)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result := map[string]interface{}{
+		"username": response.Username,
+	}
+
+	// When ClientRedirectURL is set (tsh flow), build the SSH response for
+	// tsh's local callback server. When empty (web UI flow), just return
+	// success -- credentials are already stored by the callback handler.
+	if response.Req.ClientRedirectURL != "" {
+		redirectURL, err := ConstructSSHResponse(AuthParams{
+			ClientRedirectURL: response.Req.ClientRedirectURL,
+			Username:          response.Username,
+			Identity:          response.Identity,
+			Session:           response.Session,
+			Cert:              response.Cert,
+			TLSCert:           response.TLSCert,
+			HostSigners:       response.HostSigners,
+			FIPS:              h.cfg.FIPS,
+			ClientOptions:     response.ClientOptions,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["redirect_url"] = redirectURL.String()
+	}
+
+	return result, nil
 }
 
 // BuildDeviceWebRedirectPath constructs the redirect path for device web authorization.

@@ -1001,6 +1001,10 @@ message GitHubServerMetadata {
   string organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
   // Integration is the integration that is associated with this Server.
   string integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
+  // AllowProtocols is the list of allowed protocols for this git server
+  // (e.g. "ssh", "http"). If empty, defaults to ["ssh"] for backwards
+  // compatibility.
+  repeated string allow_protocols = 3 [(gogoproto.jsontag) = "allow_protocols,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -8853,6 +8857,17 @@ message IntegrationSpecV1 {
 message IntegrationStatusV1 {
   // AWSRolesAnywhere contains the specific status fields to related to the AWS Roles Anywhere Integration subkind.
   AWSRAIntegrationStatusV1 AWSRolesAnywhere = 1 [(gogoproto.jsontag) = "aws_ra,omitempty"];
+  // GitHub contains the status fields for the GitHub integration subkind.
+  GitHubIntegrationStatusV1 GitHub = 2 [(gogoproto.jsontag) = "github,omitempty"];
+}
+
+// GitHubIntegrationStatusV1 contains the status of a GitHub integration.
+message GitHubIntegrationStatusV1 {
+  // SSHCAConfigured indicates whether the SSH CA has been created and configured.
+  bool SSHCAConfigured = 1 [(gogoproto.jsontag) = "ssh_ca_configured,omitempty"];
+  // ClientID is the GitHub App/OAuth App client ID. This is a public
+  // identifier, not a secret.
+  string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -8901,6 +8916,18 @@ message AzureOIDCIntegrationSpecV1 {
 message GitHubIntegrationSpecV1 {
   // Organization specifies the name of the organization for the GitHub integration.
   string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+  // AllowProtocols is the list of allowed protocols (e.g. "ssh", "http").
+  // If empty, defaults to ["ssh"] for backwards compatibility.
+  // If includes "ssh", Auth creates an SSH CA for the integration.
+  repeated string AllowProtocols = 2 [(gogoproto.jsontag) = "allow_protocols,omitempty"];
+  // MaxCredentialTTL controls how long user credentials are kept alive without
+  // active use. On each token refresh, the TTL is extended by this duration.
+  // Default: 7 days.
+  google.protobuf.Duration MaxCredentialTTL = 3 [(gogoproto.jsontag) = "max_credential_ttl,omitempty"];
+  // OAuthAppCallbackURL is the callback URL used for the GitHub OAuth flow.
+  // New HTTP integrations use "/web/github/integration/callback" (authenticated).
+  // Legacy SSH-only integrations may use the old unauthenticated callback.
+  string OAuthAppCallbackURL = 4 [(gogoproto.jsontag) = "oauth_app_callback_url,omitempty"];
 }
 
 // AWSRAIntegrationSpecV1 contains the spec properties for the AWS IAM Roles Anywhere SubKind Integration.

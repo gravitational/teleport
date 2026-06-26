@@ -68,3 +68,51 @@ func TestCreateGitHubAuthRequest(t *testing.T) {
 		cmpopts.EquateEmpty(),
 	))
 }
+
+func TestCreateGitHubAuthRequest_CallbackURL(t *testing.T) {
+	ctx := context.Background()
+	org1 := newServer(t, "org1")
+
+	checker := &fakeAccessChecker{
+		allowVerbs:    []string{types.VerbRead, types.VerbList},
+		allowResource: true,
+	}
+
+	tests := []struct {
+		name            string
+		allowProtocols  []string
+		wantRedirectURL string
+	}{
+		{
+			name:            "SSH-only uses legacy callback",
+			allowProtocols:  []string{types.GitProtocolSSH},
+			wantRedirectURL: fmt.Sprintf("https://%s/v1/webapi/github/callback", fakeProxyAddr),
+		},
+		{
+			name:            "default (nil) uses legacy callback",
+			wantRedirectURL: fmt.Sprintf("https://%s/v1/webapi/github/callback", fakeProxyAddr),
+		},
+		{
+			name:            "HTTP enabled uses authenticated callback",
+			allowProtocols:  []string{types.GitProtocolHTTP},
+			wantRedirectURL: fmt.Sprintf("https://%s/web/github/integration/callback", fakeProxyAddr),
+		},
+		{
+			name:            "both protocols uses authenticated callback",
+			allowProtocols:  []string{types.GitProtocolSSH, types.GitProtocolHTTP},
+			wantRedirectURL: fmt.Sprintf("https://%s/web/github/integration/callback", fakeProxyAddr),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service := newServiceWithAllowProtocols(t, checker, test.allowProtocols, org1)
+			createdRequest, err := service.CreateGitHubAuthRequest(ctx, &pb.CreateGitHubAuthRequestRequest{
+				Request:      &types.GithubAuthRequest{},
+				Organization: org1.GetGitHub().Organization,
+			})
+			require.NoError(t, err)
+			require.Equal(t, test.wantRedirectURL, createdRequest.ConnectorSpec.RedirectURL)
+		})
+	}
+}

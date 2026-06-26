@@ -741,6 +741,16 @@ const (
 	GitCommandCode = "TGIT001I"
 	// GitCommandFailureCode is the git command feature event code.
 	GitCommandFailureCode = "TGIT001E"
+	// GitHTTPRequestCode is the git HTTP request event code.
+	GitHTTPRequestCode = "TGIT002I"
+	// GitSessionChunkCode is the git session chunk event code.
+	GitSessionChunkCode = "TGIT003I"
+	// GitCredentialCreateCode is emitted when a user completes the GitHub OAuth flow.
+	GitCredentialCreateCode = "TGIT004I"
+	// GitCredentialRevokeCode is emitted when a user revokes their git credentials.
+	GitCredentialRevokeCode = "TGIT005I"
+	// GitSessionStartCode is emitted when a RouteToGit certificate is issued.
+	GitSessionStartCode = "TGIT006I"
 
 	// StableUNIXUserCreateCode is the stable UNIX user create event code.
 	StableUNIXUserCreateCode = "TSUU001I"

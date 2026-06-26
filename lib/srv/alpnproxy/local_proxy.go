@@ -232,17 +232,30 @@ func (l *LocalProxy) GetAddr() string {
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn) error {
 	defer downstreamConn.Close()
 
+	l.cfg.Log.DebugContext(ctx, "Handling downstream connection",
+		"remote_addr", downstreamConn.RemoteAddr(),
+		"remote_proxy_addr", l.cfg.RemoteProxyAddr,
+		"sni", l.cfg.SNI,
+		"protocols", l.cfg.Protocols,
+	)
+
 	cert, downstreamConn, err := l.getCertForConn(downstreamConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	l.cfg.Log.DebugContext(ctx, "Dialing upstream",
+		"remote_proxy_addr", l.cfg.RemoteProxyAddr,
+		"sni", l.cfg.SNI,
+	)
 	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(l.cfg.SNI, cert))
 	if err != nil {
+		l.cfg.Log.ErrorContext(ctx, "Failed to dial upstream", "error", err)
 		return trace.Wrap(err)
 	}
 	defer upstreamConn.Close()
 
+	l.cfg.Log.DebugContext(ctx, "Connected upstream, proxying")
 	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
 }
 

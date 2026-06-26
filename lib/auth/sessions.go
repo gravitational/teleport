@@ -758,3 +758,4 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 
 	return session, nil
 }
+

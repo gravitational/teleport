@@ -325,6 +325,74 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 	return appCert, nil
 }
 
+// NewGitCertChecker creates a new CertChecker for the given git server.
+func NewGitCertChecker(tc *TeleportClient, routeToGit proto.RouteToGit, clock clockwork.Clock, opts ...CertCheckerOption) *CertChecker {
+	opt := applyOptions(opts...)
+	return NewCertChecker(&GitCertIssuer{
+		Client:     tc,
+		RouteToGit: routeToGit,
+		TTL:        opt.ttl,
+	}, clock)
+}
+
+// GitCertIssuer issues TLS certificates for Git HTTPS proxying.
+type GitCertIssuer struct {
+	Client     *TeleportClient
+	RouteToGit proto.RouteToGit
+	TTL        time.Duration
+}
+
+func (c *GitCertIssuer) CheckCert(cert *x509.Certificate) error {
+	return nil
+}
+
+func (c *GitCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
+	var accessRequests []string
+	if profile, err := c.Client.ProfileStatus(); err != nil {
+		log.WarnContext(ctx, "unable to load profile, requesting git certs without access requests", "error", err)
+	} else {
+		accessRequests = profile.ActiveRequests
+	}
+
+	var keyRing *KeyRing
+	if err := RetryWithRelogin(ctx, c.Client, func() error {
+		gitCertParams := ReissueParams{
+			RouteToCluster: c.Client.SiteName,
+			RouteToGit:     c.RouteToGit,
+			AccessRequests: accessRequests,
+			TTL:            c.TTL,
+		}
+
+		clusterClient, err := c.Client.ConnectToCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		result, err := clusterClient.IssueUserCertsWithMFA(ctx, gitCertParams)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddAppKeyRing(result.KeyRing); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		keyRing = result.KeyRing
+		return trace.Wrap(err)
+	}); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	// Git certs are stored under AppTLSCredentials keyed by git server name.
+	gitCert, err := keyRing.AppTLSCert(c.RouteToGit.GitServerName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return gitCert, nil
+}
+
 // LocalCertGenerator is a TLS Certificate generator used to inject
 // valid TLS certificates based on SNI during local HTTPS handshakes.
 type LocalCertGenerator struct {

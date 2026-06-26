@@ -32,21 +32,27 @@ import (
 )
 
 type gitCommands struct {
-	list   *gitListCommand
-	login  *gitLoginCommand
-	ssh    *gitSSHCommand
-	config *gitConfigCommand
-	clone  *gitCloneCommand
+	list       *gitListCommand
+	login      *gitLoginCommand
+	logout     *gitLogoutCommand
+	ssh        *gitSSHCommand
+	config     *gitConfigCommand
+	clone      *gitCloneCommand
+	gh         *gitGHCommand
+	httpRemote *gitHTTPRemoteCommand
 }
 
 func newGitCommands(app *kingpin.Application) gitCommands {
 	git := app.Command("git", "Git server commands.")
 	return gitCommands{
-		login:  newGitLoginCommand(git),
-		list:   newGitListCommand(git),
-		ssh:    newGitSSHCommand(git),
-		config: newGitConfigCommand(git),
-		clone:  newGitCloneCommand(git),
+		login:      newGitLoginCommand(git),
+		logout:     newGitLogoutCommand(git),
+		list:       newGitListCommand(git),
+		ssh:        newGitSSHCommand(git),
+		config:     newGitConfigCommand(git),
+		clone:      newGitCloneCommand(git),
+		gh:         newGitGHCommand(git),
+		httpRemote: newGitHTTPRemoteCommand(git),
 	}
 }
 

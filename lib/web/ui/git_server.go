@@ -51,6 +51,21 @@ type GitServer struct {
 type GitHubServerMetadata struct {
 	Integration  string `json:"integration"`
 	Organization string `json:"organization"`
+	SshEnabled   bool   `json:"sshEnabled,omitempty"`
+	HttpEnabled  bool   `json:"httpEnabled,omitempty"`
+}
+
+// GitHubServerMetadataFromProto converts the proto metadata to the UI model.
+func GitHubServerMetadataFromProto(github *types.GitHubServerMetadata) *GitHubServerMetadata {
+	if github == nil {
+		return nil
+	}
+	return &GitHubServerMetadata{
+		Integration:  github.Integration,
+		Organization: github.Organization,
+		SshEnabled:   types.GitServerSSHEnabled(github),
+		HttpEnabled:  types.GitServerHTTPEnabled(github),
+	}
 }
 
 // MakeGitServer creates a git server object for the web ui
@@ -69,12 +84,7 @@ func MakeGitServer(clusterName string, server types.Server, requiresRequest bool
 	}
 
 	if server.GetSubKind() == types.SubKindGitHub {
-		if github := server.GetGitHub(); github != nil {
-			uiServer.GitHub = &GitHubServerMetadata{
-				Integration:  github.Integration,
-				Organization: github.Organization,
-			}
-		}
+		uiServer.GitHub = GitHubServerMetadataFromProto(server.GetGitHub())
 	}
 	return uiServer
 }

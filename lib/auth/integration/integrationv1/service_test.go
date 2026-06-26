@@ -853,6 +853,7 @@ type localClient interface {
 	services.GitServers
 	services.DiscoveryConfigs
 	services.Presence
+	services.UserExternalCredentialsService
 }
 
 type testClient struct {
@@ -977,16 +978,19 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	require.NoError(t, err)
 	presenceService := local.NewPresenceService(backend)
 
+	userExternalCredentialsService := local.NewUserExternalCredentialsService(backend)
 	backendSvc := struct {
 		services.Integrations
 		services.PluginStaticCredentials
 		services.GitServers
 		services.DiscoveryConfigs
 		services.Presence
+		services.UserExternalCredentialsService
 	}{
-		Integrations:            localResourceService,
-		PluginStaticCredentials: localCredService,
-		GitServers:              gitServerService,
+		Integrations:                   localResourceService,
+		PluginStaticCredentials:        localCredService,
+		GitServers:                     gitServerService,
+		UserExternalCredentialsService: userExternalCredentialsService,
 		DiscoveryConfigs:        discoveryConfigService,
 		Presence:                presenceService,
 	}
@@ -1042,6 +1046,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		*local.GitServerService
 		*local.DiscoveryConfigService
 		*local.PresenceService
+		*local.UserExternalCredentialsService
 	}{
 		AccessService:                  roleSvc,
 		IdentityService:                userSvc,
@@ -1052,6 +1057,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		GitServerService:               gitServerService,
 		DiscoveryConfigService:         discoveryConfigService,
 		PresenceService:                presenceService,
+		UserExternalCredentialsService: userExternalCredentialsService,
 	}, resourceSvc
 }
 

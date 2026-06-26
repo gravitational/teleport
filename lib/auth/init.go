@@ -399,6 +399,9 @@ type InitConfig struct {
 	// BackendInfo is a service of backend information.
 	BackendInfo services.BackendInfoService
 
+	// UserExternalCredentials manages per-user credentials for external services.
+	UserExternalCredentials services.UserExternalCredentialsService
+
 	// RecordingEncryption manages state for encrypted session recording.
 	RecordingEncryption RecordingEncryptionManager
 
@@ -1361,6 +1364,82 @@ func migrateLegacyResources(ctx context.Context, asrv *Server) error {
 	if err := migrateRemoteClusters(ctx, asrv); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := migrateGitHubIntegrationStatus(ctx, asrv); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// migrateGitHubIntegrationStatus populates the status fields for existing
+// GitHub integrations (SSHCAConfigured and GitHubApp).
+func migrateGitHubIntegrationStatus(ctx context.Context, asrv *Server) error {
+	migrationStart(ctx, "github_integration_status", asrv.logger)
+	defer migrationEnd(ctx, "github_integration_status", asrv.logger)
+
+	var nextToken string
+	for {
+		integrations, token, err := asrv.Services.ListIntegrations(ctx, 0, nextToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, ig := range integrations {
+			if ig.GetSubKind() != types.SubKindGitHub {
+				continue
+			}
+			if ig.GetStatus().GitHub != nil {
+				continue
+			}
+			if err := populateGitHubIntegrationStatus(ctx, asrv, ig); err != nil {
+				asrv.logger.WarnContext(ctx, "Failed to migrate GitHub integration status",
+					"integration", ig.GetName(),
+					"error", err,
+				)
+				continue
+			}
+		}
+		if token == "" {
+			break
+		}
+		nextToken = token
+	}
+	return nil
+}
+
+func populateGitHubIntegrationStatus(ctx context.Context, asrv *Server, ig types.Integration) error {
+	status := &types.GitHubIntegrationStatusV1{}
+
+	// Check if SSH CA credentials exist.
+	ref := ig.GetCredentials().GetStaticCredentialsRef()
+	if ref != nil {
+		_, err := igcredentials.GetByPurpose(ctx, ref, igcredentials.PurposeGitHubSSHCA, asrv.Services)
+		if err == nil {
+			status.SSHCAConfigured = true
+		} else if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Determine if the OAuth client is a GitHub App based on client ID prefix.
+	if ref != nil {
+		oauthCred, err := igcredentials.GetByPurpose(ctx, ref, igcredentials.PurposeGitHubOAuth, asrv.Services)
+		if err == nil {
+			status.ClientID = oauthCred.GetOAuthClientID()
+		} else if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	ig.SetStatus(types.IntegrationStatusV1{
+		GitHub: status,
+	})
+	if _, err := asrv.Services.UpdateIntegration(ctx, ig); err != nil {
+		return trace.Wrap(err)
+	}
+	asrv.logger.InfoContext(ctx, "Migrated GitHub integration status",
+		"integration", ig.GetName(),
+		"ssh_ca_configured", status.SSHCAConfigured,
+		"client_id", status.ClientID,
+	)
 	return nil
 }
 
