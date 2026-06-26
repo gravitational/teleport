@@ -93,7 +93,7 @@ func TestNewMatcher(t *testing.T) {
 			kind: types.KindKubePod,
 			verb: types.KubeVerbList,
 			allowed: []types.KubernetesResource{
-				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbGet, types.Wildcard}, APIGroup: "*"},
+				{Kind: types.KindKubePod, Namespace: types.Wildcard, Name: types.Wildcard, Verbs: []string{types.KubeVerbGet, types.Wildcard}, APIGroup: types.Wildcard},
 			},
 			wantAllowCount: 1,
 		},
