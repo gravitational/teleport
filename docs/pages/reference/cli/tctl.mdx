@@ -887,23 +887,6 @@ Arguments:
 |---|---|---|
 |version|*no default* (optional)|Client tools target version. Clients will be told to update to this version.|
 
-## tctl integrations test
-
-Validate an AWS OIDC integration by calling AWS STS GetCallerIdentity.
-
-Usage:
-
-```code
-$ tctl integrations test --integration=INTEGRATION [<flags>]
-```
-
-Flags:
-
-|Flag|Default|Description|
-|---|---|---|
-|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
-|`--integration`|*no default*|Name of the AWS OIDC integration to test.|
-
 ## tctl bots add
 
 Add a new bot to the cluster.
@@ -1382,6 +1365,23 @@ Flags:
 |`--format`|*no default*|output format, 'yaml' or 'json'|
 |`--sp`|*no default*|name of a file containing service provider spec|
 |`-u`, `--users`|*no default*|username or name of a file containing user spec|
+
+## tctl integrations test
+
+Verify an integration.
+
+Usage:
+
+```code
+$ tctl integrations test --integration=INTEGRATION [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+|`--integration`|*no default*|Name of the integration to test. Use `tctl get integrations` to list integrations.|
 
 ## tctl inventory list
 
