@@ -41,7 +41,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	integrationsCmd.Alias("integration")
 
 	c.testCmd = integrationsCmd.Command("test", "Verify an integration.")
-	c.testCmd.Flag("integration", "Name of the integration to test. Use `tctl get integrations` to list integrations.").Required().StringVar(&c.testArgs.integration)
+	c.testCmd.Arg("integration", "Name of the integration to test. Use `tctl get integrations` to list integrations.").Required().StringVar(&c.testArgs.integration)
 	c.testCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.testArgs.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	if c.stdout == nil {
