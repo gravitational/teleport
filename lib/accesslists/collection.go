@@ -96,9 +96,19 @@ func (b *Collection) AddAccessList(accessList *accesslist.AccessList, members []
 // GetAccessList retrieves an access list from the batch by name.
 // Implements accesslists.AccessListAndMembersGetter interface.
 func (b *Collection) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	al, exists := b.AccessListsByName[name]
+	return b.GetAccessListV2(ctx, accesslist.ScopeQualifiedName{Name: name})
+}
+
+// GetAccessListV2 retrieves an access list from the batch by scoped name.
+// Implements accesslists.AccessListAndMembersGetter interface.
+func (b *Collection) GetAccessListV2(ctx context.Context, name accesslist.ScopeQualifiedName) (*accesslist.AccessList, error) {
+	// TODO(nklaassen): support collections of scoped access lists.
+	if name.Scope != "" {
+		return nil, trace.BadParameter("Collection does not support scoped access lists")
+	}
+	al, exists := b.AccessListsByName[name.Name]
 	if !exists {
-		return nil, trace.NotFound("access list %q not found in batch", name)
+		return nil, trace.NotFound("access list %q not found in batch", name.Name)
 	}
 	return al, nil
 }
