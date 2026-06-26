@@ -19,7 +19,10 @@ package local
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -42,6 +45,7 @@ const EnrollPairingExpireDuration = 5 * time.Minute
 // EnrollPairingService implements [services.EnrollPairing] on a [backend.Backend].
 type EnrollPairingService struct {
 	service *generic.ServiceWrapper[*devicepb.EnrollPairing]
+	backend backend.Backend
 	clock   clockwork.Clock
 	log     *slog.Logger
 }
@@ -62,6 +66,7 @@ func NewEnrollPairingService(b backend.Backend) (*EnrollPairingService, error) {
 	return &EnrollPairingService{
 		clock:   b.Clock(),
 		service: service,
+		backend: b,
 		log:     slog.With(teleport.ComponentKey, teleport.Component("enrollpairing")),
 	}, nil
 }
@@ -118,8 +123,40 @@ func (s *EnrollPairingService) CreateEnrollPairing(ctx context.Context, user str
 		s.log.WarnContext(ctx, "Failed to clear expired pairing if any", "error", err)
 	}
 
-	pairing, err := s.service.CreateResource(ctx, pairing)
-	return pairing, trace.Wrap(err)
+	if err := validateEnrollPairing(pairing); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pairingItem, err := s.service.MakeBackendItem(pairing)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	indexItem := backend.Item{
+		Key:     enrollPairingByTokenKey(token),
+		Value:   []byte(user),
+		Expires: expires,
+	}
+
+	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			Key:       pairingItem.Key,
+			Condition: backend.NotExists(),
+			Action:    backend.Put(pairingItem),
+		},
+		{
+			Key:       enrollPairingByTokenKey(token),
+			Condition: backend.NotExists(),
+			Action:    backend.Put(indexItem),
+		},
+	})
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return nil, trace.AlreadyExists("enroll pairing for user %q already exists", user)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	pairing.GetMetadata().SetRevision(revision)
+	return pairing, nil
 }
 
 // GetCurrentEnrollPairing returns the EnrollPairing for user, or NotFound if no
