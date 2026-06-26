@@ -271,15 +271,15 @@ require (
 	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259
 	helm.sh/helm/v3 v3.20.2
 	k8s.io/api v0.35.3
-	k8s.io/apiextensions-apiserver v0.35.1
+	k8s.io/apiextensions-apiserver v0.35.3
 	k8s.io/apimachinery v0.35.3
-	k8s.io/apiserver v0.35.1
-	k8s.io/cli-runtime v0.35.1
+	k8s.io/apiserver v0.35.3
+	k8s.io/cli-runtime v0.35.3
 	k8s.io/client-go v0.35.3
-	k8s.io/component-base v0.35.1
+	k8s.io/component-base v0.35.3
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kubectl v0.35.1
-	k8s.io/metrics v0.35.1
+	k8s.io/kubectl v0.35.3
+	k8s.io/metrics v0.35.3
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 	rsc.io/ordered v1.1.1
 	sigs.k8s.io/controller-runtime v0.20.4
@@ -314,6 +314,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
+	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/alicebob/gopher-json v0.0.0-20230218143504-906a9b012302 // indirect
@@ -446,6 +447,7 @@ require (
 	github.com/gosuri/uitable v0.0.4 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.8 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
@@ -607,10 +609,12 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	k8s.io/component-helpers v0.35.1 // indirect
+	k8s.io/component-helpers v0.35.3 // indirect
+	k8s.io/kms v0.35.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kustomize/api v0.20.1 // indirect
 	sigs.k8s.io/kustomize/kustomize/v5 v5.7.1 // indirect
