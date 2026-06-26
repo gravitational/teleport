@@ -307,9 +307,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 
 		currentOwnersMap := make(map[accesslist.ScopeQualifiedName]struct{})
 		for _, owner := range accessList.Spec.Owners {
-			switch owner.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-			default:
+			if !owner.IsMembershipKindList() {
 				continue
 			}
 
@@ -322,9 +320,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 
 		// update references for old owners
 		for _, owner := range existingAccessList.Spec.Owners {
-			switch owner.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-			default:
+			if !owner.IsMembershipKindList() {
 				continue
 			}
 
@@ -352,9 +348,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 
 	reconcileNewOwners := func() error {
 		for _, owner := range accessList.Spec.Owners {
-			switch owner.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-			default:
+			if !owner.IsMembershipKindList() {
 				continue
 			}
 			ownerScopedName, err := accesslists.OwnerScopeQualifiedName(owner)
@@ -454,9 +448,7 @@ func (a *AccessListService) DeleteAccessListV2(ctx context.Context, name accessl
 
 		// Update ownerOf refs.
 		for _, owner := range accessList.Spec.Owners {
-			switch owner.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-			default:
+			if !owner.IsMembershipKindList() {
 				continue
 			}
 			ownerSQN, err := accesslists.OwnerScopeQualifiedName(owner)
@@ -927,9 +919,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 			return nil
 		}
 		for _, existingOwner := range existingAccessList.Spec.Owners {
-			switch existingOwner.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-			default:
+			if !existingOwner.IsMembershipKindList() {
 				continue
 			}
 			existingOwnerName, err := accesslists.OwnerScopeQualifiedName(existingOwner)
@@ -958,9 +948,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 
 	reconcileNewOwners := func() error {
 		for _, owner := range accessList.Spec.Owners {
-			switch owner.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-			default:
+			if !owner.IsMembershipKindList() {
 				continue
 			}
 			ownerName, err := accesslists.OwnerScopeQualifiedName(owner)
@@ -1394,16 +1382,14 @@ func (a *AccessListService) CleanupAccessListStatusV2(ctx context.Context, acces
 
 		isActualOwner := func(ownedList *accesslist.AccessList) bool {
 			return slices.ContainsFunc(ownedList.Spec.Owners, func(ownedListOwner accesslist.Owner) bool {
-				switch ownedListOwner.MembershipKind {
-				case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-					ownedListOwnerName, err := accesslists.OwnerScopeQualifiedName(ownedListOwner)
-					if err != nil {
-						return false
-					}
-					return ownedListOwnerName == accessListName
-				default:
+				if !ownedListOwner.IsMembershipKindList() {
 					return false
 				}
+				ownedListOwnerName, err := accesslists.OwnerScopeQualifiedName(ownedListOwner)
+				if err != nil {
+					return false
+				}
+				return ownedListOwnerName == accessListName
 			})
 		}
 
@@ -1488,9 +1474,7 @@ func (a *AccessListService) EnsureNestedAccessListStatusesV2(ctx context.Context
 		}
 
 		for _, owner := range accessList.Spec.Owners {
-			switch owner.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-			default:
+			if !owner.IsMembershipKindList() {
 				continue
 			}
 			ownerName, err := accesslists.OwnerScopeQualifiedName(owner)
@@ -1681,9 +1665,7 @@ func (a *AccessListService) checkDeletionBlockingOwnerRelationships(ctx context.
 			return trace.Wrap(err, `fetching owned list "%s"`, accesslists.ScopeQualifiedNameToString(ownedListName))
 		}
 		isActualOwner := slices.ContainsFunc(ownedList.Spec.Owners, func(owner accesslist.Owner) bool {
-			switch owner.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-			default:
+			if !owner.IsMembershipKindList() {
 				return false
 			}
 			actualOwnerSQN, err := accesslists.OwnerScopeQualifiedName(owner)

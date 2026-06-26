@@ -309,9 +309,7 @@ func validateAccessListMemberOrOwnerNesting(
 	membershipKind string,
 	g AccessListAndMembersGetter,
 ) error {
-	switch membershipKind {
-	case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-	default:
+	if !accesslist.IsMembershipKindList(membershipKind) {
 		return nil
 	}
 
@@ -419,9 +417,7 @@ func isReachable(
 		return false, trace.Wrap(err)
 	}
 	for _, member := range listMembers {
-		switch member.Spec.MembershipKind {
-		case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-		default:
+		if !member.IsList() {
 			continue
 		}
 		childListName, err := MemberScopeQualifiedName(member)
@@ -443,9 +439,7 @@ func isReachable(
 
 	// Traverse owner lists
 	for _, owner := range currentList.Spec.Owners {
-		switch owner.MembershipKind {
-		case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-		default:
+		if !owner.IsMembershipKindList() {
 			continue
 		}
 		ownerName, err := OwnerScopeQualifiedName(owner)

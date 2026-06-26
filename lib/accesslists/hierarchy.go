@@ -158,8 +158,7 @@ func collectOwners(
 			return trace.Wrap(err)
 		}
 
-		switch owner.MembershipKind {
-		case accesslist.MembershipKindUser, accesslist.MembershipKindUnspecified, "":
+		if owner.IsMembershipKindUser() {
 			// Collect direct owner users
 			owners[ownerName] = &owner
 			continue
@@ -246,9 +245,7 @@ func maxDepthDownwards(
 		return 0, trace.Wrap(err)
 	}
 	for _, member := range listMembers {
-		switch member.Spec.MembershipKind {
-		case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-		default:
+		if !member.IsList() {
 			continue
 		}
 		childListName, err := MemberScopeQualifiedName(member)
@@ -366,8 +363,7 @@ func IsAccessListOwner(
 	var ownershipErr error
 
 	for _, owner := range accessList.Spec.Owners {
-		switch owner.MembershipKind {
-		case accesslist.MembershipKindUser, accesslist.MembershipKindUnspecified, "":
+		if owner.IsMembershipKindUser() {
 			// Is user an explicit owner?
 			if owner.Name != user.GetName() {
 				continue
@@ -379,7 +375,8 @@ func IsAccessListOwner(
 				continue
 			}
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
-		case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+		}
+		if owner.IsMembershipKindList() {
 			// Is user an inherited owner through any potential owner AccessLists?
 			ownerName, err := OwnerScopeQualifiedName(owner)
 			if err != nil {
