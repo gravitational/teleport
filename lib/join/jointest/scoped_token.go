@@ -20,15 +20,14 @@ import (
 	"bytes"
 	"cmp"
 
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
-	gogotypes "github.com/gogo/protobuf/types"
 )
 
 // ScopedTokenFromProvisionTokenSpec is a test helper that creates a scoped token using a [types.ProvisionTokenSpecV2]
