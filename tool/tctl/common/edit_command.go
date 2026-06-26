@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // EditCommand implements the `tctl edit` command for modifying
@@ -216,6 +217,20 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 			continue
 		}
 
+		// Try looking for a resource handler first; resources that have been
+		// migrated to the [resources.Handler] format are handled here.
+		if resourceHandler, found := resources.Handlers()[newResource.Kind]; found {
+			opts := resources.CreateOpts{
+				Force:   rc.force,
+				Confirm: rc.confirm,
+			}
+			if err := editUpdateWithFallback(ctx, client, resourceHandler, newResource, opts); err != nil {
+				return trace.Wrap(err)
+			}
+			continue
+		}
+		// Else fallback to the legacy logic.
+
 		// Use the UpdateHandler if the resource has one, otherwise fallback to using
 		// the CreateHandler. UpdateHandlers are preferred over CreateHandler because an update
 		// will not forcibly overwrite a resource unlike with create which requires the force
@@ -239,6 +254,30 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}
 
 	return nil
+}
+
+// editUpdateWithFallback updates a resource via its [resources.Handler],
+// falling back to the handler's create path for resources that do not yet
+// implement an update handler.
+func editUpdateWithFallback(
+	ctx context.Context,
+	client *authclient.Client,
+	resourceHandler resources.Handler,
+	resource services.UnknownResource,
+	opts resources.CreateOpts,
+) error {
+	err := resourceHandler.Update(ctx, client, resource, opts)
+	if err == nil || !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	// TODO(tross) remove the fallback to CreateHandlers once all the resources
+	// have been updated to implement an UpdateHandler.
+	if err := resourceHandler.Create(ctx, client, resource, opts); trace.IsNotImplemented(err) {
+		return trace.BadParameter("updating resources of type %q is not supported", resource.Kind)
+	} else {
+		return trace.Wrap(err)
+	}
 }
 
 // getTextEditor returns the text editor to be used for editing the resource.

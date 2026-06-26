@@ -441,29 +441,29 @@ version: v1
 	// Create the valid scoped role assignment
 	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
 
-	// Create the scoped role assignment
-	buff, err := runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+	// Create the scoped role assignment. The confirmation message is written
+	// to os.Stdout by the resource handler (not the captured rc.Stdout), and
+	// the assignment name is generated server-side, so recover it by listing
+	// assignments rather than parsing the create output.
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
 	require.NoError(t, err)
-
-	parts := bytes.Split(buff.Bytes(), []byte("\""))
-	require.Len(t, parts, 3)
-
-	assignmentName := string(parts[1])
-
-	_, err = uuid.Parse(assignmentName)
-	require.NoError(t, err, "expected assignment name to be a UUID, got %q (extracted from output %q)", assignmentName, buff.String())
 
 	// wait for cache propagation
 	timeout = time.After(time.Second * 30)
 	var rawAssignment []byte
+	var as []*scopedaccessv1.ScopedRoleAssignment
 	for {
-		// Get the scoped role assignment
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
+		// Get the scoped role assignment.
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", "--format=json"})
 		if err == nil {
 			rawAssignment = buff.Bytes()
-			break
+			// Unmarshal the response into a ScopedRoleAssignment object
+			as, err = services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
+			require.NoError(t, err)
+			if len(as) > 0 {
+				break
+			}
 		}
-		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 
 		select {
 		case <-timeout:
@@ -472,11 +472,8 @@ version: v1
 		}
 	}
 
-	// Unmarshal the response into a ScopedRoleAssignment object
-	as, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
-	require.NoError(t, err)
 	require.Len(t, as, 1)
-	assignmentName = as[0].GetMetadata().GetName()
+	assignmentName := as[0].GetMetadata().GetName()
 
 	// Ensure that retrieving the scoped role assignment with incorrect sub_kind fails.
 	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized/" + assignmentName, "--format=json"})
@@ -487,7 +484,7 @@ version: v1
 	require.ErrorContains(t, err, "requires an explicit subkind")
 
 	// Ensure that retrieving the scoped role assignment by name with explicit sub_kind works.
-	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
+	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
 	require.NoError(t, err)
 	var asByName []*scopedaccessv1.ScopedRoleAssignment
 	err = json.Unmarshal(buff.Bytes(), &asByName)

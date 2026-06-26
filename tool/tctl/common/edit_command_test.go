@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -738,7 +739,7 @@ func testEditScopedToken(t *testing.T, clt *authclient.Client) {
 		}
 		created.Metadata.Labels["env"] = "test"
 
-		collection := &scopedTokenCollection{tokens: []*joiningv1.ScopedToken{created}}
+		collection := resources.NewScopedTokenCollection([]*joiningv1.ScopedToken{created})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
