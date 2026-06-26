@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
@@ -608,6 +609,11 @@ func (s *Service) UpdateCertificateOverride(
 		return nil, trace.BadParameter("ca_id.ca_type required")
 	case !req.HasCertificateOverride():
 		return nil, trace.BadParameter("certificate_override required")
+	case len(req.GetUpdateMask().GetPaths()) == 0:
+		return nil, trace.BadParameter("update_mask required")
+	}
+	if err := validateCertificateOverrideMask(req.GetUpdateMask()); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Optimistically determine the target public key hash.
@@ -615,8 +621,10 @@ func (s *Service) UpdateCertificateOverride(
 	co := req.GetCertificateOverride()
 	pkh := co.GetPublicKey()
 	if pkh == "" {
-		if co.GetCertificate() == "" {
-			return nil, trace.BadParameter("certificate_override must have at least one of public_key or certificate")
+		// Derive public key from the certificate field IF the "certificate" field
+		// mask is present, but otherwise be well-behaved and ignore it.
+		if !slices.Contains(req.GetUpdateMask().GetPaths(), "certificate") || co.GetCertificate() == "" {
+			return nil, trace.BadParameter("public_key is required to target the certificate_override")
 		}
 		cert, err := subca.ParseCertificateOverrideCertificate(co.GetCertificate())
 		if err != nil {
@@ -637,7 +645,11 @@ func (s *Service) UpdateCertificateOverride(
 	}
 	audit.setParsed(parsed)
 
-	parsed.CAOverride.GetSpec().GetCertificateOverrides()[index] = co
+	// Apply field mask.
+	current := parsed.CAOverride.GetSpec().GetCertificateOverrides()[index]
+	if err := applyCertificateOverrideMask(current, co, req.GetUpdateMask()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Update.
 	if _, err := s.writeCAOverride(ctx, writeCAOverrideParams{
@@ -650,8 +662,31 @@ func (s *Service) UpdateCertificateOverride(
 	}
 
 	return subcav1.UpdateCertificateOverrideResponse_builder{
-		CertificateOverride: co,
+		CertificateOverride: current,
 	}.Build(), nil
+}
+
+func validateCertificateOverrideMask(mask *fieldmaskpb.FieldMask) error {
+	dummy := &subcav1.CertificateOverride{}
+	return applyCertificateOverrideMask(dummy, dummy, mask)
+}
+
+func applyCertificateOverrideMask(dst, src *subcav1.CertificateOverride, mask *fieldmaskpb.FieldMask) error {
+	for _, path := range mask.GetPaths() {
+		switch path {
+		case "public_key":
+			dst.SetPublicKey(src.GetPublicKey())
+		case "certificate":
+			dst.SetCertificate(src.GetCertificate())
+		case "chain":
+			dst.SetChain(src.GetChain())
+		case "disabled":
+			dst.SetDisabled(src.GetDisabled())
+		default:
+			return trace.BadParameter("update_mask: invalid path %q", path)
+		}
+	}
+	return nil
 }
 
 func (s *Service) RemoveCertificateOverride(

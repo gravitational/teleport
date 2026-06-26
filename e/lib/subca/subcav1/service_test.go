@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
@@ -174,6 +175,7 @@ func TestService_authz(t *testing.T) {
 							CaType: caType,
 						}.Build(),
 						CertificateOverride: validLookingCertificateOverride,
+						UpdateMask:          newCertificateOverrideMask(t, "disabled"),
 					}.Build())
 				return err
 			},
@@ -2376,6 +2378,7 @@ func TestService_UpdateCertificateOverride(t *testing.T) {
 		caOverride = createResp.GetCaOverride()
 	}
 	co := caOverride.GetSpec().GetCertificateOverrides()[0]
+	publicKey := co.GetPublicKey()
 
 	caID := subcapb.CertAuthorityOverrideID_builder{
 		CaType: string(caType),
@@ -2386,15 +2389,17 @@ func TestService_UpdateCertificateOverride(t *testing.T) {
 
 	// Enable override with Update.
 	if !t.Run("enable", func(t *testing.T) {
-		co.SetDisabled(false)
-
 		upResp, err := subCA.UpdateCertificateOverride(t.Context(), subcapb.UpdateCertificateOverrideRequest_builder{
-			CaId:                caID,
-			CertificateOverride: co,
+			CaId: caID,
+			CertificateOverride: subcapb.CertificateOverride_builder{
+				PublicKey: publicKey,
+				Disabled:  false,
+			}.Build(),
+			UpdateMask: newCertificateOverrideMask(t, "disabled"),
 		}.Build())
 		require.NoError(t, err, "UpdateCertificateOverride")
 
-		// Verify response.
+		co.SetDisabled(false)
 		wantResp := subcapb.UpdateCertificateOverrideResponse_builder{
 			CertificateOverride: co,
 		}.Build()
@@ -2430,36 +2435,56 @@ func TestService_UpdateCertificateOverride(t *testing.T) {
 
 	// Verify case-insensitive public key update.
 	t.Run("case-insensitive", func(t *testing.T) {
-		_, err := subCA.UpdateCertificateOverride(t.Context(), subcapb.UpdateCertificateOverrideRequest_builder{
+		upperPublicKey := strings.ToUpper(co.GetPublicKey())
+		got, err := subCA.UpdateCertificateOverride(t.Context(), subcapb.UpdateCertificateOverrideRequest_builder{
 			CaId: caID,
 			CertificateOverride: subcapb.CertificateOverride_builder{
-				PublicKey:   strings.ToUpper(co.GetPublicKey()),
-				Certificate: co.GetCertificate(),
-				Disabled:    co.GetDisabled(),
+				PublicKey: upperPublicKey,
 			}.Build(),
+			UpdateMask: newCertificateOverrideMask(t, "public_key"),
 		}.Build())
 		require.NoError(t, err, "UpdateCertificateOverride")
+
+		co.SetPublicKey(upperPublicKey)
+		want := subcapb.UpdateCertificateOverrideResponse_builder{
+			CertificateOverride: co,
+		}.Build()
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("UpdateCertificateOverride mismatch (-want +got)\n%s", diff)
+		}
 	})
 
 	// Verify certificate-only update.
 	t.Run("certificate only", func(t *testing.T) {
-		_, err := subCA.UpdateCertificateOverride(t.Context(), subcapb.UpdateCertificateOverrideRequest_builder{
+		got, err := subCA.UpdateCertificateOverride(t.Context(), subcapb.UpdateCertificateOverrideRequest_builder{
 			CaId: caID,
 			CertificateOverride: subcapb.CertificateOverride_builder{
 				PublicKey:   "", // derived from certificate
 				Certificate: co.GetCertificate(),
-				Disabled:    co.GetDisabled(),
 			}.Build(),
+			UpdateMask: newCertificateOverrideMask(t, "public_key", "certificate"),
 		}.Build())
 		require.NoError(t, err, "UpdateCertificateOverride")
+
+		// Verify response.
+		co.SetPublicKey("")
+		want := subcapb.UpdateCertificateOverrideResponse_builder{
+			CertificateOverride: co,
+		}.Build()
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("UpdateCertificateOverride mismatch (-want +got)\n%s", diff)
+		}
 	})
 
 	// Disable override with Update.
 	t.Run("force disable", func(t *testing.T) {
-		co.SetDisabled(true)
 		req := subcapb.UpdateCertificateOverrideRequest_builder{
-			CaId:                caID,
-			CertificateOverride: co,
+			CaId: caID,
+			CertificateOverride: subcapb.CertificateOverride_builder{
+				PublicKey: publicKey,
+				Disabled:  true,
+			}.Build(),
+			UpdateMask: newCertificateOverrideMask(t, "disabled"),
 		}.Build()
 
 		// Attempt a non-forced update. It must fail as the override targets an
@@ -2473,6 +2498,31 @@ func TestService_UpdateCertificateOverride(t *testing.T) {
 		require.NoError(t, err, "UpdateCertificateOverride")
 
 		// Verify response.
+		co.SetDisabled(true)
+		want := subcapb.UpdateCertificateOverrideResponse_builder{
+			CertificateOverride: co,
+		}.Build()
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("UpdateCertificateOverride mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	t.Run("all fields", func(t *testing.T) {
+		// Sets: PublicKey (back to lowercase), Certificate (new).
+		newCAOverride := env.NewOverrideForCAType(t, caType)
+		newOverride := newCAOverride.GetSpec().GetCertificateOverrides()[0]
+		// Assign remaining fields.
+		newOverride.SetChain([]string{string(env.ExternalRoot.CertPEM)})
+		newOverride.SetDisabled(false)
+
+		got, err := subCA.UpdateCertificateOverride(t.Context(), subcapb.UpdateCertificateOverrideRequest_builder{
+			CaId:                caID,
+			CertificateOverride: newOverride,
+			UpdateMask:          newCertificateOverrideMask(t, "public_key", "certificate", "chain", "disabled"),
+		}.Build())
+		require.NoError(t, err, "UpdateCertificateOverride")
+
+		co = newOverride
 		want := subcapb.UpdateCertificateOverrideResponse_builder{
 			CertificateOverride: co,
 		}.Build()
@@ -2524,6 +2574,8 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 	require.NotEqual(t, badPublicKey, co0.GetPublicKey(),
 		"Public keys should not match! You've won the lottery.")
 
+	allFields := newCertificateOverrideMask(t, "public_key", "certificate", "chain", "disabled")
+
 	tests := []struct {
 		name        string
 		req         *subcapb.UpdateCertificateOverrideRequest
@@ -2534,6 +2586,7 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 			name: "id nil",
 			req: subcapb.UpdateCertificateOverrideRequest_builder{
 				CertificateOverride: co0,
+				UpdateMask:          allFields,
 			}.Build(),
 			wantErr: "ca_id.ca_type required",
 		},
@@ -2542,13 +2595,15 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 			req: subcapb.UpdateCertificateOverrideRequest_builder{
 				CaId:                &subcapb.CertAuthorityOverrideID{},
 				CertificateOverride: co0,
+				UpdateMask:          allFields,
 			}.Build(),
 			wantErr: "ca_id.ca_type required",
 		},
 		{
 			name: "certificate_override nil",
 			req: subcapb.UpdateCertificateOverrideRequest_builder{
-				CaId: caID,
+				CaId:       caID,
+				UpdateMask: allFields,
 			}.Build(),
 			wantErr: "certificate_override required",
 		},
@@ -2557,8 +2612,9 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 			req: subcapb.UpdateCertificateOverrideRequest_builder{
 				CaId:                caID,
 				CertificateOverride: &subcapb.CertificateOverride{},
+				UpdateMask:          allFields,
 			}.Build(),
-			wantErr: "one of public_key or certificate",
+			wantErr: "public_key is required",
 		},
 		{
 			name: "certificate_override invalid certificate",
@@ -2567,6 +2623,7 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 				CertificateOverride: subcapb.CertificateOverride_builder{
 					Certificate: "this is not a certificate PEM",
 				}.Build(),
+				UpdateMask: allFields,
 			}.Build(),
 			wantErr: "expected PEM",
 		},
@@ -2577,6 +2634,7 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 					CaType: string(caTypeOther),
 				}.Build(),
 				CertificateOverride: co0,
+				UpdateMask:          allFields,
 			}.Build(),
 			wantErr:     "doesn't exist",
 			wantErrType: new(*trace.NotFoundError),
@@ -2589,6 +2647,7 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 					PublicKey: badPublicKey,
 					Disabled:  true,
 				}.Build(),
+				UpdateMask: allFields,
 			}.Build(),
 			wantErr:     "override not found",
 			wantErrType: new(*trace.CompareFailedError),
@@ -2604,6 +2663,7 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 					Disabled:    true,
 					Chain:       []string{"this is not a certificate PEM"},
 				}.Build(),
+				UpdateMask: allFields,
 			}.Build(),
 			wantErr: "expected PEM",
 		},
@@ -2616,8 +2676,20 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 					Certificate: co1.GetCertificate(), // mixes co0 and co1
 					Disabled:    true,
 				}.Build(),
+				UpdateMask: allFields,
 			}.Build(),
 			wantErr: "public key mismatch",
+		},
+		{
+			name: "update_mask invalid",
+			req: subcapb.UpdateCertificateOverrideRequest_builder{
+				CaId:                caID,
+				CertificateOverride: co0,
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"banana"},
+				},
+			}.Build(),
+			wantErr: "invalid path",
 		},
 	}
 	for _, test := range tests {
@@ -2642,6 +2714,13 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 			})
 		})
 	}
+}
+
+func newCertificateOverrideMask(t *testing.T, paths ...string) *fieldmaskpb.FieldMask {
+	t.Helper()
+	fm, err := fieldmaskpb.New(&subcapb.CertificateOverride{}, paths...)
+	require.NoError(t, err)
+	return fm
 }
 
 func TestService_RemoveCertificateOverride(t *testing.T) {
