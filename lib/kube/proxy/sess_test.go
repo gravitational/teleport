@@ -377,3 +377,125 @@ func TestMultiResizeQueueNextEvictsClosedChannel(t *testing.T) {
 		require.Empty(t, q.queues, "closed resize channel was not evicted from the select set")
 	})
 }
+
+// TestMultiResizeQueueDeliversResize verifies a resize sent by a party is
+// returned by Next(), recorded as the last size, and passed to the callback.
+func TestMultiResizeQueueDeliversResize(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		q := newMultiResizeQueue(ctx)
+		var got terminalResizeMessage
+		q.callback = func(m terminalResizeMessage) { got = m }
+
+		require.Nil(t, q.getLastSize())
+
+		ch := make(chan terminalResizeMessage, 1)
+		q.add("party", ch)
+
+		source := uuid.New()
+		size := &remotecommand.TerminalSize{Width: 80, Height: 24}
+		ch <- terminalResizeMessage{size: size, source: source}
+
+		require.Equal(t, size, q.Next())
+		require.Equal(t, size, q.getLastSize())
+		require.Equal(t, size, got.size)
+		require.Equal(t, source, got.source)
+	})
+}
+
+// TestMultiResizeQueueMultipleParties verifies resizes from several parties are
+// all delivered.
+func TestMultiResizeQueueMultipleParties(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		q := newMultiResizeQueue(ctx)
+		q.callback = func(terminalResizeMessage) {}
+
+		chA := make(chan terminalResizeMessage, 1)
+		chB := make(chan terminalResizeMessage, 1)
+		q.add("a", chA)
+		q.add("b", chB)
+
+		sizeA := &remotecommand.TerminalSize{Width: 80, Height: 24}
+		sizeB := &remotecommand.TerminalSize{Width: 120, Height: 40}
+		chA <- terminalResizeMessage{size: sizeA, source: uuid.New()}
+		chB <- terminalResizeMessage{size: sizeB, source: uuid.New()}
+
+		got := []*remotecommand.TerminalSize{q.Next(), q.Next()}
+		require.ElementsMatch(t, []*remotecommand.TerminalSize{sizeA, sizeB}, got)
+	})
+}
+
+// TestMultiResizeQueueDynamicAdd verifies Next() picks up a channel added while
+// it is already blocked waiting.
+func TestMultiResizeQueueDynamicAdd(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		q := newMultiResizeQueue(ctx)
+		q.callback = func(terminalResizeMessage) {}
+
+		// An existing party with no pending resize: Next() blocks on it.
+		q.add("existing", make(chan terminalResizeMessage))
+
+		result := make(chan *remotecommand.TerminalSize, 1)
+		go func() { result <- q.Next() }()
+		synctest.Wait()
+
+		// A second party joins mid-session and sends a resize.
+		ch := make(chan terminalResizeMessage, 1)
+		size := &remotecommand.TerminalSize{Width: 100, Height: 40}
+		ch <- terminalResizeMessage{size: size, source: uuid.New()}
+		q.add("late", ch)
+
+		require.Equal(t, size, <-result)
+	})
+}
+
+// TestMultiResizeQueueRemove verifies a removed party leaves the queue while the
+// remaining parties keep delivering.
+func TestMultiResizeQueueRemove(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		q := newMultiResizeQueue(ctx)
+		q.callback = func(terminalResizeMessage) {}
+
+		chA := make(chan terminalResizeMessage, 1)
+		chB := make(chan terminalResizeMessage, 1)
+		q.add("a", chA)
+		q.add("b", chB)
+		q.remove("a")
+
+		sizeB := &remotecommand.TerminalSize{Width: 120, Height: 40}
+		chB <- terminalResizeMessage{size: sizeB, source: uuid.New()}
+
+		require.Equal(t, sizeB, q.Next())
+	})
+}
+
+// TestMultiResizeQueueCancelReturnsNil verifies Next() returns nil once the
+// parent context is canceled.
+func TestMultiResizeQueueCancelReturnsNil(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		q := newMultiResizeQueue(ctx)
+		q.callback = func(terminalResizeMessage) {}
+		q.add("party", make(chan terminalResizeMessage))
+
+		result := make(chan *remotecommand.TerminalSize, 1)
+		go func() { result <- q.Next() }()
+		synctest.Wait()
+
+		cancel()
+		require.Nil(t, <-result)
+	})
+}
