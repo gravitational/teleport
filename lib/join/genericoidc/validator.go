@@ -230,6 +230,18 @@ func (v *IDTokenValidator) validateStaticJWKS(
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
 
+	// go-jose/v4 only checks exp/iat/nbf when present, so make sure they are
+	// present manually so we can be sure they'll be validated, for parity with
+	// the OIDC path. We'll leave `nbf` optional as it is also optional for
+	// OIDC.
+	if stdClaims.Expiry == nil {
+		return nil, trace.AccessDenied("token must have an `exp` claim")
+	}
+
+	if stdClaims.IssuedAt == nil {
+		return nil, trace.AccessDenied("token must have an `iat` claim")
+	}
+
 	leeway := time.Second * 10
 	err = stdClaims.ValidateWithLeeway(josejwt.Expected{
 		Issuer:      spec.Issuer,
