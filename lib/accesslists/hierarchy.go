@@ -139,9 +139,7 @@ func getMembersFor(ctx context.Context, accessListName accesslist.ScopeQualified
 
 	var allMembers []*accesslist.AccessListMember
 	for _, member := range members {
-		switch member.Spec.MembershipKind {
-		case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-		default:
+		if !member.IsList() {
 			allMembers = append(allMembers, member)
 			continue
 		}

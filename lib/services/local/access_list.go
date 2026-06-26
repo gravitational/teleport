@@ -585,9 +585,7 @@ func (a *AccessListService) DeleteAccessListV2(ctx context.Context, name accessl
 
 		// Update memberOf refs.
 		for _, member := range members {
-			switch member.Spec.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-			default:
+			if !member.IsList() {
 				continue
 			}
 			memberName, err := accesslists.MemberScopeQualifiedName(member)
@@ -665,10 +663,9 @@ func (a *AccessListService) CountAccessListMembersV2(ctx context.Context, access
 			return 0, 0, trace.Wrap(err)
 		}
 
-		switch member.Spec.MembershipKind {
-		case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+		if member.IsList() {
 			listCount++
-		default:
+		} else {
 			count++
 		}
 	}
@@ -854,8 +851,7 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 			return trace.Wrap(err)
 		}
 
-		switch member.Spec.MembershipKind {
-		case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+		if member.IsList() {
 			if err := a.updateAccessListMemberOf(ctx, parentListName, memberName, true); err != nil {
 				return trace.Wrap(err)
 			}
@@ -915,8 +911,7 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 				return trace.Wrap(err)
 			}
 
-			switch member.Spec.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+			if member.IsList() {
 				if err := a.updateAccessListMemberOf(ctx, parentListName, memberName, true); err != nil {
 					return trace.Wrap(err)
 				}
@@ -959,8 +954,7 @@ func (a *AccessListService) DeleteAccessListMemberV2(ctx context.Context, access
 				return trace.Wrap(err)
 			}
 
-			switch member.Spec.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+			if member.IsList() {
 				if err := a.updateAccessListMemberOf(ctx, accessListName, memberName, false); err != nil {
 					return trace.Wrap(err)
 				}
@@ -1010,9 +1004,7 @@ func (a *AccessListService) DeleteAllAccessListMembersForAccessListV2(ctx contex
 			}
 
 			for _, member := range allMembers {
-				switch member.Spec.MembershipKind {
-				case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-				default:
+				if !member.IsList() {
 					continue
 				}
 				memberName, err := accesslists.MemberScopeQualifiedName(member)
@@ -1133,8 +1125,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 					return trace.Wrap(err)
 				}
 				// Update memberOf field if nested list.
-				switch existingMember.Spec.MembershipKind {
-				case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+				if existingMember.IsList() {
 					if err := a.updateAccessListMemberOf(ctx, accessList.GetScopeQualifiedName(), existingMemberName, false); err != nil {
 						return trace.Wrap(err)
 					}
@@ -1636,9 +1627,7 @@ func (a *AccessListService) membersToBackendItems(acl accesslist.ScopeQualifiedN
 
 func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Context, acl accesslist.ScopeQualifiedName, members []*accesslist.AccessListMember) error {
 	for _, member := range members {
-		switch member.Spec.MembershipKind {
-		case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-		default:
+		if !member.IsList() {
 			continue
 		}
 		memberName, err := accesslists.MemberScopeQualifiedName(member)
@@ -1807,9 +1796,7 @@ func (a *AccessListService) EnsureNestedAccessListStatusesV2(ctx context.Context
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			switch member.Spec.MembershipKind {
-			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
-			default:
+			if !member.IsList() {
 				continue
 			}
 			memberName, err := accesslists.MemberScopeQualifiedName(member)
@@ -1959,8 +1946,7 @@ func (a *AccessListService) checkDeletionBlockingMemberRelationships(ctx context
 			}
 			return trace.Wrap(err, `fetching access list member for "%s"`, accesslists.ScopeQualifiedNameToString(parentListName))
 		}
-		switch member.Spec.MembershipKind {
-		case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+		if member.IsList() {
 			memberOfTitles = append(memberOfTitles, parentList.Spec.Title)
 		}
 	}
