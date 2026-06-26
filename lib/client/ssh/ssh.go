@@ -30,7 +30,7 @@ import (
 )
 
 // MFACeremonyPerformer performs a session-bound MFA ceremony with the user and returns the solved challenge name.
-type MFACeremonyPerformer func(ctx context.Context, sessionID []byte) (challengeName string, _ error)
+type MFACeremonyPerformer func(ctx context.Context, sessionID []byte) (challengeName string, err error)
 
 // AuthCallback returns an ssh.ClientAuthCallback that dynamically selects an auth method based on the server's response
 // during the handshake. When the server signals partial success for publickey, it offers keyboard-interactive to
