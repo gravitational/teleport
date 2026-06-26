@@ -168,6 +168,7 @@ export const ossRoutes = {
   loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
   loginErrorUnauthorized: '/web/msg/error/login/auth',
   loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
+  scopePicker: '/web/scope_picker',
   samlSloFailed: '/web/msg/error/slo',
   userInvite: '/web/invite/:tokenId',
   userInviteContinue: '/web/invite/:tokenId/continue',
@@ -252,6 +253,9 @@ const cfg = {
 
   // beamsUI indicates whether the Beams lite-mode UI is enabled
   beamsUi: false,
+
+  // scopesEnabled indicates whether authorization scopes are enabled.
+  scopesEnabled: false,
 
   configDir: '$HOME/.config/teleport',
 
