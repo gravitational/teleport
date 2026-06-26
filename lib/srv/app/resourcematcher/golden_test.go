@@ -59,7 +59,7 @@ var update = flag.Bool("update", false, "regenerate golden testdata files")
 // sugared rules evaluate to the stored expect, the lowered rules reach the same
 // decision, and the stored app_resources_desugared equals the freshly generated
 // lowering. So one golden decision pins both authoring surfaces and the lowering
-// between them. The deny code lowers to an append_deny_hint call, so the lowered
+// between them. The deny code lowers to a deny_hint wrapper, so the lowered
 // rules carry the same deny hints as the sugared ones and the two are compared
 // on the whole decision, hints included.
 type goldenFile struct {

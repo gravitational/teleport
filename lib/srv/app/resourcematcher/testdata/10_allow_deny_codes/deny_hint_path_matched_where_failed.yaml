@@ -11,12 +11,13 @@ app_resources:
       deny_reason_hint: User has NO access to project
 app_resources_desugared:
     - |-
-      path.match(
-        literal("api/v4/projects",
-          capture("project",
-            greedy()))) &&
-      (contains(user.traits["allowed_projects"], vars.project) || append_deny_hint("denied_project", "User has NO access to project")) &&
-      set_allow_code("allowed_project", "User has access to project")
+      allow_code("allowed_project", "User has access to project",
+        path.match(
+          literal("api/v4/projects",
+            capture("project",
+              greedy()))) &&
+        deny_hint("denied_project", "User has NO access to project",
+          contains(user.traits["allowed_projects"], vars.project)))
 identity:
     name: alice
     roles:

@@ -120,15 +120,16 @@ deny_reason_hint: "You need the admin role."
 	require.Error(t, err)
 }
 
-// TestAppendDenyHintExpression pins that an expression rule can carry a deny
-// hint through append_deny_hint, the primitive the sugared deny_code_hint
-// lowers to, so the expression and sugared surfaces share one deny mechanism.
-// The call returns false, so it records the hint without ever turning the deny
-// into an allow, and an illegal code is rejected at load.
-func TestAppendDenyHintExpression(t *testing.T) {
+// TestDenyHintExpression pins that an expression rule can carry a deny hint
+// through deny_hint, the primitive the sugared deny_code_hint lowers to, so
+// the expression and sugared surfaces share one deny mechanism. The call
+// returns the value of the inner expression it wraps and records the hint only
+// when that value is false, so a misplaced call can never turn a deny into an
+// allow, and an illegal code is rejected at load.
+func TestDenyHintExpression(t *testing.T) {
 	rule, err := compileExpression(
 		`path.match(literal("api/v4/projects", capture("project", greedy()))) && ` +
-			`(contains(user.traits["allowed_projects"], vars.project) || append_deny_hint("denied_project", "No access."))`)
+			`deny_hint("denied_project", "No access.", contains(user.traits["allowed_projects"], vars.project))`)
 	require.NoError(t, err)
 
 	allowed := Identity{Traits: map[string][]string{"allowed_projects": {"ok"}}}
@@ -151,7 +152,7 @@ func TestAppendDenyHintExpression(t *testing.T) {
 	require.Empty(t, got.Deny.Hints)
 
 	// An illegal code is rejected at load.
-	_, err = compileExpression(`path.match(greedy()) || append_deny_hint("Bad Code")`)
+	_, err = compileExpression(`deny_hint("Bad Code", "reason", path.match(greedy()))`)
 	require.Error(t, err)
 }
 
@@ -165,13 +166,13 @@ deny_reason_hint: "orphan reason"
 	require.Error(t, err)
 }
 
-// TestSetAllowCodeInExpression pins that an expression rule carries its allow
-// code through a set_allow_code call, the primitive the sugared allow_code
-// field lowers to, and that an expression rule with no append_deny_hint call
+// TestAllowCodeInExpression pins that an expression rule carries its allow
+// code through an allow_code wrapper, the primitive the sugared allow_code
+// field lowers to, and that an expression rule with no deny_hint wrapper
 // carries no deny hint.
-func TestSetAllowCodeInExpression(t *testing.T) {
+func TestAllowCodeInExpression(t *testing.T) {
 	rule, err := compileExpression(
-		`path.match(literal("api/v4/user")) && set_allow_code("self_read", "Read your own user.")`)
+		`allow_code("self_read", "Read your own user.", path.match(literal("api/v4/user")))`)
 	require.NoError(t, err)
 
 	got, err := rule.Evaluate(Request{Method: "GET", Path: "/api/v4/user"}, Identity{})
@@ -180,41 +181,36 @@ func TestSetAllowCodeInExpression(t *testing.T) {
 	require.Equal(t, "self_read", got.Allow.Code)
 	require.Equal(t, "Read your own user.", got.Allow.Reason)
 
-	// A deny from this expression carries no hint: it calls no append_deny_hint.
+	// A deny from this expression carries no hint: it calls no deny_hint.
 	got, err = rule.Evaluate(Request{Method: "GET", Path: "/api/v4/groups"}, Identity{})
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
 	require.Empty(t, got.Deny.Hints)
 }
 
-// TestSetAllowCodeMustBeTail pins the placement check. A set_allow_code that is
-// not the last term of its && chain is rejected at load, because a code
-// committed before a later term could leak into an allow that a different ||
-// branch granted. The fix is to put set_allow_code at the tail.
-func TestSetAllowCodeMustBeTail(t *testing.T) {
-	// set_allow_code sits before a trailing && term, so it could run on a branch
-	// that is not the one granting the allow. Rejected at load.
-	_, err := compileExpression(
-		`path.match(literal("api/v4/user")) && set_allow_code("self_read") && contains(user.roles, "admin")`)
-	require.Error(t, err)
+// TestAllowCodeOnlyRecordsOnMatch pins that allow_code records its code only
+// when the wrapped expression evaluates to true. A non-matching rule that
+// wraps a false expression records nothing, so a later matching rule sees the
+// empty allow code and carries its own.
+func TestAllowCodeOnlyRecordsOnMatch(t *testing.T) {
+	// A rule whose wrapped expression is false: the code must not leak into
+	// the evaluation state, because the rule denies.
+	rule, err := compileExpression(
+		`allow_code("never", "should not be recorded", path.match(literal("api/v4/never")))`)
+	require.NoError(t, err)
 
-	// The leak the check prevents: set_allow_code on a false && branch that a
-	// later || branch rescues. Rejected at load rather than leaking "leaked".
-	_, err = compileExpression(
-		`(set_allow_code("leaked") && path.match(literal("never"))) || path.match(literal("api/v4/user"))`)
-	require.Error(t, err)
-
-	// A negated set_allow_code is never tail-safe.
-	_, err = compileExpression(`!set_allow_code("neg") || path.match(literal("api/v4/user"))`)
-	require.Error(t, err)
+	got, err := rule.Evaluate(Request{Method: "GET", Path: "/api/v4/user"}, Identity{})
+	require.NoError(t, err)
+	require.False(t, got.Allowed)
+	require.Nil(t, got.Allow)
 }
 
-// TestSetAllowCodeBranchSpecific pins the expressiveness a per-rule field
-// cannot reach: the code depends on which alternative matched.
-func TestSetAllowCodeBranchSpecific(t *testing.T) {
+// TestAllowCodeBranchSpecific pins the expressiveness a per-rule field cannot
+// reach: the code depends on which alternative matched.
+func TestAllowCodeBranchSpecific(t *testing.T) {
 	rule, err := compileExpression(
-		`(path.match(literal("api/v4/user")) && set_allow_code("user_read")) || ` +
-			`(path.match(literal("api/v4/version")) && set_allow_code("version_read"))`)
+		`allow_code("user_read", "Read user", path.match(literal("api/v4/user"))) || ` +
+			`allow_code("version_read", "Read version", path.match(literal("api/v4/version")))`)
 	require.NoError(t, err)
 
 	got, err := rule.Evaluate(Request{Method: "GET", Path: "/api/v4/user"}, Identity{})

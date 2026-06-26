@@ -16,12 +16,14 @@ app_resources_desugared:
         literal("api/v4/projects",
           capture("project",
             greedy()))) &&
-      (contains(user.traits["allowed_projects"], vars.project) || append_deny_hint("denied_project", "Not allowed on this project"))
+      deny_hint("denied_project", "Not allowed on this project",
+        contains(user.traits["allowed_projects"], vars.project))
     - |-
       path.match(
         literal("api/v4/admin",
           greedy())) &&
-      (contains(user.roles, "admin") || append_deny_hint("denied_admin", "Admin role required"))
+      deny_hint("denied_admin", "Admin role required",
+        contains(user.roles, "admin"))
 identity:
     name: bob
     roles:

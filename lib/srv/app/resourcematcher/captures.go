@@ -108,6 +108,13 @@ func guaranteedCaptures(node ast.Node) map[string]bool {
 			// top-level root() is recognized and its alternatives intersected.
 			return capturesIn(n.Args[0])
 		}
+		// allow_code(code, reason, expr) and deny_hint(code, reason, expr) are
+		// transparent wrappers: each returns the value of its third argument, so
+		// the captures the wrapper guarantees are the captures the wrapped
+		// expression guarantees.
+		if (isIdentCall(n, "allow_code") || isIdentCall(n, "deny_hint")) && len(n.Args) == 3 {
+			return guaranteedCaptures(n.Args[2])
+		}
 		return map[string]bool{}
 	default:
 		return map[string]bool{}
@@ -452,7 +459,7 @@ func validateWhereNoPathMatch(where string) error {
 	return nil
 }
 
-// validateAllowCodes rejects an illegal code in a set_allow_code("...") call
+// validateAllowCodes rejects an illegal code in an allow_code("...", ...) call
 // whose code is a string constant. It is the load-time check for the code a
 // sugared allow_code field lowers to and for a code written directly in an
 // expression, so an illegal code fails when the rule compiles rather than per
@@ -466,7 +473,7 @@ func validateAllowCodes(expr string) error {
 	var bad error
 	ast.Inspect(parsed, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || !isIdentCall(call, "set_allow_code") || len(call.Args) == 0 {
+		if !ok || !isIdentCall(call, "allow_code") || len(call.Args) == 0 {
 			return true
 		}
 		lit, ok := call.Args[0].(*ast.BasicLit)
@@ -485,13 +492,14 @@ func validateAllowCodes(expr string) error {
 	return trace.Wrap(bad)
 }
 
-// validateDenyHintCodes rejects an illegal code in an append_deny_hint("...")
-// call whose code is a string constant, the load-time check for the code a
-// sugared deny_code_hint field lowers to and for a code written directly in an
+// validateDenyHintCodes rejects an illegal code in a deny_hint("...", ...) call
+// whose code is a string constant, the load-time check for the code a sugared
+// deny_code_hint field lowers to and for a code written directly in an
 // expression. A dynamic code cannot be checked here and is backstopped by the
-// function at evaluation. append_deny_hint always returns false, so unlike
-// set_allow_code it needs no placement check: a misplaced call can record a
-// stray hint but can never turn a deny into an allow.
+// function at evaluation. deny_hint returns the value of the inner expression
+// it wraps and records its hint only when that expression is false, so a
+// misplaced call can record a stray hint but can never turn a deny into an
+// allow: no placement check is needed.
 func validateDenyHintCodes(expr string) error {
 	parsed, err := goparser.ParseExpr(expr)
 	if err != nil {
@@ -500,7 +508,7 @@ func validateDenyHintCodes(expr string) error {
 	var bad error
 	ast.Inspect(parsed, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || !isIdentCall(call, "append_deny_hint") || len(call.Args) == 0 {
+		if !ok || !isIdentCall(call, "deny_hint") || len(call.Args) == 0 {
 			return true
 		}
 		lit, ok := call.Args[0].(*ast.BasicLit)
@@ -517,61 +525,6 @@ func validateDenyHintCodes(expr string) error {
 		return true
 	})
 	return trace.Wrap(bad)
-}
-
-// validateAllowCodePlacement rejects a set_allow_code call that is not in tail
-// position. The code is committed eagerly into the evaluation state and read
-// only on a match, so a set_allow_code on a branch that a later || can rescue
-// would leak its code into an allow that a different branch granted. Tail
-// position, the right operand of every && on the way to the call with || taken
-// either side, guarantees the call runs only on the path that makes the
-// predicate true, so the committed code is the one the matching path set. The
-// sugared form always lowers set_allow_code to the final && term, so this only
-// constrains a hand-written expression.
-func validateAllowCodePlacement(expr string) error {
-	parsed, err := goparser.ParseExpr(expr)
-	if err != nil {
-		return nil
-	}
-	safe := map[ast.Node]bool{}
-	markTailSafe(parsed, safe)
-	var bad bool
-	ast.Inspect(parsed, func(n ast.Node) bool {
-		if call, ok := n.(*ast.CallExpr); ok && isIdentCall(call, "set_allow_code") && !safe[call] {
-			bad = true
-		}
-		return true
-	})
-	if bad {
-		return trace.BadParameter(
-			"set_allow_code must be the last term of its && chain, and of each || branch, " +
-				"so its code is committed only on the matching path; move it to the tail")
-	}
-	return nil
-}
-
-// markTailSafe records the set_allow_code calls reachable in tail position: the
-// right operand of an &&, either operand of an ||, through parentheses, down to
-// a set_allow_code call. A call reached any other way, such as the left operand
-// of an && or under a negation, is not recorded and so fails the placement
-// check.
-func markTailSafe(node ast.Node, safe map[ast.Node]bool) {
-	switch n := node.(type) {
-	case *ast.ParenExpr:
-		markTailSafe(n.X, safe)
-	case *ast.BinaryExpr:
-		switch n.Op {
-		case token.LAND:
-			markTailSafe(n.Y, safe)
-		case token.LOR:
-			markTailSafe(n.X, safe)
-			markTailSafe(n.Y, safe)
-		}
-	case *ast.CallExpr:
-		if isIdentCall(n, "set_allow_code") {
-			safe[n] = true
-		}
-	}
 }
 
 // referencedVars returns the names read through the vars.<name> namespace.

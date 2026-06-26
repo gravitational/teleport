@@ -27,8 +27,8 @@ import "strings"
 // they can compile and evaluate the lowered form alongside the sugared one to
 // prove the two cannot diverge. The expression rules are already bare
 // predicates, so they are not lowered here. The allow code rides in the
-// predicate as a set_allow_code call; the deny code is a sugar-only audit
-// feature with no predicate form, so it does not appear in the result.
+// predicate as an allow_code wrapper and the deny code as a deny_hint wrapper,
+// so both audit fields round-trip through the desugared form.
 func DesugarResources(role Role) ([]string, error) {
 	out := make([]string, len(role.Resources))
 	for j, rule := range role.Resources {
@@ -238,8 +238,8 @@ func readQuoted(s string, i int) (string, int) {
 // hasTopLevelBinaryOp reports whether s contains a "&&" or "||" outside any
 // nested parenthesis and outside string literals. Parentheses around an
 // expression with a top-level binary operator carry precedence and must not be
-// stripped: a "||" group such as (where || append_deny_hint(...)) loses its
-// meaning if the parentheses are removed, the same as an "&&" group.
+// stripped: an "&&" or "||" group inside an allow_code or deny_hint argument
+// loses its meaning if the surrounding parentheses are removed.
 func hasTopLevelBinaryOp(s string) bool {
 	depth, inString := 0, false
 	for i := 0; i < len(s); i++ {
@@ -313,12 +313,9 @@ func contractLiterals(s string) string {
 }
 
 // stripRedundantParens removes a grouping parenthesis whose content carries no
-// top-level "&&" or "||", since such a wrapper only adds noise. The desugarer
-// wraps a rule's where clause in parentheses when joining it to the path and
-// method clauses; once that clause is a single term, the wrapper is redundant.
-// A group that carries a top-level operator, such as a where ORed with an
-// append_deny_hint, is kept so its precedence holds. A parenthesis that follows
-// an identifier opens a call argument list and is never touched.
+// top-level "&&" or "||", since such a wrapper only adds noise. A group that
+// carries a top-level operator is kept so its precedence holds. A parenthesis
+// that follows an identifier opens a call argument list and is never touched.
 func stripRedundantParens(s string) string {
 	inString := false
 	for i := 0; i < len(s); i++ {

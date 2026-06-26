@@ -150,20 +150,20 @@ type evalState struct {
 	// path.match fail closed on an encoded segment instead of inverting the miss
 	// into an allow.
 	encodedNotAllowed bool
-	// allowCode and allowReason hold the audit code and reason a set_allow_code
-	// call recorded. They are read only when the predicate evaluates to true, and
-	// validateAllowCodePlacement requires every set_allow_code to sit in tail
-	// position, so the call runs only on the path that makes the predicate true
-	// and the committed code is the one the matching path set. When several
-	// set_allow_code calls run, the last one wins.
+	// allowCode and allowReason hold the audit code and reason an allow_code
+	// call recorded. allow_code wraps a rule's predicate and commits its code
+	// only when the wrapped expression is true, so a non-matching rule records
+	// nothing. The rule set keeps the recorded code only on the matching rule,
+	// so the committed code is always the one the matching rule set. When
+	// several allow_code calls run on the same evaluation, the last one wins.
 	allowCode   string
 	allowReason string
-	// denyHints holds the near-miss hints an append_deny_hint call recorded.
-	// append_deny_hint records a hint and returns false, so it sits on the deny
-	// branch of a rule, as in (where || append_deny_hint(...)), and fires
-	// exactly when the path and method matched but the allow condition failed.
-	// They are read only when the rule denies; on an allow the deny branch never
-	// runs, so the slice stays empty.
+	// denyHints holds the near-miss hints a deny_hint call recorded. deny_hint
+	// wraps an inner condition reached only after the path on its left matched,
+	// and commits its hint only when the wrapped expression is false, so it
+	// fires exactly when the path and method matched but the inner condition
+	// failed. They are read only when the rule denies; on an allow the rule
+	// set discards them.
 	denyHints []Hint
 }
 
@@ -252,54 +252,45 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 				}
 				return Option{allowEncoded: allowed}, nil
 			}),
-			// set_allow_code records the structured audit code, and an optional
-			// human reason, emitted on the allow event when this rule matches. It
-			// is a side-effecting boolean like path.match: it writes the code into
-			// the environment and returns true, so it composes with && at the tail
-			// of a predicate, as in path.match(...) && set_allow_code("my_code").
-			// The code is read only when the whole predicate evaluates to true, and
-			// validateAllowCodePlacement requires the call to sit in tail position,
-			// so it runs only on the matching path and the committed code cannot be
-			// one a later || branch rescued. When several calls run the last one
-			// wins. The sugared allow_code and allow_reason fields lower to this
-			// call, so both authoring surfaces share one representation.
-			"set_allow_code": typical.BinaryVariadicFunctionWithEnv(func(e env, code string, reason ...string) (bool, error) {
+			// allow_code wraps a rule's predicate. It records the structured audit
+			// code, and the human reason, emitted on the allow event when the rule
+			// matches, and returns the value of the wrapped expression so the
+			// wrapper is transparent to the boolean result. The code is committed
+			// only when the wrapped expression is true, so a non-matching rule
+			// records nothing, and the rule set keeps the recorded code only on
+			// the matching rule. The wrapper sits at the top of the rule, as in
+			// allow_code("code", "reason", path.match(...) && where), so both
+			// authoring surfaces share one representation: the sugared allow_code
+			// and allow_reason fields lower to this call.
+			"allow_code": typical.TernaryFunctionWithEnv(func(e env, code, reason string, expr bool) (bool, error) {
 				if err := validateCode(code); err != nil {
 					return false, trace.Wrap(err)
 				}
-				if len(reason) > 1 {
-					return false, trace.BadParameter("set_allow_code takes a code and at most one reason, got %d reasons", len(reason))
+				if expr {
+					e.state.allowCode = code
+					e.state.allowReason = reason
 				}
-				e.state.allowCode = code
-				if len(reason) == 1 {
-					e.state.allowReason = reason[0]
-				}
-				return true, nil
+				return expr, nil
 			}),
-			// append_deny_hint records a near-miss deny hint, the structured code
-			// and optional reason emitted on the deny event when the rule's path
-			// and method matched but the allow condition failed. It is the deny
-			// mirror of set_allow_code: a side-effecting boolean that records its
-			// hint and returns false, so it never turns a deny into an allow. It
-			// sits on the deny branch of a rule, as in
-			// (where || append_deny_hint("code", "reason")), gated by the path and
-			// method on its left, so it fires exactly on the near-miss. The hint is
-			// read only when the rule denies. The sugared deny_code_hint and
-			// deny_reason_hint fields lower to this call, so both authoring
-			// surfaces share one representation.
-			"append_deny_hint": typical.BinaryVariadicFunctionWithEnv(func(e env, code string, reason ...string) (bool, error) {
+			// deny_hint wraps an inner condition reached only after a path on its
+			// left matched. It records a near-miss hint, the structured code and
+			// human reason emitted on the deny event when the rule's path and
+			// method matched but the inner condition failed, and returns the
+			// value of the wrapped expression so the wrapper is transparent to
+			// the boolean result. The hint is committed only when the wrapped
+			// expression is false, so an allowed rule records nothing, and the
+			// rule set keeps the hints only when the request is denied. The
+			// wrapper sits on an inner condition, gated by the path and method on
+			// its left, so it fires exactly on the near-miss: the sugared
+			// deny_code_hint and deny_reason_hint fields lower to this call.
+			"deny_hint": typical.TernaryFunctionWithEnv(func(e env, code, reason string, expr bool) (bool, error) {
 				if err := validateCode(code); err != nil {
 					return false, trace.Wrap(err)
 				}
-				if len(reason) > 1 {
-					return false, trace.BadParameter("append_deny_hint takes a code and at most one reason, got %d reasons", len(reason))
+				if !expr {
+					e.state.denyHints = append(e.state.denyHints, Hint{Code: code, Reason: reason})
 				}
-				hint := Hint{Code: code}
-				if len(reason) == 1 {
-					hint.Reason = reason[0]
-				}
-				e.state.denyHints = append(e.state.denyHints, hint)
-				return false, nil
+				return expr, nil
 			}),
 			// Matcher constructors. Each returns one Node, so they nest and
 			// type-check at parse time: every child argument must itself
