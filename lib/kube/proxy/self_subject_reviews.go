@@ -25,7 +25,6 @@ import (
 	"io"
 	"net/http"
 	"path"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -311,7 +310,7 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 		if !isResourceTheSameKind && !namespaceScopeMatch {
 			continue
 		}
-		if len(m.resource.Verbs) == 1 && !isVerbAllowed(resource.Verbs, m.resource.Verbs[0]) {
+		if len(m.resource.Verbs) == 1 && !utils.IsVerbAllowed(resource.Verbs, m.resource.Verbs[0]) {
 			continue
 		}
 
@@ -354,11 +353,4 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 	}
 
 	return false, nil
-}
-
-// isVerbAllowed returns true if the verb is allowed in the resource.
-// If the resource has a wildcard verb, it matches all verbs, otherwise
-// the resource must have the verb we're looking for.
-func isVerbAllowed(allowedVerbs []string, verb string) bool {
-	return len(allowedVerbs) != 0 && (allowedVerbs[0] == types.Wildcard || slices.Contains(allowedVerbs, verb))
 }
