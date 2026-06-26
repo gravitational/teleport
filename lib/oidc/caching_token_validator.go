@@ -159,7 +159,7 @@ func (v *CachingTokenValidator[C, K]) GetValidatorWithKey(
 			issuer:     key.GetIssuer(),
 			audience:   key.GetAudience(),
 			verifierFn: zoidcTokenVerifier[C],
-			logger:     log.With("key", key),
+			logger:     log.With("issuer", key.GetIssuer(), "audience", key.GetAudience()),
 		}, nil
 	})
 
