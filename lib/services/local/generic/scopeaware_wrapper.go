@@ -45,6 +45,7 @@ type ScopedResourceMetadata interface {
 // wrapper transparently routes reads and writes to the correct range.
 func NewScopeAwareServiceWrapper[T ScopedResourceMetadata](cfg ScopeAwareServiceWrapperConfig[T]) (*ScopeAwareServiceWrapper[T], error) {
 	serviceConfig := &ScopeAwareServiceConfig[scopedResourceMetadataAdapter[T]]{
+		ScopedOnly:            cfg.ScopedOnly,
 		Backend:               cfg.Backend,
 		ResourceKind:          cfg.ResourceKind,
 		PageLimit:             cfg.PageLimit,
@@ -77,6 +78,9 @@ func NewScopeAwareServiceWrapper[T ScopedResourceMetadata](cfg ScopeAwareService
 // ScopeAwareServiceWrapper. It mirrors ScopeAwareServiceConfig but operates on
 // the bare RFD 153 resource type T rather than an adapter.
 type ScopeAwareServiceWrapperConfig[T ScopedResourceMetadata] struct {
+	// ScopedOnly indicates that the service will only operate on scoped resources.
+	// The unscoped fallback path will be ignored in all cases.
+	ScopedOnly bool
 	// Backend used to persist the resource.
 	Backend backend.Backend
 	// ResourceKind is the friendly name of the resource.
