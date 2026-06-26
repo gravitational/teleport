@@ -1029,10 +1029,6 @@ impl Client {
         }
 
         Ok(cancel_pdus)
-
-        // Bulk send any cancellations for pending I/O requests.
-        //Self::write_rdpdr_pdus(write_stream, x224_processor.clone(), cancel_pdus).await?;
-        //Ok(())
     }
 
     /// Processes an x224 frame on a blocking thread.
