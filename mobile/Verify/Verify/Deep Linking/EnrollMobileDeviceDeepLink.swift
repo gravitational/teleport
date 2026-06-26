@@ -41,3 +41,12 @@ extension EnrollMobileDeviceDeepLink {
 		)
 	}
 }
+
+// MARK: - CustomDebugStringConvertible
+
+extension EnrollMobileDeviceDeepLink: CustomDebugStringConvertible {
+	var debugDescription: String {
+		let portString = if let port { "\(port)" } else { "(nil)" }
+		return "\(hostname):\(portString)?enroll_pairing_token=\(enrollPairingToken)"
+	}
+}

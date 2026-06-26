@@ -19,9 +19,9 @@ import SwiftUI
 import Vision
 import VisionKit
 
-struct QRScannerView: UIViewControllerRepresentable {
-	var validateScan: (String) -> Bool
-	var onScan: (String) -> Void
+struct QRScannerView<Value>: UIViewControllerRepresentable {
+	var validateScan: (String) -> Value?
+	var onScan: (Value) -> Void
 	var onError: (any Error) -> Void = { _ in }
 
 	func makeUIViewController(context: Context) -> DataScannerViewController {
@@ -66,23 +66,23 @@ struct QRScannerView: UIViewControllerRepresentable {
 	}
 
 	func makeCoordinator() -> Coordinator {
-		return Coordinator(isValidScan: validateScan, onScan: onScan, onError: onError)
+		Coordinator(validateScan: validateScan, onScan: onScan, onError: onError)
 	}
 
 	@MainActor
 	final class Coordinator: NSObject, DataScannerViewControllerDelegate {
 		private var didScan = false
 		private var didReportError = false
-		private let isValidScan: (String) -> Bool
-		private let onScan: (String) -> Void
+		private let validateScan: (String) -> Value?
+		private let onScan: (Value) -> Void
 		private let onError: (any Error) -> Void
 
 		init(
-			isValidScan: @escaping (String) -> Bool,
-			onScan: @escaping (String) -> Void,
+			validateScan: @escaping (String) -> Value?,
+			onScan: @escaping (Value) -> Void,
 			onError: @escaping (any Error) -> Void,
 		) {
-			self.isValidScan = isValidScan
+			self.validateScan = validateScan
 			self.onScan = onScan
 			self.onError = onError
 		}
@@ -125,16 +125,17 @@ struct QRScannerView: UIViewControllerRepresentable {
 			}
 
 			for item in items {
-				guard case let .barcode(barcode) = item,
+				guard
+					case let .barcode(barcode) = item,
 					let payload = barcode.payloadStringValue,
-					isValidScan(payload) else
-				{
+					let value = validateScan(payload)
+				else {
 					continue
 				}
 
 				didScan = true
 				dataScanner.stopScanning()
-				onScan(payload)
+				onScan(value)
 				return
 			}
 		}

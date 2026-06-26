@@ -15,10 +15,53 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Observation
+import OSLog
 
 @Observable @MainActor
 final class EnrollCameraScannerViewModel {
+	private static let logger = Logger.forType(EnrollCameraScannerViewModel.self)
+	weak var delegate: (any Delegate)? = nil
 
+	init(delegate: (any Delegate)? = nil) {
+		self.delegate = delegate
+	}
+}
+
+// MARK: - EnrollCameraScannerViewModel.Delegate
+
+extension EnrollCameraScannerViewModel {
+	protocol Delegate: AnyObject {
+		func enrollCameraScannerViewModel(
+			_ viewModel: EnrollCameraScannerViewModel,
+			didReceiveEnrollMobileDeviceDeepLink deepLink: EnrollMobileDeviceDeepLink,
+		)
+	}
+}
+
+// MARK: - Scanner Actions
+
+extension EnrollCameraScannerViewModel {
+	func validateScannedCode(_ payload: String) -> EnrollMobileDeviceDeepLink? {
+		Self.logger.debug("Validating scanned QR code: \(payload)")
+		do {
+			guard let url = URL(string: payload) else {
+				return nil
+			}
+			let deepLink = try DeepLink(from: url)
+			guard case let .enrollMobileDevice(enrollMobileDeviceDeepLink) = deepLink else {
+				return nil
+			}
+			return enrollMobileDeviceDeepLink
+		} catch {
+			Self.logger.debug("\(payload) did not pass validation")
+			return nil
+		}
+	}
+
+	func didReceive(deepLink: EnrollMobileDeviceDeepLink) {
+		Self.logger.info("Scanned deep link: \(deepLink.debugDescription)")
+		delegate?.enrollCameraScannerViewModel(self, didReceiveEnrollMobileDeviceDeepLink: deepLink)
+	}
 }
 
 // MARK: - Navigation Helpers
@@ -26,6 +69,7 @@ final class EnrollCameraScannerViewModel {
 extension EnrollCameraScannerViewModel {
 	/// For the purposes of presentation, there is no distinction between instances of EnrollCameraScannerViewModel,
 	/// so we vend this constant presentation ID to express that to SwiftUI.
-	var presentationID: String { "EnrollCameraScannerViewModel" }
+	var presentationID: String {
+		"EnrollCameraScannerViewModel"
+	}
 }
-

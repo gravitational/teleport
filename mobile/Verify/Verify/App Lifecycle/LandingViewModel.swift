@@ -27,13 +27,14 @@ final class LandingViewModel {
 	}
 
 	var destination: Destination? = nil
+	var sensoryFeedbackTrigger = false
 }
 
 // MARK: - User Actions
 
 extension LandingViewModel {
 	func userTappedOnScanQRCode() {
-		destination = .cameraScanner(EnrollCameraScannerViewModel())
+		destination = .cameraScanner(EnrollCameraScannerViewModel(delegate: self))
 	}
 }
 
@@ -54,5 +55,17 @@ extension LandingViewModel {
 extension LandingViewModel: EnrollDeviceViewModel.Delegate {
 	func enrollDeviceViewModelDidCancelOperation(_ viewModel: EnrollDeviceViewModel) {
 		destination = nil
+	}
+}
+
+// MARK: - EnrollCameraScannerViewModel.Delegate
+
+extension LandingViewModel: EnrollCameraScannerViewModel.Delegate {
+	func enrollCameraScannerViewModel(
+		_ viewModel: EnrollCameraScannerViewModel,
+		didReceiveEnrollMobileDeviceDeepLink deepLink: EnrollMobileDeviceDeepLink,
+	) {
+		sensoryFeedbackTrigger.toggle()
+		destination = .deviceEnrollment(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
 	}
 }

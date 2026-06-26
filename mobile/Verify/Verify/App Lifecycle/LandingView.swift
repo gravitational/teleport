@@ -44,8 +44,8 @@ struct LandingView: View {
 			.navigationDestination(item: $viewModel.destination.deviceEnrollment) { deviceEnrollmentViewModel in
 				EnrollDeviceView(viewModel: deviceEnrollmentViewModel)
 			}
-			.sheet(item: $viewModel.destination.cameraScanner, id: \.presentationID) { _ in
-				QRScannerView(validateScan: { _ in false }, onScan: { _ in })
+			.sheet(item: $viewModel.destination.cameraScanner, id: \.presentationID) { enrollCameraScannerViewModel in
+				EnrollCameraScannerView(viewModel: enrollCameraScannerViewModel)
 			}
 			.alert(
 				item: $viewModel.destination.deepLinkParsingAlert,
@@ -56,6 +56,10 @@ struct LandingView: View {
 					Button("OK") {}
 				},
 			)
+
+			// MARK: Haptics
+
+			.sensoryFeedback(.success, trigger: viewModel.sensoryFeedbackTrigger)
 		}
 	}
 }
