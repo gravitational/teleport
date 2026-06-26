@@ -25,6 +25,7 @@ import {
   resourceSpecAwsEc2Ssm,
 } from 'teleport/Discover/Fixtures/fixtures';
 import { AgentMeta, AutoDiscovery } from 'teleport/Discover/useDiscover';
+import auth from 'teleport/services/auth';
 import * as discoveryService from 'teleport/services/discovery/discovery';
 import {
   IntegrationKind,
@@ -70,6 +71,9 @@ describe('DiscoveryConfigSsm', () => {
     jest
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(undefined as never);
+    jest
+      .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
+      .mockResolvedValue(undefined);
     jest.spyOn(discoveryService, 'createDiscoveryConfig').mockResolvedValue({
       name: '',
       discoveryGroup: '',
