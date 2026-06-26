@@ -256,6 +256,25 @@ func (c *connector) pgxConnect(ctx context.Context) (*pgx.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 	pgxConf.Config = *config
+	// Surface server-side notices (e.g. RAISE WARNING from the user
+	// provisioning procedures) in Teleport's logs, not just the database
+	// server log, so failures like skipped object reassignment can be
+	// investigated from Teleport. Only set here, on admin/provisioning
+	// connections; the proxied client session relays notices to the client.
+	logCtx := context.WithoutCancel(ctx)
+	pgxConf.OnNotice = func(_ *pgconn.PgConn, n *pgconn.Notice) {
+		level := slog.LevelDebug
+		if n.SeverityUnlocalized == "WARNING" {
+			level = slog.LevelWarn
+		}
+		c.log.Log(logCtx, level, "Received PostgreSQL notice on admin connection",
+			"severity", n.SeverityUnlocalized,
+			"sqlstate", n.Code,
+			"message", n.Message,
+			"detail", n.Detail,
+			"hint", n.Hint,
+		)
+	}
 	c.log.DebugContext(ctx, "Connecting to database", "db_name", config.Database, "db_user", config.User, "host", config.Host)
 	return pgx.ConnectConfig(ctx, pgxConf)
 }
