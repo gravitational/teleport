@@ -24,10 +24,11 @@ import (
 	"testing"
 
 	gogotypes "github.com/gogo/protobuf/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 )
 
-func specStruct(t *testing.T, doc string) *gogotypes.Struct {
+func specStruct(t *testing.T, doc string) *types.Struct {
 	t.Helper()
 
 	// we could just use jsonpb to parse it directly, but depguard and forbidigo
@@ -38,7 +39,7 @@ func specStruct(t *testing.T, doc string) *gogotypes.Struct {
 	s, err := mapToGogoStruct(m)
 	require.NoError(t, err)
 
-	return s
+	return types.NewStruct(s)
 }
 
 // mapToGogoStruct converts a map to a gogo struct
@@ -99,7 +100,7 @@ func TestValidateFieldRulesContainsAnyRule(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		spec        *gogotypes.Struct
+		spec        *types.Struct
 		expect      bool
 		expectError require.ErrorAssertionFunc
 	}{
@@ -170,7 +171,7 @@ func TestEvaluateFieldRules(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		spec        *gogotypes.Struct
+		spec        *types.Struct
 		expectError require.ErrorAssertionFunc
 	}{
 		{

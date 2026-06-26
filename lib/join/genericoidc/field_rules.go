@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	gogotypes "github.com/gogo/protobuf/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -29,7 +30,7 @@ import (
 // least one true value assertion that isn't just nested structs. Generic rules
 // can be used to evaluate nested structures, so this recurses on the struct
 // field to find at least one valid, supported value comparison.
-func validateFieldRulesContainsAnyRule(str *gogotypes.Struct) (bool, error) {
+func validateFieldRulesContainsAnyRule(str *types.Struct) (bool, error) {
 	for _, v := range str.Fields {
 		switch f := v.Kind.(type) {
 		case *gogotypes.Value_BoolValue:
@@ -48,7 +49,7 @@ func validateFieldRulesContainsAnyRule(str *gogotypes.Struct) (bool, error) {
 		case *gogotypes.Value_StructValue:
 			// recurse and check the child values to see if there are any actual
 			// rules.
-			hasAny, err := validateFieldRulesContainsAnyRule(f.StructValue)
+			hasAny, err := validateFieldRulesContainsAnyRule(types.NewStruct(f.StructValue))
 			if err != nil {
 				return false, trace.Wrap(err)
 			} else if hasAny {
@@ -64,7 +65,7 @@ func validateFieldRulesContainsAnyRule(str *gogotypes.Struct) (bool, error) {
 
 // evaluateFieldRules evaluates `must_match_fields` rules defined in the given
 // arbitrary spec struct and compares them against the given claims.
-func evaluateFieldRules(specStruct *gogotypes.Struct, claimStruct map[string]any, path ...string) error {
+func evaluateFieldRules(specStruct *types.Struct, claimStruct map[string]any, path ...string) error {
 	for specKey, specValue := range specStruct.GetFields() {
 		fieldPath := append(append([]string{}, path...), specKey)
 		identifier := strings.Join(fieldPath, ".")
@@ -143,7 +144,7 @@ func evaluateFieldRules(specStruct *gogotypes.Struct, claimStruct map[string]any
 			}
 
 			// recurse on the child field
-			if err := evaluateFieldRules(spec.StructValue, claimNest, fieldPath...); err != nil {
+			if err := evaluateFieldRules(types.NewStruct(spec.StructValue), claimNest, fieldPath...); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
