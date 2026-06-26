@@ -43,6 +43,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     steps:
       - name: Get runtime values from kvstore
