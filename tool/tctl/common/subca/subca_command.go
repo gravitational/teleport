@@ -558,7 +558,7 @@ func (c *updateOverrideCommand) Run(
 		builder.Certificate = string(certPEM)
 		paths = append(paths, "certificate")
 	} else {
-		builder.PublicKey = strings.ToLower(builder.PublicKey)
+		builder.PublicKey = subca.NormalizePublicKey(builder.PublicKey)
 	}
 
 	for i, chainFile := range c.chainFiles {
