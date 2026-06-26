@@ -43,7 +43,8 @@ const exampleGCPClaimsString = `{
   },
   "custom": {
 	"float": 123.456,
-	"list": ["a", "b", "c"]
+	"list": ["a", "b", "c"],
+	"largeInt": 9007199254740992
   },
   "iat": 1781576507,
   "iss": "https://accounts.google.com",
@@ -171,6 +172,42 @@ func TestEvaluateAllowConditions(t *testing.T) {
 				notInCondition("custom.float", "123", "123.4", "123.45", "123.4567"),
 			),
 			expectError: require.NoError,
+		},
+		{
+			name: "rejects integer comparisons with large claims",
+			conditions: conditions(
+				eqCondition("custom.largeInt", "123"),
+			),
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "claim contains an integer value too large for safe comparison")
+			},
+		},
+		{
+			name: "rejects integer comparisons with large spec rule",
+			conditions: conditions(
+				eqCondition("custom.float", "9007199254740993"),
+			),
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "integers of this size cannot be safely compared")
+			},
+		},
+		{
+			name: "rejects integer comparisons with large spec rule via not_eq",
+			conditions: conditions(
+				notEqCondition("custom.float", "9007199254740993"),
+			),
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "integers of this size cannot be safely compared")
+			},
+		},
+		{
+			name: "rejects integer comparisons with large spec rule via not_in",
+			conditions: conditions(
+				notInCondition("custom.float", "9007199254740993"),
+			),
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "integers of this size cannot be safely compared")
+			},
 		},
 	}
 

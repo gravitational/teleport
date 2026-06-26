@@ -19,6 +19,7 @@
 package genericoidc
 
 import (
+	"math"
 	"strconv"
 	"strings"
 
@@ -26,6 +27,19 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 )
+
+// isUnsafeInteger determines if a given floating point value is an integer
+// (equals itself when truncated) and is too large to be uniquely represented by
+// 64bit floats.
+func isUnsafeInteger(f float64) bool {
+	if f != math.Trunc(f) {
+		// Not an integer, allow it
+		return false
+	}
+
+	// If larger than 2^53-1, reject.
+	return math.Abs(f) >= (1 << 53)
+}
 
 // allowClaimMatches verifies that the given claim value matches the configured
 // token value. We diverge from workloadidentity's string coercion here because
@@ -46,6 +60,15 @@ func allowClaimMatches(claimValue any, expected string) (bool, error) {
 		expectFloat, err := strconv.ParseFloat(expected, 64)
 		if err != nil {
 			return false, trace.BadParameter("numeric claim value requires numeric expected value, but got %q", expected)
+		}
+
+		// Fail loudly and stop all processing by rejecting with a BadParameter
+		// error. We could technically keep processing, but then users would
+		// never see the error.
+		if isUnsafeInteger(expectFloat) {
+			return false, trace.BadParameter("integers of this size cannot be safely compared: %s", expected)
+		} else if isUnsafeInteger(v) {
+			return false, trace.BadParameter("claim contains an integer value too large for safe comparison: %v", v)
 		}
 
 		return v == expectFloat, nil
