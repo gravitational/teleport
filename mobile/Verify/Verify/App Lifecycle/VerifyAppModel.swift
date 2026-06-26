@@ -38,7 +38,7 @@ extension VerifyAppModel {
 		do {
 			switch try DeepLink(from: url) {
 				case let .enrollMobileDevice(deepLink):
-					Self.logger.debug("Correctly parsed deep link: \(String(describing: deepLink))")
+					Self.logger.debug("Correctly parsed deep link from \(url): \(String(describing: deepLink))")
 					landingViewModel.navigateToDeviceEnrollment(with: deepLink)
 			}
 		} catch {
