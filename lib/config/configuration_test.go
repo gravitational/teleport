@@ -2734,6 +2734,55 @@ app_service:
 			inConfigString: `
 app_service:
   enabled: true
+  allowed_hosts:
+    - 10.10.0.0/16
+    - 192.0.2.10
+`,
+			name:   "allowed target hosts",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  denied_hosts:
+    - 169.254.0.0/16
+    - 127.0.0.0/8
+    - ::1/128
+`,
+			name:   "denied target hosts",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  allowed_hosts:
+    - 10.10.0.0/16
+  denied_hosts:
+    - 127.0.0.0/8
+`,
+			name: "allowed and denied target hosts are mutually exclusive",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "mutually exclusive")
+			},
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  denied_hosts:
+    - localhost
+`,
+			name: "target hosts reject hostnames",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "must be an IP address or CIDR range")
+			},
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
   apps:
     -
       public_addr: "foo.example.com"

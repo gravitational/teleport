@@ -123,7 +123,7 @@ func (s *Server) makeStreamableHTTPTransport(ctx context.Context, session *sessi
 	}
 	targetURI.Scheme = strings.TrimPrefix(targetURI.Scheme, "mcp+")
 
-	targetTransport, err := s.makeBasicHTTPTransport(ctx, session.App)
+	targetTransport, err := s.makeBasicHTTPTransport(ctx, session.App, &session.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

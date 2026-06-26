@@ -2438,6 +2438,14 @@ type Apps struct {
 
 	// ResourceMatchers match cluster application resources.
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
+
+	// AllowedHosts is the list of IP addresses and CIDR ranges that proxied
+	// application targets are allowed to resolve to.
+	AllowedHosts []string `yaml:"allowed_hosts,omitempty"`
+
+	// DeniedHosts is the list of IP addresses and CIDR ranges that proxied
+	// application targets are not allowed to resolve to.
+	DeniedHosts []string `yaml:"denied_hosts,omitempty"`
 }
 
 // App is the specific application that will be proxied by the application

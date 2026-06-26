@@ -25,6 +25,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -42,15 +43,16 @@ import (
 )
 
 type tcpServer struct {
-	clock        clockwork.Clock
-	emitter      apievents.Emitter
-	hostID       string
-	log          *slog.Logger
-	accessPoint  authclient.AppsAccessPoint
-	authClient   authclient.ClientI
-	clusterName  string
-	cipherSuites []uint16
-	insecureMode bool
+	clock            clockwork.Clock
+	emitter          apievents.Emitter
+	hostID           string
+	log              *slog.Logger
+	accessPoint      authclient.AppsAccessPoint
+	authClient       authclient.ClientI
+	clusterName      string
+	cipherSuites     []uint16
+	insecureMode     bool
+	targetHostPolicy common.TargetHostPolicy
 }
 
 // handleConnection handles connection from a TCP application.
@@ -61,12 +63,31 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 
-	dialer := net.Dialer{
-		Timeout: apidefaults.DefaultIOTimeout,
-	}
 	dialTarget, err := pickDialTarget(app, uriAddr, identity.RouteToApp.TargetPort)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter:  s.emitter,
+		Recorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	netDialer := &net.Dialer{Timeout: apidefaults.DefaultIOTimeout}
+	dialContext := netDialer.DialContext
+	if s.targetHostPolicy.Enabled() {
+		dialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return s.targetHostPolicy.DialContext(ctx, network, addr, common.TargetHostAuditContext{
+				Emitter:  s.emitter,
+				Logger:   s.log,
+				ServerID: s.hostID,
+				Identity: identity,
+				App:      app,
+			})
+		}
 	}
 
 	var serverConn net.Conn
@@ -92,28 +113,28 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		tlsConfig = tlsConfig.Clone()
+		if tlsConfig.ServerName == "" {
+			tlsConfig.ServerName = uriAddr.Host()
+		}
 
 		tlsDialer := tls.Dialer{
-			NetDialer: &dialer,
+			NetDialer: netDialer,
 			Config:    tlsConfig,
 		}
-		serverConn, err = tlsDialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		if s.targetHostPolicy.Enabled() {
+			serverConn, err = dialTLSWithPolicy(ctx, &tlsDialer, dialContext, uriAddr.AddrNetwork, dialTarget)
+		} else {
+			serverConn, err = tlsDialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	default:
-		serverConn, err = dialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		serverConn, err = dialContext(ctx, uriAddr.AddrNetwork, dialTarget)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	audit, err := common.NewAudit(common.AuditConfig{
-		Emitter:  s.emitter,
-		Recorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	if err := audit.OnSessionStart(ctx, s.hostID, identity, app); err != nil {
@@ -131,6 +152,27 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func dialTLSWithPolicy(ctx context.Context, tlsDialer *tls.Dialer, dialContext func(context.Context, string, string) (net.Conn, error), network, addr string) (net.Conn, error) {
+	rawConn, err := dialContext(ctx, network, addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConn := tls.Client(rawConn, tlsDialer.Config)
+	if err := rawConn.SetDeadline(time.Now().Add(apidefaults.DefaultIOTimeout)); err != nil {
+		_ = rawConn.Close()
+		return nil, trace.Wrap(err)
+	}
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		_ = rawConn.Close()
+		return nil, trace.Wrap(err)
+	}
+	if err := rawConn.SetDeadline(time.Time{}); err != nil {
+		_ = rawConn.Close()
+		return nil, trace.Wrap(err)
+	}
+	return tlsConn, nil
 }
 
 // pickDialTarget returns the address to dial based on the type of the app (single-port vs

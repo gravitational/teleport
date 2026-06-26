@@ -2067,6 +2067,19 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Enable the "Teleport Demo" MCP server if requested.
 	cfg.Apps.MCPDemoServer = fc.Apps.MCPDemoServer
 
+	if len(fc.Apps.AllowedHosts) != 0 && len(fc.Apps.DeniedHosts) != 0 {
+		return trace.BadParameter("app_service.allowed_hosts and app_service.denied_hosts are mutually exclusive")
+	}
+	var err error
+	cfg.Apps.AllowedHosts, err = servicecfg.ParseTargetHostPrefixes(fc.Apps.AllowedHosts)
+	if err != nil {
+		return trace.Wrap(err, "parsing app_service.allowed_hosts")
+	}
+	cfg.Apps.DeniedHosts, err = servicecfg.ParseTargetHostPrefixes(fc.Apps.DeniedHosts)
+	if err != nil {
+		return trace.Wrap(err, "parsing app_service.denied_hosts")
+	}
+
 	// Configure resource watcher selectors if present.
 	for _, matcher := range fc.Apps.ResourceMatchers {
 		if matcher.AWS.AssumeRoleARN != "" {

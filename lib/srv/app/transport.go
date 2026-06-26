@@ -35,12 +35,14 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -65,7 +67,10 @@ type transportConfig struct {
 	accessPoint  authclient.AppsAccessPoint
 	authClient   authclient.ClientI
 	// getUserCertFunc is the function used to retrieve session user certificate.
-	getUserCertFunc func() ([]byte, error)
+	getUserCertFunc  func() ([]byte, error)
+	emitter          apievents.Emitter
+	identity         *tlsca.Identity
+	targetHostPolicy common.TargetHostPolicy
 }
 
 // Check validates configuration.
@@ -132,6 +137,17 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	}
 
 	tr.ResponseHeaderTimeout = responseHeaderTimeout
+	if c.targetHostPolicy.Enabled() {
+		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return c.targetHostPolicy.DialContext(ctx, network, addr, common.TargetHostAuditContext{
+				Emitter:  c.emitter,
+				Logger:   c.log,
+				ServerID: c.hostID,
+				Identity: c.identity,
+				App:      c.app,
+			})
+		}
+	}
 
 	tr.TLSClientConfig, err = upstreamtls.Configure(ctx, upstreamtls.Options{
 		Logger:                       c.log,

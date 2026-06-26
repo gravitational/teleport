@@ -146,6 +146,8 @@ const (
 	AppSessionHTTPResponseCode = "T2017I"
 	// AppSessionHTTPResponseBodyChunkCode is the HTTP proxy response body chunk event code.
 	AppSessionHTTPResponseBodyChunkCode = "T2018I"
+	// AppSessionTargetDialDeniedCode is the application target dial denied event code.
+	AppSessionTargetDialDeniedCode = "T2019E"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"

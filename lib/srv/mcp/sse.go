@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,7 +31,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
+	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
@@ -125,7 +128,7 @@ func makeSSEBaseURI(app types.Application) (*url.URL, error) {
 	return baseURL, nil
 }
 
-func (s *Server) makeBasicHTTPTransport(ctx context.Context, app types.Application) (http.RoundTripper, error) {
+func (s *Server) makeBasicHTTPTransport(ctx context.Context, app types.Application, identity *tlsca.Identity) (http.RoundTripper, error) {
 	// Use similar settings from lib/srv/app/transport.go.
 	tr, err := defaults.Transport()
 	if err != nil {
@@ -140,6 +143,17 @@ func (s *Server) makeBasicHTTPTransport(ctx context.Context, app types.Applicati
 	// Add a timeout to control how long it takes to (start) getting a response
 	// from the target server.
 	tr.ResponseHeaderTimeout = time.Minute
+	if s.cfg.TargetHostPolicy.Enabled() {
+		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return s.cfg.TargetHostPolicy.DialContext(ctx, network, addr, appcommon.TargetHostAuditContext{
+				Emitter:  s.cfg.Emitter,
+				Logger:   s.cfg.Log,
+				ServerID: s.cfg.HostID,
+				Identity: identity,
+				App:      app,
+			})
+		}
+	}
 
 	// Use app TLS options.
 	//
@@ -181,7 +195,7 @@ func (t *sseHTTPTransport) RoundTrip(r *http.Request) (resp *http.Response, err 
 }
 
 func (s *Server) makeSSEHTTPTransport(ctx context.Context, session *sessionHandler) (http.RoundTripper, error) {
-	targetTransport, err := s.makeBasicHTTPTransport(ctx, session.App)
+	targetTransport, err := s.makeBasicHTTPTransport(ctx, session.App, &session.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

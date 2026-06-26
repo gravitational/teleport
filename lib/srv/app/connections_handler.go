@@ -126,6 +126,9 @@ type ConnectionsHandlerConfig struct {
 
 	// InsecureMode defines whether insecure connections are allowed.
 	InsecureMode bool
+
+	// TargetHostPolicy restricts application target dials by resolved IP.
+	TargetHostPolicy common.TargetHostPolicy
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -173,6 +176,9 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	}
 	if c.ServiceComponent == "" {
 		return trace.BadParameter("service component missing")
+	}
+	if err := c.TargetHostPolicy.Check(); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -316,6 +322,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		CipherSuites:     c.cfg.CipherSuites,
 		AuthClient:       c.cfg.AuthClient,
 		InsecureMode:     c.cfg.InsecureMode,
+		TargetHostPolicy: c.cfg.TargetHostPolicy,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -443,15 +450,16 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		clock:        c.cfg.Clock,
-		emitter:      c.cfg.Emitter,
-		hostID:       c.cfg.HostID,
-		log:          c.log,
-		accessPoint:  c.cfg.AccessPoint,
-		authClient:   c.cfg.AuthClient,
-		clusterName:  c.clusterName,
-		cipherSuites: c.cfg.CipherSuites,
-		insecureMode: c.cfg.InsecureMode,
+		clock:            c.cfg.Clock,
+		emitter:          c.cfg.Emitter,
+		hostID:           c.cfg.HostID,
+		log:              c.log,
+		accessPoint:      c.cfg.AccessPoint,
+		authClient:       c.cfg.AuthClient,
+		clusterName:      c.clusterName,
+		cipherSuites:     c.cfg.CipherSuites,
+		insecureMode:     c.cfg.InsecureMode,
+		targetHostPolicy: c.cfg.TargetHostPolicy,
 	}, nil
 }
 
