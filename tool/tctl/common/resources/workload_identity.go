@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -49,8 +50,14 @@ func (c *workloadIdentityCollection) WriteText(w io.Writer, verbose bool) error 
 
 	var rows [][]string
 	for _, item := range c.items {
+		// Scoped workload identities are identified by their scope-qualified
+		// name; unscoped ones by their bare name.
+		name := item.GetMetadata().GetName()
+		if scope := item.GetScope(); scope != "" {
+			name = scopes.QualifiedName{Scope: scope, Name: name}.String()
+		}
 		rows = append(rows, []string{
-			item.GetMetadata().GetName(),
+			name,
 			item.GetSpec().GetSpiffe().GetId(),
 		})
 	}
@@ -105,6 +112,73 @@ func getWorkloadIdentity(
 	}
 
 	return &workloadIdentityCollection{items: resources}, nil
+}
+
+// workloadIdentityScopedHandler returns a [ScopedHandler] for workload identities
+// that are registered with a scope. Workload identities support both classic
+// (unscoped) and scope-qualified access, so this is registered alongside the
+// classic handler in ScopedHandlers().
+func workloadIdentityScopedHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:    getWorkloadIdentityScoped,
+		deleteHandler: deleteWorkloadIdentityScoped,
+		description:   "Configures the issuance of SPIFFE SVIDs to workloads.",
+	}
+}
+
+func getWorkloadIdentityScoped(
+	ctx context.Context,
+	client *authclient.Client,
+	subKind string,
+	sqn *scopes.QualifiedName,
+	opts GetOpts,
+) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindWorkloadIdentity, subKind)
+	}
+	if sqn == nil {
+		// No SQN was provided, so this is a list-all. The classic handler
+		// normally serves list-all (workload_identity is registered in both
+		// maps), but fall back to it here for safety.
+		return getWorkloadIdentity(ctx, client, services.Ref{Kind: types.KindWorkloadIdentity}, opts)
+	}
+
+	// The scope travels in the request: the server matches it against the stored
+	// resource's scope and returns a not-found error when they differ, so no
+	// client-side scope comparison is needed.
+	c := client.WorkloadIdentityResourceServiceClient()
+	resource, err := c.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+		Name:  sqn.Name,
+		Scope: sqn.Scope,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &workloadIdentityCollection{items: []*workloadidentityv1pb.WorkloadIdentity{resource}}, nil
+}
+
+func deleteWorkloadIdentityScoped(
+	ctx context.Context,
+	client *authclient.Client,
+	subKind string,
+	sqn scopes.QualifiedName,
+) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindWorkloadIdentity, subKind)
+	}
+
+	// The caller declares the scope it is addressing; the server authorizes
+	// against it directly.
+	c := client.WorkloadIdentityResourceServiceClient()
+	_, err := c.DeleteWorkloadIdentity(ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{
+		Name:  sqn.Name,
+		Scope: sqn.Scope,
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Workload Identity %q has been deleted\n", sqn.String())
+	return nil
 }
 
 func createWorkloadIdentity(
