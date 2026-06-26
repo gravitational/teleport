@@ -21,6 +21,7 @@ package events_test
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -84,7 +85,6 @@ func TestProtoStreamPartUploadRetryExhaustion(t *testing.T) {
 func TestProtoStreamPartialPartFailure(t *testing.T) {
 	ctx := context.Background()
 
-	partNumber := 0
 	uploader := &eventstest.MockUploader{
 		MockUploadPart: func(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 			// First part succeeds, subsequent parts fail
