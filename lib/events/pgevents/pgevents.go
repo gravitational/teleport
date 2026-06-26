@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -381,32 +382,29 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 	}
 }
 
-var _ events.AuditLogger = (*Log)(nil)
+var (
+	_ events.AuditLogger     = (*Log)(nil)
+	_ apievents.BatchEmitter = (*Log)(nil)
+)
 
 // EmitAuditEvent implements [events.AuditLogger].
 func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	ctx = context.WithoutCancel(ctx)
 
-	eventJSON, err := utils.FastMarshal(event)
+	row, err := l.getEventRow(ctx, event)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	eventID, err := uuid.Parse(event.GetID())
-	if err != nil {
-		eventID = uuid.New()
-	}
-	sessionID := l.deriveSessionID(ctx, events.GetSessionID(event))
 
 	start := time.Now()
 	// if an event with the same event_id exists, it means that we inserted it
 	// and then failed to receive the success reply from the commit
 	_, err = pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
 		_, err := l.pool.Exec(ctx,
-			"INSERT INTO events (event_time, event_id, event_type, session_id, event_data)"+
+			"INSERT INTO events ("+eventColumns+")"+
 				" VALUES ($1, $2, $3, $4, $5)"+
 				" ON CONFLICT DO NOTHING",
-			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
+			row.eventTime, row.eventID, row.eventType, row.sessionID, row.eventData,
 		)
 		return struct{}{}, trace.Wrap(err)
 	})
@@ -418,6 +416,86 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 		return trace.Wrap(err)
 	}
 	writeRequestsSuccess.Inc()
+
+	return nil
+}
+
+const (
+	eventColumns     = "event_time, event_id, event_type, session_id, event_data"
+	eventColumnCount = 5
+	maxRowsPerInsert = 200
+)
+
+type eventRow struct {
+	eventTime time.Time
+	eventID   uuid.UUID
+	eventType string
+	sessionID uuid.UUID
+	eventData []byte
+}
+
+func (l *Log) getEventRow(ctx context.Context, event apievents.AuditEvent) (eventRow, error) {
+	eventData, err := utils.FastMarshal(event)
+	if err != nil {
+		return eventRow{}, trace.Wrap(err)
+	}
+
+	eventID, err := uuid.Parse(event.GetID())
+	if err != nil {
+		eventID = uuid.New()
+	}
+
+	return eventRow{
+		eventTime: event.GetTime().UTC(),
+		eventID:   eventID,
+		eventType: event.GetType(),
+		sessionID: l.deriveSessionID(ctx, events.GetSessionID(event)),
+		eventData: eventData,
+	}, nil
+}
+
+func insertEventsQuery(numRows int) string {
+	rows := make([]string, 0, numRows)
+	for i := range numRows {
+		placeholders := make([]string, 0, eventColumnCount)
+		for j := range eventColumnCount {
+			column := j + 1
+			placeholders = append(placeholders, "$"+strconv.Itoa(column+i*eventColumnCount))
+		}
+		rows = append(rows, "("+strings.Join(placeholders, ",")+")")
+	}
+	return "INSERT INTO events (" + eventColumns + ") VALUES " +
+		strings.Join(rows, ",") +
+		" ON CONFLICT DO NOTHING"
+}
+
+// EmitAuditEvents inserts a batch of audit events.
+func (l *Log) EmitAuditEvents(ctx context.Context, batch []apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
+
+	for chunk := range slices.Chunk(batch, maxRowsPerInsert) {
+		args := make([]any, 0, len(chunk)*eventColumnCount)
+		for _, event := range chunk {
+			row, err := l.getEventRow(ctx, event)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			args = append(args, row.eventTime, row.eventID, row.eventType, row.sessionID, row.eventData)
+		}
+		query := insertEventsQuery(len(chunk))
+
+		start := time.Now()
+		_, err := pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
+			_, err := l.pool.Exec(ctx, query, args...)
+			return struct{}{}, trace.Wrap(err)
+		})
+		batchWriteLatencies.Observe(time.Since(start).Seconds())
+		if err != nil {
+			writeRequestsFailure.Add(float64(len(chunk)))
+			return trace.Wrap(err)
+		}
+		writeRequestsSuccess.Add(float64(len(chunk)))
+	}
 
 	return nil
 }

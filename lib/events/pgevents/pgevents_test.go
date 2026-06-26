@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -151,6 +152,89 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 	want := []events.EventFields{wantFields}
 	if diff := cmp.Diff(want, appEvents); diff != "" {
 		t.Errorf("searchEvents mismatch (-want +got)\n%s", diff)
+	}
+}
+
+func TestInsertEventsQuery(t *testing.T) {
+	t.Parallel()
+
+	const cols = "INSERT INTO events (event_time, event_id, event_type, session_id, event_data) VALUES "
+	require.Equal(t,
+		cols+"($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
+		insertEventsQuery(1),
+	)
+	require.Equal(t,
+		cols+"($1,$2,$3,$4,$5),($6,$7,$8,$9,$10) ON CONFLICT DO NOTHING",
+		insertEventsQuery(2),
+	)
+	require.Equal(t,
+		cols+"($1,$2,$3,$4,$5),($6,$7,$8,$9,$10),($11,$12,$13,$14,$15) ON CONFLICT DO NOTHING",
+		insertEventsQuery(3),
+	)
+}
+
+func TestLog_EmitAuditEvents(t *testing.T) {
+	// Don't t.Parallel(), relies on the database backed by urlEnvVar.
+	eventsLog := newLogForTesting(t)
+	ctx := context.Background()
+
+	const sessionID = "f8571503d72f35938ce5001b792baebcce3183719ae947fde1ed685f7848facc"
+	baseTime := time.Now().Truncate(time.Millisecond)
+
+	var batch []apievents.AuditEvent
+	for i := range 3 {
+		event := &apievents.AppSessionStart{
+			Metadata: apievents.Metadata{
+				ID:          uuid.NewString(),
+				Type:        events.AppSessionStartEvent,
+				Code:        events.AppSessionStartCode,
+				ClusterName: "zarq",
+				Time:        baseTime.Add(time.Duration(i) * time.Second),
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: sessionID,
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppName: "dumper",
+			},
+		}
+		batch = append(batch, event)
+	}
+
+	searchBatch := func() []events.EventFields {
+		t.Helper()
+		before := baseTime.Add(-1 * time.Second)
+		after := baseTime.Add(time.Duration(len(batch)) * time.Second)
+		got, _, err := eventsLog.searchEvents(ctx,
+			before,                                // fromTime
+			after,                                 // toTime
+			[]string{events.AppSessionStartEvent}, // eventTypes
+			nil,                                   // cond
+			sessionID,                             // sessionID
+			"",                                    // search
+			len(batch)+1,                          // limit
+			types.EventOrderAscending,
+			"", // startKey
+		)
+		require.NoError(t, err, "search session events")
+		return got
+	}
+
+	want := make([]events.EventFields, len(batch))
+	for i, event := range batch {
+		fields, err := events.ToEventFields(event)
+		require.NoError(t, err, "convert event to fields")
+		want[i] = fields
+	}
+
+	require.NoError(t, eventsLog.EmitAuditEvents(ctx, batch), "emit audit events")
+	if diff := cmp.Diff(want, searchBatch()); diff != "" {
+		t.Errorf("searchEvents mismatch after batch emit (-want +got)\n%s", diff)
+	}
+
+	require.NoError(t, eventsLog.EmitAuditEvents(ctx, batch), "re-emit audit events")
+	if diff := cmp.Diff(want, searchBatch()); diff != "" {
+		t.Errorf("searchEvents mismatch after idempotent re-emit (-want +got)\n%s", diff)
 	}
 }
 

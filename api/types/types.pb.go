@@ -3149,8 +3149,7 @@ type InstanceSpecV1 struct {
 	LastMeasurement *SystemClockMeasurement `protobuf:"bytes,9,opt,name=LastMeasurement,proto3" json:"LastMeasurement,omitempty"`
 	// UpdaterInfo stores information about how the Teleport updater is doing.
 	UpdaterInfo *UpdaterV2Info `protobuf:"bytes,10,opt,name=UpdaterInfo,proto3" json:"UpdaterInfo,omitempty"`
-	// AuditQueueStatus reports the depth of this instance's audit-log queue,
-	// summed across all of the process's audit queues.
+	// AuditQueueStatus reports the depth of this instance's audit-log queue.
 	AuditQueueStatus     *AuditQueueStatus `protobuf:"bytes,11,opt,name=AuditQueueStatus,proto3" json:"audit_queue_status,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
