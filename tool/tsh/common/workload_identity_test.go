@@ -38,6 +38,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -89,7 +90,7 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, "my-workload-identity")
+		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "my-workload-identity"})
 		require.NoError(t, err)
 	}, time.Second*5, 100*time.Millisecond)
 
@@ -183,7 +184,7 @@ func TestWorkloadIdentityIssueJWT(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, "my-workload-identity")
+		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "my-workload-identity"})
 		require.NoError(t, err)
 	}, time.Second*5, 100*time.Millisecond)
 
