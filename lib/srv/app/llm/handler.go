@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/llm/anthropic"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 // Handler proxies LLM API requests for authorized app sessions.
@@ -61,6 +62,9 @@ type HandlerConfig struct {
 	// Transport is the transport used to issue requests to the upstream
 	// LLM provider.
 	Transport *http.Transport
+	// UsageReporter is used to emit beam inference usage events.
+	// Optional — if nil, no beam inference usage events are emitted.
+	UsageReporter usagereporter.UsageReporter
 }
 
 // CheckAndSetDefaults validates required dependencies and sets defaults.
@@ -248,6 +252,16 @@ func (h *Handler) handleRequest(
 		}
 		if err := sessionCtx.Audit.OnLLMRequest(h.closeContext, sessionCtx, r, req, resp); err != nil {
 			log.ErrorContext(h.closeContext, "failed to emit audit event", "error", err)
+		}
+		if h.cfg.UsageReporter != nil && sessionCtx.Identity.BeamID != "" {
+			h.cfg.UsageReporter.AnonymizeAndSubmit(&usagereporter.BeamsInferenceRequestEvent{
+				BeamId:           sessionCtx.Identity.BeamID,
+				Provider:         req.Provider,
+				Model:            req.Model,
+				InputTokenCount:  int64(resp.InputTokenCount),
+				OutputTokenCount: int64(resp.OutputTokenCount),
+				Success:          err == nil,
+			})
 		}
 	}()
 
