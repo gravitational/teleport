@@ -346,7 +346,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 		if err != nil {
 			if trace.IsLimitExceeded(err) {
 				proxyConnectionLimitExceededTotal.Inc()
-				p.log.WarnContext(ctx, "Connection limit exceeded, rejecting connection", "error", err)
+				p.log.WarnContext(ctx, "Connection limit exceeded, rejecting connection. Adjust the limit with the connection_limits.max_connections config field.", "error", err)
 				continue
 			}
 			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) || ctx.Err() != nil {
