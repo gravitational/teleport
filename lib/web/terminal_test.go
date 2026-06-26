@@ -123,7 +123,8 @@ func TestGenerateClientConfig(t *testing.T) {
 		},
 	}
 
-	cfg := handler.generateClientConfig(t.Context(), &terminal.Stream{}, tc)
+	cfg, err := handler.generateClientConfig(t.Context(), &terminal.Stream{}, tc)
+	require.NoError(t, err)
 
 	want := apissh.ClientConfig{
 		User:    "alice",

@@ -176,7 +176,12 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 	// ssh.ClientConfig.Timeout applies only to TCP dial, not the SSH handshake. Since we pass an already-connected
 	// net.Conn, x/crypto/ssh won't enforce it. We enforce a timeout around NewClientConn instead to prevent hanging
 	// connections when the server is unresponsive or net.Conn doesn't support read deadlines.
-	if timeout, ok := computeTimeout(config); ok {
+	if config.Timeout >= 0 {
+		timeout := cmp.Or(config.Timeout, defaults.DefaultIOTimeout)
+		if config.AuthCallback != nil {
+			timeout = max(timeout, sessionMFAAuthTimeout)
+		}
+
 		newCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
@@ -284,19 +289,4 @@ func wrapPayload(ctx context.Context, supported tracingCapability, propagator pr
 	}
 
 	return payload
-}
-
-// computeTimeout returns the effective timeout for SSH connection establishment. If config.Timeout is negative, ok is
-// false and no timeout should be applied.
-func computeTimeout(config *ssh.ClientConfig) (timeout time.Duration, ok bool) {
-	if config.Timeout < 0 {
-		return 0, false
-	}
-
-	timeout = cmp.Or(config.Timeout, defaults.DefaultIOTimeout)
-	if config.AuthCallback != nil {
-		timeout = max(timeout, sessionMFAAuthTimeout)
-	}
-
-	return timeout, true
 }

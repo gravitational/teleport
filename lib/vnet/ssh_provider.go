@@ -242,10 +242,10 @@ func (p *sshProvider) sessionSSHConfig(
 	if mode == vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT {
 		config.AuthCallback = clientssh.AuthCallback(
 			ctx,
-			func() (clientssh.MFACeremonyPerformer, error) {
-				return func(ctx context.Context, sessionID []byte) (string, error) {
+			clientssh.AuthCallbackConfig{
+				MFAPerformer: func(ctx context.Context, sessionID []byte) (string, error) {
 					return p.cfg.clt.PerformSessionMFACeremony(ctx, target.profile, target.leafCluster, sessionID)
-				}, nil
+				},
 			},
 		)
 	}

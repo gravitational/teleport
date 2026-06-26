@@ -131,18 +131,17 @@ func TestAuthCallback(t *testing.T) {
 
 	for _, tt := range []struct {
 		name             string
-		createPerformer  func() (clientssh.MFACeremonyPerformer, error)
+		config           clientssh.AuthCallbackConfig
 		authCtx          *ssh.ClientAuthContext
-		expectError      error
 		expectNil        bool
 		expectKICallback bool
 	}{
 		{
 			name: "returns keyboard-interactive callback on partial success",
-			createPerformer: func() (clientssh.MFACeremonyPerformer, error) {
-				return func(_ context.Context, _ []byte) (string, error) {
+			config: clientssh.AuthCallbackConfig{
+				MFAPerformer: func(_ context.Context, _ []byte) (string, error) {
 					return "test-challenge", nil
-				}, nil
+				},
 			},
 			authCtx: &ssh.ClientAuthContext{
 				PartialSuccessMethods: []string{publicKeyMethod},
@@ -160,24 +159,23 @@ func TestAuthCallback(t *testing.T) {
 			expectNil: true,
 		},
 		{
+			name: "returns nil when MFAPerformer is not set",
+			config: clientssh.AuthCallbackConfig{
+				MFAPerformer: nil,
+			},
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{publicKeyMethod},
+				AllowedMethods:        []string{keyboardInteractiveMethod},
+			},
+			expectNil: true,
+		},
+		{
 			name: "returns nil when no publickey partial success",
 			authCtx: &ssh.ClientAuthContext{
 				PartialSuccessMethods: []string{passwordMethod},
 				AllowedMethods:        []string{keyboardInteractiveMethod},
 			},
 			expectNil: true,
-		},
-		{
-			name: "performer error propagates",
-			createPerformer: func() (clientssh.MFACeremonyPerformer, error) {
-				return nil, trace.BadParameter("some performer error")
-			},
-			authCtx: &ssh.ClientAuthContext{
-				PartialSuccessMethods: []string{publicKeyMethod},
-				AllowedMethods:        []string{keyboardInteractiveMethod},
-			},
-			expectError: trace.BadParameter("some performer error"),
-			expectNil:   true,
 		},
 		{
 			name: "returns nil when keyboard-interactive already tried",
@@ -192,15 +190,10 @@ func TestAuthCallback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			callback := clientssh.AuthCallback(t.Context(), tt.createPerformer)
+			callback := clientssh.AuthCallback(t.Context(), tt.config)
 
 			authMethod, err := callback(tt.authCtx)
-
-			if tt.expectError != nil {
-				require.ErrorIs(t, err, tt.expectError)
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 
 			if tt.expectNil {
 				require.Nil(t, authMethod)

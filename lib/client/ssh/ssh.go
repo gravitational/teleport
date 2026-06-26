@@ -32,25 +32,28 @@ import (
 // MFACeremonyPerformer performs a session-bound MFA ceremony with the user and returns the solved challenge name.
 type MFACeremonyPerformer func(ctx context.Context, sessionID []byte) (challengeName string, err error)
 
+// AuthCallbackConfig holds configuration for in-band authentication callbacks.
+type AuthCallbackConfig struct {
+	// MFAPerformer is called when the server signals partial success for publickey + keyboard-interactive auth. If nil,
+	// the client will fall back to its default auth methods and will not perform in-band MFA.
+	MFAPerformer MFACeremonyPerformer
+}
+
 // AuthCallback returns an ssh.ClientAuthCallback that dynamically selects an auth method based on the server's response
 // during the handshake. When the server signals partial success for publickey, it offers keyboard-interactive to
 // perform additional auth (e.g., in-band MFA). Return (nil, nil) otherwise to let the client fall back to its default
 // auth methods.
-func AuthCallback(ctx context.Context, createPerformer func() (MFACeremonyPerformer, error)) ssh.ClientAuthCallback {
+func AuthCallback(ctx context.Context, config AuthCallbackConfig) ssh.ClientAuthCallback {
 	return func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
 		// We use keyboard-interactive auth exclusively for when some auth-related data needs to be communicated to the
 		// client and back (e.g., in-band MFA). The partial success with publickey + keyboard-interactive pattern is
 		// unique to this flow and will not occur during normal auth. We offer it only once, skipping if
 		// keyboard-interactive has already been tried.
-		if slices.Contains(authCtx.PartialSuccessMethods, "publickey") &&
+		if config.MFAPerformer != nil &&
+			slices.Contains(authCtx.PartialSuccessMethods, "publickey") &&
 			slices.Contains(authCtx.AllowedMethods, "keyboard-interactive") &&
 			!slices.Contains(authCtx.TriedMethods, "keyboard-interactive") {
-			performer, err := createPerformer()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return KeyboardInteractive(ctx, performer, authCtx.Metadata), nil
+			return KeyboardInteractive(ctx, config.MFAPerformer, authCtx.Metadata), nil
 		}
 
 		// Returning nil, nil tells the SSH client there is no additional auth method to offer for this server response

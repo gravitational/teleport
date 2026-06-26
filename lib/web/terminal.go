@@ -926,16 +926,21 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 }
 
 // generateClientConfig creates an [apissh.ClientConfig] for the Teleport client connection.
-func (t *sshBaseHandler) generateClientConfig(ctx context.Context, stream *terminal.Stream, tc *client.TeleportClient) apissh.ClientConfig {
+func (t *sshBaseHandler) generateClientConfig(ctx context.Context, stream *terminal.Stream, tc *client.TeleportClient) (apissh.ClientConfig, error) {
+	performer, err := newMFACeremonyPerformer(
+		stream,
+		t.userAuthClient.MFAServiceClientV2(),
+		t.proxyPublicAddr,
+		tc.SiteName,
+	)
+	if err != nil {
+		return apissh.ClientConfig{}, trace.Wrap(err)
+	}
+
 	authCallback := clientssh.AuthCallback(
 		ctx,
-		func() (clientssh.MFACeremonyPerformer, error) {
-			return newMFACeremonyPerformer(
-				stream,
-				t.userAuthClient.MFAServiceClientV2(),
-				t.proxyPublicAddr,
-				tc.SiteName,
-			)
+		clientssh.AuthCallbackConfig{
+			MFAPerformer: performer,
 		},
 	)
 
@@ -945,7 +950,7 @@ func (t *sshBaseHandler) generateClientConfig(ctx context.Context, stream *termi
 		AuthCallback:    authCallback,
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         t.sshDialTimeout,
-	}
+	}, nil
 }
 
 // connectToNode attempts to connect to the host with the already
@@ -963,7 +968,10 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig := t.generateClientConfig(ctx, stream, tc)
+	sshConfig, err := t.generateClientConfig(ctx, stream, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,
 		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
