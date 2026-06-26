@@ -18,9 +18,7 @@ jobs:
           existing-gh-secrets: "${{ toJSON(secrets) }}"
           existing-gh-variables: "${{ toJSON(vars) }}"
           # values: |
-          #   REVIEWERS_APP_ID,secret
-          #   REVIEWERS_PRIVATE_KEY,secret
-          #   REVIEWERS,secret
+          #   TELEPORT_USAGE_IAM_ROLE_ARN,secret
       # This step is used to extract the version of the usage script.
       - name: Trim leading v in release
         id: version

@@ -31,9 +31,7 @@ jobs:
           existing-gh-secrets: "${{ toJSON(secrets) }}"
           existing-gh-variables: "${{ toJSON(vars) }}"
           # values: |
-          #   REVIEWERS_APP_ID,secret
-          #   REVIEWERS_PRIVATE_KEY,secret
-          #   REVIEWERS,secret
+          #   AMPLIFY_DOCS_DEPLOY_HOOK,secret
       - name: Call deployment webhook
         env:
           WEBHOOK_URL: ${{ secrets.AMPLIFY_DOCS_DEPLOY_HOOK }}
