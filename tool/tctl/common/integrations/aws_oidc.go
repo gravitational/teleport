@@ -23,10 +23,11 @@ import (
 	"fmt"
 	"io"
 
-	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // testAWSOIDC validates that an AWS OIDC integration can assume the configured
