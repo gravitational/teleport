@@ -10,19 +10,6 @@ NOTE: For certificates to be provisioned, you must also install cert-manager (ht
 For more information, please see the Helm guides in the Teleport docs (https://goteleport.com/docs/installation/self-hosted/helm-deployments/)
 {{- end }}
 
-{{- if and .Values.podSecurityPolicy.enabled (semverCompare "<1.23.0-0" .Capabilities.KubeVersion.Version) }}
-
-SECURITY WARNING: Kubernetes 1.25 removes PodSecurityPolicy support and Helm
-doesn't support upgrading from 1.24 to 1.25 with PSPs enabled. Instead, we
-recommend you configure Pod Security AdmissionControllers for the namespace
-"{{.Release.Namespace}}" by adding the label
-`pod-security.kubernetes.io/enforce: baseline` on the namespace resource.
-
-See https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/
-
-To remove this warning, explicitly set "podSecurityPolicy.enabled=false".
-{{- end }}
-
 {{- if .Values.teleportVersionOverride }}
 
 DANGER: `teleportVersionOverride` MUST NOT be used to control the Teleport version.

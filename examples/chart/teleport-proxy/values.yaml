@@ -221,12 +221,6 @@ acmeURI: ""
 enterprise: false
 # Override default Enterprise license name
 licenseSecretName: "license"
-# If true, create & use Pod Security Policy resources
-# https://kubernetes.io/docs/concepts/policy/pod-security-policy/
-# WARNING: the PSP won't be deployed for Kubernetes 1.23 and higher.
-# Please read https://goteleport.com/docs/installation/self-hosted/helm-deployments/migration-kubernetes-1-25-psp/
-podSecurityPolicy:
-  enabled: true
 
 # Introduces cloud-specific settings. At present, these are only needed for 
 # AWS, so all other modes are effectively the same. Chart mode is reserved for

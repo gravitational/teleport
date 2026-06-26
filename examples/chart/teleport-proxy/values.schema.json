@@ -6,7 +6,6 @@
         "auth_server",
         "join_params",
         "enterprise",
-        "podSecurityPolicy",
         "chartMode",
         "validateConfigOnDeploy",
         "highAvailability",
@@ -224,20 +223,6 @@
             "$id": "#/properties/licenseSecretName",
             "type": "string",
             "default": "license"
-        },
-        "podSecurityPolicy": {
-            "$id": "#/properties/podSecurityPolicy",
-            "type": "object",
-            "required": [
-                "enabled"
-            ],
-            "properties": {
-                "enabled": {
-                    "$id": "#/properties/podSecurityPolicy/properties/enabled",
-                    "type": "boolean",
-                    "default": true
-                }
-            }
         },
         "chartMode": {
             "$id": "#/properties/chartMode",
