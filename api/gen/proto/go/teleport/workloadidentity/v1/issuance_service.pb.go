@@ -729,7 +729,11 @@ type IssueWorkloadIdentityRequest struct {
 	// The TTL that the client is requesting for the resulting credentials.
 	// This may be adjusted by the server and therefore the client MUST check the
 	// returned TTL rather than assuming that the requested TTL was granted.
-	RequestedTtl  *durationpb.Duration `protobuf:"bytes,5,opt,name=requested_ttl,json=requestedTtl,proto3" json:"requested_ttl,omitempty"`
+	RequestedTtl *durationpb.Duration `protobuf:"bytes,5,opt,name=requested_ttl,json=requestedTtl,proto3" json:"requested_ttl,omitempty"`
+	// The scope the named WorkloadIdentity is expected to belong to. If unset, the
+	// WorkloadIdentity is expected to be unscoped. If the named WorkloadIdentity
+	// does not belong to this scope, a not found error is returned.
+	Scope         string `protobuf:"bytes,6,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -805,6 +809,13 @@ func (x *IssueWorkloadIdentityRequest) GetRequestedTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *IssueWorkloadIdentityRequest) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 func (x *IssueWorkloadIdentityRequest) SetName(v string) {
 	x.Name = v
 }
@@ -831,6 +842,10 @@ func (x *IssueWorkloadIdentityRequest) SetWorkloadAttrs(v *WorkloadAttrs) {
 
 func (x *IssueWorkloadIdentityRequest) SetRequestedTtl(v *durationpb.Duration) {
 	x.RequestedTtl = v
+}
+
+func (x *IssueWorkloadIdentityRequest) SetScope(v string) {
+	x.Scope = v
 }
 
 func (x *IssueWorkloadIdentityRequest) HasCredential() bool {
@@ -931,6 +946,10 @@ type IssueWorkloadIdentityRequest_builder struct {
 	// This may be adjusted by the server and therefore the client MUST check the
 	// returned TTL rather than assuming that the requested TTL was granted.
 	RequestedTtl *durationpb.Duration
+	// The scope the named WorkloadIdentity is expected to belong to. If unset, the
+	// WorkloadIdentity is expected to be unscoped. If the named WorkloadIdentity
+	// does not belong to this scope, a not found error is returned.
+	Scope string
 }
 
 func (b0 IssueWorkloadIdentityRequest_builder) Build() *IssueWorkloadIdentityRequest {
@@ -946,6 +965,7 @@ func (b0 IssueWorkloadIdentityRequest_builder) Build() *IssueWorkloadIdentityReq
 	}
 	x.WorkloadAttrs = b.WorkloadAttrs
 	x.RequestedTtl = b.RequestedTtl
+	x.Scope = b.Scope
 	return m0
 }
 
@@ -1951,13 +1971,14 @@ const file_teleport_workloadidentity_v1_issuance_service_proto_rawDesc = "" +
 	"\tx509_svid\x18\a \x01(\v20.teleport.workloadidentity.v1.X509SVIDCredentialH\x00R\bx509Svid\x12L\n" +
 	"\bjwt_svid\x18\b \x01(\v2/.teleport.workloadidentity.v1.JWTSVIDCredentialH\x00R\ajwtSvidB\f\n" +
 	"\n" +
-	"credential\"\x85\x03\n" +
+	"credential\"\x9b\x03\n" +
 	"\x1cIssueWorkloadIdentityRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12X\n" +
 	"\x10x509_svid_params\x18\x02 \x01(\v2,.teleport.workloadidentity.v1.X509SVIDParamsH\x00R\x0ex509SvidParams\x12U\n" +
 	"\x0fjwt_svid_params\x18\x03 \x01(\v2+.teleport.workloadidentity.v1.JWTSVIDParamsH\x00R\rjwtSvidParams\x12R\n" +
 	"\x0eworkload_attrs\x18\x04 \x01(\v2+.teleport.workloadidentity.v1.WorkloadAttrsR\rworkloadAttrs\x12>\n" +
-	"\rrequested_ttl\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\frequestedTtlB\f\n" +
+	"\rrequested_ttl\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\frequestedTtl\x12\x14\n" +
+	"\x05scope\x18\x06 \x01(\tR\x05scopeB\f\n" +
 	"\n" +
 	"credential\"i\n" +
 	"\x1dIssueWorkloadIdentityResponse\x12H\n" +

@@ -46,6 +46,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -65,6 +66,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -93,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/sshca"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -106,6 +109,7 @@ import (
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -1854,6 +1858,127 @@ func TestScopedBotKubernetes(t *testing.T) {
 		}
 		require.ElementsMatch(t, []string{"default", "test", "dev", "prod"}, gotNamespaces)
 	})
+}
+
+// TestScopedBotWorkloadIdentityX509 tests that a scoped bot can issue an X.509
+// SVID via the workload-identity-x509 service in scoped mode: the service uses
+// the bot's internal scoped identity (rather than a role-impersonated identity,
+// which scoped bots cannot mint) to call IssueWorkloadIdentity, and a scope-
+// qualified name selector ("<scope>::<name>") addresses the scoped resource.
+func TestScopedBotWorkloadIdentityX509(t *testing.T) {
+	ctx := t.Context()
+	log := logtest.NewLogger()
+
+	const (
+		scopeName      = "/test-scope"
+		scopedRoleName = "scoped-wi-issuer"
+		botName        = "scoped-wi-bot"
+		wiName         = "scoped-svc"
+	)
+
+	// Start the main Teleport process (auth + proxy).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	clusterName := process.Config.Auth.ClusterName.GetClusterName()
+
+	// Create a scoped role granting issuance using prod-labelled
+	// WorkloadIdentities within the scope: the read_no_secrets+list rules for the
+	// workload_identity kind, plus a workload_identity label selector.
+	scopedSvc := rootClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: scopedRoleName,
+			}.Build(),
+			Scope: scopeName,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scopeName},
+				Rules: []*scopedaccessv1.ScopedRule{
+					scopedaccessv1.ScopedRule_builder{
+						Resources: []string{types.KindWorkloadIdentity},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+					}.Build(),
+				},
+				WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+
+	// Create a scoped WorkloadIdentity at the backend. Its SPIFFE ID is a scoped
+	// SPIFFE ID rooted at the bot's scope.
+	_, err = process.GetAuthServer().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name:   wiName,
+			Labels: map[string]string{"env": "prod"},
+		}.Build(),
+		Scope: scopeName,
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				Id: scopeName + "/_/" + wiName,
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Configure and run tbot with a workload-identity-x509 output in scoped
+	// mode. The selector uses a scope-qualified name to address the scoped
+	// resource. defaultBotConfig sets Oneshot, so Run issues once and returns.
+	tmpDir := t.TempDir()
+	botConfig := defaultBotConfig(
+		t, process, botOnboarding,
+		config.ServiceConfigs{
+			&workloadidentitysvc.X509OutputConfig{
+				Selector: bot.WorkloadIdentitySelector{
+					Name: scopes.QualifiedName{Scope: scopeName, Name: wiName}.String(),
+				},
+				Destination: &destination.Directory{
+					Path: tmpDir,
+				},
+			},
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+	botConfig.Scoped = true
+	b := New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+
+	// The SVID should have been issued with a SPIFFE ID inside the bot's scope.
+	svid, err := x509svid.Load(
+		filepath.Join(tmpDir, internal.SVIDPEMPath),
+		filepath.Join(tmpDir, internal.SVIDKeyPEMPath),
+	)
+	require.NoError(t, err)
+	require.Equal(t,
+		"spiffe://"+clusterName+scopeName+"/_/"+wiName,
+		svid.ID.String(),
+	)
 }
 
 func waitForSRACache(t *testing.T, authServer *auth.Server, resps ...*scopedaccessv1.CreateScopedRoleAssignmentResponse) {
