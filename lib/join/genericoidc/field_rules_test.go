@@ -310,6 +310,28 @@ func TestEvaluateFieldRules(t *testing.T) {
 				require.ErrorContains(t, err, "list comparison in custom.list is not supported")
 			},
 		},
+		{
+			name: "rejects large integers in claim",
+			spec: specStruct(t, `{
+				"custom": {
+					"largeInt": 123
+				}
+			}`),
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "claim contains an integer too large to be safely compared")
+			},
+		},
+		{
+			name: "rejects large integers in spec",
+			spec: specStruct(t, `{
+				"custom": {
+					"float": 9007199254740993
+				}
+			}`),
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "field rule cannot safely compare integers of this size: custom.float")
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -103,6 +103,14 @@ func evaluateFieldRules(specStruct *types.Struct, claimStruct map[string]any, pa
 					claimValue, identifier)
 			}
 
+			// Hard fail if either side of the comparison is too large to be
+			// reliably compared.
+			if isUnsafeInteger(claimFloat) {
+				return trace.BadParameter("claim contains an integer too large to be safely compared: %s", identifier)
+			} else if isUnsafeInteger(spec.NumberValue) {
+				return trace.BadParameter("field rule cannot safely compare integers of this size: %s", identifier)
+			}
+
 			if spec.NumberValue != claimFloat {
 				return trace.CompareFailed(
 					"incorrect value in claim: %v must be %v but got %v",
