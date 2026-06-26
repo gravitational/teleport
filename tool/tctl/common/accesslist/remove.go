@@ -60,19 +60,26 @@ func (c *Command) Remove(ctx context.Context, client *authclient.Client) error {
 	}
 
 	fmt.Fprintf(c.Stdout, "Deleted access list %q\n", c.accessListName)
-	if len(resp.RolesToDelete) == 0 {
-		return nil
+	c.printRolesToBeDeleted(resp.RolesToDelete)
+	return nil
+}
+
+// printRolesToBeDeleted prints the guidance block listing preset roles that are
+// no longer used by an access list, shared by `acl rm` and `acl update` so the
+// output is identical. No-op when there are no such roles.
+func (c *Command) printRolesToBeDeleted(roles []string) {
+	if len(roles) == 0 {
+		return
 	}
 	fmt.Fprintln(c.Stdout)
 	fmt.Fprintln(c.Stdout, "The following roles are no longer used by this access list:")
-	for _, name := range resp.RolesToDelete {
+	for _, name := range roles {
 		fmt.Fprintf(c.Stdout, "  - %s\n", name)
 	}
 	fmt.Fprintln(c.Stdout)
 	fmt.Fprintln(c.Stdout, "These roles may still be assigned to users or referenced by other roles.")
 	fmt.Fprintln(c.Stdout, "Verify each role is unused before deleting it with:")
 	fmt.Fprintln(c.Stdout, "  tctl rm roles/<name>")
-	return nil
 }
 
 // RemoveJSONResponse is a structured response when `format=json`
