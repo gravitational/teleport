@@ -300,7 +300,9 @@ export interface ScopedRoleGrant {
     scope: string;
 }
 /**
- * UserDisplay contains display values derived from a user.
+ * UserDisplay contains display values derived from a user. An empty message
+ * means the user has no primary/secondary distinct from the username; the
+ * absence of this message means the user was not found.
  *
  * @generated from protobuf message teleport.accesslist.v1.UserDisplay
  */

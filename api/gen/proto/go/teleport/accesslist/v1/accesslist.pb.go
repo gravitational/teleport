@@ -1354,7 +1354,9 @@ func (b0 ScopedRoleGrant_builder) Build() *ScopedRoleGrant {
 	return m0
 }
 
-// UserDisplay contains display values derived from a user.
+// UserDisplay contains display values derived from a user. An empty message
+// means the user has no primary/secondary distinct from the username; the
+// absence of this message means the user was not found.
 type UserDisplay struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// primary is a human-readable display name when distinct from username.
