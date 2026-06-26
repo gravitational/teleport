@@ -371,12 +371,11 @@ func TestMultiResizeQueueNextEvictsClosedChannel(t *testing.T) {
 
 		go q.Next()
 
-		// Hangs on the unfixed code: Next() spins instead of durably blocking.
 		synctest.Wait()
 
 		q.mutex.Lock()
 		defer q.mutex.Unlock()
-		require.Empty(t, q.queues, "closed resize channel was not evicted from the select set")
+		require.Empty(t, q.cancels, "forwarder for the closed channel was not cleaned up")
 	})
 }
 
