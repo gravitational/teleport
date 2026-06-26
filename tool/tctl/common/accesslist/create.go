@@ -53,12 +53,12 @@ func (c *Command) Create(ctx context.Context, client *authclient.Client) error {
 
 	newAccessList, err := accesslist.NewAccessList(
 		header.Metadata{
-			Name:        uuid.NewString(),
-			Description: strings.TrimSpace(c.description),
+			Name: uuid.NewString(),
 		},
 		accesslist.Spec{
-			Title:  strings.TrimSpace(c.title),
-			Owners: c.buildOwners(),
+			Title:       strings.TrimSpace(c.title),
+			Description: strings.TrimSpace(c.description),
+			Owners:      c.buildOwners(),
 			Audit: accesslist.Audit{
 				Recurrence: accesslist.Recurrence{
 					Frequency:  reviewFreq,
@@ -93,16 +93,16 @@ func (c *Command) Create(ctx context.Context, client *authclient.Client) error {
 		}
 
 		grpcClient := accesslistv1.NewAccessListServiceClient(client.GetConnection())
-		resp, err := grpcClient.CreateAccessListWithPreset(ctx, &accesslistv1.CreateAccessListWithPresetRequest{
+		resp, err := grpcClient.CreateAccessListWithPreset(ctx, accesslistv1.CreateAccessListWithPresetRequest_builder{
 			PresetType: presetType(c.accessType),
 			AccessList: conv.ToProto(newAccessList),
 			Roles:      accessRoles,
-		})
+		}.Build())
 		if err != nil {
 			return printPresetCreateError(ctx, client, newAccessList.GetName(), err)
 		}
 
-		createdAccessList, err = conv.FromProto(resp.AccessList)
+		createdAccessList, err = conv.FromProto(resp.GetAccessList())
 		if err != nil {
 			return printPresetCreateError(ctx, client, newAccessList.GetName(), err)
 		}

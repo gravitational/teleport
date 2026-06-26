@@ -74,7 +74,7 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 	}
 
 	var updatedAccessList *accesslist.AccessList
-	var updatedRoles []*types.RoleV6
+	var updatedRoles []string
 	var rolesToDelete []string
 	var removedOwners []string
 	var removedMembers []string
@@ -280,7 +280,7 @@ func (c *Command) buildOwnersForUpdate(al *accesslist.AccessList) ([]accesslist.
 }
 
 // updateAccessListWithPreset updates an access list spec/meta and its related access roles.
-func (c *Command) updateAccessListWithPreset(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) (*accesslist.AccessList, []*types.RoleV6, []string, error) {
+func (c *Command) updateAccessListWithPreset(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) (*accesslist.AccessList, []string, []string, error) {
 	var updatedAccessRoles []*types.RoleV6
 	if !c.removeAccess {
 		var standardRoleUpdateFn applyAccessFlagsToRole
@@ -321,7 +321,11 @@ func (c *Command) updateAccessListWithPreset(ctx context.Context, client *authcl
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
-	return updatedAcl, resp.GetRoles(), resp.GetRolesToBeDeleted(), nil
+	roleNames := make([]string, 0, len(resp.GetRoles()))
+	for _, role := range resp.GetRoles() {
+		roleNames = append(roleNames, role.GetName())
+	}
+	return updatedAcl, roleNames, resp.GetRolesToBeDeleted(), nil
 }
 
 // printUpdateText renders the human-readable summary of an update.

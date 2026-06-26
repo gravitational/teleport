@@ -197,3 +197,14 @@ func accessType(preset string) string {
 	}
 	return ""
 }
+
+// presetType converts user facing accessType value to the expected backend value.
+func presetType(accessType string) string {
+	switch accessType {
+	case accessTypeLongTerm:
+		return string(accesslist.LongTermPresetType)
+	case accessTypeShortTerm:
+		return string(accesslist.ShortTermPresetType)
+	}
+	return ""
+}

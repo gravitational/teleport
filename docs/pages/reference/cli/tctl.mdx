@@ -82,6 +82,76 @@ Flags:
 |`--source`|*no default* (any of (repeatable): `AWS`, `Entra`, `Gitlab`, `Okta`, `TELEPORT`)|Filter by source (repeatable; each is OR'd). Combine axes with --filter.|
 |`--type`|*no default* (any of (repeatable): `aws_ec2`, `aws_eks`, `aws_rds`, `aws_s3`, `aws_user`, `entra_user`, `gitlab_project`, `gitlab_user`, `okta_application`, `okta_user`, `teleport_application`, `teleport_bot`, `teleport_database`, `teleport_desktop`, `teleport_kubernetes`, `teleport_node`, `teleport_user`)|Filter by origin type (repeatable; each is OR'd). Combine axes with --filter.|
 
+## tctl acl create
+
+Create an access list.
+
+Use --access-type if you want Teleport to create the supporting roles for you.
+It sets how members are granted access:
+
+  standing       members get ongoing access to the resources set below.
+  request-based  members must request that access; owners approve.
+
+These roles are built from the resource flags you set. Without --access-type,
+a plain access list is created with no roles, and you set its grants yourself.
+
+Resource access (requires --access-type), grouped by target:
+
+  SSH servers          --node-labels, --logins
+  Databases            --db-labels, --db-users, --db-names
+  Kubernetes           --kubernetes-labels, --kubernetes-users, --kubernetes-groups
+  Windows desktops     --windows-labels, --windows-logins
+  Git servers          --github-orgs
+  AWS Identity Center  --aws-ic-assignments
+  Web applications     --app-labels, --aws-role-arns, --azure-identities,
+                       --gcp-service-accounts, --mcp-tools
+
+Usage:
+
+```code
+$ tctl acl create [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--access-type`|*no default* (one of: `standing`, `request-based`)|How members are granted access: 'standing' (members get ongoing access to the resources described by the resource flags) or 'request-based' (members must request access; owners review). When omitted, a plain access list is created with no auto-generated roles.|
+|`--app-labels`|*no default*|Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.|
+|`--audit-day`|`1`|Day of month for audit (1, 15, or 31).|
+|`--audit-frequency`|`6`|Audit recurrence in months (1, 3, 6, or 12).|
+|`--aws-ic-assignments`|*no default*|Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID:permissionSetARN' pairs).|
+|`--aws-role-arns`|*no default*|AWS role ARNs members may assume via matched apps.|
+|`--azure-identities`|*no default*|Azure managed identities members may assume via matched apps.|
+|`--db-labels`|*no default*|Selects databases members may access by label match.|
+|`--db-names`|*no default*|Database names members may connect to on matched databases.|
+|`--db-users`|*no default*|Database users members may connect as on matched databases.|
+|`--description`|*no default*|Optional description.|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--gcp-service-accounts`|*no default*|GCP service accounts members may assume via matched apps.|
+|`--github-orgs`|*no default*|Selects git servers members may access by GitHub organization name.|
+|`--kubernetes-groups`|*no default*|Kubernetes groups members may impersonate on matched clusters.|
+|`--kubernetes-labels`|*no default*|Selects Kubernetes clusters members may access by label match.|
+|`--kubernetes-users`|*no default*|Kubernetes users members may impersonate on matched clusters.|
+|`--logins`|*no default*|OS logins members may use to connect to matched SSH servers.|
+|`--mcp-tools`|*no default*|MCP tools members may call on matched MCP apps.|
+|`--member-access-lists`|*no default*|Access list names to add as members; their members inherit this list's member grants (nested access lists).|
+|`--member-grant-roles`|*no default*|Roles granted to members of this access list.|
+|`--member-grant-traits`|*no default*|Traits granted to members of this access list.|
+|`--member-required-roles`|*no default*|Roles a user must already have to be a member of this access list.|
+|`--member-required-traits`|*no default*|Traits a user must already have to be a member of this access list.|
+|`--members`|*no default*|Usernames or emails to add as members of the new access list. Members can also be added later with `tctl acl users add`.|
+|`--node-labels`|*no default*|Selects SSH servers members may access by label match.|
+|`--owner-access-lists`|*no default*|Access list names to add as owners; their members inherit owner permissions on this access list (nested access lists).|
+|`--owner-grant-roles`|*no default*|Roles granted to owners of this access list.|
+|`--owner-grant-traits`|*no default*|Traits granted to owners of this access list.|
+|`--owner-required-roles`|*no default*|Roles a user must already have to be an owner of this access list.|
+|`--owner-required-traits`|*no default*|Traits a user must already have to be an owner of this access list.|
+|`--owners`|*no default*|Usernames or emails who own this access list and review membership.|
+|`--title`|*no default*|Display name for the access list.|
+|`--windows-labels`|*no default*|Selects Windows desktops members may access by label match.|
+|`--windows-logins`|*no default*|Logins members may use to connect to matched Windows desktops.|
+
 ## tctl acl get
 
 Get detailed information for an Access List.
