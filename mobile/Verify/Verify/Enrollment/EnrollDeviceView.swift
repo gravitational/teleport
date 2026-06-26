@@ -16,19 +16,8 @@
 
 import SwiftUI
 
-struct EnrollMobileDeviceView: View {
-	let deepURL: EnrollMobileDeviceDeepURL
-	let onCancel: () -> Void
-	@State
-	private var viewModel: EnrollMobileDeviceViewModel
-
-	init(deepURL: EnrollMobileDeviceDeepURL, onCancel: @escaping () -> Void) {
-		self.deepURL = deepURL
-		self.onCancel = onCancel
-		_viewModel = State(
-			initialValue: EnrollMobileDeviceViewModel(deepURL: deepURL),
-		)
-	}
+struct EnrollDeviceView: View {
+	var viewModel: EnrollDeviceViewModel
 
 	var body: some View {
 		VStack(spacing: 16) {
@@ -83,7 +72,7 @@ struct EnrollMobileDeviceView: View {
 				.animation(.easeInOut, value: viewModel.attempt.isLoading)
 				.disabled(viewModel.attempt.isLoading)
 
-				Button(role: .cancel, action: onCancel) {
+				Button(role: .cancel, action: viewModel.userTappedCancel) {
 					Text("Cancel").frame(maxWidth: .infinity)
 				}
 				.buttonStyle(.bordered)
@@ -113,15 +102,4 @@ struct EnrollMobileDeviceView: View {
 			.interactiveDismissDisabled(viewModel.attempt.isLoading)
 		}
 	}
-}
-
-#Preview("In ContentView") {
-	ContentView(
-		initialScreen: .enroll(
-			EnrollMobileDeviceDeepURL(
-				url: DeepURL(hostname: "example.com", port: 3080),
-				enrollPairingToken: "abc123",
-			),
-		),
-	)
 }
