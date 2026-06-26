@@ -948,9 +948,7 @@ type InventoryHeartbeat struct {
 	RelayServer *v11.RelayServer `protobuf:"bytes,5,opt,name=relay_server,json=relayServer,proto3" json:"relay_server,omitempty"`
 	// LinuxDesktop is a complete linux desktop spec to be heartbeated.
 	LinuxDesktop *v12.LinuxDesktop `protobuf:"bytes,6,opt,name=linux_desktop,json=linuxDesktop,proto3" json:"linux_desktop,omitempty"`
-	// AuditQueue reports the depth of the instance's audit-log queue. It is sent
-	// periodically and on its own (no resource set) so the auth server can track
-	// the latest queue depth per instance.
+	// AuditQueue reports the depth of the instance's audit-log queue.
 	AuditQueue    *types.AuditQueueStatus `protobuf:"bytes,7,opt,name=audit_queue,json=auditQueue,proto3" json:"audit_queue,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

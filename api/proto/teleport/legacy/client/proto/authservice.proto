@@ -1670,6 +1670,13 @@ message Events {
   string LastKey = 2;
 }
 
+// EmitAuditEventsRequest is the request for the EmitAuditEvents RPC, carrying a
+// batch of audit events to emit in a single call.
+message EmitAuditEventsRequest {
+  // Events is the batch of typed gRPC formatted audit events to emit.
+  repeated events.OneOf Events = 1;
+}
+
 message GetLocksRequest {
   // Targets is a list of targets. Every returned lock must match at least
   // one of the targets.
@@ -3243,6 +3250,8 @@ service AuthService {
 
   // EmitAuditEvent emits audit event
   rpc EmitAuditEvent(events.OneOf) returns (google.protobuf.Empty);
+  // EmitAuditEvents emits a batch of audit events in a single request.
+  rpc EmitAuditEvents(EmitAuditEventsRequest) returns (google.protobuf.Empty);
   // CreateAuditStream creates or resumes audit events streams
   rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
 

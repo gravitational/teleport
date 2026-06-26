@@ -88,6 +88,18 @@ type Emitter interface {
 	EmitAuditEvent(context.Context, AuditEvent) error
 }
 
+// BatchEmitter is an optional interface implemented by Emitters that can emit a
+// batch of audit events more efficiently than one event at a time.
+//
+// EmitAuditEvents has all-or-nothing semantics. A non-nil error means the batch
+// as a whole was not durably delivered and should be retried by the caller.
+// Retries should prefer to fallback to the single EmitAuditEvent interface.
+type BatchEmitter interface {
+	Emitter
+	// EmitAuditEvents emits a batch of audit events.
+	EmitAuditEvents(context.Context, []AuditEvent) error
+}
+
 // PreparedSessionEvent is an event that has been prepared by
 // a [github.com/gravitational/teleport/lib/events.SessionEventPreparer].
 // More specifically, it is a wrapper around an AuditEvent that signifies

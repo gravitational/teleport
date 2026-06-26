@@ -134,30 +134,44 @@ func NewFallbackEmitter(cfg FallbackEmitterConfig) (*FallbackEmitter, error) {
 // locally-originated event is enqueued to the fallback queue and a nil error is
 // returned.
 func (f *FallbackEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	err := f.cfg.Primary.EmitAuditEvent(ctx, event)
-	if err == nil {
-		return nil
+	if err := f.cfg.Primary.EmitAuditEvent(ctx, event); err != nil {
+		return f.fallbackToQueue(ctx, err, []apievents.AuditEvent{event})
 	}
+	return nil
+}
+
+var _ apievents.BatchEmitter = (*FallbackEmitter)(nil)
+
+// EmitAuditEvents forwards the batch of events to the primary emitter.
+func (f *FallbackEmitter) EmitAuditEvents(ctx context.Context, events []apievents.AuditEvent) error {
+	if err := EmitAuditEvents(ctx, f.cfg.Primary, events); err != nil {
+		return f.fallbackToQueue(ctx, err, events)
+	}
+	return nil
+}
+
+func (f *FallbackEmitter) fallbackToQueue(ctx context.Context, primaryErr error, events []apievents.AuditEvent) error {
 	if f.queue == nil || isForwardedEmit(ctx) {
-		return trace.Wrap(err)
+		return trace.Wrap(primaryErr)
 	}
 
 	slog.WarnContext(ctx,
-		"Failed to emit audit event to the audit backend, falling back to the local queue.",
-		"event_type", event.GetType(),
-		"event_code", event.GetCode(),
-		"error", err,
+		"Failed to emit audit events to the audit backend, falling back to the local queue.",
+		"count", len(events),
+		"error", primaryErr,
 	)
-	if qerr := f.queue.Enqueue(ctx, event); qerr != nil {
-		slog.ErrorContext(ctx,
-			"Failed to enqueue audit event to the local fallback queue.",
-			"event_type", event.GetType(),
-			"event_code", event.GetCode(),
-			"error", qerr,
-		)
-		return trace.Wrap(qerr)
+	for _, event := range events {
+		if qerr := f.queue.Enqueue(ctx, event); qerr != nil {
+			slog.ErrorContext(ctx,
+				"Failed to enqueue audit event to the local fallback queue.",
+				"event_type", event.GetType(),
+				"event_code", event.GetCode(),
+				"error", qerr,
+			)
+			return trace.Wrap(qerr)
+		}
+		auditFallbackQueuedEvents.Inc()
 	}
-	auditFallbackQueuedEvents.Inc()
 	return nil
 }
 

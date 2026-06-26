@@ -4974,6 +4974,11 @@ func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.
 
 // EmitAuditEvent emits a single audit event
 func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return a.EmitAuditEvents(ctx, []apievents.AuditEvent{event})
+}
+
+// EmitAuditEvents emits a batch of audit events.
+func (a *ServerWithRoles) EmitAuditEvents(ctx context.Context, batch []apievents.AuditEvent) error {
 	ctx = context.WithoutCancel(ctx)
 	if err := a.authorizeAction(types.KindEvent, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -4982,21 +4987,22 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
-	err := events.ValidateServerMetadata(event, role.GetServerID(), a.hasBuiltinRole(types.RoleProxy))
-	if err != nil {
-		// TODO: this should be a proper audit event
-		// notifying about access violation
-		const msg = "Rejecting audit event, the client is attempting to " +
-			"submit events for an identity other than the one on its x509 certificate."
-		a.authServer.logger.WarnContext(ctx, msg,
-			"event_type", event.GetType(),
-			"event_id", event.GetID(),
-			"server_id", role.GetServerID(),
-			"error", err)
-		// this message is sparse on purpose to avoid conveying extra data to an attacker
-		return trace.AccessDenied("failed to validate event metadata")
+	for _, event := range batch {
+		if err := events.ValidateServerMetadata(event, role.GetServerID(), a.hasBuiltinRole(types.RoleProxy)); err != nil {
+			// TODO: this should be a proper audit event
+			// notifying about access violation
+			const msg = "Rejecting audit event, the client is attempting to " +
+				"submit events for an identity other than the one on its x509 certificate."
+			a.authServer.logger.WarnContext(ctx, msg,
+				"event_type", event.GetType(),
+				"event_id", event.GetID(),
+				"server_id", role.GetServerID(),
+				"error", err)
+			// this message is sparse on purpose to avoid conveying extra data to an attacker
+			return trace.AccessDenied("failed to validate event metadata")
+		}
 	}
-	return a.authServer.emitter.EmitAuditEvent(ctx, event)
+	return trace.Wrap(events.EmitAuditEvents(ctx, a.authServer.emitter, batch))
 }
 
 // CreateAuditStream creates audit event stream

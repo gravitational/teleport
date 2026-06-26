@@ -95,6 +95,7 @@ const (
 	AuthService_ListSemaphores_FullMethodName                      = "/proto.AuthService/ListSemaphores"
 	AuthService_DeleteSemaphore_FullMethodName                     = "/proto.AuthService/DeleteSemaphore"
 	AuthService_EmitAuditEvent_FullMethodName                      = "/proto.AuthService/EmitAuditEvent"
+	AuthService_EmitAuditEvents_FullMethodName                     = "/proto.AuthService/EmitAuditEvents"
 	AuthService_CreateAuditStream_FullMethodName                   = "/proto.AuthService/CreateAuditStream"
 	AuthService_UpsertApplicationServer_FullMethodName             = "/proto.AuthService/UpsertApplicationServer"
 	AuthService_DeleteApplicationServer_FullMethodName             = "/proto.AuthService/DeleteApplicationServer"
@@ -468,6 +469,8 @@ type AuthServiceClient interface {
 	DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// EmitAuditEvents emits a batch of audit events in a single request.
+	EmitAuditEvents(ctx context.Context, in *EmitAuditEventsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateAuditStream creates or resumes audit events streams
 	CreateAuditStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditStreamRequest, events.StreamStatus], error)
 	// UpsertApplicationServer adds an application server.
@@ -1741,6 +1744,16 @@ func (c *authServiceClient) EmitAuditEvent(ctx context.Context, in *events.OneOf
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AuthService_EmitAuditEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) EmitAuditEvents(ctx context.Context, in *EmitAuditEventsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AuthService_EmitAuditEvents_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4129,6 +4142,8 @@ type AuthServiceServer interface {
 	DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, *events.OneOf) (*emptypb.Empty, error)
+	// EmitAuditEvents emits a batch of audit events in a single request.
+	EmitAuditEvents(context.Context, *EmitAuditEventsRequest) (*emptypb.Empty, error)
 	// CreateAuditStream creates or resumes audit events streams
 	CreateAuditStream(grpc.BidiStreamingServer[AuditStreamRequest, events.StreamStatus]) error
 	// UpsertApplicationServer adds an application server.
@@ -4910,6 +4925,9 @@ func (UnimplementedAuthServiceServer) DeleteSemaphore(context.Context, *types.Se
 }
 func (UnimplementedAuthServiceServer) EmitAuditEvent(context.Context, *events.OneOf) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EmitAuditEvent not implemented")
+}
+func (UnimplementedAuthServiceServer) EmitAuditEvents(context.Context, *EmitAuditEventsRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EmitAuditEvents not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateAuditStream(grpc.BidiStreamingServer[AuditStreamRequest, events.StreamStatus]) error {
 	return status.Errorf(codes.Unimplemented, "method CreateAuditStream not implemented")
@@ -6541,6 +6559,24 @@ func _AuthService_EmitAuditEvent_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).EmitAuditEvent(ctx, req.(*events.OneOf))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_EmitAuditEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EmitAuditEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).EmitAuditEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_EmitAuditEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).EmitAuditEvents(ctx, req.(*EmitAuditEventsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10552,6 +10588,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "EmitAuditEvent",
 			Handler:    _AuthService_EmitAuditEvent_Handler,
+		},
+		{
+			MethodName: "EmitAuditEvents",
+			Handler:    _AuthService_EmitAuditEvents_Handler,
 		},
 		{
 			MethodName: "UpsertApplicationServer",
