@@ -18,6 +18,14 @@ func (m *GroupMember) GetExternalID() string {
 	return m.ExternalID
 }
 
+// GetDisplay fetches the display name for this group member
+func (m *GroupMember) GetDisplay() string {
+	if m == nil {
+		return ""
+	}
+	return m.Display
+}
+
 // Group represents a SCIM Group resource.
 type Group struct {
 	// ID is a unique identifier for a Group as defined by the Service Provider.
