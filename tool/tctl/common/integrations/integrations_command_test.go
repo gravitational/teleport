@@ -71,13 +71,14 @@ func TestIntegrationsCommandTest_AWSOIDC(t *testing.T) {
 		{
 			name:   "text format",
 			format: teleport.Text,
-			output: bold("AWS OIDC integration is operational.") + `
+			output: `AWS STS get-caller-identity response:
 
 Integration Name: my-integration
-Account ID: 123456789012
+AWS Account ID:   123456789012
 Assumed Role ARN: arn:aws:sts::123456789012:assumed-role/teleport/test
-User ID: AROAEXAMPLE:test
-`,
+User ID:          AROAEXAMPLE:test
+
+` + bold("AWS OIDC integration is operational.") + "\n",
 		},
 		{
 			name:   "json format",
