@@ -1,6 +1,0 @@
-description: 'root: nested anywhere but the top is a load error'
-app_resources_expression:
-    - |-
-        path.match(literal("files",
-            root(literal("a"), literal("b"))))
-error: root() is only valid as the matcher argument of path.match

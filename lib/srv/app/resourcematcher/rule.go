@@ -231,9 +231,6 @@ func compilePredicate(expr string) (predicate, error) {
 	if err := validateExclusions(expr); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := validateRoot(expr); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err := validateLiterals(expr); err != nil {
 		return nil, trace.Wrap(err)
 	}

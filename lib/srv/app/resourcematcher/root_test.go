@@ -93,27 +93,43 @@ func TestRootSingleMatchRule(t *testing.T) {
 	}
 }
 
-// TestRootRejectsNesting pins the load-time placement check: root() is valid
-// only as the matcher argument of path.match, so a nested or doubled root is a
-// compile error.
-func TestRootRejectsNesting(t *testing.T) {
+// TestRootNestedIsNoopGrouping pins that root() carries no positional rule:
+// a nested or doubled root() compiles and behaves the same as its children
+// would in the parent's position. root() consumes no token and OR-s its
+// children, so wrapping a child in another root() is a no-op grouping.
+func TestRootNestedIsNoopGrouping(t *testing.T) {
 	tests := []struct {
 		name string
 		pred string
+		path string
+		want bool
 	}{
 		{
-			name: "root nested under a literal",
-			pred: `path.match(literal("files", root(greedy())))`,
+			name: "root under a literal acts as alternation of continuations",
+			pred: `path.match(literal("files", root(literal("a", greedy()), literal("b", greedy()))))`,
+			path: "/files/a/x",
+			want: true,
 		},
 		{
-			name: "root nested under a root",
-			pred: `path.match(root(root(literal("a"))))`,
+			name: "root under a literal misses when no alternative matches",
+			pred: `path.match(literal("files", root(literal("a", greedy()), literal("b", greedy()))))`,
+			path: "/files/c/x",
+			want: false,
+		},
+		{
+			name: "root under a root acts as a single root",
+			pred: `path.match(root(root(literal("a", greedy())), literal("b", greedy())))`,
+			path: "/a/x",
+			want: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := compileExpression(tt.pred)
-			require.Error(t, err)
+			compiled, err := compileExpression(tt.pred)
+			require.NoError(t, err)
+			got, err := compiled.Evaluate(Request{Method: "GET", Path: tt.path}, Identity{})
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got.Allowed)
 		})
 	}
 }

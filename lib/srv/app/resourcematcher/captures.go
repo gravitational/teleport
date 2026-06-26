@@ -279,43 +279,6 @@ func literalValueCheck(call *ast.CallExpr) func(string) error {
 	}
 }
 
-// validateRoot rejects a root() call anywhere but as the matcher argument of a
-// path.match. root() is non-consuming and only sound at the top of a tree,
-// where it OR-s several first segments; nested it would silently behave as a
-// mid-tree alternation, which the existing sibling children already express.
-// Rejecting it at load keeps root() to its one legal spot.
-func validateRoot(expr string) error {
-	parsed, err := goparser.ParseExpr(expr)
-	if err != nil {
-		return nil
-	}
-	// First pass: every root() that sits as path.match's first argument is the
-	// one legal placement, recorded by AST node identity.
-	allowed := map[ast.Node]bool{}
-	ast.Inspect(parsed, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok || !isPathMatch(call) || len(call.Args) == 0 {
-			return true
-		}
-		if root, ok := call.Args[0].(*ast.CallExpr); ok && isIdentCall(root, "root") {
-			allowed[root] = true
-		}
-		return true
-	})
-	// Second pass: any other root() call is illegal.
-	var bad bool
-	ast.Inspect(parsed, func(n ast.Node) bool {
-		if call, ok := n.(*ast.CallExpr); ok && isIdentCall(call, "root") && !allowed[call] {
-			bad = true
-		}
-		return true
-	})
-	if bad {
-		return trace.BadParameter("root() is only valid as the matcher argument of path.match")
-	}
-	return nil
-}
-
 // validateEncodedSets rejects an encoded-char set literal that names any char
 // other than the separator "/". The encoded-char matchers glob_encoded and
 // capture_encoded, and the allow_encoded option, each take a set(...) of

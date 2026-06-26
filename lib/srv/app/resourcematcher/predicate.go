@@ -345,11 +345,12 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			"optional": typical.UnaryVariadicFunction[env](func(children ...*Node) (*Node, error) {
 				return Optional(children...)
 			}),
-			// root is the synthetic top node, the one way to give a tree several
+			// root is the synthetic top node, the way to give a tree several
 			// first segments. It folds several root paths into one path.match,
 			// so the call carries the decode options once instead of repeating
-			// them across an || of separate matches. It is valid only as the
-			// matcher argument of path.match; validateRoot rejects it elsewhere.
+			// them across an || of separate matches. It consumes no token and
+			// OR-s its children, so a nested root() is a no-op grouping that
+			// behaves the same as sibling children in the parent.
 			"root": typical.UnaryVariadicFunction[env](func(children ...*Node) (*Node, error) {
 				return Root(children...)
 			}),
