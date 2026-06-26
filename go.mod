@@ -247,7 +247,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.53.0
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
-	golang.org/x/image v0.42.0
+	golang.org/x/image v0.43.0
 	golang.org/x/mod v0.37.0
 	golang.org/x/net v0.56.0
 	golang.org/x/oauth2 v0.36.0
@@ -288,7 +288,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.22.4
 	sigs.k8s.io/controller-tools v0.17.1
 	sigs.k8s.io/yaml v1.6.0
-	software.sslmate.com/src/go-pkcs12 v0.6.0
+	software.sslmate.com/src/go-pkcs12 v0.7.2
 )
 
 require (
