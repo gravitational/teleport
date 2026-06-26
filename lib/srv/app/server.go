@@ -34,12 +34,14 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -84,6 +86,9 @@ type Config struct {
 
 	// ResourceMatchers is a list of app resource matchers.
 	ResourceMatchers []services.ResourceMatcher
+
+	// ScopePin is the scope and scoped role assignments the agent is pinned to.
+	ScopePin *scopesv1.Pin
 
 	// OnReconcile is called after each app resource reconciliation.
 	OnReconcile func(types.Apps)
@@ -132,7 +137,17 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.ConnectedProxyGetter == nil {
 		return trace.BadParameter("ConnectedProxyGetter missing")
 	}
+	if c.ScopePin != nil {
+		if err := pinning.WeakValidate(c.ScopePin); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
+}
+
+// GetScope returns the scope the agent is pinned to.
+func (c *Config) GetScope() string {
+	return c.ScopePin.GetScope()
 }
 
 // Server is an application server. It authenticates requests from the web
@@ -198,6 +213,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	err := c.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO(williamo/scopes): remove this validation once dynamic app registration supports scopes.
+	if c.GetScope() != "" && len(c.ResourceMatchers) > 0 {
+		return nil, trace.BadParameter("dynamic app registration not supported for scoped app_service, resource matchers must be empty")
 	}
 
 	closeContext, closeFunc := context.WithCancel(ctx)
@@ -363,7 +383,7 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 		Rotation: s.getRotationState(),
 		App:      copy,
 		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
-	})
+	}, s.c.GetScope())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

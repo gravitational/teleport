@@ -130,6 +130,10 @@ func (c *WorkloadIdentityCommand) Initialize(
 			"expires-at",
 			"Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.").
 		StringVar(&c.revocationExpiry)
+	c.revocationsAddCmd.
+		Flag("format", "Output format, 'text', 'json', or 'yaml'").
+		Default(teleport.Text).
+		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.revocationsRmCmd = revocationsCmd.Command("rm", "Delete a revocation.")
 	c.revocationsRmCmd.Flag("serial", "Serial number of the certificate to remove the revocation for.").Required().StringVar(&c.revocationSerial)
@@ -351,7 +355,7 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 	}
 
 	revocationClient := client.WorkloadIdentityRevocationServiceClient()
-	_, err = revocationClient.CreateWorkloadIdentityX509Revocation(ctx, workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest_builder{
+	created, err := revocationClient.CreateWorkloadIdentityX509Revocation(ctx, workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest_builder{
 		WorkloadIdentityX509Revocation: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
 			Kind:    types.KindWorkloadIdentityX509Revocation,
 			Version: types.V1,
@@ -369,13 +373,24 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 		return trace.Wrap(err, "creating revocation")
 	}
 
-	fmt.Fprintf(
-		c.stdout,
-		"Revocation for the X509 certificate with serial %s created\n",
-		normalizedSerial,
-	)
-
-	return nil
+	switch c.format {
+	case teleport.Text:
+		fmt.Fprintf(
+			c.stdout,
+			"Revocation for the X509 certificate with serial %s created\n",
+			normalizedSerial,
+		)
+		return nil
+	case teleport.JSON:
+		// Serialize via the legacy resource wrapper so the output matches
+		// `workload-identity revocations ls` and `tctl get` exactly (RFC3339
+		// timestamps), rather than the raw proto's seconds/nanos form.
+		return trace.Wrap(utils.WriteJSON(c.stdout, types.ProtoResource153ToLegacy(created)))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(c.stdout, types.ProtoResource153ToLegacy(created)))
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
+	}
 }
 
 // DeleteRevocation deletes a revocation. Currently, only the X509 type is

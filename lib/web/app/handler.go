@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -104,6 +105,11 @@ type Handler struct {
 	clusterName string
 
 	logger *slog.Logger
+
+	// cswshAction controls the response to a detected cross-origin WebSocket
+	// upgrade, configured via TELEPORT_UNSTABLE_APP_CSWSH_ACTION. Defaults to
+	// no-op.
+	cswshAction cswshAction
 }
 
 // NewHandler returns a new application handler.
@@ -117,6 +123,11 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		c:            c,
 		closeContext: ctx,
 		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
+		cswshAction:  parseCSWSHAction(os.Getenv(cswshActionEnv)),
+	}
+	if h.cswshAction.enabled() {
+		h.logger.InfoContext(ctx, "Application access cross-site WebSocket (CSWSH) guard enabled",
+			"report", h.cswshAction.report, "block", h.cswshAction.block)
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
@@ -254,6 +265,12 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, appName, publicAddr,
 // handleHttp forwards the request to the application service or redirects
 // to the application directly.
 func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *session) error {
+	// Reject (or, in report-only mode, log) cross-site WebSocket upgrades
+	// before forwarding to the application (CSWSH protection).
+	if err := h.guardCrossSiteWebSocket(r); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var redirectURI string
 
 	session.tr.mu.Lock()
@@ -616,6 +633,41 @@ func HasSessionCookie(r *http.Request) bool {
 // HasClientCert checks if the request has a client certificate.
 func HasClientCert(r *http.Request) bool {
 	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
+}
+
+// appAuthCertificateIdentities returns certificate-backed identities that
+// participate in app auth for the request. HTTPS-tunneled requests validate the
+// outer tunnel identity and, when present, the inner client cert identity.
+// Cookie/browser clients return no identities.
+func appAuthCertificateIdentities(r *http.Request) []*tlsca.Identity {
+	var identities []*tlsca.Identity
+	if IsHTTPSTunnelConn(r) {
+		identity, err := getIdentityFromHTTPSTunnelRequest(r)
+		if err == nil {
+			identities = append(identities, identity)
+		}
+	}
+	if HasClientCert(r) {
+		cert := r.TLS.PeerCertificates[0]
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		if err == nil {
+			identities = append(identities, identity)
+		}
+	}
+	return identities
+}
+
+// connectionCredentialExpired reports whether a certificate-authenticated
+// request is backed by a credential that has already expired as of now. Returns
+// false for cookie/browser clients, which don't authenticate with a
+// certificate.
+func connectionCredentialExpired(r *http.Request, now time.Time) bool {
+	for _, identity := range appAuthCertificateIdentities(r) {
+		if identity.Expires.Before(now) {
+			return true
+		}
+	}
+	return false
 }
 
 // isBrowserRequest reports whether the request originated from a browser.

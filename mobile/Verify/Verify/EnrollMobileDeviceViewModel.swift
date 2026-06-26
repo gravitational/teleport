@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import Enroll
+import Core
 import Observation
 
 @Observable
@@ -24,7 +24,7 @@ class EnrollMobileDeviceViewModel {
 		case idle
 		case loading
 		case success(token: String)
-		case failure(Error)
+		case failure(any Error)
 
 		var isLoading: Bool {
 			if case .loading = self { return true }
@@ -34,35 +34,25 @@ class EnrollMobileDeviceViewModel {
 
 	var attempt: Attempt = .idle
 	private let deepURL: EnrollMobileDeviceDeepURL
+	private let enrollClient: EnrollClient
 
-	init(deepURL: EnrollMobileDeviceDeepURL) {
+	init(deepURL: EnrollMobileDeviceDeepURL, enrollClient: EnrollClient = .liveValue) {
 		self.deepURL = deepURL
+		self.enrollClient = enrollClient
 	}
 
 	func requestEnrollToken() async {
 		attempt = .loading
-		let proxyServer = "\(deepURL.url.hostname):\(deepURL.url.port ?? 443)"
-		let pairingToken = deepURL.enrollPairingToken
-
-		let outcome: Attempt = await Task.detached(priority: .userInitiated) {
-			guard let client = EnrollClient(proxyServer, insecure: false) else {
-				return .failure(EnrollViewModelError.clientCreationFailed)
-			}
-			do {
-				let token = try client.createMobileEnrollToken(
-					pairingToken,
-					deviceData: EnrollDeviceCollectedData(),
-				)
-				return .success(token: token.token)
-			} catch {
-				return .failure(error)
-			}
-		}.value
-
-		attempt = outcome
+		let defaultHTTPSPort = 443
+		do {
+			let token = try await enrollClient.requestEnrollmentToken(
+				hostName: deepURL.url.hostname,
+				port: deepURL.url.port ?? defaultHTTPSPort,
+				pairingToken: deepURL.enrollPairingToken,
+			)
+			attempt = .success(token: token)
+		} catch {
+			attempt = .failure(error)
+		}
 	}
-}
-
-enum EnrollViewModelError: Error {
-	case clientCreationFailed
 }
