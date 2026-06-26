@@ -21,19 +21,18 @@ package integrations
 import (
 	"context"
 	"fmt"
-	"io"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // testAWSOIDC validates that an AWS OIDC integration can assume the configured
 // role and reach AWS STS. The assumed role does not require permissions beyond
 // the trust relationship with `sts:AssumeRoleWithWebIdentity`.
-func (c *Command) testAWSOIDC(ctx context.Context, client awsOIDCPinger) (testIntegrationOutput, error) {
+func (c *Command) testAWSOIDC(ctx context.Context, client awsOIDCPinger) (*testAWSOIDCOutput, error) {
 	resp, err := client.Ping(ctx, integrationv1.PingRequest_builder{
 		Integration: c.testArgs.integration,
 	}.Build())
@@ -44,7 +43,7 @@ func (c *Command) testAWSOIDC(ctx context.Context, client awsOIDCPinger) (testIn
 		return nil, trace.Wrap(err)
 	}
 
-	o := testAWSOIDCOutput{
+	o := &testAWSOIDCOutput{
 		Status:         "operational",
 		Integration:    c.testArgs.integration,
 		AccountID:      resp.GetAccountId(),
@@ -63,25 +62,34 @@ type testAWSOIDCOutput struct {
 	UserID         string `json:"user_id"`
 }
 
-func (o testAWSOIDCOutput) WriteText(out io.Writer) error {
-	fmt.Fprint(out, bold("AWS OIDC integration is operational.")+"\n\n")
-	fmt.Fprintf(out, "Integration Name: %s\n", o.Integration)
-	fmt.Fprintf(out, "Account ID: %s\n", o.AccountID)
-	fmt.Fprintf(out, "Assumed Role ARN: %s\n", o.AssumedRoleARN)
-	fmt.Fprintf(out, "User ID: %s\n", o.UserID)
-	return nil
-}
+// String implements fmt.Stringer.
+func (o *testAWSOIDCOutput) String() string {
+	var sb strings.Builder
 
-func (o testAWSOIDCOutput) WriteJSON(out io.Writer) error {
-	err := utils.WriteJSON(out, o)
-	return trace.Wrap(err, "failed to marshal output")
-}
+	sb.WriteString("AWS STS get-caller-identity response:\n\n")
 
-func (o testAWSOIDCOutput) WriteYAML(out io.Writer) error {
-	err := utils.WriteYAML(out, o)
-	return trace.Wrap(err, "failed to marshal output")
+	sb.WriteString("Integration Name: ")
+	sb.WriteString(o.Integration)
+	sb.WriteString("\n")
+	sb.WriteString("AWS Account ID:   ")
+	sb.WriteString(o.AccountID)
+	sb.WriteString("\n")
+	sb.WriteString("Assumed Role ARN: ")
+	sb.WriteString(o.AssumedRoleARN)
+	sb.WriteString("\n")
+	sb.WriteString("User ID:          ")
+	sb.WriteString(o.UserID)
+	sb.WriteString("\n")
+
+	sb.WriteString("\n")
+	sb.WriteString(bold("AWS OIDC integration is operational."))
+	sb.WriteString("\n")
+
+	return sb.String()
 }
 
 type awsOIDCPinger interface {
 	Ping(context.Context, *integrationv1.PingRequest, ...grpc.CallOption) (*integrationv1.PingResponse, error)
 }
+
+var _ fmt.Stringer = &testAWSOIDCOutput{}

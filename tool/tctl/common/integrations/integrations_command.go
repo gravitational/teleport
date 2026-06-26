@@ -20,6 +20,7 @@ package integrations
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 
@@ -70,7 +71,7 @@ func (c *Command) test(ctx context.Context, client testClient) error {
 		return trace.Wrap(err)
 	}
 
-	var output testIntegrationOutput
+	var output fmt.Stringer
 	switch integration.GetSubKind() {
 	case types.IntegrationSubKindAWSOIDC:
 		output, err = c.testAWSOIDC(ctx, client.AWSOIDCClient())
@@ -83,22 +84,16 @@ func (c *Command) test(ctx context.Context, client testClient) error {
 
 	switch c.testArgs.format {
 	case teleport.Text:
-		output.WriteText(c.stdout)
+		fmt.Fprint(c.stdout, output)
 	case teleport.JSON:
-		output.WriteJSON(c.stdout)
+		return trace.Wrap(utils.WriteJSON(c.stdout, output))
 	case teleport.YAML:
-		output.WriteYAML(c.stdout)
+		return trace.Wrap(utils.WriteYAML(c.stdout, output))
 	default:
 		return trace.BadParameter("unknown value for --format flag: %s", c.testArgs.format)
 	}
 
 	return nil
-}
-
-type testIntegrationOutput interface {
-	WriteText(out io.Writer) error
-	WriteJSON(out io.Writer) error
-	WriteYAML(out io.Writer) error
 }
 
 // Command implements integrations helper commands.
