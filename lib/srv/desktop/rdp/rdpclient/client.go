@@ -727,7 +727,6 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 	case *tdpb.SharedDirectoryAnnounce:
 		if c.cfg.AllowDirectorySharing {
 			if m.DirectoryId == 0 {
-				// See "SharedDirectoryResponse" handling.
 				return trace.BadParameter("Zero is not a valid directory identifier")
 			}
 
@@ -749,16 +748,6 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			}
 		}
 	case *tdpb.SharedDirectoryResponse:
-		// TODO(rhammonds): Remove in v20
-		// Some V18 and older clients assume that TDP connections support only a single
-		// shared directory. For this reason, they omit the DirectoryId from their
-		// response messages. These clients also hardcode the DirectoryId to '2'.
-		// To ensure conflicts are avoided, the backend will reject directory announcements
-		// that choose DirectoryId 0 and "fix" omitted DirectoryId fields.
-		if m.DirectoryId == 0 {
-			m.DirectoryId = 2
-		}
-
 		switch op := m.Operation.(type) {
 		case *tdpbv1.SharedDirectoryResponse_Info_:
 			if c.cfg.AllowDirectorySharing {
