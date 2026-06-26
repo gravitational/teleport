@@ -306,6 +306,11 @@ func (c *BotsCommand) ListBots(ctx context.Context, client botsCommandClient) er
 	return nil
 }
 
+// bold wraps the given text in an ANSI escape to bold it
+func bold(text string) string {
+	return utils.Color(utils.Bold, text)
+}
+
 var startMessageTemplate = template.Must(template.New("node").Funcs(template.FuncMap{
 	"bold": bold,
 }).Parse(`

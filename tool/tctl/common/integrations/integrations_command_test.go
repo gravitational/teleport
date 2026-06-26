@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package integrations
 
 import (
 	"bytes"
@@ -30,9 +30,37 @@ import (
 
 	"github.com/gravitational/teleport"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
-func TestAWSCommandTestOIDC(t *testing.T) {
+func TestIntegrationsCommandTest_InvalidKind(t *testing.T) {
+	t.Parallel()
+
+	cmd := &Command{
+		testArgs: testArgs{
+			integration: "my-integration",
+		},
+	}
+
+	err := cmd.test(t.Context(), fakeClient{
+		integrationsService: fakeIntegrationsService{
+			getFn: func(_ context.Context, name string) (types.Integration, error) {
+				return types.NewIntegrationAzureOIDC(
+					types.Metadata{Name: name},
+					&types.AzureOIDCIntegrationSpecV1{
+						TenantID: "12345",
+						ClientID: "67890",
+					},
+				)
+			},
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, "unsupported integration subkind: azure-oidc")
+}
+
+func TestIntegrationsCommandTest_AWSOIDC(t *testing.T) {
 	t.Parallel()
 
 	tcs := []struct {
@@ -80,16 +108,26 @@ user_id: AROAEXAMPLE:test
 			t.Parallel()
 
 			var out bytes.Buffer
-			cmd := &AWSCommand{
+			cmd := &Command{
 				stdout: &out,
-				testOIDCArgs: awsOIDCTestArgs{
+				testArgs: testArgs{
 					integration: "my-integration",
 					format:      tc.format,
 				},
 			}
 
-			err := cmd.TestOIDC(context.Background(), fakeAWSOIDCClient{
-				service: fakeAWSOIDCServiceClient{
+			err := cmd.test(t.Context(), fakeClient{
+				integrationsService: fakeIntegrationsService{
+					getFn: func(_ context.Context, name string) (types.Integration, error) {
+						return types.NewIntegrationAWSOIDC(
+							types.Metadata{Name: name},
+							&types.AWSOIDCIntegrationSpecV1{
+								RoleARN: "arn:aws:iam::123456789012:role/TeleportOIDCRole",
+							},
+						)
+					},
+				},
+				awsOICDService: fakeAWSOIDCService{
 					pingFn: func(_ context.Context, req *integrationv1.PingRequest) (*integrationv1.PingResponse, error) {
 						require.Equal(t, "my-integration", req.GetIntegration())
 						return integrationv1.PingResponse_builder{
@@ -107,17 +145,27 @@ user_id: AROAEXAMPLE:test
 	}
 }
 
-func TestAWSCommandTestOIDCPropagatesErrors(t *testing.T) {
+func TestIntegrationsCommandTest_AWSOIDCPropagatesErrors(t *testing.T) {
 	t.Parallel()
 
-	cmd := &AWSCommand{
-		testOIDCArgs: awsOIDCTestArgs{
+	cmd := &Command{
+		testArgs: testArgs{
 			integration: "my-integration",
 		},
 	}
 
-	err := cmd.TestOIDC(context.Background(), fakeAWSOIDCClient{
-		service: fakeAWSOIDCServiceClient{
+	err := cmd.test(t.Context(), fakeClient{
+		integrationsService: fakeIntegrationsService{
+			getFn: func(_ context.Context, name string) (types.Integration, error) {
+				return types.NewIntegrationAWSOIDC(
+					types.Metadata{Name: name},
+					&types.AWSOIDCIntegrationSpecV1{
+						RoleARN: "arn:aws:iam::123456789012:role/TeleportOIDCRole",
+					},
+				)
+			},
+		},
+		awsOICDService: fakeAWSOIDCService{
 			pingFn: func(context.Context, *integrationv1.PingRequest) (*integrationv1.PingResponse, error) {
 				return nil, trace.AccessDenied("denied")
 			},
@@ -127,18 +175,31 @@ func TestAWSCommandTestOIDCPropagatesErrors(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-type fakeAWSOIDCServiceClient struct {
+type fakeAWSOIDCService struct {
 	pingFn func(context.Context, *integrationv1.PingRequest) (*integrationv1.PingResponse, error)
 }
 
-func (f fakeAWSOIDCServiceClient) Ping(ctx context.Context, req *integrationv1.PingRequest, _ ...grpc.CallOption) (*integrationv1.PingResponse, error) {
+func (f fakeAWSOIDCService) Ping(ctx context.Context, req *integrationv1.PingRequest, _ ...grpc.CallOption) (*integrationv1.PingResponse, error) {
 	return f.pingFn(ctx, req)
 }
 
-type fakeAWSOIDCClient struct {
-	service awsOIDCPinger
+type fakeIntegrationsService struct {
+	getFn func(ctx context.Context, name string) (types.Integration, error)
 }
 
-func (f fakeAWSOIDCClient) IntegrationAWSOIDCClient() awsOIDCPinger {
-	return f.service
+func (f fakeIntegrationsService) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	return f.getFn(ctx, name)
+}
+
+type fakeClient struct {
+	integrationsService integrationsFetcher
+	awsOICDService      awsOIDCPinger
+}
+
+func (f fakeClient) IntegrationsClient() integrationsFetcher {
+	return f.integrationsService
+}
+
+func (f fakeClient) AWSOIDCClient() awsOIDCPinger {
+	return f.awsOICDService
 }
