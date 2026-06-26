@@ -471,6 +471,29 @@ func TestGenericOIDC(t *testing.T) {
 				require.ErrorContains(t, err, "generic OIDC token has no rules configured")
 			},
 		},
+		{
+			name: "field rules must always be evaluated",
+			mutateToken: func(token *types.ProvisionTokenV2) {
+				// Negative rule doesn't count for
+				// validateFieldRulesContainsAnyRule() but should still be
+				// honored if set.
+				token.Spec.GenericOIDC.MustMatchFields = specStruct(t, `{
+					"google": {
+						"compute_engine": null
+					}
+				}`)
+				token.Spec.GenericOIDC.AllowAny = []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+					{
+						Conditions: conditions(
+							eqCondition("google.compute_engine.instance_name", "hello-world"),
+						),
+					},
+				}
+			},
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "must be null or unset but had a value")
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -66,6 +66,11 @@ func validateFieldRulesContainsAnyRule(str *types.Struct) (bool, error) {
 // evaluateFieldRules evaluates `must_match_fields` rules defined in the given
 // arbitrary spec struct and compares them against the given claims.
 func evaluateFieldRules(specStruct *types.Struct, claimStruct map[string]any, path ...string) error {
+	if specStruct == nil {
+		// Nothing to do
+		return nil
+	}
+
 	for specKey, specValue := range specStruct.GetFields() {
 		fieldPath := append(append([]string{}, path...), specKey)
 		identifier := strings.Join(fieldPath, ".")

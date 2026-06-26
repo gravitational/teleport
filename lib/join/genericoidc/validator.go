@@ -315,11 +315,9 @@ func evaluateGenericOIDCRules(spec *types.ProvisionTokenSpecV2GenericOIDC, claim
 		return trace.BadParameter("generic OIDC token has no rules configured")
 	}
 
-	// If field rules were defined, evaluate them first.
-	if mustMatchFieldsHasAny {
-		if err := evaluateFieldRules(spec.MustMatchFields, claims.Claims); err != nil {
-			return trace.Wrap(err, "validating field rules")
-		}
+	// Always try to evaluate field rules, regardless of `mustMatchFieldsHasAny`
+	if err := evaluateFieldRules(spec.MustMatchFields, claims.Claims); err != nil {
+		return trace.Wrap(err, "validating field rules")
 	}
 
 	// If allow rules were defined, evaluate them last.
