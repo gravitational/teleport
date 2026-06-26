@@ -56,6 +56,7 @@ export const eventCodes = {
   APP_SESSION_START: 'T2007I',
   APP_SESSION_START_FAILURE: 'T2007E',
   APP_SESSION_END: 'T2011I',
+  APP_SESSION_TARGET_DIAL_DENIED: 'T2015E',
   APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
   APP_CREATED: 'TAP03I',
   APP_UPDATED: 'TAP04I',
@@ -684,6 +685,19 @@ export type RawEvents = {
     {
       sid: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_TARGET_DIAL_DENIED]: RawEvent<
+    typeof eventCodes.APP_SESSION_TARGET_DIAL_DENIED,
+    {
+      sid: string;
+      app_name: string;
+      target_host: string;
+      target_port: string;
+      resolved_ips: string[];
+      policy: string;
+      blocked_ip: string;
+      blocked_prefix: string;
     }
   >;
   [eventCodes.APP_SESSION_CHUNK]: RawEvent<

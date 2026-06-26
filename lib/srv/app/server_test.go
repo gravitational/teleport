@@ -169,6 +169,8 @@ type suiteConfig struct {
 	OverrideCAs []types.CertAuthority
 	// InsecureMode sets service to insecure mode.
 	InsecureMode bool
+	// TargetHostPolicy restricts application target dials by resolved IP.
+	TargetHostPolicy common.TargetHostPolicy
 }
 
 type fakeConnMonitor struct{}
@@ -395,6 +397,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		CipherSuites:      utils.DefaultCipherSuites(),
 		ServiceComponent:  teleport.ComponentApp,
 		InsecureMode:      config.InsecureMode,
+		TargetHostPolicy:  config.TargetHostPolicy,
 		AWSConfigOptions: []awsconfig.OptionsFn{
 			awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
 				return &mocks.STSClient{}

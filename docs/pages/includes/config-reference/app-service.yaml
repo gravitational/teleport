@@ -10,6 +10,35 @@ app_service:
     # "teleport.internal/resource-type" with the value "demo".
     mcp_demo_server: true
 
+    # Optional list of IP addresses or CIDR ranges that application targets
+    # are allowed to resolve to. When set, the Application Service fails closed
+    # and blocks target dials to any IP outside this list. Mutually exclusive
+    # with denied_hosts.
+    #
+    # These restrictions apply to the targets of TCP, HTTP, and MCP apps. They
+    # do NOT apply to AWS, Azure, or GCP console/API apps or to LLM apps, whose
+    # egress goes to provider-controlled endpoints. They are also incompatible
+    # with an HTTP(S) proxy configured via the HTTP_PROXY/HTTPS_PROXY
+    # environment variables: because the policy enforces restrictions on the
+    # resolved target IP, which a forward proxy hides, the Application Service
+    # refuses to start if both are set.
+    #
+    # Entries must be plain IPv4/IPv6 addresses or canonical CIDR ranges;
+    # IPv4-in-IPv6 notation (e.g. ::ffff:169.254.0.0/112), IPv6 zone
+    # identifiers, and non-canonical CIDRs (host bits set) are rejected.
+    # allowed_hosts:
+    #   - 10.10.0.0/16
+
+    # Optional list of IP addresses or CIDR ranges that application targets
+    # are not allowed to resolve to. When set, the Application Service fails
+    # open and blocks only target dials to matching IPs. Mutually exclusive
+    # with allowed_hosts. The coverage and formatting notes for allowed_hosts
+    # above apply here as well.
+    # denied_hosts:
+    #   - 169.254.0.0/16
+    #   - 127.0.0.0/8
+    #   - ::1/128
+
     # Matchers for dynamic application resources
     #
     # All application resources have a predefined "teleport.dev/origin" label with
@@ -116,4 +145,3 @@ app_service:
         # Name of the host user account under which the command will be
         # executed. Required for stdio-based MCP servers.
         run_as_host_user: "docker"
-
