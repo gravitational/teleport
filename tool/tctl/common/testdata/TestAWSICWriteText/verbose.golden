@@ -1,0 +1,5 @@
+Account Name Account ID   Permission Set Permission Set ARN                      
+------------ ------------ -------------- --------------------------------------- 
+Production   111111111111 AdminAccess    arn:aws:sso:::permissionSet/abc/ps-aaaa 
+Production   111111111111 ReadOnly       arn:aws:sso:::permissionSet/abc/ps-bbbb 
+Staging      222222222222 ReadOnly       arn:aws:sso:::permissionSet/abc/ps-bbbb 

@@ -44,6 +44,7 @@ func Commands() []CLICommand {
 		&top.Command{},
 		&AccessRequestCommand{},
 		&AppsCommand{},
+		&AWSICCommand{},
 		&DBCommand{},
 		&KubeCommand{},
 		&DesktopCommand{},
