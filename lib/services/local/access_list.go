@@ -765,8 +765,9 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 		membersMap := utils.FromSlice(membersIn, types.GetName)
 
 		var (
-			members      []*accesslist.AccessListMember
-			membersToken string
+			members         []*accesslist.AccessListMember
+			membersToken    string
+			membersToDelete []backend.Key
 		)
 
 		for {
@@ -780,12 +781,12 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 			for _, existingMember := range members {
 				// If the member is not in the new members map (request), delete it.
 				if newMember, ok := membersMap[existingMember.GetName()]; !ok {
-					err = a.memberService.WithPrefix(accessList.GetName()).DeleteResource(ctx, existingMember.GetName())
-					if err != nil {
-						return trace.Wrap(err)
-					}
+					membersToDelete = append(membersToDelete, a.memberService.WithPrefix(accessList.GetName()).MakeKey(backend.NewKey(existingMember.GetName())))
 					// Update memberOf field if nested list.
 					if existingMember.Spec.MembershipKind == accesslist.MembershipKindList {
+						// Update Access list memberOf status.
+						// If this operation fails and leave inconsistent state the access list status
+						// reconsider will self-heal the memberOf field eventually.
 						if err := a.updateAccessListMemberOf(ctx, accessList.GetName(), existingMember.GetName(), false); err != nil {
 							return trace.Wrap(err)
 						}
@@ -822,6 +823,14 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 			if membersToken == "" {
 				break
 			}
+		}
+
+		// Delete members based on the diff between the existing members and the new members.
+		// Note that we don't need to update the memberOf field for any of the deleted members here.
+		// If this operation fails and lave the system in an inconsistent state,
+		// the access list status reconsider will self-heal the memberOf field.
+		if err := backend.DeleteBatch(ctx, a.backend, membersToDelete); err != nil {
+			return trace.Wrap(err)
 		}
 
 		if err := a.insertMembersAndUpdateNestedRelationships(ctx, accessList.GetName(), slices.Collect(maps.Values(membersMap))); err != nil {
