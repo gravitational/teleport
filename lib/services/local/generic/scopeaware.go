@@ -43,10 +43,16 @@ type ScopedResource interface {
 // separate key range from resources with an empty scope, and namespaced by
 // their scope. The ScopeAwareService transparently handles listing all scoped
 // and unscoped resources, as well as creating and querying individual resources
-// from the correct key range.
+// from the correct key range. A ScopeAwareService can also be configured to only
+// consume scoped resources. This is useful for situations in which a resource
+// has never had an unscoped variant.
 type ScopeAwareService[T ScopedResource] struct {
+	// scopedOnly indicates that the service will only operate on scoped resources.
+	// The unscoped fallback path will be ignored in all cases.
+	scopedOnly bool
 	// UnscopedService is the underlying service for resources with an empty scope.
-	// Resources will be keyed at <backend_prefix>/<name>
+	// Resources will be keyed at <backend_prefix>/<name>. It will be nil if the
+	// service was configured to be scoped only.
 	UnscopedService *Service[T]
 	// ScopedService is the underlying service for resources with a scope.
 	// Resources will be keyed at <scoped_prefix>/<backend_prefix>/<encoded_scope>/<name>
@@ -55,6 +61,9 @@ type ScopeAwareService[T ScopedResource] struct {
 
 // ScopeAwareServiceConfig holds configuration options for ScopeAwareService.
 type ScopeAwareServiceConfig[T ScopedResource] struct {
+	// ScopedOnly indicates that the service will only operate on scoped resources.
+	// The unscoped fallback path will be ignored in all cases.
+	ScopedOnly bool
 	// Backend used to persist the resource.
 	Backend backend.Backend
 	// ResourceKind is the friendly name of the resource.
@@ -80,11 +89,11 @@ type ScopeAwareServiceConfig[T ScopedResource] struct {
 
 // NewScopeAwareService returns a new scope-aware service.
 func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*ScopeAwareService[T], error) {
-	unscopedService, err := NewService(&ServiceConfig[T]{
+	scopedService, err := NewService(&ServiceConfig[T]{
 		Backend:                     cfg.Backend,
 		ResourceKind:                cfg.ResourceKind,
 		PageLimit:                   cfg.PageLimit,
-		BackendPrefix:               cfg.UnscopedBackendPrefix,
+		BackendPrefix:               cfg.ScopedBackendPrefix,
 		MarshalFunc:                 cfg.MarshalFunc,
 		UnmarshalFunc:               cfg.UnmarshalFunc,
 		ValidateFunc:                cfg.ValidateFunc,
@@ -94,11 +103,18 @@ func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*S
 		return nil, trace.Wrap(err)
 	}
 
-	scopedService, err := NewService(&ServiceConfig[T]{
+	if cfg.ScopedOnly {
+		return &ScopeAwareService[T]{
+			scopedOnly:    true,
+			ScopedService: scopedService,
+		}, nil
+	}
+
+	unscopedService, err := NewService(&ServiceConfig[T]{
 		Backend:                     cfg.Backend,
 		ResourceKind:                cfg.ResourceKind,
 		PageLimit:                   cfg.PageLimit,
-		BackendPrefix:               cfg.ScopedBackendPrefix,
+		BackendPrefix:               cfg.UnscopedBackendPrefix,
 		MarshalFunc:                 cfg.MarshalFunc,
 		UnmarshalFunc:               cfg.UnmarshalFunc,
 		ValidateFunc:                cfg.ValidateFunc,
@@ -123,6 +139,22 @@ func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*S
 // service's relative key. [scopes.ResourceCursorScopedStart] is the boundary
 // between unscoped and scoped resources.
 func (s *ScopeAwareService[T]) Resources(ctx context.Context, startKey, endKey string) iter.Seq2[T, error] {
+	if s.scopedOnly {
+		if endKey != "" && !scopes.IsScopedResourceCursor(endKey) {
+			return stream.Empty[T]()
+		}
+		if endKey == scopes.ResourceCursorScopedStart() {
+			return stream.Empty[T]()
+		}
+
+		scopedStartKey := ""
+		if scopes.IsScopedResourceCursor(startKey) {
+			scopedStartKey = strings.TrimPrefix(startKey, scopes.ResourceCursorPrefix)
+		}
+		scopedEndKey := strings.TrimPrefix(endKey, scopes.ResourceCursorPrefix)
+		return s.ScopedService.Resources(ctx, scopedStartKey, scopedEndKey)
+	}
+
 	var streams []stream.Stream[T]
 
 	if !scopes.IsScopedResourceCursor(startKey) {
@@ -166,14 +198,18 @@ func (s *ScopeAwareService[T]) ListResources(ctx context.Context, pageSize int, 
 // unified scoped and unscoped collection. It always returns all matching
 // unscoped resources before matching scoped resources.
 func (s *ScopeAwareService[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, nextToken string, matcher func(T) bool) ([]T, string, error) {
-	if pageSize <= 0 || pageSize > int(s.UnscopedService.pageLimit) {
-		pageSize = int(s.UnscopedService.pageLimit)
+	if pageSize <= 0 || pageSize > int(s.ScopedService.pageLimit) {
+		pageSize = int(s.ScopedService.pageLimit)
 	}
 
-	// Check if the token was scoped, if so the caller has already paged over
-	// all unscoped resources and we should return the next page of scoped
-	// resources.
-	if scopes.IsScopedResourceCursor(nextToken) {
+	if s.scopedOnly && nextToken != "" && !scopes.IsScopedResourceCursor(nextToken) {
+		return nil, "", trace.BadParameter("scoped-only storage service received invalid pagination token")
+	}
+
+	// If in scoped only mode we don't care about unscoped resources. If the
+	// token was scoped the caller has already paged over all unscoped
+	// resources and we should return the next page of scoped resources.
+	if s.scopedOnly || scopes.IsScopedResourceCursor(nextToken) {
 		nextToken = strings.TrimPrefix(nextToken, scopes.ResourceCursorPrefix)
 		resources, nextToken, err := s.ScopedService.ListResourcesWithFilter(ctx, pageSize, nextToken, matcher)
 		if nextToken != "" {
@@ -232,8 +268,12 @@ func (s *ScopeAwareService[T]) DeleteResource(ctx context.Context, scopedName sc
 	return svc.DeleteResource(ctx, scopedName.Name)
 }
 
-// DeleteAllResources deletes all scoped and unscoped resources.
+// DeleteAllResources deletes all scoped and unscoped resources (if not in scoped only mode).
 func (s *ScopeAwareService[T]) DeleteAllResources(ctx context.Context) error {
+	if s.scopedOnly {
+		return trace.Wrap(s.ScopedService.DeleteAllResources(ctx))
+	}
+
 	return trace.NewAggregate(
 		s.UnscopedService.DeleteAllResources(ctx),
 		s.ScopedService.DeleteAllResources(ctx),
@@ -292,6 +332,9 @@ func (s *ScopeAwareService[T]) ConditionalUpdateResource(ctx context.Context, re
 // returns the scoped service with the encoded scope appended to its backend prefix.
 func (s *ScopeAwareService[T]) WithScopePrefix(scope string) (*Service[T], error) {
 	if scope == "" {
+		if s.scopedOnly {
+			return nil, trace.BadParameter("scoped-only storage service received an empty scope")
+		}
 		return s.UnscopedService, nil
 	}
 	encodedScope, err := scopes.EncodeForKey(scope)
@@ -314,6 +357,9 @@ func (s *ScopeAwareService[T]) WithScopePrefix(scope string) (*Service[T], error
 // resource, i.e. members of a scoped access list.
 func (s *ScopeAwareService[T]) WithScopedResourcePrefix(scopedName scopes.QualifiedName) (*Service[T], error) {
 	if scopedName.Scope == "" {
+		if s.scopedOnly {
+			return nil, trace.BadParameter("scoped-only storage service received an empty scope")
+		}
 		return s.UnscopedService.WithPrefix(scopedName.Name), nil
 	}
 	encodedScope, err := scopes.EncodeForKey(scopedName.Scope)
