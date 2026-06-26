@@ -106,10 +106,13 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.Gl
 	c.agentsStartUpdateCmd = agentsCmd.Command("start-update", "Starts updating one or many groups.")
 	c.agentsStartUpdateCmd.Arg("groups", "Groups to start updating.").StringsVar(&c.groups)
 	c.agentsStartUpdateCmd.Flag("force", "Skips progressive deployment mechanism such as canaries or backpressure.").BoolVar(&c.force)
+	c.agentsStartUpdateCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.agentsMarkDoneCmd = agentsCmd.Command("mark-done", "Marks one or many groups as done updating.")
 	c.agentsMarkDoneCmd.Arg("groups", "Groups to mark as done updating.").StringsVar(&c.groups)
+	c.agentsMarkDoneCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.agentsRollbackCmd = agentsCmd.Command("rollback", "Rolls back one or many groups.")
 	c.agentsRollbackCmd.Arg("groups", "Groups to rollback. When empty, every group already started is rolled back.").StringsVar(&c.groups)
+	c.agentsRollbackCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
@@ -693,11 +696,30 @@ func (c *AutoUpdateCommand) agentsStartUpdateCommand(ctx context.Context, client
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(c.stdout, "Successfully started updating agents groups: %v.\n", groups)
+	return trace.Wrap(c.writeAgentRollout(rollout, fmt.Sprintf("Successfully started updating agents groups: %v.", groups)))
+}
 
-	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
-	rolloutGroupTable(rollout, c.stdout)
-	return nil
+// writeAgentRollout renders an agent rollout (the result of a start-update,
+// mark-done, or rollback mutation) in the configured output format.
+//
+// For text, successMsg is printed as the command-specific success prose,
+// followed by the shared rollout status table. For json/yaml the rollout is
+// serialized using the same shape as `tctl autoupdate agents status` and
+// successMsg is ignored, since structured output carries no prose.
+func (c *AutoUpdateCommand) writeAgentRollout(rollout *autoupdatev1pb.AutoUpdateAgentRollout, successMsg string) error {
+	switch c.format {
+	case teleport.Text:
+		fmt.Fprintln(c.stdout, successMsg)
+		fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
+		rolloutGroupTable(rollout, c.stdout)
+		return nil
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSON(c.stdout, newAgentStatusOutput(rollout)))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(c.stdout, newAgentStatusOutput(rollout)))
+	default:
+		return trace.BadParameter("unsupported format %q", c.format)
+	}
 }
 
 func (c *AutoUpdateCommand) agentsMarkDoneCommand(ctx context.Context, client autoupdateClient) error {
@@ -713,15 +735,11 @@ func (c *AutoUpdateCommand) agentsMarkDoneCommand(ctx context.Context, client au
 		return trace.Wrap(err)
 	}
 
+	successMsg := fmt.Sprintf("Successfully marked agent groups as completed: %v.", groups)
 	if len(c.groups) == 0 {
-		fmt.Fprintln(c.stdout, "Successfully marked every started agent group as completed.")
-	} else {
-		fmt.Fprintf(c.stdout, "Successfully marked agent groups as completed: %v.\n", groups)
+		successMsg = "Successfully marked every started agent group as completed."
 	}
-
-	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
-	rolloutGroupTable(rollout, c.stdout)
-	return nil
+	return trace.Wrap(c.writeAgentRollout(rollout, successMsg))
 }
 
 func (c *AutoUpdateCommand) agentsRollbackCommand(ctx context.Context, client autoupdateClient) error {
@@ -739,15 +757,11 @@ func (c *AutoUpdateCommand) agentsRollbackCommand(ctx context.Context, client au
 		return trace.Wrap(err)
 	}
 
+	successMsg := fmt.Sprintf("Successfully rolled back the following agent groups: %v.", groups)
 	if rollbackAllSartedGroups {
-		fmt.Fprintln(c.stdout, "Successfully rolled back already started groups.")
-	} else {
-		fmt.Fprintf(c.stdout, "Successfully rolled back the following agent groups: %v.\n", groups)
+		successMsg = "Successfully rolled back already started groups."
 	}
-
-	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
-	rolloutGroupTable(rollout, c.stdout)
-	return nil
+	return trace.Wrap(c.writeAgentRollout(rollout, successMsg))
 }
 
 func formatTimeIfNotEmpty(t time.Time, format string) string {

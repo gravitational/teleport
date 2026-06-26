@@ -38,6 +38,7 @@ import (
 var rolesSupportingScopes = types.SystemRoles{
 	types.RoleNode,
 	types.RoleKube,
+	types.RoleApp,
 	types.RoleBot,
 }
 
@@ -662,6 +663,11 @@ func (t *Token) GetBot() (name, scope string) {
 // provisioned using the wrapped [joiningv1.ScopedToken].
 func (t *Token) GetAssignedScope() string {
 	return t.scoped.GetSpec().GetAssignedScope()
+}
+
+// GetScope returns the scope of the wrapped [joiningv1.ScopedToken].
+func (t *Token) GetScope() string {
+	return t.scoped.GetScope()
 }
 
 // GetSecret returns the token's secret value.

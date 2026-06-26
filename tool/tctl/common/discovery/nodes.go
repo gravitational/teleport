@@ -37,20 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/usertasks"
 )
-
-// discoveryClient abstracts the auth client methods used by discovery commands.
-// It is a strict subset of authclient.Client.
-type discoveryClient interface {
-	// SearchEvents searches audit events.
-	SearchEvents(ctx context.Context, req libevents.SearchEventsRequest) ([]apievents.AuditEvent, string, error)
-	// GetResources lists resources with pagination.
-	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
-	// UserTasksClient returns a client for managing user tasks.
-	UserTasksClient() services.UserTasks
-}
 
 // runResult captures the most recent installation script result for an instance,
 // sourced from audit events (e.g. SSM run events for AWS).
@@ -231,40 +219,6 @@ func filterFailures(instances []instanceInfo) []instanceInfo {
 	return slices.DeleteFunc(slices.Clone(instances), func(inst instanceInfo) bool {
 		return !inst.failed()
 	})
-}
-
-type cloudProviderConfig struct {
-	aws, azure bool
-}
-
-func parseCloudProviders(value string) (cloudProviderConfig, error) {
-	const (
-		cloudProviderAWS   = "aws"
-		cloudProviderAzure = "azure"
-	)
-
-	if value == "" {
-		return cloudProviderConfig{
-			aws:   true,
-			azure: true,
-		}, nil
-	}
-
-	cfg := cloudProviderConfig{}
-	parts := strings.Split(value, ",")
-	for _, part := range parts {
-		switch strings.ToLower(strings.TrimSpace(part)) {
-		case cloudProviderAWS:
-			cfg.aws = true
-		case cloudProviderAzure:
-			cfg.azure = true
-		case "":
-			return cloudProviderConfig{}, trace.BadParameter("empty cloud provider in --cloud (allowed: aws, azure)")
-		default:
-			return cloudProviderConfig{}, trace.BadParameter("unknown cloud provider %q (allowed: aws, azure)", part)
-		}
-	}
-	return cfg, nil
 }
 
 // buildNodes combines information about cloud instances from three sources,
