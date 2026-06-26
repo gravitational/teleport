@@ -99,7 +99,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
+						Rules: defaultAllowRules(modules.BuildOSS)[teleport.PresetEditorRoleName],
 					},
 				},
 			},
@@ -113,7 +113,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
+						Rules: defaultAllowRules(modules.BuildOSS)[teleport.PresetEditorRoleName],
 					},
 				},
 			},
@@ -162,7 +162,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetAccessRoleName],
+						Rules: defaultAllowRules(modules.BuildOSS)[teleport.PresetAccessRoleName],
 					},
 				},
 			},
@@ -178,7 +178,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					Allow: types.RoleConditions{
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						Rules:                 defaultAllowRules(modules.BuildOSS)[teleport.PresetAccessRoleName],
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
@@ -199,7 +199,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					Allow: types.RoleConditions{
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						Rules:                 defaultAllowRules(modules.BuildOSS)[teleport.PresetAccessRoleName],
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
@@ -221,7 +221,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					Allow: types.RoleConditions{
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						Rules:                 defaultAllowRules(modules.BuildOSS)[teleport.PresetAccessRoleName],
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
@@ -288,7 +288,7 @@ func TestAddRoleDefaults(t *testing.T) {
 						},
 					},
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
+						Rules: defaultAllowRules(modules.BuildOSS)[teleport.PresetAuditorRoleName],
 					},
 				},
 			},
@@ -309,7 +309,7 @@ func TestAddRoleDefaults(t *testing.T) {
 						},
 					},
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
+						Rules: defaultAllowRules(modules.BuildOSS)[teleport.PresetAuditorRoleName],
 					},
 				},
 			},
@@ -897,6 +897,50 @@ func TestAddRoleDefaults(t *testing.T) {
 						GroupLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 						KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 						NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+					},
+				},
+			},
+		},
+		{
+			name:       "device-admin (missing mobile_device.create_enroll_token)",
+			enterprise: true,
+			role: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetDeviceAdminRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Administer trusted devices",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{
+							types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+						},
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetDeviceAdminRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Administer trusted devices",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{
+							types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+							types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
+						},
 					},
 				},
 			},
