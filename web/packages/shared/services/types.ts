@@ -29,6 +29,57 @@ export type AuthProviderType = 'oidc' | 'saml' | 'github';
 
 export type Auth2faType = 'otp' | 'off' | 'optional' | 'on' | 'webauthn';
 
+export type SecondFactor = 'otp' | 'webauthn' | 'sso';
+
+// legacySecondFactorToSecondFactors converts the legacy second_factor field into the
+// equivalent list of second_factors.
+// TODO(Joerger): DELETE IN v20 - v19 server sets second_factors.
+export function legacySecondFactorToSecondFactors(
+  secondFactor: Auth2faType
+): SecondFactor[] {
+  switch (secondFactor) {
+    case 'otp':
+      return ['otp'];
+    case 'webauthn':
+      return ['webauthn'];
+    case 'on':
+    case 'optional':
+      return ['otp', 'webauthn'];
+    default:
+      return [];
+  }
+}
+
+// secondFactorsToLegacySecondFactor converts a list of second_factors into the
+// equivalent legacy second_factor field.
+//
+// The conversion is lossy:
+// - [sso] -> "off"
+// - [sso, x] -> "otp" | "webauthn" | "on"
+// - No combination of second_factors can result in "optional"
+//
+// TODO(Joerger): the 'optional' auth2faType is currently never sent by v17+ servers
+// due to a bug - https://github.com/gravitational/teleport/issues/67274. As a result,
+// we can accept the loss of "optional" in this conversion for the time being. If we decide
+// to fix "optional", this conversion can be updated to check an 'is_mfa_optional' field.
+export function secondFactorsToLegacySecondFactor(
+  secondFactors: SecondFactor[]
+): Auth2faType {
+  const otp = secondFactors.includes('otp');
+  const webauthn = secondFactors.includes('webauthn');
+
+  if (otp && webauthn) {
+    return 'on';
+  }
+  if (webauthn) {
+    return 'webauthn';
+  }
+  if (otp) {
+    return 'otp';
+  }
+  return 'off';
+}
+
 export type AuthType = 'local' | 'github' | 'oidc' | 'saml';
 
 // PrimaryAuthType defines types where if:
