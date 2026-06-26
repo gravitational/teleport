@@ -52,6 +52,15 @@ func (s *Struct) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// GogoStruct returns the inner gogo-style struct
+func (s *Struct) GogoStruct() *gogotypes.Struct {
+	if s == nil {
+		return nil
+	}
+
+	return &s.Struct
+}
+
 // NewStructFromGogoValues returns a new struct wrapper from an unpacked map of
 // [gogotypes.Value], useful for constructing struct types in tests.
 func NewStructFromGogoValues(fields map[string]*gogotypes.Value) *Struct {
@@ -60,4 +69,13 @@ func NewStructFromGogoValues(fields map[string]*gogotypes.Value) *Struct {
 			Fields: fields,
 		},
 	}
+}
+
+// NewStruct converts a gogo struct to our wrapped variant
+func NewStruct(s *gogotypes.Struct) *Struct {
+	if s == nil {
+		return nil
+	}
+
+	return &Struct{Struct: *s}
 }
