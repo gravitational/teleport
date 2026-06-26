@@ -98,7 +98,7 @@ func (s *accessListAndMembersGetter) ListAccessListMembers(ctx context.Context, 
 }
 
 func (s *accessListAndMembersGetter) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	return s.service.GetResource(ctx, accesslists.ToScopesQualifiedName(accesslist.ScopeQualifiedName{Name: name}))
+	return s.service.GetResource(ctx, scopes.QualifiedName{Name: name})
 }
 
 // GetAccessListMember returns the specified access list member resource.
@@ -216,17 +216,20 @@ func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accessli
 
 // GetAccessList returns the specified access list resource.
 func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	return a.getAccessList(ctx, accesslist.ScopeQualifiedName{Name: name})
+	return a.getAccessList(ctx, scopes.QualifiedName{Name: name})
 }
 
 // GetAccessListV2 returns the specified access list resource, supporting
 // scoped or unscoped access lists.
-func (a *AccessListService) GetAccessListV2(ctx context.Context, listName accesslist.ScopeQualifiedName) (*accesslist.AccessList, error) {
-	return a.getAccessList(ctx, listName)
+func (a *AccessListService) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
+	return a.getAccessList(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	})
 }
 
-func (a *AccessListService) getAccessList(ctx context.Context, listName accesslist.ScopeQualifiedName) (*accesslist.AccessList, error) {
-	return a.service.GetResource(ctx, accesslists.ToScopesQualifiedName(listName))
+func (a *AccessListService) getAccessList(ctx context.Context, listName scopes.QualifiedName) (*accesslist.AccessList, error) {
+	return a.service.GetResource(ctx, listName)
 }
 
 // GetAccessListsToReview returns access lists that the user needs to review. This is not implemented in the local service.
@@ -262,7 +265,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	validateAccessList := func() error {
 		var err error
 
-		existingAccessList, err = a.getAccessList(ctx, accessList.GetScopeQualifiedName())
+		existingAccessList, err = a.getAccessList(ctx, accesslists.ScopeQualifiedName(accessList))
 		if op == opTypeUpsert && trace.IsNotFound(err) {
 			// Not having already existing access_list in the backend is ok in case of
 			// upsert.
@@ -341,7 +344,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	// access lists in the cluster in order to prevent un-authorized use of
 	// the AccessList feature
 	if !a.modules.Features().GetEntitlement(entitlements.Identity).Enabled {
-		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, accessList.GetScopeQualifiedName()) })
+		actions = append(actions, func() error { return a.verifyAccessListCreateLimit(ctx, accesslists.ScopeQualifiedName(accessList)) })
 	}
 
 	// Note we need to reconcile the old owners (clean status.owner_of for the owner lists
@@ -351,7 +354,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	// interrupted as we user status.owner_of to calculate hierarchy.
 	actions = append(actions, validateAccessList, reconcileOldOwners, updateAccessList, reconcileNewOwners)
 
-	resourceLockName, err := scopeAwareLockName(accessList.GetScopeQualifiedName())
+	resourceLockName, err := scopeAwareLockName(accesslists.ScopeQualifiedName(accessList))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -372,12 +375,18 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 
 // DeleteAccessList removes the specified access list resource.
 func (a *AccessListService) DeleteAccessList(ctx context.Context, name string) error {
-	return a.DeleteAccessListV2(ctx, accesslist.ScopeQualifiedName{Name: name})
+	return a.DeleteAccessListV2(ctx, accesslistv1.DeleteAccessListRequest_builder{
+		Name: name,
+	}.Build())
 }
 
 // DeleteAccessListV2 removes the specified access list resource, supporting
 // scoped or unscoped access lists.
-func (a *AccessListService) DeleteAccessListV2(ctx context.Context, name accesslist.ScopeQualifiedName) error {
+func (a *AccessListService) DeleteAccessListV2(ctx context.Context, req *accesslistv1.DeleteAccessListRequest) error {
+	name := scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}
 	action := func(ctx context.Context, _ backend.Backend) error {
 		// Get list resource.
 		accessList, err := a.getAccessList(ctx, name)
@@ -413,7 +422,7 @@ func (a *AccessListService) DeleteAccessListV2(ctx context.Context, name accessl
 		}
 
 		// Delete list itself.
-		if err := a.service.DeleteResource(ctx, accesslists.ToScopesQualifiedName(name)); err != nil {
+		if err := a.service.DeleteResource(ctx, name); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -768,7 +777,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 
 	validateAccessList := func() error {
 		var err error
-		existingAccessList, err = a.getAccessList(ctx, accessList.GetScopeQualifiedName())
+		existingAccessList, err = a.getAccessList(ctx, accesslists.ScopeQualifiedName(accessList))
 		if err != nil {
 			// a not found error is totally legal for an upsert operation, but
 			// fatal for an update.
@@ -907,7 +916,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 	// access lists in the cluster in order to  prevent un-authorized use of the
 	// AccessList feature
 	if !a.modules.Features().GetEntitlement(entitlements.Identity).Enabled {
-		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, accessList.GetScopeQualifiedName()) })
+		actions = append(actions, func() error { return a.verifyAccessListCreateLimit(ctx, accesslists.ScopeQualifiedName(accessList)) })
 	}
 
 	// Note we need to reconcile the old owners (clean status.owner_of for the owner lists
@@ -1163,7 +1172,7 @@ func lockName(accessListName string) []string {
 	return []string{accessListPrefix, accessListName}
 }
 
-func scopeAwareLockName(accessListName accesslist.ScopeQualifiedName) ([]string, error) {
+func scopeAwareLockName(accessListName scopes.QualifiedName) ([]string, error) {
 	if accessListName.Scope == "" {
 		return lockName(accessListName.Name), nil
 	}
@@ -1174,11 +1183,11 @@ func scopeAwareLockName(accessListName accesslist.ScopeQualifiedName) ([]string,
 	return []string{scopedPrefix, accessListPrefix, encodedScope, accessListName.Name}, nil
 }
 
-// VerifyAccessListCreateLimit ensures creating access list is limited to no more than 1 (updating is allowed).
+// verifyAccessListCreateLimit ensures creating access list is limited to no more than 1 (updating is allowed).
 // It differentiates request for `creating` and `updating` by checking to see if the request
 // access list name matches the ones we retrieved.
 // Returns error if limit has been reached.
-func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, targetAccessListName accesslist.ScopeQualifiedName) error {
+func (a *AccessListService) verifyAccessListCreateLimit(ctx context.Context, targetAccessListName scopes.QualifiedName) error {
 	f := a.modules.Features()
 	if f.GetEntitlement(entitlements.Identity).Enabled {
 		return nil // unlimited
@@ -1191,7 +1200,7 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if list.GetScopeQualifiedName() == targetAccessListName {
+		if accesslists.ScopeQualifiedName(list) == targetAccessListName {
 			return nil
 		}
 		numLists++

@@ -497,14 +497,6 @@ func (a *AccessList) GetScope() string {
 	return a.Scope
 }
 
-// GetScopeQualifiedName returns the scope-qualified name of the access list.
-func (a *AccessList) GetScopeQualifiedName() ScopeQualifiedName {
-	return ScopeQualifiedName{
-		Scope: a.Scope,
-		Name:  a.Metadata.Name,
-	}
-}
-
 // GetOwners returns the list of owners from the access list.
 func (a *AccessList) GetOwners() []Owner {
 	return a.Spec.Owners

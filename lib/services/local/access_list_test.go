@@ -34,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -187,7 +188,7 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	}
 
 	const listName = "accessList"
-	scopedName := accesslist.ScopeQualifiedName{Scope: "/eng", Name: listName}
+	scopedName := scopes.QualifiedName{Scope: "/eng", Name: listName}
 	scopedAccessList := newScopedAccessList(listName, scopedName.Scope)
 	unscopedAccessList := newAccessList(t, listName, clock)
 
@@ -195,7 +196,10 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(scopedAccessList, created, cmpOpts...))
 
-	fetched, err := service.GetAccessListV2(ctx, scopedName)
+	fetched, err := service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: scopedName.Scope,
+		Name:  scopedName.Name,
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(scopedAccessList, fetched, cmpOpts...))
 
@@ -224,7 +228,10 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "updated scoped access list", updated.Spec.Description)
 
-	fetched, err = service.GetAccessListV2(ctx, scopedName)
+	fetched, err = service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: scopedName.Scope,
+		Name:  scopedName.Name,
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "updated scoped access list", fetched.Spec.Description)
 
@@ -232,10 +239,16 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, unscopedAccessList.Spec.Description, unscopedFetched.Spec.Description)
 
-	err = service.DeleteAccessListV2(ctx, scopedName)
+	err = service.DeleteAccessListV2(ctx, accesslistv1.DeleteAccessListRequest_builder{
+		Scope: scopedName.Scope,
+		Name:  scopedName.Name,
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = service.GetAccessListV2(ctx, scopedName)
+	_, err = service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: scopedName.Scope,
+		Name:  scopedName.Name,
+	}.Build())
 	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 	unscopedFetched, err = service.GetAccessList(ctx, listName)

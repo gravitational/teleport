@@ -21,10 +21,10 @@ import (
 	"github.com/gravitational/teleport/lib/scopes"
 )
 
-// ToScopesQualifiedName converts an [accesslist.ScopeQualifiedName] to a [scopes.QualifiedName].
-func ToScopesQualifiedName(sqn accesslist.ScopeQualifiedName) scopes.QualifiedName {
+// ScopeQualifiedName returns the scope-qualified name of the given access list.
+func ScopeQualifiedName(list *accesslist.AccessList) scopes.QualifiedName {
 	return scopes.QualifiedName{
-		Scope: sqn.Scope,
-		Name:  sqn.Name,
+		Scope: list.Scope,
+		Name:  list.Metadata.Name,
 	}
 }
