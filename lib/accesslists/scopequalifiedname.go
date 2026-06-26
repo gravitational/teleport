@@ -39,11 +39,16 @@ func FromScopesQualifiedName(sqn scopes.QualifiedName) accesslist.ScopeQualified
 	}
 }
 
-// ParseScopeQualifiedName parses a scope-qualified name into an [accesslist.ParseScopeQualifiedName].
+// ParseScopeQualifiedName parses a scope-qualified name into an [accesslist.ScopeQualifiedName].
 func ParseScopeQualifiedName(name string) (accesslist.ScopeQualifiedName, error) {
 	sqn, err := scopes.ParseQualifiedName(name)
 	if err != nil {
 		return accesslist.ScopeQualifiedName{}, trace.Wrap(err)
+	}
+	if sqn.Scope != "" {
+		if err := sqn.WeakValidate(); err != nil {
+			return accesslist.ScopeQualifiedName{}, trace.Wrap(err)
+		}
 	}
 	return FromScopesQualifiedName(sqn), nil
 }
@@ -114,4 +119,17 @@ func AllParentLists(list *accesslist.AccessList) ([]accesslist.ScopeQualifiedNam
 		parentLists = append(parentLists, parentSQN)
 	}
 	return parentLists, nil
+}
+
+// ParentListOf returns the scope-qualified name of the parent list of the
+// given access list member.
+func ParentListOf(member *accesslist.AccessListMember) (accesslist.ScopeQualifiedName, error) {
+	if member.Scope == "" {
+		if member.Spec.AccessList == "" {
+			return accesslist.ScopeQualifiedName{}, trace.BadParameter("member spec.access_list field empty")
+		}
+		return accesslist.ScopeQualifiedName{Name: member.Spec.AccessList}, nil
+	}
+	listName, err := ParseScopeQualifiedName(member.Spec.AccessList)
+	return listName, trace.Wrap(err, "parsing member spec.access_list")
 }
