@@ -27,8 +27,6 @@ import (
 	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/reflect/protoreflect"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // concreteEnum is a protobuf enum that's backed by an int32 (like regular
@@ -91,9 +89,4 @@ func parseProtobufEnum[E concreteEnum](s *string, e *E, shortcuts map[string]E) 
 			),
 		)
 	}
-}
-
-// bold wraps the given text in an ANSI escape to bold it
-func bold(text string) string {
-	return utils.Color(utils.Bold, text)
 }
