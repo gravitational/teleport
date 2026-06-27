@@ -36,16 +36,20 @@ type GenericOIDCTokenValidator interface {
 	) (*genericoidc.IDTokenClaims, error)
 }
 
-// validateEnv0Token performs OIDC token verification for generic OIDC JWTs,
+// validateGenericOIDCToken performs OIDC token verification for generic OIDC JWTs,
 // suitable for use in `handleOIDCJoin`
 func (s *Server) validateGenericOIDCToken(
 	ctx context.Context,
 	provisionToken provision.Token,
 	idToken []byte,
 ) (any, *workloadidentityv1.JoinAttrs, error) {
+	// Validator errors may contain sensitive info. Eventually we want to plumb
+	// the raw error into the audit log, but for now we'll log it and mask the
+	// error from the client.
 	verifiedIdentity, err := s.cfg.AuthService.GetGenericOIDCIDTokenValidator().ValidateToken(ctx, provisionToken, idToken)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "validating generic OIDC token")
+		s.cfg.Logger.WarnContext(ctx, "denying generic_oidc join attempt", "error", err)
+		return nil, nil, trace.AccessDenied("unable to join via generic_oidc")
 	}
 
 	// Implementation note: there's no explicit attribute validation step for
