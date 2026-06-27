@@ -39,6 +39,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |circleci|[object](#speccircleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
 |env0|[object](#specenv0)|Env0 allows the configuration of options specific to the "env0" join method.|
 |gcp|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
+|generic_oidc|[object](#specgeneric_oidc)|GenericOIDC allows the configuration of generic OIDC join tokens.|
 |github|[object](#specgithub)|GitHub allows the configuration of options specific to the "github" join method.|
 |gitlab|[object](#specgitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
 |integration|string|Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.|
@@ -193,6 +194,59 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |locations|[]string||
 |project_ids|[]string||
 |service_accounts|[]string||
+
+### spec.generic_oidc
+
+|Field|Type|Description|
+|---|---|---|
+|allow_any|[][object](#specgeneric_oidcallow_any-items)|AllowAny evaluates complex rules using "OR" semantics. If any rules are specified, at least one rule must evaluate to `true` for the join attempt to be allowed. These rules are evaluated after `must_match_fields`, if any field matchers are specified in that block.  Note that at least one rule, either in `must_match_fields` or `allow_any`, must be specified for any join attempts to succeed.|
+|audience|string|Audience is the expected audience value (required). This must match or be included in the list of `aud` values in the JWT provided by the client when joining. For providers that do not allow you to configure this value yourself (this is technically an OIDC spec violation, but is common), use the value they provide. Otherwise, we recommend using a value that uniquely identifies the Teleport cluster and join token. For example, you can use this scheme: $clusterName/$tokenName For a cluster named `example.teleport.sh` and a token named `example`, this would result in an audience of `example.teleport.sh/example`. If you prefer, you can also use a UUID instead of the token name. Note that you will need to configure the matching value with the issuer, usually at request time.|
+|insecure_allow_http_issuer|boolean|InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement that the issuer must use HTTPS.|
+|issuer|string|Issuer contains the expected `iss` value as written in the JWT you wish to trust. Unless `static_jwks` is configured, this issuer must be accessible over HTTPS to the Teleport cluster and must serve valid OIDC metadata, including discovery configuration and JWKS keys.|
+|must_match_fields|object|MustMatchFields perform simple comparison matches using "AND" semantics. Rules are specified by mirroring the structure of the JWT, using values that are expected to be equal to those on the incoming token. These field matching rules can only be used to compare simple values: strings, numbers, booleans, and nested fields. Complex values, including lists, will need to use `allow_any` expression rules instead.  If any field match rules are specified, all must be equal to corresponding JWT fields for the join attempt to succeed. If complex rules are specified in `allow_any`, those are evaluated after `must_match_fields`. If `must_match_fields` is not specified or is empty, only rules in `allow_any` are evaluated.  These rules can be used as "global" rules that apply to all join attempts. For example, you can use these to ensure all attempts originate from your organization, then use `allow_any` rules to allow individual repositories, pipelines, or workspaces.  Note that at least one rule, either in `must_match_fields` or `allow_any`, must be specified for any join attempts to succeed.|
+|static_jwks|string|StaticJWKS is an optional static JWKS value that can be used to specify JWKS keys when either OIDC discovery is either not supported by the provider or the discovery configuration is not accessible to Teleport. When set, configuration and JWKS keys will not be fetched from the URL contained in `issuer` and JWTs will be validated using the key set specified here.|
+|tls_ca|string|TLSCA is a TLS CA certificate that should be used to verify requests for OIDC metadata from the issuer instead of Teleport's CA store, useful if the issuer is not public or otherwise uses a self-signed certificate. Note that this value only applies to requests using this token, and will be used instead of and not in addition to the system CA store, and will need to be updated manually if the remote CA is updated.|
+
+### spec.generic_oidc.allow_any items
+
+|Field|Type|Description|
+|---|---|---|
+|conditions|[][object](#specgeneric_oidcallow_any-itemsconditions-items)||
+|expression|string||
+
+### spec.generic_oidc.allow_any items.conditions items
+
+|Field|Type|Description|
+|---|---|---|
+|attribute|string||
+|eq|[object](#specgeneric_oidcallow_any-itemsconditions-itemseq)||
+|in|[object](#specgeneric_oidcallow_any-itemsconditions-itemsin)||
+|not_eq|[object](#specgeneric_oidcallow_any-itemsconditions-itemsnot_eq)||
+|not_in|[object](#specgeneric_oidcallow_any-itemsconditions-itemsnot_in)||
+
+### spec.generic_oidc.allow_any items.conditions items.eq
+
+|Field|Type|Description|
+|---|---|---|
+|value|string||
+
+### spec.generic_oidc.allow_any items.conditions items.in
+
+|Field|Type|Description|
+|---|---|---|
+|values|[]string||
+
+### spec.generic_oidc.allow_any items.conditions items.not_eq
+
+|Field|Type|Description|
+|---|---|---|
+|value|string||
+
+### spec.generic_oidc.allow_any items.conditions items.not_in
+
+|Field|Type|Description|
+|---|---|---|
+|values|[]string||
 
 ### spec.github
 
