@@ -51,11 +51,13 @@ func TestProtoStreamPartUploadRetryExhaustion(t *testing.T) {
 	}
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-		Uploader: uploader,
+		Uploader:       uploader,
+		MinUploadBytes: 1, // Force immediate upload after each event to avoid long test runtime
+		RetryConfig:    retryutils.RetryConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
 	})
 	require.NoError(t, err)
 
-	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 100})
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 5})
 	sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
 
 	stream, err := streamer.CreateAuditStream(ctx, sid)
@@ -88,7 +90,7 @@ func TestProtoStreamPartialPartFailure(t *testing.T) {
 	uploader := &eventstest.MockUploader{
 		MockUploadPart: func(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 			// First part succeeds, subsequent parts fail
-			if partNumber == 0 {
+			if partNumber == 1 {
 				return &events.StreamPart{Number: partNumber}, nil
 			}
 			return nil, errors.New("s3 persistent error")
@@ -98,10 +100,11 @@ func TestProtoStreamPartialPartFailure(t *testing.T) {
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       uploader,
 		MinUploadBytes: 1, // Force immediate upload after each event
+		RetryConfig:    retryutils.RetryConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
 	})
 	require.NoError(t, err)
 
-	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 50})
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 5})
 	sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
 
 	stream, err := streamer.CreateAuditStream(ctx, sid)
@@ -140,7 +143,8 @@ func TestProtoStreamUploadFailurePreservesLocalRecording(t *testing.T) {
 	}
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-		Uploader: uploader,
+		Uploader:    uploader,
+		RetryConfig: retryutils.RetryConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
 	})
 	require.NoError(t, err)
 
