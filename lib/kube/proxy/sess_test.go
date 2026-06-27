@@ -357,7 +357,7 @@ func (m *mockSessionTrackerService) ListKubernetesWaitingContainers(ctx context.
 }
 
 // TestMultiResizeQueueNextEvictsClosedChannel is a regression test for the CPU hot-spin in (*multiResizeQueue).Next():
-// a closed party channel must be dropped from the select set, not re-selected forever.
+// a closed party channel must be dropped from the select set, not re-selected forever, and must not wedge other parties.
 // See https://github.com/gravitational/teleport/issues/68140.
 func TestMultiResizeQueueNextEvictsClosedChannel(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
@@ -369,13 +369,18 @@ func TestMultiResizeQueueNextEvictsClosedChannel(t *testing.T) {
 		close(closedCh)
 		q.add("disconnected-party", closedCh)
 
-		go q.Next()
+		// A live party's resize must still come through with the dead channel present.
+		live := make(chan terminalResizeMessage, 1)
+		q.add("live-party", live)
+		size := &remotecommand.TerminalSize{Width: 80, Height: 24}
+		live <- terminalResizeMessage{size: size, source: uuid.New()}
+		require.Equal(t, size, q.Next())
 
+		// The closed channel's forwarder cleaned itself up; only the live party remains.
 		synctest.Wait()
-
 		q.mutex.Lock()
 		defer q.mutex.Unlock()
-		require.Empty(t, q.cancels, "forwarder for the closed channel was not cleaned up")
+		require.Len(t, q.cancels, 1)
 	})
 }
 
