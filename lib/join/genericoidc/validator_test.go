@@ -502,6 +502,53 @@ func TestGenericOIDC(t *testing.T) {
 				require.ErrorContains(t, err, "must be null or unset but had a value")
 			},
 		},
+		{
+			name: "allow_any expression allows correctly",
+			mutateToken: func(token *types.ProvisionTokenV2) {
+				token.Spec.GenericOIDC.AllowAny = []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+					{
+						Expression: "claims.google.compute_engine.instance_name == \"hello-world\"",
+					},
+				}
+			},
+			expectError: require.NoError,
+			expectClaims: func(t *testing.T, claims *IDTokenClaims) {
+				require.NotNil(t, claims)
+			},
+		},
+		{
+			name: "allow_any expression denies correctly",
+			mutateToken: func(token *types.ProvisionTokenV2) {
+				token.Spec.GenericOIDC.AllowAny = []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+					{
+						Expression: "claims.google.compute_engine.instance_name == \"asdf\"",
+					},
+				}
+			},
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "claims matched no allow_any rules")
+			},
+			expectClaims: func(t *testing.T, claims *IDTokenClaims) {
+				require.Nil(t, claims)
+			},
+		},
+		{
+			name: "multiple allow_any expressions allow eventually",
+			mutateToken: func(token *types.ProvisionTokenV2) {
+				token.Spec.GenericOIDC.AllowAny = []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+					{
+						Expression: "claims.google.compute_engine.instance_name == \"asdf\"",
+					},
+					{
+						Expression: "claims.google.compute_engine.instance_name == \"hello-world\"",
+					},
+				}
+			},
+			expectError: require.NoError,
+			expectClaims: func(t *testing.T, claims *IDTokenClaims) {
+				require.NotNil(t, claims)
+			},
+		},
 	}
 
 	for _, tt := range tests {
