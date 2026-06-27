@@ -60,7 +60,7 @@ func (s *Server) validateGenericOIDCToken(
 		return nil, nil, trace.Wrap(err, "converting join attrs")
 	}
 
-	return verifiedIdentity, &workloadidentityv1.JoinAttrs{
+	return verifiedIdentity, workloadidentityv1.JoinAttrs_builder{
 		GenericOidc: attrs,
-	}, nil
+	}.Build(), nil
 }
