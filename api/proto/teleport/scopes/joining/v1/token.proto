@@ -98,6 +98,10 @@ message ScopedTokenSpec {
   // Name of the bot associated with this join token, if any.
   string bot_name = 13;
 
+  // Scope of the bot associated with this join token. Required if bot_name is
+  // set, and mutually exclusive with assigned_scope.
+  string bot_scope = 14;
+
   // Configuration specific to the "generic_oidc" join method.
   GenericOIDC generic_oidc = 16;
 }

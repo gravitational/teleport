@@ -268,6 +268,9 @@ type ScopedTokenSpec struct {
 	BoundKeypair *BoundKeypairSpec `protobuf:"bytes,12,opt,name=bound_keypair,json=boundKeypair,proto3" json:"bound_keypair,omitempty"`
 	// Name of the bot associated with this join token, if any.
 	BotName string `protobuf:"bytes,13,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
+	// Scope of the bot associated with this join token. Required if bot_name is
+	// set, and mutually exclusive with assigned_scope.
+	BotScope string `protobuf:"bytes,14,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
 	// Configuration specific to the "generic_oidc" join method.
 	GenericOidc   *GenericOIDC `protobuf:"bytes,16,opt,name=generic_oidc,json=genericOidc,proto3" json:"generic_oidc,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -390,6 +393,13 @@ func (x *ScopedTokenSpec) GetBotName() string {
 	return ""
 }
 
+func (x *ScopedTokenSpec) GetBotScope() string {
+	if x != nil {
+		return x.BotScope
+	}
+	return ""
+}
+
 func (x *ScopedTokenSpec) GetGenericOidc() *GenericOIDC {
 	if x != nil {
 		return x.GenericOidc
@@ -447,6 +457,10 @@ func (x *ScopedTokenSpec) SetBoundKeypair(v *BoundKeypairSpec) {
 
 func (x *ScopedTokenSpec) SetBotName(v string) {
 	x.BotName = v
+}
+
+func (x *ScopedTokenSpec) SetBotScope(v string) {
+	x.BotScope = v
 }
 
 func (x *ScopedTokenSpec) SetGenericOidc(v *GenericOIDC) {
@@ -589,6 +603,9 @@ type ScopedTokenSpec_builder struct {
 	BoundKeypair *BoundKeypairSpec
 	// Name of the bot associated with this join token, if any.
 	BotName string
+	// Scope of the bot associated with this join token. Required if bot_name is
+	// set, and mutually exclusive with assigned_scope.
+	BotScope string
 	// Configuration specific to the "generic_oidc" join method.
 	GenericOidc *GenericOIDC
 }
@@ -610,6 +627,7 @@ func (b0 ScopedTokenSpec_builder) Build() *ScopedTokenSpec {
 	x.Kubernetes = b.Kubernetes
 	x.BoundKeypair = b.BoundKeypair
 	x.BotName = b.BotName
+	x.BotScope = b.BotScope
 	x.GenericOidc = b.GenericOidc
 	return m0
 }
@@ -4235,7 +4253,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x8f\x06\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xac\x06\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
@@ -4254,7 +4272,8 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"kubernetes\x18\v \x01(\v2&.teleport.scopes.joining.v1.KubernetesR\n" +
 	"kubernetes\x12Q\n" +
 	"\rbound_keypair\x18\f \x01(\v2,.teleport.scopes.joining.v1.BoundKeypairSpecR\fboundKeypair\x12\x19\n" +
-	"\bbot_name\x18\r \x01(\tR\abotName\x12J\n" +
+	"\bbot_name\x18\r \x01(\tR\abotName\x12\x1b\n" +
+	"\tbot_scope\x18\x0e \x01(\tR\bbotScope\x12J\n" +
 	"\fgeneric_oidc\x18\x10 \x01(\v2'.teleport.scopes.joining.v1.GenericOIDCR\vgenericOidc\"\xb6\x01\n" +
 	"\x0eHostCertParams\x12\x17\n" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x1b\n" +
