@@ -200,27 +200,27 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			if len(rule.Conditions) > 0 {
 				var conditions []*joiningv1.GenericOIDC_Condition
 				for _, cond := range rule.Conditions {
-					newCond := &joiningv1.GenericOIDC_Condition{
+					newCond := joiningv1.GenericOIDC_Condition_builder{
 						Attribute: cond.Attribute,
-					}
+					}.Build()
 
 					switch {
 					case cond.Eq != nil:
-						newCond.Eq = &joiningv1.GenericOIDC_ConditionEq{
+						newCond.SetEq(joiningv1.GenericOIDC_ConditionEq_builder{
 							Value: cond.Eq.Value,
-						}
+						}.Build())
 					case cond.NotEq != nil:
-						newCond.NotEq = &joiningv1.GenericOIDC_ConditionNotEq{
+						newCond.SetNotEq(joiningv1.GenericOIDC_ConditionNotEq_builder{
 							Value: cond.NotEq.Value,
-						}
+						}.Build())
 					case cond.In != nil:
-						newCond.In = &joiningv1.GenericOIDC_ConditionIn{
+						newCond.SetIn(joiningv1.GenericOIDC_ConditionIn_builder{
 							Values: cond.In.Values,
-						}
+						}.Build())
 					case cond.NotIn != nil:
-						newCond.NotIn = &joiningv1.GenericOIDC_ConditionNotIn{
+						newCond.SetNotIn(joiningv1.GenericOIDC_ConditionNotIn_builder{
 							Values: cond.NotIn.Values,
-						}
+						}.Build())
 					default:
 						return nil, trace.BadParameter("generic_oidc condition has no operator")
 					}
@@ -228,19 +228,19 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 					conditions = append(conditions, newCond)
 				}
 
-				allowAny[i] = &joiningv1.GenericOIDC_Rule{
+				allowAny[i] = joiningv1.GenericOIDC_Rule_builder{
 					Conditions: conditions,
-				}
+				}.Build()
 			} else if rule.Expression != "" {
-				allowAny[i] = &joiningv1.GenericOIDC_Rule{
+				allowAny[i] = joiningv1.GenericOIDC_Rule_builder{
 					Expression: rule.Expression,
-				}
+				}.Build()
 			} else {
 				return nil, trace.BadParameter("invalid allow_any rule")
 			}
 		}
 
-		scopedToken.Spec.GenericOidc = &joiningv1.GenericOIDC{
+		scopedToken.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
 			Issuer:                  base.GenericOIDC.Issuer,
 			InsecureAllowHttpIssuer: base.GenericOIDC.InsecureAllowHTTPIssuer,
 			Audience:                base.GenericOIDC.Audience,
@@ -248,7 +248,7 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			TlsCa:                   base.GenericOIDC.TLSCA,
 			AllowAny:                allowAny,
 			MustMatchFields:         mustMatchAny,
-		}
+		}.Build())
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)
 	}

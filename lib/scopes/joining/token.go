@@ -295,15 +295,15 @@ func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
 	}
 
 	for i, rule := range spec.GetAllowAny() {
-		if rule.Expression == "" && len(rule.Conditions) == 0 {
+		if rule.GetExpression() == "" && len(rule.GetConditions()) == 0 {
 			return trace.BadParameter("generic_oidc: allow_any[%d]: either `expression` or `conditions` must be set", i)
 		}
 
-		if rule.Expression != "" && len(rule.Conditions) > 0 {
+		if rule.GetExpression() != "" && len(rule.GetConditions()) > 0 {
 			return trace.BadParameter("generic_oidc: allow_any[%d]: only one of `expression` or `conditions` may be set", i)
 		}
 
-		for j, cond := range rule.Conditions {
+		for j, cond := range rule.GetConditions() {
 			if cond.GetAttribute() == "" {
 				return trace.BadParameter(
 					"generic_oidc: allow_any[%d].conditions[%d]: an attribute "+
