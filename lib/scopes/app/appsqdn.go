@@ -19,6 +19,7 @@ package app
 import (
 	"crypto/sha3"
 	"encoding/base32"
+	"net"
 	"strings"
 )
 
@@ -56,10 +57,15 @@ func scopeSubdomainOk(subdomain string) bool {
 	return true
 }
 
-// ScopedAppPublicAddr returns the derived public address for a scoped app (Scope Qualified Subdomain):
+// ScopedAppPublicAddr returns the derived public address for a scoped app (Scope Qualified SubDomain):
 // "<ScopedSubdomain(name, scope)>.<proxy>".
+// The trailing port on the proxy is stripped and the host is lowercased so the result
+// is a valid public address.
 func ScopedAppPublicAddr(scope, appName, localProxyDNSName string) string {
-	return generateScopedSubDomain(appName, scope) + "." + localProxyDNSName
+	if host, _, err := net.SplitHostPort(localProxyDNSName); err == nil {
+		localProxyDNSName = host
+	}
+	return generateScopedSubDomain(appName, scope) + "." + strings.ToLower(localProxyDNSName)
 }
 
 // ScopedAppPublicAddrValid reports whether publicAddr is a valid derived address
