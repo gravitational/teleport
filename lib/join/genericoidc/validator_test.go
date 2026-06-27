@@ -161,6 +161,7 @@ func (f *fakeIDP) issueTokenWithIssuerAndSigner(
 	signer jose.Signer,
 	issuer, audience, sub string,
 	ttl time.Duration,
+	claimsMutators ...func(*IDTokenClaims),
 ) string {
 	claims := IDTokenClaims{
 		TokenClaims: oidc.TokenClaims{
@@ -195,6 +196,12 @@ func (f *fakeIDP) issueTokenWithIssuerAndSigner(
 		},
 	}
 
+	for _, mut := range claimsMutators {
+		if mut != nil {
+			mut(&claims)
+		}
+	}
+
 	token, err := jwt.Signed(signer).
 		Claims(&claims).
 		Serialize()
@@ -207,8 +214,9 @@ func (f *fakeIDP) issueTokenWithIssuer(
 	t *testing.T,
 	issuer, audience, sub string,
 	ttl time.Duration,
+	claimsMutators ...func(*IDTokenClaims),
 ) string {
-	return f.issueTokenWithIssuerAndSigner(t, f.signer, issuer, audience, sub, ttl)
+	return f.issueTokenWithIssuerAndSigner(t, f.signer, issuer, audience, sub, ttl, claimsMutators...)
 }
 
 func (f *fakeIDP) issueToken(
@@ -560,6 +568,7 @@ func TestGenericOIDCStaticJWKS(t *testing.T) {
 		mutateToken  func(token *types.ProvisionTokenV2)
 		expectError  require.ErrorAssertionFunc
 		expectClaims func(t *testing.T, claims *IDTokenClaims)
+		mutateClaims func(*IDTokenClaims)
 	}{
 		{
 			name: "success with all rule types",
@@ -668,6 +677,60 @@ func TestGenericOIDCStaticJWKS(t *testing.T) {
 				require.Nil(t, claims)
 			},
 		},
+		{
+			name: "rejects token without iat",
+			mutateClaims: func(c *IDTokenClaims) {
+				c.IssuedAt = 0
+			},
+			mutateToken: func(token *types.ProvisionTokenV2) {
+				token.Spec.GenericOIDC.AllowAny = []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+					{
+						Conditions: conditions(
+							eqCondition("google.compute_engine.instance_name", "hello-world"),
+						),
+					},
+				}
+			},
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "token must have an `iat` claim")
+			},
+		},
+		{
+			name: "rejects token without exp",
+			mutateClaims: func(c *IDTokenClaims) {
+				c.Expiration = 0
+			},
+			mutateToken: func(token *types.ProvisionTokenV2) {
+				token.Spec.GenericOIDC.AllowAny = []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+					{
+						Conditions: conditions(
+							eqCondition("google.compute_engine.instance_name", "hello-world"),
+						),
+					},
+				}
+			},
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "token must have an `exp` claim")
+			},
+		},
+		{
+			name: "rejects token without sub",
+			mutateClaims: func(c *IDTokenClaims) {
+				c.Subject = ""
+			},
+			mutateToken: func(token *types.ProvisionTokenV2) {
+				token.Spec.GenericOIDC.AllowAny = []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+					{
+						Conditions: conditions(
+							eqCondition("google.compute_engine.instance_name", "hello-world"),
+						),
+					},
+				}
+			},
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "token must have a `sub` claim")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -689,7 +752,7 @@ func TestGenericOIDCStaticJWKS(t *testing.T) {
 			claims, err := validator.ValidateToken(
 				t.Context(),
 				token,
-				[]byte(idp.issueTokenWithIssuer(t, issuer, audience, "example", time.Hour)),
+				[]byte(idp.issueTokenWithIssuer(t, issuer, audience, "example", time.Hour, tt.mutateClaims)),
 			)
 			tt.expectError(t, err)
 
