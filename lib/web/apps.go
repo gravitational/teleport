@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -91,6 +92,15 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 			if result.App.GetUseAnyProxyPublicAddr() {
 				proxyDNSName := utils.FindMatchingProxyDNS(req.FQDNHint, h.proxyDNSNames())
 				requiredAppFQDN := fmt.Sprintf("%s.%s", requiredAppName, proxyDNSName)
+				// TODO (williamo/scopes): We should not have scoped apps depend on unscoped apps.
+				// Ensure that the requiredAppName is in the main app's scope. For now, we fail at redirect
+				// if the app doesn't exist at the scope (ScopedAppPublicAddr calculation would calculate an
+				// subdomain that doesn't exist)
+				// Add looking up the app and ensuring it exists in the scope in the future, so we can fail more
+				// gracefully if it doesn't exist in the future.
+				if scope := result.App.GetScope(); scope != "" {
+					requiredAppFQDN = scopedapp.ScopedAppPublicAddr(scope, requiredAppName, proxyDNSName)
+				}
 				resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, requiredAppFQDN)
 				continue
 			}
