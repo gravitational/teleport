@@ -22,6 +22,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func FuzzScopedAppPublicAddr(f *testing.F) {
+	f.Add("grafana", "/staging/west", "grafana", "/prod")
+	f.Add("some-app", "/test", "other-app", "/dev")
+	f.Add("app", "/team", "app", "/team")
+
+	const proxy = "proxy.example.com"
+	f.Fuzz(func(t *testing.T, name1, scope1, name2, scope2 string) {
+		addr := ScopedAppPublicAddr(scope1, name1, proxy)
+		// same named apps and scopes should always pass
+		if name1 == name2 && scope1 == scope2 {
+			require.True(t, ScopedAppPublicAddrValid(scope2, name2, addr))
+		} else {
+			require.False(t, ScopedAppPublicAddrValid(scope2, name2, addr),
+				"address for (%q, %q) must not validate for (%q, %q)", name1, scope1, name2, scope2)
+		}
+	})
+}
+
 func TestScopedAppPublicAddr(t *testing.T) {
 	const proxy = "proxy.example.com"
 	// This is the computed value for the app grafana on the /staging/west scope
@@ -32,6 +50,9 @@ func TestScopedAppPublicAddr(t *testing.T) {
 	// Distinct (name, scope) pairs hash to distinct labels.
 	require.NotEqual(t, addr, ScopedAppPublicAddr("/prod", "grafana", proxy))
 	require.NotEqual(t, addr, ScopedAppPublicAddr("/staging/west", "other", proxy))
+
+	// A trailing port on the proxy is stripped and the host is lowercased.
+	require.Equal(t, addr, ScopedAppPublicAddr("/staging/west", "grafana", "Proxy.Example.com:443"))
 }
 
 func TestVerifyScopedAppPublicAddr(t *testing.T) {

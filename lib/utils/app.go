@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 )
 
 // AssembleAppFQDN returns the application's FQDN.
@@ -34,6 +35,12 @@ import (
 // is running in a remote cluster, the FQDN is formatted as
 // <appName>.<localProxyDNSName>
 func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClusterName string, app types.Application) string {
+	// A scoped app is always addressed by its computed hash label under the
+	// selected proxy ("<hash(name,scope)>.<proxy>").
+	if scope := app.GetScope(); scope != "" {
+		return scopedapp.ScopedAppPublicAddr(scope, app.GetName(), localProxyDNSName)
+	}
+
 	isLocalCluster := localClusterName == appClusterName
 	if isLocalCluster && app.GetPublicAddr() != "" && !app.GetUseAnyProxyPublicAddr() {
 		return app.GetPublicAddr()

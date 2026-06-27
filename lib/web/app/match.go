@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -61,7 +62,7 @@ type Matcher func(readonly.AppServer) bool
 func MatchAppServerForRoute(name, publicAddr string) Matcher {
 	return func(appServer readonly.AppServer) bool {
 		app := appServer.GetApp()
-		if publicAddr != "" && app.GetPublicAddr() != publicAddr {
+		if publicAddr != "" && !appMatchesPublicAddr(app, publicAddr) {
 			return false
 		}
 		if name != "" && app.GetName() != name {
@@ -74,8 +75,23 @@ func MatchAppServerForRoute(name, publicAddr string) Matcher {
 // MatchPublicAddr matches on the public address of an application.
 func MatchPublicAddr(publicAddr string) Matcher {
 	return func(appServer readonly.AppServer) bool {
-		return appServer.GetApp().GetPublicAddr() == publicAddr
+		return appMatchesPublicAddr(appServer.GetApp(), publicAddr)
 	}
+}
+
+// appMatchesPublicAddr reports whether the app should answer for the requested
+// public address.
+// Scoped apps match on the computed subdomain only,
+// so the app resolves regardless of which proxy the FQDN was assembled under.
+// Unscoped apps require an exact public_addr match.
+func appMatchesPublicAddr(app readonly.Application, publicAddr string) bool {
+	if app.GetPublicAddr() == publicAddr {
+		return true
+	}
+	if scope := app.GetScope(); scope != "" {
+		return scopedapp.ScopedAppPublicAddrValid(scope, app.GetName(), publicAddr)
+	}
+	return false
 }
 
 // MatchName matches on the name of an application.

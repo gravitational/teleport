@@ -932,9 +932,11 @@ func TestScopedAppServer(t *testing.T) {
 	t.Parallel()
 
 	// happy path: server and app scopes match the hello scope (static registration).
-	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", true))
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", "", true))
 	// embedded app scope is different from the server scope.
-	synctest.Test(t, testAppServerScoped("/test", "/test", "/test/child", false))
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test/child", "", false))
+	// add incorrect app computed public addr
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", "overridenpublicaddr.com", false))
 }
 
 // appTestController bundles the pieces an app-server heartbeat test needs from a
@@ -1045,9 +1047,14 @@ func testAppServerHeartbeatNormalization(t *testing.T) {
 	require.Equal(t, "mixedcaseapp.example.com", srv.resource.GetApp().GetPublicAddr())
 }
 
-func testAppServerScoped(initialScope, serverScope, appScope string, expectOK bool) func(t *testing.T) {
+func testAppServerScoped(initialScope, serverScope, appScope, publicAddrOverride string, expectOK bool) func(t *testing.T) {
 	return func(t *testing.T) {
 		c := newAppTestController(t, initialScope)
+
+		pubAddr := scopedapp.ScopedAppPublicAddr(appScope, "app", "teleport.example.com")
+		if publicAddrOverride != "" {
+			pubAddr = publicAddrOverride
+		}
 
 		err := c.downstream.Send(c.ctx, proto.InventoryHeartbeat_builder{
 			AppServer: &types.AppServerV3{
@@ -1062,7 +1069,7 @@ func testAppServerScoped(initialScope, serverScope, appScope string, expectOK bo
 						Metadata: types.Metadata{Name: "app"},
 						Spec: types.AppSpecV3{
 							URI:        "http://localhost:8080",
-							PublicAddr: scopedapp.ScopedAppPublicAddr(appScope, "app", "teleport.example.com"),
+							PublicAddr: pubAddr,
 						},
 					},
 				},

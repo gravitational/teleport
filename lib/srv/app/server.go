@@ -373,7 +373,6 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
 
-	copy.Scope = s.c.GetScope()
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -712,6 +711,8 @@ func (s *Server) appWithUpdatedLabelsLocked(app types.Application) *types.AppV3 
 	if s.c.CloudLabels != nil {
 		s.c.CloudLabels.Apply(copy)
 	}
+
+	copy.Scope = s.c.GetScope()
 
 	return copy
 }
