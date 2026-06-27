@@ -35,9 +35,9 @@ func (c *IDTokenClaims) JoinAttrs() (*workloadidentityv1pb.JoinAttrsGenericOIDC,
 		return nil, trace.Wrap(err, "converting claims to a protobuf struct")
 	}
 
-	return &workloadidentityv1pb.JoinAttrsGenericOIDC{
+	return workloadidentityv1pb.JoinAttrsGenericOIDC_builder{
 		Claims: claims,
-	}, nil
+	}.Build(), nil
 }
 
 // MarshalJSON delegates our wrapper type's marshal/unmarshal to the upstream
