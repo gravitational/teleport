@@ -40,6 +40,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -1520,7 +1522,7 @@ func (e *limitedErrorReporter) summary(ctx context.Context) {
 	}
 }
 
-func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]server.AzureInstallResult, error) {
+func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances, sem *semaphore.Weighted) ([]server.AzureInstallResult, error) {
 	azureClients, err := s.getAzureClients(s.ctx, instances.Metadata.Integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1546,6 +1548,12 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 		ResourceGroup:   instances.Metadata.ResourceGroup,
 		InstallerParams: instances.Metadata.InstallerParams,
 		ProxyAddrGetter: s.publicProxyAddress,
+		AcquireLease: func(ctx context.Context) (release func(), err error) {
+			if err := sem.Acquire(ctx, 1); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return func() { sem.Release(1) }, nil
+		},
 		OnRunCommandFinished: func(result server.AzureInstallResult) {
 			s.emitAzureInstallEvents(log, instances.Metadata, result)
 			if result.Failure() {
@@ -1607,7 +1615,28 @@ func (s *Server) startAzureServerDiscovery() {
 	var sm *discoveryStatus
 	var vmTasks *azureVMTasks
 	var runStart time.Time
+	var eg *errgroup.Group
 
+	const (
+		// Limit the number of concurrent Azure VM installations, where each
+		// installation sends a command and then polls it until it's done and
+		// then collects the result.
+		azureVMInstallerConcurrencyLimit = 500
+		// Set an arbitrary limit on the number of goroutines that process VM
+		// groups. The concurrency semaphore still bounds in-flight parallel
+		// installations, but we process VMs in groups of fetched VMs.
+		// The main purpose of this limit is to bound memory usage and the
+		// number of running goroutines for discovered VMs that are pending
+		// installation.
+		// Also, in theory, a single fetcher could fetch many thousands of VMs,
+		// for which this limit does not bound the memory usage, but addressing
+		// that concern properly would require an extensive refactor to process
+		// discovered VMs one page of API results at a time.
+		// Memory usage for thousands of VMs is not much anyway, so in practice
+		// that is not an issue.
+		azureVMGroupProcessingConcurrencyLimit = 250
+	)
+	sem := semaphore.NewWeighted(azureVMInstallerConcurrencyLimit)
 	azureWatcher = server.NewWatcher(
 		s.ctx,
 		s.Log.With("cloud", "Azure"),
@@ -1619,6 +1648,8 @@ func (s *Server) startAzureServerDiscovery() {
 			}
 			sm = newStatusMap(types.AzureMatcherVM, runStart)
 			vmTasks = &azureVMTasks{}
+			eg = &errgroup.Group{}
+			eg.SetLimit(azureVMGroupProcessingConcurrencyLimit)
 
 			// Initialize the status map with an entry per fetcher (discoveryConfig + integration).
 			// The per-instance hook only receives the slice of instance groups; when a fetcher
@@ -1631,7 +1662,7 @@ func (s *Server) startAzureServerDiscovery() {
 					discoveryConfigName: fetcher.GetDiscoveryConfigName(),
 					integration:         fetcher.IntegrationName(),
 				}
-				sm.add(key, discoveryGroupStatus{})
+				sm.add(key)
 			}
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
 		}),
@@ -1641,14 +1672,26 @@ func (s *Server) startAzureServerDiscovery() {
 					discoveryConfigName: group.Metadata.DiscoveryConfigName,
 					integration:         group.Metadata.Integration,
 				}
-				status := s.installAzureServers(group, vmTasks)
-				sm.add(key, status)
+				status, err := s.reconcileAzureServers(group)
+				if err != nil {
+					s.Log.WarnContext(s.ctx, "Failed to reconcile discovered Azure instances with current Teleport nodes, skipping installation",
+						"group", group,
+						"error", err,
+					)
+					continue
+				}
+				eg.Go(func() error {
+					status := s.installAzureServers(group, vmTasks, status, sem)
+					sm.updateConcurrently(key, status)
+					return nil
+				})
 			}
 		}),
 		server.WithPostFetchHookFn[*server.AzureInstances](func() {
 			// refresh the fetchers after every iteration to avoid stale config
 			defer fullRefresh()
 
+			_ = eg.Wait()
 			sm.syncEnded(s.clock.Now())
 			// update statuses of relevant discovery configs.
 			s.azureVMStatus.Store(sm)
@@ -1669,21 +1712,20 @@ func (s *Server) startAzureServerDiscovery() {
 	go azureWatcher.Run()
 }
 
-func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks) discoveryGroupStatus {
+func (s *Server) reconcileAzureServers(instances *server.AzureInstances) (discoveryGroupStatus, error) {
 	var status discoveryGroupStatus
 	log := s.Log.With("group", instances)
 	log.DebugContext(s.ctx, "Processing instance group")
 	found := len(instances.Instances)
 	if found == 0 {
-		log.DebugContext(s.ctx, "No Azure instances found, skipping installation")
-		return status
+		log.DebugContext(s.ctx, "No Azure instances found")
+		return status, nil
 	}
 	status.found += found
 
 	nodes, err := s.nodeWatcher.CurrentResources(s.ctx)
 	if err != nil {
-		log.WarnContext(s.ctx, "Failed to get current node resources", "error", err)
-		return status
+		return status, trace.Wrap(err, "get current resources")
 	}
 	instances.FilterExistingNodes(nodes)
 
@@ -1695,10 +1737,12 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		log.DebugContext(s.ctx, "Filtered out Azure instances that have already been enrolled",
 			"enrolled", enrolled,
 		)
-		// re-evaluate the instances log value after filtering
-		log = s.Log.With("group", instances)
 	}
+	return status, nil
+}
 
+func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks, status discoveryGroupStatus, sem *semaphore.Weighted) discoveryGroupStatus {
+	log := s.Log.With("group", instances)
 	if len(instances.Instances) == 0 {
 		log.DebugContext(s.ctx, "No Azure instances remain to enroll, skipping installation")
 		return status
@@ -1734,7 +1778,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 	}
 
 	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "vms", genAzureInstancesLogStr(instances.Instances))
-	failures, err := s.enrollAzureVirtualMachines(log, instances)
+	failures, err := s.enrollAzureVirtualMachines(log, instances, sem)
 	if err != nil {
 		// treat non-nil err as deployment failure affecting all machines.
 		log.WarnContext(s.ctx, "Failed to enroll all discovered Azure VMs", "error", err)
