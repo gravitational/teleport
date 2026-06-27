@@ -297,7 +297,11 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			// storage backend errors caused uploads to be silently dropped
 			// after hours of retries, with a misleading session.upload event
 			// implying success.
-			continue
+			//
+			// Propagate the error so the caller (PerformPeriodicCheck) can
+			// back off and avoid hammering an unhealthy backend on every
+			// scan interval.
+			return trace.Wrap(err, "completing upload %v", upload.ID)
 		}
 		log.DebugContext(ctx, "Completed upload", "upload_id", upload.ID, "session_id", upload.SessionID)
 		completed++
