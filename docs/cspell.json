@@ -34,6 +34,8 @@
     "BUCKETNAME",
     "Binm",
     "Brosnan",
+    "BYOI",
+    "byoi",
     "CAPI",
     "CAROOT",
     "CAcreateserial",
@@ -1178,9 +1180,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": [
-    "hte"
-  ],
+  "flagWords": ["hte"],
   "ignorePaths": [
     "**/includes/access-monitoring-events.mdx",
     "**/includes/reference/code-blocks-no-cspell/**",
