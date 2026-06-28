@@ -19,15 +19,46 @@ closer to users. To deploy the Teleport Proxy and Teleport Auth together, use
 
 ## Example Usage
 
+Create a token
+
+```bash
+$ kubectl \
+  --context my-k8s-cluster-with-teleport-auth \
+  -n my-teleport-cluster-namespace \
+  get --raw /.well-known/openid-configuration | yq .issuer
+
+https://oidc.my-k8s-cluster.my-cloud-provider.com/not-real/dont-copy
+
+tctl create -f - <<EOT
+kind: token
+version: v2
+metadata:
+  name: my-proxy-token
+spec:
+  roles: [Proxy]
+  join_method: kubernetes
+  kubernetes:
+    type: oidc
+    oidc:
+      issuer: https://oidc.my-k8s-cluster.my-cloud-provider.com/not-real/dont-copy
+    allow:
+      - service_account: "my-proxy-only-ns:my-sa"
+EOT
+```
+
+Install the teleport-proxy chart, matching the values to those of the token you
+created.
+
 ```bash
 helm install teleport-proxy ./teleport-proxy \
+  --kube-context my-k8s-proxy-only-cluster \
   --create-namespace \
-  --namespace teleport-proxy \
+  --namespace my-proxy-only-ns \
   --set clusterName=teleport.example.com \
+  --set serviceAccout.name=my-sa \
   --set auth_server=teleport-auth.example.com:3025 \
   --set join_params.method=kubernetes \
-  --set join_params.token_name=teleport-proxy \
-  --set tls.existingSecretName=teleport-proxy-tls
+  --set join_params.token_name=my-proxy-token \
 ```
 
 ## Configuration Notes
