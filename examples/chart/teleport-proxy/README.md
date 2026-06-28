@@ -23,7 +23,7 @@ Create a token
 
 ```bash
 $ kubectl \
-  --context my-k8s-cluster-with-teleport-auth \
+  --context my-proxy-only-k8s-cluster \
   -n my-teleport-cluster-namespace \
   get --raw /.well-known/openid-configuration | yq .issuer
 
@@ -51,7 +51,7 @@ created.
 
 ```bash
 helm install teleport-proxy ./teleport-proxy \
-  --kube-context my-k8s-proxy-only-cluster \
+  --kube-context my-proxy-only-k8s-cluster \
   --create-namespace \
   --namespace my-proxy-only-ns \
   --set clusterName=teleport.example.com \
