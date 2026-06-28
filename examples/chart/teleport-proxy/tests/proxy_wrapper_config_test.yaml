@@ -69,6 +69,23 @@ tests:
           path: data.teleport\.yaml
           pattern: 'join_params:\n\s+method: iam\n\s+token_name: proxy-join'
 
+  - it: preserves nested join_params fields in the generated teleport config
+    set:
+      clusterName: teleport.example.com
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: azure
+        token_name: proxy-join
+        azure:
+          client_id: 11111111-2222-3333-4444-555555555555
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: 'join_params:\n\s+azure:\n\s+client_id: 11111111-2222-3333-4444-555555555555\n\s+method: azure\n\s+token_name: proxy-join'
+
   - it: lets proxy.teleportConfig override generated teleport.join_params
     set:
       clusterName: teleport.example.com
