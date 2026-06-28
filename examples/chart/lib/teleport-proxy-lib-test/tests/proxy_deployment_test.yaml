@@ -969,6 +969,37 @@ tests:
             name: proxy-serviceaccount-token
             readOnly: true
 
+  - it: sets projected token audience and ttl when configured
+    template: deployment.yaml
+    set:
+      clusterName: helm-lint
+      serviceAccountTokenAudience: teleport.example.com
+      serviceAccountTokenExpirationSeconds: 600
+    capabilities:
+      majorVersion: 1
+      minorVersion: 21
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: proxy-serviceaccount-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: token
+                    audience: teleport.example.com
+                    expirationSeconds: 600
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - path: "namespace"
+                        fieldRef:
+                          fieldPath: metadata.namespace
+
   - it: sets extraLabels on Deployment
     template: deployment.yaml
     values:

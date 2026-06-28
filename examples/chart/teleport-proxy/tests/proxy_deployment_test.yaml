@@ -55,6 +55,42 @@ tests:
           path: metadata.labels.baz
           value: overridden
 
+  - it: sets projected token audience and ttl for kubernetes join
+    template: proxy.yaml
+    set:
+      clusterName: teleport.example.com
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: teleport-proxy
+    capabilities:
+      majorVersion: 1
+      minorVersion: 21
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: proxy-serviceaccount-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: token
+                    audience: teleport.example.com
+                    expirationSeconds: 600
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - path: "namespace"
+                        fieldRef:
+                          fieldPath: metadata.namespace
+
   - it: sets extraLabels on Deployment Pods
     template: proxy.yaml
     values:
