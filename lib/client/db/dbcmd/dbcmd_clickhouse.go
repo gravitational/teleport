@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strconv"
+
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -55,7 +57,18 @@ func (c *CLICommandBuilder) getClickhouseHTTPCommand() (*exec.Cmd, error) {
 	return curlCommand, nil
 }
 
+// clickHouseNativeClientRequirement describes how users can install clickhouse-client.
+var clickHouseNativeClientRequirement = clientInstallHint{
+	binary:      clickHouseNativeClientBin,
+	downloadURL: "https://clickhouse.com/docs/install",
+	brewPackage: "clickhouse",
+}
+
 func (c *CLICommandBuilder) getClickhouseNativeCommand() (*exec.Cmd, error) {
+	if err := c.validateClientInstalled(clickHouseNativeClientRequirement); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	args := []string{
 		"--host", c.host,
 		"--port", strconv.Itoa(c.port),

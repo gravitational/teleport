@@ -544,6 +544,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	case dbFormatCommand:
 		cb, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster, getDatabase,
 			dbcmd.WithPrintFormat(),
+			dbcmd.WithTolerateMissingCLIClient(),
 			dbcmd.WithLogger(logger),
 		)
 		if err != nil {
