@@ -15,7 +15,6 @@ const path = require('path');
 
 const {
   pageUrl, // re-exported for convenience/tests
-  getChangedPaths,
   categorizeChangedPaths,
   matchedImagesInContent,
   extractIncludePaths,
@@ -72,15 +71,21 @@ async function run({ github, context, core }) {
 
   const previewHost = `https://${previewBranch}.${previewAppId}.amplifyapp.com`;
 
-  // --- Gather changed files from the PR (GitHub API) ---
-  const { data: files } = await github.rest.pulls.listFiles({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    pull_number: context.issue.number,
-    per_page: 100,
-  });
+  // --- Changed files come from the dorny/paths-filter step as a JSON array
+  // (passed via CHANGED_FILES). That action handles diffing and pagination,
+  // and the added|modified filter already excludes deleted files, so there is
+  // no API call or status filtering to do here. ---
+  let changedPaths = [];
+  const changedFilesRaw = process.env.CHANGED_FILES;
+  if (changedFilesRaw) {
+    try {
+      changedPaths = JSON.parse(changedFilesRaw);
+    } catch (err) {
+      core.warning(`Could not parse CHANGED_FILES as JSON; skipping per-page comment: ${err.message}`);
+      return;
+    }
+  }
 
-  const changedPaths = getChangedPaths(files);
   const { directlyChangedPages, changedImages, changedPartials } =
     categorizeChangedPaths(changedPaths);
 

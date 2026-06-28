@@ -71,11 +71,26 @@ jobs:
     - name: Check out repository
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+    # Detect which docs files changed using the same action the rest of the
+    # repo uses. This handles diffing and pagination, so the script doesn't
+    # call the API for the file list. added|modified excludes deleted files,
+    # which have no preview page to link.
+    - name: Detect changed docs files
+      uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+      id: changes
+      with:
+        list-files: json
+        filters: |
+          docs:
+            - added|modified: 'docs/pages/**/*.mdx'
+            - added|modified: 'docs/img/**'
+
     - name: Append per-page preview links to deployment status comment
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       env:
         PREVIEW_BRANCH: ${{ needs.amplify-preview.outputs.branch }}
         PREVIEW_APP_ID: ${{ needs.amplify-preview.outputs.app_id }}
+        CHANGED_FILES: ${{ steps.changes.outputs.docs_files }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
