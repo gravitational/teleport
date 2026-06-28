@@ -55,7 +55,7 @@ helm install teleport-proxy ./teleport-proxy \
   --create-namespace \
   --namespace my-proxy-only-ns \
   --set clusterName=teleport.example.com \
-  --set serviceAccout.name=my-sa \
+  --set serviceAccount.name=my-sa \
   --set auth_server=teleport-auth.example.com:3025 \
   --set join_params.method=kubernetes \
   --set join_params.token_name=my-proxy-token \
