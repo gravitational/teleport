@@ -15,7 +15,14 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
 {{- if empty .Values.join_params.method -}}
 {{- fail "join_params.method is required" -}}
 {{- end -}}
-{{- if empty .Values.join_params.token_name -}}
+{{- if eq .Values.join_params.method "token" -}}
+  {{- if empty .Values.joinTokenSecret.name -}}
+{{- fail "joinTokenSecret.name is required when join_params.method is 'token'" -}}
+  {{- end -}}
+  {{- if and .Values.joinTokenSecret.create (empty .Values.join_params.token_name) -}}
+{{- fail "join_params.token_name should be set to the token value when join_params.method is 'token' and joinTokenSecret.create is true" -}}
+  {{- end -}}
+{{- else if empty .Values.join_params.token_name -}}
 {{- fail "join_params.token_name is required" -}}
 {{- end -}}
 {{- end -}}

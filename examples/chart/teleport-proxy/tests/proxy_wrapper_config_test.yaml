@@ -143,6 +143,34 @@ tests:
       - failedTemplate:
           errorMessage: "join_params.token_name is required"
 
+  - it: fails when join_params.method is token, joinTokenSecret.create is true, and join_params.token_name is empty
+    set:
+      clusterName: teleport.example.com
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: token
+        token_name: ""
+      joinTokenSecret:
+        create: true
+        name: teleport-proxy-join-token
+    asserts:
+      - failedTemplate:
+          errorMessage: "join_params.token_name should be set to the token value when join_params.method is 'token' and joinTokenSecret.create is true"
+
+  - it: fails when join_params.method is token, joinTokenSecret.create is false, and joinTokenSecret.name is empty
+    set:
+      clusterName: teleport.example.com
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: token
+        token_name: ""
+      joinTokenSecret:
+        create: false
+        name: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "joinTokenSecret.name is required when join_params.method is 'token'"
+
   - it: keeps wrapper-generated teleport settings in scratch mode
     set:
       chartMode: scratch
