@@ -22,6 +22,9 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
   {{- if and .Values.joinTokenSecret.create (empty .Values.join_params.token_name) -}}
 {{- fail "join_params.token_name should be set to the token value when join_params.method is 'token' and joinTokenSecret.create is true" -}}
   {{- end -}}
+  {{- if and .Release.IsUpgrade .Values.validateConfigOnDeploy .Values.joinTokenSecret.create (not (lookup "v1" "Secret" .Release.Namespace .Values.joinTokenSecret.name)) -}}
+{{- fail (printf "upgrading with join_params.method='token', joinTokenSecret.create=true, and validateConfigOnDeploy=true requires the Secret %q to already exist before pre-upgrade hooks run; pre-create the Secret and set joinTokenSecret.create=false for this upgrade" .Values.joinTokenSecret.name) -}}
+  {{- end -}}
 {{- else if empty .Values.join_params.token_name -}}
 {{- fail "join_params.token_name is required" -}}
 {{- end -}}
