@@ -11,8 +11,8 @@
 {{- $_ := set $proxy.Values "teleportConfig" (include "teleport-proxy.teleportConfig" $proxy | fromYaml) -}}
 {{- $_ := set $proxy.Values.serviceAccount "name" (include "teleport-proxy.serviceAccountName" $proxy) -}}
 {{- $_ := set $proxy.Values "forceHAReplicas" (not (empty (get (default (dict) .Values.proxy.highAvailability) "replicaCount"))) -}}
-{{- $_ := set $proxy.Values "extraVolumes" (include "teleport-proxy.extraVolumes" . | fromYamlArray) -}}
-{{- $_ := set $proxy.Values "extraVolumeMounts" (include "teleport-proxy.extraVolumeMounts" . | fromYamlArray) -}}
+{{- $_ := set $proxy.Values "extraVolumes" (include "teleport-proxy.extraVolumes" $proxy | fromYamlArray) -}}
+{{- $_ := set $proxy.Values "extraVolumeMounts" (include "teleport-proxy.extraVolumeMounts" $proxy | fromYamlArray) -}}
 
 {{/* Render all proxy charts */}}
 {{- include "teleport-proxy-lib.all" $proxy -}}
