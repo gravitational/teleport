@@ -41,7 +41,7 @@ struct LandingView: View {
 
 			// MARK: Navigation
 
-			.navigationDestination(item: $viewModel.destination.deviceEnrollment) { deviceEnrollmentViewModel in
+			.navigationDestination(item: $viewModel.destination.enrollDevice) { deviceEnrollmentViewModel in
 				EnrollDeviceView(viewModel: deviceEnrollmentViewModel)
 			}
 			.sheet(item: $viewModel.destination.cameraScanner, id: \.presentationID) { enrollCameraScannerViewModel in
