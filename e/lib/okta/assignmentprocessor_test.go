@@ -3,6 +3,7 @@ package okta
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"slices"
 	"testing"
@@ -1108,6 +1109,79 @@ func Test_assignmentProcessor_sync_back_filters(t *testing.T) {
 	requireOktaSideGroupAssignments(t, oktaClient, "product-group", []string{})
 	requireOktaSideApplicationAssignments(t, oktaClient, "dev-app", []string{"test-user"})
 	requireOktaSideApplicationAssignments(t, oktaClient, "admin-app", []string{})
+}
+
+func TestAssignmentProcessorStripsStatuses(t *testing.T) {
+	t.Parallel()
+
+	startTime := time.Now().UTC()
+	clock := clockwork.NewFakeClockAt(startTime)
+	ctx := t.Context()
+	ap := newTestAccessPoint(t, clock)
+	oktaClient := newTestOktaClient()
+	svc, _ := newTestService(t, ap, oktaClient)
+	svc.clock = clock
+	a := newAssignmentProcessor(svc)
+
+	testUser := userName("test-user@test.user")
+	oktaClient.AddUserID(testUser, oktaUserID("okta-user-id"))
+
+	// Build number of targets that exceeds the threshold for a large assignment.
+	targetCount := largeAssignmentTargetThreshold + 1
+	targets := make([]*types.OktaAssignmentTargetV1, 0, targetCount)
+	for i := range targetCount {
+		appName := mustAppName(t, fmt.Sprintf("test-app-%d", i), "link")
+		status := status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime, 1)
+		targets = append(targets, target(types.OktaAssignmentTargetV1_APPLICATION, appName, withStatus(status)))
+	}
+
+	largeAssignment := assignment(t, "test-assignment", testUser, time.Time{}, constants.OktaAssignmentStatusFailed, startTime, false, targets...)
+	createdAssignment, err := ap.CreateOktaAssignment(ctx, largeAssignment)
+	require.NoError(t, err)
+
+	clock.Advance(15 * time.Minute)
+
+	a.processTimerEvent(ctx)
+
+	actualAssignment, err := ap.GetOktaAssignment(ctx, createdAssignment.GetName())
+	require.NoError(t, err)
+
+	actualTargets := actualAssignment.GetTargets()
+	require.Len(t, actualTargets, targetCount)
+
+	for _, target := range actualTargets {
+		require.Nil(t, target.GetStatus())
+	}
+}
+
+func TestMaybeStripTargetStatuses(t *testing.T) {
+	t.Parallel()
+
+	limit := 10
+	targetCounts := []int{0, 1, limit - 1, limit, limit + 1, limit + 100}
+
+	for _, count := range targetCounts {
+		t.Run(fmt.Sprintf("assignment with %d targets", count), func(t *testing.T) {
+			targets := make([]*types.OktaAssignmentTargetV1, 0, count)
+			for i := range count {
+				appName := mustAppName(t, fmt.Sprintf("test-app-%d", i), "link")
+				status := status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, time.Time{}, 1)
+				targets = append(targets, target(types.OktaAssignmentTargetV1_APPLICATION, appName, withStatus(status)))
+			}
+
+			assignment := assignment(t, "test-assignment", "test-user", time.Time{}, constants.OktaAssignmentStatusFailed, time.Time{}, false, targets...)
+			maybeStripTargetStatuses(t.Context(), slog.New(slog.DiscardHandler), assignment, limit)
+			require.Len(t, assignment.GetTargets(), count)
+
+			for _, target := range assignment.GetTargets() {
+				if count > limit {
+					require.Nil(t, target.GetStatus())
+				} else {
+					require.NotNil(t, target.GetStatus())
+				}
+			}
+		})
+	}
 }
 
 func getOktaAssignmentNames(assignments []types.OktaAssignment) []string {

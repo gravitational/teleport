@@ -43,6 +43,9 @@ const (
 	// a single assignment blocking other okta_assignment events being processed by the
 	// watcher, so it shouldn't be unbound either.
 	processAssignmentTargetsTimeout time.Duration = 10 * time.Minute
+
+	// largeAssignmentTargetThreshold is the target threshold for an assignment to be considered large.
+	largeAssignmentTargetThreshold = 2000
 )
 
 type assignmentProcessorAccessPoint struct {
@@ -316,6 +319,8 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 	}
 	assignment.SetLastTransition(a.clock.Now())
 	assignment.SetFinalized(len(processErrs) == 0 && needsCleanup)
+
+	maybeStripTargetStatuses(ctx, logger, assignment, largeAssignmentTargetThreshold)
 	if _, err := a.accessPoint.ConditionalUpdateOktaAssignment(ctx, assignment); err != nil {
 		if trace.IsCompareFailed(err) {
 			logger.DebugContext(ctx, "Assignment was updated while processing. Will try again during next re-process loop", "error", err.Error())
@@ -783,4 +788,23 @@ type timeAttrT struct{ v time.Time }
 
 func (a *timeAttrT) LogValue() slog.Value {
 	return slog.StringValue(a.v.UTC().Format(time.RFC3339Nano))
+}
+
+// maybeStripTargetStatuses removes the target statuses from an Okta assignment if the number
+// of targets exceeds the target limit.
+// This is to avoid potentially exceeding the max item size limit in backends such as DynamoDB,
+// where the item size limit is comparatively low.
+func maybeStripTargetStatuses(ctx context.Context, logger *slog.Logger, assignment types.OktaAssignment, targetLimit int) {
+	if len(assignment.GetTargets()) <= targetLimit {
+		return
+	}
+
+	for _, target := range assignment.GetTargets() {
+		targetV1, ok := target.(*types.OktaAssignmentTargetV1)
+		if !ok {
+			logger.WarnContext(ctx, "Unexpected Okta assignment target type, skipping status stripping", "target_type", fmt.Sprintf("%T", target))
+			continue
+		}
+		targetV1.Status = nil
+	}
 }
