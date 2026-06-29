@@ -1165,14 +1165,18 @@ func (s *WindowsService) makeTDPReceiveAuditor(
 				s.emit(ctx, errorEvent)
 				return err
 			}
+		case *tdpb.SharedDirectoryRemove:
+			// This doesn't yield an audit event for removal. It just cleans up
+			// the directory entry from the audit cache.
+			audit.onSharedDirectoryRemove(msg)
 		case *tdpb.SharedDirectoryResponse:
 			// shared directory audit events can be noisy, so we use a compactor
 			// to retain and delay them in an attempt to coalesce contiguous events
 			switch op := msg.Operation.(type) {
 			case *tdpbv1.SharedDirectoryResponse_Read_:
-				audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Read))
+				audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(directoryID(msg.DirectoryId), completionID(msg.CompletionId), msg.ErrorCode, op.Read))
 			case *tdpbv1.SharedDirectoryResponse_Write_:
-				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Write))
+				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(directoryID(msg.DirectoryId), completionID(msg.CompletionId), msg.ErrorCode, op.Write))
 			}
 		}
 		return nil
