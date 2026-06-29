@@ -61,6 +61,60 @@ func TestScopedAccessCheckerContextRiskyAuthorizeUnpinnedRead(t *testing.T) {
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
 }
 
+// TestRiskyAuthorizeUnpinnedReadWithScope verifies that the per-call resourceScope
+// overrides the authorization's scope and is used to determine the resulting access decision.
+func TestRiskyAuthorizeUnpinnedReadWithScope(t *testing.T) {
+	t.Parallel()
+
+	const pinScope = "/test/scope"
+	pin := scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: pinScope,
+		SystemRoles: scopesv1.SystemRoles_builder{
+			Primary: types.RoleNode.String(),
+		}.Build(),
+	}.Build()
+	checkerCtx := newAgentPinCheckerContext(t, pin)
+
+	tests := []struct {
+		name          string
+		resourceScope string
+		wantErr       string
+	}{
+		{
+			name:          "override to pin scope is allowed",
+			resourceScope: pinScope,
+		},
+		{
+			name:          "override to descendant scope is allowed",
+			resourceScope: pinScope + "/child",
+		},
+		{
+			name:          "override to ancestor (root) scope is allowed",
+			resourceScope: scopes.Root,
+		},
+		{
+			name:          "override to orthogonal scope is denied",
+			resourceScope: "/other",
+			wantErr:       "scope pin \"/test/scope\" is orthogonal to resource scope \"/other\"",
+		},
+		{
+			name:          "override to empty scope is rejected",
+			resourceScope: "",
+			wantErr:       "scope is empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkerCtx.RiskyAuthorizeUnpinnedReadWithScope(t.Context(), UnpinnedReadScopedRole, &Context{}, tt.resourceScope)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 type emptyScopedRoleReader struct{}
 
 func (emptyScopedRoleReader) GetScopedRole(context.Context, *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
