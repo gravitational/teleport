@@ -118,12 +118,12 @@ func TestBeamsConfigValidation(t *testing.T) {
 		},
 		{
 			name:    "invalid name",
-			modify:  func(c *beamsv1.BeamsConfig) { c.GetMetadata().Name = "wrong-name" },
+			modify:  func(c *beamsv1.BeamsConfig) { c.GetMetadata().SetName("wrong-name") },
 			wantErr: true,
 		},
 		{
 			name:    "expiry not allowed",
-			modify:  func(c *beamsv1.BeamsConfig) { c.GetMetadata().Expires = timestamppb.Now() },
+			modify:  func(c *beamsv1.BeamsConfig) { c.GetMetadata().SetExpires(timestamppb.Now()) },
 			wantErr: true,
 		},
 		{

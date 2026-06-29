@@ -61,9 +61,9 @@ func newBeamsConfigCollection(upstream services.BeamsConfigGetter, w types.Watch
 			return beamsv1.BeamsConfig_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
+				}.Build(),
 			}.Build()
 		},
 		watch: w,

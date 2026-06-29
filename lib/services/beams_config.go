@@ -51,9 +51,9 @@ func DefaultBeamsConfig() *beamsv1.BeamsConfig {
 	return beamsv1.BeamsConfig_builder{
 		Kind:    types.KindBeamsConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameBeamsConfig,
-		},
+		}.Build(),
 		Spec: beamsv1.BeamsConfigSpec_builder{
 			Llm: beamsv1.LLMConfig_builder{
 				Anthropic: beamsv1.LLMEndpointConfig_builder{
