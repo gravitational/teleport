@@ -472,6 +472,24 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedEmitEvent(
 		},
 	)
 }
+// RiskyAuthorizeUnpinnedReadWithScope extends [RiskyAuthorizeUnpinnedRead].
+// It authorizes a read-only access check that bypasses
+// enforcement of the identity's pinned scope, but ensures that the
+// resource scope is related to the identity's pinned scope.
+// This must only be used for specific APIs that make an exception to pinning exclusion rules (e.g.
+// allowing read operations for resources at a parent scope). To avoid misuse,
+// a specific [UnpinnedReadAuthorization] must be provided that will encode the
+// effective scope of the access check and the allowed verbs. The scope provided
+// must not be empty, and will be used to determine the enforcement.
+func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedReadWithScope(
+	ctx context.Context,
+	authz UnpinnedReadAuthorization,
+	ruleCtx RuleContext,
+	resourceScope string,
+) error {
+	authz.resourceScope = resourceScope
+	return c.RiskyAuthorizeUnpinnedRead(ctx, authz, ruleCtx)
+}
 
 // UnpinnedReadAuthorization is a special authorization to complete an unscoped
 // read-only access check. This is meant to be used for access checks on
@@ -600,6 +618,13 @@ var (
 	UnpinnedReadRole = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindRole,
+		verbs:         []string{types.VerbRead},
+	}
+	// UnpinnedReadScopedRole is a special authorization to complete an
+	// unscoped access check to read a scoped role.
+	UnpinnedReadScopedRole = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          scopedaccess.KindScopedRole,
 		verbs:         []string{types.VerbRead},
 	}
 )
