@@ -78,6 +78,10 @@ export interface AccessWithUse extends Access {
   use: boolean;
 }
 
+export interface MobileDeviceAccess {
+  createEnrollToken: boolean;
+}
+
 export interface Acl {
   directorySharingEnabled: boolean;
   reviewRequests: boolean;
@@ -135,6 +139,7 @@ export interface Acl {
   inferenceModel: Access;
   inferenceSecret: Access;
   beam: Access;
+  mobileDevice: MobileDeviceAccess;
 }
 
 // AllTraits represent all the traits defined for a user.

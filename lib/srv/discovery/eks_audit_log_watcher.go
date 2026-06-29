@@ -23,6 +23,7 @@ import (
 	"errors"
 	"iter"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -122,6 +123,10 @@ func (w *eksAuditLogWatcher) Run(ctx context.Context) error {
 	w.log.InfoContext(ctx, "EKS Audit Log Watcher started")
 	defer w.log.InfoContext(ctx, "EKS Audit Log Watcher completed")
 
+	// Wait for all the fetchers we started to complete before we return.
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
 	// initialize the stream but ignore errors. We do not want to exit on error
 	// as we need to ensure we keep the w.auditLogCLustersCh channel drained
 	// so as to not block AWS discovery.
@@ -138,7 +143,7 @@ func (w *eksAuditLogWatcher) Run(ctx context.Context) error {
 		select {
 		case clusters := <-w.auditLogClustersCh:
 			if stream != nil {
-				w.reconcile(ctx, clusters, stream)
+				w.reconcile(ctx, wg.Go, clusters, stream)
 			}
 		case completed := <-w.completedCh:
 			w.complete(ctx, completed)
@@ -202,11 +207,12 @@ func (w *eksAuditLogWatcher) Reconcile(ctx context.Context, clusters []eksAuditL
 // reconcile compares the given slice of clusters against the currently running
 // log fetchers and stops any running fetchers not in the cluster slice and
 // starts a log fetcher for any cluster in the slice that does not have a
-// running log fetcher.
+// running log fetcher. The spawn function is used to launch the goroutine that
+// manages the fetcher, typically WaitGroup.Go from the caller.
 //
 // Log fetchers that are started are initialized with the given grpc stream
 // over which they should send their audit logs.
-func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditLogCluster, stream accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient) {
+func (w *eksAuditLogWatcher) reconcile(ctx context.Context, spawn func(func()), clusters []eksAuditLogCluster, stream accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient) {
 	w.log.DebugContext(ctx, "Reconciling EKS audit log clusters", "new_count", len(clusters))
 
 	// Make a map of the discovered clusters, keyed by ARN so we can compare against
@@ -233,7 +239,7 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 			logFetcher = w.newFetcher(discovered.fetcher, discovered.cluster, stream, w.log)
 		}
 		w.fetchers[arn] = cancel
-		go func() {
+		spawn(func() {
 			err := logFetcher.Run(fetcherCtx)
 			select {
 			case w.completedCh <- fetcherCompleted{arn, err}:
@@ -245,7 +251,7 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 				// specific context, which comes back to us via the case above
 				// on the completedCh channel, not here.
 			}
-		}()
+		})
 	}
 }
 

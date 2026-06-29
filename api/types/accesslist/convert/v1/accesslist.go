@@ -52,7 +52,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		OwnerGrants:        ConvertGrantsFromProto(spec.GetOwnerGrants()),
 	}
 
-	accessList, err := accesslist.NewAccessList(metadata, accessListSpec)
+	accessList, err := accesslist.NewAccessListWithScope(metadata, accessListSpec, msg.Scope)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,6 +76,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
+		Scope:  accessList.Scope,
 		Spec: &accesslistv1.AccessListSpec{
 			Type:               string(accessList.Spec.Type),
 			Title:              accessList.Spec.Title,
@@ -239,6 +240,8 @@ func convertStatusToProto(status *accesslist.Status) *accesslistv1.AccessListSta
 		MemberOf:               status.MemberOf,
 		CurrentUserAssignments: toCurrentUserAssignmentsProto(status.CurrentUserAssignments),
 		UserAssignments:        toUserAssignmentsProto(status.UserAssignments),
+		ScopedOwnerOf:          status.ScopedOwnerOf,
+		ScopedMemberOf:         status.ScopedMemberOf,
 	}
 }
 
@@ -255,6 +258,8 @@ func fromStatusProto(msg *accesslistv1.AccessList) *accesslist.Status {
 		MemberOf:               protoStatus.GetMemberOf(),
 		CurrentUserAssignments: fromCurrentUserAssignmentsProto(protoStatus.GetCurrentUserAssignments()),
 		UserAssignments:        fromUserAssignmentsProto(protoStatus.GetUserAssignments()),
+		ScopedOwnerOf:          protoStatus.GetScopedOwnerOf(),
+		ScopedMemberOf:         protoStatus.GetScopedMemberOf(),
 	}
 }
 
