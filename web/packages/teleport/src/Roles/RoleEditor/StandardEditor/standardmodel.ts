@@ -1308,6 +1308,7 @@ const additionalVerbs = new Map<string, Verb[]>([
   [ResourceKind.GithubConnector, ['readnosecrets']],
   [ResourceKind.Semaphore, ['readnosecrets']],
   [ResourceKind.Device, ['create_enroll_token', 'enroll']],
+  [ResourceKind.MobileDevice, ['create_enroll_token']],
   [ResourceKind.AuditQuery, ['use']],
   [ResourceKind.SecurityReport, ['use']],
   [ResourceKind.Integration, ['use']],

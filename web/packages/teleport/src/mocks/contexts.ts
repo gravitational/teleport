@@ -91,6 +91,7 @@ export const allAccessAcl: Acl = {
   inferenceModel: fullAccess,
   inferenceSecret: fullAccess,
   beam: fullAccess,
+  mobileDevice: { createEnrollToken: true },
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
