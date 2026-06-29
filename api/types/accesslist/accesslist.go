@@ -358,7 +358,7 @@ type Status struct {
 	MemberOf []string `json:"member_of" yaml:"member_of"`
 
 	// OwnerDisplays contains display values for owners, keyed by owner username.
-	OwnerDisplays map[string]types.UserDisplay `json:"owner_displays,omitempty" yaml:"-"`
+	OwnerDisplays map[string]types.UserDisplay `json:"-" yaml:"-"`
 	// ScopedOwnerOf is a list of scope-qualified names of scoped access lists
 	// where this access list is an explicit owner.
 	ScopedOwnerOf []string `json:"scoped_owner_of" yaml:"scoped_owner_of"`

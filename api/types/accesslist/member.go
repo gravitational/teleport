@@ -36,7 +36,7 @@ type AccessListMember struct {
 	Spec AccessListMemberSpec `json:"spec" yaml:"spec"`
 
 	// Status contains dynamically calculated fields.
-	Status *AccessListMemberStatus `json:"status,omitempty" yaml:"-"`
+	Status *AccessListMemberStatus `json:"-" yaml:"-"`
 
 	// Scope is the scope of the access list member, it must be equal to the
 	// scope of the parent access list.
@@ -46,10 +46,10 @@ type AccessListMember struct {
 // AccessListMemberStatus contains dynamic fields calculated during retrieval.
 type AccessListMemberStatus struct {
 	// Display contains display values for the member user.
-	Display *types.UserDisplay `json:"display,omitempty" yaml:"-"`
+	Display *types.UserDisplay `json:"-" yaml:"-"`
 
 	// AddedByDisplay contains display values for the user that added the member.
-	AddedByDisplay *types.UserDisplay `json:"added_by_display,omitempty" yaml:"-"`
+	AddedByDisplay *types.UserDisplay `json:"-" yaml:"-"`
 }
 
 // AccessListMemberSpec describes the specification of a member of an access list.
