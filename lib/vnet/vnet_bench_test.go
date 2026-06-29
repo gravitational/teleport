@@ -17,12 +17,10 @@
 package vnet
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/jonboulle/clockwork"
 
@@ -45,12 +43,8 @@ import (
 func BenchmarkNetstackThroughput(b *testing.B) {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelError)
 	b.Cleanup(func() { utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug) })
-
-	ctx, cancel := context.WithCancel(context.Background())
-	b.Cleanup(cancel)
-	clock := clockwork.NewFakeClockAt(time.Now())
-
-	clientApp := newFakeClientApp(ctx, b, &fakeClientAppConfig{
+	clock := clockwork.NewFakeClock()
+	clientApp := newFakeClientApp(b.Context(), b, &fakeClientAppConfig{
 		clusters: map[string]testClusterSpec{
 			"root1.example.com": {
 				apps:      []appSpec{{publicAddr: "echo.root1.example.com"}},
@@ -60,8 +54,7 @@ func BenchmarkNetstackThroughput(b *testing.B) {
 		clock:                   clock,
 		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 	})
-
-	p := newTestPack(b, ctx, testPackConfig{
+	p := newTestPack(b, b.Context(), testPackConfig{
 		fakeClientApp: clientApp,
 		clock:         clock,
 	})
@@ -75,7 +68,7 @@ func BenchmarkNetstackThroughput(b *testing.B) {
 	}
 	for _, bc := range cases {
 		b.Run(bc.name, func(b *testing.B) {
-			conn, err := p.dialHost(ctx, "echo.root1.example.com", 80)
+			conn, err := p.dialHost(b.Context(), "echo.root1.example.com", 80)
 			if err != nil {
 				b.Fatalf("dialing echo app: %v", err)
 			}
@@ -95,7 +88,6 @@ func BenchmarkNetstackThroughput(b *testing.B) {
 			b.Cleanup(func() { close(startWrite) })
 
 			b.ReportAllocs()
-
 			var before, after runtime.MemStats
 			runtime.ReadMemStats(&before)
 			iters := 0
