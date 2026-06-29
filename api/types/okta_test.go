@@ -561,6 +561,24 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
+			name:    "failed provision then failed cleanup",
+			op:      constants.OktaAssignmentTargetOpCleanup,
+			outcome: constants.OktaAssignmentTargetOutcomeFailed,
+			initialStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpProvision),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  7,
+			},
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: next,
+				FailureCount:  1,
+			},
+			assertErr: require.NoError,
+		},
+		{
 			name:    "invalid op",
 			op:      "invalid-op",
 			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
