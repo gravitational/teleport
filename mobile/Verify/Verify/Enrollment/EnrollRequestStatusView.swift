@@ -17,7 +17,7 @@
 import SwiftUI
 
 struct EnrollRequestStatusView: View {
-	let attempt: EnrollMobileDeviceViewModel.Attempt
+	let attempt: LoadingState<String>
 	let onDismiss: () -> Void
 
 	var body: some View {
@@ -39,7 +39,7 @@ struct EnrollRequestStatusView: View {
 			}
 			Spacer()
 			switch attempt {
-				case .success:
+				case .success, .reloading:
 					Button {
 						// Navigate to the cluster
 					} label: {
@@ -67,7 +67,7 @@ struct EnrollRequestStatusView: View {
 
 	private var iconName: String {
 		switch attempt {
-			case .idle, .loading: "clock"
+			case .idle, .loading, .reloading: "clock"
 			case .success: "checkmark.circle"
 			case .failure: "exclamationmark.triangle"
 		}
@@ -75,7 +75,7 @@ struct EnrollRequestStatusView: View {
 
 	private var title: String {
 		switch attempt {
-			case .idle, .loading: "Request Sent"
+			case .idle, .loading, .reloading: "Request Sent"
 			case .success: "Request Approved"
 			case .failure: "Request Failed"
 		}
@@ -83,7 +83,7 @@ struct EnrollRequestStatusView: View {
 
 	private var message: String {
 		switch attempt {
-			case .idle, .loading:
+			case .idle, .loading, .reloading:
 				"Your enrollment request has been sent. Approve it from the Web UI to continue."
 			case .success:
 				"This device is now trusted and can access protected resources."
@@ -99,7 +99,7 @@ struct EnrollRequestStatusView: View {
 
 #Preview("Request Approved") {
 	EnrollRequestStatusView(
-		attempt: .success(token: "demo-placeholder-token"),
+		attempt: .success("demo-placeholder-token"),
 		onDismiss: {},
 	)
 }

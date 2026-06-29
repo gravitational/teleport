@@ -158,13 +158,10 @@ func (instances *AzureInstances) LogValue() slog.Value {
 func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Server) {
 	vmIDs := make(map[string]struct{})
 	for _, node := range existingNodes {
-		labels := node.GetAllLabels()
-		subscriptionID := labels[types.SubscriptionIDLabelInternal]
-		if subscriptionID != instances.Metadata.SubscriptionID {
+		if subID := types.GetAzureSubscriptionID(node); subID != instances.Metadata.SubscriptionID {
 			continue
 		}
-		vmID := labels[types.VMIDLabelInternal]
-		if vmID != "" {
+		if vmID := types.GetAzureVMID(node); vmID != "" {
 			vmIDs[vmID] = struct{}{}
 		}
 	}

@@ -662,6 +662,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err, "creating BeamsService")
 		}
 	}
+	if cfg.BeamsConfigService == nil {
+		cfg.BeamsConfigService, err = local.NewBeamsConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsConfigService")
+		}
+	}
 
 	if cfg.SubCAService == nil {
 		var err error
@@ -744,6 +750,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		AppAuthConfig:                   cfg.AppAuthConfig,
 		MFAService:                      cfg.MFAService,
 		Beams:                           cfg.Beams,
+		BeamsConfigService:              cfg.BeamsConfigService,
 		SubCAService:                    cfg.SubCAService,
 		EnrollPairing:                   cfg.EnrollPairing,
 	}

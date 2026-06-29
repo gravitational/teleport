@@ -12,19 +12,14 @@
 // GNU Affero General Public License for more details.
 //
 // You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+// along with this program.  If not, see http://www.gnu.org/licenses/
 
-import SwiftUI
+import Foundation
 
-struct LandingView: View {
-	var body: some View {
-		Text("Open the Camera app\nto scan a QR code in the Web UI.")
-			.multilineTextAlignment(.center)
-			.frame(maxWidth: .infinity)
-			.padding()
+extension URLComponents {
+	func nonEmptyQueryValue(named name: String) -> String? {
+		queryItems?
+			.first { $0.name == name && $0.value?.isEmpty == false }?
+			.value
 	}
-}
-
-#Preview("In ContentView") {
-	ContentView()
 }

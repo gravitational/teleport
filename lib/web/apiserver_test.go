@@ -95,6 +95,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -7772,6 +7773,17 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	)
 
 	rt := http.NewServeMux()
+	// Serve core API discovery so the proxy can resolve the "pods" kind it probes.
+	// Otherwise the proxy treats pods as an unknown resource kind.
+	rt.HandleFunc("/api/v1", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(&metav1.APIResourceList{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{
+				{Name: "pods", SingularName: "pod", Namespaced: true, Kind: "Pod", Verbs: metav1.Verbs{"get", "list"}},
+			},
+		}))
+	})
 	rt.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if slices.Contains(r.Header.Values("Impersonate-Group"), invalidKubeGroups[0]) {
 			marshalRBACError(t, w)
@@ -8799,6 +8811,10 @@ func (mock authProviderMock) GetUser(_ context.Context, _ string, _ bool) (types
 
 func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, error) {
 	return nil, nil
+}
+
+func (mock authProviderMock) MFAServiceClientV2() mfav2.MFAServiceClient {
+	return nil
 }
 
 func waitForOutput(t *testing.T, r io.Reader, substr string, msgAndArgs ...interface{}) {

@@ -36,14 +36,13 @@ func TestKeyboardInteractive_SuccessfulMFA(t *testing.T) {
 
 	authMethod := clientssh.KeyboardInteractive(
 		t.Context(),
-		&mockMFACeremonyPerformer{
-			challengeName: challengeName,
+		func(_ context.Context, _ []byte) (string, error) {
+			return challengeName, nil
 		},
 		&mockConnMetadata{
 			sessionID: []byte("test-session-id"),
 		},
 	)
-	require.NotNil(t, authMethod)
 
 	mfaPrompt := sshpb.AuthPrompt_builder{
 		MfaPrompt: &sshpb.MFAPrompt{},
@@ -52,8 +51,8 @@ func TestKeyboardInteractive_SuccessfulMFA(t *testing.T) {
 	require.NoError(t, err)
 
 	// Extract the KeyboardInteractiveChallenge function from the AuthMethod so it can be tested.
-	ki := authMethod.(ssh.KeyboardInteractiveChallenge)
-	require.IsType(t, ssh.KeyboardInteractiveChallenge(nil), ki)
+	ki, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
+	require.True(t, ok)
 
 	answers, err := ki("", "", []string{string(mfaPromptJSON)}, []bool{})
 	require.NoError(t, err)
@@ -68,14 +67,13 @@ func TestKeyboardInteractive_SuccessfulMFA(t *testing.T) {
 func TestKeyboardInteractive_FailedMFA(t *testing.T) {
 	authMethod := clientssh.KeyboardInteractive(
 		t.Context(),
-		&mockMFACeremonyPerformer{
-			err: trace.Errorf("a-wild-error-appeared!"),
+		func(_ context.Context, _ []byte) (string, error) {
+			return "", trace.Errorf("a-wild-error-appeared!")
 		},
 		&mockConnMetadata{
 			sessionID: []byte("test-session-id"),
 		},
 	)
-	require.NotNil(t, authMethod)
 
 	mfaPrompt := sshpb.AuthPrompt_builder{
 		MfaPrompt: &sshpb.MFAPrompt{},
@@ -84,8 +82,8 @@ func TestKeyboardInteractive_FailedMFA(t *testing.T) {
 	require.NoError(t, err)
 
 	// Extract the KeyboardInteractiveChallenge function from the AuthMethod so it can be tested.
-	ki := authMethod.(ssh.KeyboardInteractiveChallenge)
-	require.IsType(t, ssh.KeyboardInteractiveChallenge(nil), ki)
+	ki, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
+	require.True(t, ok)
 
 	answers, err := ki("", "", []string{string(mfaPromptJSON)}, []bool{})
 	require.ErrorContains(t, err, "a-wild-error-appeared!")
@@ -93,16 +91,11 @@ func TestKeyboardInteractive_FailedMFA(t *testing.T) {
 }
 
 func TestKeyboardInteractive_InvalidAuthPrompt_NonProtoQuestion(t *testing.T) {
-	authMethod := clientssh.KeyboardInteractive(
-		t.Context(),
-		nil,
-		nil,
-	)
-	require.NotNil(t, authMethod)
+	authMethod := clientssh.KeyboardInteractive(t.Context(), nil, nil)
 
 	// Extract the KeyboardInteractiveChallenge function from the AuthMethod so it can be tested.
-	ki := authMethod.(ssh.KeyboardInteractiveChallenge)
-	require.IsType(t, ssh.KeyboardInteractiveChallenge(nil), ki)
+	ki, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
+	require.True(t, ok)
 
 	answers, err := ki("", "", []string{"invalid-auth-prompt"}, []bool{})
 	require.ErrorContains(t, err, "invalid value invalid-auth-prompt")
@@ -110,39 +103,106 @@ func TestKeyboardInteractive_InvalidAuthPrompt_NonProtoQuestion(t *testing.T) {
 }
 
 func TestKeyboardInteractive_InvalidAuthPrompt_NilPromptField(t *testing.T) {
-	authMethod := clientssh.KeyboardInteractive(
-		t.Context(),
-		nil,
-		nil,
-	)
-	require.NotNil(t, authMethod)
+	authMethod := clientssh.KeyboardInteractive(t.Context(), nil, nil)
 
 	mfaPrompt := sshpb.AuthPrompt_builder{}.Build()
 	mfaPromptJSON, err := protojson.Marshal(mfaPrompt)
 	require.NoError(t, err)
 
 	// Extract the KeyboardInteractiveChallenge function from the AuthMethod so it can be tested.
-	ki := authMethod.(ssh.KeyboardInteractiveChallenge)
-	require.IsType(t, ssh.KeyboardInteractiveChallenge(nil), ki)
+	ki, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
+	require.True(t, ok)
 
 	answers, err := ki("", "", []string{string(mfaPromptJSON)}, []bool{})
 	require.ErrorIs(t, err, trace.BadParameter("received sshpb.AuthPrompt with nil Prompt field"))
 	require.Nil(t, answers)
 }
 
-type mockMFACeremonyPerformer struct {
-	challengeName string
-	err           error
-}
+const (
+	keyboardInteractiveMethod = "keyboard-interactive"
+	passwordMethod            = "password"
+	publicKeyMethod           = "publickey"
+)
 
-var _ clientssh.MFACeremonyPerformer = (*mockMFACeremonyPerformer)(nil)
+func TestAuthCallback(t *testing.T) {
+	t.Parallel()
 
-func (m *mockMFACeremonyPerformer) PerformSessionMFACeremony(_ context.Context, _ []byte) (string, error) {
-	if m.err != nil {
-		return "", m.err
+	for _, tt := range []struct {
+		name             string
+		config           clientssh.AuthCallbackConfig
+		authCtx          *ssh.ClientAuthContext
+		expectNil        bool
+		expectKICallback bool
+	}{
+		{
+			name: "returns keyboard-interactive callback on partial success",
+			config: clientssh.AuthCallbackConfig{
+				MFAPerformer: func(_ context.Context, _ []byte) (string, error) {
+					return "test-challenge", nil
+				},
+			},
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{publicKeyMethod},
+				AllowedMethods:        []string{keyboardInteractiveMethod},
+				Metadata:              &mockConnMetadata{sessionID: []byte("test-session-id")},
+			},
+			expectKICallback: true,
+		},
+		{
+			name: "returns nil when keyboard-interactive not allowed",
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{publicKeyMethod},
+				AllowedMethods:        []string{passwordMethod},
+			},
+			expectNil: true,
+		},
+		{
+			name: "returns nil when MFAPerformer is not set",
+			config: clientssh.AuthCallbackConfig{
+				MFAPerformer: nil,
+			},
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{publicKeyMethod},
+				AllowedMethods:        []string{keyboardInteractiveMethod},
+			},
+			expectNil: true,
+		},
+		{
+			name: "returns nil when no publickey partial success",
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{passwordMethod},
+				AllowedMethods:        []string{keyboardInteractiveMethod},
+			},
+			expectNil: true,
+		},
+		{
+			name: "returns nil when keyboard-interactive already tried",
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{publicKeyMethod},
+				AllowedMethods:        []string{keyboardInteractiveMethod},
+				TriedMethods:          []string{keyboardInteractiveMethod},
+			},
+			expectNil: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			callback := clientssh.AuthCallback(t.Context(), tt.config)
+
+			authMethod, err := callback(tt.authCtx)
+			require.NoError(t, err)
+
+			if tt.expectNil {
+				require.Nil(t, authMethod)
+			}
+
+			if tt.expectKICallback {
+				_, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
+				require.True(t, ok)
+			}
+		})
 	}
-
-	return m.challengeName, nil
 }
 
 type mockConnMetadata struct {
