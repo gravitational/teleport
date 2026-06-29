@@ -687,6 +687,10 @@ func convertYAMLToHCL(w io.Writer, r io.Reader) error {
 		return err
 	}
 
+	// TODO: marshal jsonBytes to a map[string]any
+	// TODO: function to traverse the JSON to get a list of field paths
+	// TODO: populate a WithFieldComment call for each string path
+
 	var opts []tfgen.GenerateOpt
 	if convert.terraformResourceType != "" {
 		opts = append(opts, tfgen.WithResourceType(convert.terraformResourceType))
@@ -696,6 +700,8 @@ func convertYAMLToHCL(w io.Writer, r io.Reader) error {
 	if err != nil {
 		return trace.Errorf("unable to convert the provided YAML manifest into HCL: %w", err)
 	}
+
+	// TODO: Go through outbytes and remove empty comment lines
 	if _, err := w.Write(outbytes); err != nil {
 		return trace.Errorf("unable to process the converted HCL: %w", err)
 	}
