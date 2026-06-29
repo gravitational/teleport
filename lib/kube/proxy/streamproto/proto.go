@@ -68,17 +68,18 @@ type SessionStream struct {
 	// A list of resize requests.
 	resizeQueue chan *remotecommand.TerminalSize
 
-	// A notification channel for force termination requests.
-	forceTerminate chan struct{}
-
-	writeSync          sync.Mutex
-	done               chan struct{}
-	closeOnce          sync.Once
+	// A notification channel for force termination requests, along with a
+	// guard so it is closed at most once.
+	forceTerminate     chan struct{}
 	forceTerminateOnce sync.Once
-	closed             atomic.Bool
-	MFARequired        bool
-	Mode               types.SessionParticipantMode
-	isClient           bool
+
+	writeSync   sync.Mutex
+	done        chan struct{}
+	closeOnce   sync.Once
+	closed      atomic.Bool
+	MFARequired bool
+	Mode        types.SessionParticipantMode
+	isClient    bool
 }
 
 // NewSessionStream creates a new session stream.
