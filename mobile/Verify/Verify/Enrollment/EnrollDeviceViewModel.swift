@@ -20,7 +20,7 @@ import Observation
 @Observable
 @MainActor
 class EnrollDeviceViewModel {
-	var attempt: LoadingState<String> = .idle
+	var loadingState: LoadingState<String> = .idle
 	private let deepLink: EnrollMobileDeviceDeepLink
 	private let enrollClient: EnrollClient
 
@@ -37,7 +37,7 @@ class EnrollDeviceViewModel {
 	}
 
 	func requestEnrollToken() async {
-		attempt = .loading
+		loadingState = .loading
 		let defaultHTTPSPort = 443
 		do {
 			let token = try await enrollClient.requestEnrollmentToken(
@@ -45,9 +45,9 @@ class EnrollDeviceViewModel {
 				port: deepLink.port ?? defaultHTTPSPort,
 				pairingToken: deepLink.enrollPairingToken,
 			)
-			attempt = .success(token)
+			loadingState = .success(token)
 		} catch {
-			attempt = .failure(error)
+			loadingState = .failure(error)
 		}
 	}
 }
