@@ -149,7 +149,7 @@ func (e *localExec) SetCommand(command string) {
 // ExecResult is only used to communicate an error while launching.
 func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult, error) {
 	// Parse the command to see if it is scp.
-	err := e.transformSecureCopy()
+	err := e.transformSecureCopy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -249,10 +249,10 @@ func (e *localExec) String() string {
 	return fmt.Sprintf("Exec(Command=%v)", e.Command)
 }
 
-func (e *localExec) transformSecureCopy() error {
+func (e *localExec) transformSecureCopy(ctx context.Context) error {
 	isSCPCmd, err := checkSCPAllowed(e.Ctx, e.GetCommand())
 	if err != nil {
-		e.Ctx.GetServer().EmitAuditEvent(context.WithoutCancel(e.Ctx.Context), &apievents.SFTP{
+		e.Ctx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
 			Metadata: apievents.Metadata{
 				Code: events.SFTPDisallowedCode,
 				Type: events.SFTPEvent,
