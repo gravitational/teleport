@@ -1373,7 +1373,7 @@ Verify an integration.
 Usage:
 
 ```code
-$ tctl integrations test --integration=INTEGRATION [<flags>]
+$ tctl integrations test [<flags>] <integration>
 ```
 
 Flags:
@@ -1381,7 +1381,12 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
-|`--integration`|*no default*|Name of the integration to test. Use `tctl get integrations` to list integrations.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|integration|*no default* (required)|Name of the integration to test. Use `tctl get integrations` to list integrations.|
 
 ## tctl inventory list
 
