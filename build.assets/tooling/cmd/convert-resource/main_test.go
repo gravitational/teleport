@@ -161,6 +161,30 @@ spec:
 }
 `,
 		},
+		{
+			description: "false boolean",
+			input: `kind: role
+version: v8
+metadata:
+  name: myrole
+spec:
+  options:
+    forward_agent: false`,
+			expected: `resource "teleport_role" "myrole" {
+  version = "v8"
+
+  metadata = {
+    name = "myrole"
+  }
+
+  spec = {
+    options = {
+      forward_agent = false
+    }
+  }
+}
+`,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
