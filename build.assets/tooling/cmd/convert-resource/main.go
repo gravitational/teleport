@@ -706,13 +706,19 @@ func convertYAMLToHCL(w io.Writer, r io.Reader) error {
 		return err
 	}
 
-	// TODO: marshal jsonBytes to a map[string]any
-	// TODO: function to traverse the JSON to get a list of field paths
-	// TODO: populate a WithFieldComment call for each string path
+	var m map[string]any
+	err = json.Unmarshal(jsonbytes, &m)
+	if err != nil {
+		return trace.Errorf("unable to read JSON from the input resource: %w", err)
+	}
 
 	var opts []tfgen.GenerateOpt
 	if convert.terraformResourceType != "" {
 		opts = append(opts, tfgen.WithResourceType(convert.terraformResourceType))
+	}
+
+	for _, p := range fieldPaths(m) {
+		opts = append(opts, tfgen.WithFieldComment(p, ""))
 	}
 
 	outbytes, err := tfgen.Generate(res, opts...)
