@@ -555,10 +555,14 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop, leafClusterName))
 	}
 
+	ceremony, err := c.tc.NewMFACeremony(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	result, err := PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
-		MFACeremony:       c.tc.NewMFACeremony(),
+		MFACeremony:       ceremony,
 		MFAAgainstRoot:    mfaAgainstRoot,
 		MFARequiredReq:    mfaRequiredReq,
 		CertsReq:          certsReq,
@@ -865,7 +869,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	// this error directly instead of an empty challenge, without regressing
 	// https://github.com/gravitational/teleport/issues/36482.
 	if mfaResp.GetResponse() == nil {
-		return nil, trace.Wrap(authclient.ErrNoMFADevices)
+		return nil, trace.Wrap(&mfa.ErrNoMFADevices)
 	}
 
 	// Issue certificate.

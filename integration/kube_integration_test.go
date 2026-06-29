@@ -2286,6 +2286,10 @@ func kubeJoin(ctx context.Context, kubeConfig kube.ProxyConfig, tc *client.Telep
 		return nil, trace.Wrap(err)
 	}
 
+	ceremony, err := tc.NewMFACeremony(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	sess, err := client.NewKubeSession(ctx,
 		client.KubeSessionConfig{
 			KubeProxyAddr:                 tc.Config.KubeProxyAddr,
@@ -2308,7 +2312,7 @@ func kubeJoin(ctx context.Context, kubeConfig kube.ProxyConfig, tc *client.Telep
 
 				return authClientCloser{ClientI: auth, clusterClient: clt}, nil
 			},
-			Ceremony: tc.NewMFACeremony(),
+			Ceremony: ceremony,
 			Stdin:    tc.Config.Stdin,
 			Stdout:   tc.Config.Stdout,
 			Stderr:   tc.Config.Stderr,

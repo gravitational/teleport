@@ -25,6 +25,7 @@ import (
 type FakeReplyFunc func(context.Context) (string, error)
 
 type FakeReader struct {
+	Terminal        bool
 	mu              sync.Mutex
 	replies         []FakeReplyFunc
 	waitingForReply chan struct{}
@@ -34,11 +35,13 @@ type FakeReader struct {
 // Call Add functions in the desired order to configure responses. Each call
 // represents a read reply, in order.
 func NewFakeReader() *FakeReader {
-	return &FakeReader{}
+	return &FakeReader{
+		Terminal: true,
+	}
 }
 
 func (r *FakeReader) IsTerminal() bool {
-	return true
+	return r.Terminal
 }
 
 func (r *FakeReader) AddReply(fn FakeReplyFunc) *FakeReader {

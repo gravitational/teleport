@@ -641,6 +641,14 @@ type CLIConf struct {
 	// Defaults to [wancli.Login].
 	WebauthnLogin client.WebauthnLoginFunc
 
+	// WebauthnRegister allows tests to override the WebAuthn registration func.
+	// Defaults to [wancli.Register].
+	WebauthnRegister client.WebauthnRegisterFunc
+
+	// TouchIDRegister allows tests to override the Touch ID registration func.
+	// Defaults to [touchid.Register].
+	TouchIDRegister client.TouchIDRegisterFunc
+
 	// LeafClusterName is the optional name of a leaf cluster to connect to instead
 	LeafClusterName string
 
@@ -5227,6 +5235,8 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.DTAuthnRunCeremony = cf.DTAuthnRunCeremony
 	c.DTAutoEnroll = cf.DTAutoEnroll
 	c.WebauthnLogin = cf.WebauthnLogin
+	c.WebauthnRegister = cf.WebauthnRegister
+	c.TouchIDRegister = cf.TouchIDRegister
 
 	// pass along MySQL/Postgres path overrides (only used in tests).
 	c.OverrideMySQLOptionFilePath = cf.overrideMySQLOptionFilePath
@@ -5254,6 +5264,8 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	default:
 		c.RelayAddr = cf.Relay
 	}
+
+	c.RegisterMFADeviceIfRequired = true
 
 	return c, nil
 }

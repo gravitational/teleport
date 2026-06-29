@@ -25,6 +25,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Reader is the interface for prompt readers.
@@ -67,20 +69,21 @@ func Confirmation(ctx context.Context, out io.Writer, in Reader, question string
 // question should be a plain sentence without the list of provided options.
 //
 // ctx can be canceled to abort the prompt.
-func PickOne(ctx context.Context, out io.Writer, in Reader, question string, options []string) (string, error) {
-	fmt.Fprintf(out, "%s [%s]: ", question, strings.Join(options, ", "))
+func PickOne[T ~string](ctx context.Context, out io.Writer, in Reader, question string, options []T) (T, error) {
+	optionsStr := utils.JoinStrings(options, ", ")
+	fmt.Fprintf(out, "%s [%s]: ", question, optionsStr)
 	answerOrig, err := in.ReadContext(ctx)
 	if err != nil {
 		return "", trace.Wrap(err, "failed reading prompt response")
 	}
 	answer := strings.ToLower(strings.TrimSpace(string(answerOrig)))
 	for _, opt := range options {
-		if strings.ToLower(opt) == answer {
+		if strings.ToLower(string(opt)) == answer {
 			return opt, nil
 		}
 	}
 	return "", trace.BadParameter(
-		"%q is not a valid option, please specify one of [%s]", strings.TrimSpace(string(answerOrig)), strings.Join(options, ", "))
+		"%q is not a valid option, please specify one of [%s]", strings.TrimSpace(string(answerOrig)), optionsStr)
 }
 
 // Input prompts the user for freeform text input.
