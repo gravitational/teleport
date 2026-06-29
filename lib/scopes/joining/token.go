@@ -266,8 +266,8 @@ func validateOracle(oracle *joiningv1.Oracle) error {
 	return nil
 }
 
-// validates the given Kubernetes configuration. Also implemented by
-// api/types/provisioning.go for unscoped tokens generic_oidc tokens./
+// validates the given Generic OIDC configuration. Also implemented by
+// api/types/provisioning.go for unscoped generic_oidc tokens.
 func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
 	if spec == nil {
 		return trace.BadParameter("generic_oidc configuration must be defined for a scoped token when using the generic_oidc join method")
