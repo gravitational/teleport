@@ -680,6 +680,8 @@ func fieldPaths(m map[string]any) []string {
 	return fieldPathsWithPrefix(m, "")
 }
 
+const hclComment = "#"
+
 // convertYAMLToHCL takes a single tctl resource YAML document, converts it to
 // an HCL resource configuration, writing out the resulting HCL object to w.
 func convertYAMLToHCL(w io.Writer, r io.Reader) error {
@@ -739,12 +741,13 @@ func convertYAMLToHCL(w io.Writer, r io.Reader) error {
 		return trace.Errorf("unable to convert the provided YAML manifest into HCL: %w", err)
 	}
 
-	// At this point, all fields in the output include an extraneous empty
-	// comment marker, the result of WithFieldComment. Write out the result
-	// line by line, ignoring the empty comment markers.
+	// At this point, fields in the output that we passed to
+	// WithFieldComment include an extraneous empty HCL comment marker.
+	// Write out the result line by line, ignoring the empty comment
+	// markers.
 	scanner := bufio.NewScanner(strings.NewReader(string(outbytes)))
 	for scanner.Scan() {
-		if strings.TrimSpace(scanner.Text()) != "#" {
+		if strings.TrimSpace(scanner.Text()) != hclComment {
 			w.Write(scanner.Bytes())
 			w.Write([]byte("\n"))
 		}
