@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/mattn/go-shellwords"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -148,7 +149,7 @@ func (e *localExec) SetCommand(command string) {
 // ExecResult is only used to communicate an error while launching.
 func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult, error) {
 	// Parse the command to see if it is scp.
-	err := e.transformSecureCopy()
+	err := e.transformSecureCopy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -248,10 +249,10 @@ func (e *localExec) String() string {
 	return fmt.Sprintf("Exec(Command=%v)", e.Command)
 }
 
-func (e *localExec) transformSecureCopy() error {
+func (e *localExec) transformSecureCopy(ctx context.Context) error {
 	isSCPCmd, err := checkSCPAllowed(e.Ctx, e.GetCommand())
 	if err != nil {
-		e.Ctx.GetServer().EmitAuditEvent(context.WithoutCancel(e.Ctx.Context), &apievents.SFTP{
+		e.Ctx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
 			Metadata: apievents.Metadata{
 				Code: events.SFTPDisallowedCode,
 				Type: events.SFTPEvent,
@@ -293,7 +294,10 @@ func (e *localExec) transformSecureCopy() error {
 func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	// split up command by space to grab the first word. if we don't have anything
 	// it's an interactive shell the user requested and not scp, return
-	args := strings.Split(command, " ")
+	args, err := shellwords.Parse(command)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	if len(args) == 0 {
 		return false, nil
 	}
