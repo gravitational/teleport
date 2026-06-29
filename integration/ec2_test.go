@@ -145,7 +145,7 @@ func getCallerIdentity(ctx context.Context, t *testing.T) *sts.GetCallerIdentity
 	if cfg.Region == "" {
 		imdsClient, err := cloudaws.NewInstanceMetadataClient(ctx)
 		require.NoError(t, err)
-		cfg.Region, err = imdsClient.GetRegion(ctx)
+		cfg.Region, err = imdsClient.GetRegion(ctx) //nolint:nostructfieldassign // this is a test
 		require.NoError(t, err, "trying to get local region from IMDSv2")
 	}
 	stsClient := stsutils.NewFromConfig(cfg)

@@ -373,14 +373,15 @@ func loadDefaultConfig(ctx context.Context, region string, cred aws.CredentialsP
 	}
 	if len(cfg.Region) == 0 && opts.withFallbackRegionResolver != nil {
 		region, err := opts.withFallbackRegionResolver(ctx)
-		if err == nil {
-			cfg.Region = region
-		} else {
+		if err != nil {
 			slog.DebugContext(ctx, "fallback region resolver failed, using the default region",
 				"default_region", defaultRegion,
 				"error", err,
 			)
-			cfg.Region = defaultRegion
+			region = defaultRegion
+		}
+		if err := config.ConfigureRegion(&cfg, region); err != nil {
+			return aws.Config{}, trace.Wrap(err)
 		}
 	}
 	return cfg, nil
