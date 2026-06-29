@@ -345,7 +345,7 @@ impl FilesystemBackend {
                 self.handle_rdp_query_information_req(req)
             }
             efs::ServerDriveIoRequest::DeviceCloseRequest(req) => {
-                // If the device is marked for deltion AND this request closes that final file
+                // If the device is marked for deletion AND this request closes that final file
                 // in the cache, then we'll finally send the request to remove the device.
                 let device_id = req.device_io_request.device_id;
                 let res = self.handle_rdp_device_close_req(req);
