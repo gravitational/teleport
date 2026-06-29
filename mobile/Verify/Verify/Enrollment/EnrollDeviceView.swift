@@ -20,65 +20,60 @@ struct EnrollDeviceView: View {
 	var viewModel: EnrollDeviceViewModel
 
 	var body: some View {
-		VStack(spacing: 16) {
-			Spacer()
-			Image(systemName: "ipad.and.iphone")
-				.font(.system(size: 37))
-				.foregroundStyle(.primary)
-				.frame(width: 75, height: 75)
-				.background(
-					RoundedRectangle(cornerRadius: 16)
-						.fill(Color(.systemBackground)),
-				)
-				.overlay(
-					RoundedRectangle(cornerRadius: 16)
-						.strokeBorder(Color(.separator), lineWidth: 1),
-				)
-			VStack(spacing: 8) {
-				Text("Enroll Your Device")
-					.font(.title2)
-					.fontWeight(.semibold)
-				Text(
-					"To finish enrolling this device, approve the request from your account settings on another device.",
-				)
+		VStack(spacing: .medium) {
+			ScrollView {
+				VStack(spacing: .small) {
+					Icon(systemName: "ipad.and.iphone")
+						.frame(maxWidth: 80)
+						.padding(.bottom, .small)
+						.padding(.top, .xxlarge)
+					Text("Enroll Your Device")
+						.font(.title2)
+						.fontWeight(.semibold)
+					Text(
+						"""
+						To finish enrolling this device, approve the request from \
+						your account settings on another device.
+						""",
+					)
+					.foregroundStyle(.secondary)
+				}
 				.multilineTextAlignment(.center)
-				.foregroundStyle(.secondary)
+				.frame(maxHeight: .infinity, alignment: .center)
 			}
-			Spacer()
-			VStack(spacing: 16) {
-				Button {
-					Task { await viewModel.requestEnrollToken() }
-				} label: {
-					Group {
-						if viewModel.attempt.isLoading {
-							Label(
-								"Request in progress",
-								systemImage: "progress.indicator",
-							)
-							.labelStyle(.iconOnly)
-							.symbolEffect(
-								.variableColor.iterative,
-								options: .repeat(.continuous),
-								isActive: true,
-							)
-						} else {
-							Text("Request Now")
-						}
+			.scrollBounceBehavior(.basedOnSize)
+			Button {
+				Task { await viewModel.requestEnrollToken() }
+			} label: {
+				Group {
+					if viewModel.attempt.isLoading {
+						Label(
+							"Request in progress",
+							systemImage: "progress.indicator",
+						)
+						.labelStyle(.iconOnly)
+						.symbolEffect(
+							.variableColor.iterative,
+							options: .repeat(.continuous),
+							isActive: true,
+						)
+					} else {
+						Text("Request Now")
 					}
-					.frame(maxWidth: .infinity)
 				}
-				.buttonStyle(.borderedProminent)
-				.controlSize(.large)
-				.animation(.easeInOut, value: viewModel.attempt.isLoading)
-				.disabled(viewModel.attempt.isLoading)
-
-				Button(role: .cancel, action: viewModel.userTappedCancel) {
-					Text("Cancel").frame(maxWidth: .infinity)
-				}
-				.buttonStyle(.bordered)
-				.controlSize(.large)
-				.disabled(viewModel.attempt.isLoading)
+				.frame(maxWidth: .infinity)
 			}
+			.buttonStyle(.primary)
+			.controlSize(.large)
+			.animation(.easeInOut, value: viewModel.attempt.isLoading)
+			.disabled(viewModel.attempt.isLoading)
+
+			Button(role: .cancel, action: viewModel.userTappedCancel) {
+				Text("Cancel").frame(maxWidth: .infinity)
+			}
+			.buttonStyle(.bordered)
+			.controlSize(.large)
+			.disabled(viewModel.attempt.isLoading)
 		}
 		.padding()
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
