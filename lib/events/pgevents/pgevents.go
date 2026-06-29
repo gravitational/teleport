@@ -392,22 +392,14 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 		return trace.Wrap(err)
 	}
 
-	eventID := uuid.New()
+	eventID, err := uuid.Parse(event.GetID())
+	if err != nil {
+		eventID = uuid.New()
+	}
 	sessionID := l.deriveSessionID(ctx, events.GetSessionID(event))
 
 	start := time.Now()
-	// if an event with the same event_id exists, it means that we inserted it
-	// and then failed to receive the success reply from the commit
-	_, err = pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
-		_, err := l.pool.Exec(ctx,
-			"INSERT INTO events (event_time, event_id, event_type, session_id, event_data)"+
-				" VALUES ($1, $2, $3, $4, $5)"+
-				" ON CONFLICT DO NOTHING",
-			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
-		)
-		return struct{}{}, trace.Wrap(err)
-	})
-
+	err = l.insertEvent(ctx, event, eventID, sessionID, string(eventJSON))
 	writeLatencies.Observe(time.Since(start).Seconds())
 
 	if err != nil {
@@ -417,6 +409,73 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 	writeRequestsSuccess.Inc()
 
 	return nil
+}
+
+const insertEventQuery = `WITH ins AS (
+	INSERT INTO events (event_time, event_id, event_type, session_id, event_data)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (event_time, event_id) DO NOTHING
+		RETURNING 1
+)
+SELECT
+	EXISTS (SELECT 1 FROM ins),
+	(SELECT e.event_data::jsonb = $5::jsonb
+		FROM events e
+		WHERE e.event_time = $1 AND e.event_id = $2)`
+
+func (l *Log) insertEvent(ctx context.Context, event apievents.AuditEvent, eventID, sessionID uuid.UUID, eventJSON string) error {
+	inserted, existingMatches, err := l.tryInsertEvent(ctx, event, eventID, sessionID, eventJSON)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if inserted {
+		return nil
+	}
+
+	if existingMatches != nil && *existingMatches {
+		writeRequestsDeduped.Inc()
+		return nil
+	}
+
+	newID := uuid.New()
+	l.log.WarnContext(ctx,
+		"Audit event collided with a different event sharing the same id. Re-inserting under a new id.",
+		"event_type", event.GetType(),
+		"event_time", event.GetTime().UTC(),
+		"original_event_id", eventID,
+		"new_event_id", newID,
+	)
+	eventIDCollisions.Inc()
+
+	inserted, _, err = l.tryInsertEvent(ctx, event, newID, sessionID, eventJSON)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !inserted {
+		return trace.AlreadyExists(
+			"audit event id collision persisted after generating a new id (event_time %v)",
+			event.GetTime().UTC(),
+		)
+	}
+	return nil
+}
+
+func (l *Log) tryInsertEvent(ctx context.Context, event apievents.AuditEvent, eventID, sessionID uuid.UUID, eventJSON string) (bool, *bool, error) {
+	type insertResult struct {
+		inserted bool
+		matches  *bool
+	}
+	res, err := pgcommon.RetryIdempotent(ctx, l.log, func() (insertResult, error) {
+		var out insertResult
+		err := l.pool.QueryRow(ctx, insertEventQuery,
+			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
+		).Scan(&out.inserted, &out.matches)
+		return out, trace.Wrap(err)
+	})
+	if err != nil {
+		return false, nil, trace.Wrap(err)
+	}
+	return res.inserted, res.matches, nil
 }
 
 // searchEvents returns events within the time range, filtering (optionally) by
