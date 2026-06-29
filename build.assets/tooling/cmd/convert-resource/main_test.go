@@ -31,7 +31,29 @@ func Test_fieldPaths(t *testing.T) {
 		expected    []string
 	}
 
-	cases := []testCase{}
+	cases := []testCase{
+		{
+			description: "two levels of scalars",
+			input: `{
+		    "number":0,
+		    "boolean":false,
+		    "string":"",
+		    "object": {
+		      "number": 0,
+		      "boolean": false,
+		      "string": ""
+		    }
+		}`,
+			expected: []string{
+				"number",
+				"boolean",
+				"string",
+				"object.number",
+				"object.boolean",
+				"object.string",
+			},
+		},
+	}
 
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
