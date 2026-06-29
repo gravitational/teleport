@@ -736,6 +736,11 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 				names = []string{""}
 			}
 			verbs := applyValueTraitsSlice(rec.Verbs, ctx, "kubernetes resource verb")
+			// A trait can reintroduce a wildcard alongside other verbs after
+			// validation has run, so collapse to just the wildcard.
+			if slices.Contains(verbs, types.Wildcard) {
+				verbs = []string{types.Wildcard}
+			}
 			for _, namespace := range namespaces {
 				for _, name := range names {
 					out = append(out, types.KubernetesResource{
