@@ -27,57 +27,21 @@ struct EnrollDeviceView: View {
 						.frame(maxWidth: 80)
 						.padding(.bottom, .small)
 						.padding(.top, .xxlarge)
-					Text("Enroll Your Device")
-						.font(.title2)
-						.fontWeight(.semibold)
-					Text(
-						"""
-						To finish enrolling this device, approve the request from \
-						your account settings on another device.
-						""",
-					)
-					.foregroundStyle(.secondary)
+					titleBlock
 				}
 				.multilineTextAlignment(.center)
 				.frame(maxHeight: .infinity, alignment: .center)
 			}
 			.scrollBounceBehavior(.basedOnSize)
-			Button {
-				Task { await viewModel.requestEnrollToken() }
-			} label: {
-				Group {
-					if viewModel.attempt.isLoading {
-						Label(
-							"Request in progress",
-							systemImage: "progress.indicator",
-						)
-						.labelStyle(.iconOnly)
-						.symbolEffect(
-							.variableColor.iterative,
-							options: .repeat(.continuous),
-							isActive: true,
-						)
-					} else {
-						Text("Request Now")
-					}
-				}
-				.frame(maxWidth: .infinity)
-			}
-			.buttonStyle(.primary)
-			.controlSize(.large)
-			.animation(.easeInOut, value: viewModel.attempt.isLoading)
-			.disabled(viewModel.attempt.isLoading)
-
-			Button(role: .cancel, action: viewModel.userTappedCancel) {
-				Text("Cancel").frame(maxWidth: .infinity)
-			}
-			.buttonStyle(.bordered)
-			.controlSize(.large)
-			.disabled(viewModel.attempt.isLoading)
+			requestNowButton
+			cancelButton
 		}
 		.padding()
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
 		.background(Color(.systemGroupedBackground))
+
+		// MARK: Navigation
+
 		.sheet(
 			isPresented: Binding(
 				get: {
@@ -96,6 +60,61 @@ struct EnrollDeviceView: View {
 			.presentationDetents([.medium])
 			.interactiveDismissDisabled(viewModel.attempt.isLoading)
 		}
+	}
+}
+
+// MARK: - Subviews
+
+extension EnrollDeviceView {
+	@ViewBuilder
+	var titleBlock: some View {
+		Text("Enroll Your Device")
+			.font(.title2)
+			.fontWeight(.semibold)
+		Text(
+			"""
+			To finish enrolling this device, approve the request from \
+			your account settings on another device.
+			""",
+		)
+		.foregroundStyle(.secondary)
+	}
+
+	var requestNowButton: some View {
+		Button {
+			Task { await viewModel.requestEnrollToken() }
+		} label: {
+			Group {
+				if viewModel.attempt.isLoading {
+					Label(
+						"Request in progress",
+						systemImage: "progress.indicator",
+					)
+					.labelStyle(.iconOnly)
+					.symbolEffect(
+						.variableColor.iterative,
+						options: .repeat(.continuous),
+						isActive: true,
+					)
+				} else {
+					Text("Request Now")
+				}
+			}
+			.frame(maxWidth: .infinity)
+		}
+		.buttonStyle(.primary)
+		.controlSize(.large)
+		.animation(.easeInOut, value: viewModel.attempt.isLoading)
+		.disabled(viewModel.attempt.isLoading)
+	}
+
+	var cancelButton: some View {
+		Button(role: .cancel, action: viewModel.userTappedCancel) {
+			Text("Cancel").frame(maxWidth: .infinity)
+		}
+		.buttonStyle(.bordered)
+		.controlSize(.large)
+		.disabled(viewModel.attempt.isLoading)
 	}
 }
 
