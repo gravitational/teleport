@@ -20,8 +20,9 @@ import { Resource } from 'shared/services/accessRequests';
 
 export function formattedName(resource: Resource) {
   const id = resource.id;
+  const name = resource.details?.friendlyName || id.name;
   if (id.subResourceName) {
-    return `${id.name}/${id.subResourceName}`;
+    return `${name}/${id.subResourceName}`;
   }
-  return id.name;
+  return name;
 }
