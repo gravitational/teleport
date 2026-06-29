@@ -1,5 +1,26 @@
 # Changelog
 
+## 18.9.2 (06/26/26)
+
+* Fixed HTTP application access connections returning repeated 403 errors after certificate renewal. When the certificate behind a long-lived connection expires, the proxy now sends `Connection: close` so the client reestablishes the connection with a renewed certificate instead of reusing a dead one. [#68099](https://github.com/gravitational/teleport/pull/68099)
+* Add "tsh apps logins" command to query available logins for the given cloud application (currently only AWS is supported). [#68052](https://github.com/gravitational/teleport/pull/68052)
+* Fixed cloud-hosted Slack plugin exposing credentials in request URLs. [#68017](https://github.com/gravitational/teleport/pull/68017)
+* Added the Sub CA `tctl auth delete-override` command, a user-friendly alternative over `tctl edit ca_overrides` or `tctl rm ca_overrides`. [#68014](https://github.com/gravitational/teleport/pull/68014)
+* Fixed potential deadlock when reading access list owners from the cache as the cache becomes unhealthy. [#68013](https://github.com/gravitational/teleport/pull/68013)
+* Added the Sub CA `tctl auth create-override` command, a user-friendly alternative over `tctl create ca_override.yaml`. [#67983](https://github.com/gravitational/teleport/pull/67983)
+* Fix MFA prompts to show correct --mfa-mode values for webauthn authenticators. [#67971](https://github.com/gravitational/teleport/pull/67971)
+* Prevent misrouting when multiple apps share the same public address. [#67947](https://github.com/gravitational/teleport/pull/67947)
+* Fix an issue where the WebUI would prompt for MFA multiple times for admin actions (or outright fail for select commands) when `sso` is the only allowed second factor on the cluster. [#67867](https://github.com/gravitational/teleport/pull/67867)
+* Fixed desktop connection failures to Windows 11 / Windows Server 2025 instances. [#67483](https://github.com/gravitational/teleport/pull/67483)
+
+Enterprise:
+
+* Add support for rate limiting in the Teleport SCIM Server.
+* Update `golang.org/x/crypto` to `v0.53.0`.
+* Updated Teleport Entra ID integration to support delta sync.
+* Only process Okta assignments for groups and apps currently being synced.
+* Prevent user-deletion of Access Lists being synced by Okta integration.
+
 ## 18.9.1 (06/19/26)
 
 * Fixed a limitation in Kubernetes Access causing the agent to throttle at 5 exec/second.
