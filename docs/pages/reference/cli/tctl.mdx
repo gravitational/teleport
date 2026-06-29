@@ -798,6 +798,28 @@ Flags:
 |`--windows-sid`|*no default*|Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"|
 |`--windows-user`|*no default*|Window user placed on the identity file. Only used when --format is set to "windows"|
 
+## tctl auth update-override
+
+Update a single certificate override in a CA override resource
+
+Usage:
+
+```code
+$ tctl auth update-override --type=TYPE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]clear-chain`|`false`|Clears existing CA override trust chain|
+|`--[no-]force`|`false`|If true attempts to force the update. May be used to ignore select state validation or disable live overrides.|
+|`--public-key`|*no default*|Public key hash of the certificate override to be targeted|
+|`--set-cert`|*no default*|CA override certificate file in PEM form|
+|`--set-chain`|*no default*|CA override trust chain files in PEM form|
+|`--set-disabled`|*no default* (one of: `true`, `false`)|If true disables the override, if false enables it|
+|`--type`|*no default*|CA type (db-client, windows)|
+
 ## tctl autoupdate agents mark-done
 
 Marks one or many groups as done updating.
