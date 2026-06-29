@@ -2968,6 +2968,36 @@ func TestCheckRuleSorting(t *testing.T) {
 	}
 }
 
+// A trait that expands to a wildcard mixed with other verbs is normalized to
+// just the wildcard, since role validation can't catch this post-expansion.
+func TestApplyTraits_NormalizesWildcardKubeVerbAfterExpansion(t *testing.T) {
+	role, err := types.NewRole("kube-verb-tmpl", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesResources: []types.KubernetesResource{{
+				Kind: types.KindKubeSecret, Namespace: types.Wildcard, Name: types.Wildcard,
+				Verbs: []string{types.Wildcard},
+			}},
+		},
+		Deny: types.RoleConditions{
+			KubernetesResources: []types.KubernetesResource{{
+				Kind: types.KindKubeSecret, Namespace: "prod", Name: types.Wildcard,
+				Verbs: []string{"{{external.kube_verbs}}"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	out, err := ApplyTraits(role, map[string][]string{
+		"kube_verbs": {types.KubeVerbCreate, types.KubeVerbUpdate, types.KubeVerbDelete, types.Wildcard},
+	})
+	require.NoError(t, err)
+
+	denied := out.GetKubeResources(types.Deny)
+	require.Len(t, denied, 1)
+	require.Equal(t, []string{types.Wildcard}, denied[0].Verbs)
+}
+
 func TestApplyTraits(t *testing.T) {
 	type rule struct {
 		inLogins                []string
