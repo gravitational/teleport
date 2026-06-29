@@ -144,6 +144,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAppServerV3Parser()
 		case types.KindBeam:
 			parser = newBeamParser()
+		case types.KindBeamsConfig:
+			parser = newBeamsConfigParser()
 		case types.KindWebSession:
 			switch kind.SubKind {
 			case types.KindSnowflakeSession:
