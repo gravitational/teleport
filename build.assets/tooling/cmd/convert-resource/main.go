@@ -659,12 +659,12 @@ var resourceConfig = map[string]conversionRule{
 // convertYAMLToHCL takes a single tctl resource YAML document, converts it to
 // an HCL resource configuration, writing out the resulting HCL object to w.
 func convertYAMLToHCL(w io.Writer, r io.Reader) error {
-	var yamlBuf bytes.Buffer
-	if _, err := io.Copy(&yamlBuf, r); err != nil {
+	yamlBytes, err := io.ReadAll(r)
+	if err != nil {
 		return trace.Errorf("unable to read input YAML: %w", err)
 	}
 
-	jsonbytes, err := utils.ToJSON(yamlBuf.Bytes())
+	jsonbytes, err := utils.ToJSON(yamlBytes)
 	if err != nil {
 		return trace.Errorf("unable to process input YAML as JSON (which we need to do to convert it to a Teleport resource type): %w", err)
 	}
@@ -770,12 +770,12 @@ func convertAllYAMLToKubernetes(w io.Writer, r io.Reader) error {
 // converts it to a Kubernetes resource manifest, writing out the resulting HCL
 // object to w.
 func convertYAMLToKubernetes(w io.Writer, r io.Reader) error {
-	var yamlBuf bytes.Buffer
-	if _, err := io.Copy(&yamlBuf, r); err != nil {
+	yamlBytes, err := io.ReadAll(r)
+	if err != nil {
 		return trace.Errorf("unable to read input YAML: %w", err)
 	}
 
-	jsonbytes, err := utils.ToJSON(yamlBuf.Bytes())
+	jsonbytes, err := utils.ToJSON(yamlBytes)
 	if err != nil {
 		return trace.Errorf("unable to process input YAML as JSON (which we need to do to convert it to a Teleport resource type): %w", err)
 	}
