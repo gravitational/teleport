@@ -310,7 +310,7 @@ func TestEmitAuditEvent_NoLossDeduplication(t *testing.T) {
 
 		stored := fetchEventData(ctx, t, log, from, to)
 		require.Len(t, stored, 1, "an identical re-delivery should be stored exactly once")
-		require.Equal(t, before+1, testutil.ToFloat64(writeRequestsDeduped),
+		require.InDelta(t, before+1, testutil.ToFloat64(writeRequestsDeduped), 0.0001,
 			"the duplicate delivery should increment the deduped counter exactly once")
 	})
 
@@ -328,7 +328,7 @@ func TestEmitAuditEvent_NoLossDeduplication(t *testing.T) {
 		require.Len(t, stored, 2, "two distinct events sharing an id must both be stored")
 		require.True(t, containsMarker(stored, "alice"), "the event for alice must not be dropped")
 		require.True(t, containsMarker(stored, "bob"), "the event for bob must not be dropped")
-		require.Equal(t, before+1, testutil.ToFloat64(eventIDCollisions),
+		require.InDelta(t, before+1, testutil.ToFloat64(eventIDCollisions), 0.0001,
 			"the colliding distinct event should increment the collision counter exactly once")
 	})
 
