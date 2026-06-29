@@ -6382,6 +6382,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			OracleHTTPClient:   cfg.OracleHTTPClient,
 			Modules:            cfg.AuthServer.modules,
 			Emitter:            cfg.Emitter,
+			ScopesFeatures:     cfg.AuthServer.scopesFeatures,
 		}))
 	}
 
