@@ -25,12 +25,14 @@ package network
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/cloud/azure/client"
 )
 
@@ -50,12 +52,10 @@ type Interface struct {
 	ID string
 	// Name is the resource name of the network interface.
 	Name string
-	// PrivateIPs are the private IP addresses across all of the NIC's IP
-	// configurations, in the order Azure returns them.
-	PrivateIPs []string
-	// PrimaryPrivateIP is the private IP address of the NIC's primary IP
-	// configuration. Empty if no configuration is flagged primary.
-	PrimaryPrivateIP string
+	// PrivateIP is the private IP address of the NIC's primary IP
+	// configuration. If no configuration is flagged primary, it is the first
+	// private IP address found. Empty only when the NIC has no private IPs.
+	PrivateIP string
 }
 
 // InterfacesClient retrieves Azure network interfaces.
@@ -70,12 +70,30 @@ type interfacesClient struct {
 	// client is the generic Azure ARM HTTP query client. It handles AAD auth,
 	// response decoding, error conversion, and rate-limit retries for us.
 	client *client.Client
+	logger *slog.Logger
+}
+
+// Option configures an InterfacesClient during construction.
+type Option func(*interfacesClient)
+
+// WithLogger sets the logger used by the client. Defaults to slog.Default().
+func WithLogger(logger *slog.Logger) Option {
+	return func(c *interfacesClient) {
+		c.logger = logger
+	}
 }
 
 // NewInterfacesClient creates a new Azure network interfaces client backed by
 // the given Azure HTTP query client.
-func NewInterfacesClient(c *client.Client) InterfacesClient {
-	return &interfacesClient{client: c}
+func NewInterfacesClient(c *client.Client, opts ...Option) InterfacesClient {
+	nic := &interfacesClient{
+		client: c,
+		logger: slog.Default().With(teleport.ComponentKey, "azure_network_interfaces_client"),
+	}
+	for _, opt := range opts {
+		opt(nic)
+	}
+	return nic
 }
 
 // Get returns the network interface for the given NIC resource ID.
@@ -98,12 +116,20 @@ func (c *interfacesClient) Get(ctx context.Context, resourceID string) (*Interfa
 	query.Set("api-version", interfaceAPIVersion)
 	req.URL.RawQuery = query.Encode()
 
+	c.logger.DebugContext(ctx, "fetching Azure network interface", "resource_id", resourceID)
+
 	raw, err := client.DoRequest[armNetworkInterface](ctx, c.client, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return interfaceFromARM(resourceID, raw), nil
+	nic := interfaceFromARM(resourceID, raw)
+	c.logger.DebugContext(ctx, "fetched Azure network interface",
+		"resource_id", nic.ID,
+		"name", nic.Name,
+		"private_ip", nic.PrivateIP,
+	)
+	return nic, nil
 }
 
 // armNetworkInterface is the minimal subset of the network interface resource.
@@ -129,6 +155,9 @@ type armIPConfigurationProperties struct {
 	Primary bool `json:"primary,omitempty"`
 }
 
+// interfaceFromARM converts an ARM network interface resource into a simplified
+// Interface. If the IP configuration has a primary IP address, that will be
+// used, otherwise the first IP address found will be used.
 func interfaceFromARM(resourceID string, raw *armNetworkInterface) *Interface {
 	nic := &Interface{ID: resourceID}
 	if raw == nil {
@@ -138,14 +167,25 @@ func interfaceFromARM(resourceID string, raw *armNetworkInterface) *Interface {
 	if raw.Properties == nil {
 		return nic
 	}
+	var firstIP string
 	for _, ipConfig := range raw.Properties.IPConfigurations {
 		if ipConfig.Properties == nil || ipConfig.Properties.PrivateIPAddress == "" {
 			continue
 		}
-		nic.PrivateIPs = append(nic.PrivateIPs, ipConfig.Properties.PrivateIPAddress)
+		ip := ipConfig.Properties.PrivateIPAddress
+		// If we've found the primary IP config, return it
 		if ipConfig.Properties.Primary {
-			nic.PrimaryPrivateIP = ipConfig.Properties.PrivateIPAddress
+			nic.PrivateIP = ip
+			return nic
+		}
+		if firstIP == "" {
+			firstIP = ip
 		}
 	}
+	// None of the configurations were marked as primary, return the first found.
+	// This would be a bug if encountered, but we don't want to fail the request
+	// if it occurs.
+	// See https://learn.microsoft.com/en-us/azure/virtual-network/ip-services/virtual-network-network-interface-addresses?tabs=nic-address-portal#primary
+	nic.PrivateIP = firstIP
 	return nic
 }
