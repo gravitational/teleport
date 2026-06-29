@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { EventEmitter } from 'events';
+
 import {
   ClientScreenSpec,
   selectDirectoryInBrowser,
@@ -24,17 +26,11 @@ import {
   TdpClientEvent,
 } from 'shared/libs/tdp';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
-import { throttle } from 'shared/utils/highbar';
 
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { StatusEnum } from 'teleport/lib/player';
 
 import { adaptWebSocketToTdpTransport } from './webSocketTransportAdapter';
-
-// we update the time every time we receive data, or
-// at this interval (which ensures that the progress
-// bar updates even when we aren't receiving data)
-const PROGRESS_UPDATE_INTERVAL_MS = 50;
 
 enum Action {
   TOGGLE_PLAY_PAUSE = 'play/pause',
@@ -42,94 +38,73 @@ enum Action {
   SEEK = 'seek',
 }
 
+enum PlayerClientEvent {
+  TIME_UPDATE = 'time update',
+  PLAYER_STATUS = 'player status',
+}
+
+/**
+ * PlayerTimeAnchor is an authoritative playback position. Anchors are only emitted
+ * when the client learns the real position (a server message or a seek) - consumers
+ * are expected to interpolate between anchors using the speed and paused flags.
+ */
+export interface PlayerTimeAnchor {
+  ms: number;
+  speed: number;
+  paused: boolean;
+}
+
+type PlayerEventMap = {
+  [PlayerClientEvent.TIME_UPDATE]: [PlayerTimeAnchor];
+  [PlayerClientEvent.PLAYER_STATUS]: [StatusEnum];
+};
+
 export class PlayerClient extends TdpClient {
   private textDecoder = new TextDecoder();
-  private setPlayerStatus: React.Dispatch<React.SetStateAction<StatusEnum>>;
-  private setStatusText: React.Dispatch<React.SetStateAction<string>>;
-  private _setTime: React.Dispatch<React.SetStateAction<number>>;
-  private setTime: React.Dispatch<React.SetStateAction<number>>;
+  private playerEvents = new EventEmitter<PlayerEventMap>();
 
   private speed = 1.0;
   private paused = false;
 
   private lastPlayedTimestamp = 0;
-  private skipTimeUpdatesUntil = null;
-  private lastTimestamp = 0;
-  private sendTimeUpdates = true;
-  private lastUpdateTime = 0;
-  private timeout = null;
+  private skipTimeUpdatesUntil: number | null = null;
   private tdpbCodec = new TdpbCodec();
 
-  constructor({ url, setTime, setPlayerStatus, setStatusText }) {
+  constructor({ url }: { url: string }) {
     super(
       signal =>
         adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal),
       selectDirectoryInBrowser
     );
-    this.setPlayerStatus = setPlayerStatus;
-    this.setStatusText = setStatusText;
-    this._setTime = setTime;
-    this.setTime = throttle(t => {
-      // time updates are suspended when a user is dragging the slider to
-      // a new position (it's very disruptive if we're updating the slider
-      // position every few milliseconds while the user is trying to
-      // reposition it)
-      if (this.sendTimeUpdates) {
-        this._setTime(t);
-      }
-      this.lastTimestamp = t;
-      this.lastUpdateTime = Date.now();
-    }, PROGRESS_UPDATE_INTERVAL_MS);
   }
 
-  scheduleNextUpdate(current: number) {
-    this.timeout = setTimeout(() => {
-      const delta = Date.now() - this.lastUpdateTime;
-      const next = current + delta * this.speed;
+  onTimeUpdate = (listener: (anchor: PlayerTimeAnchor) => void) => {
+    this.playerEvents.on(PlayerClientEvent.TIME_UPDATE, listener);
+    return () => this.playerEvents.off(PlayerClientEvent.TIME_UPDATE, listener);
+  };
 
-      this.setTime(next);
-      this.lastUpdateTime = Date.now();
+  onPlayerStatus = (listener: (status: StatusEnum) => void) => {
+    this.playerEvents.on(PlayerClientEvent.PLAYER_STATUS, listener);
+    return () =>
+      this.playerEvents.off(PlayerClientEvent.PLAYER_STATUS, listener);
+  };
 
-      this.scheduleNextUpdate(next);
-    }, PROGRESS_UPDATE_INTERVAL_MS);
-  }
-
-  cancelTimeUpdate() {
-    if (this.timeout != null) {
-      clearTimeout(this.timeout);
-      this.timeout = null;
-    }
-  }
-
-  suspendTimeUpdates() {
-    this.sendTimeUpdates = false;
-  }
-
-  resumeTimeUpdates() {
-    this.sendTimeUpdates = true;
+  private emitTimeAnchor(ms: number) {
+    this.playerEvents.emit(PlayerClientEvent.TIME_UPDATE, {
+      ms,
+      speed: this.speed,
+      paused: this.paused,
+    });
   }
 
   // togglePlayPause toggles the playback system between "playing" and "paused" states.
   togglePlayPause() {
     this.paused = !this.paused;
-    this.setPlayerStatus(this.paused ? StatusEnum.PAUSED : StatusEnum.PLAYING);
-    if (this.paused) {
-      this.cancelTimeUpdate();
-    }
-
-    this.lastUpdateTime = Date.now();
+    this.playerEvents.emit(
+      PlayerClientEvent.PLAYER_STATUS,
+      this.paused ? StatusEnum.PAUSED : StatusEnum.PLAYING
+    );
     this.send(JSON.stringify({ action: Action.TOGGLE_PLAY_PAUSE }));
-
-    if (this.paused) {
-      return;
-    }
-
-    if (this.isSeekingForward()) {
-      const next = Math.max(this.skipTimeUpdatesUntil, this.lastTimestamp);
-      this.scheduleNextUpdate(next);
-    } else {
-      this.scheduleNextUpdate(this.lastTimestamp);
-    }
   }
 
   // setPlaySpeed sets the playback speed of the recording.
@@ -143,15 +118,14 @@ export class PlayerClient extends TdpClient {
     const json = JSON.parse(this.textDecoder.decode(buffer));
 
     if (json.message === 'end') {
-      this.setPlayerStatus(StatusEnum.COMPLETE);
+      this.playerEvents.emit(
+        PlayerClientEvent.PLAYER_STATUS,
+        StatusEnum.COMPLETE
+      );
     } else if (json.message === 'error') {
-      this.setPlayerStatus(StatusEnum.ERROR);
-      this.setStatusText(json.errorText);
+      this.emit(TdpClientEvent.ERROR, new Error(json.errorText));
     } else {
-      this.cancelTimeUpdate();
       this.lastPlayedTimestamp = json.ms;
-      this.lastUpdateTime = Date.now();
-      this.setTime(json.ms);
 
       // clear seek state if we caught up to the seek point
       if (
@@ -161,19 +135,9 @@ export class PlayerClient extends TdpClient {
         this.skipTimeUpdatesUntil = null;
       }
 
-      if (!this.isSeekingForward()) {
-        this.cancelTimeUpdate();
-      }
-
-      // schedule the next time update, which ensures that
-      // the progress bar continues to update even if this
-      // section of the recording is idle time
-      //
-      // note: we don't schedule an update if we're currently
-      // seeking forward in time, as we're trying to get there
-      // as quickly as possible
-      if (!this.paused && !this.isSeekingForward()) {
-        this.scheduleNextUpdate(json.ms);
+      // no time anchors while catching up to a seek (seekTo already emitted the target)
+      if (this.skipTimeUpdatesUntil === null) {
+        this.emitTimeAnchor(json.ms);
       }
 
       // Handle TDPB recordings by switching to the TDPB codec
@@ -190,26 +154,10 @@ export class PlayerClient extends TdpClient {
   }
 
   seekTo(pos: number) {
-    this.cancelTimeUpdate();
-
     this.send(JSON.stringify({ action: Action.SEEK, pos }));
 
-    this._setTime(pos);
-    this.lastUpdateTime = Date.now();
     this.skipTimeUpdatesUntil = pos;
-
-    if (pos < this.lastPlayedTimestamp) {
-      // TODO: clear canvas
-    } else if (!this.paused) {
-      this.scheduleNextUpdate(pos);
-    }
-  }
-
-  isSeekingForward(): boolean {
-    return (
-      this.skipTimeUpdatesUntil !== null &&
-      this.skipTimeUpdatesUntil > this.lastPlayedTimestamp
-    );
+    this.emitTimeAnchor(pos);
   }
 
   // Overrides Client implementation.

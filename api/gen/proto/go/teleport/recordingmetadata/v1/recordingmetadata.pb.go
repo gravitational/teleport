@@ -49,6 +49,8 @@ const (
 	SessionRecordingType_SESSION_RECORDING_TYPE_SSH SessionRecordingType = 1
 	// SessionRecordingTypeKubernetes is an interactive Kubernetes session recording.
 	SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES SessionRecordingType = 2
+	// SessionRecordingTypeWindowsDesktop is an interactive Windows desktop session recording.
+	SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP SessionRecordingType = 3
 )
 
 // Enum value maps for SessionRecordingType.
@@ -57,11 +59,13 @@ var (
 		0: "SESSION_RECORDING_TYPE_UNSPECIFIED",
 		1: "SESSION_RECORDING_TYPE_SSH",
 		2: "SESSION_RECORDING_TYPE_KUBERNETES",
+		3: "SESSION_RECORDING_TYPE_WINDOWS_DESKTOP",
 	}
 	SessionRecordingType_value = map[string]int32{
-		"SESSION_RECORDING_TYPE_UNSPECIFIED": 0,
-		"SESSION_RECORDING_TYPE_SSH":         1,
-		"SESSION_RECORDING_TYPE_KUBERNETES":  2,
+		"SESSION_RECORDING_TYPE_UNSPECIFIED":     0,
+		"SESSION_RECORDING_TYPE_SSH":             1,
+		"SESSION_RECORDING_TYPE_KUBERNETES":      2,
+		"SESSION_RECORDING_TYPE_WINDOWS_DESKTOP": 3,
 	}
 )
 
@@ -811,6 +815,12 @@ type SessionRecordingThumbnail struct {
 	EndOffset *durationpb.Duration `protobuf:"bytes,7,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
 	// CursorVisible indicates whether the cursor is visible.
 	CursorVisible bool `protobuf:"varint,8,opt,name=cursor_visible,json=cursorVisible,proto3" json:"cursor_visible,omitempty"`
+	// PNG is the PNG image of the thumbnail.
+	Png []byte `protobuf:"bytes,9,opt,name=png,proto3" json:"png,omitempty"`
+	// ScreenWidth is the width of the screen in pixels.
+	ScreenWidth int32 `protobuf:"varint,10,opt,name=screen_width,json=screenWidth,proto3" json:"screen_width,omitempty"`
+	// ScreenHeight is the height of the screen in pixels.
+	ScreenHeight  int32 `protobuf:"varint,11,opt,name=screen_height,json=screenHeight,proto3" json:"screen_height,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -896,6 +906,27 @@ func (x *SessionRecordingThumbnail) GetCursorVisible() bool {
 	return false
 }
 
+func (x *SessionRecordingThumbnail) GetPng() []byte {
+	if x != nil {
+		return x.Png
+	}
+	return nil
+}
+
+func (x *SessionRecordingThumbnail) GetScreenWidth() int32 {
+	if x != nil {
+		return x.ScreenWidth
+	}
+	return 0
+}
+
+func (x *SessionRecordingThumbnail) GetScreenHeight() int32 {
+	if x != nil {
+		return x.ScreenHeight
+	}
+	return 0
+}
+
 func (x *SessionRecordingThumbnail) SetSvg(v []byte) {
 	if v == nil {
 		v = []byte{}
@@ -929,6 +960,21 @@ func (x *SessionRecordingThumbnail) SetEndOffset(v *durationpb.Duration) {
 
 func (x *SessionRecordingThumbnail) SetCursorVisible(v bool) {
 	x.CursorVisible = v
+}
+
+func (x *SessionRecordingThumbnail) SetPng(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Png = v
+}
+
+func (x *SessionRecordingThumbnail) SetScreenWidth(v int32) {
+	x.ScreenWidth = v
+}
+
+func (x *SessionRecordingThumbnail) SetScreenHeight(v int32) {
+	x.ScreenHeight = v
 }
 
 func (x *SessionRecordingThumbnail) HasStartOffset() bool {
@@ -972,6 +1018,12 @@ type SessionRecordingThumbnail_builder struct {
 	EndOffset *durationpb.Duration
 	// CursorVisible indicates whether the cursor is visible.
 	CursorVisible bool
+	// PNG is the PNG image of the thumbnail.
+	Png []byte
+	// ScreenWidth is the width of the screen in pixels.
+	ScreenWidth int32
+	// ScreenHeight is the height of the screen in pixels.
+	ScreenHeight int32
 }
 
 func (b0 SessionRecordingThumbnail_builder) Build() *SessionRecordingThumbnail {
@@ -986,6 +1038,9 @@ func (b0 SessionRecordingThumbnail_builder) Build() *SessionRecordingThumbnail {
 	x.StartOffset = b.StartOffset
 	x.EndOffset = b.EndOffset
 	x.CursorVisible = b.CursorVisible
+	x.Png = b.Png
+	x.ScreenWidth = b.ScreenWidth
+	x.ScreenHeight = b.ScreenHeight
 	return m0
 }
 
@@ -1024,7 +1079,7 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\x04user\x18\b \x01(\tR\x04user\x12#\n" +
 	"\rresource_name\x18\t \x01(\tR\fresourceName\x12G\n" +
 	"\x04type\x18\n" +
-	" \x01(\x0e23.teleport.recordingmetadata.v1.SessionRecordingTypeR\x04type\"\xaa\x02\n" +
+	" \x01(\x0e23.teleport.recordingmetadata.v1.SessionRecordingTypeR\x04type\"\x84\x03\n" +
 	"\x19SessionRecordingThumbnail\x12\x10\n" +
 	"\x03svg\x18\x01 \x01(\fR\x03svg\x12\x12\n" +
 	"\x04cols\x18\x02 \x01(\x05R\x04cols\x12\x12\n" +
@@ -1034,11 +1089,16 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\fstart_offset\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vstartOffset\x128\n" +
 	"\n" +
 	"end_offset\x18\a \x01(\v2\x19.google.protobuf.DurationR\tendOffset\x12%\n" +
-	"\x0ecursor_visible\x18\b \x01(\bR\rcursorVisible*\x85\x01\n" +
+	"\x0ecursor_visible\x18\b \x01(\bR\rcursorVisible\x12\x10\n" +
+	"\x03png\x18\t \x01(\fR\x03png\x12!\n" +
+	"\fscreen_width\x18\n" +
+	" \x01(\x05R\vscreenWidth\x12#\n" +
+	"\rscreen_height\x18\v \x01(\x05R\fscreenHeight*\xb1\x01\n" +
 	"\x14SessionRecordingType\x12&\n" +
 	"\"SESSION_RECORDING_TYPE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aSESSION_RECORDING_TYPE_SSH\x10\x01\x12%\n" +
-	"!SESSION_RECORDING_TYPE_KUBERNETES\x10\x02BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
+	"!SESSION_RECORDING_TYPE_KUBERNETES\x10\x02\x12*\n" +
+	"&SESSION_RECORDING_TYPE_WINDOWS_DESKTOP\x10\x03BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
 
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 6)

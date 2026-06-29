@@ -129,6 +129,7 @@ import (
 	_ "github.com/russellhaering/gosaml2"
 	_ "github.com/russellhaering/gosaml2/types"
 	_ "github.com/russellhaering/goxmldsig"
+	_ "github.com/santhosh-tekuri/jsonschema/v6"
 	_ "github.com/scim2/filter-parser/v2"
 	_ "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
 	_ "github.com/sigstore/sigstore-go/pkg/bundle"
@@ -161,6 +162,10 @@ import (
 	_ "golang.org/x/crypto/ssh"
 	_ "golang.org/x/crypto/ssh/agent"
 	_ "golang.org/x/exp/constraints"
+	_ "golang.org/x/image/draw"
+	_ "golang.org/x/image/font"
+	_ "golang.org/x/image/font/basicfont"
+	_ "golang.org/x/image/math/fixed"
 	_ "golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 	_ "golang.org/x/net/html"
 	_ "golang.org/x/net/http/httpproxy"

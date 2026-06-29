@@ -53,12 +53,23 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	desktop, err := types.NewWindowsDesktopV3(
+		"desktop-1", nil,
+		types.WindowsDesktopSpecV3{Addr: "10.0.0.1:3389", Domain: "example.com"},
+	)
+	require.NoError(t, err)
+
 	kubeSessionEnd := &events.SessionEnd{
 		KubernetesPodMetadata: events.KubernetesPodMetadata{KubernetesPodName: "pod-1"},
 	}
 
 	dbSessionEnd := &events.DatabaseSessionEnd{
 		DatabaseMetadata: events.DatabaseMetadata{DatabaseProtocol: types.DatabaseProtocolPostgreSQL},
+	}
+
+	desktopSessionEnd := &events.WindowsDesktopSessionEnd{
+		Metadata:    events.Metadata{ClusterName: "cluster-1"},
+		DesktopName: "desktop-1",
 	}
 
 	cases := []struct {
@@ -119,6 +130,18 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 			notFound:   true,
 		},
 		{
+			name:       "known desktop field",
+			resource:   desktop,
+			expression: "resource.spec.domain",
+			expected:   "example.com",
+		},
+		{
+			name:       "unknown desktop field",
+			resource:   desktop,
+			expression: "resource.spec.unknown",
+			notFound:   true,
+		},
+		{
 			name:       "known shell session field",
 			session:    kubeSessionEnd,
 			expression: "session.kubernetes_pod_name",
@@ -139,6 +162,24 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 		{
 			name:       "unknown database session field",
 			session:    dbSessionEnd,
+			expression: "session.unknown",
+			notFound:   true,
+		},
+		{
+			name:       "known desktop session field",
+			session:    desktopSessionEnd,
+			expression: "session.desktop_name",
+			expected:   "desktop-1",
+		},
+		{
+			name:       "desktop session field shared with shell sessions",
+			session:    desktopSessionEnd,
+			expression: "session.cluster_name",
+			expected:   "cluster-1",
+		},
+		{
+			name:       "unknown desktop session field",
+			session:    desktopSessionEnd,
 			expression: "session.unknown",
 			notFound:   true,
 		},
@@ -211,7 +252,7 @@ func TestInferencePolicyMatchingContext_MixedTypeBooleanExpressions(t *testing.T
 func TestValidateInferencePolicy(t *testing.T) {
 	t.Parallel()
 
-	allKinds := []string{"ssh", "k8s", "db"}
+	allKinds := []string{"ssh", "k8s", "db", "desktop"}
 
 	cases := []struct {
 		name         string
@@ -224,8 +265,10 @@ func TestValidateInferencePolicy(t *testing.T) {
 		{name: "valid server filter", kinds: allKinds, filter: `equals(resource.spec.hostname, "node1")`},
 		{name: "valid db filter", kinds: allKinds, filter: `equals(resource.spec.protocol, "postgres")`},
 		{name: "valid kube filter", kinds: allKinds, filter: `resource.metadata.labels["env"] == "prod"`},
+		{name: "valid desktop filter", kinds: allKinds, filter: `equals(resource.spec.domain, "example.com")`},
 		{name: "valid shell session filter", kinds: allKinds, filter: `contains(session.participants, "joe")`},
 		{name: "valid db session filter", kinds: allKinds, filter: `session.db_protocol == "postgres"`},
+		{name: "valid desktop session filter", kinds: allKinds, filter: `session.desktop_name == "desktop-1"`},
 
 		{
 			name:         "invalid kinds",
