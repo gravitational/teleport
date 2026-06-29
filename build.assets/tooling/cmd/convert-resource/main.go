@@ -656,6 +656,10 @@ var resourceConfig = map[string]conversionRule{
 	},
 }
 
+func fieldPaths(b []byte) []string {
+	return nil
+}
+
 // convertYAMLToHCL takes a single tctl resource YAML document, converts it to
 // an HCL resource configuration, writing out the resulting HCL object to w.
 func convertYAMLToHCL(w io.Writer, r io.Reader) error {

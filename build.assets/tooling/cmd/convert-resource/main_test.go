@@ -24,6 +24,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test_fieldPaths(t *testing.T) {
+	type testCase struct {
+		description string
+		input       string
+		expected    []string
+	}
+
+	cases := []testCase{}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			assert.ElementsMatch(t, c.expected, fieldPaths([]byte(c.input)))
+		})
+	}
+}
+
 func Test_convertYAMLToHCL(t *testing.T) {
 	type testCase struct {
 		description string
