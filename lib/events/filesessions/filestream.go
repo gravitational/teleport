@@ -387,6 +387,9 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 
 // ReserveUploadPart reserves an upload part.
 func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	if err := checkUpload(upload); err != nil {
+		return trace.Wrap(err)
+	}
 	reservationPath := h.reservationPath(upload, partNumber)
 	if err := h.fileRecorder.ReservePart(ctx, reservationPath, reservationSize); err != nil {
 		return trace.Wrap(err)

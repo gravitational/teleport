@@ -25,6 +25,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -51,6 +52,31 @@ func TestReserveUploadPart(t *testing.T) {
 	fi, err := os.Stat(handler.reservationPath(*upload, partNumber))
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, fi.Size(), int64(minUploadBytes))
+}
+
+// TestReserveUploadPartPathTraversal verifies that a crafted upload whose
+// session ID contains path separators cannot reserve a part outside the
+// upload directory.
+func TestReserveUploadPartPathTraversal(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+
+	handler, err := NewHandler(Config{
+		Directory: dir,
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+
+	upload, err := handler.CreateUpload(ctx, session.NewID())
+	require.NoError(t, err)
+
+	// reservationPath joins the upload dir with string(upload.SessionID), so
+	// "../outside" would escape the upload directory before any validation.
+	upload.SessionID = session.ID("../outside")
+
+	err = handler.ReserveUploadPart(ctx, *upload, int64(1))
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %T: %v", err, err)
 }
 
 func TestUploadPart(t *testing.T) {
