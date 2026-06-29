@@ -73,11 +73,19 @@ type SubCAServiceClient interface {
 	// CreateCSR creates certificate signing requests for all certificates of the
 	// specified CA, in preparation for the creation of a CertAuthorityOverride.
 	//
-	// On clusters that use HSMs this must be called on every Auth server
-	// instance, so it every private key is covered. Each Auth issues CSRs for all
-	// the private keys it holds.
+	// On clusters where Auth server instances have access to distinct keys
+	// (multi-Auth, multi-HSM), CreateCSR attempts to collect CSRs from all Auth
+	// servers using CertAuthorityOverride watchers (see
+	// CertAuthorityOverrideStatus.id_to_pending_csr_request). Attempts are gated
+	// on a timeout. If too much time passes the RPC returns as many CSRs as it
+	// managed to collect. If necessary, a watcher-based request will create an
+	// empty CertAuthorityOverride resource for the corresponding CA type.
 	//
-	// CreateCSR requires cert_authority_override:read+list permissions.
+	// If local_only is set the request won't fanout to other Auth servers,
+	// instead it will use local keys. In this case, each Auth server must be
+	// contacted independently to create their corresponding CSRs.
+	//
+	// CreateCSR requires cert_authority_override:create+update permissions.
 	CreateCSR(ctx context.Context, in *CreateCSRRequest, opts ...grpc.CallOption) (*CreateCSRResponse, error)
 	// CreateCertAuthorityOverride creates a CertAuthorityOverride resource.
 	//
@@ -98,7 +106,7 @@ type SubCAServiceClient interface {
 	// Added certificate overrides may take effect immediately depending on the
 	// value of CertificateOverride.disabled. See it for reference.
 	UpsertCertAuthorityOverride(ctx context.Context, in *UpsertCertAuthorityOverrideRequest, opts ...grpc.CallOption) (*UpsertCertAuthorityOverrideResponse, error)
-	// AddCertificateOverride adds a single CertiticateOverride to a
+	// AddCertificateOverride adds a single CertificateOverride to a
 	// CertAuthorityOverride resource.
 	//
 	// The CertAuthorityOverride resource may be created as a consequence of this
@@ -107,13 +115,13 @@ type SubCAServiceClient interface {
 	// Added certificate overrides may take effect immediately depending on the
 	// value of CertificateOverride.disabled. See it for reference.
 	AddCertificateOverride(ctx context.Context, in *AddCertificateOverrideRequest, opts ...grpc.CallOption) (*AddCertificateOverrideResponse, error)
-	// UpdateCertificateOverride updates a single CertiticateOverride in a
+	// UpdateCertificateOverride updates a single CertificateOverride in a
 	// CertAuthorityOverride resource.
 	//
 	// Disabling an active override is disallowed. See
 	// UpdateCertificateOverrideRequest.force_immediate_disable.
 	UpdateCertificateOverride(ctx context.Context, in *UpdateCertificateOverrideRequest, opts ...grpc.CallOption) (*UpdateCertificateOverrideResponse, error)
-	// RemoveCertificateOverride removes a single CertiticateOverride inside a
+	// RemoveCertificateOverride removes a single CertificateOverride inside a
 	// CertAuthorityOverride resource.
 	//
 	// If the last CertificateOverride of a CertAuthorityOverride is removed as a
@@ -276,11 +284,19 @@ type SubCAServiceServer interface {
 	// CreateCSR creates certificate signing requests for all certificates of the
 	// specified CA, in preparation for the creation of a CertAuthorityOverride.
 	//
-	// On clusters that use HSMs this must be called on every Auth server
-	// instance, so it every private key is covered. Each Auth issues CSRs for all
-	// the private keys it holds.
+	// On clusters where Auth server instances have access to distinct keys
+	// (multi-Auth, multi-HSM), CreateCSR attempts to collect CSRs from all Auth
+	// servers using CertAuthorityOverride watchers (see
+	// CertAuthorityOverrideStatus.id_to_pending_csr_request). Attempts are gated
+	// on a timeout. If too much time passes the RPC returns as many CSRs as it
+	// managed to collect. If necessary, a watcher-based request will create an
+	// empty CertAuthorityOverride resource for the corresponding CA type.
 	//
-	// CreateCSR requires cert_authority_override:read+list permissions.
+	// If local_only is set the request won't fanout to other Auth servers,
+	// instead it will use local keys. In this case, each Auth server must be
+	// contacted independently to create their corresponding CSRs.
+	//
+	// CreateCSR requires cert_authority_override:create+update permissions.
 	CreateCSR(context.Context, *CreateCSRRequest) (*CreateCSRResponse, error)
 	// CreateCertAuthorityOverride creates a CertAuthorityOverride resource.
 	//
@@ -301,7 +317,7 @@ type SubCAServiceServer interface {
 	// Added certificate overrides may take effect immediately depending on the
 	// value of CertificateOverride.disabled. See it for reference.
 	UpsertCertAuthorityOverride(context.Context, *UpsertCertAuthorityOverrideRequest) (*UpsertCertAuthorityOverrideResponse, error)
-	// AddCertificateOverride adds a single CertiticateOverride to a
+	// AddCertificateOverride adds a single CertificateOverride to a
 	// CertAuthorityOverride resource.
 	//
 	// The CertAuthorityOverride resource may be created as a consequence of this
@@ -310,13 +326,13 @@ type SubCAServiceServer interface {
 	// Added certificate overrides may take effect immediately depending on the
 	// value of CertificateOverride.disabled. See it for reference.
 	AddCertificateOverride(context.Context, *AddCertificateOverrideRequest) (*AddCertificateOverrideResponse, error)
-	// UpdateCertificateOverride updates a single CertiticateOverride in a
+	// UpdateCertificateOverride updates a single CertificateOverride in a
 	// CertAuthorityOverride resource.
 	//
 	// Disabling an active override is disallowed. See
 	// UpdateCertificateOverrideRequest.force_immediate_disable.
 	UpdateCertificateOverride(context.Context, *UpdateCertificateOverrideRequest) (*UpdateCertificateOverrideResponse, error)
-	// RemoveCertificateOverride removes a single CertiticateOverride inside a
+	// RemoveCertificateOverride removes a single CertificateOverride inside a
 	// CertAuthorityOverride resource.
 	//
 	// If the last CertificateOverride of a CertAuthorityOverride is removed as a

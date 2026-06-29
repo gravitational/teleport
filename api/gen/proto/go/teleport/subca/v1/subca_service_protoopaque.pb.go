@@ -43,6 +43,7 @@ type CreateCSRRequest struct {
 	xxx_hidden_CaType        string                 `protobuf:"bytes,1,opt,name=ca_type,json=caType,proto3"`
 	xxx_hidden_PublicKeyHash *PublicKeyHash         `protobuf:"bytes,2,opt,name=public_key_hash,json=publicKeyHash,proto3"`
 	xxx_hidden_CustomSubject *DistinguishedName     `protobuf:"bytes,3,opt,name=custom_subject,json=customSubject,proto3"`
+	xxx_hidden_LocalOnly     bool                   `protobuf:"varint,4,opt,name=local_only,json=localOnly,proto3"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -93,6 +94,13 @@ func (x *CreateCSRRequest) GetCustomSubject() *DistinguishedName {
 	return nil
 }
 
+func (x *CreateCSRRequest) GetLocalOnly() bool {
+	if x != nil {
+		return x.xxx_hidden_LocalOnly
+	}
+	return false
+}
+
 func (x *CreateCSRRequest) SetCaType(v string) {
 	x.xxx_hidden_CaType = v
 }
@@ -103,6 +111,10 @@ func (x *CreateCSRRequest) SetPublicKeyHash(v *PublicKeyHash) {
 
 func (x *CreateCSRRequest) SetCustomSubject(v *DistinguishedName) {
 	x.xxx_hidden_CustomSubject = v
+}
+
+func (x *CreateCSRRequest) SetLocalOnly(v bool) {
+	x.xxx_hidden_LocalOnly = v
 }
 
 func (x *CreateCSRRequest) HasPublicKeyHash() bool {
@@ -144,6 +156,9 @@ type CreateCSRRequest_builder struct {
 	//
 	// Optional. If present the request must target a single certificate.
 	CustomSubject *DistinguishedName
+	// If true don't fanout CSR requests of unusable private keys to other Auth
+	// servers.
+	LocalOnly bool
 }
 
 func (b0 CreateCSRRequest_builder) Build() *CreateCSRRequest {
@@ -153,6 +168,7 @@ func (b0 CreateCSRRequest_builder) Build() *CreateCSRRequest {
 	x.xxx_hidden_CaType = b.CaType
 	x.xxx_hidden_PublicKeyHash = b.PublicKeyHash
 	x.xxx_hidden_CustomSubject = b.CustomSubject
+	x.xxx_hidden_LocalOnly = b.LocalOnly
 	return m0
 }
 
@@ -1632,11 +1648,13 @@ var File_teleport_subca_v1_subca_service_proto protoreflect.FileDescriptor
 
 const file_teleport_subca_v1_subca_service_proto_rawDesc = "" +
 	"\n" +
-	"%teleport/subca/v1/subca_service.proto\x12\x11teleport.subca.v1\x1a google/protobuf/field_mask.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a2teleport/subca/v1/cert_authority_override_id.proto\x1a,teleport/subca/v1/certificate_override.proto\x1a/teleport/subca/v1/certificate_override_id.proto\x1a\x1bteleport/subca/v1/csr.proto\x1a*teleport/subca/v1/distinguished_name.proto\x1a'teleport/subca/v1/public_key_hash.proto\"\xc2\x01\n" +
+	"%teleport/subca/v1/subca_service.proto\x12\x11teleport.subca.v1\x1a google/protobuf/field_mask.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a2teleport/subca/v1/cert_authority_override_id.proto\x1a,teleport/subca/v1/certificate_override.proto\x1a/teleport/subca/v1/certificate_override_id.proto\x1a\x1bteleport/subca/v1/csr.proto\x1a*teleport/subca/v1/distinguished_name.proto\x1a'teleport/subca/v1/public_key_hash.proto\"\xe1\x01\n" +
 	"\x10CreateCSRRequest\x12\x17\n" +
 	"\aca_type\x18\x01 \x01(\tR\x06caType\x12H\n" +
 	"\x0fpublic_key_hash\x18\x02 \x01(\v2 .teleport.subca.v1.PublicKeyHashR\rpublicKeyHash\x12K\n" +
-	"\x0ecustom_subject\x18\x03 \x01(\v2$.teleport.subca.v1.DistinguishedNameR\rcustomSubject\"U\n" +
+	"\x0ecustom_subject\x18\x03 \x01(\v2$.teleport.subca.v1.DistinguishedNameR\rcustomSubject\x12\x1d\n" +
+	"\n" +
+	"local_only\x18\x04 \x01(\bR\tlocalOnly\"U\n" +
 	"\x11CreateCSRResponse\x12@\n" +
 	"\x04csrs\x18\x01 \x03(\v2,.teleport.subca.v1.CertificateSigningRequestR\x04csrs\"o\n" +
 	"\"CreateCertAuthorityOverrideRequest\x12I\n" +
