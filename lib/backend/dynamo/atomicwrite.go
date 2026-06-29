@@ -101,8 +101,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		case backend.KindNop:
 			txnItem.ConditionCheck = &types.ConditionCheck{
 				TableName: tableName,
-
-				Key: keyToAttributeValueMap(ca.Key),
+				Key:       keyToAttributeValueMap(ca.Key),
 
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
@@ -137,8 +136,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		case backend.KindDelete:
 			txnItem.Delete = &types.Delete{
 				TableName: tableName,
-
-				Key: keyToAttributeValueMap(ca.Key),
+				Key:       keyToAttributeValueMap(ca.Key),
 
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
