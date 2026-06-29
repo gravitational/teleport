@@ -44,7 +44,7 @@ func (c *Command) testAWSOIDC(ctx context.Context, client awsOIDCPinger) (*testA
 	}
 
 	o := &testAWSOIDCOutput{
-		Status:         "operational",
+		Status:         "healthy",
 		Integration:    c.testArgs.integration,
 		AccountID:      resp.GetAccountId(),
 		AssumedRoleARN: resp.GetArn(),
@@ -82,7 +82,7 @@ func (o *testAWSOIDCOutput) String() string {
 	sb.WriteString("\n")
 
 	sb.WriteString("\n")
-	sb.WriteString(bold("AWS OIDC integration is operational."))
+	sb.WriteString(bold("AWS OIDC integration is healthy."))
 	sb.WriteString("\n")
 
 	return sb.String()
