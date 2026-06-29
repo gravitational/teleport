@@ -824,8 +824,7 @@ func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
 	// error by checking if the item that was just deleted was expired
 	out, err := b.svc.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: aws.String(b.TableName),
-
-		Key: keyToAttributeValueMap(key),
+		Key:       keyToAttributeValueMap(key),
 
 		ReturnValues: types.ReturnValueAllOld,
 	})
@@ -882,8 +881,7 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev st
 
 	input := &dynamodb.DeleteItemInput{
 		TableName: aws.String(b.TableName),
-
-		Key: keyToAttributeValueMap(key),
+		Key:       keyToAttributeValueMap(key),
 	}
 
 	if rev == backend.BlankRevision {
@@ -924,8 +922,7 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	}
 	input := &dynamodb.UpdateItemInput{
 		TableName: aws.String(b.TableName),
-
-		Key: keyToAttributeValueMap(lease.Key),
+		Key:       keyToAttributeValueMap(lease.Key),
 
 		UpdateExpression:    aws.String("SET Expires = :expires"),
 		ConditionExpression: aws.String("attribute_exists(FullPath) AND (attribute_not_exists(Expires) OR Expires >= :now)"),
@@ -1109,8 +1106,9 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 		return "", trace.Wrap(err)
 	}
 	input := dynamodb.PutItemInput{
-		Item:      av,
 		TableName: aws.String(b.TableName),
+
+		Item: av,
 	}
 
 	switch mode {
@@ -1156,8 +1154,7 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 func (b *Backend) getKey(ctx context.Context, key backend.Key) (*record, error) {
 	input := &dynamodb.GetItemInput{
 		TableName: aws.String(b.TableName),
-
-		Key: keyToAttributeValueMap(key),
+		Key:       keyToAttributeValueMap(key),
 
 		ConsistentRead: aws.Bool(true),
 	}
