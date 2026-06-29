@@ -7571,6 +7571,17 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	)
 
 	rt := http.NewServeMux()
+	// Serve core API discovery so the proxy can resolve the "pods" kind it probes.
+	// Otherwise the proxy treats pods as an unknown resource kind.
+	rt.HandleFunc("/api/v1", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(&metav1.APIResourceList{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{
+				{Name: "pods", SingularName: "pod", Namespaced: true, Kind: "Pod", Verbs: metav1.Verbs{"get", "list"}},
+			},
+		}))
+	})
 	rt.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if slices.Contains(r.Header.Values("Impersonate-Group"), invalidKubeGroups[0]) {
 			marshalRBACError(t, w)

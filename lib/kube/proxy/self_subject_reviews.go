@@ -121,12 +121,36 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 	}
 
 	namespace := accessReview.Spec.ResourceAttributes.Namespace
-	resource, ok := sess.rbacSupportedResources.getResource(accessReview.Spec.ResourceAttributes.Group, accessReview.Spec.ResourceAttributes.Resource)
-	// If the request is for a resource that Teleport does not support, return
-	// nil and let the Kubernetes API server handle the request.
-	// TODO(@creack): Remove this as part of the RBAC RFC. It grants excessive permissions.
+	group := accessReview.Spec.ResourceAttributes.Group
+	version := accessReview.Spec.ResourceAttributes.Version
+	resourceKind := accessReview.Spec.ResourceAttributes.Resource
+	resource, ok := sess.rbacSupportedResources.getResource(group, resourceKind)
 	if !ok {
-		return nil
+		// Mirror the data path so `kubectl auth can-i` matches a real request:
+		// discover the kind's group-version and, if it's still unknown, report denied.
+		details, derr := f.findKubeDetailsByClusterName(sess.kubeClusterName)
+		if derr != nil {
+			return nil
+		}
+		var found bool
+		resource, found = details.resolveResource(group, version, resourceKind)
+		if !found {
+			accessReview.Status = authv1.SubjectAccessReviewStatus{
+				Allowed: false,
+				Denied:  true,
+				Reason: fmt.Sprintf(
+					"Kubernetes resource kind %q in API group %q is not known to this cluster",
+					resourceKind, group,
+				),
+			}
+			responsewriters.SetContentTypeHeader(w, req.Header)
+			if encodeErr := encoder.Encode(accessReview, w); encodeErr != nil {
+				return trace.Wrap(encodeErr)
+			}
+			// The denied response is already written; signal the caller to stop
+			// forwarding, like the other denial branches below.
+			return trace.AccessDenied("Kubernetes resource kind %q in API group %q is not known to this cluster", resourceKind, group)
+		}
 	}
 	name := accessReview.Spec.ResourceAttributes.Name
 

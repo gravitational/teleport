@@ -42,6 +42,10 @@ type metaResource struct {
 	requestedResource  apiResource         // User input, based on URL.
 	verb               string              // Verb of the user request.
 	isList             bool
+	// unsupportedResource is set when the requested kind is unknown to a healthy
+	// discovery cache and so can't be matched against kubernetes_resources rules.
+	// The forwarder denies such requests instead of forwarding them unenforced.
+	unsupportedResource bool
 }
 
 func (mr *metaResource) isClusterWideResource() bool {
@@ -243,15 +247,24 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 		return out, nil
 	}
 
-	codecFactory, rbacSupportedTypes, err := kubeDetails.getClusterSupportedResources()
-	if err != nil {
+	// Surface an offline-cluster error before doing any work.
+	if _, _, err := kubeDetails.getClusterSupportedResources(); err != nil {
 		return out, trace.Wrap(err)
 	}
 
-	resource, ok := rbacSupportedTypes.getResource(apiResource.apiGroup, apiResource.resourceKind)
-	if !ok {
-		// TODO(@creack): Change this behavior, unsupported resource should be rejected.
-		// If the resource is not supported, return nil.
+	// Discovery / health endpoints (e.g. /api, /apis/<group>/<version>) carry no
+	// concrete resource kind and aren't subject to kubernetes_resources rules;
+	// let them through so clients can complete API discovery.
+	if apiResource.resourceKind == "" {
+		return out, nil
+	}
+
+	resource, found := kubeDetails.resolveResource(apiResource.apiGroup, apiResource.apiGroupVersion, apiResource.resourceKind)
+	if !found {
+		// Still unknown after a targeted discovery: the kind isn't served by the
+		// cluster. Flag it so the forwarder denies the request rather than
+		// forwarding it with kubernetes_resources rules unenforced.
+		out.unsupportedResource = true
 		return out, nil
 	}
 	out.resourceDefinition = &resource
@@ -265,6 +278,12 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 
 	if apiResource.resourceName == "" && out.verb == types.KubeVerbCreate {
 		// If the request is a create request, extract the resource name from the request body.
+		// Re-read the codecs: resolveResource above may have just discovered this CRD and
+		// rebuilt them, so decode against a scheme that knows the new kind.
+		codecFactory, _, err := kubeDetails.getClusterSupportedResources()
+		if err != nil {
+			return out, trace.Wrap(err)
+		}
 		resourceName, err := extractResourceNameFromPostRequest(req, codecFactory, kubeDetails.getObjectGVK(apiResource))
 		if err != nil {
 			return out, trace.Wrap(err)
