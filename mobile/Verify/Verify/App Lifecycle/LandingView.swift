@@ -30,6 +30,8 @@ struct LandingView: View {
 					.frame(maxWidth: .infinity, maxHeight: 44, alignment: .leading)
 				ScrollView {
 					VStack(spacing: .large) {
+						Icon(systemName: "viewfinder")
+							.padding(.top, .xlarge)
 						titleBlock
 						instructionSteps
 						scanQRCodeButton
@@ -71,7 +73,6 @@ extension LandingView {
 		VStack(spacing: .small) {
 			Text("Scan QR code")
 				.font(.title)
-				.padding(.top, .xlarge)
 			Text("Enroll this device for your cluster by scanning the QR code in your web browser")
 				.font(.callout)
 				.multilineTextAlignment(.center)
@@ -104,10 +105,10 @@ extension LandingView {
 			viewModel.userTappedOnScanQRCode()
 		} label: {
 			Text("Scan QR Code")
-				.padding(.vertical, .xsmall)
 				.frame(maxWidth: .infinity)
 		}
-		.buttonStyle(.borderedProminent)
+		.buttonStyle(.primary)
+		.controlSize(.large)
 	}
 
 	private func instructionStep(stepNumber: UInt, @ViewBuilder label: () -> some View) -> some View {
