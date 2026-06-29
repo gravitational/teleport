@@ -31,7 +31,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // self-signed root).
 //
 // Key material is never impacted by overrides, only certificates can be
-// overriden.
+// overridden.
 //
 // https://github.com/gravitational/teleport/blob/master/rfd/0237-sub-ca-support.md
 message CertAuthorityOverride {
