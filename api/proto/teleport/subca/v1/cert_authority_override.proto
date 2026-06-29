@@ -16,9 +16,14 @@ syntax = "proto3";
 
 package teleport.subca.v1;
 
+import "google/protobuf/timestamp.proto";
+import "google/rpc/status.proto";
 import "teleport/header/v1/metadata.proto";
 import "teleport/subca/v1/certificate_override.proto";
 import "teleport/subca/v1/crl.proto";
+import "teleport/subca/v1/csr.proto";
+import "teleport/subca/v1/distinguished_name.proto";
+import "teleport/subca/v1/public_key_hash.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1";
 
@@ -31,7 +36,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // self-signed root).
 //
 // Key material is never impacted by overrides, only certificates can be
-// overriden.
+// overridden.
 //
 // https://github.com/gravitational/teleport/blob/master/rfd/0237-sub-ca-support.md
 message CertAuthorityOverride {
@@ -64,4 +69,47 @@ message CertAuthorityOverrideStatus {
   // CRLs generated for each certificate override, keyed by normalized/lowercase
   // public_key_hash.
   map<string, CertificateRevocationList> public_key_hash_to_crl = 1;
+
+  // Pending CSR requests on multi-Auth, multi-HSM scenarios.
+  // Requests are keyed by an opaque request ID.
+  map<string, PendingCSRRequest> id_to_pending_csr_request = 2;
+}
+
+// A pending CSR request, created as part of a CreateCSR invocation on
+// multi-Auth, multi-HSM clusters.
+//
+// Requests are registered by the requester Auth server (the one processing the
+// CreateCSR call), in multi-HSM scenarios, when certain keys can't be used.
+// Auth servers watch CertAuthorityOverride resources and reply to requests
+// automatically, assigning a CSR and status to the corresponding PendingCSR
+// message. Once all pending CSRs have a terminal result, the RPC resumes.
+//
+// Successful pending requests are automatically cleaned up from status on
+// completion. Failed pending requests obey the normal create_time rules.
+message PendingCSRRequest {
+  // Create time of the request.
+  // Requests that are older than a certain threshold value may be automatically
+  // cleaned up by the system, regardless of their status.
+  google.protobuf.Timestamp create_time = 1;
+
+  // Pending CSRs of the request.
+  // CSRs are created and set by watching Auth servers.
+  repeated PendingCSR csrs = 2;
+
+  // Custom subject for the CSRs.
+  // Optional.
+  DistinguishedName custom_subject = 3;
+}
+
+// A pending CSR, to be created as part of a [PendingCSRRequest].
+message PendingCSR {
+  // Target public key of the CSR.
+  PublicKeyHash public_key_hash = 1;
+  // The CSR itself.
+  // Assigned by the watching Auth server when created. Non-nil if status is OK.
+  CertificateSigningRequest csr = 2;
+  // Status of the CSR signing attempt.
+  // Nil means no attempt was recorded. If non-nil, the attempt happened and
+  // won't be retried.
+  google.rpc.Status status = 3;
 }
