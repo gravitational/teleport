@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/gravitational/trace"
 )
 
 const gitRemoteHelperBinary = "git-remote-teleport"
@@ -32,38 +34,35 @@ const gitRemoteHelperBinary = "git-remote-teleport"
 // same directory as the tsh binary. Git on Windows looks for
 // git-remote-<scheme>.cmd when handling custom URL schemes. The .cmd wrapper
 // delegates to "tsh git http-remote".
-func ensureGitRemoteHelper(cf *CLIConf) {
+func ensureGitRemoteHelper(cf *CLIConf) error {
 	tshPath, err := os.Executable()
 	if err != nil {
-		logger.DebugContext(cf.Context, "Could not determine tsh path", "error", err)
-		return
+		return trace.Wrap(err, "could not determine tsh path")
 	}
 	tshPath, err = filepath.EvalSymlinks(tshPath)
 	if err != nil {
-		logger.DebugContext(cf.Context, "Could not resolve tsh path", "error", err)
-		return
+		return trace.Wrap(err, "could not resolve tsh path")
 	}
 
 	tshDir := filepath.Dir(tshPath)
 	helperPath := filepath.Join(tshDir, gitRemoteHelperBinary+".cmd")
 
 	if _, err := os.Stat(helperPath); err == nil {
-		return
+		return nil
 	}
 
-	// The .cmd wrapper passes all arguments through to tsh git http-remote.
+	// The .cmd wrapper passes all arguments through to tsh git remote-http.
 	// %* forwards all arguments from the .cmd invocation.
-	content := fmt.Sprintf("@\"%s\" git http-remote %%*\r\n", tshPath)
+	content := fmt.Sprintf("@\"%s\" git remote-http %%*\r\n", tshPath)
 
 	if err := os.WriteFile(helperPath, []byte(content), 0755); err != nil {
-		fmt.Fprintf(cf.Stderr(), "Note: could not create %s.cmd automatically.\n", gitRemoteHelperBinary)
-		fmt.Fprintf(cf.Stderr(), "To enable 'teleport://' git URLs, create %s with:\n", helperPath)
-		fmt.Fprintf(cf.Stderr(), "  %s\n\n", content)
-		return
+		return trace.Errorf("could not create %s.cmd; create %s manually with: %s",
+			gitRemoteHelperBinary, helperPath, content)
 	}
 
 	logger.DebugContext(cf.Context, "Created git-remote-teleport.cmd wrapper",
 		"path", helperPath,
 		"tsh", tshPath,
 	)
+	return nil
 }

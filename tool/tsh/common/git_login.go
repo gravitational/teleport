@@ -93,7 +93,9 @@ func (c *gitLoginCommand) run(cf *CLIConf) error {
 	httpOK := types.GitServerHTTPEnabled(github)
 
 	if httpOK {
-		ensureGitRemoteHelper(cf)
+		if err := ensureGitRemoteHelper(cf); err != nil {
+			logger.WarnContext(cf.Context, "Failed to install git remote helper", "error", err)
+		}
 
 		valid, reason := hasValidGitCert(tc, gitServer.GetName())
 		logger.DebugContext(cf.Context, "Checking git cert validity",

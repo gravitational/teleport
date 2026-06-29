@@ -50,7 +50,7 @@ type gitHTTPRemoteCommand struct {
 
 func newGitHTTPRemoteCommand(parent *kingpin.CmdClause) *gitHTTPRemoteCommand {
 	cmd := &gitHTTPRemoteCommand{
-		CmdClause: parent.Command("http-remote", "Git HTTP remote helper for teleport:// URLs (internal).").Hidden(),
+		CmdClause: parent.Command("remote-http", "Git remote helper for teleport:// URLs (internal).").Hidden(),
 	}
 	cmd.Arg("git-cmd", "Git command (remote name).").Required().StringVar(&cmd.gitCmd)
 	cmd.Arg("url", "Remote URL.").Required().StringVar(&cmd.remoteURL)

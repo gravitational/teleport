@@ -204,7 +204,9 @@ func (c *gitConfigCommand) doUpdateHTTPS(cf *CLIConf, rawURL string) error {
 		return trace.Wrap(err)
 	}
 
-	ensureGitRemoteHelper(cf)
+	if err := ensureGitRemoteHelper(cf); err != nil {
+		return trace.Wrap(err)
+	}
 	fmt.Fprintf(cf.Stdout(), "Remote origin rewritten to %q.\n", teleportURL)
 	return trace.Wrap(c.doCheck(cf))
 }

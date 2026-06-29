@@ -111,7 +111,9 @@ func (c *gitCloneCommand) runHTTPS(cf *CLIConf) error {
 		}
 	}
 
-	ensureGitRemoteHelper(cf)
+	if err := ensureGitRemoteHelper(cf); err != nil {
+		return trace.Wrap(err)
+	}
 
 	teleportURL := fmt.Sprintf("teleport://github.com/%s", repoPath)
 	args := []string{"clone", teleportURL}

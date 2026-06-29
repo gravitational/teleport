@@ -23,51 +23,78 @@ package common
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+
+	"github.com/gravitational/trace"
 )
 
 const gitRemoteHelperBinary = "git-remote-teleport"
 
-// ensureGitRemoteHelper ensures that git-remote-teleport symlink exists in the
-// same directory as the tsh binary. If it doesn't exist, it creates it. If the
-// directory requires elevated permissions, it prints instructions instead.
-func ensureGitRemoteHelper(cf *CLIConf) {
-	tshPath, err := os.Executable()
-	if err != nil {
-		logger.DebugContext(cf.Context, "Could not determine tsh path", "error", err)
-		return
-	}
-	tshPath, err = filepath.EvalSymlinks(tshPath)
-	if err != nil {
-		logger.DebugContext(cf.Context, "Could not resolve tsh symlinks", "error", err)
-		return
+// ensureGitRemoteHelper ensures that git-remote-teleport symlink exists in
+// PATH. It tries the directory of the tsh executable first (before resolving
+// symlinks, e.g. /usr/local/bin/), then the resolved path. If the directory
+// requires elevated permissions on macOS, it uses osascript to prompt for
+// admin privileges. Returns an error if the helper cannot be installed.
+func ensureGitRemoteHelper(cf *CLIConf) error {
+	// Check if already in PATH.
+	if _, err := cf.LookPath(gitRemoteHelperBinary); err == nil {
+		return nil
 	}
 
-	tshDir := filepath.Dir(tshPath)
-	helperPath := filepath.Join(tshDir, gitRemoteHelperBinary)
+	tshPath := cf.executablePath
+	installDir := filepath.Dir(tshPath)
+	helperPath := filepath.Join(installDir, gitRemoteHelperBinary)
 
-	// Check if it already exists and points to the right place.
-	if target, err := os.Readlink(helperPath); err == nil {
-		if target == tshPath {
-			return
-		}
-	}
-
-	// Check if it exists as a regular file (not symlink).
+	// Check if it already exists.
 	if _, err := os.Stat(helperPath); err == nil {
-		return
+		return nil
 	}
 
-	// Try to create the symlink.
-	if err := os.Symlink(tshPath, helperPath); err != nil {
-		fmt.Fprintf(cf.Stderr(), "Note: could not create %s symlink automatically.\n", gitRemoteHelperBinary)
-		fmt.Fprintf(cf.Stderr(), "To enable 'teleport://' git URLs, run:\n")
-		fmt.Fprintf(cf.Stderr(), "  sudo ln -sf %s %s\n\n", tshPath, helperPath)
-		return
+	// Try to create the symlink directly.
+	if err := os.Symlink(tshPath, helperPath); err == nil {
+		logger.DebugContext(cf.Context, "Created git-remote-teleport symlink",
+			"symlink", helperPath,
+			"target", tshPath,
+		)
+		return nil
 	}
 
-	logger.DebugContext(cf.Context, "Created git-remote-teleport symlink",
-		"symlink", helperPath,
-		"target", tshPath,
-	)
+	// Could not create symlink without elevated permissions.
+	// On macOS, use osascript to prompt for admin privileges.
+	if runtime.GOOS == "darwin" {
+		return trace.Wrap(symlinkWithElevation(cf, tshPath, helperPath))
+	}
+
+	return trace.Errorf("%s is a helper that allows git to proxy HTTPS operations through Teleport.\n"+
+		"  To install, run: sudo ln -sf %s %s\n"+
+		"  To install to a different location (must be a directory in your PATH):\n"+
+		"    ln -sf %s <dir-in-PATH>/%s",
+		gitRemoteHelperBinary, tshPath, helperPath,
+		tshPath, gitRemoteHelperBinary)
+}
+
+func symlinkWithElevation(cf *CLIConf, target, linkPath string) error {
+	fmt.Fprintf(cf.Stderr(), "%s is a helper that allows git to proxy HTTPS operations through Teleport.\n", gitRemoteHelperBinary)
+	fmt.Fprintf(cf.Stderr(), "Symlinking %s -> %s. You may be prompted for your password.\n", linkPath, target)
+
+	script := `on run argv
+  do shell script "ln -sf " & quoted form of item 1 of argv & " " & quoted form of item 2 of argv ` +
+		`with prompt "Teleport needs to install the git-remote-teleport helper." ` +
+		`with administrator privileges
+end run`
+
+	cmd := exec.CommandContext(cf.Context, "osascript", "-e", script, target, linkPath)
+	cmd.Stderr = cf.Stderr()
+	if err := cmd.Run(); err != nil {
+		return trace.Errorf("could not install %s.\n"+
+			"  To install manually, run: sudo ln -sf %s %s\n"+
+			"  To install to a different location: ln -sf %s <dir-in-PATH>/%s",
+			gitRemoteHelperBinary, target, linkPath,
+			target, gitRemoteHelperBinary)
+	}
+
+	fmt.Fprintf(cf.Stderr(), "Installed %s -> %s\n", linkPath, target)
+	return nil
 }
