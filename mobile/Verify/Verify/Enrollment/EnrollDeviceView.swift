@@ -15,8 +15,10 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import SwiftUI
+import SwiftUINavigation
 
 struct EnrollDeviceView: View {
+	@Bindable
 	var viewModel: EnrollDeviceViewModel
 
 	var body: some View {
@@ -42,23 +44,10 @@ struct EnrollDeviceView: View {
 
 		// MARK: Navigation
 
-		.sheet(
-			isPresented: Binding(
-				get: {
-					switch viewModel.loadingState {
-						case .idle: false
-						default: true
-					}
-				},
-				set: { if !$0 { viewModel.loadingState = .idle } },
-			),
-		) {
-			EnrollRequestStatusView(
-				attempt: viewModel.loadingState,
-				onDismiss: { viewModel.loadingState = .idle },
-			)
-			.presentationDetents([.medium])
-			.interactiveDismissDisabled(viewModel.loadingState.isLoading)
+		.navigationDestination(item: $viewModel.destination.loadingSheet) {
+			EnrollRequestStatusView(attempt: viewModel.loadingState, onDismiss: {})
+				.presentationDetents([.medium])
+				.interactiveDismissDisabled(viewModel.loadingState.isLoading)
 		}
 	}
 }
@@ -71,13 +60,8 @@ extension EnrollDeviceView {
 		Text("Enroll Your Device")
 			.font(.title2)
 			.fontWeight(.semibold)
-		Text(
-			"""
-			To finish enrolling this device, approve the request from \
-			your account settings on another device.
-			""",
-		)
-		.foregroundStyle(.secondary)
+		Text("To finish enrolling this device, approve the request from your account settings on another device.")
+			.foregroundStyle(.secondary)
 	}
 
 	var requestNowButton: some View {
