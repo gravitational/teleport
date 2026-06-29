@@ -23,15 +23,16 @@ directory. It runs every five minutes.
 
 In delta sync mode, Teleport only tracks incremental changes made in your Microsoft
 Entra ID directory and syncs them to Teleport. Delta sync is not enabled by default. 
-It is an opt-in feature available only in Teleport `v18.9.1` and above.
+It is an opt-in feature available only in Teleport `v18.9.2` and above.
 
 ### Configuring sync mode and intervals
 
+By default, the plugin runs full sync at a five-minute interval. 
 Configuring a positive duration for the `full` and `delta` fields of the plugin's
 `sync_intervals` setting enables the respective sync mode. 
 
-The following example configures `delta` sync at a 2-minute interval and `full` sync 
-at a 1-hour interval.
+The following example configures `delta` sync at a two-minute interval and `full` sync 
+at a one-hour interval.
 
 First, open the Entra ID plugin spec in edit mode using `tctl`:
 ```code
@@ -57,7 +58,7 @@ Both `delta` and `full` accept a [Go](https://pkg.go.dev/time#Duration.String)
 time duration string such as `2m` for two minutes or `1h` for one hour.
 
 A zero (`0`) interval value disables the respective sync mode. 
-If both delta and full sync are disabled, the service falls back to using full sync 
+If both delta and full sync are disabled, the plugin falls back to using full sync 
 with a five-minute interval. 
 
 When both delta and full sync intervals are configured, delta sync runs between 
