@@ -19,11 +19,12 @@ import SwiftNavigation
 
 @Observable @MainActor
 final class LandingViewModel {
+	// swiftformat:sort
 	@CasePathable
 	enum Destination {
-		case deviceEnrollment(EnrollDeviceViewModel)
-		case deepLinkParsingAlert(errorMessage: String)
 		case cameraScanner(EnrollCameraScannerViewModel)
+		case deepLinkParsingAlert(errorMessage: String)
+		case enrollDevice(EnrollDeviceViewModel)
 	}
 
 	var destination: Destination? = nil
@@ -42,7 +43,7 @@ extension LandingViewModel {
 
 extension LandingViewModel {
 	func navigateToDeviceEnrollment(with deepLink: EnrollMobileDeviceDeepLink) {
-		destination = .deviceEnrollment(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
+		destination = .enrollDevice(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
 	}
 
 	func showParserError(errorMessage: String) {
@@ -66,6 +67,6 @@ extension LandingViewModel: EnrollCameraScannerViewModel.Delegate {
 		didReceiveEnrollMobileDeviceDeepLink deepLink: EnrollMobileDeviceDeepLink,
 	) {
 		sensoryFeedbackTrigger.toggle()
-		destination = .deviceEnrollment(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
+		destination = .enrollDevice(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
 	}
 }
