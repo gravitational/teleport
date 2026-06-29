@@ -29,6 +29,7 @@ jobs:
           filters: |
             changed:
               - '.github/workflows/doc-tests.yaml'
+              - '.github/scripts/**'
               - 'CHANGELOG.md'
               - 'docs/**'
               - 'examples/**'
@@ -89,6 +90,14 @@ jobs:
           node-version: 22
           cache: 'yarn'
           cache-dependency-path: '${{ github.workspace }}/docs/yarn.lock'
+
+      - name: Run docs preview-link script unit tests
+        # Guards the per-page Amplify preview-link logic in .github/scripts/.
+        # Uses Node's built-in test runner, so there are no dependencies to
+        # install. The teleport repo (at the PR's ref) is checked out under
+        # `teleport/` above, so the scripts live there.
+        working-directory: teleport/.github/scripts
+        run: node --test
 
       - name: Install docs site dependencies
         working-directory: docs
@@ -168,3 +177,4 @@ jobs:
       - name: Test the docs build
         working-directory: docs
         run: yarn build
+        
