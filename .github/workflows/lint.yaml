@@ -79,6 +79,8 @@ jobs:
               - 'docs/pages/reference/infrastructure-as-code/terraform-modules/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
               - 'build.assets/tooling/cmd/resource-ref-generator/**'
+              - 'buf-go.gen.yaml'
+              - 'buf.yaml'
             has_ui:
               - '.github/workflows/lint.yaml'
               - 'web/**'
@@ -132,6 +134,21 @@ jobs:
             go mod tidy -diff || (echo "Run 'make go-mod-tidy-all' to resolve" && exit 1);
             popd > /dev/null;
           done
+
+      # Prevent any new uses of the Open API from being added until teleport is converted
+      # to exclusively use the Opaque API.
+      - name: Check for Open API usage
+        run: |
+          # We have to add the current directory as a safe directory or else git commands will not work as expected.
+          git config --global --add safe.directory "$(realpath .)"
+          go install golang.org/x/tools/cmd/goimports@v0.46.0
+          go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./...
+          if ! git diff --quiet --exit-code -- '*.go'; then
+            echo "Detected Open API usage - Update code to use the Opaque API manually or run go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./..."
+            git diff --stat -- '*.go'
+            git diff -- '*.go'
+            exit 1
+          fi
 
       - name: Set linter versions
         run: |

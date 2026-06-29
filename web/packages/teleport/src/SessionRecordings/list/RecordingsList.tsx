@@ -23,6 +23,7 @@ import {
   useState,
   type ComponentType,
   type CSSProperties,
+  type PropsWithChildren,
 } from 'react';
 import styled, { useTheme } from 'styled-components';
 
@@ -59,8 +60,13 @@ import type {
 } from './state';
 import { Density, ViewMode, ViewSwitcher } from './ViewSwitcher';
 
-interface RecordingsListProps {
+export interface RecordingsDecoratorProps extends PropsWithChildren {
+  recordings: Recording[];
+}
+
+export interface RecordingsListProps {
   actionComponent?: ComponentType<RecordingActionProps>;
+  badgeComponent?: ComponentType<RecordingActionProps>;
   onFilterChange: (
     key: RecordingsListFilterKey,
     value: string[] | boolean
@@ -68,6 +74,7 @@ interface RecordingsListProps {
   onPageChange: (page: number) => void;
   onSearchChange: (search: string) => void;
   onSortChange: (key: string, dir: SortOrder) => void;
+  recordingsDecorator?: ComponentType<RecordingsDecoratorProps>;
   state: RecordingsListState;
 }
 
@@ -136,10 +143,12 @@ const ScrollContainer = styled.div`
 
 export function RecordingsList({
   actionComponent,
+  badgeComponent,
   onFilterChange,
   onPageChange,
   onSearchChange,
   onSortChange,
+  recordingsDecorator: RecordingsDecorator,
   state,
 }: RecordingsListProps) {
   const ctx = useTeleport();
@@ -236,27 +245,30 @@ export function RecordingsList({
     [theme]
   );
 
+  const pageRecordings = useMemo(
+    () => recordings.slice(startIndex, endIndex),
+    [recordings, startIndex, endIndex]
+  );
+
   const items = useMemo(
     () =>
-      recordings
-        .slice(startIndex, endIndex)
-        .map(recording => (
-          <RecordingItem
-            actionComponent={actionComponent}
-            key={recording.sid}
-            recording={recording}
-            thumbnailStyles={thumbnailStyles}
-            viewMode={viewMode}
-            density={density}
-          />
-        )),
+      pageRecordings.map(recording => (
+        <RecordingItem
+          actionComponent={actionComponent}
+          badgeComponent={badgeComponent}
+          key={recording.sid}
+          recording={recording}
+          thumbnailStyles={thumbnailStyles}
+          viewMode={viewMode}
+          density={density}
+        />
+      )),
     [
       actionComponent,
-      recordings,
+      badgeComponent,
+      pageRecordings,
       viewMode,
       density,
-      startIndex,
-      endIndex,
       thumbnailStyles,
     ]
   );
@@ -346,6 +358,12 @@ export function RecordingsList({
               No Recordings Found
             </Text>
           </Flex>
+        ) : RecordingsDecorator ? (
+          <RecordingsDecorator recordings={pageRecordings}>
+            <RecordingsGrid viewMode={viewMode} density={density}>
+              {items}
+            </RecordingsGrid>
+          </RecordingsDecorator>
         ) : (
           <RecordingsGrid viewMode={viewMode} density={density}>
             {items}

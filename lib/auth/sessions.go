@@ -95,20 +95,20 @@ func (a *Server) augmentSessionForDeviceTrust(
 	// Create the device trust DeviceWebToken.
 	// We only get a token if the server is enabled for Device Trust and the user
 	// has a suitable trusted device.
-	webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+	webToken, err := a.createDeviceWebToken(ctx, devicepb.DeviceWebToken_builder{
 		WebSessionId:          session.GetName(),
 		BrowserMaxTouchPoints: uint32(maxTouchPoints),
 		BrowserUserAgent:      userAgent,
 		BrowserIp:             loginIP,
 		User:                  session.GetUser(),
-	})
+	}.Build())
 	switch {
 	case err != nil:
 		a.logger.WarnContext(ctx, "Failed to create DeviceWebToken for user", "error", err)
 	case webToken != nil: // May be nil even if err==nil.
 		session.SetDeviceWebToken(&types.DeviceWebToken{
-			Id:    webToken.Id,
-			Token: webToken.Token,
+			Id:    webToken.GetId(),
+			Token: webToken.GetToken(),
 		})
 	}
 
@@ -376,7 +376,11 @@ type NewAppSessionRequest = sessionreq.NewAppSessionRequest
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
+// unmappedIdentity is the caller's original identity before any trusted-cluster
+// role mapping. It is used solely to source attribution fields (delegation and
+// beam IDs) that the role-mapping rebuild drops from the mapped identity. For
+// local callers it is identical to identity.
+func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity, unmappedIdentity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
 	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
@@ -426,6 +430,13 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 			// service on behalf of the user's Web Session. We can safely attest this child app session
 			// as a "web_session" as a result.
 			AttestWebSession: identity.PrivateKeyPolicy == keys.PrivateKeyPolicyWebSession,
+			// Propagate delegation and beam attribution from the caller's
+			// unmapped identity so the app-session cert remains linked to the
+			// same delegation session and beam. These are read from the unmapped
+			// identity because a remote (trusted-cluster) caller's mapped
+			// identity is rebuilt without these attribution fields.
+			DelegationSessionID: unmappedIdentity.DelegationSessionID,
+			BeamID:              unmappedIdentity.BeamID,
 		},
 		PublicAddr:        req.PublicAddr,
 		ClusterName:       req.ClusterName,
@@ -526,6 +537,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		AppSessionID: sessionID,
 		// Only allow this certificate to be used for applications.
 		Usage:             []string{teleport.UsageAppsOnly},
+		AppName:           req.AppName,
 		AppPublicAddr:     req.PublicAddr,
 		AppClusterName:    req.ClusterName,
 		AppTargetPort:     req.AppTargetPort,
@@ -539,6 +551,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		BotName:             req.BotName,
 		BotInstanceID:       req.BotInstanceID,
 		DelegationSessionID: req.DelegationSessionID,
+		BeamID:              req.BeamID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

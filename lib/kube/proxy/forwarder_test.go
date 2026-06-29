@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -70,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
@@ -961,6 +963,170 @@ func TestAuthenticate(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:              "local scoped user and scoped cluster",
+			user:              authz.LocalUser{},
+			scoped:            true,
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "local",
+						Labels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+					Scope: scopedTestScope,
+				},
+			),
+			wantCtx: &authContext{
+				kubeUsers:       set.New("user-a"),
+				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeClusterName: "local",
+				kubeClusterLabels: map[string]string{
+					"static_label1": "static_value1",
+					"static_label2": "static_value2",
+				},
+				certExpires: certExpiration,
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Scope: scopedTestScope,
+						Metadata: types.Metadata{
+							Name: "local",
+							Labels: map[string]string{
+								"static_label1": "static_value1",
+								"static_label2": "static_value2",
+							},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
+			},
+		},
+		{
+			desc:              "local unscoped user and scoped cluster",
+			user:              authz.LocalUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "local",
+						Labels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+					Scope: scopedTestScope,
+				},
+			),
+			wantCtx: &authContext{
+				kubeUsers:       set.New("user-a"),
+				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeClusterName: "local",
+				kubeClusterLabels: map[string]string{
+					"static_label1": "static_value1",
+					"static_label2": "static_value2",
+				},
+				certExpires: certExpiration,
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Scope: scopedTestScope,
+						Metadata: types.Metadata{
+							Name: "local",
+							Labels: map[string]string{
+								"static_label1": "static_value1",
+								"static_label2": "static_value2",
+							},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
+			},
+		},
+		{
+			desc:              "local scoped user and scoped cluster - mismatched scope",
+			user:              authz.LocalUser{},
+			scoped:            true,
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "local",
+						Labels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+					Scope: "/other",
+				},
+			),
+			wantAuthorizeErrContains: "[00] access denied",
+		},
+		{
+			desc:              "local scoped user and unscoped cluster",
+			user:              authz.LocalUser{},
+			scoped:            true,
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "local",
+						Labels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+				},
+			),
+			wantAuthorizeErrContains: "[00] access denied",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -1044,7 +1210,7 @@ func TestAuthenticate(t *testing.T) {
 			}
 
 			gotCtx, err := f.authenticate(req)
-			if tt.wantErr {
+			if tt.wantErr || tt.wantAuthErr {
 				require.Error(t, err)
 				require.Equal(t, tt.wantAuthErr, trace.IsAccessDenied(err))
 				return
@@ -1545,6 +1711,7 @@ type mockAccessPoint struct {
 	authPref        types.AuthPreference
 	kubeServers     []types.KubeServer
 	cas             map[string]types.CertAuthority
+	scopedRoles     map[string]*scopedaccessv1.ScopedRole
 }
 
 func (ap mockAccessPoint) GetClusterNetworkingConfig(context.Context) (types.ClusterNetworkingConfig, error) {
@@ -1573,6 +1740,17 @@ func (ap mockAccessPoint) GetCertAuthorities(ctx context.Context, caType types.C
 
 func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return ap.cas[id.DomainName], nil
+}
+
+func (ap mockAccessPoint) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+	if role, ok := ap.scopedRoles[req.GetName()]; ok {
+		return scopedaccessv1.GetScopedRoleResponse_builder{Role: role}.Build(), nil
+	}
+	return nil, trace.NotFound("role %q not found", req.GetName())
+}
+
+func (ap mockAccessPoint) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	return scopedaccessv1.ListScopedRolesResponse_builder{Roles: slices.Collect(maps.Values(ap.scopedRoles))}.Build(), nil
 }
 
 type mockRevTunnel struct {
@@ -1624,40 +1802,40 @@ func newScopedKubeAuthorizer(t *testing.T, cfg scopedKubeAuthorizerConfig) mockA
 
 	var lock *scopedaccessv1.Lock
 	if cfg.kubeLockMode != "" {
-		lock = &scopedaccessv1.Lock{Mode: string(cfg.kubeLockMode)}
+		lock = scopedaccessv1.Lock_builder{Mode: string(cfg.kubeLockMode)}.Build()
 	}
 
-	role := &scopedaccessv1.ScopedRole{
+	role := scopedaccessv1.ScopedRole_builder{
 		Kind: "scoped_role",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: scopedTestRole,
-		},
+		}.Build(),
 		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleSpec{
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
-			Kube: &scopedaccessv1.ScopedRoleKube{
+			Kube: scopedaccessv1.ScopedRoleKube_builder{
 				Labels: []*labelv1.Label{
-					{Name: types.Wildcard, Values: []string{types.Wildcard}},
+					labelv1.Label_builder{Name: types.Wildcard, Values: []string{types.Wildcard}}.Build(),
 				},
 				Groups:                cfg.kubeGroups,
 				Users:                 cfg.kubeUsers,
 				Lock:                  lock,
 				DisconnectExpiredCert: cfg.kubeDisconnectExpired,
-			},
-		},
+			}.Build(),
+		}.Build(),
 		Version: types.V1,
-	}
+	}.Build()
 
 	reader := &fakeScopedRoleReader{
 		role: role,
 	}
 
-	pin := &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: scopedTestScope}
-	pin.AssignmentTree = pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+	pin := scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: scopedTestScope}.Build()
+	pin.SetAssignmentTree(pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 		"/": {
 			scopedTestScope: {scopedTestRole},
 		},
-	})
+	}))
 
 	checkerCtx, err := services.NewScopedAccessCheckerContext(t.Context(), &services.AccessInfo{
 		Username: cfg.user.GetName(),
@@ -1682,11 +1860,11 @@ type fakeScopedRoleReader struct {
 
 func (r *fakeScopedRoleReader) GetScopedRole(_ context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
 
-	return &scopedaccessv1.GetScopedRoleResponse{Role: r.role}, nil
+	return scopedaccessv1.GetScopedRoleResponse_builder{Role: r.role}.Build(), nil
 }
 
 func (r *fakeScopedRoleReader) ListScopedRoles(context.Context, *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
-	return &scopedaccessv1.ListScopedRolesResponse{Roles: []*scopedaccessv1.ScopedRole{r.role}}, nil
+	return scopedaccessv1.ListScopedRolesResponse_builder{Roles: []*scopedaccessv1.ScopedRole{r.role}}.Build(), nil
 }
 
 type mockEventClient struct {
@@ -2418,6 +2596,109 @@ func TestGOAWAYHandling_Concurrent(t *testing.T) {
 	wg.Wait()
 
 	require.Zero(t, rewindLeaks.Load(), "rewind-body error must never reach the client")
+}
+
+func TestForwarderConfig(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
+	authClient, err := newMockCAClient()
+	require.NoError(t, err)
+
+	lockWatcher, err := services.NewLockWatcher(t.Context(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentKube,
+			Client:    &mockEventClient{},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
+
+	// baseCfg contains all required fields for a successful call to CheckAndSetDefaults.
+	// The mutateFn for each case should introduce the specific changes that
+	// lead to expected end states.
+	baseCfg := ForwarderConfig{
+		AuthClient:        authClient,
+		CachingAuthClient: mockAccessPoint{},
+		ScopedAuthz:       mockAuthorizer{},
+		LockWatcher:       lockWatcher,
+		Emitter:           events.NewDiscardEmitter(),
+		ClusterName:       "local",
+		Keygen:            authority,
+		DataDir:           t.TempDir(),
+		HostID:            "host-id",
+		ClusterFeatures:   fakeClusterFeatures,
+		KubeServiceType:   KubeService,
+	}
+	cases := []struct {
+		name string
+		// mutateFn accepts a value and returns a pointer so that we don't
+		// alter the baseCfg for other cases
+		mutateFn    func(cfg ForwarderConfig) *ForwarderConfig
+		expectScope string
+		expectErr   string
+	}{
+		{
+			name: "unscoped",
+		},
+		{
+			name:        "scoped with agent scope",
+			expectScope: "/test",
+			mutateFn: func(cfg ForwarderConfig) *ForwarderConfig {
+				cfg.Scope = "/test"
+				return &cfg
+			},
+		},
+		{
+			name:        "scoped with scope pin",
+			expectScope: "/test",
+			mutateFn: func(cfg ForwarderConfig) *ForwarderConfig {
+				cfg.ScopePin = scopesv1.Pin_builder{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: "/test",
+					SystemRoles: scopesv1.SystemRoles_builder{
+						Primary: types.RoleKube.String(),
+					}.Build(),
+				}.Build()
+				return &cfg
+			},
+		},
+		{
+			name: "scoped with both an agent scope and scope pin",
+			mutateFn: func(cfg ForwarderConfig) *ForwarderConfig {
+				cfg.Scope = "/test"
+				cfg.ScopePin = scopesv1.Pin_builder{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: "/test",
+					SystemRoles: scopesv1.SystemRoles_builder{
+						Primary: types.RoleKube.String(),
+					}.Build(),
+				}.Build()
+				return &cfg
+			},
+			expectErr: "either a scope pin or a bare scope must be set for a scoped kube forwarder, not both",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := baseCfg
+			if c.mutateFn != nil {
+				cfg = *c.mutateFn(cfg)
+			}
+			err := cfg.CheckAndSetDefaults()
+			if c.expectErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, c.expectErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, c.expectScope, cfg.GetScope())
+			}
+		})
+	}
 }
 
 // goawayServer is a fake [http2.Server] that terminates all received client

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -421,40 +422,38 @@ func TestGlobalNotificationsCache(t *testing.T) {
 func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {
 	t.Helper()
 
-	notification := notificationsv1.Notification{
+	notification := notificationsv1.Notification_builder{
 		SubKind: "test-subkind",
-		Spec: &notificationsv1.NotificationSpec{
+		Spec: notificationsv1.NotificationSpec_builder{
 			Username: username,
-		},
-		Metadata: &headerv1.Metadata{
+		}.Build(),
+		Metadata: headerv1.Metadata_builder{
 			Labels: map[string]string{
 				types.NotificationTitleLabel: title,
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
-	return &notification
+	return notification
 }
 
 func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
-	notification := notificationsv1.GlobalNotification{
-		Spec: &notificationsv1.GlobalNotificationSpec{
-			Matcher: &notificationsv1.GlobalNotificationSpec_All{
-				All: true,
-			},
-			Notification: &notificationsv1.Notification{
+	notification := notificationsv1.GlobalNotification_builder{
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			All: proto.Bool(true),
+			Notification: notificationsv1.Notification_builder{
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Labels: map[string]string{
 						types.NotificationTitleLabel: title,
 					},
-				},
-			},
-		},
-	}
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build()
 
-	return &notification
+	return notification
 }

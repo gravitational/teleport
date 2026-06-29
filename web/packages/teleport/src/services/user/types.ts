@@ -73,6 +73,10 @@ export interface AccessWithUse extends Access {
   use: boolean;
 }
 
+export interface MobileDeviceAccess {
+  createEnrollToken: boolean;
+}
+
 export interface Acl {
   directorySharingEnabled: boolean;
   reviewRequests: boolean;
@@ -130,6 +134,7 @@ export interface Acl {
   inferenceModel: Access;
   inferenceSecret: Access;
   beam: Access;
+  mobileDevice: MobileDeviceAccess;
 }
 
 // AllTraits represent all the traits defined for a user.
@@ -140,6 +145,10 @@ export type UserOrigin = 'okta' | 'saml' | 'scim';
 export interface User {
   // name is the teleport username.
   name: string;
+  // displayPrimary is the human-readable name resolved server-side.
+  displayPrimary?: string;
+  // displaySecondary is supporting display context resolved server-side.
+  displaySecondary?: string;
   // roles is the list of roles user is assigned to.
   roles: string[];
   // authType describes how the user authenticated

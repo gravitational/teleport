@@ -76,6 +76,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -376,6 +377,7 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 		clusterName: clientIdentity.ClusterName,
 		hostID:      clientIdentity.ID.HostUUID,
 		scope:       clientIdentity.GetAgentScope(),
+		scopePin:    clientIdentity.ScopePin,
 		role:        clientIdentity.ID.Role,
 	}
 	c.clientState.Store(clientState)
@@ -444,6 +446,7 @@ type Connector struct {
 	clusterName string
 	hostID      string
 	scope       string
+	scopePin    *scopesv1.Pin
 	role        types.SystemRole
 
 	// clientState contains the current connector state for outbound connections
@@ -480,6 +483,20 @@ func (c *Connector) HostUUID() string {
 // Scope returns the host's AgentScope
 func (c *Connector) Scope() string {
 	return c.scope
+}
+
+// ScopePin returns the host's ScopePin
+func (c *Connector) ScopePin() *scopesv1.Pin {
+	return c.scopePin
+}
+
+// checkScopedAppJoin rejects an app agent that joined with a scoped token while
+// agent scope pins are disabled.
+func checkScopedAppJoin(conn *Connector) error {
+	if conn.Scope() != "" && conn.ScopePin() == nil {
+		return trace.BadParameter("set TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes on main auth service to join a scoped app agent")
+	}
+	return nil
 }
 
 func (c *Connector) Role() types.SystemRole {
@@ -606,7 +623,7 @@ func (c *Connector) TunnelProxyResolver() reversetunnelclient.Resolver {
 	}
 
 	switch dialer := c.Client.Dialer().(type) {
-	case *reversetunnelclient.TunnelAuthDialer:
+	case *reversetunnelclient.AuthDialerThroughProxy:
 		return dialer.Resolver
 	default:
 		return nil
@@ -1398,18 +1415,18 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		for _, r := range instanceRoles {
 			services = append(services, string(r))
 		}
-		hello := &proto.UpstreamInventoryHello{
+		hello := proto.UpstreamInventoryHello_builder{
 			ServerID:         hostID,
 			Version:          teleport.Version,
 			Services:         services,
 			Hostname:         cfg.Hostname,
 			ExternalUpgrader: externalUpgrader,
 			ImmutableLabels:  process.getImmutableLabels(),
-		}
+		}.Build()
 
 		if upgraderVersion != nil {
 			// The UpstreamInventoryHello message wants versions with the leading "v".
-			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+			hello.SetExternalUpgraderVersion("v" + upgraderVersion.String())
 		}
 
 		if upgraderKind == types.UpgraderKindTeleportUpdate ||
@@ -1426,7 +1443,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering updater status, this might affect automatic update tracking and progress.", "error", err)
 				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
 			}
-			hello.UpdaterInfo = info
+			hello.SetUpdaterInfo(info)
 		}
 		return hello, nil
 	}
@@ -1447,12 +1464,12 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.",
 			"id", ping.GetID(),
 			"clock", systemClock)
-		err := sender.Send(process.ExitContext(), &proto.UpstreamInventoryPong{
+		err := sender.Send(process.ExitContext(), proto.UpstreamInventoryPong_builder{
 			ID:          ping.GetID(),
 			SystemClock: timestamppb.New(systemClock),
-		})
+		}.Build())
 		if err != nil {
-			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.ID, "error", err)
+			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.GetID(), "error", err)
 		}
 	})
 
@@ -3569,14 +3586,7 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
-		// TODO(espadolini): relax this once the selinux module is updated to support the potentially embedded reexec helper
-		if !cfg.SSH.EnableSELinux {
-			checkEmbeddedReexecAndLog(process.ExitContext(), logger)
-		} else {
-			logger.DebugContext(process.ExitContext(),
-				"The embedded session helper is not supported when SELinux support is enabled.",
-			)
-		}
+		checkEmbeddedReexecAndLog(process.ExitContext(), cfg.SSH.EnableSELinux, logger)
 
 		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
 
@@ -3750,7 +3760,10 @@ func (process *TeleportProcess) initSSH() error {
 			}()
 			defer mux.Close()
 
-			listener, err = limiter.WrapListener(mux.SSH())
+			listener, err = limiter.WrapListener(
+				mux.SSH(),
+				sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+			)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -3870,19 +3883,75 @@ func (process *TeleportProcess) initSSH() error {
 	return nil
 }
 
-func checkEmbeddedReexecAndLog(ctx context.Context, logger *slog.Logger) {
-	if ok, err := reexec.InitEmbeddedReexec(); err != nil {
-		logger.WarnContext(ctx,
-			"This Teleport build supports the embedded session helper but it is not available in this environment, performance of user sessions might be impacted.",
-			"error", err,
+func checkEmbeddedReexecAndLog(ctx context.Context, selinux bool, logger *slog.Logger) {
+	var explicitlyDisabled, explicitlyEnabled bool
+	if e := os.Getenv("TELEPORT_UNSTABLE_DISABLE_EMBEDDED_REEXEC"); e != "" {
+		b, err := apiutils.ParseBool(e)
+		if err != nil {
+			logger.WarnContext(ctx,
+				"Failed to parse the TELEPORT_UNSTABLE_DISABLE_EMBEDDED_REEXEC envvar, proceeding as if it was set to true",
+				"error", err,
+			)
+			b = true
+		}
+		if b {
+			explicitlyDisabled = true
+		} else {
+			explicitlyEnabled = true
+		}
+	}
+
+	if !reexec.EmbeddedReexecAvailable {
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelWarn
+		}
+		logger.LogAttrs(ctx, level,
+			"This Teleport build does not support the embedded session helper for user sessions.",
 		)
-	} else if ok {
-		logger.DebugContext(ctx,
-			"The embedded session helper is available and will be used for user sessions.",
+		return
+	}
+
+	// TODO(espadolini): relax this once the selinux module is updated to support the potentially embedded reexec helper
+	if selinux {
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelWarn
+		}
+		logger.LogAttrs(ctx, level,
+			"The embedded session helper is not supported when SELinux support is enabled.",
+		)
+		return
+	}
+
+	if explicitlyDisabled {
+		slog.InfoContext(ctx, "The embedded session helper was explicitly disabled and will not be used for user sessions.")
+		return
+	}
+
+	// TODO(espadolini): enable by default in v19
+	if !explicitlyEnabled {
+		slog.DebugContext(ctx, "The embedded session helper is not enabled and will not be used for user sessions.")
+		return
+	}
+
+	if err := reexec.InitEmbeddedReexec(); err != nil {
+		// TODO(espadolini): always warn in v19
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelWarn
+		}
+		logger.LogAttrs(ctx, level,
+			"This Teleport build supports the embedded session helper but it is not available in this environment, performance of user sessions might be impacted.",
+			slog.Any("error", err),
 		)
 	} else {
-		logger.DebugContext(ctx,
-			"This Teleport build does not support the embedded session helper for user sessions.",
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelInfo
+		}
+		logger.LogAttrs(ctx, level,
+			"The embedded session helper is available and will be used for user sessions.",
 		)
 	}
 }
@@ -4973,6 +5042,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	alpnLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// make a caching auth client for the auth server:
 	accessPoint, err := process.newLocalCacheForProxy(conn.Client, []string{teleport.ComponentProxy})
 	if err != nil {
@@ -5327,7 +5401,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}
 
-		rtListener, err := reverseTunnelLimiter.WrapListener(listeners.reverseTunnel)
+		rtListener, err := reverseTunnelLimiter.WrapListener(
+			listeners.reverseTunnel,
+			sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -5539,17 +5616,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		connectionsHandler.SetApplicationsProvider(func(ctx context.Context, publicAddr string) (types.Application, error) {
-			allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(ctx, webapp.MatchPublicAddr(publicAddr))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if len(allAppServers) == 0 {
-				return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
-			}
-			// TODO(okraport): determine if we should shuffle app servers here.
-			return allAppServers[0].GetApp(), nil
-		})
+		connectionsHandler.SetApplicationsProvider(
+			func(ctx context.Context, appName, publicAddr string) (types.Application, error) {
+				allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(
+					ctx, webapp.MatchAppServerForRoute(appName, publicAddr))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				if len(allAppServers) == 0 {
+					return nil, trace.NotFound("no app %s found for endpoint %q", appName, publicAddr)
+				}
+				// TODO(okraport): determine if we should shuffle app servers here.
+				return allAppServers[0].GetApp(), nil
+			})
 
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
 			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
@@ -5928,7 +6007,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start ssh server
 		go func() {
-			listener, err := proxyLimiter.WrapListener(listeners.ssh)
+			listener, err := proxyLimiter.WrapListener(
+				listeners.ssh,
+				sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+			)
 			if err != nil {
 				logger.ErrorContext(process.ExitContext(), "Failed to set up SSH proxy server", "error", err)
 				return
@@ -5940,7 +6022,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start grpc server
 		go func() {
-			listener, err := proxyLimiter.WrapListener(listeners.sshGRPC)
+			listener, err := proxyLimiter.WrapListener(
+				listeners.sshGRPC,
+				sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+			)
 			if err != nil {
 				logger.ErrorContext(process.ExitContext(), "Failed to set up SSH proxy server", "error", err)
 				return
@@ -6278,6 +6363,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Listener:          listeners.alpn,
 			ClusterName:       clusterName,
 			AccessPoint:       accessPoint,
+			Limiter:           alpnLimiter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6305,6 +6391,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Listener:          listeners.reverseTunnelALPN,
 				ClusterName:       clusterName,
 				AccessPoint:       accessPoint,
+				Limiter:           reverseTunnelLimiter,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6818,6 +6905,11 @@ func (process *TeleportProcess) initApps() {
 			})
 		}
 
+		if err := checkScopedAppJoin(conn); err != nil {
+			return trace.Wrap(err)
+		}
+		scopePin := conn.ScopePin()
+
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
@@ -6867,7 +6959,7 @@ func (process *TeleportProcess) initApps() {
 				MCP:                   app.MCP,
 				LLM:                   app.LLM,
 				TLS:                   app.TLS,
-			})
+			}, scopePin.GetScope())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -6987,6 +7079,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectionsHandler:          connectionsHandler,
 			InventoryHandle:             process.inventoryHandle,
 			IgnoreAppsWithCommandLabels: runningOnBeams,
+			ScopePin:                    scopePin,
 		})
 		if err != nil {
 			return trace.Wrap(err)

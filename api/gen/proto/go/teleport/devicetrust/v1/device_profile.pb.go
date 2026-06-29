@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/device_profile.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 // Device profile information acquired from an external source.
 // If present, it's used to further validate collected data.
 type DeviceProfile struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Latest profile update time.
 	// System managed.
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
@@ -97,11 +98,6 @@ func (x *DeviceProfile) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeviceProfile.ProtoReflect.Descriptor instead.
-func (*DeviceProfile) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_profile_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *DeviceProfile) GetUpdateTime() *timestamppb.Timestamp {
@@ -167,6 +163,104 @@ func (x *DeviceProfile) GetOsId() string {
 	return ""
 }
 
+func (x *DeviceProfile) SetUpdateTime(v *timestamppb.Timestamp) {
+	x.UpdateTime = v
+}
+
+func (x *DeviceProfile) SetModelIdentifier(v string) {
+	x.ModelIdentifier = v
+}
+
+func (x *DeviceProfile) SetOsVersion(v string) {
+	x.OsVersion = v
+}
+
+func (x *DeviceProfile) SetOsBuild(v string) {
+	x.OsBuild = v
+}
+
+func (x *DeviceProfile) SetOsUsernames(v []string) {
+	x.OsUsernames = v
+}
+
+func (x *DeviceProfile) SetJamfBinaryVersion(v string) {
+	x.JamfBinaryVersion = v
+}
+
+func (x *DeviceProfile) SetExternalId(v string) {
+	x.ExternalId = v
+}
+
+func (x *DeviceProfile) SetOsBuildSupplemental(v string) {
+	x.OsBuildSupplemental = v
+}
+
+func (x *DeviceProfile) SetOsId(v string) {
+	x.OsId = v
+}
+
+func (x *DeviceProfile) HasUpdateTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdateTime != nil
+}
+
+func (x *DeviceProfile) ClearUpdateTime() {
+	x.UpdateTime = nil
+}
+
+type DeviceProfile_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Latest profile update time.
+	// System managed.
+	UpdateTime *timestamppb.Timestamp
+	// Non-descriptive model identifier.
+	// Example: "MacBookPro9,2".
+	ModelIdentifier string
+	// OS version number, without the leading 'v'.
+	// See the Device's os_type for the general OS category.
+	// Example: "13.2.1".
+	OsVersion string
+	// OS build identifier. Augments the os_version.
+	// Example: "22D68".
+	OsBuild string
+	// Known OS users (distinct from the Teleport user).
+	OsUsernames []string
+	// Jamf binary version, without the leading 'v'.
+	// Example: "9.27" or "10.44.1-t1677509507".
+	JamfBinaryVersion string
+	// External device identifier, for example the Jamf or Intune ID.
+	ExternalId string
+	// OS build supplemental number.
+	// May match `sw_vers` BuildVersion more closely in certain situations, like
+	// macOS rapid security response builds.
+	// Example: "22F770820d".
+	OsBuildSupplemental string
+	// OS identifier.
+	// Mainly used to differentiate Linux distros, as there is be no variation
+	// for systems like macOS or Windows.
+	// Example: "ubuntu", "centos", "fedora", "rhel".
+	OsId string
+}
+
+func (b0 DeviceProfile_builder) Build() *DeviceProfile {
+	m0 := &DeviceProfile{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UpdateTime = b.UpdateTime
+	x.ModelIdentifier = b.ModelIdentifier
+	x.OsVersion = b.OsVersion
+	x.OsBuild = b.OsBuild
+	x.OsUsernames = b.OsUsernames
+	x.JamfBinaryVersion = b.JamfBinaryVersion
+	x.ExternalId = b.ExternalId
+	x.OsBuildSupplemental = b.OsBuildSupplemental
+	x.OsId = b.OsId
+	return m0
+}
+
 var File_teleport_devicetrust_v1_device_profile_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_v1_device_profile_proto_rawDesc = "" +
@@ -185,18 +279,6 @@ const file_teleport_devicetrust_v1_device_profile_proto_rawDesc = "" +
 	"externalId\x122\n" +
 	"\x15os_build_supplemental\x18\b \x01(\tR\x13osBuildSupplemental\x12\x13\n" +
 	"\x05os_id\x18\t \x01(\tR\x04osIdBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_device_profile_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_device_profile_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_device_profile_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_device_profile_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_device_profile_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_device_profile_proto_rawDesc), len(file_teleport_devicetrust_v1_device_profile_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_device_profile_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_device_profile_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_devicetrust_v1_device_profile_proto_goTypes = []any{

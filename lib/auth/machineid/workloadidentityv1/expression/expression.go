@@ -53,7 +53,7 @@ var (
 		vars["user.traits"] = typical.DynamicMapFunction(func(env *Environment, key string) (expression.Set, error) {
 			traits := make(map[string][]string)
 			for _, v := range env.Attrs.GetUser().GetTraits() {
-				traits[v.GetKey()] = append(traits[v.GetKey()], v.Values...)
+				traits[v.GetKey()] = append(traits[v.GetKey()], v.GetValues()...)
 			}
 			return expression.NewSet(traits[key]...), nil
 		})
@@ -80,7 +80,7 @@ var (
 		vars["user.traits"] = typical.DynamicMapFunction(func(env *Environment, key string) (string, error) {
 			traits := make(map[string][]string)
 			for _, v := range env.Attrs.GetUser().GetTraits() {
-				traits[v.GetKey()] = append(traits[v.GetKey()], v.Values...)
+				traits[v.GetKey()] = append(traits[v.GetKey()], v.GetValues()...)
 			}
 
 			vals := traits[key]

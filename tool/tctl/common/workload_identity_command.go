@@ -130,6 +130,10 @@ func (c *WorkloadIdentityCommand) Initialize(
 			"expires-at",
 			"Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.").
 		StringVar(&c.revocationExpiry)
+	c.revocationsAddCmd.
+		Flag("format", "Output format, 'text', 'json', or 'yaml'").
+		Default(teleport.Text).
+		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.revocationsRmCmd = revocationsCmd.Command("rm", "Delete a revocation.")
 	c.revocationsRmCmd.Flag("serial", "Serial number of the certificate to remove the revocation for.").Required().StringVar(&c.revocationSerial)
@@ -249,9 +253,9 @@ func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 ) error {
 	workloadIdentityClient := client.WorkloadIdentityResourceServiceClient()
 	_, err := workloadIdentityClient.DeleteWorkloadIdentity(
-		ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+		ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{
 			Name: c.workloadIdentityName,
-		})
+		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -279,12 +283,12 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 		}
 
 		workloadIdentities = append(
-			workloadIdentities, resp.WorkloadIdentities...,
+			workloadIdentities, resp.GetWorkloadIdentities()...,
 		)
-		if resp.NextPageToken == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		req.PageToken = resp.NextPageToken
+		req.SetPageToken(resp.GetNextPageToken())
 	}
 
 	switch c.format {
@@ -351,31 +355,42 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 	}
 
 	revocationClient := client.WorkloadIdentityRevocationServiceClient()
-	_, err = revocationClient.CreateWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest{
-		WorkloadIdentityX509Revocation: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
+	created, err := revocationClient.CreateWorkloadIdentityX509Revocation(ctx, workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest_builder{
+		WorkloadIdentityX509Revocation: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
 			Kind:    types.KindWorkloadIdentityX509Revocation,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name:    normalizedSerial,
 				Expires: timestamppb.New(expiry),
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
+			}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
 				Reason:    c.revocationReason,
 				RevokedAt: timestamppb.New(c.now()),
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "creating revocation")
 	}
 
-	fmt.Fprintf(
-		c.stdout,
-		"Revocation for the X509 certificate with serial %s created\n",
-		normalizedSerial,
-	)
-
-	return nil
+	switch c.format {
+	case teleport.Text:
+		fmt.Fprintf(
+			c.stdout,
+			"Revocation for the X509 certificate with serial %s created\n",
+			normalizedSerial,
+		)
+		return nil
+	case teleport.JSON:
+		// Serialize via the legacy resource wrapper so the output matches
+		// `workload-identity revocations ls` and `tctl get` exactly (RFC3339
+		// timestamps), rather than the raw proto's seconds/nanos form.
+		return trace.Wrap(utils.WriteJSON(c.stdout, types.ProtoResource153ToLegacy(created)))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(c.stdout, types.ProtoResource153ToLegacy(created)))
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
+	}
 }
 
 // DeleteRevocation deletes a revocation. Currently, only the X509 type is
@@ -393,9 +408,9 @@ func (c *WorkloadIdentityCommand) DeleteRevocation(
 	}
 
 	revocationClient := client.WorkloadIdentityRevocationServiceClient()
-	_, err = revocationClient.DeleteWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
+	_, err = revocationClient.DeleteWorkloadIdentityX509Revocation(ctx, workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest_builder{
 		Name: normalizedSerial,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "deleting revocation")
 	}
@@ -424,12 +439,12 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 		}
 
 		revocations = append(
-			revocations, resp.WorkloadIdentityX509Revocations...,
+			revocations, resp.GetWorkloadIdentityX509Revocations()...,
 		)
-		if resp.NextPageToken == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		req.PageToken = resp.NextPageToken
+		req.SetPageToken(resp.GetNextPageToken())
 	}
 
 	switch c.format {
@@ -515,7 +530,7 @@ func (c *WorkloadIdentityCommand) StreamCRL(
 		slog.InfoContext(ctx, "Received CRL from server")
 		pemData := pem.EncodeToMemory(&pem.Block{
 			Type:  "X509 CRL",
-			Bytes: res.Crl,
+			Bytes: res.GetCrl(),
 		})
 		if err := write(pemData); err != nil {
 			return trace.Wrap(err, "writing CRL pem")
@@ -607,23 +622,23 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 		for _, cert := range override {
 			chainDer = append(chainDer, cert.Raw)
 		}
-		pbOverrides = append(pbOverrides, &workloadidentityv1pb.X509IssuerOverrideSpec_Override{
+		pbOverrides = append(pbOverrides, workloadidentityv1pb.X509IssuerOverrideSpec_Override_builder{
 			Issuer: chainDer[0],
 			Chain:  chainDer,
-		})
+		}.Build())
 	}
 
-	override := &workloadidentityv1pb.X509IssuerOverride{
+	override := workloadidentityv1pb.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: c.overridesCreateName,
-		},
-		Spec: &workloadidentityv1pb.X509IssuerOverrideSpec{
+		}.Build(),
+		Spec: workloadidentityv1pb.X509IssuerOverrideSpec_builder{
 			Overrides: pbOverrides,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	if c.overridesCreateDryRun {
 		fmt.Fprintln(c.stderr, "Dry run mode enabled, the following override would have been created:")
@@ -634,15 +649,15 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 	}
 
 	if c.overridesCreateForce {
-		if _, err := oclt.UpsertX509IssuerOverride(ctx, &workloadidentityv1pb.UpsertX509IssuerOverrideRequest{
+		if _, err := oclt.UpsertX509IssuerOverride(ctx, workloadidentityv1pb.UpsertX509IssuerOverrideRequest_builder{
 			X509IssuerOverride: override,
-		}); err != nil {
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		if _, err := oclt.CreateX509IssuerOverride(ctx, &workloadidentityv1pb.CreateX509IssuerOverrideRequest{
+		if _, err := oclt.CreateX509IssuerOverride(ctx, workloadidentityv1pb.CreateX509IssuerOverrideRequest_builder{
 			X509IssuerOverride: override,
-		}); err != nil {
+		}.Build()); err != nil {
 			if trace.IsAlreadyExists(err) {
 				return trace.Wrap(err, "override already exists, use the --force option to overwrite it")
 			}
@@ -686,10 +701,10 @@ func (c *WorkloadIdentityCommand) runOverridesSignCSRs(ctx context.Context, clie
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resp, err := oclt.SignX509IssuerCSR(ctx, &workloadidentityv1pb.SignX509IssuerCSRRequest{
+		resp, err := oclt.SignX509IssuerCSR(ctx, workloadidentityv1pb.SignX509IssuerCSRRequest_builder{
 			Issuer:          issuer.Raw,
 			CsrCreationMode: c.overridesSignMode,
-		})
+		}.Build())
 		if err != nil {
 			if !c.overridesSignForce {
 				return trace.Wrap(err)

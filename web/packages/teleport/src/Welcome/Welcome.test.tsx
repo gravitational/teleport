@@ -42,12 +42,10 @@ const resetContinuePath = '/web/reset/5182/continue';
 
 describe('teleport/components/Welcome', () => {
   let user: UserEvent;
-  let previousBeamsUi: boolean;
 
   beforeEach(() => {
     user = userEvent.setup();
-    previousBeamsUi = cfg.beamsUi;
-    cfg.beamsUi = false;
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(false);
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(auth, 'fetchPasswordToken').mockImplementation(async () => ({
       user: 'sam',
@@ -61,7 +59,6 @@ describe('teleport/components/Welcome', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    cfg.beamsUi = previousBeamsUi;
   });
 
   it('should have correct welcome prompt flow for invite', async () => {
@@ -104,7 +101,7 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('shows Beams branding on invite when beamsUi is enabled', async () => {
-    cfg.beamsUi = true;
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(true);
     jest.spyOn(history, 'push').mockImplementation();
     const router = createMemoryRouter(
       [

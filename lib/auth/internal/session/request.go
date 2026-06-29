@@ -68,6 +68,9 @@ type NewWebSessionRequest struct {
 	// DelegationSessionID is the ID of the Delegation Session this session is
 	// being created for.
 	DelegationSessionID string
+	// BeamID is the identifier of the Beam this session is being created for,
+	// derived from the delegation session's types.BeamIDLabel label.
+	BeamID string
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.

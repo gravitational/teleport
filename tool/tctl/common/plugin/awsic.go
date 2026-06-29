@@ -130,7 +130,7 @@ func (a *awsICInstallArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Lo
 	return trace.Wrap(err)
 }
 
-func (a *awsICInstallArgs) parseGroupFilters() (icfilters.Filters, error) {
+func (a *awsICInstallArgs) parseGroupFilters() ([]*types.AWSICResourceFilter, error) {
 	filters := make([]*types.AWSICResourceFilter, 0, len(a.groupNameFilters)+len(a.excludeGroupNameFilters))
 	for _, n := range a.groupNameFilters {
 		filters = append(filters, &types.AWSICResourceFilter{
@@ -142,10 +142,15 @@ func (a *awsICInstallArgs) parseGroupFilters() (icfilters.Filters, error) {
 			Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: n},
 		})
 	}
-	return icfilters.New(filters)
+
+	if err := icfilters.Validate(filters); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return filters, nil
 }
 
-func (a *awsICInstallArgs) parseAccountFilters() (icfilters.Filters, error) {
+func (a *awsICInstallArgs) parseAccountFilters() ([]*types.AWSICResourceFilter, error) {
 	filtersCap := len(a.accountNameFilters) + len(a.excludeAccountNameFilters) + len(a.accountIDFilters) + len(a.excludeAccountIDFilters)
 	filters := make([]*types.AWSICResourceFilter, 0, filtersCap)
 	for _, n := range a.accountNameFilters {
@@ -172,7 +177,11 @@ func (a *awsICInstallArgs) parseAccountFilters() (icfilters.Filters, error) {
 		})
 	}
 
-	return icfilters.New(filters)
+	if err := icfilters.Validate(filters); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return filters, nil
 }
 
 func (a *awsICInstallArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, error) {
@@ -322,7 +331,7 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args pluginServices) 
 		}
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: apicommon.OriginAWSIdentityCenter,
@@ -351,7 +360,7 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args pluginServices) 
 				},
 			},
 		},
-	}
+	}.Build()
 
 	_, err = args.plugins.CreatePlugin(ctx, req)
 	if err != nil {
@@ -381,9 +390,9 @@ func (p *PluginsCommand) initEditAWSIC(parent *kingpin.CmdClause) {
 }
 
 func (p *PluginsCommand) EditAWSIC(ctx context.Context, args pluginServices) error {
-	plugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
+	plugin, err := args.plugins.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{
 		Name: p.edit.awsIC.pluginName,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -398,9 +407,9 @@ func (p *PluginsCommand) EditAWSIC(ctx context.Context, args pluginServices) err
 		icSettings.RolesSyncMode = cliArgs.rolesSyncMode
 	}
 
-	_, err = args.plugins.UpdatePlugin(ctx, &pluginspb.UpdatePluginRequest{
+	_, err = args.plugins.UpdatePlugin(ctx, pluginspb.UpdatePluginRequest_builder{
 		Plugin: plugin,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -437,10 +446,10 @@ func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args pluginServic
 	cliArgs := &p.rotateCreds.awsic
 
 	slog.InfoContext(ctx, "Fetching plugin...", "plugin_name", cliArgs.pluginName)
-	plugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
+	plugin, err := args.plugins.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{
 		Name:        cliArgs.pluginName,
 		WithSecrets: true,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "fetching plugin %q", cliArgs.pluginName)
 	}
@@ -461,20 +470,18 @@ func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args pluginServic
 		return trace.BadParameter("plugin has no credentials reference")
 	}
 
-	req := pluginspb.UpdatePluginStaticCredentialsRequest{
-		Target: &pluginspb.UpdatePluginStaticCredentialsRequest_Query{
-			Query: &pluginspb.CredentialQuery{
-				Labels: staticCredsRef.Labels,
-			},
-		},
+	req := pluginspb.UpdatePluginStaticCredentialsRequest_builder{
+		Query: pluginspb.CredentialQuery_builder{
+			Labels: staticCredsRef.Labels,
+		}.Build(),
 		Credential: &types.PluginStaticCredentialsSpecV1{
 			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 				APIToken: p.rotateCreds.awsic.payload,
 			},
 		},
-	}
+	}.Build()
 
-	_, err = args.plugins.UpdatePluginStaticCredentials(ctx, &req)
+	_, err = args.plugins.UpdatePluginStaticCredentials(ctx, req)
 	if err != nil {
 		return trace.Wrap(err, "updating credentials")
 	}

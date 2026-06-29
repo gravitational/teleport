@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -50,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -204,6 +206,10 @@ type Server interface {
 	// ChildLogConfig returns the log configuration for handling logs from
 	// child processes.
 	ChildLogConfig() ChildLogConfig
+
+	// GetPresenceMaxDuration returns the max duration that a moderated session
+	// can continue between presence verifications.
+	GetPresenceMaxDuration() time.Duration
 }
 
 // ChildLogConfig is the log configuration for handling logs from child processes.
@@ -304,6 +310,9 @@ type IdentityContext struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
+
+	// BeamID is the identifier of the Beam this session was created for.
+	BeamID string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -343,8 +352,9 @@ type ServerContext struct {
 	// the client of the to-be session ID.
 	newSessionID rsession.ID
 
-	// session holds the active session (if there's an active one).
-	session *session
+	// party holds the active party (if there's an active one). This party should have
+	// already passed basic authz checks (e.g. joining permissions).
+	party *party
 
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
@@ -365,6 +375,10 @@ type ServerContext struct {
 
 	// IsTestStub is set to true by tests.
 	IsTestStub bool
+
+	// TestLoginShell overrides the shell used for the session. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	TestLoginShell string
 
 	// execRequest is the command to be executed within this session context. Do
 	// not get or set this field directly, use (Get|Set)ExecRequest.
@@ -459,10 +473,10 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	)
 	switch {
 	case identityContext.AccessPermit != nil:
-		clientIdleTimeout = identityContext.AccessPermit.ClientIdleTimeout.AsDuration()
-		disconnectExpiredCert = timestampToGoTime(identityContext.AccessPermit.DisconnectExpiredCert)
-		lockTargets = decision.LockTargetsFromProto(identityContext.AccessPermit.LockTargets)
-		lockingMode = constants.LockingMode(identityContext.AccessPermit.LockingMode)
+		clientIdleTimeout = identityContext.AccessPermit.GetClientIdleTimeout().AsDuration()
+		disconnectExpiredCert = timestampToGoTime(identityContext.AccessPermit.GetDisconnectExpiredCert())
+		lockTargets = decision.LockTargetsFromProto(identityContext.AccessPermit.GetLockTargets())
+		lockingMode = constants.LockingMode(identityContext.AccessPermit.GetLockingMode())
 
 	case identityContext.ProxyingPermit != nil:
 		clientIdleTimeout = identityContext.ProxyingPermit.ClientIdleTimeout
@@ -580,13 +594,9 @@ func (c *ServerContext) ID() int {
 //
 // This value is not set until during and after the "shell" / "exec" channel request.
 func (c *ServerContext) SessionID() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if c.session != nil {
-		return string(c.session.id)
+	if session := c.getSession(); session != nil {
+		return string(session.id)
 	}
-
 	return ""
 }
 
@@ -689,23 +699,32 @@ func (c *ServerContext) GetNewSessionID() rsession.ID {
 	return c.newSessionID
 }
 
-// setSession sets the context's session
-func (c *ServerContext) setSession(ctx context.Context, sess *session) {
+// setParty sets the context's party to an active session.
+func (c *ServerContext) setParty(p *party) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.session = sess
+	if c.party != nil {
+		return trace.BadParameter("already party to another session")
+	}
+	c.party = p
+	c.closers = append(c.closers, p)
+	return nil
 }
 
-// getSession returns the context's session
-//
-// The associated session is not set in the server context until a
-// shell / exec channel has been initiated for the session, so out-of-band
-// session requests that can occur before these channel requests should
-// consider fallback mechanisms.
-func (c *ServerContext) getSession() *session {
+// getParty returns the context's party to an active session, if there is one.
+func (c *ServerContext) getParty() *party {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.session
+	return c.party
+}
+
+// getSession returns the session the context's party belongs to, if there is
+// an active party. Callers that don't need the party itself should prefer this.
+func (c *ServerContext) getSession() *session {
+	if p := c.getParty(); p != nil {
+		return p.s
+	}
+	return nil
 }
 
 func (c *ServerContext) SetAllowFileCopying(allow bool) {
@@ -721,7 +740,7 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 	}
 
 	// check if ssh access permit is defined and authorizes file copying
-	if permit := c.Identity.AccessPermit; permit != nil && permit.SshFileCopy {
+	if permit := c.Identity.AccessPermit; permit != nil && permit.GetSshFileCopy() {
 		return nil
 	}
 
@@ -1020,7 +1039,7 @@ func getPAMConfig(c *ServerContext) (*reexec.PAMConfig, error) {
 	environment := make(map[string]string)
 	environment["TELEPORT_USERNAME"] = c.Identity.TeleportUser
 	environment["TELEPORT_LOGIN"] = c.Identity.Login
-	environment["TELEPORT_ROLES"] = strings.Join(c.Identity.AccessPermit.MappedRoles, " ")
+	environment["TELEPORT_ROLES"] = strings.Join(c.Identity.AccessPermit.GetMappedRoles(), " ")
 	if localPAMConfig.Environment != nil {
 		for key, value := range localPAMConfig.Environment {
 			expr, err := parse.NewTraitsTemplateExpression(value)
@@ -1093,7 +1112,7 @@ func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {
 	var mappedRoles []string
 	switch {
 	case c.Identity.AccessPermit != nil:
-		mappedRoles = c.Identity.AccessPermit.MappedRoles
+		mappedRoles = c.Identity.AccessPermit.GetMappedRoles()
 	case c.Identity.ProxyingPermit != nil:
 		mappedRoles = c.Identity.ProxyingPermit.MappedRoles
 	default:
@@ -1117,6 +1136,7 @@ func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {
 		Environment:           buildEnvironment(c),
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
+		TestLoginShell:        c.TestLoginShell,
 		UaccMetadata:          *uaccMetadata,
 		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
 		RecordWithBPF:         c.recordWithBPF(),
@@ -1140,6 +1160,16 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		userKind = apievents.UserKind_USER_KIND_BOT
 	}
 
+	// Extract scoped info from the scope pin if it's present. Since scopes do
+	// not support trusted clusters, the scope pin should always be available
+	// on the unmapped identity for all scoped identities.
+	var scopePin *scopesv1.Pin
+	var beamID string
+	if id.UnmappedIdentity != nil {
+		scopePin = id.UnmappedIdentity.ScopePin
+		beamID = id.UnmappedIdentity.BeamID
+	}
+
 	return apievents.UserMetadata{
 		Login:           id.Login,
 		User:            id.TeleportUser,
@@ -1152,6 +1182,8 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		UserClusterName: id.OriginClusterName,
 		UserRoles:       slices.Clone(id.MappedRoles),
 		UserTraits:      id.Traits.Clone(),
+		ScopePin:        pinning.ToEventsPin(scopePin),
+		BeamID:          beamID,
 	}
 }
 

@@ -45,6 +45,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -311,17 +312,17 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	var nodeID string
 	// verify node control stream registers, extracting the id.
 	require.Eventually(t, func() bool {
-		status, err := clt.GetInventoryStatus(context.Background(), &proto.InventoryStatusRequest{
+		status, err := clt.GetInventoryStatus(context.Background(), proto.InventoryStatusRequest_builder{
 			Connected: true,
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		for _, hello := range status.Connected {
-			for _, s := range hello.Services {
+		for _, hello := range status.GetConnected() {
+			for _, s := range hello.GetServices() {
 				if s != string(types.RoleNode) {
 					continue
 				}
-				nodeID = hello.ServerID
+				nodeID = hello.GetServerID()
 				return true
 			}
 		}
@@ -9512,9 +9513,10 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 
 		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
 		if err != nil {
-			// If the connection does not perform an SSH handshake, then this is just
-			// a readiness probe (raw TCP Dial) from the test.
-			if utils.IsOKNetworkError(err) {
+			// WaitForNodeCount performs a raw TCP preflight dial and closes it without
+			// completing an SSH handshake. Depending on timing, the server can observe
+			// either EOF or ECONNRESET.
+			if utils.IsOKNetworkError(err) || errors.Is(err, syscall.ECONNRESET) {
 				return
 			}
 			assert.NoError(t, err)

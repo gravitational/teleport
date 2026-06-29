@@ -19,7 +19,10 @@ package cache
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -362,7 +365,12 @@ func TestGetAccessListOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			// this busyloop will eventually hit a deadlock if
+			// GetAccessListOwners becomes reentrant again
+			stop := spinloopRWMutex(&p.cache.rw)
+			defer stop()
 			owners, err := p.cache.GetAccessListOwners(ctx, al.GetName())
+			stop()
 			assert.NoError(t, err)
 
 			names := make([]string, 0, len(owners))
@@ -414,7 +422,12 @@ func TestGetAccessListOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			// this busyloop will eventually hit a deadlock if
+			// GetAccessListOwners becomes reentrant again
+			stop := spinloopRWMutex(&p.cache.rw)
+			defer stop()
 			owners, err := p.cache.GetAccessListOwners(ctx, parentList.GetName())
+			stop()
 			assert.NoError(t, err)
 
 			names := make([]string, 0, len(owners))
@@ -425,6 +438,25 @@ func TestGetAccessListOwners(t *testing.T) {
 			assert.ElementsMatch(t, []string{"nested-member-1", "nested-member-2"}, names)
 		}, 15*time.Second, 100*time.Millisecond)
 	})
+}
+
+func spinloopRWMutex(mu *sync.RWMutex) (stop func()) {
+	var wg sync.WaitGroup
+	var done atomic.Bool
+	wg.Go(func() {
+		for !done.Load() {
+			mu.Lock()
+			// this critical section is deliberately left empty
+			_ = 0
+			mu.Unlock()
+			// Gosched is generally discouraged but so are spinloops...
+			runtime.Gosched()
+		}
+	})
+	return func() {
+		done.Store(true)
+		wg.Wait()
+	}
 }
 
 func TestListAccessListsV2(t *testing.T) {
@@ -519,14 +551,14 @@ func TestListAccessListsV2(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				results, nextToken, err := p.cache.ListAccessListsV2(ctx, &accesslistv1.ListAccessListsV2Request{
+				results, nextToken, err := p.cache.ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
 					PageSize:  int32(tc.pageSize),
 					PageToken: tc.startKey,
-					Filter: &accesslistv1.AccessListsFilter{
+					Filter: accesslistv1.AccessListsFilter_builder{
 						Search: tc.search,
-					},
+					}.Build(),
 					SortBy: tc.sortBy,
-				})
+				}.Build())
 				require.NoError(t, err)
 				require.Equal(t, tc.expectedNextKey, nextToken)
 

@@ -54,13 +54,13 @@ func newSPIFFEFederationCollection(upstream services.SPIFFEFederations, w types.
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *machineidv1.SPIFFEFederation {
-			return &machineidv1.SPIFFEFederation{
+			return machineidv1.SPIFFEFederation_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil

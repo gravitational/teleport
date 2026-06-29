@@ -373,12 +373,21 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.RETRIEVAL_MODEL_CREATE]: Icons.Info,
   [eventCodes.RETRIEVAL_MODEL_UPDATE]: Icons.Info,
   [eventCodes.RETRIEVAL_MODEL_DELETE]: Icons.Info,
+  [eventCodes.CLASSIFIER_CREATE]: Icons.Info,
+  [eventCodes.CLASSIFIER_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.CLASSIFIER_UPDATE]: Icons.Info,
+  [eventCodes.CLASSIFIER_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.CLASSIFIER_DELETE]: Icons.Info,
+  [eventCodes.CLASSIFIER_DELETE_FAILURE]: Icons.Warning,
   [eventCodes.SESSION_SUMMARIZED]: Icons.Info,
   [eventCodes.SESSION_SUMMARIZED_FAILURE]: Icons.Warning,
   [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: Icons.Info,
   [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: Icons.Info,
   [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: Icons.Info,
   [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: Icons.Info,
+  [eventCodes.BEAMS_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.BEAMS_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.BEAMS_CONFIG_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

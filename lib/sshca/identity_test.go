@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -48,17 +49,17 @@ func TestIdentityConversion(t *testing.T) {
 		ClusterName: "some-cluster",
 		SystemRole:  types.RoleNode,
 		Username:    "user",
-		ScopePin: &scopesv1.Pin{
+		ScopePin: scopesv1.Pin_builder{
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
-			SystemRoles: &scopesv1.SystemRoles{
+			SystemRoles: scopesv1.SystemRoles_builder{
 				Primary:    "node",
 				Additional: []string{"proxy"},
-			},
+			}.Build(),
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"role1", "role2"}},
 			}),
-		},
+		}.Build(),
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
 		PermitX11Forwarding:     true,
@@ -109,13 +110,14 @@ func TestIdentityConversion(t *testing.T) {
 		GitHubUsername:           "ghuser",
 		HeadlessAuthenticationID: "headless-auth-id",
 		DelegationSessionID:      "delegation-session-id",
+		BeamID:                   "beam-id",
 		AgentScope:               "/foo",
-		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
+		ImmutableLabelHash: joining.HashImmutableLabels(joiningv1.ImmutableLabels_builder{
 			Ssh: map[string]string{
 				"one": "1",
 				"two": "2",
 			},
-		}),
+		}.Build()),
 	}
 
 	ignores := []string{
@@ -164,6 +166,69 @@ func TestIdentityConversion(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(ident, ident2, protocmp.Transform()))
+}
+
+func TestIdentityEncodeReservesBeamIDCertExtension(t *testing.T) {
+	const (
+		customExtensionName  = "login@example.com"
+		customExtensionValue = "custom-extension-value"
+		roleBeamID           = "role-supplied-beam-id"
+		serverBeamID         = "server-derived-beam-id"
+	)
+
+	for _, tt := range []struct {
+		name       string
+		beamID     string
+		wantBeamID string
+	}{
+		{
+			name:       "server derived Beam ID is preserved",
+			beamID:     serverBeamID,
+			wantBeamID: serverBeamID,
+		},
+		{
+			name: "role extension cannot create Beam attribution",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ident := &Identity{
+				CertType: ssh.UserCert,
+				Username: "user",
+				BeamID:   tt.beamID,
+				CertificateExtensions: []*types.CertExtension{
+					{
+						Name:  teleport.CertExtensionBeamID,
+						Value: roleBeamID,
+						Type:  types.CertExtensionType_SSH,
+						Mode:  types.CertExtensionMode_EXTENSION,
+					},
+					{
+						Name:  customExtensionName,
+						Value: customExtensionValue,
+						Type:  types.CertExtensionType_SSH,
+						Mode:  types.CertExtensionMode_EXTENSION,
+					},
+				},
+			}
+
+			cert, err := ident.Encode(constants.CertificateFormatStandard)
+			require.NoError(t, err)
+
+			require.Equal(t, customExtensionValue, cert.Extensions[customExtensionName])
+			if tt.wantBeamID == "" {
+				require.NotContains(t, cert.Extensions, teleport.CertExtensionBeamID)
+			} else {
+				require.Equal(t, tt.wantBeamID, cert.Extensions[teleport.CertExtensionBeamID])
+			}
+
+			decoded, err := DecodeIdentity(cert)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantBeamID, decoded.BeamID)
+			for _, extension := range decoded.CertificateExtensions {
+				require.NotEqual(t, teleport.CertExtensionBeamID, extension.Name)
+			}
+		})
+	}
 }
 
 // TestAllowedResources_SSHEncodeDecode verifies that AllowedResourceIDs and

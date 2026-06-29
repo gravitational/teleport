@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -38,6 +39,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -350,6 +352,7 @@ func (s *ForwardServer) onRBACFailure(conn ssh.ConnMetadata, ident *sshca.Identi
 			Login:         gitUser,
 			User:          ident.Username,
 			TrustedDevice: ident.GetDeviceMetadata(),
+			BeamID:        ident.BeamID,
 		},
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  conn.LocalAddr().String(),
@@ -770,6 +773,12 @@ func (s *ForwardServer) ChildLogConfig() srv.ChildLogConfig {
 		ExecLogConfig: reexec.ExecLogConfig{},
 		Writer:        io.Discard,
 	}
+}
+
+// GetPresenceMaxDuration returns the max duration that a moderated session
+// can continue between presence verifications.
+func (s *ForwardServer) GetPresenceMaxDuration() time.Duration {
+	return client.DefaultPresenceMaxDuration
 }
 
 type serverContextKey struct{}

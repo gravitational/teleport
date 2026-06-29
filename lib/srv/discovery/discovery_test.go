@@ -358,6 +358,25 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	dcForEC2StatusWithoutIntegrationName := uuid.NewString()
+	dcForEC2StatusWithoutIntegration, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: dcForEC2StatusWithoutIntegrationName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+			}},
+		},
+	)
+	require.NoError(t, err)
+
 	tcs := []struct {
 		name          string
 		requiresProxy bool
@@ -646,8 +665,25 @@ func TestDiscoveryServer(t *testing.T) {
 					}, ae)
 				},
 			},
-			staticMatchers:         Matchers{},
-			discoveryConfig:        defaultDiscoveryConfig,
+			staticMatchers:  Matchers{},
+			discoveryConfig: defaultDiscoveryConfig,
+			wantDiscoveryConfigStatus: &discoveryconfig.Status{
+				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				ErrorMessage:        nil,
+				DiscoveredResources: 1,
+				LastSyncTime:        time.Now().UTC(),
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+					"": {
+						IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
+							AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+								Found:    1,
+								Enrolled: 0,
+								Failed:   0,
+							}.Build(),
+						}.Build(),
+					},
+				},
+			},
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
 		{
@@ -702,13 +738,13 @@ func TestDiscoveryServer(t *testing.T) {
 				LastSyncTime:        time.Now().UTC(),
 				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					"my-integration": {
-						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
-							AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+						IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
+							AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
 								Found:    1,
 								Enrolled: 0,
 								Failed:   0,
-							},
-						},
+							}.Build(),
+						}.Build(),
 					},
 				},
 			},
@@ -729,13 +765,40 @@ func TestDiscoveryServer(t *testing.T) {
 				LastSyncTime:        time.Now().UTC(),
 				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					"my-integration": {
-						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
-							AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+						IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
+							AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
 								Found:    0,
 								Enrolled: 0,
 								Failed:   0,
-							},
-						},
+							}.Build(),
+						}.Build(),
+					},
+				},
+			},
+			wantInstalledInstances: []string{},
+		},
+		{
+			name:              "no nodes found using DiscoveryConfig without Integration, but DiscoveryConfig Status is still updated",
+			presentInstances:  []types.Server{},
+			foundEC2Instances: []ec2types.Instance{},
+			ssm:               &mockSSMClient{},
+			emitter:           &mockEmitter{},
+			staticMatchers:    Matchers{},
+			discoveryConfig:   dcForEC2StatusWithoutIntegration,
+			wantDiscoveryConfigStatus: &discoveryconfig.Status{
+				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				ErrorMessage:        nil,
+				DiscoveredResources: 0,
+				LastSyncTime:        time.Now().UTC(),
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+					"": {
+						IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
+							AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+								Found:    0,
+								Enrolled: 0,
+								Failed:   0,
+							}.Build(),
+						}.Build(),
 					},
 				},
 			},
@@ -793,19 +856,19 @@ func TestDiscoveryServer(t *testing.T) {
 				existingTasks := fetchAllUserTasks(t, userTasksClt, atLeastOneUserTask, 0)
 				existingTask := existingTasks[0]
 
-				require.Equal(t, "OPEN", existingTask.GetSpec().State)
-				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
-				require.Equal(t, "ec2-ssm-invocation-failure", existingTask.GetSpec().IssueType)
+				require.Equal(t, "OPEN", existingTask.GetSpec().GetState())
+				require.Equal(t, "my-integration", existingTask.GetSpec().GetIntegration())
+				require.Equal(t, "ec2-ssm-invocation-failure", existingTask.GetSpec().GetIssueType())
 				require.Equal(t, "owner", existingTask.GetSpec().GetDiscoverEc2().GetAccountId())
 				require.Equal(t, "eu-west-2", existingTask.GetSpec().GetDiscoverEc2().GetRegion())
 
-				taskInstances := existingTask.GetSpec().GetDiscoverEc2().Instances
+				taskInstances := existingTask.GetSpec().GetDiscoverEc2().GetInstances()
 				require.Contains(t, taskInstances, "instance-id-1")
 				taskInstance := taskInstances["instance-id-1"]
 
-				require.Equal(t, "instance-id-1", taskInstance.InstanceId)
-				require.Equal(t, discoveryConfigForUserTaskEC2TestName, taskInstance.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskInstance.DiscoveryGroup)
+				require.Equal(t, "instance-id-1", taskInstance.GetInstanceId())
+				require.Equal(t, discoveryConfigForUserTaskEC2TestName, taskInstance.GetDiscoveryConfig())
+				require.Equal(t, defaultDiscoveryGroup, taskInstance.GetDiscoveryGroup())
 			},
 		},
 	}
@@ -981,8 +1044,8 @@ func TestDiscoveryServer(t *testing.T) {
 
 func requireSyncTimesSet(t *testing.T, summary *discoveryconfigv1.ResourcesDiscoveredSummary) {
 	require.NotNil(t, summary)
-	require.True(t, summary.SyncStart.AsTime().After(time.Unix(0, 0)))
-	require.True(t, summary.SyncEnd.AsTime().After(time.Unix(0, 0)))
+	require.True(t, summary.GetSyncStart().AsTime().After(time.Unix(0, 0)))
+	require.True(t, summary.GetSyncEnd().AsTime().After(time.Unix(0, 0)))
 }
 
 func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTasks, minUserTaskResources int) []*usertasksv1.UserTask {
@@ -2695,9 +2758,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 			},
 			wantEvents: 1,
 			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
-				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Enrolled)
-				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Found)
-				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsRds.Failed)
+				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.GetEnrolled())
+				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.GetFound())
+				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsRds.GetFailed())
 			},
 			discoveryConfigStatusExpectedResources: 1,
 		},
@@ -2729,8 +2792,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 			expectDatabases: []types.Database{},
 			wantEvents:      0,
 			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
-				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsEks.Found)
-				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsEks.Enrolled)
+				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsEks.GetFound())
+				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsEks.GetEnrolled())
 			},
 			discoveryConfigStatusExpectedResources: 1,
 		},
@@ -2792,11 +2855,11 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 				require.Contains(t, gotUserTask.GetSpec().GetDiscoverRds().GetDatabases(), "aws-rds")
 				gotDatabase := gotUserTask.GetSpec().GetDiscoverRds().GetDatabases()["aws-rds"]
-				require.Equal(t, "my-discovery-config", gotDatabase.DiscoveryConfig)
-				require.Equal(t, "main", gotDatabase.DiscoveryGroup)
-				require.Equal(t, "postgres", gotDatabase.Engine)
-				require.Equal(t, "aws-rds", gotDatabase.Name)
-				require.False(t, gotDatabase.IsCluster)
+				require.Equal(t, "my-discovery-config", gotDatabase.GetDiscoveryConfig())
+				require.Equal(t, "main", gotDatabase.GetDiscoveryGroup())
+				require.Equal(t, "postgres", gotDatabase.GetEngine())
+				require.Equal(t, "aws-rds", gotDatabase.GetName())
+				require.False(t, gotDatabase.GetIsCluster())
 			},
 		},
 	}
@@ -3487,34 +3550,34 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, tasks, 1)
 
-				expectedTask := &usertasksv1.UserTask{
+				expectedTask := usertasksv1.UserTask_builder{
 					Kind:    types.KindUserTask,
 					Version: types.V1,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "d09fef6d-2454-5bdd-80c7-db7edddf2a2e", // stable hash
-					},
-					Spec: &usertasksv1.UserTaskSpec{
+					}.Build(),
+					Spec: usertasksv1.UserTaskSpec_builder{
 						Integration: dummyIntegration,
 						TaskType:    usertasks.TaskTypeDiscoverAzureVM,
 						IssueType:   usertasks.AutoDiscoverAzureVMIssueMissingRunCommandsPermission,
 						State:       usertasks.TaskStateOpen,
-						DiscoverAzureVm: &usertasksv1.DiscoverAzureVM{
+						DiscoverAzureVm: usertasksv1.DiscoverAzureVM_builder{
 							Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
-								"bad-api0-vmid": {
+								"bad-api0-vmid": usertasksv1.DiscoverAzureVMInstance_builder{
 									ResourceId:      "/subscriptions/testsub/resourceGroups/testrg/providers/Microsoft.Compute/virtualMachines/bad-api0",
 									VmId:            "bad-api0-vmid",
 									Name:            "bad-api0",
 									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
 									DiscoveryGroup:  defaultDiscoveryGroup,
-								},
+								}.Build(),
 							},
 							SubscriptionId: "testsub",
 							ResourceGroup:  "testrg",
 							Region:         "westcentralus",
-						},
-					},
+						}.Build(),
+					}.Build(),
 					Status: nil,
-				}
+				}.Build()
 
 				require.Empty(t, cmp.Diff(expectedTask, tasks[0],
 					protocmp.Transform(),

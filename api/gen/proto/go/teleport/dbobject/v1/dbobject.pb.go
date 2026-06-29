@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/dbobject/v1/dbobject.proto
 
+//go:build !protoopaque
+
 package dbobjectv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // An example of such object would be a database table, along with various metadata.
 // For rationale behind this type, see the RFD 151.
 type DatabaseObject struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Mandatory field for all resources. Not populated for this resource type.
@@ -80,11 +81,6 @@ func (x *DatabaseObject) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseObject.ProtoReflect.Descriptor instead.
-func (*DatabaseObject) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobject_v1_dbobject_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DatabaseObject) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -120,9 +116,78 @@ func (x *DatabaseObject) GetSpec() *DatabaseObjectSpec {
 	return nil
 }
 
+func (x *DatabaseObject) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *DatabaseObject) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *DatabaseObject) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *DatabaseObject) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *DatabaseObject) SetSpec(v *DatabaseObjectSpec) {
+	x.Spec = v
+}
+
+func (x *DatabaseObject) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *DatabaseObject) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *DatabaseObject) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *DatabaseObject) ClearSpec() {
+	x.Spec = nil
+}
+
+type DatabaseObject_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented.
+	Kind string
+	// Mandatory field for all resources. Not populated for this resource type.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	Metadata *v1.Metadata
+	// Specification for the database object.
+	Spec *DatabaseObjectSpec
+}
+
+func (b0 DatabaseObject_builder) Build() *DatabaseObject {
+	m0 := &DatabaseObject{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // DatabaseObjectSpec is the spec for the database object.
 type DatabaseObjectSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The protocol used to connect to the database (e.g., postgres). Required.
 	Protocol string `protobuf:"bytes,1,opt,name=protocol,proto3" json:"protocol,omitempty"`
 	// The name of the database service that this object belongs to. Required.
@@ -162,11 +227,6 @@ func (x *DatabaseObjectSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DatabaseObjectSpec.ProtoReflect.Descriptor instead.
-func (*DatabaseObjectSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobject_v1_dbobject_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *DatabaseObjectSpec) GetProtocol() string {
@@ -211,6 +271,60 @@ func (x *DatabaseObjectSpec) GetName() string {
 	return ""
 }
 
+func (x *DatabaseObjectSpec) SetProtocol(v string) {
+	x.Protocol = v
+}
+
+func (x *DatabaseObjectSpec) SetDatabaseServiceName(v string) {
+	x.DatabaseServiceName = v
+}
+
+func (x *DatabaseObjectSpec) SetObjectKind(v string) {
+	x.ObjectKind = v
+}
+
+func (x *DatabaseObjectSpec) SetDatabase(v string) {
+	x.Database = v
+}
+
+func (x *DatabaseObjectSpec) SetSchema(v string) {
+	x.Schema = v
+}
+
+func (x *DatabaseObjectSpec) SetName(v string) {
+	x.Name = v
+}
+
+type DatabaseObjectSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The protocol used to connect to the database (e.g., postgres). Required.
+	Protocol string
+	// The name of the database service that this object belongs to. Required.
+	DatabaseServiceName string
+	// The kind of database object (e.g., table, view). Required.
+	ObjectKind string
+	// The database containing the object. Optional.
+	Database string
+	// The schema containing the object (if applicable). Optional.
+	Schema string
+	// The name of the object. Required.
+	Name string
+}
+
+func (b0 DatabaseObjectSpec_builder) Build() *DatabaseObjectSpec {
+	m0 := &DatabaseObjectSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Protocol = b.Protocol
+	x.DatabaseServiceName = b.DatabaseServiceName
+	x.ObjectKind = b.ObjectKind
+	x.Database = b.Database
+	x.Schema = b.Schema
+	x.Name = b.Name
+	return m0
+}
+
 var File_teleport_dbobject_v1_dbobject_proto protoreflect.FileDescriptor
 
 const file_teleport_dbobject_v1_dbobject_proto_rawDesc = "" +
@@ -230,18 +344,6 @@ const file_teleport_dbobject_v1_dbobject_proto_rawDesc = "" +
 	"\bdatabase\x18\x04 \x01(\tR\bdatabase\x12\x16\n" +
 	"\x06schema\x18\x05 \x01(\tR\x06schema\x12\x12\n" +
 	"\x04name\x18\x06 \x01(\tR\x04nameBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1;dbobjectv1b\x06proto3"
-
-var (
-	file_teleport_dbobject_v1_dbobject_proto_rawDescOnce sync.Once
-	file_teleport_dbobject_v1_dbobject_proto_rawDescData []byte
-)
-
-func file_teleport_dbobject_v1_dbobject_proto_rawDescGZIP() []byte {
-	file_teleport_dbobject_v1_dbobject_proto_rawDescOnce.Do(func() {
-		file_teleport_dbobject_v1_dbobject_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_dbobject_v1_dbobject_proto_rawDesc), len(file_teleport_dbobject_v1_dbobject_proto_rawDesc)))
-	})
-	return file_teleport_dbobject_v1_dbobject_proto_rawDescData
-}
 
 var file_teleport_dbobject_v1_dbobject_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_dbobject_v1_dbobject_proto_goTypes = []any{

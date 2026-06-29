@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/resources.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
@@ -33,7 +35,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -46,7 +47,7 @@ const (
 
 // ResourceList is a list of resources to send to the access graph.
 type ResourceList struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Resources     []*ResourceEntry       `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -77,11 +78,6 @@ func (x *ResourceList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResourceList.ProtoReflect.Descriptor instead.
-func (*ResourceList) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_resources_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ResourceList) GetResources() []*ResourceEntry {
 	if x != nil {
 		return x.Resources
@@ -89,9 +85,27 @@ func (x *ResourceList) GetResources() []*ResourceEntry {
 	return nil
 }
 
+func (x *ResourceList) SetResources(v []*ResourceEntry) {
+	x.Resources = v
+}
+
+type ResourceList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Resources []*ResourceEntry
+}
+
+func (b0 ResourceList_builder) Build() *ResourceList {
+	m0 := &ResourceList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	return m0
+}
+
 // ResourceHeaderList is a list of resource headers to send to the access graph.
 type ResourceHeaderList struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
+	state         protoimpl.MessageState  `protogen:"hybrid.v1"`
 	Resources     []*types.ResourceHeader `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -122,11 +136,6 @@ func (x *ResourceHeaderList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResourceHeaderList.ProtoReflect.Descriptor instead.
-func (*ResourceHeaderList) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_resources_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ResourceHeaderList) GetResources() []*types.ResourceHeader {
 	if x != nil {
 		return x.Resources
@@ -134,9 +143,27 @@ func (x *ResourceHeaderList) GetResources() []*types.ResourceHeader {
 	return nil
 }
 
+func (x *ResourceHeaderList) SetResources(v []*types.ResourceHeader) {
+	x.Resources = v
+}
+
+type ResourceHeaderList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Resources []*types.ResourceHeader
+}
+
+func (b0 ResourceHeaderList_builder) Build() *ResourceHeaderList {
+	m0 := &ResourceHeaderList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	return m0
+}
+
 // AccessListsMembers is the request to declare users as members of access lists.
 type AccessListsMembers struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// members is the list of members to add to access lists.
 	Members       []*v1.Member `protobuf:"bytes,1,rep,name=members,proto3" json:"members,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -168,11 +195,6 @@ func (x *AccessListsMembers) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessListsMembers.ProtoReflect.Descriptor instead.
-func (*AccessListsMembers) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_resources_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *AccessListsMembers) GetMembers() []*v1.Member {
 	if x != nil {
 		return x.Members
@@ -180,9 +202,28 @@ func (x *AccessListsMembers) GetMembers() []*v1.Member {
 	return nil
 }
 
+func (x *AccessListsMembers) SetMembers(v []*v1.Member) {
+	x.Members = v
+}
+
+type AccessListsMembers_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// members is the list of members to add to access lists.
+	Members []*v1.Member
+}
+
+func (b0 AccessListsMembers_builder) Build() *AccessListsMembers {
+	m0 := &AccessListsMembers{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Members = b.Members
+	return m0
+}
+
 // ExcludeAccessListsMembers is the request to exclude users from access lists.
 type ExcludeAccessListsMembers struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
+	state         protoimpl.MessageState     `protogen:"hybrid.v1"`
 	Members       []*ExcludeAccessListMember `protobuf:"bytes,1,rep,name=members,proto3" json:"members,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -213,11 +254,6 @@ func (x *ExcludeAccessListsMembers) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExcludeAccessListsMembers.ProtoReflect.Descriptor instead.
-func (*ExcludeAccessListsMembers) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_resources_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ExcludeAccessListsMembers) GetMembers() []*ExcludeAccessListMember {
 	if x != nil {
 		return x.Members
@@ -225,9 +261,27 @@ func (x *ExcludeAccessListsMembers) GetMembers() []*ExcludeAccessListMember {
 	return nil
 }
 
+func (x *ExcludeAccessListsMembers) SetMembers(v []*ExcludeAccessListMember) {
+	x.Members = v
+}
+
+type ExcludeAccessListsMembers_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Members []*ExcludeAccessListMember
+}
+
+func (b0 ExcludeAccessListsMembers_builder) Build() *ExcludeAccessListsMembers {
+	m0 := &ExcludeAccessListsMembers{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Members = b.Members
+	return m0
+}
+
 // ExcludeAccessListMember is the request to exclude a user from an access list.
 type ExcludeAccessListMember struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	AccessList    string                 `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -259,11 +313,6 @@ func (x *ExcludeAccessListMember) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExcludeAccessListMember.ProtoReflect.Descriptor instead.
-func (*ExcludeAccessListMember) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_resources_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ExcludeAccessListMember) GetAccessList() string {
 	if x != nil {
 		return x.AccessList
@@ -278,9 +327,33 @@ func (x *ExcludeAccessListMember) GetUsername() string {
 	return ""
 }
 
+func (x *ExcludeAccessListMember) SetAccessList(v string) {
+	x.AccessList = v
+}
+
+func (x *ExcludeAccessListMember) SetUsername(v string) {
+	x.Username = v
+}
+
+type ExcludeAccessListMember_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	AccessList string
+	Username   string
+}
+
+func (b0 ExcludeAccessListMember_builder) Build() *ExcludeAccessListMember {
+	m0 := &ExcludeAccessListMember{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AccessList = b.AccessList
+	x.Username = b.Username
+	return m0
+}
+
 // ResourceEntry is a wrapper for the supported resource types.
 type ResourceEntry struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Resource:
 	//
 	//	*ResourceEntry_User
@@ -325,11 +398,6 @@ func (x *ResourceEntry) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResourceEntry.ProtoReflect.Descriptor instead.
-func (*ResourceEntry) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_resources_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ResourceEntry) GetResource() isResourceEntry_Resource {
@@ -463,6 +531,473 @@ func (x *ResourceEntry) GetAuthorizedKey() *v14.AuthorizedKey {
 		}
 	}
 	return nil
+}
+
+func (x *ResourceEntry) SetUser(v *types.UserV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_User{v}
+}
+
+func (x *ResourceEntry) SetRole(v *types.RoleV6) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_Role{v}
+}
+
+func (x *ResourceEntry) SetServer(v *types.ServerV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_Server{v}
+}
+
+func (x *ResourceEntry) SetAccessRequest(v *types.AccessRequestV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_AccessRequest{v}
+}
+
+func (x *ResourceEntry) SetKubernetesServer(v *types.KubernetesServerV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_KubernetesServer{v}
+}
+
+func (x *ResourceEntry) SetAppServer(v *types.AppServerV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_AppServer{v}
+}
+
+func (x *ResourceEntry) SetDatabaseServer(v *types.DatabaseServerV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_DatabaseServer{v}
+}
+
+func (x *ResourceEntry) SetWindowsDesktop(v *types.WindowsDesktopV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_WindowsDesktop{v}
+}
+
+func (x *ResourceEntry) SetAccessList(v *v1.AccessList) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_AccessList{v}
+}
+
+func (x *ResourceEntry) SetCrownJewel(v *v11.CrownJewel) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_CrownJewel{v}
+}
+
+func (x *ResourceEntry) SetDatabaseObject(v *v12.DatabaseObject) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_DatabaseObject{v}
+}
+
+func (x *ResourceEntry) SetDevice(v *v13.Device) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_Device{v}
+}
+
+func (x *ResourceEntry) SetPrivateKey(v *v14.PrivateKey) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_PrivateKey{v}
+}
+
+func (x *ResourceEntry) SetAuthorizedKey(v *v14.AuthorizedKey) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &ResourceEntry_AuthorizedKey{v}
+}
+
+func (x *ResourceEntry) HasResource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Resource != nil
+}
+
+func (x *ResourceEntry) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_User)
+	return ok
+}
+
+func (x *ResourceEntry) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_Role)
+	return ok
+}
+
+func (x *ResourceEntry) HasServer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_Server)
+	return ok
+}
+
+func (x *ResourceEntry) HasAccessRequest() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_AccessRequest)
+	return ok
+}
+
+func (x *ResourceEntry) HasKubernetesServer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_KubernetesServer)
+	return ok
+}
+
+func (x *ResourceEntry) HasAppServer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_AppServer)
+	return ok
+}
+
+func (x *ResourceEntry) HasDatabaseServer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_DatabaseServer)
+	return ok
+}
+
+func (x *ResourceEntry) HasWindowsDesktop() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_WindowsDesktop)
+	return ok
+}
+
+func (x *ResourceEntry) HasAccessList() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_AccessList)
+	return ok
+}
+
+func (x *ResourceEntry) HasCrownJewel() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_CrownJewel)
+	return ok
+}
+
+func (x *ResourceEntry) HasDatabaseObject() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_DatabaseObject)
+	return ok
+}
+
+func (x *ResourceEntry) HasDevice() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_Device)
+	return ok
+}
+
+func (x *ResourceEntry) HasPrivateKey() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_PrivateKey)
+	return ok
+}
+
+func (x *ResourceEntry) HasAuthorizedKey() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*ResourceEntry_AuthorizedKey)
+	return ok
+}
+
+func (x *ResourceEntry) ClearResource() {
+	x.Resource = nil
+}
+
+func (x *ResourceEntry) ClearUser() {
+	if _, ok := x.Resource.(*ResourceEntry_User); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearRole() {
+	if _, ok := x.Resource.(*ResourceEntry_Role); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearServer() {
+	if _, ok := x.Resource.(*ResourceEntry_Server); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearAccessRequest() {
+	if _, ok := x.Resource.(*ResourceEntry_AccessRequest); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearKubernetesServer() {
+	if _, ok := x.Resource.(*ResourceEntry_KubernetesServer); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearAppServer() {
+	if _, ok := x.Resource.(*ResourceEntry_AppServer); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearDatabaseServer() {
+	if _, ok := x.Resource.(*ResourceEntry_DatabaseServer); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearWindowsDesktop() {
+	if _, ok := x.Resource.(*ResourceEntry_WindowsDesktop); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearAccessList() {
+	if _, ok := x.Resource.(*ResourceEntry_AccessList); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearCrownJewel() {
+	if _, ok := x.Resource.(*ResourceEntry_CrownJewel); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearDatabaseObject() {
+	if _, ok := x.Resource.(*ResourceEntry_DatabaseObject); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearDevice() {
+	if _, ok := x.Resource.(*ResourceEntry_Device); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearPrivateKey() {
+	if _, ok := x.Resource.(*ResourceEntry_PrivateKey); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *ResourceEntry) ClearAuthorizedKey() {
+	if _, ok := x.Resource.(*ResourceEntry_AuthorizedKey); ok {
+		x.Resource = nil
+	}
+}
+
+const ResourceEntry_Resource_not_set_case case_ResourceEntry_Resource = 0
+const ResourceEntry_User_case case_ResourceEntry_Resource = 1
+const ResourceEntry_Role_case case_ResourceEntry_Resource = 2
+const ResourceEntry_Server_case case_ResourceEntry_Resource = 3
+const ResourceEntry_AccessRequest_case case_ResourceEntry_Resource = 4
+const ResourceEntry_KubernetesServer_case case_ResourceEntry_Resource = 5
+const ResourceEntry_AppServer_case case_ResourceEntry_Resource = 6
+const ResourceEntry_DatabaseServer_case case_ResourceEntry_Resource = 7
+const ResourceEntry_WindowsDesktop_case case_ResourceEntry_Resource = 8
+const ResourceEntry_AccessList_case case_ResourceEntry_Resource = 9
+const ResourceEntry_CrownJewel_case case_ResourceEntry_Resource = 10
+const ResourceEntry_DatabaseObject_case case_ResourceEntry_Resource = 11
+const ResourceEntry_Device_case case_ResourceEntry_Resource = 12
+const ResourceEntry_PrivateKey_case case_ResourceEntry_Resource = 13
+const ResourceEntry_AuthorizedKey_case case_ResourceEntry_Resource = 14
+
+func (x *ResourceEntry) WhichResource() case_ResourceEntry_Resource {
+	if x == nil {
+		return ResourceEntry_Resource_not_set_case
+	}
+	switch x.Resource.(type) {
+	case *ResourceEntry_User:
+		return ResourceEntry_User_case
+	case *ResourceEntry_Role:
+		return ResourceEntry_Role_case
+	case *ResourceEntry_Server:
+		return ResourceEntry_Server_case
+	case *ResourceEntry_AccessRequest:
+		return ResourceEntry_AccessRequest_case
+	case *ResourceEntry_KubernetesServer:
+		return ResourceEntry_KubernetesServer_case
+	case *ResourceEntry_AppServer:
+		return ResourceEntry_AppServer_case
+	case *ResourceEntry_DatabaseServer:
+		return ResourceEntry_DatabaseServer_case
+	case *ResourceEntry_WindowsDesktop:
+		return ResourceEntry_WindowsDesktop_case
+	case *ResourceEntry_AccessList:
+		return ResourceEntry_AccessList_case
+	case *ResourceEntry_CrownJewel:
+		return ResourceEntry_CrownJewel_case
+	case *ResourceEntry_DatabaseObject:
+		return ResourceEntry_DatabaseObject_case
+	case *ResourceEntry_Device:
+		return ResourceEntry_Device_case
+	case *ResourceEntry_PrivateKey:
+		return ResourceEntry_PrivateKey_case
+	case *ResourceEntry_AuthorizedKey:
+		return ResourceEntry_AuthorizedKey_case
+	default:
+		return ResourceEntry_Resource_not_set_case
+	}
+}
+
+type ResourceEntry_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Resource:
+	// user is a user resource
+	User *types.UserV2
+	// role is a role resource
+	Role *types.RoleV6
+	// server is a node/server resource
+	Server *types.ServerV2
+	// access_request is a resource for access requests
+	AccessRequest *types.AccessRequestV3
+	// kubernetes_server is a kubernetes server resource
+	KubernetesServer *types.KubernetesServerV3
+	// app_server is an application server resource
+	AppServer *types.AppServerV3
+	// database_server is a database server resource
+	DatabaseServer *types.DatabaseServerV3
+	// windows_desktop is a resource for Windows desktop host.
+	WindowsDesktop *types.WindowsDesktopV3
+	// access_list is a resource for access lists.
+	AccessList *v1.AccessList
+	// crown_jewel is a resource for crown jewels.
+	CrownJewel *v11.CrownJewel
+	// database_object is a resource for database objects.
+	DatabaseObject *v12.DatabaseObject
+	// device is a device trust resource.
+	Device *v13.Device
+	// private_key represents a private key resource found in user's laptops.
+	PrivateKey *v14.PrivateKey
+	// authorized_key represents a authorized key for a server.
+	AuthorizedKey *v14.AuthorizedKey
+	// -- end of Resource
+}
+
+func (b0 ResourceEntry_builder) Build() *ResourceEntry {
+	m0 := &ResourceEntry{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.User != nil {
+		x.Resource = &ResourceEntry_User{b.User}
+	}
+	if b.Role != nil {
+		x.Resource = &ResourceEntry_Role{b.Role}
+	}
+	if b.Server != nil {
+		x.Resource = &ResourceEntry_Server{b.Server}
+	}
+	if b.AccessRequest != nil {
+		x.Resource = &ResourceEntry_AccessRequest{b.AccessRequest}
+	}
+	if b.KubernetesServer != nil {
+		x.Resource = &ResourceEntry_KubernetesServer{b.KubernetesServer}
+	}
+	if b.AppServer != nil {
+		x.Resource = &ResourceEntry_AppServer{b.AppServer}
+	}
+	if b.DatabaseServer != nil {
+		x.Resource = &ResourceEntry_DatabaseServer{b.DatabaseServer}
+	}
+	if b.WindowsDesktop != nil {
+		x.Resource = &ResourceEntry_WindowsDesktop{b.WindowsDesktop}
+	}
+	if b.AccessList != nil {
+		x.Resource = &ResourceEntry_AccessList{b.AccessList}
+	}
+	if b.CrownJewel != nil {
+		x.Resource = &ResourceEntry_CrownJewel{b.CrownJewel}
+	}
+	if b.DatabaseObject != nil {
+		x.Resource = &ResourceEntry_DatabaseObject{b.DatabaseObject}
+	}
+	if b.Device != nil {
+		x.Resource = &ResourceEntry_Device{b.Device}
+	}
+	if b.PrivateKey != nil {
+		x.Resource = &ResourceEntry_PrivateKey{b.PrivateKey}
+	}
+	if b.AuthorizedKey != nil {
+		x.Resource = &ResourceEntry_AuthorizedKey{b.AuthorizedKey}
+	}
+	return m0
+}
+
+type case_ResourceEntry_Resource protoreflect.FieldNumber
+
+func (x case_ResourceEntry_Resource) String() string {
+	md := file_accessgraph_v1alpha_resources_proto_msgTypes[5].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
 }
 
 type isResourceEntry_Resource interface {
@@ -606,18 +1141,6 @@ const file_accessgraph_v1alpha_resources_proto_rawDesc = "" +
 	"\x0eauthorized_key\x18\x0e \x01(\v2'.teleport.access_graph.v1.AuthorizedKeyH\x00R\rauthorizedKeyB\n" +
 	"\n" +
 	"\bresourceBWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_resources_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_resources_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_resources_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_resources_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_resources_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_resources_proto_rawDesc), len(file_accessgraph_v1alpha_resources_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_resources_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_resources_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_accessgraph_v1alpha_resources_proto_goTypes = []any{

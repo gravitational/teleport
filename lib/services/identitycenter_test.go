@@ -355,17 +355,17 @@ func TestIdentityCenterAccountToAppServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			acct := &identitycenterv1.Account{
+			acct := identitycenterv1.Account_builder{
 				Kind:    types.KindIdentityCenterAccount,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: tt.acctName,
-				},
-				Spec: &identitycenterv1.AccountSpec{
+				}.Build(),
+				Spec: identitycenterv1.AccountSpec_builder{
 					Id:       "123456789012",
 					StartUrl: tt.startURL,
-				},
-			}
+				}.Build(),
+			}.Build()
 
 			srv := IdentityCenterAccountToAppServer(acct)
 			require.Equal(t, tt.acctName, srv.GetApp().GetName())

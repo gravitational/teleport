@@ -282,6 +282,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		Renewable:                           unmappedIdentity.Renewable,
 		BotName:                             unmappedIdentity.BotName,
 		BotInstanceID:                       unmappedIdentity.BotInstanceID,
+		BeamID:                              unmappedIdentity.BeamID,
 		JoinToken:                           unmappedIdentity.JoinToken,
 		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
 		OriginClusterName:                   certAuthority.GetClusterName(),
@@ -292,7 +293,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 
 // CheckAgentForward checks if agent forwarding is allowed for the users RoleSet.
 func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
-	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.ForwardAgent {
+	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.GetForwardAgent() {
 		return nil
 	}
 
@@ -308,7 +309,7 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 
 // CheckX11Forward checks if X11 forwarding is permitted for the user's RoleSet.
 func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
-	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.X11Forwarding {
+	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.GetX11Forwarding() {
 		return nil
 	}
 
@@ -327,7 +328,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 		return trace.AccessDenied("port forwarding not permitted")
 	}
 
-	allowedMode := ctx.Identity.AccessPermit.PortForwardMode
+	allowedMode := ctx.Identity.AccessPermit.GetPortForwardMode()
 	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON {
 		return nil
 	}
@@ -488,6 +489,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 				Login:         principal,
 				User:          ident.Username,
 				TrustedDevice: ident.GetDeviceMetadata(),
+				BeamID:        ident.BeamID,
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
@@ -1209,7 +1211,7 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		return nil, trace.Wrap(err)
 	}
 
-	permit := &decisionpb.SSHAccessPermit{
+	permit := decisionpb.SSHAccessPermit_builder{
 		ForwardAgent:          checker.SSH().CheckAgentForward(osUser) == nil,
 		X11Forwarding:         checker.SSH().PermitX11Forwarding(),
 		MaxConnections:        checker.SSH().MaxConnections(),
@@ -1226,16 +1228,16 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersDecision.Info,
-		DecisionContext: &decisionpb.SSHAccessPermitContext{
+		DecisionContext: decisionpb.SSHAccessPermitContext_builder{
 			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
 			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	if checker.PinSourceIP() {
-		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+		permit.SetPreconditions(append(permit.GetPreconditions(), decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-		})
+		}.Build()))
 	}
 
 	return permit, nil
@@ -1331,12 +1333,12 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 	}
 
 	if accessChecker.PinSourceIP() {
-		preconds = append(preconds, &decisionpb.Precondition{
+		preconds = append(preconds, decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-		})
+		}.Build())
 	}
 
-	return &decisionpb.SSHAccessPermit{
+	return decisionpb.SSHAccessPermit_builder{
 		ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
 		X11Forwarding:         accessChecker.PermitX11Forwarding(),
 		MaxConnections:        accessChecker.MaxConnections(),
@@ -1354,11 +1356,11 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersDecision.Info,
 		Preconditions:         preconds,
-		DecisionContext: &decisionpb.SSHAccessPermitContext{
+		DecisionContext: decisionpb.SSHAccessPermitContext_builder{
 			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
 			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 // fetchAccessInfo fetches the services.AccessChecker (after role mapping)

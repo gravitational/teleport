@@ -185,7 +185,7 @@ function getOrderedSections(
   if (cfg.isDashboard) {
     return navSections;
   }
-  if (cfg.beamsUi) {
+  if (cfg.getBeamsUi()) {
     const beams = navSections.find(
       s => s.category === NavigationCategory.Beams
     );
@@ -373,7 +373,7 @@ export function Navigation({
   // an explicit preference yet (UNSPECIFIED).
   const stickyMode =
     preferences.sideNavDrawerMode === SideNavDrawerMode.UNSPECIFIED
-      ? cfg.beamsUi
+      ? cfg.getBeamsUi()
       : preferences.sideNavDrawerMode === SideNavDrawerMode.STICKY;
 
   const toggleStickyMode = () => {

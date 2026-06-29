@@ -62,17 +62,26 @@ export default class TtyTerminal implements TerminalSearcher {
   private customKeyEventHandlers = new Set<(event: KeyboardEvent) => boolean>();
 
   private _disableCopy: boolean;
+  private _onCopyBlocked?: () => void;
   private _blockCopy = (e: ClipboardEvent) => {
     e.preventDefault();
     e.stopImmediatePropagation();
+    this._onCopyBlocked?.();
   };
 
   constructor(
     tty: Tty,
     private options: Options
   ) {
-    const { el, scrollBack, fontFamily, fontSize, convertEol, disableCopy } =
-      options;
+    const {
+      el,
+      scrollBack,
+      fontFamily,
+      fontSize,
+      convertEol,
+      disableCopy,
+      onCopyBlocked,
+    } = options;
     this._el = el;
     this._fontFamily = fontFamily || undefined;
     this._fontSize = fontSize || 14;
@@ -81,6 +90,7 @@ export default class TtyTerminal implements TerminalSearcher {
     this._scrollBack = scrollBack || cfg.ui.scrollbackLines;
     this._convertEol = convertEol || false;
     this._disableCopy = !!disableCopy;
+    this._onCopyBlocked = onCopyBlocked;
     this.tty = tty;
     this.term = null;
 
@@ -324,4 +334,6 @@ type Options = {
   convertEol?: boolean;
   // disableCopy blocks copying terminal text to clipboard.
   disableCopy?: boolean;
+  // onCopyBlocked is called whenever a copy attempt is blocked because disableCopy is true.
+  onCopyBlocked?: () => void;
 };

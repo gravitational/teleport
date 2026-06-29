@@ -25,6 +25,7 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -96,6 +97,18 @@ const (
 	// hits the maxThumbnails cap.
 	desktopMinThumbnailInterval = 7 * time.Second
 
+	// desktopActivityAreaFraction is the fraction of the screen area that must change between desktop
+	// recording frames for the change to count as user activity (resetting the inactivity timer).
+	// Smaller incidental updates — a ticking taskbar clock, a blinking text caret — fall below this
+	// and are treated as inactivity. Tuned to sit above glyph/caret-scale noise; validate against
+	// real recordings.
+	desktopActivityAreaFraction = 0.001 // 0.1%
+
+	// desktopActivityMinLocations is how many distinct places must change since the last activity for a
+	// run of small, sub-threshold repaints to count as activity. A clock or caret repaints one fixed
+	// spot; typing keeps moving to new ones. Validate against real recordings.
+	desktopActivityMinLocations = 4
+
 	// concurrencyLimit limits the number of concurrent processing operations (matches the session summarizer).
 	concurrencyLimit = 150
 
@@ -126,10 +139,25 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 
 // ProcessSessionRecording processes the session recording associated with the provided session ID.
 // It streams session events, generates metadata, and uploads thumbnails and metadata.
-func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) error {
+//
+// Any panic in the downstream processing pipeline (e.g. a corrupt recording
+// driving vt10x into a bad state) is converted into an error return so that a
+// single bad recording cannot crash the auth server.
+func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) (err error) {
 	if sessionType == recordingmetadata.SessionTypeUnspecified {
 		return nil
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.ErrorContext(ctx, "panic while processing session recording",
+				"session_id", sessionID,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+			err = trace.Errorf("internal error while processing session recording %s", sessionID)
+		}
+	}()
 
 	sessionsPendingMetric.Inc()
 
@@ -216,8 +244,6 @@ loop:
 	if _, err := protodelim.MarshalTo(w, metadata); err != nil {
 		return trace.Wrap(err)
 	}
-
-	var err error
 
 	finish.Do(func() {
 		err = w.Close()

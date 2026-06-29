@@ -250,12 +250,18 @@ func (s *SessionService) generateCertificates(
 		DelegationSessionID: session.GetMetadata().GetName(),
 	}
 
+	// If the delegation session is associated with a Beam, carry its ID through
+	// to the issued certificate so downstream services can attribute usage.
+	if beamID := session.GetMetadata().GetLabels()[types.BeamIDLabel]; beamID != "" {
+		certReq.BeamID = beamID
+	}
+
 	// Add the protocol-specific routing hints to the certificate.
-	switch routing := req.Routing.(type) {
-	case *delegationv1.GenerateCertsRequest_RouteToKubernetes:
-		certReq.KubernetesCluster = routing.RouteToKubernetes.GetClusterName()
-	case *delegationv1.GenerateCertsRequest_RouteToApp:
-		route := routing.RouteToApp
+	switch req.WhichRouting() {
+	case delegationv1.GenerateCertsRequest_RouteToKubernetes_case:
+		certReq.KubernetesCluster = req.GetRouteToKubernetes().GetClusterName()
+	case delegationv1.GenerateCertsRequest_RouteToApp_case:
+		route := req.GetRouteToApp()
 
 		certReq.AppPublicAddr = route.GetPublicAddr()
 		certReq.AppClusterName = route.GetClusterName()
@@ -278,6 +284,7 @@ func (s *SessionService) generateCertificates(
 				RequestedResourceAccessIDs: resourceIDs,
 				AttestWebSession:           true,
 				DelegationSessionID:        session.GetMetadata().GetName(),
+				BeamID:                     certReq.BeamID,
 			},
 			PublicAddr:        certReq.AppPublicAddr,
 			ClusterName:       certReq.AppClusterName,
@@ -296,8 +303,8 @@ func (s *SessionService) generateCertificates(
 			return nil, trace.Wrap(err)
 		}
 		certReq.AppSessionID = appSession.GetName()
-	case *delegationv1.GenerateCertsRequest_RouteToDatabase:
-		route := routing.RouteToDatabase
+	case delegationv1.GenerateCertsRequest_RouteToDatabase_case:
+		route := req.GetRouteToDatabase()
 
 		certReq.DBService = route.GetServiceName()
 		certReq.DBProtocol = route.GetProtocol()
@@ -310,10 +317,10 @@ func (s *SessionService) generateCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &delegationv1.GenerateCertsResponse{
+	return delegationv1.GenerateCertsResponse_builder{
 		Ssh: certs.SSH,
 		Tls: certs.TLS,
-	}, nil
+	}.Build(), nil
 }
 
 func (s *SessionService) getRoleSet(ctx context.Context, user services.UserState) (services.RoleSet, error) {

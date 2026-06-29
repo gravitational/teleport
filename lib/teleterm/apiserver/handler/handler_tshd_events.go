@@ -27,7 +27,7 @@ import (
 )
 
 func (h *Handler) UpdateTshdEventsServerAddress(ctx context.Context, req *api.UpdateTshdEventsServerAddressRequest) (*api.UpdateTshdEventsServerAddressResponse, error) {
-	if err := h.DaemonService.UpdateAndDialTshdEventsServerAddress(req.Address); err != nil {
+	if err := h.DaemonService.UpdateAndDialTshdEventsServerAddress(req.GetAddress()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

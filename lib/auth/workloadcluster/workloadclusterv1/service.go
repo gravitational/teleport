@@ -25,13 +25,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
-	"github.com/gravitational/teleport/lib/services"
 )
-
-// Backend interface for manipulating WorkloadCluster resources.
-type Backend interface {
-	services.WorkloadClusterService
-}
 
 // Service implements the gRPC API layer for the WorkloadCluster.
 type Service struct {

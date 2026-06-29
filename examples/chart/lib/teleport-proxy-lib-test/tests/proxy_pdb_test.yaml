@@ -1,0 +1,50 @@
+suite: Proxy PodDisruptionBudget
+templates:
+  - pdb.yaml
+tests:
+  - it: shoud not create a PDB when disabled in values
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+          path: spec.minAvailable
+          value: 2
+
+  - it: should create a PDB when enabled in values
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: 2
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 2
+
+  - it: sets extraLabels on PodDisruptionBudget
+    values:
+      - ../.lint/pdb.yaml
+    set:
+      extraLabels:
+        podDisruptionBudget:
+          foo: bar
+          baz: override-me
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: override-me

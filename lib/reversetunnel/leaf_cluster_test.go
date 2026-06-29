@@ -183,7 +183,7 @@ func TestRunValidatedMFAChallengeSync_DropsExpiredFailedChallenges(t *testing.T)
 		t,
 		func(t *testing.T) {
 			expired := newValidatedMFAChallenge("challenge-for-leaf")
-			expired.GetMetadata().Expires = timestamppb.New(time.Now().Add(expiredValidatedMFAChallengeGracePeriod + time.Nanosecond))
+			expired.GetMetadata().SetExpires(timestamppb.New(time.Now().Add(expiredValidatedMFAChallengeGracePeriod + time.Nanosecond)))
 
 			leafMFAClient := newMockMFAServiceClient()
 			leafMFAClient.errByName[expired.GetMetadata().GetName()] = []error{
@@ -355,7 +355,7 @@ func TestSyncValidatedMFAChallenges_SkipsExpiredChallenges(t *testing.T) {
 	leaf := newLeafClusterForSyncTest(leafMFAClient)
 
 	expired := newValidatedMFAChallenge("expired")
-	expired.GetMetadata().Expires = timestamppb.New(time.Now().Add(expiredValidatedMFAChallengeGracePeriod).Add(-time.Nanosecond))
+	expired.GetMetadata().SetExpires(timestamppb.New(time.Now().Add(expiredValidatedMFAChallengeGracePeriod).Add(-time.Nanosecond)))
 
 	failed := leaf.syncValidatedMFAChallenges(
 		t.Context(),
@@ -496,10 +496,10 @@ func newValidatedMFAChallenge(name string) *mfav2.ValidatedMFAChallenge {
 	return mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: "v1",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:    name,
 			Expires: timestamppb.New(expires),
-		},
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload: mfav2.SessionIdentifyingPayload_builder{
 				SshSessionId: []byte("session-id"),
