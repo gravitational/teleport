@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
@@ -53,7 +54,7 @@ func TestProtoStreamPartUploadRetryExhaustion(t *testing.T) {
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       uploader,
 		MinUploadBytes: 1, // Force immediate upload after each event to avoid long test runtime
-		RetryConfig:    retryutils.RetryConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
+		RetryConfig:    &retryutils.LinearConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
 	})
 	require.NoError(t, err)
 
@@ -100,7 +101,7 @@ func TestProtoStreamPartialPartFailure(t *testing.T) {
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       uploader,
 		MinUploadBytes: 1, // Force immediate upload after each event
-		RetryConfig:    retryutils.RetryConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
+		RetryConfig:    &retryutils.LinearConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
 	})
 	require.NoError(t, err)
 
@@ -144,7 +145,7 @@ func TestProtoStreamUploadFailurePreservesLocalRecording(t *testing.T) {
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:    uploader,
-		RetryConfig: retryutils.RetryConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
+		RetryConfig: &retryutils.LinearConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
 	})
 	require.NoError(t, err)
 
