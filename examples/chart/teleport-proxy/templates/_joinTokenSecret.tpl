@@ -1,21 +1,23 @@
 {{- define "teleport-proxy.join-token-secret" -}}
-{{- if and .Values.joinTokenSecret.create (eq .Values.join_params.method "token") -}}
+{{- $proxy := mustDeepCopy . -}}
+{{- $_ := set $proxy "Values" (mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy) -}}
+{{- if and $proxy.Values.joinTokenSecret.create (eq $proxy.Values.join_params.method "token") -}}
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ .Values.joinTokenSecret.name }}
-  namespace: {{ .Release.Namespace }}
-{{- if .Values.extraLabels.joinTokenSecretSecret }}
+  name: {{ $proxy.Values.joinTokenSecret.name }}
+  namespace: {{ $proxy.Release.Namespace }}
+{{- if $proxy.Values.extraLabels.joinTokenSecretSecret }}
   labels:
-  {{- toYaml .Values.extraLabels.joinTokenSecret | nindent 4 }}
+  {{- toYaml $proxy.Values.extraLabels.joinTokenSecret | nindent 4 }}
 {{- end }}
-{{- if .Values.annotations.joinTokenSecret}}
+{{- if $proxy.Values.annotations.joinTokenSecret}}
   annotations:
-  {{- toYaml .Values.annotations.joinTokenSecret | nindent 4 }}
+  {{- toYaml $proxy.Values.annotations.joinTokenSecret | nindent 4 }}
 {{- end }}
 type: Opaque
 stringData:
   auth-token: |
-    {{ .Values.join_params.token_name }}
+    {{ $proxy.Values.join_params.token_name }}
 {{- end -}}
 {{- end -}}
