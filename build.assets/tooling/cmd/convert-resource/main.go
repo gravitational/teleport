@@ -656,8 +656,23 @@ var resourceConfig = map[string]conversionRule{
 	},
 }
 
-func fieldPaths(b []byte) []string {
-	return nil
+func fieldPathsWithPrefix(m map[string]any, prefix string) []string {
+	out := []string{}
+	for k, v := range m {
+		newPrefix := k
+		if prefix != "" {
+			newPrefix = prefix + "." + k
+		}
+		out = append(out, newPrefix)
+		if a, ok := v.(map[string]any); ok {
+			out = append(out, fieldPathsWithPrefix(a, newPrefix)...)
+		}
+	}
+	return out
+}
+
+func fieldPaths(m map[string]any) []string {
+	return fieldPathsWithPrefix(m, "")
 }
 
 // convertYAMLToHCL takes a single tctl resource YAML document, converts it to

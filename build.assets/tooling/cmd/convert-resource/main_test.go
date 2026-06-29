@@ -27,27 +27,28 @@ import (
 func Test_fieldPaths(t *testing.T) {
 	type testCase struct {
 		description string
-		input       string
+		input       map[string]any
 		expected    []string
 	}
 
 	cases := []testCase{
 		{
 			description: "two levels of scalars",
-			input: `{
-		    "number":0,
-		    "boolean":false,
-		    "string":"",
-		    "object": {
-		      "number": 0,
-		      "boolean": false,
-		      "string": ""
-		    }
-		}`,
+			input: map[string]any{
+				"number":  0,
+				"boolean": false,
+				"string":  "",
+				"object": map[string]any{
+					"number":  0,
+					"boolean": false,
+					"string":  "",
+				},
+			},
 			expected: []string{
 				"number",
 				"boolean",
 				"string",
+				"object",
 				"object.number",
 				"object.boolean",
 				"object.string",
@@ -57,7 +58,8 @@ func Test_fieldPaths(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			assert.ElementsMatch(t, c.expected, fieldPaths([]byte(c.input)))
+			actual := fieldPaths(c.input)
+			assert.ElementsMatch(t, c.expected, actual)
 		})
 	}
 }
