@@ -493,7 +493,7 @@ const ActionCell = ({
           tipContent={
             token.isCloudSystem
               ? 'This token is managed by Teleport Cloud.'
-              : 'This token is managed by Teleport and cannot be edited.'
+              : 'This token is system-managed and cannot be edited.'
           }
         >
           {Button}
