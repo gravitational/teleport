@@ -24,8 +24,10 @@ package subcav1
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	status "google.golang.org/genproto/googleapis/rpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	unsafe "unsafe"
 )
@@ -46,7 +48,7 @@ const (
 // self-signed root).
 //
 // Key material is never impacted by overrides, only certificates can be
-// overriden.
+// overridden.
 //
 // https://github.com/gravitational/teleport/blob/master/rfd/0237-sub-ca-support.md
 type CertAuthorityOverride struct {
@@ -282,10 +284,11 @@ func (b0 CertAuthorityOverrideSpec_builder) Build() *CertAuthorityOverrideSpec {
 // CertAuthorityOverrideStatus is the dynamic, system-managed state of a
 // CertAuthorityOverride resource.
 type CertAuthorityOverrideStatus struct {
-	state                         protoimpl.MessageState                `protogen:"opaque.v1"`
-	xxx_hidden_PublicKeyHashToCrl map[string]*CertificateRevocationList `protobuf:"bytes,1,rep,name=public_key_hash_to_crl,json=publicKeyHashToCrl,proto3" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields                 protoimpl.UnknownFields
-	sizeCache                     protoimpl.SizeCache
+	state                            protoimpl.MessageState                `protogen:"opaque.v1"`
+	xxx_hidden_PublicKeyHashToCrl    map[string]*CertificateRevocationList `protobuf:"bytes,1,rep,name=public_key_hash_to_crl,json=publicKeyHashToCrl,proto3" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	xxx_hidden_IdToPendingCsrRequest map[string]*PendingCSRRequest         `protobuf:"bytes,2,rep,name=id_to_pending_csr_request,json=idToPendingCsrRequest,proto3" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
 }
 
 func (x *CertAuthorityOverrideStatus) Reset() {
@@ -320,8 +323,19 @@ func (x *CertAuthorityOverrideStatus) GetPublicKeyHashToCrl() map[string]*Certif
 	return nil
 }
 
+func (x *CertAuthorityOverrideStatus) GetIdToPendingCsrRequest() map[string]*PendingCSRRequest {
+	if x != nil {
+		return x.xxx_hidden_IdToPendingCsrRequest
+	}
+	return nil
+}
+
 func (x *CertAuthorityOverrideStatus) SetPublicKeyHashToCrl(v map[string]*CertificateRevocationList) {
 	x.xxx_hidden_PublicKeyHashToCrl = v
+}
+
+func (x *CertAuthorityOverrideStatus) SetIdToPendingCsrRequest(v map[string]*PendingCSRRequest) {
+	x.xxx_hidden_IdToPendingCsrRequest = v
 }
 
 type CertAuthorityOverrideStatus_builder struct {
@@ -329,7 +343,14 @@ type CertAuthorityOverrideStatus_builder struct {
 
 	// CRLs generated for each certificate override, keyed by normalized/lowercase
 	// public_key_hash.
+	//
+	// CRLs for disabled overrides may be created asynchronously, using
+	// CertAuthorityOverride watchers, if the Auth server performing the writes
+	// lacks access to certain keys.
 	PublicKeyHashToCrl map[string]*CertificateRevocationList
+	// Pending CSR requests on multi-Auth, multi-HSM scenarios.
+	// Requests are keyed by an opaque request ID.
+	IdToPendingCsrRequest map[string]*PendingCSRRequest
 }
 
 func (b0 CertAuthorityOverrideStatus_builder) Build() *CertAuthorityOverrideStatus {
@@ -337,6 +358,259 @@ func (b0 CertAuthorityOverrideStatus_builder) Build() *CertAuthorityOverrideStat
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_PublicKeyHashToCrl = b.PublicKeyHashToCrl
+	x.xxx_hidden_IdToPendingCsrRequest = b.IdToPendingCsrRequest
+	return m0
+}
+
+// A pending CSR request, created as part of a CreateCSR invocation on
+// multi-Auth, multi-HSM clusters.
+//
+// Requests are registered by the requester Auth server (the one processing the
+// CreateCSR call), in multi-HSM scenarios, when certain keys can't be used.
+// Auth servers watch CertAuthorityOverride resources and reply to requests
+// automatically, assigning a CSR and status to the corresponding PendingCSR
+// message. Once all pending CSRs have a terminal result, the RPC resumes.
+//
+// Successful pending requests are automatically cleaned up from status on
+// completion. Failed pending requests obey the normal create_time rules.
+type PendingCSRRequest struct {
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CreateTime    *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=create_time,json=createTime,proto3"`
+	xxx_hidden_Csrs          *[]*PendingCSR         `protobuf:"bytes,2,rep,name=csrs,proto3"`
+	xxx_hidden_CustomSubject *DistinguishedName     `protobuf:"bytes,3,opt,name=custom_subject,json=customSubject,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *PendingCSRRequest) Reset() {
+	*x = PendingCSRRequest{}
+	mi := &file_teleport_subca_v1_cert_authority_override_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PendingCSRRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PendingCSRRequest) ProtoMessage() {}
+
+func (x *PendingCSRRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_subca_v1_cert_authority_override_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *PendingCSRRequest) GetCreateTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.xxx_hidden_CreateTime
+	}
+	return nil
+}
+
+func (x *PendingCSRRequest) GetCsrs() []*PendingCSR {
+	if x != nil {
+		if x.xxx_hidden_Csrs != nil {
+			return *x.xxx_hidden_Csrs
+		}
+	}
+	return nil
+}
+
+func (x *PendingCSRRequest) GetCustomSubject() *DistinguishedName {
+	if x != nil {
+		return x.xxx_hidden_CustomSubject
+	}
+	return nil
+}
+
+func (x *PendingCSRRequest) SetCreateTime(v *timestamppb.Timestamp) {
+	x.xxx_hidden_CreateTime = v
+}
+
+func (x *PendingCSRRequest) SetCsrs(v []*PendingCSR) {
+	x.xxx_hidden_Csrs = &v
+}
+
+func (x *PendingCSRRequest) SetCustomSubject(v *DistinguishedName) {
+	x.xxx_hidden_CustomSubject = v
+}
+
+func (x *PendingCSRRequest) HasCreateTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_CreateTime != nil
+}
+
+func (x *PendingCSRRequest) HasCustomSubject() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_CustomSubject != nil
+}
+
+func (x *PendingCSRRequest) ClearCreateTime() {
+	x.xxx_hidden_CreateTime = nil
+}
+
+func (x *PendingCSRRequest) ClearCustomSubject() {
+	x.xxx_hidden_CustomSubject = nil
+}
+
+type PendingCSRRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Create time of the request.
+	// Requests that are older than a certain threshold value may be automatically
+	// cleaned up by the system, regardless of their status.
+	CreateTime *timestamppb.Timestamp
+	// Pending CSRs of the request.
+	// CSRs are created and set by watching Auth servers.
+	Csrs []*PendingCSR
+	// Custom subject for the CSRs.
+	// Optional.
+	CustomSubject *DistinguishedName
+}
+
+func (b0 PendingCSRRequest_builder) Build() *PendingCSRRequest {
+	m0 := &PendingCSRRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_CreateTime = b.CreateTime
+	x.xxx_hidden_Csrs = &b.Csrs
+	x.xxx_hidden_CustomSubject = b.CustomSubject
+	return m0
+}
+
+// A pending CSR, to be created as part of a [PendingCSRRequest].
+type PendingCSR struct {
+	state                    protoimpl.MessageState     `protogen:"opaque.v1"`
+	xxx_hidden_PublicKeyHash *PublicKeyHash             `protobuf:"bytes,1,opt,name=public_key_hash,json=publicKeyHash,proto3"`
+	xxx_hidden_Csr           *CertificateSigningRequest `protobuf:"bytes,2,opt,name=csr,proto3"`
+	xxx_hidden_Status        *status.Status             `protobuf:"bytes,3,opt,name=status,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *PendingCSR) Reset() {
+	*x = PendingCSR{}
+	mi := &file_teleport_subca_v1_cert_authority_override_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PendingCSR) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PendingCSR) ProtoMessage() {}
+
+func (x *PendingCSR) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_subca_v1_cert_authority_override_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *PendingCSR) GetPublicKeyHash() *PublicKeyHash {
+	if x != nil {
+		return x.xxx_hidden_PublicKeyHash
+	}
+	return nil
+}
+
+func (x *PendingCSR) GetCsr() *CertificateSigningRequest {
+	if x != nil {
+		return x.xxx_hidden_Csr
+	}
+	return nil
+}
+
+func (x *PendingCSR) GetStatus() *status.Status {
+	if x != nil {
+		return x.xxx_hidden_Status
+	}
+	return nil
+}
+
+func (x *PendingCSR) SetPublicKeyHash(v *PublicKeyHash) {
+	x.xxx_hidden_PublicKeyHash = v
+}
+
+func (x *PendingCSR) SetCsr(v *CertificateSigningRequest) {
+	x.xxx_hidden_Csr = v
+}
+
+func (x *PendingCSR) SetStatus(v *status.Status) {
+	x.xxx_hidden_Status = v
+}
+
+func (x *PendingCSR) HasPublicKeyHash() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_PublicKeyHash != nil
+}
+
+func (x *PendingCSR) HasCsr() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Csr != nil
+}
+
+func (x *PendingCSR) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Status != nil
+}
+
+func (x *PendingCSR) ClearPublicKeyHash() {
+	x.xxx_hidden_PublicKeyHash = nil
+}
+
+func (x *PendingCSR) ClearCsr() {
+	x.xxx_hidden_Csr = nil
+}
+
+func (x *PendingCSR) ClearStatus() {
+	x.xxx_hidden_Status = nil
+}
+
+type PendingCSR_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Target public key of the CSR.
+	PublicKeyHash *PublicKeyHash
+	// The CSR itself.
+	// Assigned by the watching Auth server when created. Non-nil if status is OK.
+	Csr *CertificateSigningRequest
+	// Status of the CSR signing attempt.
+	// Nil means no attempt was recorded. If non-nil, the attempt happened and
+	// won't be retried.
+	Status *status.Status
+}
+
+func (b0 PendingCSR_builder) Build() *PendingCSR {
+	m0 := &PendingCSR{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_PublicKeyHash = b.PublicKeyHash
+	x.xxx_hidden_Csr = b.Csr
+	x.xxx_hidden_Status = b.Status
 	return m0
 }
 
@@ -344,7 +618,7 @@ var File_teleport_subca_v1_cert_authority_override_proto protoreflect.FileDescri
 
 const file_teleport_subca_v1_cert_authority_override_proto_rawDesc = "" +
 	"\n" +
-	"/teleport/subca/v1/cert_authority_override.proto\x12\x11teleport.subca.v1\x1a!teleport/header/v1/metadata.proto\x1a,teleport/subca/v1/certificate_override.proto\x1a\x1bteleport/subca/v1/crl.proto\"\xa4\x02\n" +
+	"/teleport/subca/v1/cert_authority_override.proto\x12\x11teleport.subca.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17google/rpc/status.proto\x1a!teleport/header/v1/metadata.proto\x1a,teleport/subca/v1/certificate_override.proto\x1a\x1bteleport/subca/v1/crl.proto\x1a\x1bteleport/subca/v1/csr.proto\x1a*teleport/subca/v1/distinguished_name.proto\x1a'teleport/subca/v1/public_key_hash.proto\"\xa4\x02\n" +
 	"\x15CertAuthorityOverride\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -353,35 +627,65 @@ const file_teleport_subca_v1_cert_authority_override_proto_rawDesc = "" +
 	"\x04spec\x18\x05 \x01(\v2,.teleport.subca.v1.CertAuthorityOverrideSpecR\x04spec\x12F\n" +
 	"\x06status\x18\a \x01(\v2..teleport.subca.v1.CertAuthorityOverrideStatusR\x06status\"x\n" +
 	"\x19CertAuthorityOverrideSpec\x12[\n" +
-	"\x15certificate_overrides\x18\x01 \x03(\v2&.teleport.subca.v1.CertificateOverrideR\x14certificateOverrides\"\x8e\x02\n" +
+	"\x15certificate_overrides\x18\x01 \x03(\v2&.teleport.subca.v1.CertificateOverrideR\x14certificateOverrides\"\x84\x04\n" +
 	"\x1bCertAuthorityOverrideStatus\x12z\n" +
-	"\x16public_key_hash_to_crl\x18\x01 \x03(\v2F.teleport.subca.v1.CertAuthorityOverrideStatus.PublicKeyHashToCrlEntryR\x12publicKeyHashToCrl\x1as\n" +
+	"\x16public_key_hash_to_crl\x18\x01 \x03(\v2F.teleport.subca.v1.CertAuthorityOverrideStatus.PublicKeyHashToCrlEntryR\x12publicKeyHashToCrl\x12\x83\x01\n" +
+	"\x19id_to_pending_csr_request\x18\x02 \x03(\v2I.teleport.subca.v1.CertAuthorityOverrideStatus.IdToPendingCsrRequestEntryR\x15idToPendingCsrRequest\x1as\n" +
 	"\x17PublicKeyHashToCrlEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12B\n" +
-	"\x05value\x18\x02 \x01(\v2,.teleport.subca.v1.CertificateRevocationListR\x05value:\x028\x01BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
+	"\x05value\x18\x02 \x01(\v2,.teleport.subca.v1.CertificateRevocationListR\x05value:\x028\x01\x1an\n" +
+	"\x1aIdToPendingCsrRequestEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12:\n" +
+	"\x05value\x18\x02 \x01(\v2$.teleport.subca.v1.PendingCSRRequestR\x05value:\x028\x01\"\xd0\x01\n" +
+	"\x11PendingCSRRequest\x12;\n" +
+	"\vcreate_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"createTime\x121\n" +
+	"\x04csrs\x18\x02 \x03(\v2\x1d.teleport.subca.v1.PendingCSRR\x04csrs\x12K\n" +
+	"\x0ecustom_subject\x18\x03 \x01(\v2$.teleport.subca.v1.DistinguishedNameR\rcustomSubject\"\xc2\x01\n" +
+	"\n" +
+	"PendingCSR\x12H\n" +
+	"\x0fpublic_key_hash\x18\x01 \x01(\v2 .teleport.subca.v1.PublicKeyHashR\rpublicKeyHash\x12>\n" +
+	"\x03csr\x18\x02 \x01(\v2,.teleport.subca.v1.CertificateSigningRequestR\x03csr\x12*\n" +
+	"\x06status\x18\x03 \x01(\v2\x12.google.rpc.StatusR\x06statusBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
 
-var file_teleport_subca_v1_cert_authority_override_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_subca_v1_cert_authority_override_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_subca_v1_cert_authority_override_proto_goTypes = []any{
 	(*CertAuthorityOverride)(nil),       // 0: teleport.subca.v1.CertAuthorityOverride
 	(*CertAuthorityOverrideSpec)(nil),   // 1: teleport.subca.v1.CertAuthorityOverrideSpec
 	(*CertAuthorityOverrideStatus)(nil), // 2: teleport.subca.v1.CertAuthorityOverrideStatus
-	nil,                                 // 3: teleport.subca.v1.CertAuthorityOverrideStatus.PublicKeyHashToCrlEntry
-	(*v1.Metadata)(nil),                 // 4: teleport.header.v1.Metadata
-	(*CertificateOverride)(nil),         // 5: teleport.subca.v1.CertificateOverride
-	(*CertificateRevocationList)(nil),   // 6: teleport.subca.v1.CertificateRevocationList
+	(*PendingCSRRequest)(nil),           // 3: teleport.subca.v1.PendingCSRRequest
+	(*PendingCSR)(nil),                  // 4: teleport.subca.v1.PendingCSR
+	nil,                                 // 5: teleport.subca.v1.CertAuthorityOverrideStatus.PublicKeyHashToCrlEntry
+	nil,                                 // 6: teleport.subca.v1.CertAuthorityOverrideStatus.IdToPendingCsrRequestEntry
+	(*v1.Metadata)(nil),                 // 7: teleport.header.v1.Metadata
+	(*CertificateOverride)(nil),         // 8: teleport.subca.v1.CertificateOverride
+	(*timestamppb.Timestamp)(nil),       // 9: google.protobuf.Timestamp
+	(*DistinguishedName)(nil),           // 10: teleport.subca.v1.DistinguishedName
+	(*PublicKeyHash)(nil),               // 11: teleport.subca.v1.PublicKeyHash
+	(*CertificateSigningRequest)(nil),   // 12: teleport.subca.v1.CertificateSigningRequest
+	(*status.Status)(nil),               // 13: google.rpc.Status
+	(*CertificateRevocationList)(nil),   // 14: teleport.subca.v1.CertificateRevocationList
 }
 var file_teleport_subca_v1_cert_authority_override_proto_depIdxs = []int32{
-	4, // 0: teleport.subca.v1.CertAuthorityOverride.metadata:type_name -> teleport.header.v1.Metadata
-	1, // 1: teleport.subca.v1.CertAuthorityOverride.spec:type_name -> teleport.subca.v1.CertAuthorityOverrideSpec
-	2, // 2: teleport.subca.v1.CertAuthorityOverride.status:type_name -> teleport.subca.v1.CertAuthorityOverrideStatus
-	5, // 3: teleport.subca.v1.CertAuthorityOverrideSpec.certificate_overrides:type_name -> teleport.subca.v1.CertificateOverride
-	3, // 4: teleport.subca.v1.CertAuthorityOverrideStatus.public_key_hash_to_crl:type_name -> teleport.subca.v1.CertAuthorityOverrideStatus.PublicKeyHashToCrlEntry
-	6, // 5: teleport.subca.v1.CertAuthorityOverrideStatus.PublicKeyHashToCrlEntry.value:type_name -> teleport.subca.v1.CertificateRevocationList
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	7,  // 0: teleport.subca.v1.CertAuthorityOverride.metadata:type_name -> teleport.header.v1.Metadata
+	1,  // 1: teleport.subca.v1.CertAuthorityOverride.spec:type_name -> teleport.subca.v1.CertAuthorityOverrideSpec
+	2,  // 2: teleport.subca.v1.CertAuthorityOverride.status:type_name -> teleport.subca.v1.CertAuthorityOverrideStatus
+	8,  // 3: teleport.subca.v1.CertAuthorityOverrideSpec.certificate_overrides:type_name -> teleport.subca.v1.CertificateOverride
+	5,  // 4: teleport.subca.v1.CertAuthorityOverrideStatus.public_key_hash_to_crl:type_name -> teleport.subca.v1.CertAuthorityOverrideStatus.PublicKeyHashToCrlEntry
+	6,  // 5: teleport.subca.v1.CertAuthorityOverrideStatus.id_to_pending_csr_request:type_name -> teleport.subca.v1.CertAuthorityOverrideStatus.IdToPendingCsrRequestEntry
+	9,  // 6: teleport.subca.v1.PendingCSRRequest.create_time:type_name -> google.protobuf.Timestamp
+	4,  // 7: teleport.subca.v1.PendingCSRRequest.csrs:type_name -> teleport.subca.v1.PendingCSR
+	10, // 8: teleport.subca.v1.PendingCSRRequest.custom_subject:type_name -> teleport.subca.v1.DistinguishedName
+	11, // 9: teleport.subca.v1.PendingCSR.public_key_hash:type_name -> teleport.subca.v1.PublicKeyHash
+	12, // 10: teleport.subca.v1.PendingCSR.csr:type_name -> teleport.subca.v1.CertificateSigningRequest
+	13, // 11: teleport.subca.v1.PendingCSR.status:type_name -> google.rpc.Status
+	14, // 12: teleport.subca.v1.CertAuthorityOverrideStatus.PublicKeyHashToCrlEntry.value:type_name -> teleport.subca.v1.CertificateRevocationList
+	3,  // 13: teleport.subca.v1.CertAuthorityOverrideStatus.IdToPendingCsrRequestEntry.value:type_name -> teleport.subca.v1.PendingCSRRequest
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_teleport_subca_v1_cert_authority_override_proto_init() }
@@ -391,13 +695,16 @@ func file_teleport_subca_v1_cert_authority_override_proto_init() {
 	}
 	file_teleport_subca_v1_certificate_override_proto_init()
 	file_teleport_subca_v1_crl_proto_init()
+	file_teleport_subca_v1_csr_proto_init()
+	file_teleport_subca_v1_distinguished_name_proto_init()
+	file_teleport_subca_v1_public_key_hash_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_subca_v1_cert_authority_override_proto_rawDesc), len(file_teleport_subca_v1_cert_authority_override_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -73,11 +73,19 @@ type SubCAServiceClient interface {
 	// CreateCSR creates certificate signing requests for all certificates of the
 	// specified CA, in preparation for the creation of a CertAuthorityOverride.
 	//
-	// On clusters that use HSMs this must be called on every Auth server
-	// instance, so it every private key is covered. Each Auth issues CSRs for all
-	// the private keys it holds.
+	// On clusters where Auth server instances have access to distinct keys
+	// (multi-Auth, multi-HSM), CreateCSR attempts to collect CSRs from all Auth
+	// servers using CertAuthorityOverride watchers (see
+	// CertAuthorityOverrideStatus.id_to_pending_csr_request). Attempts are gated
+	// on a timeout. If too much time passes the RPC returns as many CSRs as it
+	// managed to collect. If necessary, a watcher-based request will create an
+	// empty CertAuthorityOverride resource for the corresponding CA type.
 	//
-	// CreateCSR requires cert_authority_override:read+list permissions.
+	// If local_only is set the request won't fanout to other Auth servers,
+	// instead it will use local keys. In this case, each Auth server must be
+	// contacted independently to create their corresponding CSRs.
+	//
+	// CreateCSR requires cert_authority_override:create+update permissions.
 	CreateCSR(ctx context.Context, in *CreateCSRRequest, opts ...grpc.CallOption) (*CreateCSRResponse, error)
 	// CreateCertAuthorityOverride creates a CertAuthorityOverride resource.
 	//
@@ -276,11 +284,19 @@ type SubCAServiceServer interface {
 	// CreateCSR creates certificate signing requests for all certificates of the
 	// specified CA, in preparation for the creation of a CertAuthorityOverride.
 	//
-	// On clusters that use HSMs this must be called on every Auth server
-	// instance, so it every private key is covered. Each Auth issues CSRs for all
-	// the private keys it holds.
+	// On clusters where Auth server instances have access to distinct keys
+	// (multi-Auth, multi-HSM), CreateCSR attempts to collect CSRs from all Auth
+	// servers using CertAuthorityOverride watchers (see
+	// CertAuthorityOverrideStatus.id_to_pending_csr_request). Attempts are gated
+	// on a timeout. If too much time passes the RPC returns as many CSRs as it
+	// managed to collect. If necessary, a watcher-based request will create an
+	// empty CertAuthorityOverride resource for the corresponding CA type.
 	//
-	// CreateCSR requires cert_authority_override:read+list permissions.
+	// If local_only is set the request won't fanout to other Auth servers,
+	// instead it will use local keys. In this case, each Auth server must be
+	// contacted independently to create their corresponding CSRs.
+	//
+	// CreateCSR requires cert_authority_override:create+update permissions.
 	CreateCSR(context.Context, *CreateCSRRequest) (*CreateCSRResponse, error)
 	// CreateCertAuthorityOverride creates a CertAuthorityOverride resource.
 	//
