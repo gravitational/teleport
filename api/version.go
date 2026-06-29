@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.9.2"
+const Version = "18.9.3-dev.gavin.1"
 
 const VersionMajor = 18
 const VersionMinor = 9
-const VersionPatch = 2
-const VersionPreRelease = ""
+const VersionPatch = 3
+const VersionPreRelease = "dev.gavin.1"
 const VersionMetadata = ""
