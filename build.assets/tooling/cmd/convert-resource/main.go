@@ -17,6 +17,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -726,10 +727,15 @@ func convertYAMLToHCL(w io.Writer, r io.Reader) error {
 		return trace.Errorf("unable to convert the provided YAML manifest into HCL: %w", err)
 	}
 
-	// TODO: Go through outbytes and remove empty comment lines
-	if _, err := w.Write(outbytes); err != nil {
-		return trace.Errorf("unable to process the converted HCL: %w", err)
+	scanner := bufio.NewScanner(strings.NewReader(string(outbytes)))
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		if strings.TrimSpace(scanner.Text()) != "#" {
+			w.Write(scanner.Bytes())
+			w.Write([]byte("\n"))
+		}
 	}
+
 	return nil
 }
 
