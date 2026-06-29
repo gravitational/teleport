@@ -452,6 +452,48 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedReadWithScope(
 	return c.RiskyAuthorizeUnpinnedRead(ctx, authz, ruleCtx)
 }
 
+// RiskyAuthorizeUnpinnedEmitEvent authorizes a create-only access check that bypasses
+// enforcement of the identity's pinned scope specifically for emitting audit events.
+// It is special-cased to avoid misuse of unpinned writes.
+func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedEmitEvent(
+	ctx context.Context,
+	ruleCtx RuleContext,
+) error {
+	if pin, ok := c.ScopePin(); ok {
+		if pin.GetKind() != scopesv1.PinKind_PIN_KIND_AGENT {
+			return trace.AccessDenied("unpinned authorization for audit event emission is only supported for agent pins")
+		}
+	}
+
+	return c.decision(
+		c.riskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
+		func(checker *ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, types.VerbCreate)
+		},
+	)
+}
+
+// RiskyAuthorizeUnpinnedWriteEvent authorizes a write-only access check that bypasses
+// enforcement of the identity's pinned scope specifically for creating and updating audit events.
+// It is special-cased to avoid misuse of unpinned writes.
+func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedWriteEvent(
+	ctx context.Context,
+	ruleCtx RuleContext,
+) error {
+	if pin, ok := c.ScopePin(); ok {
+		if pin.GetKind() != scopesv1.PinKind_PIN_KIND_AGENT {
+			return trace.AccessDenied("unpinned authorization for audit event emission is only supported for agent pins")
+		}
+	}
+
+	return c.decision(
+		c.riskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
+		func(checker *ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, types.VerbCreate, types.VerbUpdate)
+		},
+	)
+}
+
 // UnpinnedReadAuthorization is a special authorization to complete an unscoped
 // read-only access check. This is meant to be used for access checks on
 // typically cluster-wide resources that need to be readable by identities with
@@ -560,12 +602,25 @@ var (
 		kind:          types.KindSessionRecordingConfig,
 		verbs:         []string{types.VerbRead},
 	}
-
 	// UnpinnedReadScopedRole is a special authorization to complete an
 	// unscoped access check to read a scoped role.
 	UnpinnedReadScopedRole = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          scopedaccess.KindScopedRole,
+		verbs:         []string{types.VerbRead},
+	}
+	// UnpinnedReadUser is a special authorization to complete a unscoped access check
+	// to read a user.
+	UnpinnedReadUser = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindUser,
+		verbs:         []string{types.VerbRead},
+	}
+	// UnpinnedReadRole is a special authorization to complete an unscoped access check
+	// to read a role.
+	UnpinnedReadRole = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindRole,
 		verbs:         []string{types.VerbRead},
 	}
 )
