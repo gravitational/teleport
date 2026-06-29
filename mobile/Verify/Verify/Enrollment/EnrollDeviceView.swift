@@ -45,20 +45,20 @@ struct EnrollDeviceView: View {
 		.sheet(
 			isPresented: Binding(
 				get: {
-					switch viewModel.attempt {
+					switch viewModel.loadingState {
 						case .idle: false
 						default: true
 					}
 				},
-				set: { if !$0 { viewModel.attempt = .idle } },
+				set: { if !$0 { viewModel.loadingState = .idle } },
 			),
 		) {
 			EnrollRequestStatusView(
-				attempt: viewModel.attempt,
-				onDismiss: { viewModel.attempt = .idle },
+				attempt: viewModel.loadingState,
+				onDismiss: { viewModel.loadingState = .idle },
 			)
 			.presentationDetents([.medium])
-			.interactiveDismissDisabled(viewModel.attempt.isLoading)
+			.interactiveDismissDisabled(viewModel.loadingState.isLoading)
 		}
 	}
 }
@@ -85,7 +85,7 @@ extension EnrollDeviceView {
 			Task { await viewModel.requestEnrollToken() }
 		} label: {
 			Group {
-				if viewModel.attempt.isLoading {
+				if viewModel.loadingState.isLoading {
 					Label(
 						"Request in progress",
 						systemImage: "progress.indicator",
@@ -104,8 +104,8 @@ extension EnrollDeviceView {
 		}
 		.buttonStyle(.primary)
 		.controlSize(.large)
-		.animation(.easeInOut, value: viewModel.attempt.isLoading)
-		.disabled(viewModel.attempt.isLoading)
+		.animation(.easeInOut, value: viewModel.loadingState.isLoading)
+		.disabled(viewModel.loadingState.isLoading)
 	}
 
 	var cancelButton: some View {
@@ -114,7 +114,7 @@ extension EnrollDeviceView {
 		}
 		.buttonStyle(.bordered)
 		.controlSize(.large)
-		.disabled(viewModel.attempt.isLoading)
+		.disabled(viewModel.loadingState.isLoading)
 	}
 }
 
