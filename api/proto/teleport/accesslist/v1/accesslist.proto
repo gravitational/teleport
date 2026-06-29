@@ -187,6 +187,16 @@ message ScopedRoleGrant {
   string scope = 2;
 }
 
+// UserDisplay contains display values derived from a user. An empty message
+// means the user has no primary/secondary distinct from the username; the
+// absence of this message means the user was not found.
+message UserDisplay {
+  // primary is a human-readable display name when distinct from username.
+  string primary = 1;
+  // secondary is supporting display context when distinct from username.
+  string secondary = 2;
+}
+
 // Member describes a member of an Access List.
 message Member {
   // header is the header for the resource.
@@ -198,6 +208,17 @@ message Member {
   // scope is the scope of the Access List member, it must be equal to the
   // scope of the parent Access List.
   string scope = 3;
+
+  // status contains dynamically calculated fields.
+  MemberStatus status = 4;
+}
+
+// MemberStatus contains dynamic fields calculated during retrieval.
+message MemberStatus {
+  // display contains display values for the member user.
+  UserDisplay display = 1;
+  // added_by_display contains display values for the user that added the member.
+  UserDisplay added_by_display = 2;
 }
 
 // MemberSpec is the specification for an Access List member.
@@ -372,4 +393,6 @@ message AccessListStatus {
   // scoped_member_of describes scoped Access Lists where this Access List is an explicit member.
   // Each item is the scope-qualified name of the parent scoped Access List.
   repeated string scoped_member_of = 8;
+  // owner_displays contains display values for owners, keyed by owner username.
+  map<string, UserDisplay> owner_displays = 9;
 }
