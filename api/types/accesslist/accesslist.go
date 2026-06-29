@@ -313,7 +313,7 @@ type Requires struct {
 
 // IsEmpty returns true when no roles or traits are set
 func (r *Requires) IsEmpty() bool {
-	return len(r.Roles) == 0 && len(r.Traits) == 0
+	return r == nil || (len(r.Roles) == 0 && len(r.Traits) == 0)
 }
 
 // Clone returns a deep copy of the [Requires]
