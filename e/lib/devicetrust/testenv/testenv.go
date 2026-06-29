@@ -195,6 +195,10 @@ func New(opts ...Opt) (*E, error) {
 	if err != nil {
 		return nil, err
 	}
+	enrollPairingService, err := local.NewEnrollPairingService(mem)
+	if err != nil {
+		return nil, err
+	}
 
 	// Device service.
 	e.DevicesService, err = devicetrustv1.New(devicetrustv1.ServiceParams{
@@ -211,6 +215,7 @@ func New(opts ...Opt) (*E, error) {
 		Emitter:             e.emitter,
 		Limiter:             e.limiter,
 		Storage:             dtStorage,
+		EnrollPairing:       enrollPairingService,
 		Modules:             e.modules,
 	})
 	if err != nil {

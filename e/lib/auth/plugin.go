@@ -945,6 +945,7 @@ func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *a
 		CachedUsersService:  authServer.Cache,
 		Emitter:             authGRPC.Emitter,
 		Storage:             deviceStorage,
+		EnrollPairing:       authServer.Services,
 		Modules:             m,
 	})
 	if err != nil {

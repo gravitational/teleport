@@ -161,14 +161,15 @@ type Service struct {
 
 	logger *slog.Logger
 
-	authServer  AuthServer
-	authorizer  authz.Authorizer
-	cachedRoles AccessService
-	cachedUsers UsersService
-	emitter     apievents.Emitter
-	limiter     RateLimiter
-	storage     *storage.S
-	modules     modules.Modules
+	authServer    AuthServer
+	authorizer    authz.Authorizer
+	cachedRoles   AccessService
+	cachedUsers   UsersService
+	emitter       apievents.Emitter
+	limiter       RateLimiter
+	storage       *storage.S
+	enrollPairing services.EnrollPairing
+	modules       modules.Modules
 }
 
 // ServiceParams holds creation parameters for Service.
@@ -180,6 +181,7 @@ type ServiceParams struct {
 	CachedUsersService  UsersService
 	Emitter             apievents.Emitter
 	Storage             *storage.S
+	EnrollPairing       services.EnrollPairing
 	Modules             modules.Modules
 
 	// Limiter is the rate limiter for loosely-authorized requests, like
@@ -209,6 +211,8 @@ func New(params ServiceParams) (*Service, error) {
 		return nil, trace.BadParameter("parameter Emitter required")
 	case params.Storage == nil:
 		return nil, trace.BadParameter("parameter Storage required")
+	case params.EnrollPairing == nil:
+		return nil, trace.BadParameter("parameter EnrollPairing required")
 	case params.Modules == nil:
 		return nil, trace.BadParameter("parameter Modules required")
 	}
@@ -237,15 +241,16 @@ func New(params ServiceParams) (*Service, error) {
 	}
 
 	return &Service{
-		logger:      baseLogger.With(teleport.ComponentKey, "devicetrust.service"),
-		authServer:  params.AuthServer,
-		authorizer:  params.Authorizer,
-		cachedRoles: params.CachedAccessService,
-		cachedUsers: params.CachedUsersService,
-		emitter:     params.Emitter,
-		limiter:     rateLimiter,
-		storage:     params.Storage,
-		modules:     params.Modules,
+		logger:        baseLogger.With(teleport.ComponentKey, "devicetrust.service"),
+		authServer:    params.AuthServer,
+		authorizer:    params.Authorizer,
+		cachedRoles:   params.CachedAccessService,
+		cachedUsers:   params.CachedUsersService,
+		emitter:       params.Emitter,
+		limiter:       rateLimiter,
+		storage:       params.Storage,
+		enrollPairing: params.EnrollPairing,
+		modules:       params.Modules,
 	}, nil
 }
 

@@ -131,6 +131,34 @@ func TestService_authz(t *testing.T) {
 			assertErr: trace.IsNotFound,
 		},
 		{
+			name: "CreateEnrollPairing",
+			checker: &ruleVerifyingChecker{
+				want: []wantRuleVerb{
+					{rule: types.KindMobileDevice, verb: types.VerbCreateEnrollToken},
+				},
+			},
+			rpc: func() error {
+				_, err := devices.CreateEnrollPairing(ctx, &devicepb.CreateEnrollPairingRequest{})
+				return err
+			},
+			assertErr: func(err error) bool { return err == nil },
+		},
+		{
+			name: "GetCurrentEnrollPairing",
+			checker: &ruleVerifyingChecker{
+				want: []wantRuleVerb{
+					{rule: types.KindMobileDevice, verb: types.VerbCreateEnrollToken},
+				},
+			},
+			rpc: func() error {
+				_, err := devices.GetCurrentEnrollPairing(ctx, &devicepb.GetCurrentEnrollPairingRequest{})
+				return err
+			},
+			// Accept NotFound or nil, since whether a pairing already exists depends
+			// on whether CreateEnrollPairing ran earlier in the table for this user.
+			assertErr: func(err error) bool { return err == nil || trace.IsNotFound(err) },
+		},
+		{
 			name: "DeleteDevice",
 			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
