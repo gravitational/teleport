@@ -111,6 +111,7 @@ function DesktopSessionComponent(props: {
             desktopUri,
             login,
           }),
+        new Logger('TDPClient'),
         { mode: 'tdpb' }
       )
   );
