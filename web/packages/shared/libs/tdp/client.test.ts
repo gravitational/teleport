@@ -125,7 +125,8 @@ test('shared directory management', async () => {
   await expect(client.shareDirectory()).rejects.toThrow();
 
   // Internal directory management state should reset upon
-  // shutdown and subsequent connect.
+  // shutdown and subsequent connect. This should also
+  // reset the set pool of available identifiers.
   client.shutdown();
   transportOpen = new Promise<void>(client.onTransportOpen);
   client.connect({
@@ -134,13 +135,18 @@ test('shared directory management', async () => {
   });
   await transportOpen;
 
-  let shareUnshare = async () => {
+  // After reconnecting, the device identifiers should
+  // start from the beginning of the specified range again.
+  // (in this case, 2)
+  const shareAfterReset = await client.shareDirectory();
+  expect(shareAfterReset.id).toEqual(2);
+  client.unshareDirectory(shareAfterReset.id);
+
+  // Share 20 more so that the range of device identifiers wraps.
+  for (let i = 0; i < 20; i++) {
     const res = await client.shareDirectory();
     client.unshareDirectory(res.id);
-  };
-
-  // 11 more
-  await Promise.all(Array.from({ length: 11 }, () => shareUnshare()));
+  }
 
   // The range of valid device identifiers is currently [2, 22]
   // Initial and released identifiers are added to a FIFO, so the

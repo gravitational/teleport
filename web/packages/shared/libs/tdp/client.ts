@@ -1079,6 +1079,7 @@ class SharedDirectoryManager {
     this.sharedDirectories.forEach((_, id) => {
       this.unshareDirectory(id);
     });
+    this.deviceId.reset();
   }
 
   getSharedDirectory(directoryId: number): SharedDirectoryAccess | undefined {
@@ -1162,5 +1163,11 @@ class Identifiers {
       return true;
     }
     return false;
+  }
+
+  reset() {
+    this.leased.forEach(value => this.free.push(value));
+    this.leased.clear();
+    this.free.sort((a, b) => a - b);
   }
 }
