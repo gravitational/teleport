@@ -657,6 +657,8 @@ var resourceConfig = map[string]conversionRule{
 	},
 }
 
+// fieldPathsWithPrefix recursively traverses m and outputs a slice of field
+// paths separated by dots. All returned field paths begin with prefix.
 func fieldPathsWithPrefix(m map[string]any, prefix string) []string {
 	out := []string{}
 	for k, v := range m {
@@ -672,6 +674,8 @@ func fieldPathsWithPrefix(m map[string]any, prefix string) []string {
 	return out
 }
 
+// fieldPaths recursively traverses m and outputs a slice of field paths
+// separated by dots.
 func fieldPaths(m map[string]any) []string {
 	return fieldPathsWithPrefix(m, "")
 }
@@ -718,6 +722,14 @@ func convertYAMLToHCL(w io.Writer, r io.Reader) error {
 		opts = append(opts, tfgen.WithResourceType(convert.terraformResourceType))
 	}
 
+	// We need to preserve fields listed in the original resource that have
+	// zero values. tfgen.Generate omits zeroed values by default, including
+	// false Booleans. The tfgen.GenerateOpt WithFieldComment is the only
+	// one that instructs the generator to preserve a zeroed field. We
+	// retrieve a slice of field paths by traversing all fields in the
+	// original JSON resource object. Then we pass each field path to a
+	// WithFieldComment option to preserve all fields from the original
+	// resource.
 	for _, p := range fieldPaths(m) {
 		opts = append(opts, tfgen.WithFieldComment(p, ""))
 	}
@@ -727,6 +739,9 @@ func convertYAMLToHCL(w io.Writer, r io.Reader) error {
 		return trace.Errorf("unable to convert the provided YAML manifest into HCL: %w", err)
 	}
 
+	// At this point, all fields in the output include an extraneous empty
+	// comment marker, the result of WithFieldComment. Write out the result
+	// line by line, ignoring the empty comment markers.
 	scanner := bufio.NewScanner(strings.NewReader(string(outbytes)))
 	for scanner.Scan() {
 		if strings.TrimSpace(scanner.Text()) != "#" {
