@@ -253,6 +253,7 @@ func ReadIdentityFromKeyPair(privateKey []byte, certs *proto.Certs) (*Identity, 
 		identity.TLSCertBytes = certs.TLS
 		identity.TLSCACertsBytes = certs.TLSCACerts
 		identity.SystemRoles = i.SystemRoles
+		identity.ScopePin = i.ScopePin
 	}
 
 	return identity, nil
