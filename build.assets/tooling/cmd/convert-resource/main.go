@@ -728,7 +728,6 @@ func convertYAMLToHCL(w io.Writer, r io.Reader) error {
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(string(outbytes)))
-	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
 		if strings.TrimSpace(scanner.Text()) != "#" {
 			w.Write(scanner.Bytes())
