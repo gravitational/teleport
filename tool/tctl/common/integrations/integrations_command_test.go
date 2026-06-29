@@ -24,13 +24,13 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestIntegrationsCommandTest_InvalidKind(t *testing.T) {
@@ -66,41 +66,18 @@ func TestIntegrationsCommandTest_AWSOIDC(t *testing.T) {
 	tcs := []struct {
 		name   string
 		format string
-		output string
 	}{
 		{
 			name:   "text format",
 			format: teleport.Text,
-			output: `AWS STS get-caller-identity response:
-
-Integration Name: my-integration
-AWS Account ID:   123456789012
-Assumed Role ARN: arn:aws:sts::123456789012:assumed-role/teleport/test
-User ID:          AROAEXAMPLE:test
-
-` + bold("AWS OIDC integration is operational.") + "\n",
 		},
 		{
 			name:   "json format",
 			format: teleport.JSON,
-			output: `{
-    "status": "operational",
-    "integration_name": "my-integration",
-    "account_id": "123456789012",
-    "assumed_role_arn": "arn:aws:sts::123456789012:assumed-role/teleport/test",
-    "user_id": "AROAEXAMPLE:test"
-}
-`,
 		},
 		{
 			name:   "yaml format",
 			format: teleport.YAML,
-			output: `account_id: "123456789012"
-assumed_role_arn: arn:aws:sts::123456789012:assumed-role/teleport/test
-integration_name: my-integration
-status: operational
-user_id: AROAEXAMPLE:test
-`,
 		},
 	}
 
@@ -141,7 +118,10 @@ user_id: AROAEXAMPLE:test
 			})
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.output, out.String())
+			if golden.ShouldSet() {
+				golden.Set(t, out.Bytes())
+			}
+			require.Equal(t, string(golden.Get(t)), out.String())
 		})
 	}
 }
