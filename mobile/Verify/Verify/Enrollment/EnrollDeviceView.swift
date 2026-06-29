@@ -103,3 +103,15 @@ struct EnrollDeviceView: View {
 		}
 	}
 }
+
+#Preview {
+	EnrollDeviceView(
+		viewModel: EnrollDeviceViewModel(
+			deepLink: EnrollMobileDeviceDeepLink(
+				hostname: "localhost",
+				port: 1234,
+				enrollPairingToken: "pairing-token",
+			),
+		),
+	)
+}
