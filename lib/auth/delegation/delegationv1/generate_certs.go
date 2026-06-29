@@ -250,6 +250,12 @@ func (s *SessionService) generateCertificates(
 		DelegationSessionID: session.GetMetadata().GetName(),
 	}
 
+	// If the delegation session is associated with a Beam, carry its ID through
+	// to the issued certificate so downstream services can attribute usage.
+	if beamID := session.GetMetadata().GetLabels()[types.BeamIDLabel]; beamID != "" {
+		certReq.BeamID = beamID
+	}
+
 	// Add the protocol-specific routing hints to the certificate.
 	switch req.WhichRouting() {
 	case delegationv1.GenerateCertsRequest_RouteToKubernetes_case:
@@ -278,6 +284,7 @@ func (s *SessionService) generateCertificates(
 				RequestedResourceAccessIDs: resourceIDs,
 				AttestWebSession:           true,
 				DelegationSessionID:        session.GetMetadata().GetName(),
+				BeamID:                     certReq.BeamID,
 			},
 			PublicAddr:        certReq.AppPublicAddr,
 			ClusterName:       certReq.AppClusterName,

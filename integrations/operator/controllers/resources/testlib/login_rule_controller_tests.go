@@ -23,8 +23,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/testing/protocmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -52,7 +52,7 @@ func (l *loginRuleTestingPrimitives) SetupTeleportFixtures(context.Context) erro
 }
 
 func (l *loginRuleTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	rule := loginrulepb.LoginRule{
+	rule := loginrulepb.LoginRule_builder{
 		Metadata: &types.Metadata{
 			Name: name,
 		},
@@ -66,10 +66,10 @@ func (l *loginRuleTestingPrimitives) CreateTeleportResource(ctx context.Context,
 				Values: []string{"external.groups"},
 			},
 		},
-	}
+	}.Build()
 	rule.GetMetadata().SetOrigin(types.OriginKubernetes)
 	_, err := l.setup.TeleportClient.LoginRuleClient().CreateLoginRule(ctx, loginrulepb.CreateLoginRuleRequest_builder{
-		LoginRule: &rule,
+		LoginRule: rule,
 	}.Build())
 	return trace.Wrap(err)
 }
@@ -139,9 +139,7 @@ func (l *loginRuleTestingPrimitives) ModifyKubernetesResource(ctx context.Contex
 func (l *loginRuleTestingPrimitives) CompareTeleportAndKubernetesResource(
 	tResource *resourcesv1.LoginRuleResource,
 	kubeResource *resourcesv1.TeleportLoginRule) (bool, string) {
-	diff := cmp.Diff(tResource, kubeResource.ToTeleport(),
-		CompareOptions(cmpopts.IgnoreUnexported(loginrulepb.LoginRule{}))...,
-	)
+	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), CompareOptions(protocmp.Transform())...)
 	return diff == "", diff
 }
 

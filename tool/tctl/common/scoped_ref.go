@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -106,11 +107,20 @@ func ParseScopedRef(ref, id string) (ScopedRef, error) {
 	// is actually a subkind in the new format.
 	subKind := r.Name
 	if strings.Contains(id, scopes.QualifiedNameSeparator) {
-		if err := scopes.StrongValidateQualifiedName(id); err != nil {
-			return ScopedRef{}, trace.Wrap(err)
-		}
 		qn, err := scopes.ParseQualifiedName(id)
 		if err != nil {
+			return ScopedRef{}, trace.Wrap(err)
+		}
+
+		// A user may provide the token name as either <token_name> OR <token_name>:<encoded_secret>.
+		// Both formats are supported to improve UX, however, only the token name is consumed
+		// for tctl commands to operate properly. Strip the secret after parsing the SQN so
+		// that the colon in the SQN separator is not mistaken for the token/secret separator.
+		if r.Kind == types.KindScopedToken {
+			qn.Name, _, _ = strings.Cut(qn.Name, ":")
+		}
+
+		if err := qn.StrongValidate(); err != nil {
 			return ScopedRef{}, trace.Wrap(err)
 		}
 		return ScopedRef{Kind: r.Kind, SubKind: subKind, Scope: qn.Scope, Name: qn.Name}, nil

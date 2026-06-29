@@ -57,6 +57,12 @@ export interface AccessList {
      * @generated from protobuf field: teleport.accesslist.v1.AccessListStatus status = 3;
      */
     status?: AccessListStatus;
+    /**
+     * scope is the scope of the Access List.
+     *
+     * @generated from protobuf field: string scope = 4;
+     */
+    scope: string;
 }
 /**
  * AccessListSpec is the specification for an Access List.
@@ -134,7 +140,10 @@ export interface AccessListSpec {
  */
 export interface AccessListOwner {
     /**
-     * name is the username of the owner.
+     * name is the name of the owner, depending on MembershipKind:
+     * MEMBERSHIP_KIND_USER: the username of the owner.
+     * MEMBERSHIP_KIND_LIST: the name of the owner Access List.
+     * MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner Access List.
      *
      * @generated from protobuf field: string name = 1;
      */
@@ -155,7 +164,7 @@ export interface AccessListOwner {
     ineligibleStatus: IneligibleStatus;
     /**
      * membership_kind describes the type of membership, either
-     * `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+     * `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
      *
      * @generated from protobuf field: teleport.accesslist.v1.MembershipKind membership_kind = 4;
      */
@@ -277,13 +286,13 @@ export interface AccessListGrants {
  */
 export interface ScopedRoleGrant {
     /**
-     * role is the name of the scoped role to be granted.
+     * role is scope-qualified name of the scoped role to be granted.
      *
      * @generated from protobuf field: string role = 1;
      */
     role: string;
     /**
-     * scope is the scope the role will be assigned at. It must be an assignable
+     * scope is the scope the role will be granted at. It must be an assignable
      * scope of the role.
      *
      * @generated from protobuf field: string scope = 2;
@@ -308,6 +317,13 @@ export interface Member {
      * @generated from protobuf field: teleport.accesslist.v1.MemberSpec spec = 2;
      */
     spec?: MemberSpec;
+    /**
+     * scope is the scope of the Access List member, it must be equal to the
+     * scope of the parent Access List.
+     *
+     * @generated from protobuf field: string scope = 3;
+     */
+    scope: string;
 }
 /**
  * MemberSpec is the specification for an Access List member.
@@ -322,7 +338,10 @@ export interface MemberSpec {
      */
     accessList: string;
     /**
-     * name is the name of the member of the Access List.
+     * name is the name of the member of the Access List, depending on MembershipKind:
+     * MEMBERSHIP_KIND_USER: the username of the member.
+     * MEMBERSHIP_KIND_LIST: the name of the member Access List.
+     * MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the member scope Access List.
      *
      * @generated from protobuf field: string name = 2;
      */
@@ -360,7 +379,7 @@ export interface MemberSpec {
     ineligibleStatus: IneligibleStatus;
     /**
      * membership_kind describes the type of membership, either
-     * `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+     * `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
      *
      * @generated from protobuf field: teleport.accesslist.v1.MembershipKind membership_kind = 9;
      */
@@ -384,6 +403,13 @@ export interface Review {
      * @generated from protobuf field: teleport.accesslist.v1.ReviewSpec spec = 2;
      */
     spec?: ReviewSpec;
+    /**
+     * scope is the scope of the Access List review. It must be equal to the
+     * scope of the reviewed Access List.
+     *
+     * @generated from protobuf field: string scope = 3;
+     */
+    scope: string;
 }
 /**
  * ReviewSpec is the specification for an Access List review.
@@ -393,6 +419,8 @@ export interface Review {
 export interface ReviewSpec {
     /**
      * access_list is the name of the Access List that this review is for.
+     * If the review is scoped, this is the scope-qualified name of the reviewed
+     * scoped Access List.
      *
      * @generated from protobuf field: string access_list = 1;
      */
@@ -456,40 +484,47 @@ export interface ReviewChanges {
      * @generated from protobuf field: teleport.accesslist.v1.ReviewDayOfMonth review_day_of_month_changed = 5;
      */
     reviewDayOfMonthChanged: ReviewDayOfMonth;
+    /**
+     * scoped_removed_members contains the scope-qualified names of members that
+     * were removed as part of this review.
+     *
+     * @generated from protobuf field: repeated string scoped_removed_members = 6;
+     */
+    scopedRemovedMembers: string[];
 }
 /**
- * CurrentUserAssignments describes the current user's ownership and membership status in the access list.
+ * CurrentUserAssignments describes the current user's ownership and membership status in the Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.CurrentUserAssignments
  */
 export interface CurrentUserAssignments {
     /**
-     * ownership_type represents the current user's ownership type (explicit, inherited, or none) in the access list.
+     * ownership_type represents the current user's ownership type (explicit, inherited, or none) in the Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListUserAssignmentType ownership_type = 1;
      */
     ownershipType: AccessListUserAssignmentType;
     /**
-     * membership_type represents the current user's membership type (explicit, inherited, or none) in the access list.
+     * membership_type represents the current user's membership type (explicit, inherited, or none) in the Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListUserAssignmentType membership_type = 2;
      */
     membershipType: AccessListUserAssignmentType;
 }
 /**
- * UserAssignments describes the requested user's ownership and membership assignment types in the access list.
+ * UserAssignments describes the requested user's ownership and membership assignment types in the Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.UserAssignments
  */
 export interface UserAssignments {
     /**
-     * ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the access list.
+     * ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListUserAssignmentType ownership_type = 1;
      */
     ownershipType: AccessListUserAssignmentType;
     /**
-     * membership_type represents the requested user's membership type (explicit, inherited, or none) in the access list.
+     * membership_type represents the requested user's membership type (explicit, inherited, or none) in the Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListUserAssignmentType membership_type = 2;
      */
@@ -526,17 +561,31 @@ export interface AccessListStatus {
      */
     memberOf: string[];
     /**
-     * current_user_assignments describes the current user's ownership and membership status in the access list.
+     * current_user_assignments describes the current user's ownership and membership status in the Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.CurrentUserAssignments current_user_assignments = 5;
      */
     currentUserAssignments?: CurrentUserAssignments;
     /**
-     * user_assignments describes the requested user's ownership and membership assignment types in the access list.
+     * user_assignments describes the requested user's ownership and membership assignment types in the Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.UserAssignments user_assignments = 6;
      */
     userAssignments?: UserAssignments;
+    /**
+     * scoped_owner_of describes scoped Access Lists where this Access List is an explicit owner.
+     * Each item is the scope-qualified name of the owned scoped Access List.
+     *
+     * @generated from protobuf field: repeated string scoped_owner_of = 7;
+     */
+    scopedOwnerOf: string[];
+    /**
+     * scoped_member_of describes scoped Access Lists where this Access List is an explicit member.
+     * Each item is the scope-qualified name of the parent scoped Access List.
+     *
+     * @generated from protobuf field: repeated string scoped_member_of = 8;
+     */
+    scopedMemberOf: string[];
 }
 /**
  * ReviewFrequency is the frequency of reviews.
@@ -612,7 +661,13 @@ export enum MembershipKind {
      *
      * @generated from protobuf enum value: MEMBERSHIP_KIND_LIST = 2;
      */
-    LIST = 2
+    LIST = 2,
+    /**
+     * MEMBERSHIP_KIND_SCOPED_LIST represents list members that are nested scoped Access Lists
+     *
+     * @generated from protobuf enum value: MEMBERSHIP_KIND_SCOPED_LIST = 3;
+     */
+    SCOPED_LIST = 3
 }
 /**
  * IneligibleStatus describes how the user is ineligible.
@@ -656,8 +711,8 @@ export enum IneligibleStatus {
     EXPIRED = 4
 }
 /**
- * AccessListUserAssignmentType describes the type of membership anr/or ownership
- * a user has in an access list.
+ * AccessListUserAssignmentType describes the type of membership and/or ownership
+ * a user has in an Access List.
  *
  * @generated from protobuf enum teleport.accesslist.v1.AccessListUserAssignmentType
  */
@@ -687,11 +742,13 @@ class AccessList$Type extends MessageType<AccessList> {
         super("teleport.accesslist.v1.AccessList", [
             { no: 1, name: "header", kind: "message", T: () => ResourceHeader },
             { no: 2, name: "spec", kind: "message", T: () => AccessListSpec },
-            { no: 3, name: "status", kind: "message", T: () => AccessListStatus }
+            { no: 3, name: "status", kind: "message", T: () => AccessListStatus },
+            { no: 4, name: "scope", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessList>): AccessList {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.scope = "";
         if (value !== undefined)
             reflectionMergePartial<AccessList>(this, message, value);
         return message;
@@ -709,6 +766,9 @@ class AccessList$Type extends MessageType<AccessList> {
                     break;
                 case /* teleport.accesslist.v1.AccessListStatus status */ 3:
                     message.status = AccessListStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
+                    break;
+                case /* string scope */ 4:
+                    message.scope = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -731,6 +791,9 @@ class AccessList$Type extends MessageType<AccessList> {
         /* teleport.accesslist.v1.AccessListStatus status = 3; */
         if (message.status)
             AccessListStatus.internalBinaryWrite(message.status, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* string scope = 4; */
+        if (message.scope !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.scope);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1257,11 +1320,13 @@ class Member$Type extends MessageType<Member> {
     constructor() {
         super("teleport.accesslist.v1.Member", [
             { no: 1, name: "header", kind: "message", T: () => ResourceHeader },
-            { no: 2, name: "spec", kind: "message", T: () => MemberSpec }
+            { no: 2, name: "spec", kind: "message", T: () => MemberSpec },
+            { no: 3, name: "scope", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Member>): Member {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.scope = "";
         if (value !== undefined)
             reflectionMergePartial<Member>(this, message, value);
         return message;
@@ -1276,6 +1341,9 @@ class Member$Type extends MessageType<Member> {
                     break;
                 case /* teleport.accesslist.v1.MemberSpec spec */ 2:
                     message.spec = MemberSpec.internalBinaryRead(reader, reader.uint32(), options, message.spec);
+                    break;
+                case /* string scope */ 3:
+                    message.scope = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1295,6 +1363,9 @@ class Member$Type extends MessageType<Member> {
         /* teleport.accesslist.v1.MemberSpec spec = 2; */
         if (message.spec)
             MemberSpec.internalBinaryWrite(message.spec, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string scope = 3; */
+        if (message.scope !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.scope);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1411,11 +1482,13 @@ class Review$Type extends MessageType<Review> {
     constructor() {
         super("teleport.accesslist.v1.Review", [
             { no: 1, name: "header", kind: "message", T: () => ResourceHeader },
-            { no: 2, name: "spec", kind: "message", T: () => ReviewSpec }
+            { no: 2, name: "spec", kind: "message", T: () => ReviewSpec },
+            { no: 3, name: "scope", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Review>): Review {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.scope = "";
         if (value !== undefined)
             reflectionMergePartial<Review>(this, message, value);
         return message;
@@ -1430,6 +1503,9 @@ class Review$Type extends MessageType<Review> {
                     break;
                 case /* teleport.accesslist.v1.ReviewSpec spec */ 2:
                     message.spec = ReviewSpec.internalBinaryRead(reader, reader.uint32(), options, message.spec);
+                    break;
+                case /* string scope */ 3:
+                    message.scope = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1449,6 +1525,9 @@ class Review$Type extends MessageType<Review> {
         /* teleport.accesslist.v1.ReviewSpec spec = 2; */
         if (message.spec)
             ReviewSpec.internalBinaryWrite(message.spec, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string scope = 3; */
+        if (message.scope !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.scope);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1543,7 +1622,8 @@ class ReviewChanges$Type extends MessageType<ReviewChanges> {
             { no: 2, name: "membership_requirements_changed", kind: "message", T: () => AccessListRequires },
             { no: 3, name: "removed_members", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "review_frequency_changed", kind: "enum", T: () => ["teleport.accesslist.v1.ReviewFrequency", ReviewFrequency, "REVIEW_FREQUENCY_"] },
-            { no: 5, name: "review_day_of_month_changed", kind: "enum", T: () => ["teleport.accesslist.v1.ReviewDayOfMonth", ReviewDayOfMonth, "REVIEW_DAY_OF_MONTH_"] }
+            { no: 5, name: "review_day_of_month_changed", kind: "enum", T: () => ["teleport.accesslist.v1.ReviewDayOfMonth", ReviewDayOfMonth, "REVIEW_DAY_OF_MONTH_"] },
+            { no: 6, name: "scoped_removed_members", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ReviewChanges>): ReviewChanges {
@@ -1551,6 +1631,7 @@ class ReviewChanges$Type extends MessageType<ReviewChanges> {
         message.removedMembers = [];
         message.reviewFrequencyChanged = 0;
         message.reviewDayOfMonthChanged = 0;
+        message.scopedRemovedMembers = [];
         if (value !== undefined)
             reflectionMergePartial<ReviewChanges>(this, message, value);
         return message;
@@ -1571,6 +1652,9 @@ class ReviewChanges$Type extends MessageType<ReviewChanges> {
                     break;
                 case /* teleport.accesslist.v1.ReviewDayOfMonth review_day_of_month_changed */ 5:
                     message.reviewDayOfMonthChanged = reader.int32();
+                    break;
+                case /* repeated string scoped_removed_members */ 6:
+                    message.scopedRemovedMembers.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1596,6 +1680,9 @@ class ReviewChanges$Type extends MessageType<ReviewChanges> {
         /* teleport.accesslist.v1.ReviewDayOfMonth review_day_of_month_changed = 5; */
         if (message.reviewDayOfMonthChanged !== 0)
             writer.tag(5, WireType.Varint).int32(message.reviewDayOfMonthChanged);
+        /* repeated string scoped_removed_members = 6; */
+        for (let i = 0; i < message.scopedRemovedMembers.length; i++)
+            writer.tag(6, WireType.LengthDelimited).string(message.scopedRemovedMembers[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1725,13 +1812,17 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
             { no: 3, name: "owner_of", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "member_of", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "current_user_assignments", kind: "message", T: () => CurrentUserAssignments },
-            { no: 6, name: "user_assignments", kind: "message", T: () => UserAssignments }
+            { no: 6, name: "user_assignments", kind: "message", T: () => UserAssignments },
+            { no: 7, name: "scoped_owner_of", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "scoped_member_of", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListStatus>): AccessListStatus {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.ownerOf = [];
         message.memberOf = [];
+        message.scopedOwnerOf = [];
+        message.scopedMemberOf = [];
         if (value !== undefined)
             reflectionMergePartial<AccessListStatus>(this, message, value);
         return message;
@@ -1758,6 +1849,12 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
                     break;
                 case /* teleport.accesslist.v1.UserAssignments user_assignments */ 6:
                     message.userAssignments = UserAssignments.internalBinaryRead(reader, reader.uint32(), options, message.userAssignments);
+                    break;
+                case /* repeated string scoped_owner_of */ 7:
+                    message.scopedOwnerOf.push(reader.string());
+                    break;
+                case /* repeated string scoped_member_of */ 8:
+                    message.scopedMemberOf.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1789,6 +1886,12 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
         /* teleport.accesslist.v1.UserAssignments user_assignments = 6; */
         if (message.userAssignments)
             UserAssignments.internalBinaryWrite(message.userAssignments, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* repeated string scoped_owner_of = 7; */
+        for (let i = 0; i < message.scopedOwnerOf.length; i++)
+            writer.tag(7, WireType.LengthDelimited).string(message.scopedOwnerOf[i]);
+        /* repeated string scoped_member_of = 8; */
+        for (let i = 0; i < message.scopedMemberOf.length; i++)
+            writer.tag(8, WireType.LengthDelimited).string(message.scopedMemberOf[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

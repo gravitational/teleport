@@ -209,36 +209,101 @@ func TestValidateApp(t *testing.T) {
 	}
 }
 
+func makeServer(t *testing.T, outerName, innerName, serverScope, appScope string) types.AppServer {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{Name: innerName}, types.AppSpecV3{URI: "http://localhost:8080"}, appScope)
+	require.NoError(t, err)
+	srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+	require.NoError(t, err)
+	srv.Metadata.Name = outerName
+	srv.Scope = serverScope
+
+	return srv
+}
+
 func TestValidateAppServer(t *testing.T) {
 	proxyGetter := &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}
 
-	makeServer := func(t *testing.T, outerName, innerName string) types.AppServer {
-		t.Helper()
-		app, err := types.NewAppV3(types.Metadata{Name: innerName}, types.AppSpecV3{URI: "http://localhost:8080"})
-		require.NoError(t, err)
-		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
-		require.NoError(t, err)
-		srv.Metadata.Name = outerName
-		return srv
+	tests := []struct {
+		name     string
+		srvName  string
+		appName  string
+		srvScope string
+		appScope string
+		wantErr  string
+	}{
+		// Name validation.
+		{
+			name:    "valid outer and inner",
+			srvName: "myapp",
+			appName: "myapp",
+		},
+		{
+			name:    "mixed-case outer rejected",
+			srvName: "MyApp",
+			appName: "myapp",
+			wantErr: `app server name "MyApp" must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', must start and end with alphanumeric, max 253 chars): a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '_', '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '_?[a-z0-9]([-_a-z0-9]*[a-z0-9])?(\._?[a-z0-9]([-_a-z0-9]*[a-z0-9])?)*')`,
+		},
+		{
+			name:    "underscore in outer accepted",
+			srvName: "ok_name",
+			appName: "good-name"},
+		{
+			name:    "mixed-case inner rejected",
+			srvName: "myapp",
+			appName: "MyApp",
+			wantErr: `application name "MyApp" must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', must start and end with alphanumeric, max 253 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name`,
+		},
+		// Scope validation: the embedded app scope must equal the server scope.
+		{
+			name:     "equal scope accepted",
+			srvName:  "my-srv",
+			appName:  "my-app",
+			srvScope: "/prod",
+			appScope: "/prod"},
+		{
+			name:    "unscoped server and app accepted",
+			srvName: "my-srv",
+			appName: "my-app",
+		},
+		{
+			name:     "different scopes rejected",
+			srvName:  "my-srv",
+			appName:  "my-app",
+			srvScope: "/prod/web",
+			appScope: "/prod",
+			wantErr:  `app server "my-srv" scope "/prod/web" does not match its embedded app scope "/prod"`,
+		},
+		{
+			name:     "empty embedded app scope under scoped server rejected",
+			srvName:  "my-srv",
+			appName:  "my-app",
+			srvScope: "/prod",
+			appScope: "",
+			wantErr:  `app server "my-srv" scope "/prod" does not match its embedded app scope ""`,
+		},
+		{
+			name:     "scoped app under unscoped server rejected",
+			srvName:  "my-srv",
+			appName:  "my-app",
+			srvScope: "",
+			appScope: "/prod",
+			wantErr:  `app server "my-srv" scope "" does not match its embedded app scope "/prod"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateAppServer(makeServer(t, tt.srvName, tt.appName, tt.srvScope, tt.appScope), proxyGetter)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 
 	t.Run("nil server rejected", func(t *testing.T) {
-		require.ErrorContains(t, ValidateAppServer(nil, proxyGetter), "nil app server")
-	})
-	t.Run("valid outer and inner", func(t *testing.T) {
-		require.NoError(t, ValidateAppServer(makeServer(t, "myapp", "myapp"), proxyGetter))
-	})
-	t.Run("mixed-case outer rejected", func(t *testing.T) {
-		err := ValidateAppServer(makeServer(t, "MyApp", "myapp"), proxyGetter)
-		require.ErrorContains(t, err, "app server name")
-		require.ErrorContains(t, err, "MyApp")
-	})
-	t.Run("underscore in outer accepted", func(t *testing.T) {
-		require.NoError(t, ValidateAppServer(makeServer(t, "ok_name", "good-name"), proxyGetter))
-	})
-	t.Run("mixed-case inner rejected", func(t *testing.T) {
-		err := ValidateAppServer(makeServer(t, "myapp", "MyApp"), proxyGetter)
-		require.ErrorContains(t, err, "application name")
+		require.EqualError(t, ValidateAppServer(nil, proxyGetter), "nil app server")
 	})
 }
 

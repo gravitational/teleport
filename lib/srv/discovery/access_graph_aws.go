@@ -432,14 +432,12 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	// Start a goroutine to watch the access graph service connection state.
 	// If the connection is closed, cancel the context to stop the event watcher
 	// before it tries to send any events to the access graph service.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		defer cancel()
 		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
 			s.Log.InfoContext(ctx, "Access graph service connection was closed")
 		}
-	}()
+	})
 
 	// Configure the poll interval
 	tickerInterval := defaultPollInterval
@@ -456,9 +454,11 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
 
 	// Start the EKS audit log watcher that keeps track of the EKS audit log
-	// fetchers and updates them when Reconcile is called.
+	// fetchers and updates them when Reconcile is called. Use the WaitGroup
+	// to ensure this function does not return until all the log fetchers
+	// spawned from the watcher have completed.
 	eksAuditLogWatcher := newEKSAuditLogWatcher(client, s.Log)
-	go eksAuditLogWatcher.Run(ctx)
+	wg.Go(func() { eksAuditLogWatcher.Run(ctx) })
 
 	currentTAGResources := &aws_sync.Resources{}
 	timer := time.NewTimer(tickerInterval)

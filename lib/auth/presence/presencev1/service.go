@@ -55,6 +55,8 @@ type Backend interface {
 }
 
 type Cache interface {
+	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
 	GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error)
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error)
@@ -70,28 +72,30 @@ type AuthServer interface {
 // ServiceConfig holds configuration options for
 // the presence gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	AuthServer AuthServer
-	Backend    Backend
-	Cache      Cache
-	Logger     *slog.Logger
-	Emitter    apievents.Emitter
-	Reporter   usagereporter.UsageReporter
-	Clock      clockwork.Clock
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	AuthServer       AuthServer
+	Backend          Backend
+	Cache            Cache
+	Logger           *slog.Logger
+	Emitter          apievents.Emitter
+	Reporter         usagereporter.UsageReporter
+	Clock            clockwork.Clock
 }
 
 // Service implements the teleport.presence.v1.PresenceService RPC service.
 type Service struct {
 	presencepb.UnimplementedPresenceServiceServer
 
-	authorizer authz.Authorizer
-	authServer AuthServer
-	backend    Backend
-	cache      Cache
-	logger     *slog.Logger
-	emitter    apievents.Emitter
-	reporter   usagereporter.UsageReporter
-	clock      clockwork.Clock
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	authServer       AuthServer
+	backend          Backend
+	cache            Cache
+	logger           *slog.Logger
+	emitter          apievents.Emitter
+	reporter         usagereporter.UsageReporter
+	clock            clockwork.Clock
 }
 
 var _ presencepb.PresenceServiceServer = (*Service)(nil)
@@ -103,6 +107,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.Reporter == nil:
@@ -121,11 +127,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		authServer: cfg.AuthServer,
-		backend:    cfg.Backend,
-		cache:      cfg.Cache,
+		logger:           cfg.Logger,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		authServer:       cfg.AuthServer,
+		backend:          cfg.Backend,
+		cache:            cfg.Cache,
 
 		emitter:  cfg.Emitter,
 		reporter: cfg.Reporter,
@@ -331,6 +338,82 @@ func (s *Service) DeleteRemoteCluster(
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// ListAuthServers returns a page of auth servers.
+func (s *Service) ListAuthServers(
+	ctx context.Context, req *presencepb.ListAuthServersRequest,
+) (*presencepb.ListAuthServersResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, nextToken, err := s.cache.ListAuthServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		v2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.WarnContext(ctx, "unexpected server type",
+				"got_type", logutils.TypeAttr(server),
+				"expected_type", "ServerV2",
+				"server", server.GetName(),
+			)
+			continue
+		}
+		serverV2s = append(serverV2s, v2)
+	}
+
+	return presencepb.ListAuthServersResponse_builder{
+		Servers:       serverV2s,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
+// ListProxyServers returns a page of proxy servers.
+func (s *Service) ListProxyServers(
+	ctx context.Context, req *presencepb.ListProxyServersRequest,
+) (*presencepb.ListProxyServersResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadProxies, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, nextToken, err := s.cache.ListProxyServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		v2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.WarnContext(ctx, "unexpected server type",
+				"got_type", logutils.TypeAttr(server),
+				"expected_type", "ServerV2",
+				"server", server.GetName(),
+			)
+			continue
+		}
+		serverV2s = append(serverV2s, v2)
+	}
+
+	return presencepb.ListProxyServersResponse_builder{
+		Servers:       serverV2s,
+		NextPageToken: nextToken,
+	}.Build(), nil
 }
 
 // ListReverseTunnels returns a page of reverse tunnels.

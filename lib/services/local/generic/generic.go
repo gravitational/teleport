@@ -252,17 +252,19 @@ func (s *Service[T]) Resources(ctx context.Context, startKey, endKey string) ite
 		return resource, true
 	}
 
-	return stream.TakeWhile(
-		stream.FilterMap(s.backend.Items(ctx, params), mapFn),
-		func(r T) bool {
-			// We promise the consumers of this function that the returned
-			// results an exclusive of the endkey but the underlying Items
-			// method returns us a stream that's inclusive of the end key - so
-			// if the user has provided us an end-key, we manually filter them
-			// out to convert from inclusive to exclusive.
-			return endKey == "" || r.GetName() < endKey
-		},
-	)
+	items := s.backend.Items(ctx, params)
+	if endKey != "" {
+		exclusiveEndKey := s.backendPrefix.AppendKey(backend.KeyFromString(endKey))
+		items = stream.TakeWhile(items, func(item backend.Item) bool {
+			// We promise consumers that the returned results are exclusive of
+			// endKey, but the underlying Items method returns an inclusive end
+			// key. Compare the full backend key so composite relative keys such
+			// as "<prefix>/<name>" are handled correctly.
+			return item.Key.Compare(exclusiveEndKey) < 0
+		})
+	}
+
+	return stream.FilterMap(items, mapFn)
 }
 
 // ListResources returns a paginated list of resources.
@@ -480,6 +482,27 @@ func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
 func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
 	startKey := s.backendPrefix.ExactKey()
 	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
+}
+
+// ConditionalDeleteResource conditionally deletes the resource based on its
+// revision.
+// Returns a trace.CompareFailedError if the item is not found or the revision
+// is incorrect.
+func (s *Service[T]) ConditionalDeleteResource(ctx context.Context, name, revision string) error {
+	if revision == "" {
+		return trace.BadParameter("revision required")
+	}
+	err := s.backend.ConditionalDelete(ctx, s.resourceKey(name), revision)
+	if trace.IsCompareFailed(err) {
+		// Specialize the message from backend.ErrIncorrectRevision so we mention
+		// the resource name and don't mention --force. Deletes often don't have a
+		// --force flag.
+		return trace.CompareFailed(
+			"%s %q does not exist or revision does not match, it may have been concurrently created|modified|deleted; please work from the latest state",
+			s.resourceKind, name,
+		)
+	}
+	return trace.Wrap(err)
 }
 
 // UpdateAndSwapResource will get the resource from the backend, modify it, and swap the new value into the backend.

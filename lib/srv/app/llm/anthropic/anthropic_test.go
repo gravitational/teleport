@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 )
 
 func TestNewRequest(t *testing.T) {
@@ -242,7 +243,7 @@ func TestNewRequest(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			req, info, err := NewRequest(&NewRequestConfig{
+			req, info, err := NewRequest(&llmrequest.Config{
 				LLM:               tc.llm,
 				DownstreamRequest: tc.request(),
 				GetAPIKeyFunc: func() string {
@@ -299,7 +300,7 @@ func BenchmarkNewRequest(b *testing.B) {
 
 			for b.Loop() {
 				r.Body = io.NopCloser(bytes.NewReader(bc.body))
-				if _, _, err := NewRequest(&NewRequestConfig{
+				if _, _, err := NewRequest(&llmrequest.Config{
 					LLM:               llm,
 					DownstreamRequest: r,
 					GetAPIKeyFunc:     func() string { return "" },

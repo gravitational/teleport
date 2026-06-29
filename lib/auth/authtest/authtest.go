@@ -1292,14 +1292,14 @@ func TestScopePinnedHost(clusterName, hostID, scope string, roles ...types.Syste
 	if clusterName != "" {
 		serverFQDN = utils.HostFQDN(hostID, clusterName)
 	}
-	pin := &scopesv1.Pin{
+	pin := scopesv1.Pin_builder{
 		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 		Scope: scope,
-		SystemRoles: &scopesv1.SystemRoles{
+		SystemRoles: scopesv1.SystemRoles_builder{
 			Primary:    string(types.RoleInstance),
 			Additional: types.SystemRoles(roles).StringSlice(),
-		},
-	}
+		}.Build(),
+	}.Build()
 	return TestIdentity{
 		I: authz.ScopedBuiltinRole{
 			ClusterName: clusterName,

@@ -450,9 +450,6 @@ type InitConfig struct {
 	// MFAService is the service that manages backend MFA resources.
 	MFAService MFAService
 
-	// WorkloadClusterService is the service that manages WorkloadClusters.
-	WorkloadClusterService services.WorkloadClusterService
-
 	// Beams is the service for reading and writing beams.
 	Beams services.Beams
 
@@ -479,6 +476,9 @@ type InitConfig struct {
 
 	// ScopesFeatures dictate which scoped components are enabled.
 	ScopesFeatures scopes.Features
+
+	// EnrollPairing manages mobile device enrollment pairings.
+	EnrollPairing services.EnrollPairing
 }
 
 // Init instantiates and configures an instance of AuthServer

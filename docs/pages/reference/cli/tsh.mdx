@@ -99,6 +99,12 @@ Usage:
 $ tsh apps login [<flags>] <app>
 ```
 
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|`TELEPORT_AWS_LOGIN_INTERACTIVE`|`true`|Prompt for AWS Roles interactively (--aws-role takes precedence).|
+
 Flags:
 
 |Flag|Default|Description|
@@ -108,12 +114,35 @@ Flags:
 |`--gcp-service-account`|*no default*|(For GCP CLI access only) GCP service account name.|
 |`-q`, `--[no-]quiet`|`false`|Quiet mode.|
 |`--target-port`|*no default*|Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.|
+|`-T`, `--[no-]interactive`|`true`|Prompt for AWS Roles interactively (--aws-role takes precedence).|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
 |app|*no default* (required)|App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.|
+
+## tsh apps logins
+
+List available logins for a Cloud console application.
+
+Usage:
+
+```code
+$ tsh apps logins [<flags>] <app>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|app|*no default* (required)|App name to list logins for. Currently only AWS is supported.|
 
 ## tsh apps logout
 
