@@ -680,6 +680,11 @@ func (w *sliceWriter) receiveAndUpload() error {
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
+				// If a part failed to upload (e.g., retry exhaustion),
+				// propagate the error to Complete so it doesn't return nil
+				// for a failed recording. This prevents data loss by ensuring
+				// the caller knows the recording is incomplete.
+				w.proto.setCompleteResult(trace.Wrap(err))
 				return trace.Wrap(err)
 			}
 
@@ -891,7 +896,9 @@ func (w *sliceWriter) completeStream() {
 		}
 	}
 
-	// If any part failed to upload, abort the stream completion. Calling
+	// If any part failed to upload, abort the stream completion and mark
+	// the upload as failed so the periodic completer doesn't finalize
+	// a truncated recording after the session tracker expires. Calling
 	// CompleteUpload with missing parts would create a corrupted recording
 	// and trigger a misleading session.upload event. The audit log would
 	// show a successful upload when in fact the recording is incomplete or
@@ -899,6 +906,13 @@ func (w *sliceWriter) completeStream() {
 	if len(uploadErrors) > 0 {
 		log.ErrorContext(w.proto.cancelCtx, "Stream has parts that failed to upload, aborting completion", "failed_parts", len(uploadErrors), "total_parts", w.totalParts)
 		w.proto.setCompleteResult(trace.Aggregate(uploadErrors...))
+		// Mark the upload as failed so the periodic completer won't
+		// try to finalize a truncated recording after the session tracker
+		// expires. This prevents the backend from emitting a misleading
+		// session.upload event for an incomplete recording.
+		if err := w.proto.cfg.Uploader.AbortUpload(w.proto.cancelCtx, w.proto.cfg.Upload); err != nil {
+			log.WarnContext(w.proto.cancelCtx, "Failed to abort upload after part failure", "error", err)
+		}
 		return
 	}
 

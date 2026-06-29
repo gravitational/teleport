@@ -489,6 +489,21 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 	return &upload, nil
 }
 
+// AbortUpload aborts a multipart upload, cleaning up any parts that
+// were uploaded. This prevents the periodic completer from finalizing
+// a truncated recording after part failures.
+func (h *Handler) AbortUpload(ctx context.Context, upload events.StreamUpload) error {
+	// Delete all parts for this upload to prevent the periodic completer
+	// from finalizing a truncated recording.
+	for partNumber := int64(1); partNumber <= maxParts; partNumber++ {
+		_, err := h.partBlob(upload, partNumber).Delete(ctx, nil)
+		if err != nil && !bloberror.HasCode(err, bloberror.BlobNotFound) {
+			return trace.Wrap(err, "deleting part %d", partNumber)
+		}
+	}
+	return nil
+}
+
 // CompleteUpload implements [events.MultipartUploader] by composing the final
 // session recording blob in the session container from the parts in the
 // inprogress container, using the Put Block From URL API. Might take a little
