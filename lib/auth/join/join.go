@@ -113,7 +113,8 @@ type GenericOIDCParams struct {
 	// 0 exit code. Mutually exclusive with `EnvVarName`.
 	Command []string
 
-	// Timeout is the timeout for a command token fetch.
+	// Timeout is the timeout for a command token fetch. If unset, a timeout of
+	// 1 minute is used.
 	Timeout time.Duration
 }
 
