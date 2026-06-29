@@ -18,6 +18,7 @@ package joining_test
 
 import (
 	"cmp"
+	"encoding/base64"
 	"fmt"
 	"maps"
 	"testing"
@@ -1051,6 +1052,14 @@ func TestValidateScopedToken(t *testing.T) {
 			},
 			expectedStrongErr: "scoped bot tokens do not support the `token` join method",
 		},
+		{
+			name:      "tokens with semicolons are prevented",
+			baseToken: baseToken,
+			modFn: func(st *joiningv1.ScopedToken) {
+				st.GetMetadata().SetName("testing:testing")
+			},
+			expectedStrongErr: "scoped token names cannot contain colons",
+		},
 	}
 
 	for _, c := range cases {
@@ -1521,4 +1530,19 @@ func TestValidateTokenForUse(t *testing.T) {
 	token.Spec.UsageMode = string(joining.TokenUsageModeBot)
 	token.Spec.Roles = []string{string(types.RoleBot)}
 	require.NoError(t, joining.ValidateTokenForUse(token, features))
+}
+
+func TestScopedTokenEncoding(t *testing.T) {
+	encoded := joining.EncodeScopedToken("TESTING", "SECRETSHERE")
+	require.Equal(t, "TESTING:"+base64.RawURLEncoding.EncodeToString([]byte("SECRETSHERE")), encoded)
+
+	name, secret, ok := joining.DecodeScopedToken(encoded)
+	assert.True(t, ok)
+	assert.Equal(t, "TESTING", name)
+	assert.Equal(t, "SECRETSHERE", secret)
+
+	name, secret, ok = joining.DecodeScopedToken("TESTING")
+	assert.False(t, ok)
+	assert.Equal(t, "TESTING", name)
+	assert.Empty(t, secret)
 }
