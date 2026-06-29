@@ -397,6 +397,9 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 		// events, which could potentially lead to duplicate events.
 		writer.lastPartNumber = cfg.CompletedParts[len(cfg.CompletedParts)-1].Number + 1
 		writer.completedParts = cfg.CompletedParts
+		// Set totalParts to the number of completed parts since those
+		// parts were already started in the previous session.
+		writer.totalParts = len(cfg.CompletedParts)
 	}
 
 	// Generate the first slice. This is done in the initialization process to
@@ -580,6 +583,11 @@ type sliceWriter struct {
 	semUploads chan struct{}
 	// completedParts is the list of completed parts
 	completedParts []StreamPart
+	// totalParts tracks the total number of parts that have been started
+	// for upload. This is used to verify all expected parts are present
+	// before completing the stream, since activeUploads is depleted as
+	// parts finish.
+	totalParts int
 	// emptyHeader is used to write empty header
 	// to preserve some bytes
 	emptyHeader [ProtoStreamV2PartHeaderSize]byte
@@ -789,6 +797,7 @@ func (w *sliceWriter) startUploadCurrentSlice() error {
 		return trace.Wrap(err)
 	}
 	w.activeUploads[w.lastPartNumber] = activeUpload
+	w.totalParts++
 	w.current = nil
 	w.lastPartNumber++
 	return nil
@@ -888,7 +897,7 @@ func (w *sliceWriter) completeStream() {
 	// show a successful upload when in fact the recording is incomplete or
 	// missing, which is a data-loss scenario.
 	if len(uploadErrors) > 0 {
-		log.ErrorContext(w.proto.cancelCtx, "Stream has parts that failed to upload, aborting completion", "failed_parts", len(uploadErrors), "total_parts", len(w.activeUploads))
+		log.ErrorContext(w.proto.cancelCtx, "Stream has parts that failed to upload, aborting completion", "failed_parts", len(uploadErrors), "total_parts", w.totalParts)
 		w.proto.setCompleteResult(trace.Aggregate(uploadErrors...))
 		return
 	}
@@ -898,11 +907,18 @@ func (w *sliceWriter) completeStream() {
 	// reported an error, we should ensure the completed parts match
 	// the expected uploads. A mismatch indicates a logic error or
 	// race condition that could lead to data loss.
-	if len(w.completedParts) != len(w.activeUploads) {
+	//
+	// Note: we compare against totalParts (the number of parts started
+	// for upload) rather than activeUploads, because receiveAndUpload
+	// removes finished parts from activeUploads as they complete while
+	// keeping them in completedParts. Using activeUploads would cause
+	// normal recordings to fail with "part count mismatch" since
+	// activeUploads is depleted as parts finish.
+	if len(w.completedParts) != w.totalParts {
 		log.ErrorContext(w.proto.cancelCtx, "Part count mismatch detected, aborting completion",
 			"completed_parts", len(w.completedParts),
-			"expected_parts", len(w.activeUploads))
-		w.proto.setCompleteResult(trace.BadParameter("part count mismatch: expected %d, got %d", len(w.activeUploads), len(w.completedParts)))
+			"expected_parts", w.totalParts)
+		w.proto.setCompleteResult(trace.BadParameter("part count mismatch: expected %d, got %d", w.totalParts, len(w.completedParts)))
 		return
 	}
 
