@@ -636,10 +636,7 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details *sessionDe
 
 	// Phase 3: persist the terminal result under its own deadline, separate from the inference budget, so a job that
 	// exhausted the ceiling still records its terminal state instead of failing to upload.
-	uploadCtx, cancel := context.WithTimeout(ctx, summaryUploadTimeout)
-	defer cancel()
-
-	return s.uploadSummary(uploadCtx, log, details, result, sumErr)
+	return s.uploadSummary(ctx, log, details, result, sumErr)
 }
 
 // summarizeSession performs the actual summarization of the session recording.
@@ -774,19 +771,25 @@ func (s *SessionSummarizer) uploadSummary(
 	sumErr error,
 ) error {
 	log.DebugContext(ctx, "Uploading session summary")
-	path, err := s.persistSummary(ctx, details.sessionID, result)
+	persistCtx, persistCancel := context.WithTimeout(ctx, summaryUploadTimeout)
+	defer persistCancel()
+	path, err := s.persistSummary(persistCtx, details.sessionID, result)
 	if err != nil {
 		return trace.NewAggregate(sumErr, trace.Wrap(err, "failed to upload summary result"))
 	}
 	details.summary = result
-	if err := s.pushSummaryToAccessGraph(ctx, details); err != nil {
-		log.ErrorContext(ctx, "failed to push summary to access graph", "error", err)
+	pushCtx, pushCancel := context.WithTimeout(ctx, accessGraphPushTimeout)
+	defer pushCancel()
+	if err := s.pushSummaryToAccessGraph(pushCtx, details); err != nil {
+		log.ErrorContext(pushCtx, "failed to push summary to access graph", "error", err)
 	}
 	log.DebugContext(ctx, "Session summary uploaded", "path", path)
 
 	// Emit audit event for the summary creation
-	if err := s.emitSummaryCreateEvent(ctx, result, details.sessionEnd); err != nil {
-		log.WarnContext(ctx, "Failed to emit session summary create audit event", "error", err)
+	emitCtx, emitCancel := context.WithTimeout(ctx, eventEmitTimeout)
+	defer emitCancel()
+	if err := s.emitSummaryCreateEvent(emitCtx, result, details.sessionEnd); err != nil {
+		log.WarnContext(emitCtx, "Failed to emit session summary create audit event", "error", err)
 	}
 
 	return sumErr

@@ -30,6 +30,10 @@ const (
 	// summaryUploadTimeout bounds the final persist of the terminal summary, separately from the inference budget, so a
 	// job that exhausted maxSummarizationTimeout still records its terminal state instead of failing to upload.
 	summaryUploadTimeout = time.Minute
+
+	accessGraphPushTimeout = 10 * time.Minute
+
+	eventEmitTimeout = time.Minute
 )
 
 // timeoutProvider wraps an [InferenceProvider], bounding every inference call with a per-call timeout so a single slow
