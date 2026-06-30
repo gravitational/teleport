@@ -112,6 +112,7 @@ func (b0 CreateBotRequest_builder) Build() *CreateBotRequest {
 type GetBotRequest struct {
 	state              protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_BotName string                 `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3"`
+	xxx_hidden_Scope   string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -148,8 +149,19 @@ func (x *GetBotRequest) GetBotName() string {
 	return ""
 }
 
+func (x *GetBotRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *GetBotRequest) SetBotName(v string) {
 	x.xxx_hidden_BotName = v
+}
+
+func (x *GetBotRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type GetBotRequest_builder struct {
@@ -157,6 +169,9 @@ type GetBotRequest_builder struct {
 
 	// The name of the bot to fetch.
 	BotName string
+	// The scope in which the bot exists. Combined with bot_name to uniquely
+	// identify a scoped bot. Leave empty to fetch an unscoped bot.
+	Scope string
 }
 
 func (b0 GetBotRequest_builder) Build() *GetBotRequest {
@@ -164,6 +179,7 @@ func (b0 GetBotRequest_builder) Build() *GetBotRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_BotName = b.BotName
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -490,6 +506,7 @@ func (b0 UpsertBotRequest_builder) Build() *UpsertBotRequest {
 type DeleteBotRequest struct {
 	state              protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_BotName string                 `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3"`
+	xxx_hidden_Scope   string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -526,8 +543,19 @@ func (x *DeleteBotRequest) GetBotName() string {
 	return ""
 }
 
+func (x *DeleteBotRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *DeleteBotRequest) SetBotName(v string) {
 	x.xxx_hidden_BotName = v
+}
+
+func (x *DeleteBotRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type DeleteBotRequest_builder struct {
@@ -535,6 +563,9 @@ type DeleteBotRequest_builder struct {
 
 	// The name of the bot to delete.
 	BotName string
+	// The scope in which the bot exists. Combined with bot_name to uniquely
+	// identify a scoped bot. Leave empty to delete an unscoped bot.
+	Scope string
 }
 
 func (b0 DeleteBotRequest_builder) Build() *DeleteBotRequest {
@@ -542,6 +573,7 @@ func (b0 DeleteBotRequest_builder) Build() *DeleteBotRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_BotName = b.BotName
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -551,9 +583,10 @@ const file_teleport_machineid_v1_bot_service_proto_rawDesc = "" +
 	"\n" +
 	"'teleport/machineid/v1/bot_service.proto\x12\x15teleport.machineid.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a\x1fteleport/machineid/v1/bot.proto\"@\n" +
 	"\x10CreateBotRequest\x12,\n" +
-	"\x03bot\x18\x01 \x01(\v2\x1a.teleport.machineid.v1.BotR\x03bot\"*\n" +
+	"\x03bot\x18\x01 \x01(\v2\x1a.teleport.machineid.v1.BotR\x03bot\"@\n" +
 	"\rGetBotRequest\x12\x19\n" +
-	"\bbot_name\x18\x01 \x01(\tR\abotName\"M\n" +
+	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"M\n" +
 	"\x0fListBotsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -566,9 +599,10 @@ const file_teleport_machineid_v1_bot_service_proto_rawDesc = "" +
 	"\vupdate_mask\x18\x02 \x01(\v2\x1a.google.protobuf.FieldMaskR\n" +
 	"updateMask\"@\n" +
 	"\x10UpsertBotRequest\x12,\n" +
-	"\x03bot\x18\x01 \x01(\v2\x1a.teleport.machineid.v1.BotR\x03bot\"-\n" +
+	"\x03bot\x18\x01 \x01(\v2\x1a.teleport.machineid.v1.BotR\x03bot\"C\n" +
 	"\x10DeleteBotRequest\x12\x19\n" +
-	"\bbot_name\x18\x01 \x01(\tR\abotName2\xf9\x03\n" +
+	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope2\xf9\x03\n" +
 	"\n" +
 	"BotService\x12J\n" +
 	"\x06GetBot\x12$.teleport.machineid.v1.GetBotRequest\x1a\x1a.teleport.machineid.v1.Bot\x12[\n" +
