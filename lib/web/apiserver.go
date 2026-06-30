@@ -3534,7 +3534,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 					return nil, trace.Wrap(err)
 				}
 
-				nodeComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
+				nodeComponentFeatures := componentfeatures.Intersect(componentfeatures.GetEffectiveServerFeatures(r), clusterAuthProxyServerFeatures)
 				unifiedResources = append(unifiedResources, ui.MakeServer(r, ui.MakeServerConfig{
 					ClusterName:       cluster.GetName(),
 					Logins:            principals.Logins,
