@@ -405,7 +405,7 @@ func (h *Handler) createDesktopConnection(
 	// - TDP clients: cannot do in-band MFA, Proxy performs MFA before connecting and issues a new cert.
 	var tlsConfig *tls.Config
 
-	if clientProtocol == tdpb.ProtocolName {
+	if isTDPB(clientProtocol) {
 		tlsConfig, err = h.createDesktopTLSConfigFromSession(ctx, sctx, desktopName)
 	} else {
 		// TODO(cthach): DELETE IN v20.0 when legacy TDP protocol support is removed.
