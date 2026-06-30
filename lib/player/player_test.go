@@ -87,12 +87,10 @@ func TestPlayPause(t *testing.T) {
 }
 
 func TestPlayerError(t *testing.T) {
-	clk := clockwork.NewFakeClock()
 	errCh := make(chan error)
 	p, err := player.New(&player.Config{
-		Clock:     clk,
 		SessionID: "test-session",
-		Streamer:  &simpleStreamer{count: 1, errCh: errCh},
+		Streamer:  &errorStreamer{errCh: errCh},
 		Log:       slog.New(slog.DiscardHandler),
 	})
 	require.NoError(t, err)
@@ -101,12 +99,10 @@ func TestPlayerError(t *testing.T) {
 
 	_, ok := <-p.C()
 	require.False(t, ok)
-	playerErr := p.Err()
-	// Player.Err() should return the backend error that
-	// caused playback failure.
-	require.Error(t, playerErr)
-	assert.Contains(t, playerErr.Error(), "some error")
 
+	// Player should return the backend error that
+	// caused playback failure.
+	require.ErrorContains(t, p.Err(), "some error")
 }
 
 func TestAppliesTiming(t *testing.T) {
@@ -371,6 +367,16 @@ func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID sess
 	}()
 
 	return evts, s.errCh
+}
+
+// errorStreamer is a Streamer that never emits any events and only
+// surfaces an error.
+type errorStreamer struct {
+	errCh chan error
+}
+
+func (s *errorStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	return make(chan apievents.AuditEvent), s.errCh
 }
 
 type databaseStreamer struct {

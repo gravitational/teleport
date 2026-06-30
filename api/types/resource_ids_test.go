@@ -844,10 +844,10 @@ func TestCombineAsResourceAccessIDs(t *testing.T) {
 	out := CombineAsResourceAccessIDs([]ResourceID{id1, id2}, []ResourceAccessID{c1, c2})
 
 	require.Equal(t, []ResourceAccessID{
-		{Id: id1},
-		{Id: id2},
 		c1,
 		c2,
+		{Id: id1},
+		{Id: id2},
 	}, out)
 
 	t.Run("nil ids", func(t *testing.T) {
@@ -858,6 +858,16 @@ func TestCombineAsResourceAccessIDs(t *testing.T) {
 	t.Run("nil accessIDs", func(t *testing.T) {
 		out := CombineAsResourceAccessIDs([]ResourceID{id1}, nil)
 		require.Equal(t, []ResourceAccessID{{Id: id1}}, out)
+	})
+
+	t.Run("duplicate resource prefers constrained version", func(t *testing.T) {
+		// Same resource appears as both a plain ResourceID and a constrained
+		// ResourceAccessID. The constrained version should win.
+		plainID := c1.GetResourceID()
+		other := ResourceID{ClusterName: "leaf", Kind: "node", Name: "n1"}
+		out := CombineAsResourceAccessIDs([]ResourceID{plainID, other}, []ResourceAccessID{c1})
+		// plainID is not in the result; deduplicated in favor of c1.
+		require.Equal(t, []ResourceAccessID{c1, {Id: other}}, out)
 	})
 }
 

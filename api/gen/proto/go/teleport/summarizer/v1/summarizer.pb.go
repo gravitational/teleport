@@ -94,11 +94,21 @@ func (x ClassifierActionMode) Number() protoreflect.EnumNumber {
 type SummaryState int32
 
 const (
-	SummaryState_SUMMARY_STATE_UNSPECIFIED         SummaryState = 0
+	SummaryState_SUMMARY_STATE_UNSPECIFIED SummaryState = 0
+	// Deprecated: superseded by WAITING/IN_PROGRESS/SYNTHESIZING. Kept as the
+	// downgrade target for pre-v19 clients.
+	//
+	// Deprecated: Marked as deprecated in teleport/summarizer/v1/summarizer.proto.
 	SummaryState_SUMMARY_STATE_PENDING             SummaryState = 1
 	SummaryState_SUMMARY_STATE_SUCCESS             SummaryState = 2
 	SummaryState_SUMMARY_STATE_ERROR               SummaryState = 3
 	SummaryState_SUMMARY_STATE_NO_INFERENCE_POLICY SummaryState = 4
+	// Queued, waiting for a worker slot.
+	SummaryState_SUMMARY_STATE_WAITING SummaryState = 5
+	// Analyzing the recording; see processed_duration/total_duration.
+	SummaryState_SUMMARY_STATE_IN_PROGRESS SummaryState = 6
+	// Per-chunk analysis done; synthesizing the final summary.
+	SummaryState_SUMMARY_STATE_SYNTHESIZING SummaryState = 7
 )
 
 // Enum value maps for SummaryState.
@@ -109,6 +119,9 @@ var (
 		2: "SUMMARY_STATE_SUCCESS",
 		3: "SUMMARY_STATE_ERROR",
 		4: "SUMMARY_STATE_NO_INFERENCE_POLICY",
+		5: "SUMMARY_STATE_WAITING",
+		6: "SUMMARY_STATE_IN_PROGRESS",
+		7: "SUMMARY_STATE_SYNTHESIZING",
 	}
 	SummaryState_value = map[string]int32{
 		"SUMMARY_STATE_UNSPECIFIED":         0,
@@ -116,6 +129,9 @@ var (
 		"SUMMARY_STATE_SUCCESS":             2,
 		"SUMMARY_STATE_ERROR":               3,
 		"SUMMARY_STATE_NO_INFERENCE_POLICY": 4,
+		"SUMMARY_STATE_WAITING":             5,
+		"SUMMARY_STATE_IN_PROGRESS":         6,
+		"SUMMARY_STATE_SYNTHESIZING":        7,
 	}
 )
 
@@ -2068,8 +2084,14 @@ type Summary struct {
 	// ClassifierMatches records the classifiers that matched this session
 	// summary.
 	ClassifierMatches []*ClassifierMatch `protobuf:"bytes,10,rep,name=classifier_matches,json=classifierMatches,proto3" json:"classifier_matches,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// ProcessedDuration is how much of the recording has been analyzed. Set while
+	// the state is SUMMARY_STATE_IN_PROGRESS.
+	ProcessedDuration *durationpb.Duration `protobuf:"bytes,11,opt,name=processed_duration,json=processedDuration,proto3" json:"processed_duration,omitempty"`
+	// TotalDuration is the full recording length, the denominator for progress.
+	// May be unset.
+	TotalDuration *durationpb.Duration `protobuf:"bytes,12,opt,name=total_duration,json=totalDuration,proto3" json:"total_duration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Summary) Reset() {
@@ -2167,6 +2189,20 @@ func (x *Summary) GetClassifierMatches() []*ClassifierMatch {
 	return nil
 }
 
+func (x *Summary) GetProcessedDuration() *durationpb.Duration {
+	if x != nil {
+		return x.ProcessedDuration
+	}
+	return nil
+}
+
+func (x *Summary) GetTotalDuration() *durationpb.Duration {
+	if x != nil {
+		return x.TotalDuration
+	}
+	return nil
+}
+
 func (x *Summary) SetSessionId(v string) {
 	x.SessionId = v
 }
@@ -2207,6 +2243,14 @@ func (x *Summary) SetClassifierMatches(v []*ClassifierMatch) {
 	x.ClassifierMatches = v
 }
 
+func (x *Summary) SetProcessedDuration(v *durationpb.Duration) {
+	x.ProcessedDuration = v
+}
+
+func (x *Summary) SetTotalDuration(v *durationpb.Duration) {
+	x.TotalDuration = v
+}
+
 func (x *Summary) HasInferenceStartedAt() bool {
 	if x == nil {
 		return false
@@ -2235,6 +2279,20 @@ func (x *Summary) HasEnhancedSummary() bool {
 	return x.EnhancedSummary != nil
 }
 
+func (x *Summary) HasProcessedDuration() bool {
+	if x == nil {
+		return false
+	}
+	return x.ProcessedDuration != nil
+}
+
+func (x *Summary) HasTotalDuration() bool {
+	if x == nil {
+		return false
+	}
+	return x.TotalDuration != nil
+}
+
 func (x *Summary) ClearInferenceStartedAt() {
 	x.InferenceStartedAt = nil
 }
@@ -2249,6 +2307,14 @@ func (x *Summary) ClearSessionEndEvent() {
 
 func (x *Summary) ClearEnhancedSummary() {
 	x.EnhancedSummary = nil
+}
+
+func (x *Summary) ClearProcessedDuration() {
+	x.ProcessedDuration = nil
+}
+
+func (x *Summary) ClearTotalDuration() {
+	x.TotalDuration = nil
 }
 
 type Summary_builder struct {
@@ -2286,6 +2352,12 @@ type Summary_builder struct {
 	// ClassifierMatches records the classifiers that matched this session
 	// summary.
 	ClassifierMatches []*ClassifierMatch
+	// ProcessedDuration is how much of the recording has been analyzed. Set while
+	// the state is SUMMARY_STATE_IN_PROGRESS.
+	ProcessedDuration *durationpb.Duration
+	// TotalDuration is the full recording length, the denominator for progress.
+	// May be unset.
+	TotalDuration *durationpb.Duration
 }
 
 func (b0 Summary_builder) Build() *Summary {
@@ -2302,6 +2374,8 @@ func (b0 Summary_builder) Build() *Summary {
 	x.ErrorMessage = b.ErrorMessage
 	x.EnhancedSummary = b.EnhancedSummary
 	x.ClassifierMatches = b.ClassifierMatches
+	x.ProcessedDuration = b.ProcessedDuration
+	x.TotalDuration = b.TotalDuration
 	return m0
 }
 
@@ -4435,7 +4509,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x0fClassifierMatch\x12'\n" +
 	"\x0fclassifier_name\x18\x01 \x01(\tR\x0eclassifierName\x12\x1c\n" +
 	"\treasoning\x18\x02 \x01(\tR\treasoning\x126\n" +
-	"\x17matched_command_indexes\x18\x03 \x03(\x05R\x15matchedCommandIndexes\"\xd1\x04\n" +
+	"\x17matched_command_indexes\x18\x03 \x03(\x05R\x15matchedCommandIndexes\"\xdd\x05\n" +
 	"\aSummary\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12:\n" +
@@ -4449,7 +4523,9 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\rerror_message\x18\b \x01(\tR\ferrorMessage\x12R\n" +
 	"\x10enhanced_summary\x18\t \x01(\v2'.teleport.summarizer.v1.EnhancedSummaryR\x0fenhancedSummary\x12V\n" +
 	"\x12classifier_matches\x18\n" +
-	" \x03(\v2'.teleport.summarizer.v1.ClassifierMatchR\x11classifierMatches\"\xe7\t\n" +
+	" \x03(\v2'.teleport.summarizer.v1.ClassifierMatchR\x11classifierMatches\x12H\n" +
+	"\x12processed_duration\x18\v \x01(\v2\x19.google.protobuf.DurationR\x11processedDuration\x12@\n" +
+	"\x0etotal_duration\x18\f \x01(\v2\x19.google.protobuf.DurationR\rtotalDuration\"\xe7\t\n" +
 	"\fSessionEvent\x12C\n" +
 	"\bcategory\x18\x01 \x01(\x0e2'.teleport.summarizer.v1.CommandCategoryR\bcategory\x12@\n" +
 	"\n" +
@@ -4559,13 +4635,16 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x14ClassifierActionMode\x12&\n" +
 	"\"CLASSIFIER_ACTION_MODE_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eCLASSIFIER_ACTION_MODE_ENABLED\x10\x01\x12#\n" +
-	"\x1fCLASSIFIER_ACTION_MODE_DISABLED\x10\x02*\xa3\x01\n" +
+	"\x1fCLASSIFIER_ACTION_MODE_DISABLED\x10\x02*\x81\x02\n" +
 	"\fSummaryState\x12\x1d\n" +
-	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
-	"\x15SUMMARY_STATE_PENDING\x10\x01\x12\x19\n" +
+	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x15SUMMARY_STATE_PENDING\x10\x01\x1a\x02\b\x01\x12\x19\n" +
 	"\x15SUMMARY_STATE_SUCCESS\x10\x02\x12\x17\n" +
 	"\x13SUMMARY_STATE_ERROR\x10\x03\x12%\n" +
-	"!SUMMARY_STATE_NO_INFERENCE_POLICY\x10\x04*\xb2\x04\n" +
+	"!SUMMARY_STATE_NO_INFERENCE_POLICY\x10\x04\x12\x19\n" +
+	"\x15SUMMARY_STATE_WAITING\x10\x05\x12\x1d\n" +
+	"\x19SUMMARY_STATE_IN_PROGRESS\x10\x06\x12\x1e\n" +
+	"\x1aSUMMARY_STATE_SYNTHESIZING\x10\a*\xb2\x04\n" +
 	"\x0fCommandCategory\x12 \n" +
 	"\x1cCOMMAND_CATEGORY_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fCOMMAND_CATEGORY_FILE_OPERATION\x10\x01\x12\x1c\n" +
@@ -4673,36 +4752,38 @@ var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
 	30, // 17: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
 	25, // 18: teleport.summarizer.v1.Summary.enhanced_summary:type_name -> teleport.summarizer.v1.EnhancedSummary
 	17, // 19: teleport.summarizer.v1.Summary.classifier_matches:type_name -> teleport.summarizer.v1.ClassifierMatch
-	2,  // 20: teleport.summarizer.v1.SessionEvent.category:type_name -> teleport.summarizer.v1.CommandCategory
-	3,  // 21: teleport.summarizer.v1.SessionEvent.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	4,  // 22: teleport.summarizer.v1.SessionEvent.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
-	31, // 23: teleport.summarizer.v1.SessionEvent.start_offset:type_name -> google.protobuf.Duration
-	31, // 24: teleport.summarizer.v1.SessionEvent.end_offset:type_name -> google.protobuf.Duration
-	20, // 25: teleport.summarizer.v1.SessionEvent.command_event_details:type_name -> teleport.summarizer.v1.CommandEventDetails
-	21, // 26: teleport.summarizer.v1.SessionEvent.desktop_event_details:type_name -> teleport.summarizer.v1.DesktopEventDetails
-	2,  // 27: teleport.summarizer.v1.CommandAnalysis.category:type_name -> teleport.summarizer.v1.CommandCategory
-	3,  // 28: teleport.summarizer.v1.CommandAnalysis.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	4,  // 29: teleport.summarizer.v1.CommandAnalysis.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
-	31, // 30: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
-	31, // 31: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
-	3,  // 32: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	3,  // 33: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	22, // 34: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
-	5,  // 35: teleport.summarizer.v1.EnhancedSummary.needs_further_review:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	24, // 36: teleport.summarizer.v1.EnhancedSummary.risk_score_reasons:type_name -> teleport.summarizer.v1.RiskScoreReason
-	32, // 37: teleport.summarizer.v1.EnhancedSummary.access_request_consistency:type_name -> teleport.summarizer.v1.AccessRequestConsistency
-	33, // 38: teleport.summarizer.v1.EnhancedSummary.access_requests:type_name -> teleport.summarizer.v1.AccessRequestSnapshot
-	5,  // 39: teleport.summarizer.v1.EnhancedSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	19, // 40: teleport.summarizer.v1.EnhancedSummary.session_events:type_name -> teleport.summarizer.v1.SessionEvent
-	28, // 41: teleport.summarizer.v1.RetrievalModel.metadata:type_name -> teleport.header.v1.Metadata
-	27, // 42: teleport.summarizer.v1.RetrievalModel.spec:type_name -> teleport.summarizer.v1.RetrievalModelSpec
-	8,  // 43: teleport.summarizer.v1.RetrievalModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
-	9,  // 44: teleport.summarizer.v1.RetrievalModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
-	45, // [45:45] is the sub-list for method output_type
-	45, // [45:45] is the sub-list for method input_type
-	45, // [45:45] is the sub-list for extension type_name
-	45, // [45:45] is the sub-list for extension extendee
-	0,  // [0:45] is the sub-list for field type_name
+	31, // 20: teleport.summarizer.v1.Summary.processed_duration:type_name -> google.protobuf.Duration
+	31, // 21: teleport.summarizer.v1.Summary.total_duration:type_name -> google.protobuf.Duration
+	2,  // 22: teleport.summarizer.v1.SessionEvent.category:type_name -> teleport.summarizer.v1.CommandCategory
+	3,  // 23: teleport.summarizer.v1.SessionEvent.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	4,  // 24: teleport.summarizer.v1.SessionEvent.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
+	31, // 25: teleport.summarizer.v1.SessionEvent.start_offset:type_name -> google.protobuf.Duration
+	31, // 26: teleport.summarizer.v1.SessionEvent.end_offset:type_name -> google.protobuf.Duration
+	20, // 27: teleport.summarizer.v1.SessionEvent.command_event_details:type_name -> teleport.summarizer.v1.CommandEventDetails
+	21, // 28: teleport.summarizer.v1.SessionEvent.desktop_event_details:type_name -> teleport.summarizer.v1.DesktopEventDetails
+	2,  // 29: teleport.summarizer.v1.CommandAnalysis.category:type_name -> teleport.summarizer.v1.CommandCategory
+	3,  // 30: teleport.summarizer.v1.CommandAnalysis.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	4,  // 31: teleport.summarizer.v1.CommandAnalysis.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
+	31, // 32: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
+	31, // 33: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
+	3,  // 34: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	3,  // 35: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	22, // 36: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
+	5,  // 37: teleport.summarizer.v1.EnhancedSummary.needs_further_review:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	24, // 38: teleport.summarizer.v1.EnhancedSummary.risk_score_reasons:type_name -> teleport.summarizer.v1.RiskScoreReason
+	32, // 39: teleport.summarizer.v1.EnhancedSummary.access_request_consistency:type_name -> teleport.summarizer.v1.AccessRequestConsistency
+	33, // 40: teleport.summarizer.v1.EnhancedSummary.access_requests:type_name -> teleport.summarizer.v1.AccessRequestSnapshot
+	5,  // 41: teleport.summarizer.v1.EnhancedSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	19, // 42: teleport.summarizer.v1.EnhancedSummary.session_events:type_name -> teleport.summarizer.v1.SessionEvent
+	28, // 43: teleport.summarizer.v1.RetrievalModel.metadata:type_name -> teleport.header.v1.Metadata
+	27, // 44: teleport.summarizer.v1.RetrievalModel.spec:type_name -> teleport.summarizer.v1.RetrievalModelSpec
+	8,  // 45: teleport.summarizer.v1.RetrievalModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	9,  // 46: teleport.summarizer.v1.RetrievalModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
+	47, // [47:47] is the sub-list for method output_type
+	47, // [47:47] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for extension type_name
+	47, // [47:47] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_proto_init() }

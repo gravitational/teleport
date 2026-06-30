@@ -51,6 +51,8 @@ type Token interface {
 	// GetAssignedScope returns the scope that will be assigned to provisioned resources
 	// provisioned using the wrapped [joiningv1.ScopedToken].
 	GetAssignedScope() string
+	// GetScope returns the scope that token exists in.
+	GetScope() string
 	// GetImmutableLabels returns labels that must be applied to resources
 	// provisioned with this token.
 	GetImmutableLabels() *joiningv1.ImmutableLabels
@@ -75,4 +77,6 @@ type Token interface {
 	GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair
 	// GetBoundKeypairStatus returns bound keypair status for this token.
 	GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair
+	// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+	GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error)
 }

@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -172,6 +173,7 @@ func TestJoinIAM(t *testing.T) {
 		Auth: authtest.AuthServerConfig{
 			Dir:                          t.TempDir(),
 			AWSOrganizationsClientGetter: organizationsClientGetter,
+			ScopesFeatures:               scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -179,8 +181,9 @@ func TestJoinIAM(t *testing.T) {
 
 	fipsServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:  t.TempDir(),
-			FIPS: true,
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
+			FIPS:           true,
 		},
 	})
 	require.NoError(t, err)
@@ -966,6 +969,7 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 						RemoteAddr: "127.0.0.1",
 					},
 					Role:      "Instance",
+					Roles:     []string{types.RoleNode.String()},
 					Method:    "iam",
 					NodeName:  "test-node",
 					TokenName: "test-token",
@@ -1019,6 +1023,8 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 					Method:    "iam",
 					NodeName:  "test-node",
 					TokenName: "scoped_test-token",
+					Scope:     "/test/one",
+					Roles:     []string{types.RoleNode.String()},
 				},
 				evt,
 				protocmp.Transform(),

@@ -27,10 +27,13 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
@@ -38,16 +41,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type certificateAuthorityGetter interface {
-	// GetCertAuthority returns cert authority by id.
-	GetCertAuthority(context.Context, apitypes.CertAuthID, bool) (apitypes.CertAuthority, error)
-}
-
 type tcpServer struct {
+	clock        clockwork.Clock
 	emitter      apievents.Emitter
 	hostID       string
 	log          *slog.Logger
-	caGetter     certificateAuthorityGetter
+	accessPoint  authclient.AppsAccessPoint
+	authClient   authclient.ClientI
 	clusterName  string
 	cipherSuites []uint16
 	insecureMode bool
@@ -73,12 +73,21 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	switch {
 	case isTLS:
 		tlsConfig, err := upstreamtls.Configure(ctx, upstreamtls.Options{
-			Logger:       s.log,
-			CAGetter:     s.caGetter,
-			ClusterName:  s.clusterName,
-			App:          app,
-			CipherSuites: s.cipherSuites,
-			InsecureMode: s.insecureMode,
+			Logger:                       s.log,
+			AccessPoint:                  s.accessPoint,
+			ClusterName:                  s.clusterName,
+			App:                          app,
+			CipherSuites:                 s.cipherSuites,
+			InsecureMode:                 s.insecureMode,
+			Clock:                        s.clock,
+			WorkloadIdentityClientGetter: s.authClient,
+			GetUserCertFunc: func() ([]byte, error) {
+				userCert, err := authz.UserCertificateFromContext(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return userCert.Raw, nil
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)

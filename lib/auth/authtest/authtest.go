@@ -611,6 +611,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		AppSession:              p.AuthServer.Services.IdentityInternal,
 		Applications:            p.AuthServer.Services.ApplicationsInternal,
 		Beams:                   p.AuthServer.Services.Beams,
+		BeamsConfig:             p.AuthServer.Services.BeamsConfigService,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -783,7 +784,28 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
 			},
-			AgentScope: id.Identity.AgentScope,
+			AgentScope: id.Identity.GetAgentScope(),
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return certs.TLS, privateKeyPEM, nil
+	case authz.ScopedBuiltinRole:
+		systemRoles, err := types.NewTeleportRoles(id.ScopePin.GetSystemRoles().GetAdditional())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:       id.ServerFQDN,
+				NodeName:     id.ServerFQDN,
+				Role:         types.SystemRole(id.ScopePin.GetSystemRoles().GetPrimary()),
+				PublicTLSKey: tlsPublicKeyPEM,
+				PublicSSHKey: sshPublicKeyPEM,
+				SystemRoles:  systemRoles,
+			},
+			AgentScope: id.Identity.GetAgentScope(),
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1257,6 +1279,7 @@ func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole
 			Username:              username,
 			AdditionalSystemRoles: types.SystemRoles(roles),
 			Identity: tlsca.Identity{
+				Username:   hostID,
 				AgentScope: scope,
 			},
 		},
@@ -1270,18 +1293,19 @@ func TestScopePinnedHost(clusterName, hostID, scope string, roles ...types.Syste
 	if clusterName != "" {
 		serverFQDN = utils.HostFQDN(hostID, clusterName)
 	}
-	pin := &scopesv1.Pin{
+	pin := scopesv1.Pin_builder{
 		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 		Scope: scope,
-		SystemRoles: &scopesv1.SystemRoles{
+		SystemRoles: scopesv1.SystemRoles_builder{
 			Primary:    string(types.RoleInstance),
 			Additional: types.SystemRoles(roles).StringSlice(),
-		},
-	}
+		}.Build(),
+	}.Build()
 	return TestIdentity{
 		I: authz.ScopedBuiltinRole{
-			ServerFQDN: serverFQDN,
-			ScopePin:   pin,
+			ClusterName: clusterName,
+			ServerFQDN:  serverFQDN,
+			ScopePin:    pin,
 			Identity: tlsca.Identity{
 				ScopePin: pin,
 			},

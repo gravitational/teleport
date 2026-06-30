@@ -325,6 +325,20 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		return trace.BadParameter("scoped role %q has invalid kube user %q", role.GetMetadata().GetName(), user)
 	}
 
+	// verify that workload_identity labels are well-formed
+	for _, label := range role.GetSpec().GetWorkloadIdentity().GetLabels() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// workload identity labels. we likely will support such things in the future, but its
+		// best to disallow them until that has landed.
+
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
+			return trace.BadParameter("scoped role %q has invalid workload_identity label name %q", role.GetMetadata().GetName(), label.GetName())
+		}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("scoped role %q has invalid workload_identity label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
+		}
+	}
+
 	// verify that scoped role converts to a valid unscoped role
 	if _, err := ScopedRoleToRole(role, role.GetScope()); err != nil {
 		return trace.BadParameter("scoped role %q is malformed: %v", role.GetMetadata().GetName(), err)

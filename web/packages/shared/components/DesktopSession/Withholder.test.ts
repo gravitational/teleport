@@ -24,6 +24,12 @@ import {
 
 import { Withholder } from './Withholder';
 
+const NullLogger = {
+  warn(..._args: any[]) {},
+  info(..._args: any[]) {},
+  error(..._args: any[]) {},
+};
+
 // Mock the TdpClient class
 jest.mock('teleport/lib/tdp', () => {
   const originalModule = jest.requireActual('shared/libs/tdp'); // Get the actual module
@@ -57,7 +63,7 @@ describe('withholder', () => {
     const params = {
       e: { key: 'Enter' } as KeyboardEvent as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null, selectDirectoryInBrowser, NullLogger),
     };
     withholder.handleInputEvent(params, mockHandleKeyboardEvent);
     expect(mockHandleKeyboardEvent).toHaveBeenCalledWith(params);
@@ -67,19 +73,19 @@ describe('withholder', () => {
     const metaDown = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null, selectDirectoryInBrowser, NullLogger),
     };
 
     const metaUp = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null, selectDirectoryInBrowser, NullLogger),
     };
 
     const enterDown = {
       e: { key: 'Enter' } as KeyboardEvent as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null, selectDirectoryInBrowser, NullLogger),
     };
 
     withholder.handleInputEvent(metaDown, mockHandleKeyboardEvent);
@@ -99,12 +105,12 @@ describe('withholder', () => {
     const metaParams = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null, selectDirectoryInBrowser, NullLogger),
     };
     const altParams = {
       e: { key: 'Alt' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null, selectDirectoryInBrowser, NullLogger),
     };
 
     withholder.handleInputEvent(metaParams, mockHandleKeyboardEvent);
@@ -123,7 +129,7 @@ describe('withholder', () => {
     const metaParams = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null, selectDirectoryInBrowser, NullLogger),
     };
     withholder.handleInputEvent(metaParams, mockHandleKeyboardEvent);
     expect((withholder as any).withheldInputs).toHaveLength(1);
@@ -139,14 +145,14 @@ describe('withholder', () => {
     const metaParams = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null, selectDirectoryInBrowser, NullLogger),
     };
     withholder.handleInputEvent(metaParams, mockHandleKeyboardEvent);
 
     const mouseEvent = {
       e: { button: 0 } as MouseEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null, selectDirectoryInBrowser, NullLogger),
     };
     withholder.handleInputEvent(mouseEvent, mockHandleKeyboardEvent);
 

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -114,9 +115,9 @@ func makeSSEBaseURI(app types.Application) (*url.URL, error) {
 		return nil, trace.Wrap(err, "parsing SSE URI")
 	}
 	switch {
-	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTP):
+	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTP+"://"):
 		baseURL.Scheme = "http"
-	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTPS):
+	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTPS+"://"):
 		baseURL.Scheme = "https"
 	default:
 		return nil, trace.BadParameter("unknown scheme type: %v", baseURL.Scheme)
@@ -145,12 +146,21 @@ func (s *Server) makeBasicHTTPTransport(ctx context.Context, app types.Applicati
 	// Note: For non-TLS apps (like `mcp+http`) this won't affect the
 	// connections as the transport won't make used of it.
 	tr.TLSClientConfig, err = upstreamtls.Configure(ctx, upstreamtls.Options{
-		Logger:       s.cfg.Log,
-		CAGetter:     s.cfg.AccessPoint,
-		ClusterName:  clusterName.GetClusterName(),
-		App:          app,
-		CipherSuites: s.cfg.CipherSuites,
-		InsecureMode: s.cfg.InsecureMode,
+		Logger:                       s.cfg.Log,
+		AccessPoint:                  s.cfg.AccessPoint,
+		Clock:                        s.cfg.clock,
+		WorkloadIdentityClientGetter: s.cfg.AuthClient,
+		ClusterName:                  clusterName.GetClusterName(),
+		App:                          app,
+		CipherSuites:                 s.cfg.CipherSuites,
+		InsecureMode:                 s.cfg.InsecureMode,
+		GetUserCertFunc: func() ([]byte, error) {
+			userCert, err := authz.UserCertificateFromContext(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return userCert.Raw, nil
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

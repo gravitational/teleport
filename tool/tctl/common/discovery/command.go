@@ -19,68 +19,60 @@ package discovery
 import (
 	"context"
 	"io"
-	"log/slog"
 	"os"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/services"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
+// discoveryClient abstracts the auth client methods used by discovery commands.
+// It is a strict subset of authclient.Client.
+type discoveryClient interface {
+	// SearchEvents searches audit events.
+	SearchEvents(ctx context.Context, req libevents.SearchEventsRequest) ([]apievents.AuditEvent, string, error)
+	// GetResources lists resources with pagination.
+	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+	// UserTasksClient returns a client for managing user tasks.
+	UserTasksClient() services.UserTasks
+	// DiscoveryConfigClient returns a client for accessing discovery config.
+	DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater
+}
+
 // Command implements the "tctl discovery" CLI command group.
 type Command struct {
-	nodesCmd *kingpin.CmdClause
+	stdout io.Writer
 
-	nodesLast         time.Duration
-	nodesFormat       string
-	nodesFailuresOnly bool
-	nodesCloudFilter  string
+	nodes nodesArgs
 }
 
 // Initialize registers the "discovery" command and its subcommands with the CLI parser.
 func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
+	if c.stdout == nil {
+		c.stdout = os.Stdout
+	}
+
 	discovery := app.Command("discovery", "Troubleshoot auto-discovery issues.")
-	c.nodesCmd = discovery.Command("nodes", "Report discovered server instances and their enrollment status using Teleport audit log and cluster state.")
-	c.nodesCmd.Alias(`
-Examples:
-
-  List discovered instances in the last hour (default):
-  $ tctl discovery nodes
-
-  Look back 24 hours and output as JSON:
-  $ tctl discovery nodes --last=24h --format=json
-
-  Look back 30 minutes:
-  $ tctl discovery nodes --last=30m
-`)
-
-	c.nodesCmd.Flag("last", "Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).").
-		Default("1h").
-		DurationVar(&c.nodesLast)
-	c.nodesCmd.Flag("format", "Output format.").
-		Default(teleport.Text).
-		EnumVar(&c.nodesFormat, teleport.Text, teleport.JSON, teleport.YAML)
-	c.nodesCmd.Flag("failures-only", "Only show instances with enrollment failures.").
-		BoolVar(&c.nodesFailuresOnly)
-	c.nodesCmd.Flag("cloud", "Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.").
-		Default("").
-		StringVar(&c.nodesCloudFilter)
+	c.nodes.initNodes(discovery)
 }
 
 // TryRun attempts to run the matched subcommand.
-func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	if cmd != c.nodesCmd.FullCommand() {
+func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error) {
+	var commandFunc func(context.Context, discoveryClient, io.Writer) error
+
+	switch cmd {
+	case c.nodes.cmd.FullCommand():
+		commandFunc = c.nodes.run
+	default:
 		return false, nil
 	}
-
-	dateTo := time.Now().UTC()
-	dateFrom := dateTo.Add(-c.nodesLast)
 
 	client, closeFn, err := clientFunc(ctx)
 	if err != nil {
@@ -88,47 +80,5 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 	}
 	defer closeFn(ctx)
 
-	return true, trace.Wrap(c.runNodes(ctx, client, os.Stdout, dateFrom, dateTo))
-}
-
-// runNodes fetches all discovered instances and renders the output.
-func (c *Command) runNodes(ctx context.Context, clt discoveryClient, w io.Writer, dateFrom, dateTo time.Time) error {
-	slog.DebugContext(ctx, "Resolved time range for nodes",
-		"from", dateFrom,
-		"to", dateTo,
-		"last", c.nodesLast,
-	)
-
-	cfg, err := parseCloudProviders(c.nodesCloudFilter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	instances, err := buildNodes(ctx, clt, dateFrom, dateTo, cfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if c.nodesFailuresOnly {
-		total := len(instances)
-		instances = filterFailures(instances)
-		slog.DebugContext(ctx, "Filtered to failures only",
-			"total_instances", total,
-			"failed_instances", len(instances),
-		)
-	}
-	slog.DebugContext(ctx, "Built nodes report",
-		"total_instances", len(instances),
-		"format", c.nodesFormat,
-	)
-
-	switch c.nodesFormat {
-	case teleport.Text:
-		return trace.Wrap(renderText(w, instances))
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(w, instances))
-	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(w, instances))
-	default:
-		return trace.BadParameter("unknown format %q", c.nodesFormat)
-	}
+	return true, trace.Wrap(commandFunc(ctx, client, c.stdout))
 }

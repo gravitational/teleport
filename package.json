@@ -60,7 +60,7 @@
     "oxlint": "^1.67.0",
     "playwright": "^1.60.0",
     "react-select-event": "^5.5.1",
-    "storybook": "^10.4.1",
+    "storybook": "^10.4.6",
     "svgo": "^4.0.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.16"
@@ -107,7 +107,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@11.3.0+sha512.2c403d6594527287672b1f7056343a1f7c3634036a67ffabfcc2b3d7595d843768f8787148d1b57cf7956c90606bbd192857c363af19e96d2d0ec9ec5741d215",
+  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b",
   "engines": {
     "node": "^24"
   }

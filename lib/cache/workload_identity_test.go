@@ -377,6 +377,6 @@ func TestWorkloadIdentityCaseSensitiveName(t *testing.T) {
 	// name sorts before the uppercase one.
 	results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "name", true))
 	require.Len(t, results, 2)
-	require.Equal(t, "test-workload-identity-1", results[0].Metadata.Name)
-	require.Equal(t, "TEST-WORKLOAD-IDENTITY-1", results[1].Metadata.Name)
+	require.Equal(t, "test-workload-identity-1", results[0].GetMetadata().GetName())
+	require.Equal(t, "TEST-WORKLOAD-IDENTITY-1", results[1].GetMetadata().GetName())
 }

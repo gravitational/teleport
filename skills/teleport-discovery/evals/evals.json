@@ -1,0 +1,129 @@
+{
+  "skill_name": "teleport-discovery",
+  "execution": {
+    "mode": "sequential",
+    "teardown_after_each": true,
+    "timeout_seconds": 300
+  },
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to set up Teleport discovery for my cluster. tsh is at evals/files/mock-tsh, tctl is at evals/files/mock-tctl.",
+      "context": {},
+      "expected_output": "Skill checks prerequisites, then asks which cloud provider to configure (Azure or AWS). Does not run any cloud-provider CLI or write any files.",
+      "files": [
+        "evals/files/mock-tctl",
+        "evals/files/mock-tsh"
+      ],
+      "expectations": [
+        "Ran tsh status to check authentication",
+        "Ran tctl status to check cluster connection",
+        "Did not run any az or aws commands",
+        "Did not write any files",
+        "Asked the user which cloud provider they want to configure (Azure or AWS)",
+        "Did not proceed past the provider selection without user input"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Set up Azure VM Discovery for my Teleport cluster. tsh is at evals/files/mock-tsh-unauth, tctl is at evals/files/mock-tctl.",
+      "context": {},
+      "expected_output": "Skill stops immediately with a clear message about not being logged in and how to fix it.",
+      "files": [
+        "evals/files/mock-tctl",
+        "evals/files/mock-tsh-unauth"
+      ],
+      "expectations": [
+        "Attempted to run tsh status",
+        "Stopped without writing any files",
+        "[outcome] Reported that the user is not logged in to Teleport",
+        "[outcome] Provided guidance on how to authenticate (e.g. tsh login --proxy=...)",
+        "Did not run any tctl or az commands at any point during the session",
+        "Told the user to run the skill again after logging in"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Enroll my Azure resources into Teleport. tsh is at evals/files/mock-tsh, tctl is at evals/files/mock-tctl, az is at evals/files/mock-az.\n\nSubscriptions: 00000000-0000-0000-0000-000000000001, install Azure resources in resource group: my-rg, Terraform dir: ./tf-output, no VM filters. Prerequisites met. Write the Terraform files — I'll run terraform apply myself.",
+      "context": {},
+      "expected_output": "Skill detects Azure context, uses the provided az output to configure settings, and generates Terraform files in ./tf-output.",
+      "files": [
+        "evals/files/mock-tctl",
+        "evals/files/mock-tsh",
+        "evals/files/mock-az"
+      ],
+      "expectations": [
+        "Ran tsh status to check authentication",
+        "Ran tctl status to check cluster connection",
+        "Detected Azure context from the prompt without asking for provider",
+        "Ran az group list to enumerate resource groups",
+        "Used the subscription ID provided in the prompt",
+        "Presented a configuration summary before writing files",
+        "Created a versions.tf file in ./tf-output",
+        "Created an azure_discovery.tf file in ./tf-output",
+        "azure_discovery.tf contains 'azure_resource_group_name' set to 'my-rg'",
+        "azure_discovery.tf contains 'azure_managed_identity_location' set to 'eastus'",
+        "azure_discovery.tf module version is set to '~> 18.8'",
+        "[outcome] azure_discovery.tf contains 'terraform.releases.teleport.dev/teleport/discovery/azure'",
+        "[outcome] azure_discovery.tf contains 'teleport_proxy_public_addr' set to 'test.teleport.sh:443'",
+        "[outcome] azure_discovery.tf contains 'teleport_discovery_group_name' set to 'cloud-discovery-group'",
+        "[outcome] azure_discovery.tf contains 'subscriptions' containing '00000000-0000-0000-0000-000000000001'",
+        "azure_discovery.tf contains an azure_matchers block with types set to 'vm'",
+        "[outcome] versions.tf contains '>= 18.8.0'",
+        "[outcome] versions.tf 'teleport' provider block has 'addr' set to 'test.teleport.sh:443'",
+        "[outcome] versions.tf teleport provider has source 'terraform.releases.teleport.dev/gravitational/teleport'",
+        "Checked for an existing Terraform module reference before creating files"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I want to update my Teleport Azure Discovery setup. tsh is at evals/files/mock-tsh, tctl is at evals/files/mock-tctl, az is at evals/files/mock-az. My existing Terraform configuration is in evals/files/existing-tf/. Add subscription 00000000-0000-0000-0000-000000000002 to the existing one. Keep everything else the same. Write the updated files — I'll run terraform apply myself.",
+      "context": {},
+      "expected_output": "Skill finds the existing configuration using Grep, pre-populates the menu with current values, adds the new subscription, and writes the updated azure_discovery.tf.",
+      "files": [
+        "evals/files/mock-tctl",
+        "evals/files/mock-tsh",
+        "evals/files/mock-az",
+        "evals/files/existing-tf/azure_discovery.tf"
+      ],
+      "expectations": [
+        "Ran tsh status to check authentication",
+        "Ran tctl status to check cluster connection",
+        "Detected an existing module reference in the Terraform directory before writing files",
+        "Found and displayed the existing configuration (proxy, subscriptions, resource group)",
+        "Presented a configuration summary showing both subscriptions before writing",
+        "Wrote the updated azure_discovery.tf to evals/files/existing-tf/",
+        "Did not overwrite files without showing the user the planned configuration first",
+        "[outcome] azure_discovery.tf subscriptions contains '00000000-0000-0000-0000-000000000001'",
+        "[outcome] azure_discovery.tf subscriptions contains '00000000-0000-0000-0000-000000000002'",
+        "[outcome] azure_discovery.tf retains 'azure_resource_group_name' set to 'my-rg'",
+        "[outcome] azure_discovery.tf retains 'teleport_proxy_public_addr' set to 'test.teleport.sh:443'"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "My Azure VMs aren't enrolling in Teleport. Can you diagnose what's wrong? tsh is at evals/files/mock-tsh, tctl is at evals/files/mock-tctl.",
+      "context": {},
+      "expected_output": "Skill detects troubleshooting intent, runs tctl discovery nodes and tctl get user_tasks, and presents a clear summary of failures with a link to the troubleshooting docs.",
+      "files": [
+        "evals/files/mock-tsh",
+        "evals/files/mock-tctl"
+      ],
+      "expectations": [
+        "Ran tsh status to check authentication",
+        "Ran tctl status to check cluster connection",
+        "Detected troubleshooting intent — did not ask the user to set up discovery from scratch",
+        "Ran tctl discovery nodes with --cloud=azure flag",
+        "Ran tctl get user_tasks --format=json",
+        "Did not write any files",
+        "[outcome] Reported failed instances from the discovery nodes output",
+        "[outcome] Identified azure-vm-not-running as an open issue affecting vm-stopped",
+        "[outcome] Identified azure-vm-missing-run-commands-permission as an open issue affecting vm-no-perms",
+        "[outcome] Filtered out RESOLVED user tasks — only reported OPEN ones",
+        "Presented findings as a human-readable summary, not raw JSON",
+        "Provided a link to the Teleport Auto-Discovery troubleshooting docs",
+        "Did not attempt to fix the issues or write remediation commands"
+      ]
+    }
+  ]
+}

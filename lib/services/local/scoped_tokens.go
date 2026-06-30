@@ -48,12 +48,13 @@ const (
 
 // ScopedTokenService exposes backend functionality for working with scoped token resources.
 type ScopedTokenService struct {
-	svc     *generic.ServiceWrapper[*joiningv1.ScopedToken]
-	backend backend.Backend
+	svc            *generic.ServiceWrapper[*joiningv1.ScopedToken]
+	backend        backend.Backend
+	scopesFeatures scopes.Features
 }
 
 // NewScopedTokenService creates a new ScopedTokenService.
-func NewScopedTokenService(b backend.Backend) (*ScopedTokenService, error) {
+func NewScopedTokenService(b backend.Backend, scopesFeatures scopes.Features) (*ScopedTokenService, error) {
 	const pageLimit = 100
 	svc, err := generic.NewServiceWrapper(generic.ServiceConfig[*joiningv1.ScopedToken]{
 		Backend:       b,
@@ -68,8 +69,9 @@ func NewScopedTokenService(b backend.Backend) (*ScopedTokenService, error) {
 	}
 
 	return &ScopedTokenService{
-		svc:     svc,
-		backend: b,
+		svc:            svc,
+		backend:        b,
+		scopesFeatures: scopesFeatures,
 	}, nil
 }
 
@@ -172,7 +174,7 @@ const tokenReuseDuration = time.Minute * 30
 // retry a failed join due to spurious errors even after the token has been
 // consumed.
 func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv1.ScopedToken, publicKey []byte) (*joiningv1.ScopedToken, error) {
-	if err := joining.ValidateTokenForUse(token); err != nil {
+	if err := joining.ValidateTokenForUse(token, s.scopesFeatures); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -127,37 +127,37 @@ func TestExecKubeService(t *testing.T) {
 		t,
 		"scoped-"+username,
 		scopedTestScope,
-		&accessv1.ScopedRoleSpec{
+		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
-			Kube: &accessv1.ScopedRoleKube{
+			Kube: accessv1.ScopedRoleKube_builder{
 				Users:  roleKubeUsers,
 				Groups: roleKubeGroups,
 				Labels: []*labelv1.Label{
-					{
+					labelv1.Label_builder{
 						Name:   types.Wildcard,
 						Values: []string{types.Wildcard},
-					},
+					}.Build(),
 				},
-			},
-		})
+			}.Build(),
+		}.Build())
 
 	scopedMultiKubeUsers, scopedMultiKubeUserRole := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameMultiUsers,
 		scopedTestScope,
-		&accessv1.ScopedRoleSpec{
+		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
-			Kube: &accessv1.ScopedRoleKube{
+			Kube: accessv1.ScopedRoleKube_builder{
 				Users:  append(slices.Clone(roleKubeUsers), "admin"),
 				Groups: roleKubeGroups,
 				Labels: []*labelv1.Label{
-					{
+					labelv1.Label_builder{
 						Name:   types.Wildcard,
 						Values: []string{types.Wildcard},
-					},
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	)
 	waitForSRACache(t, testCtx.TLSServer, scopedSingleKubeUserRole, scopedMultiKubeUserRole)
 
@@ -556,19 +556,19 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 					t,
 					"scoped-"+username,
 					scopedTestScope,
-					&accessv1.ScopedRoleSpec{
+					accessv1.ScopedRoleSpec_builder{
 						AssignableScopes: []string{scopedTestScope},
-						Kube: &accessv1.ScopedRoleKube{
+						Kube: accessv1.ScopedRoleKube_builder{
 							Users:  roleKubeUsers,
 							Groups: roleKubeGroups,
 							Labels: []*labelv1.Label{
-								{
+								labelv1.Label_builder{
 									Name:   types.Wildcard,
 									Values: []string{types.Wildcard},
-								},
+								}.Build(),
 							},
-						},
-					})
+						}.Build(),
+					}.Build())
 
 				waitForSRACache(t, testCtx.TLSServer, scopedUserRole)
 
@@ -785,10 +785,10 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*accessv1.C
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		for _, resp := range resps {
-			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
-			})
+			}.Build())
 			require.NoError(t, err)
 		}
 	}, 10*time.Second, 100*time.Millisecond)

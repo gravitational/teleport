@@ -636,7 +636,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	if cfg.ScopedTokenService == nil {
-		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend)
+		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend, cfg.ScopesFeatures)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -656,17 +656,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	if cfg.WorkloadClusterService == nil {
-		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating WorkloadClusterService")
-		}
-	}
-
 	if cfg.Beams == nil {
 		cfg.Beams, err = local.NewBeamService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating BeamsService")
+		}
+	}
+	if cfg.BeamsConfigService == nil {
+		cfg.BeamsConfigService, err = local.NewBeamsConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsConfigService")
 		}
 	}
 
@@ -677,6 +676,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "creating SubCAService")
+		}
+	}
+
+	if cfg.EnrollPairing == nil {
+		cfg.EnrollPairing, err = local.NewEnrollPairingService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating EnrollPairingService")
 		}
 	}
 
@@ -743,9 +749,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		ScopedTokenService:              cfg.ScopedTokenService,
 		AppAuthConfig:                   cfg.AppAuthConfig,
 		MFAService:                      cfg.MFAService,
-		WorkloadClusterService:          cfg.WorkloadClusterService,
 		Beams:                           cfg.Beams,
+		BeamsConfigService:              cfg.BeamsConfigService,
 		SubCAService:                    cfg.SubCAService,
+		EnrollPairing:                   cfg.EnrollPairing,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -3896,6 +3903,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				BotName:                  req.BotName,
 				BotInstanceID:            req.BotInstanceID,
 				DelegationSessionID:      req.DelegationSessionID,
+				BeamID:                   req.BeamID,
 				JoinToken:                req.JoinToken,
 				CertificateExtensions:    certificateExtensions,
 				AllowedResourceIDs:       allowedResourceIDs,
@@ -4043,6 +4051,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		BotInstanceID:            req.BotInstanceID,
 		BotInternal:              req.BotInternal,
 		DelegationSessionID:      req.DelegationSessionID,
+		BeamID:                   req.BeamID,
 		JoinToken:                req.JoinToken,
 		AllowedResourceIDs:       allowedResourceIDs,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
@@ -6015,13 +6024,16 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	// Look for user groups and associated applications to the request.
-	requestedResourceIDs, err := a.appendImplicitlyRequiredResources(ctx, req.GetRequestedResourceIDs())
+	allRequestedResourceIDs, err := a.appendImplicitlyRequiredResources(ctx, req.GetAllRequestedResourceIDs())
 	if err != nil {
 		return nil, trace.Wrap(err, "adding additional implicitly required resources")
 	}
+	// We get back the combination of both types; split back and set individually
+	requestedResourceIDs, requestedResourceAccessIDs := types.UnwrapResourceAccessIDs(allRequestedResourceIDs)
 	req.SetRequestedResourceIDs(requestedResourceIDs)
+	req.SetRequestedResourceAccessIDs(requestedResourceAccessIDs)
 
-	if err := a.checkResourcesRequestable(ctx, requestedResourceIDs); err != nil {
+	if err := a.checkResourcesRequestable(ctx, types.RiskyExtractResourceIDs(allRequestedResourceIDs)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -6189,19 +6201,20 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 // appendImplicitlyRequiredResources examines the set of requested resources and adds
 // any extra resources that are implicitly required by the request.
-func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
+func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceAccessID) ([]types.ResourceAccessID, error) {
 	addedApps := set.New[string]()
 	var userGroups []types.ResourceID
 	var accountAssignments []types.ResourceID
 
-	for _, resource := range resources {
-		switch resource.Kind {
+	for _, raid := range resources {
+		rid := raid.GetResourceID()
+		switch rid.Kind {
 		case types.KindApp:
-			addedApps.Add(resource.Name)
+			addedApps.Add(rid.Name)
 		case types.KindUserGroup:
-			userGroups = append(userGroups, resource)
+			userGroups = append(userGroups, rid)
 		case types.KindIdentityCenterAccountAssignment:
-			accountAssignments = append(accountAssignments, resource)
+			accountAssignments = append(accountAssignments, rid)
 		}
 	}
 
@@ -6214,10 +6227,12 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		for _, app := range userGroup.GetApplications() {
 			// Only add to the request if we haven't already added it.
 			if !addedApps.Contains(app) {
-				resources = append(resources, types.ResourceID{
-					ClusterName: resource.ClusterName,
-					Kind:        types.KindApp,
-					Name:        app,
+				resources = append(resources, types.ResourceAccessID{
+					Id: types.ResourceID{
+						ClusterName: resource.ClusterName,
+						Kind:        types.KindApp,
+						Name:        app,
+					},
 				})
 				addedApps.Add(app)
 			}
@@ -6238,10 +6253,12 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 			continue
 		}
 
-		resources = append(resources, types.ResourceID{
-			ClusterName: resource.ClusterName,
-			Kind:        types.KindIdentityCenterAccount,
-			Name:        asmt.GetSpec().GetAccountId(),
+		resources = append(resources, types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName: resource.ClusterName,
+				Kind:        types.KindIdentityCenterAccount,
+				Name:        asmt.GetSpec().GetAccountId(),
+			},
 		})
 		icAccounts.Add(asmt.GetSpec().GetAccountId())
 	}

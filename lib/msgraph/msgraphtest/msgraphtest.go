@@ -39,6 +39,12 @@ type Server struct {
 	mu        sync.RWMutex
 	TLSServer *httptest.Server
 	Storage   *Storage
+
+	monkeyPatchMu sync.RWMutex
+	monkeyPatch   struct {
+		handleListUsersDelta  func(w http.ResponseWriter, r *http.Request)
+		handleListGroupsDelta func(w http.ResponseWriter, r *http.Request)
+	}
 }
 
 // ServerOption is a custom opt for [NewServer].
@@ -83,6 +89,20 @@ func (s *Server) Handler() http.Handler {
 	return r
 }
 
+// SetHandleListUsersDelta monkey patches user delta API handler.
+func (s *Server) SetHandleListUsersDelta(fn func(w http.ResponseWriter, r *http.Request)) {
+	s.monkeyPatchMu.Lock()
+	defer s.monkeyPatchMu.Unlock()
+	s.monkeyPatch.handleListUsersDelta = fn
+}
+
+// SetHandleListGroupsDelta monkey patches group delta API handler.
+func (s *Server) SetHandleListGroupsDelta(fn func(w http.ResponseWriter, r *http.Request)) {
+	s.monkeyPatchMu.Lock()
+	defer s.monkeyPatchMu.Unlock()
+	s.monkeyPatch.handleListGroupsDelta = fn
+}
+
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	users := make([]*models.User, 0, len(s.Storage.Users))
@@ -103,6 +123,20 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 // increments delta token counter by one and responds with the
 // new delta token.
 func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
+	s.monkeyPatchMu.RLock()
+	fn := s.monkeyPatch.handleListUsersDelta
+	s.monkeyPatchMu.RUnlock()
+
+	if fn != nil {
+		fn(w, r)
+		return
+	}
+
+	s.ListUsersDelta(w, r)
+}
+
+// ListUsersDelta lists users delta diff.
+func (s *Server) ListUsersDelta(w http.ResponseWriter, r *http.Request) {
 	currentKey := 0
 	isLatest := false
 	users := make([]models.ListUsersDeltaResponse, 0)
@@ -121,7 +155,9 @@ func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
-	if !isLatest {
+	if isLatest {
+		s.Storage.UsersDelta = make(map[int][]models.ListUsersDeltaResponse)
+	} else {
 		users = append(users, s.Storage.UsersDelta[currentKey]...)
 	}
 	currentKey++
@@ -157,6 +193,20 @@ func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
 // increments delta token counter by one and responds with the
 // new delta token.
 func (s *Server) handleListGroupsDelta(w http.ResponseWriter, r *http.Request) {
+	s.monkeyPatchMu.RLock()
+	fn := s.monkeyPatch.handleListGroupsDelta
+	s.monkeyPatchMu.RUnlock()
+
+	if fn != nil {
+		fn(w, r)
+		return
+	}
+
+	s.ListGroupsDelta(w, r)
+}
+
+// ListGroupsDelta lists groups delta diff.
+func (s *Server) ListGroupsDelta(w http.ResponseWriter, r *http.Request) {
 	currentKey := 0
 	isLatest := false
 	groups := make([]models.ListGroupsDeltaResponse, 0)
@@ -175,7 +225,9 @@ func (s *Server) handleListGroupsDelta(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
-	if !isLatest {
+	if isLatest {
+		s.Storage.GroupsDelta = make(map[int][]models.ListGroupsDeltaResponse)
+	} else {
 		groups = append(groups, s.Storage.GroupsDelta[currentKey]...)
 	}
 	currentKey++

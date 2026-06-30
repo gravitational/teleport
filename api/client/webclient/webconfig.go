@@ -18,6 +18,7 @@ package webclient
 
 import (
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
@@ -150,7 +151,10 @@ type WebConfigAuthProvider struct {
 // WebConfigAuthSettings describes auth configuration
 type WebConfigAuthSettings struct {
 	// SecondFactor is the type of second factor to use in authentication.
+	// TODO(Joerger): DELETE IN v20 - v19 webui prefers SecondFactors.
 	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
+	// SecondFactors is the list of allowed second factor types.
+	SecondFactors []types.SecondFactorType `json:"second_factors,omitempty"`
 	// Providers contains a list of configured auth providers
 	Providers []WebConfigAuthProvider `json:"providers,omitempty"`
 	// LocalAuthEnabled is a flag that enables local authentication

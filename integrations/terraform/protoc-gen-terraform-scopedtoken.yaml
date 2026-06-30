@@ -32,6 +32,9 @@ exclude_fields:
   - "ScopedToken.metadata.id"
   # Usage tracking is server-side only
   - "ScopedToken.status"
+  # Uses a google.protobuf.Struct field that isn't supported (see
+  # https://github.com/gravitational/protoc-gen-terraform/issues/52)
+  - "ScopedToken.spec.generic_oidc.must_match_fields"
 
 # These fields will be marked as Computed: true
 computed_fields:
