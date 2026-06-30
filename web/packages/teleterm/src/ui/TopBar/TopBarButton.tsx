@@ -27,6 +27,7 @@ export const TopBarButton = styled.button<{ isOpened?: boolean }>`
   color: ${props => props.theme.colors.text.main};
   flex-direction: row;
   height: 100%;
+  padding-inline: 6px;
   border-radius: 4px;
   border-width: 1px;
   border-style: solid;

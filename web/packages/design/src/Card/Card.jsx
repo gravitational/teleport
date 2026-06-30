@@ -19,9 +19,8 @@
 import styled from 'styled-components';
 
 import Box from './../Box';
-import { darkTheme } from './../theme';
 
-const Card = styled(Box).attrs(props => ({ theme: darkTheme, ...props }))`
+const Card = styled(Box)`
   box-shadow: ${props => props.theme.boxShadow[2]};
   border-radius: ${props => props.theme.radii[3]}px;
   background-color: ${props => props.theme.colors.levels.surface};

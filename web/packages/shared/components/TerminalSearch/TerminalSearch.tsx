@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { resolveThemeToColors } from '@gravitational/design-system';
 import { SearchAddon } from '@xterm/addon-search';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
@@ -57,8 +58,10 @@ export const TerminalSearch = ({
   }, [terminalSearcher]);
 
   const search = (value: string, direction: 'next' | 'previous') => {
-    const match = theme.colors.terminal.searchMatch;
-    const activeMatch = theme.colors.terminal.activeSearchMatch;
+    const match = resolveThemeToColors(theme.colors.terminal.searchMatch);
+    const activeMatch = resolveThemeToColors(
+      theme.colors.terminal.activeSearchMatch
+    );
     setSearchValue(value);
     const opts = {
       regex: true,

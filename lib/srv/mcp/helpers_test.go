@@ -43,7 +43,9 @@ import (
 	docker "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -370,8 +372,25 @@ func forceRemoveContainer(t *testing.T, dockerClient *docker.Client, containerNa
 }
 
 type mockAuthClient struct {
-	mu               sync.Mutex
-	appTokenRequests []types.GenerateAppTokenRequest
+	mu                  sync.Mutex
+	appTokenRequests    []types.GenerateAppTokenRequest
+	workloadIdentityClt workloadidentityv1.WorkloadIdentityIssuanceServiceClient
+}
+
+// WorkloadIdentityIssuanceClient implements [AuthClient].
+func (m *mockAuthClient) WorkloadIdentityIssuanceClient() workloadidentityv1.WorkloadIdentityIssuanceServiceClient {
+	return m.workloadIdentityClt
+}
+
+type fakeIssuanceClient struct {
+	workloadidentityv1.WorkloadIdentityIssuanceServiceClient
+
+	resp *workloadidentityv1.IssueTeleportWorkloadIdentityResponse
+	err  error
+}
+
+func (f *fakeIssuanceClient) IssueTeleportWorkloadIdentity(context.Context, *workloadidentityv1.IssueTeleportWorkloadIdentityRequest, ...grpc.CallOption) (*workloadidentityv1.IssueTeleportWorkloadIdentityResponse, error) {
+	return f.resp, f.err
 }
 
 func (m *mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {

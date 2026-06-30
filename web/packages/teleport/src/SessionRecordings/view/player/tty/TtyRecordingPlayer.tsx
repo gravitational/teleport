@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  resolveColorTokens,
+  useDesignSystemContext,
+} from '@gravitational/design-system';
 import { useSuspenseQuery } from '@tanstack/react-query';
+import { ITheme } from '@xterm/xterm';
+import { useEffect, useMemo } from 'react';
 import { useTheme } from 'styled-components';
 
 import cfg from 'teleport/config';
@@ -45,6 +51,12 @@ export function TtyRecordingPlayer({
   ...rest
 }: TtyRecordingPlayerProps) {
   const theme = useTheme();
+  const system = useDesignSystemContext();
+
+  const xtermTheme = useMemo<ITheme>(
+    () => resolveColorTokens(system, theme.colors.terminal, theme.type),
+    [system, theme.colors.terminal, theme.type]
+  );
 
   const {
     data: { player, ws },
@@ -53,7 +65,7 @@ export function TtyRecordingPlayer({
     queryFn: async () => {
       const ws = await createWebSocket(clusterId, sessionId);
 
-      const player = new TtyPlayer(theme, {
+      const player = new TtyPlayer(xtermTheme, theme.fonts.mono, {
         cols: initialCols,
         rows: initialRows,
       });
@@ -64,6 +76,10 @@ export function TtyRecordingPlayer({
       };
     },
   });
+
+  useEffect(() => {
+    player.updateTheme(xtermTheme);
+  }, [player, xtermTheme]);
 
   return (
     <RecordingPlayer
