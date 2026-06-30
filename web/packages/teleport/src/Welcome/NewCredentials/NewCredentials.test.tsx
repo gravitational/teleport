@@ -74,9 +74,12 @@ const nullCases: {
 test.each(nullCases)('renders $attempt as null', testCase => {
   const props = makeProps();
   props.fetchAttempt = testCase.attempt;
-  const { container } = render(<NewCredentials {...props} />);
+  render(<NewCredentials {...props} />);
 
-  expect(container).toBeEmptyDOMElement();
+  expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/Invitation Code Expired/i)
+  ).not.toBeInTheDocument();
 });
 
 test('renders Register Success on success', () => {

@@ -556,6 +556,11 @@ export ironrdp_package_json
 
 IRONRDP_SKIP_BUILD ?= 0
 
+# wasm-bindgen CLI binary to invoke. Overridden to a per-version path under
+# target/ when WASM_BINDGEN_ISOLATE=1 (see ensure-wasm-bindgen); otherwise the
+# shared binary resolved from $$PATH (typically ~/.cargo/bin).
+WASM_BINDGEN ?= wasm-bindgen
+
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
 ifeq ($(IRONRDP_SKIP_BUILD),1)
@@ -565,7 +570,7 @@ else
 build-ironrdp-wasm: ensure-wasm-deps
 	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
-	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
+	$(WASM_BINDGEN) target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
 endif
 
@@ -1919,6 +1924,16 @@ WASM_BINDGEN_VERSION = $(shell awk ' \
   in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
 ' Cargo.lock)
 
+# Opt-in isolation (WASM_BINDGEN_ISOLATE=1): install and run the wasm-bindgen CLI
+# from a per-version path under target/ rather than the shared ~/.cargo/bin. 
+WASM_BINDGEN_ISOLATE ?= 0
+WASM_BINDGEN_INSTALL_FLAGS =
+ifeq ($(WASM_BINDGEN_ISOLATE),1)
+WASM_BINDGEN_INSTALL_ROOT = $(CURDIR)/target/wasm-bindgen-cli/$(WASM_BINDGEN_VERSION)
+WASM_BINDGEN := $(WASM_BINDGEN_INSTALL_ROOT)/bin/wasm-bindgen
+WASM_BINDGEN_INSTALL_FLAGS = --root "$(WASM_BINDGEN_INSTALL_ROOT)"
+endif
+
 .PHONY: print-wasm-bindgen-version
 print-wasm-bindgen-version:
 	@echo $(WASM_BINDGEN_VERSION)
@@ -1930,11 +1945,11 @@ print-rust-toolchain-version:
 	@echo $(RUST_TOOLCHAIN_VERSION)
 
 ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
-ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
+ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell $(WASM_BINDGEN) --version 2>/dev/null))
 ensure-wasm-bindgen:
 	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
 	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)", \
+		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)" $(WASM_BINDGEN_INSTALL_FLAGS), \
 		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
 	)
 endif

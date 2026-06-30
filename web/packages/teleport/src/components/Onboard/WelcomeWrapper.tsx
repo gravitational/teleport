@@ -19,6 +19,7 @@
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
+import cloudCity from 'design/assets/images/backgrounds/cloud-city.png';
 
 import { LogoHero } from 'teleport/components/LogoHero';
 
@@ -32,7 +33,7 @@ export const WelcomeWrapper = ({ children }) => {
         between WelcomeHeader and chidlren */}
         <Flex flexDirection="column">
           <WelcomeHeader>
-            <LogoHero my="12px" />
+            <LogoHero py="12px" />
           </WelcomeHeader>
           {children}
         </Flex>
@@ -49,7 +50,36 @@ const OnboardWrapper = styled.div`
   top: 0;
   left: 0;
   overflow: hidden;
-  background: ${props => props.theme.colors.levels.sunken};
+  // Create our own stacking context so the negative z-index on ::after is
+  // scoped to this wrapper. Previously this used z-index: -2 to push the
+  // wrapper itself behind page content, but Chakra v3's preflight sets
+  // body { min-height: 100dvh; position: relative }, which makes <body>
+  // a hit-testable rectangle covering the viewport — clicks then resolve
+  // to body before reaching anything at z-index: -2.
+  isolation: isolate;
+
+  background: url('${cloudCity}');
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+
+  // leveraging pseudo element for opacity/blur
+  &::after {
+    content: '';
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    position: absolute;
+    // z-index -1 places the transparent/blur effect above the wrapper's
+    // background image but behind in-flow children
+    z-index: -1;
+
+    background-color: black;
+    opacity: 0.25;
+    backdrop-filter: blur(17.5px);
+  }
 `;
 
 const WelcomeHeader = styled(Box)`

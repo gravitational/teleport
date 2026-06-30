@@ -18,6 +18,7 @@
 
 import path from 'node:path';
 
+import { resolveTeleportColor } from '@gravitational/design-system';
 import {
   app,
   autoUpdater,
@@ -45,7 +46,6 @@ import {
 } from 'teleterm/mainProcess/types';
 import { ConfigService } from 'teleterm/services/config';
 import { FileStorage } from 'teleterm/services/fileStorage';
-import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
 
 type WindowState = Rectangle;
 
@@ -113,16 +113,16 @@ export class WindowsManager {
   }
 
   createWindow(): void {
-    const activeTheme = nativeTheme.shouldUseDarkColors
-      ? darkTheme
-      : lightTheme;
     const windowState = this.getWindowState();
     const window = new BrowserWindow({
       x: windowState.x,
       y: windowState.y,
       width: windowState.width,
       height: windowState.height,
-      backgroundColor: activeTheme.colors.levels.sunken,
+      backgroundColor: resolveTeleportColor(
+        'colors.levels.sunken',
+        nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+      ),
       minWidth: 490,
       minHeight: 300,
       show: false,
