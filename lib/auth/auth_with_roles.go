@@ -5169,16 +5169,17 @@ func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.
 }
 
 // EmitAuditEvent emits a single audit event
-func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (a *ScopedServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	ctx = context.WithoutCancel(ctx)
-	if err := a.authorizeAction(types.KindEvent, types.VerbCreate); err != nil {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedEmitEvent(ctx, &ruleCtx); err != nil {
 		return trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	if !isServer {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
-	err := events.ValidateServerMetadata(event, role.GetServerID(), a.hasBuiltinRole(types.RoleProxy))
+	err := events.ValidateServerMetadata(event, serverID, a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
 		// notifying about access violation
@@ -5187,7 +5188,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 		a.authServer.logger.WarnContext(ctx, msg,
 			"event_type", event.GetType(),
 			"event_id", event.GetID(),
-			"server_id", role.GetServerID(),
+			"server_id", serverID,
 			"error", err)
 		// this message is sparse on purpose to avoid conveying extra data to an attacker
 		return trace.AccessDenied("failed to validate event metadata")
@@ -5196,12 +5197,13 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 }
 
 // CreateAuditStream creates audit event stream
-func (a *ServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	if err := a.authorizeAction(types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
+func (a *ScopedServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	if !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
 	stream, err := a.authServer.CreateAuditStream(ctx, sid)
@@ -5211,17 +5213,18 @@ func (a *ServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID)
 	return &streamWithRoles{
 		stream:   stream,
 		a:        a,
-		serverID: role.GetServerID(),
+		serverID: serverID,
 	}, nil
 }
 
 // ResumeAuditStream resumes the stream that has been created
-func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	if err := a.authorizeAction(types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
+func (a *ScopedServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	if !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
 	stream, err := a.authServer.ResumeAuditStream(ctx, sid, uploadID)
@@ -5231,12 +5234,12 @@ func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID,
 	return &streamWithRoles{
 		stream:   stream,
 		a:        a,
-		serverID: role.GetServerID(),
+		serverID: serverID,
 	}, nil
 }
 
 type streamWithRoles struct {
-	a        *ServerWithRoles
+	a        *ScopedServerWithRoles
 	serverID string
 	stream   apievents.Stream
 }
@@ -5589,6 +5592,19 @@ func checkRoleFeatureSupport(mod modules.Modules, role types.Role) error {
 	default:
 		return nil
 	}
+}
+
+// GetRole returns a role by name, supporting both scoped and unscoped callers.
+func (a *ScopedServerWithRoles) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.GetRole(ctx, name)
+	}
+
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadRole, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetRole(ctx, name)
 }
 
 // GetRole returns role by name

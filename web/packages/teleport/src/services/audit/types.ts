@@ -237,8 +237,10 @@ export const eventCodes = {
   ENVIRONMENT_PROFILE_UPDATED: 'TEP01I',
   BOT_JOIN: 'TJ001I',
   BOT_JOIN_FAILURE: 'TJ001E',
+  BOT_JOIN_LIMIT: 'TJ001L',
   INSTANCE_JOIN: 'TJ002I',
   INSTANCE_JOIN_FAILURE: 'TJ002E',
+  INSTANCE_JOIN_LIMIT: 'TJ002L',
   BOT_CREATED: 'TB001I',
   BOT_UPDATED: 'TB002I',
   BOT_DELETED: 'TB003I',
@@ -407,6 +409,14 @@ export const eventCodes = {
   CERT_AUTH_OVERRIDE_UPDATE: 'TCO02I',
   CERT_AUTH_OVERRIDE_UPSERT: 'TCO03I',
   CERT_AUTH_OVERRIDE_DELETE: 'TCO04I',
+  SCOPED_TOKEN_CREATE: 'TST000I',
+  SCOPED_TOKEN_CREATE_FAILURE: 'TST000E',
+  SCOPED_TOKEN_UPSERT: 'TST001I',
+  SCOPED_TOKEN_UPSERT_FAILURE: 'TST001E',
+  SCOPED_TOKEN_UPDATE: 'TST002I',
+  SCOPED_TOKEN_UPDATE_FAILURE: 'TST002E',
+  SCOPED_TOKEN_DELETE: 'TST003I',
+  SCOPED_TOKEN_DELETE_FAILURE: 'TST003E',
 } as const;
 
 /**
@@ -1463,10 +1473,19 @@ export type RawEvents = {
       bot_name: string;
       method: string;
       token_name: string;
+      scope: string;
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
     typeof eventCodes.BOT_JOIN_FAILURE,
+    {
+      bot_name: string;
+      method: string;
+      token_name: string;
+    }
+  >;
+  [eventCodes.BOT_JOIN_LIMIT]: RawEvent<
+    typeof eventCodes.BOT_JOIN_LIMIT,
     {
       bot_name: string;
       method: string;
@@ -1479,6 +1498,8 @@ export type RawEvents = {
       node_name: string;
       method: string;
       role: string;
+      roles: string[];
+      scope: string;
     }
   >;
   [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
@@ -1487,6 +1508,18 @@ export type RawEvents = {
       node_name: string;
       method: string;
       role: string;
+      roles: string[];
+      scope: string;
+    }
+  >;
+  [eventCodes.INSTANCE_JOIN_LIMIT]: RawEvent<
+    typeof eventCodes.INSTANCE_JOIN_LIMIT,
+    {
+      node_name: string;
+      method: string;
+      role: string;
+      roles: string[];
+      scope: string;
     }
   >;
   [eventCodes.BOT_CREATED]: RawEvent<typeof eventCodes.BOT_CREATED, HasName>;
@@ -2398,6 +2431,39 @@ export type RawEvents = {
   [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: RawCertAuthOverrideEvent<
     typeof eventCodes.CERT_AUTH_OVERRIDE_DELETE
   >;
+  [eventCodes.SCOPED_TOKEN_CREATE]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_CREATE
+  >;
+  [eventCodes.SCOPED_TOKEN_CREATE_FAILURE]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_CREATE_FAILURE
+  >;
+  [eventCodes.SCOPED_TOKEN_UPSERT]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_UPSERT
+  >;
+  [eventCodes.SCOPED_TOKEN_UPSERT_FAILURE]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_UPSERT_FAILURE
+  >;
+  [eventCodes.SCOPED_TOKEN_UPDATE]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_UPDATE
+  >;
+  [eventCodes.SCOPED_TOKEN_UPDATE_FAILURE]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_UPDATE_FAILURE
+  >;
+  [eventCodes.SCOPED_TOKEN_DELETE]: RawEvent<
+    typeof eventCodes.SCOPED_TOKEN_DELETE,
+    {
+      name: string;
+      scope: string;
+    }
+  >;
+  [eventCodes.SCOPED_TOKEN_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.SCOPED_TOKEN_DELETE_FAILURE,
+    {
+      name: string;
+      scope: string;
+      error: string;
+    }
+  >;
 };
 
 /**
@@ -2689,6 +2755,18 @@ type RawCertAuthOverrideEvent<T extends EventCode> = RawEvent<
     };
     success?: boolean;
     user?: string;
+  }
+>;
+
+type RawScopedTokenEvent<T extends EventCode> = RawEvent<
+  T,
+  HasName & {
+    scope: string;
+    assigned_scope: string;
+    roles: string[];
+    join_method: string;
+    success: boolean;
+    error?: string;
   }
 >;
 

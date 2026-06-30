@@ -58,6 +58,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.14
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.14
+	github.com/aws/aws-sdk-go-v2/feature/dsql/auth v1.1.21
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.37
 	github.com/aws/aws-sdk-go-v2/feature/dynamodbstreams/attributevalue v1.19.37
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.21
@@ -80,6 +81,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/glue v1.139.1
 	github.com/aws/aws-sdk-go-v2/service/iam v1.53.7
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.36.5
+	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.5
 	github.com/aws/aws-sdk-go-v2/service/kms v1.50.4
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.89.0
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.33.14

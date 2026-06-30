@@ -37,6 +37,57 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ClientIPRestrictionState is the enforcement state of the restrictions at the ingress layer.
+type ClientIPRestrictionState int32
+
+const (
+	// CLIENT_IP_RESTRICTION_STATE_UNSPECIFIED is the `unset` default value. This
+	// should never be used in practice.
+	ClientIPRestrictionState_CLIENT_IP_RESTRICTION_STATE_UNSPECIFIED ClientIPRestrictionState = 0
+	// CLIENT_IP_RESTRICTION_STATE_PENDING indicates that the restrictions have been
+	// accepted but are not yet enforced at the ingress layer.
+	ClientIPRestrictionState_CLIENT_IP_RESTRICTION_STATE_PENDING ClientIPRestrictionState = 1
+	// CLIENT_IP_RESTRICTION_STATE_ACTIVE indicates that the restrictions are
+	// enforced at the ingress layer.
+	ClientIPRestrictionState_CLIENT_IP_RESTRICTION_STATE_ACTIVE ClientIPRestrictionState = 2
+)
+
+// Enum value maps for ClientIPRestrictionState.
+var (
+	ClientIPRestrictionState_name = map[int32]string{
+		0: "CLIENT_IP_RESTRICTION_STATE_UNSPECIFIED",
+		1: "CLIENT_IP_RESTRICTION_STATE_PENDING",
+		2: "CLIENT_IP_RESTRICTION_STATE_ACTIVE",
+	}
+	ClientIPRestrictionState_value = map[string]int32{
+		"CLIENT_IP_RESTRICTION_STATE_UNSPECIFIED": 0,
+		"CLIENT_IP_RESTRICTION_STATE_PENDING":     1,
+		"CLIENT_IP_RESTRICTION_STATE_ACTIVE":      2,
+	}
+)
+
+func (x ClientIPRestrictionState) Enum() *ClientIPRestrictionState {
+	p := new(ClientIPRestrictionState)
+	*p = x
+	return p
+}
+
+func (x ClientIPRestrictionState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ClientIPRestrictionState) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_clientiprestriction_v1_clientiprestriction_proto_enumTypes[0].Descriptor()
+}
+
+func (ClientIPRestrictionState) Type() protoreflect.EnumType {
+	return &file_teleport_clientiprestriction_v1_clientiprestriction_proto_enumTypes[0]
+}
+
+func (x ClientIPRestrictionState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 // ClientIPRestriction is a resource that sets the IP ranges allowed to connect to a Cloud cluster.
 type ClientIPRestriction struct {
 	state               protoimpl.MessageState     `protogen:"opaque.v1"`
@@ -268,8 +319,8 @@ func (b0 ClientIPRestrictionSpec_builder) Build() *ClientIPRestrictionSpec {
 // ClientIPRestrictionStatus contains dynamic properties of a ClientIPRestriction. These properties are
 // modified during runtime of a Teleport process. They should not be modified by users.
 type ClientIPRestrictionStatus struct {
-	state            protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_State string                 `protobuf:"bytes,1,opt,name=state,proto3"`
+	state            protoimpl.MessageState   `protogen:"opaque.v1"`
+	xxx_hidden_State ClientIPRestrictionState `protobuf:"varint,1,opt,name=state,proto3,enum=teleport.clientiprestriction.v1.ClientIPRestrictionState"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -299,14 +350,14 @@ func (x *ClientIPRestrictionStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *ClientIPRestrictionStatus) GetState() string {
+func (x *ClientIPRestrictionStatus) GetState() ClientIPRestrictionState {
 	if x != nil {
 		return x.xxx_hidden_State
 	}
-	return ""
+	return ClientIPRestrictionState_CLIENT_IP_RESTRICTION_STATE_UNSPECIFIED
 }
 
-func (x *ClientIPRestrictionStatus) SetState(v string) {
+func (x *ClientIPRestrictionStatus) SetState(v ClientIPRestrictionState) {
 	x.xxx_hidden_State = v
 }
 
@@ -314,8 +365,7 @@ type ClientIPRestrictionStatus_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	// state is the current enforcement state of the restrictions at the ingress layer.
-	// Possible values: "pending", "active".
-	State string
+	State ClientIPRestrictionState
 }
 
 func (b0 ClientIPRestrictionStatus_builder) Build() *ClientIPRestrictionStatus {
@@ -339,26 +389,33 @@ const file_teleport_clientiprestriction_v1_clientiprestriction_proto_rawDesc = "
 	"\x04spec\x18\x05 \x01(\v28.teleport.clientiprestriction.v1.ClientIPRestrictionSpecR\x04spec\x12R\n" +
 	"\x06status\x18\x06 \x01(\v2:.teleport.clientiprestriction.v1.ClientIPRestrictionStatusR\x06status\">\n" +
 	"\x17ClientIPRestrictionSpec\x12#\n" +
-	"\rallowed_cidrs\x18\x01 \x03(\tR\fallowedCidrs\"1\n" +
-	"\x19ClientIPRestrictionStatus\x12\x14\n" +
-	"\x05state\x18\x01 \x01(\tR\x05stateBjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1;clientiprestrictionv1b\x06proto3"
+	"\rallowed_cidrs\x18\x01 \x03(\tR\fallowedCidrs\"l\n" +
+	"\x19ClientIPRestrictionStatus\x12O\n" +
+	"\x05state\x18\x01 \x01(\x0e29.teleport.clientiprestriction.v1.ClientIPRestrictionStateR\x05state*\x98\x01\n" +
+	"\x18ClientIPRestrictionState\x12+\n" +
+	"'CLIENT_IP_RESTRICTION_STATE_UNSPECIFIED\x10\x00\x12'\n" +
+	"#CLIENT_IP_RESTRICTION_STATE_PENDING\x10\x01\x12&\n" +
+	"\"CLIENT_IP_RESTRICTION_STATE_ACTIVE\x10\x02BjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1;clientiprestrictionv1b\x06proto3"
 
+var file_teleport_clientiprestriction_v1_clientiprestriction_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_clientiprestriction_v1_clientiprestriction_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_clientiprestriction_v1_clientiprestriction_proto_goTypes = []any{
-	(*ClientIPRestriction)(nil),       // 0: teleport.clientiprestriction.v1.ClientIPRestriction
-	(*ClientIPRestrictionSpec)(nil),   // 1: teleport.clientiprestriction.v1.ClientIPRestrictionSpec
-	(*ClientIPRestrictionStatus)(nil), // 2: teleport.clientiprestriction.v1.ClientIPRestrictionStatus
-	(*v1.Metadata)(nil),               // 3: teleport.header.v1.Metadata
+	(ClientIPRestrictionState)(0),     // 0: teleport.clientiprestriction.v1.ClientIPRestrictionState
+	(*ClientIPRestriction)(nil),       // 1: teleport.clientiprestriction.v1.ClientIPRestriction
+	(*ClientIPRestrictionSpec)(nil),   // 2: teleport.clientiprestriction.v1.ClientIPRestrictionSpec
+	(*ClientIPRestrictionStatus)(nil), // 3: teleport.clientiprestriction.v1.ClientIPRestrictionStatus
+	(*v1.Metadata)(nil),               // 4: teleport.header.v1.Metadata
 }
 var file_teleport_clientiprestriction_v1_clientiprestriction_proto_depIdxs = []int32{
-	3, // 0: teleport.clientiprestriction.v1.ClientIPRestriction.metadata:type_name -> teleport.header.v1.Metadata
-	1, // 1: teleport.clientiprestriction.v1.ClientIPRestriction.spec:type_name -> teleport.clientiprestriction.v1.ClientIPRestrictionSpec
-	2, // 2: teleport.clientiprestriction.v1.ClientIPRestriction.status:type_name -> teleport.clientiprestriction.v1.ClientIPRestrictionStatus
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	4, // 0: teleport.clientiprestriction.v1.ClientIPRestriction.metadata:type_name -> teleport.header.v1.Metadata
+	2, // 1: teleport.clientiprestriction.v1.ClientIPRestriction.spec:type_name -> teleport.clientiprestriction.v1.ClientIPRestrictionSpec
+	3, // 2: teleport.clientiprestriction.v1.ClientIPRestriction.status:type_name -> teleport.clientiprestriction.v1.ClientIPRestrictionStatus
+	0, // 3: teleport.clientiprestriction.v1.ClientIPRestrictionStatus.state:type_name -> teleport.clientiprestriction.v1.ClientIPRestrictionState
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_clientiprestriction_v1_clientiprestriction_proto_init() }
@@ -371,13 +428,14 @@ func file_teleport_clientiprestriction_v1_clientiprestriction_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_clientiprestriction_v1_clientiprestriction_proto_rawDesc), len(file_teleport_clientiprestriction_v1_clientiprestriction_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_teleport_clientiprestriction_v1_clientiprestriction_proto_goTypes,
 		DependencyIndexes: file_teleport_clientiprestriction_v1_clientiprestriction_proto_depIdxs,
+		EnumInfos:         file_teleport_clientiprestriction_v1_clientiprestriction_proto_enumTypes,
 		MessageInfos:      file_teleport_clientiprestriction_v1_clientiprestriction_proto_msgTypes,
 	}.Build()
 	File_teleport_clientiprestriction_v1_clientiprestriction_proto = out.File

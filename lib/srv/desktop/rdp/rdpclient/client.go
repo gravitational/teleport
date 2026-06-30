@@ -726,6 +726,10 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		}
 	case *tdpb.SharedDirectoryAnnounce:
 		if c.cfg.AllowDirectorySharing {
+			if m.DirectoryId == 0 {
+				return trace.BadParameter("Zero is not a valid directory identifier")
+			}
+
 			driveName := C.CString(m.Name)
 			defer C.free(unsafe.Pointer(driveName))
 			if errCode := C.client_handle_tdp_sd_announce(C.uintptr_t(c.handle), C.CGOSharedDirectoryAnnounce{
@@ -1074,9 +1078,10 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			ScreenWidth:   uint32(screenWidth),
 			ScreenHeight:  uint32(screenHeight),
 		},
-		ClipboardEnabled:         true,
-		DirectoryRemoveSupported: true,
-		HidpiSupported:           true,
+		ClipboardEnabled:               true,
+		DirectoryRemoveSupported:       true,
+		HidpiSupported:                 true,
+		MultidirectorySharingSupported: true,
 	}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
 		return C.ErrCodeFailure

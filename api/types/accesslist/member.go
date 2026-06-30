@@ -35,9 +35,24 @@ type AccessListMember struct {
 	// Spec is the specification for the access list member.
 	Spec AccessListMemberSpec `json:"spec" yaml:"spec"`
 
+	// Status contains dynamically calculated fields. It is ignored when
+	// marshaling so tctl users do not mistake these read-time values for fields
+	// they could update with resource YAML.
+	Status *AccessListMemberStatus `json:"-" yaml:"-"`
+
 	// Scope is the scope of the access list member, it must be equal to the
 	// scope of the parent access list.
 	Scope string `json:"scope" yaml:"scope"`
+}
+
+// AccessListMemberStatus contains dynamic fields calculated during retrieval.
+// Its fields are ignored when marshaling for the same reason as AccessListMember.Status
+type AccessListMemberStatus struct {
+	// Display contains display values for the member user.
+	Display *types.UserDisplay `json:"-" yaml:"-"`
+
+	// AddedByDisplay contains display values for the user that added the member.
+	AddedByDisplay *types.UserDisplay `json:"-" yaml:"-"`
 }
 
 // AccessListMemberSpec describes the specification of a member of an access list.

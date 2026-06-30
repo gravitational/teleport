@@ -34,11 +34,25 @@ import (
 )
 
 func getClientIPRestriction(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
+	if err := checkClientIPRestrictionName(ref); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	cir, err := client.ClientIPRestrictionClient().GetClientIPRestriction(ctx, &clientiprestrictionv1.GetClientIPRestrictionRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &clientIPRestrictionCollection{cir}, nil
+}
+
+// checkClientIPRestrictionName ensures a requested resource name, if any,
+// matches the singleton's name. This prevents a typo'd or stale name from
+// silently operating on the real allowlist (e.g. tctl edit
+// client_ip_restriction/foo, which uses the get path before updating).
+func checkClientIPRestrictionName(ref services.Ref) error {
+	if ref.Name != "" && ref.Name != types.MetaNameClientIPRestriction {
+		return trace.BadParameter("client_ip_restriction is a singleton, expected name %q, got %q", types.MetaNameClientIPRestriction, ref.Name)
+	}
+	return nil
 }
 
 func createClientIPRestriction(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
@@ -79,6 +93,9 @@ func updateClientIPRestriction(ctx context.Context, client *authclient.Client, r
 }
 
 func deleteClientIPRestriction(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := checkClientIPRestrictionName(ref); err != nil {
+		return trace.Wrap(err)
+	}
 	_, err := client.ClientIPRestrictionClient().DeleteClientIPRestriction(ctx, &clientiprestrictionv1.DeleteClientIPRestrictionRequest{})
 	if err != nil {
 		return trace.Wrap(err)
