@@ -268,9 +268,8 @@ func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 			return nil
 		}
 
+		semaphore := make(chan struct{}, j.app.Config.Concurrency*2)
 		err := j.app.State.IterateMissingRecordings(func(sess session, attempts int) error {
-			semaphore := make(chan struct{}, j.app.Config.Concurrency*2)
-
 			return j.ingestSession(ctx, sess, attempts, semaphore)
 		})
 		if err != nil && !lib.IsCanceled(err) {

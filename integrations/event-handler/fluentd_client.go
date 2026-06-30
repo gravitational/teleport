@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -72,6 +73,7 @@ func NewFluentdClient(c *FluentdConfig, log *slog.Logger) (*FluentdClient, error
 			RootCAs:      ca,
 			Certificates: certs,
 		},
+		MaxConnsPerHost:     c.FluentdMaxConnections,
 		MaxIdleConnsPerHost: c.FluentdMaxConnections,
 		IdleConnTimeout:     httpTimeout,
 	}
@@ -128,7 +130,11 @@ func (f *FluentdClient) Send(ctx context.Context, url string, b []byte) error {
 
 		return trace.Wrap(err)
 	}
-	defer r.Body.Close()
+	// Drain and close the body to enable TCP connection reuse.
+	defer func() {
+		io.Copy(io.Discard, r.Body)
+		r.Body.Close()
+	}()
 
 	if r.StatusCode != http.StatusOK && r.StatusCode != http.StatusNoContent {
 		return trace.Errorf("Failed to send event to fluentd (HTTP %v)", r.StatusCode)
