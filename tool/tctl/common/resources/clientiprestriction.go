@@ -116,25 +116,10 @@ func (c *clientIPRestrictionCollection) WriteText(w io.Writer, verbose bool) err
 	t := asciitable.MakeTable([]string{"Allowed CIDRs", "State"})
 	t.AddRow([]string{
 		strings.Join(c.cir.GetSpec().GetAllowedCidrs(), ", "),
-		clientIPRestrictionStateName(c.cir.GetStatus().GetState()),
+		c.cir.GetStatus().GetState(),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-// clientIPRestrictionStateName returns a short, human-readable name for a
-// ClientIPRestrictionState, for CLI output.
-func clientIPRestrictionStateName(state clientiprestrictionv1.ClientIPRestrictionState) string {
-	switch state {
-	case clientiprestrictionv1.ClientIPRestrictionState_CLIENT_IP_RESTRICTION_STATE_UNSPECIFIED:
-		return "unspecified"
-	case clientiprestrictionv1.ClientIPRestrictionState_CLIENT_IP_RESTRICTION_STATE_PENDING:
-		return "pending"
-	case clientiprestrictionv1.ClientIPRestrictionState_CLIENT_IP_RESTRICTION_STATE_ACTIVE:
-		return "active"
-	default:
-		return fmt.Sprintf("unknown_%d", state)
-	}
 }
 
 func clientIPRestrictionHandler() Handler {
