@@ -19,6 +19,7 @@
 package desktop
 
 import (
+	"cmp"
 	"context"
 	"time"
 
@@ -207,7 +208,7 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 // are cached for future audit events. An event is returned only if there was
 // an error.
 func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m *tdpb.SharedDirectoryAnnounce) *events.DesktopSharedDirectoryStart {
-	err := d.auditCache.SetName(directoryID(m.DirectoryId), directoryName(m.Name))
+	err := d.auditCache.NewDirectory(directoryID(m.DirectoryId), directoryName(m.Name))
 	if err == nil {
 		// no work to do yet, but data is cached for future events
 		return nil
@@ -236,6 +237,11 @@ func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m *tdpb.SharedDirector
 		DirectoryID:   m.DirectoryId,
 		DesktopName:   d.desktop.GetName(),
 	}
+}
+
+// onSharedDirectoryRemove handles a shared directory removal message.
+func (d *desktopSessionAuditor) onSharedDirectoryRemove(m *tdpb.SharedDirectoryRemove) {
+	d.auditCache.RemoveDirectory(directoryID(m.DirectoryId))
 }
 
 // makeSharedDirectoryStart creates a DesktopSharedDirectoryStart event.
@@ -278,10 +284,9 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(completion completi
 	path := m.Path
 	offset := m.Offset
 
-	err := d.auditCache.SetReadRequestInfo(completion, readRequestInfo{
-		directoryID: did,
-		path:        path,
-		offset:      offset,
+	err := d.auditCache.SetReadRequestInfo(directory, completion, readRequestInfo{
+		path:   path,
+		offset: offset,
 	})
 	if err == nil {
 		// no work to do yet, but data is cached for future events
@@ -319,31 +324,21 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(completion completi
 }
 
 // makeSharedDirectoryReadResponse creates a DesktopSharedDirectoryRead audit event.
-func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(completion completionID, errorCode uint32, m *tdpbv1.SharedDirectoryResponse_Read) *events.DesktopSharedDirectoryRead {
-	var did directoryID
-	var name directoryName
-
+func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(did directoryID, completion completionID, errorCode uint32, m *tdpbv1.SharedDirectoryResponse_Read) *events.DesktopSharedDirectoryRead {
 	var path string
 	var offset uint64
 
 	code := libevents.DesktopSharedDirectoryReadCode
 
 	// Gather info from the audit cache
-	info, ok := d.auditCache.TakeReadRequestInfo(completion)
+	info, name, ok := d.auditCache.TakeReadRequestInfo(did, completion)
+	name = cmp.Or(name, "unknown")
 	if ok {
-		did = info.directoryID
-		// Only search for the directory name if we retrieved the directory ID from the audit cache.
-		name, ok = d.auditCache.GetName(did)
-		if !ok {
-			code = libevents.DesktopSharedDirectoryReadFailureCode
-			name = "unknown"
-		}
 		path = info.path
 		offset = info.offset
 	} else {
 		code = libevents.DesktopSharedDirectoryReadFailureCode
 		path = "unknown"
-		name = "unknown"
 	}
 
 	if errorCode != legacy.ErrCodeNil {
@@ -381,11 +376,11 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(completion complet
 	offset := m.Offset
 
 	err := d.auditCache.SetWriteRequestInfo(
+		directory,
 		completion,
 		writeRequestInfo{
-			directoryID: did,
-			path:        path,
-			offset:      offset,
+			path:   path,
+			offset: offset,
 		})
 	if err == nil {
 		// no work to do yet, but data is cached for future events
@@ -423,8 +418,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(completion complet
 }
 
 // makeSharedDirectoryWriteResponse creates a DesktopSharedDirectoryWrite audit event.
-func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(completion completionID, errorCode uint32, m *tdpbv1.SharedDirectoryResponse_Write) *events.DesktopSharedDirectoryWrite {
-	var did directoryID
+func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(did directoryID, completion completionID, errorCode uint32, m *tdpbv1.SharedDirectoryResponse_Write) *events.DesktopSharedDirectoryWrite {
 	var name directoryName
 
 	var path string
@@ -432,21 +426,14 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(completion comp
 
 	code := libevents.DesktopSharedDirectoryWriteCode
 	// Gather info from the audit cache
-	info, ok := d.auditCache.TakeWriteRequestInfo(completion)
+	info, name, ok := d.auditCache.TakeWriteRequestInfo(did, completion)
+	name = cmp.Or(name, "unknown")
 	if ok {
-		did = info.directoryID
-		// Only search for the directory name if we retrieved the directoryID from the audit cache.
-		name, ok = d.auditCache.GetName(did)
-		if !ok {
-			code = libevents.DesktopSharedDirectoryWriteFailureCode
-			name = "unknown"
-		}
 		path = info.path
 		offset = info.offset
 	} else {
 		code = libevents.DesktopSharedDirectoryWriteFailureCode
 		path = "unknown"
-		name = "unknown"
 	}
 
 	if errorCode != legacy.ErrCodeNil {

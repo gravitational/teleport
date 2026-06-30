@@ -329,9 +329,10 @@ type ServerHello struct {
 	DirectoryRemoveSupported bool                   `protobuf:"varint,3,opt,name=directory_remove_supported,json=directoryRemoveSupported,proto3" json:"directory_remove_supported,omitempty"`
 	// Field number 5 matches master. v18 doesn't use fields 3 and 4
 	// (directory_remove_supported and sessions on master).
-	HidpiSupported bool `protobuf:"varint,5,opt,name=hidpi_supported,json=hidpiSupported,proto3" json:"hidpi_supported,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	HidpiSupported                 bool `protobuf:"varint,5,opt,name=hidpi_supported,json=hidpiSupported,proto3" json:"hidpi_supported,omitempty"`
+	MultidirectorySharingSupported bool `protobuf:"varint,6,opt,name=multidirectory_sharing_supported,json=multidirectorySharingSupported,proto3" json:"multidirectory_sharing_supported,omitempty"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
 func (x *ServerHello) Reset() {
@@ -387,6 +388,13 @@ func (x *ServerHello) GetHidpiSupported() bool {
 	return false
 }
 
+func (x *ServerHello) GetMultidirectorySharingSupported() bool {
+	if x != nil {
+		return x.MultidirectorySharingSupported
+	}
+	return false
+}
+
 func (x *ServerHello) SetActivationSpec(v *ConnectionActivated) {
 	x.ActivationSpec = v
 }
@@ -401,6 +409,10 @@ func (x *ServerHello) SetDirectoryRemoveSupported(v bool) {
 
 func (x *ServerHello) SetHidpiSupported(v bool) {
 	x.HidpiSupported = v
+}
+
+func (x *ServerHello) SetMultidirectorySharingSupported(v bool) {
+	x.MultidirectorySharingSupported = v
 }
 
 func (x *ServerHello) HasActivationSpec() bool {
@@ -422,7 +434,8 @@ type ServerHello_builder struct {
 	DirectoryRemoveSupported bool
 	// Field number 5 matches master. v18 doesn't use fields 3 and 4
 	// (directory_remove_supported and sessions on master).
-	HidpiSupported bool
+	HidpiSupported                 bool
+	MultidirectorySharingSupported bool
 }
 
 func (b0 ServerHello_builder) Build() *ServerHello {
@@ -433,6 +446,7 @@ func (b0 ServerHello_builder) Build() *ServerHello {
 	x.ClipboardEnabled = b.ClipboardEnabled
 	x.DirectoryRemoveSupported = b.DirectoryRemoveSupported
 	x.HidpiSupported = b.HidpiSupported
+	x.MultidirectorySharingSupported = b.MultidirectorySharingSupported
 	return m0
 }
 
@@ -2277,6 +2291,7 @@ type SharedDirectoryResponse struct {
 	// Common fields used for all response types.
 	CompletionId uint32 `protobuf:"varint,1,opt,name=completion_id,json=completionId,proto3" json:"completion_id,omitempty"`
 	ErrorCode    uint32 `protobuf:"varint,2,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	DirectoryId  uint32 `protobuf:"varint,11,opt,name=directory_id,json=directoryId,proto3" json:"directory_id,omitempty"`
 	// operation is the particular operation type that
 	// this response is intended for.
 	//
@@ -2330,6 +2345,13 @@ func (x *SharedDirectoryResponse) GetCompletionId() uint32 {
 func (x *SharedDirectoryResponse) GetErrorCode() uint32 {
 	if x != nil {
 		return x.ErrorCode
+	}
+	return 0
+}
+
+func (x *SharedDirectoryResponse) GetDirectoryId() uint32 {
+	if x != nil {
+		return x.DirectoryId
 	}
 	return 0
 }
@@ -2419,6 +2441,10 @@ func (x *SharedDirectoryResponse) SetCompletionId(v uint32) {
 
 func (x *SharedDirectoryResponse) SetErrorCode(v uint32) {
 	x.ErrorCode = v
+}
+
+func (x *SharedDirectoryResponse) SetDirectoryId(v uint32) {
+	x.DirectoryId = v
 }
 
 func (x *SharedDirectoryResponse) SetInfo(v *SharedDirectoryResponse_Info) {
@@ -2650,6 +2676,7 @@ type SharedDirectoryResponse_builder struct {
 	// Common fields used for all response types.
 	CompletionId uint32
 	ErrorCode    uint32
+	DirectoryId  uint32
 	// operation is the particular operation type that
 	// this response is intended for.
 
@@ -2671,6 +2698,7 @@ func (b0 SharedDirectoryResponse_builder) Build() *SharedDirectoryResponse {
 	_, _ = b, x
 	x.CompletionId = b.CompletionId
 	x.ErrorCode = b.ErrorCode
+	x.DirectoryId = b.DirectoryId
 	if b.Info != nil {
 		x.Operation = &SharedDirectoryResponse_Info_{b.Info}
 	}
@@ -5069,12 +5097,13 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +
 	"screenSpec\x12'\n" +
-	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\xf4\x01\n" +
+	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\xbe\x02\n" +
 	"\vServerHello\x12Q\n" +
 	"\x0factivation_spec\x18\x01 \x01(\v2(.teleport.desktop.v1.ConnectionActivatedR\x0eactivationSpec\x12+\n" +
 	"\x11clipboard_enabled\x18\x02 \x01(\bR\x10clipboardEnabled\x12<\n" +
 	"\x1adirectory_remove_supported\x18\x03 \x01(\bR\x18directoryRemoveSupported\x12'\n" +
-	"\x0fhidpi_supported\x18\x05 \x01(\bR\x0ehidpiSupported\"_\n" +
+	"\x0fhidpi_supported\x18\x05 \x01(\bR\x0ehidpiSupported\x12H\n" +
+	" multidirectory_sharing_supported\x18\x06 \x01(\bR\x1emultidirectorySharingSupported\"_\n" +
 	"\tRectangle\x12\x12\n" +
 	"\x04left\x18\x01 \x01(\rR\x04left\x12\x10\n" +
 	"\x03top\x18\x02 \x01(\rR\x03top\x12\x14\n" +
@@ -5169,11 +5198,12 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\bTruncate\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
 	"\x04size\x18\x03 \x01(\x04R\x04sizeJ\x04\b\x02\x10\x03R\vend_of_fileB\v\n" +
-	"\toperation\"\x83\b\n" +
+	"\toperation\"\xa6\b\n" +
 	"\x17SharedDirectoryResponse\x12#\n" +
 	"\rcompletion_id\x18\x01 \x01(\rR\fcompletionId\x12\x1d\n" +
 	"\n" +
-	"error_code\x18\x02 \x01(\rR\terrorCode\x12G\n" +
+	"error_code\x18\x02 \x01(\rR\terrorCode\x12!\n" +
+	"\fdirectory_id\x18\v \x01(\rR\vdirectoryId\x12G\n" +
 	"\x04info\x18\x03 \x01(\v21.teleport.desktop.v1.SharedDirectoryResponse.InfoH\x00R\x04info\x12M\n" +
 	"\x06create\x18\x04 \x01(\v23.teleport.desktop.v1.SharedDirectoryResponse.CreateH\x00R\x06create\x12M\n" +
 	"\x06delete\x18\x05 \x01(\v23.teleport.desktop.v1.SharedDirectoryResponse.DeleteH\x00R\x06delete\x12G\n" +
