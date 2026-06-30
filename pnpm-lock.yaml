@@ -419,8 +419,8 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       node-pty:
-        specifier: 1.2.0-beta.12
-        version: 1.2.0-beta.12
+        specifier: 1.2.0-beta.14
+        version: 1.2.0-beta.14
       ring-buffer-ts:
         specifier: ^1.2.0
         version: 1.2.0
@@ -5824,8 +5824,8 @@ packages:
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
 
-  node-pty@1.2.0-beta.12:
-    resolution: {integrity: sha512-uExTCG/4VmSJa4+TjxFwPXv8BfacmfFEBL6JpxCMDghcwqzvD0yTcGmZ1fKOK6HY33tp0CelLblqTECJizc+Yw==}
+  node-pty@1.2.0-beta.14:
+    resolution: {integrity: sha512-XORU9BQgpxVgqr7WivjJ17mLenOHUgKKWzuZZNaw3NDYgHc/wPJQMSaoLDrpEgqV6aU1nNwil1o/OqYj6lWmUA==}
 
   node-releases@2.0.46:
     resolution: {integrity: sha512-GYVXHE2KnrzAfsAjl4uP++evGFCrAU1jta4ubEjIG7YWt/64Gqv66a30yKwWczVjA6j3bM4nBwH7Pk1JmDHaxQ==}
@@ -12852,7 +12852,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pty@1.2.0-beta.12:
+  node-pty@1.2.0-beta.14:
     dependencies:
       node-addon-api: 7.1.1
 
