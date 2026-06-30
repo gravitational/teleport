@@ -419,7 +419,7 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 		}
 
 		// Reset the fetcher time. This is done also if the call fails.
-		// The time is added to the timestamp from the entry, which will preceed the fetch time.
+		// The time is added to the timestamp from the entry, which will precede the fetch time.
 		w.nextFallbackFetch = now.Add(retryutils.SeventhJitter(w.FallbackInterval))
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching from fallback")
