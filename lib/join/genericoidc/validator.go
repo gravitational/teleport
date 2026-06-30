@@ -273,6 +273,10 @@ func filterAllowedAlgorithmsFromJWKS(jwks jose.JSONWebKeySet) ([]jose.SignatureA
 			// If "use" is set and it isn't for signing, don't try to include
 			// it. "sig" is a well known value per
 			// https://datatracker.ietf.org/doc/html/rfc7517#section-4.2
+			// Note that we honor `use` here but don't check `key_ops`. This
+			// mirrors zitadel/oidc, and in practice since go-jose/v4 drops the
+			// field, it isn't worth re-parsing for what is not a realistic
+			// exploit path especially given the nature of static_jwks keys.
 			continue
 		}
 
