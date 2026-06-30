@@ -1,5 +1,5 @@
 description: carve-out (paths grant, negated subtree)
-app_resources_expression:
+app_resources_expressions:
     # Allow all of /files, then carve out the
     # /files/secret subtree with a negated
     # path.match. The grant and the carve-out

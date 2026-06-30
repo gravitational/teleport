@@ -1,5 +1,5 @@
 description: 'greedy_except: re-allow a path inside a denied subtree'
-app_resources_expression:
+app_resources_expressions:
     # denies the secret subtree but re-allows
     # secret/public nested inside it.
     # allows /files/secret/public/y

@@ -5,7 +5,7 @@ app_resources:
     # /api/v4/health.
     - paths:
         - /api/v4/health/
-app_resources_desugared:
+app_resources_expressions:
     - |-
       path.match(
         literal("api/v4/health",

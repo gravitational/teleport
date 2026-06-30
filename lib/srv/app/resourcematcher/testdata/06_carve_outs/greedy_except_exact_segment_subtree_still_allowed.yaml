@@ -1,5 +1,5 @@
 description: 'greedy_except: exact segment, subtree still allowed'
-app_resources_expression:
+app_resources_expressions:
     # allows /files/secret/other
     # denies /files/secret
     - |-

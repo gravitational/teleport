@@ -1,5 +1,5 @@
 description: GitLab files route, encoded id and encoded file path
-app_resources_expression:
+app_resources_expressions:
     # The files API takes an encoded id and
     # an encoded file path. Each position is
     # named and binds its decoded value; the

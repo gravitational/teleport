@@ -3,7 +3,7 @@ app_resources:
     - paths:
         - /api/v4/health
         - /api/v4/status
-app_resources_desugared:
+app_resources_expressions:
     - |-
       path.match(
         literal("api/v4",

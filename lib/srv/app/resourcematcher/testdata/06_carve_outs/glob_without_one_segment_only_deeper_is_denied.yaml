@@ -1,5 +1,5 @@
 description: 'glob_without: one segment only, deeper is denied'
-app_resources_expression:
+app_resources_expressions:
     - |-
       path.match(literal("files",
           glob_without(set("private", "secret"))))

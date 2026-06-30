@@ -33,7 +33,7 @@ import (
 // caller identity and request. Where holds identity and request conditions
 // only and may not call path.match, so all path matching flows through Paths;
 // a full predicate that needs the matcher language directly is the separate
-// app_resources_expression field, a list of predicate strings.
+// app_resources_expressions field, a list of predicate strings.
 //
 // AllowCode and AllowReason lower to an allow_code call wrapping the rule, and
 // DenyCodeHint and DenyReasonHint to a deny_hint call wrapping the where, so
@@ -157,7 +157,7 @@ type Hint struct {
 }
 
 // CompiledRule is a parsed, ready-to-evaluate rule, built from a sugared Rule
-// or from an app_resources_expression predicate string. The allow code and
+// or from an app_resources_expressions predicate string. The allow code and
 // reason ride in the predicate as an allow_code wrapper, and the deny hints as
 // deny_hint wrappers, read off the evaluation state on a match or a deny, so
 // neither is a field here. One predicate captures the whole rule, so the
@@ -203,7 +203,7 @@ func (r Rule) Compile() (*CompiledRule, error) {
 	return &CompiledRule{pred: pred}, nil
 }
 
-// compileExpression compiles one app_resources_expression entry, a bare
+// compileExpression compiles one app_resources_expressions entry, a bare
 // predicate string. Unlike a sugared rule's where clause, it may call
 // path.match and use the full matcher language directly. It may also wrap an
 // inner condition in deny_hint to contribute a near-miss hint, the same
@@ -211,11 +211,11 @@ func (r Rule) Compile() (*CompiledRule, error) {
 // sugared rule share one deny mechanism.
 func compileExpression(expr string) (*CompiledRule, error) {
 	if strings.TrimSpace(expr) == "" {
-		return nil, trace.BadParameter("an app_resources_expression entry cannot be empty")
+		return nil, trace.BadParameter("an app_resources_expressions entry cannot be empty")
 	}
 	if len(expr) > maxExpressionBytes {
 		return nil, trace.BadParameter(
-			"app_resources_expression entry is %d bytes, over the %d byte cap", len(expr), maxExpressionBytes)
+			"app_resources_expressions entry is %d bytes, over the %d byte cap", len(expr), maxExpressionBytes)
 	}
 	pred, err := compilePredicate(expr)
 	if err != nil {
@@ -467,7 +467,7 @@ func (r Rule) validate() error {
 // size.
 const maxWhereBytes = 1 << 10 // 1 KiB
 
-// maxExpressionBytes caps one app_resources_expression entry, the bare
+// maxExpressionBytes caps one app_resources_expressions entry, the bare
 // predicate surface. It is wider than the where cap because an expression
 // carries the whole rule, path match included, where the sugared where carries
 // only the identity and request condition.
@@ -648,7 +648,7 @@ func validateCode(code string) error {
 	return nil
 }
 
-// Role is one role's app_resources and app_resources_expression, the unit the
+// Role is one role's app_resources and app_resources_expressions, the unit the
 // union is built from. It mirrors how a Teleport role carries its matchers
 // under spec.allow, the same way services.RoleSet gathers its per-role matchers
 // from each role. The two fields parallel the node_labels and
@@ -661,7 +661,7 @@ type Role struct {
 	// Resources are the role's app_resources entries, the sugared rules, OR-ed
 	// within the role.
 	Resources []Rule
-	// Expressions are the role's app_resources_expression entries, bare
+	// Expressions are the role's app_resources_expressions entries, bare
 	// predicate strings, OR-ed within the role and with Resources.
 	Expressions []string
 }
@@ -706,7 +706,7 @@ func CompileRoles(roles []Role) (RoleSet, error) {
 		for i, expr := range role.Expressions {
 			c, err := compileExpression(expr)
 			if err != nil {
-				return nil, trace.Wrap(err, "role %q app_resources_expression %d", role.Name, i)
+				return nil, trace.Wrap(err, "role %q app_resources_expressions %d", role.Name, i)
 			}
 			cr.rules = append(cr.rules, c)
 		}

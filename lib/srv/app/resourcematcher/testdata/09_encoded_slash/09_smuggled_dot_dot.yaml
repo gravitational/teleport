@@ -1,5 +1,5 @@
 description: a ".." smuggled between encoded slashes is rejected
-app_resources_expression:
+app_resources_expressions:
     # Decoding a%2F..%2Fadmin to a/../admin
     # catches the ".." like a raw one, so
     # the path is invalid before matching.

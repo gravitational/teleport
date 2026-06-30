@@ -41,35 +41,35 @@ var update = flag.Bool("update", false, "regenerate golden testdata files")
 // document so it loads natively in Go and in the web playground, with no custom
 // parser. Its keys:
 //
-//	description:               optional human note, shown in the playground.
-//	app_resources:             authored sugared rules (paths/methods/where),
-//	                           with no surrounding role. Role selection and
-//	                           role-holding are a separate, upstream concern, so
-//	                           the engine golden tests carry only the rule set.
-//	app_resources_expression:  authored bare predicate strings, the parallel of
-//	                           node_labels_expression.
-//	app_resources_desugared:   generated, the app_resources rules lowered to
-//	                           bare predicate strings.
-//	identity:                  optional default identity, overridable per case.
-//	cases:                     a list of {request, identity?, expect}.
-//	error:                     optional, the rules are expected to fail to
-//	                           compile.
+//	description:                optional human note, shown in the playground.
+//	app_resources:              authored sugared rules (paths/methods/where),
+//	                            with no surrounding role. Role selection and
+//	                            role-holding are a separate, upstream concern, so
+//	                            the engine golden tests carry only the rule set.
+//	app_resources_expressions:  bare predicate strings, the parallel of
+//	                            node_labels_expression. When app_resources is
+//	                            present, this is generated: each app_resources
+//	                            entry lowers to exactly one entry here, in order.
+//	                            When app_resources is absent, it is authored.
+//	identity:                   optional default identity, overridable per case.
+//	cases:                      a list of {request, identity?, expect}.
+//	error:                      optional, the rules are expected to fail to
+//	                            compile.
 //
-// The runner wraps both rule lists in one synthetic role, then asserts: the
-// sugared rules evaluate to the stored expect, the lowered rules reach the same
-// decision, and the stored app_resources_desugared equals the freshly generated
-// lowering. So one golden decision pins both authoring surfaces and the lowering
-// between them. The deny code lowers to a deny_hint wrapper, so the lowered
-// rules carry the same deny hints as the sugared ones and the two are compared
-// on the whole decision, hints included.
+// The runner asserts: the sugared rules evaluate to the stored expect, the bare
+// app_resources_expressions reach the same decision, and, when app_resources is
+// present, the stored app_resources_expressions equals the freshly generated
+// one-for-one lowering. So one golden decision pins both authoring surfaces and
+// the lowering between them. The deny code lowers to a deny_hint wrapper, so the
+// bare rules carry the same deny hints as the sugared ones and the two are
+// compared on the whole decision, hints included.
 type goldenFile struct {
-	Description      string      `yaml:"description,omitempty"`
-	AppResources     []Rule      `yaml:"app_resources,omitempty"`
-	AppResourcesExpr []string    `yaml:"app_resources_expression,omitempty"`
-	AppResourcesDesu []string    `yaml:"app_resources_desugared,omitempty"`
-	Identity         *tcIdentity `yaml:"identity,omitempty"`
-	Cases            []tcCase    `yaml:"cases,omitempty"`
-	Error            string      `yaml:"error,omitempty"`
+	Description             string      `yaml:"description,omitempty"`
+	AppResources            []Rule      `yaml:"app_resources,omitempty"`
+	AppResourcesExpressions []string    `yaml:"app_resources_expressions,omitempty"`
+	Identity                *tcIdentity `yaml:"identity,omitempty"`
+	Cases                   []tcCase    `yaml:"cases,omitempty"`
+	Error                   string      `yaml:"error,omitempty"`
 }
 
 // tcIdentity is the caller identity in golden form, every field omitempty so a
@@ -134,38 +134,38 @@ func runGolden(t *testing.T, file string) {
 	var g goldenFile
 	require.NoError(t, yaml.Unmarshal(raw, &g), "parsing %s", file)
 
-	// Wrap both rule lists in one synthetic role. The engine evaluates a role's
-	// rule set; which roles a caller holds is decided upstream, so the golden
-	// tests supply the rules directly.
-	role := Role{Name: "test", Resources: g.AppResources, Expressions: g.AppResourcesExpr}
-	roles := []Role{role}
+	hasSugar := len(g.AppResources) > 0
 
-	// A file may assert that its rules do not compile.
+	// A file may assert that its rules do not compile, on whichever surface it
+	// authored.
 	if g.Error != "" {
-		_, err := CompileRoles(roles)
+		_, err := CompileRoles([]Role{{Name: "test", Resources: g.AppResources, Expressions: g.AppResourcesExpressions}})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), g.Error)
 		return
 	}
 
-	sugared, err := CompileRoles(roles)
-	require.NoError(t, err, "compiling sugared rules")
+	// The bare surface is app_resources_expressions, whether the file authored
+	// it directly or it was generated one-for-one from app_resources.
+	bareSet, err := CompileRoles([]Role{{Name: "test", Expressions: g.AppResourcesExpressions}})
+	require.NoError(t, err, "compiling app_resources_expressions")
 
-	// Lower the sugared resources to bare predicates, then evaluate them ahead
-	// of the authored expression rules, preserving the resources-first order
-	// the sugared form uses. The expression rules are already predicates and
-	// pass through unchanged.
-	wantDesugared, err := DesugarResources(role)
-	require.NoError(t, err, "desugaring resources")
-	// An expression-only file has no sugared resources to lower, so it carries
-	// no app_resources_desugared block. Normalize the empty slice to nil so it
-	// compares equal to the absent field.
-	if len(wantDesugared) == 0 {
-		wantDesugared = nil
+	// When app_resources is present, app_resources_expressions is its generated
+	// lowering: each rule lowers to exactly one entry, in order. The sugared
+	// surface is then evaluated alongside the bare one to prove the two decide a
+	// request identically.
+	var sugaredSet RoleSet
+	var wantExpressions []string
+	if hasSugar {
+		sugaredRole := Role{Name: "test", Resources: g.AppResources}
+		sugaredSet, err = CompileRoles([]Role{sugaredRole})
+		require.NoError(t, err, "compiling sugared rules")
+		wantExpressions, err = DesugarResources(sugaredRole)
+		require.NoError(t, err, "desugaring resources")
+		if len(wantExpressions) == 0 {
+			wantExpressions = nil
+		}
 	}
-	loweredExpr := append(append([]string{}, wantDesugared...), g.AppResourcesExpr...)
-	desugared, err := CompileRoles([]Role{{Name: "test", Expressions: loweredExpr}})
-	require.NoError(t, err, "compiling desugared rules")
 
 	defaultIdentity := g.Identity.toIdentity()
 
@@ -174,42 +174,56 @@ func runGolden(t *testing.T, file string) {
 		if g.Cases[i].Identity != nil {
 			identity = g.Cases[i].Identity.toIdentity()
 		}
-		// Evaluate the request twice: once against the sugared rules the author
-		// wrote, once against the lowered (bare predicate) rules. The two must
-		// reach the same allow decision, which proves the declarative form and
-		// its lowering decide a request identically. The lowered form carries no
-		// deny code, a sugar-only feature, so the deny hints are compared only
-		// against the sugared form's stored expect.
-		fromSugared := evaluate(sugared, g.Cases[i].Request, identity)
-		fromDesugared := evaluate(desugared, g.Cases[i].Request, identity)
+		// The bare app_resources_expressions are the surface every file carries.
+		// A sugared file additionally evaluates app_resources, and the two must
+		// reach the same decision, proving the declarative form and its lowering
+		// decide a request identically. The authoritative expect is the sugared
+		// decision when sugar is present, since the deny code is a sugar-only
+		// feature, and the bare decision otherwise.
+		fromBare := evaluate(bareSet, g.Cases[i].Request, identity)
 		if *update {
-			g.Cases[i].Expect = fromSugared
+			if hasSugar {
+				g.Cases[i].Expect = evaluate(sugaredSet, g.Cases[i].Request, identity)
+			} else {
+				g.Cases[i].Expect = fromBare
+			}
 			continue
 		}
 		at := fmt.Sprintf("case %d %s %s", i, g.Cases[i].Request.Method, g.Cases[i].Request.Path)
-		require.Equal(t, fromSugared, fromDesugared,
-			"%s: sugared and lowered forms reach different decisions", at)
-		require.Equal(t, g.Cases[i].Expect, fromSugared,
-			"%s: stored expect is stale; rerun with -update", at)
+		if hasSugar {
+			fromSugared := evaluate(sugaredSet, g.Cases[i].Request, identity)
+			require.Equal(t, fromSugared, fromBare,
+				"%s: sugared and app_resources_expressions reach different decisions", at)
+			require.Equal(t, g.Cases[i].Expect, fromSugared,
+				"%s: stored expect is stale; rerun with -update", at)
+		} else {
+			require.Equal(t, g.Cases[i].Expect, fromBare,
+				"%s: stored expect is stale; rerun with -update", at)
+		}
 	}
 
+	if hasSugar && !*update {
+		require.Equal(t, wantExpressions, g.AppResourcesExpressions,
+			"app_resources_expressions is stale; rerun with -update")
+	}
 	if !*update {
-		require.Equal(t, wantDesugared, g.AppResourcesDesu,
-			"app_resources_desugared is stale; rerun with -update")
 		return
 	}
 
-	require.NoError(t, rewriteGenerated(file, raw, wantDesugared, g.Cases))
+	// On -update, regenerate the app_resources_expressions block only when it is
+	// the generated lowering of app_resources; an authored bare file keeps its
+	// expressions untouched and only its expects are refreshed.
+	require.NoError(t, rewriteGenerated(file, raw, wantExpressions, g.Cases))
 }
 
 // rewriteGenerated regenerates only the derived sections of a golden file, the
-// app_resources_desugared block and each case's expect, while leaving every
-// authored node, including its comments, byte-for-byte. It round-trips through a
-// yaml.Node so a plain yaml.Marshal of the whole struct, which drops comments,
-// is never used. app_resources_desugared is placed right after app_resources,
-// and each expect right after its request, so a freshly authored file gains
-// them in a readable order.
-func rewriteGenerated(file string, raw []byte, desugared []string, cases []tcCase) error {
+// generated app_resources_expressions block and each case's expect, while
+// leaving every authored node, including its comments, byte-for-byte. It
+// round-trips through a yaml.Node so a plain yaml.Marshal of the whole struct,
+// which drops comments, is never used. The generated app_resources_expressions
+// is placed right after app_resources, and each expect right after its request,
+// so a freshly authored file gains them in a readable order.
+func rewriteGenerated(file string, raw []byte, expressions []string, cases []tcCase) error {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return err
@@ -218,14 +232,14 @@ func rewriteGenerated(file string, raw []byte, desugared []string, cases []tcCas
 		return fmt.Errorf("%s: empty document", file)
 	}
 	root := doc.Content[0]
-	// A file with no sugared app_resources, only expression rules, has nothing
-	// to lower, so it carries no app_resources_desugared block.
-	if len(desugared) > 0 {
-		desugaredNode, err := encodeNode(desugared)
+	// A file with no sugared app_resources has nothing to lower, so its
+	// app_resources_expressions is authored and left untouched here.
+	if len(expressions) > 0 {
+		expressionsNode, err := encodeNode(expressions)
 		if err != nil {
 			return err
 		}
-		mapSetAfter(root, "app_resources", "app_resources_desugared", desugaredNode)
+		mapSetAfter(root, "app_resources", "app_resources_expressions", expressionsNode)
 	}
 	if casesNode := mapValue(root, "cases"); casesNode != nil {
 		for i, caseNode := range casesNode.Content {

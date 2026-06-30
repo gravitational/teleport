@@ -1,5 +1,5 @@
 description: 'optional: match with or without a trailing slash'
-app_resources_expression:
+app_resources_expressions:
     - |-
       path.match(literal("files",
           optional(slash())))

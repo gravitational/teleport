@@ -1,5 +1,5 @@
 description: 'greedy_without: an encoded path can''t slip the deny'
-app_resources_expression:
+app_resources_expressions:
     # greedy_without grants files/** but denies the secret and private subtrees.
     # An attempt to reach secret with an encoded "s" (%73) cannot slip the deny:
     # the strict tokenizer rejects the non-separator escape outright, so the

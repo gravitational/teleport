@@ -1,5 +1,5 @@
 description: nested literal chain
-app_resources_expression:
+app_resources_expressions:
     # literal() splits its text on "/".
     # This nested chain is the same matcher
     # as literal("api/v4/buildinfo").

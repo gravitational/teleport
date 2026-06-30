@@ -1,5 +1,5 @@
 description: a double-encoded slash is invalid, even under an encoded-slash node
-app_resources_expression:
+app_resources_expressions:
     # A double-encoded slash (%252F) is not
     # the separator, so the tokenizer
     # rejects the path before matching.

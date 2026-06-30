@@ -1,5 +1,5 @@
 description: encoded_literal matches one group/project by its decoded value
-app_resources_expression:
+app_resources_expressions:
     # encoded_literal matches one segment by
     # its decoded value, in either hex case
     # (%2F or %2f).

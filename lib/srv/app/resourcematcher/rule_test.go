@@ -37,7 +37,7 @@ func ruleFromYAML(t *testing.T, doc string) Rule {
 }
 
 // exprFromYAML reads a bare predicate from a YAML "pred:" key and compiles it as
-// an app_resources_expression entry. It mirrors how a desugared rule is written
+// an app_resources_expressions entry. It mirrors how a desugared rule is written
 // as one predicate string, the parallel of node_labels_expression.
 func exprFromYAML(t *testing.T, doc string) (*CompiledRule, error) {
 	t.Helper()
@@ -436,7 +436,7 @@ func TestDoubleEncodedSlashIsInvalid(t *testing.T) {
 }
 
 // TestResourcesAndExpressionsCoexist pins that a role may carry both
-// app_resources and app_resources_expression, the parallel of node_labels and
+// app_resources and app_resources_expressions, the parallel of node_labels and
 // node_labels_expression. The two are an additive union: a request that matches
 // either field is allowed.
 func TestResourcesAndExpressionsCoexist(t *testing.T) {
@@ -529,7 +529,7 @@ func TestWhereByteCap(t *testing.T) {
 	require.Contains(t, err.Error(), "over the")
 }
 
-// TestExpressionByteCap pins the 4 KiB cap on one app_resources_expression
+// TestExpressionByteCap pins the 4 KiB cap on one app_resources_expressions
 // entry. An entry at the cap compiles; one byte over is a load error.
 func TestExpressionByteCap(t *testing.T) {
 	atCap := "path.match(literal(\"api\", greedy()))"

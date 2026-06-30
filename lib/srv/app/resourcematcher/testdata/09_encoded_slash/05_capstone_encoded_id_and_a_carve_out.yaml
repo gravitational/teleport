@@ -1,5 +1,5 @@
 description: an encoded id, a carved-out subtree, and the encoded-slash opt-in
-app_resources_expression:
+app_resources_expressions:
     # allows /api/v4/projects/g%2fp/issues
     # denies /api/v4/projects/g%2fp/secret
     - |-

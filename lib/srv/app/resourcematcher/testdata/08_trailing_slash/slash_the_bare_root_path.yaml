@@ -1,5 +1,5 @@
 description: 'slash: the bare root path /'
-app_resources_expression:
+app_resources_expressions:
     - path.match(slash())
 identity:
     name: bob

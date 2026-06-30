@@ -395,7 +395,7 @@ func validateExclusions(expr string) error {
 // validateWhereNoPathMatch rejects a path.match call inside a sugared rule's
 // where clause. Path matching in the sugared form flows through paths, so the
 // where holds identity and request conditions only. A predicate that needs to
-// call path.match directly belongs in app_resources_expression. The matcher
+// call path.match directly belongs in app_resources_expressions. The matcher
 // constructors return a Node, not a bool, so they cannot stand alone in a
 // boolean where in the first place; only path.match itself type-checks there,
 // so it is the one call this rejects.
@@ -417,7 +417,7 @@ func validateWhereNoPathMatch(where string) error {
 	if bad {
 		return trace.BadParameter(
 			"where may not call path.match: express path matching through paths, " +
-				"or move the whole rule to app_resources_expression")
+				"or move the whole rule to app_resources_expressions")
 	}
 	return nil
 }
