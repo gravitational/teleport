@@ -301,6 +301,11 @@ const (
 	// MetricResourceKubernetes is a Kubernetes cluster resource metric.
 	MetricResourceKubernetes = "kubernetes"
 
+	// MetricLicenseExpiry is Unix timestamp at which the Teleport
+	// Enterprise license will expire. It is 0 when no expiring license
+	// applies (for example OSS/Community builds).
+	MetricLicenseExpiry = "license_expiry_timestamp_seconds"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 

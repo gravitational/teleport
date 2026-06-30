@@ -81,6 +81,8 @@ var (
 	ErrDeleteRoleAccessList = errDeleteRoleAccessList
 
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
+
+	LicenseExpiryMetric = licenseExpiryMetric
 )
 
 func ServerWithModules(mt *modulestest.Modules) *Server {
