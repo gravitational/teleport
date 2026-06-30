@@ -86,13 +86,11 @@ func TestMFAPromptVerifier_VerifyResponse_Success(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp := &tdpbv1.MFAPromptResponse{
-		Response: &tdpbv1.MFAPromptResponse_Reference{
-			Reference: &tdpbv1.MFAPromptResponseReference{
-				ChallengeName: challengeName,
-			},
-		},
-	}
+	resp := tdpbv1.MFAPromptResponse_builder{
+		Reference: tdpbv1.MFAPromptResponseReference_builder{
+			ChallengeName: challengeName,
+		}.Build(),
+	}.Build()
 
 	err = verifier.VerifyResponse(t.Context(), resp)
 	require.NoError(t, err)
@@ -109,8 +107,8 @@ func TestMFAPromptVerifier_VerifyResponse_MissingResponse(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp := &tdpbv1.MFAPromptResponse{Response: nil}
+	resp := tdpbv1.MFAPromptResponse_builder{Reference: nil}.Build()
 
 	err = verifier.VerifyResponse(t.Context(), resp)
-	require.ErrorIs(t, err, trace.BadParameter("missing or unknown MFAPromptResponse type: <nil>"))
+	require.ErrorIs(t, err, trace.BadParameter("missing or unknown MFAPromptResponse type: not set"))
 }

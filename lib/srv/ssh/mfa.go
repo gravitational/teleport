@@ -86,15 +86,15 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) er
 		return trace.Wrap(err)
 	}
 
-	switch r := mfaPromptResp.GetResponse().(type) {
-	case *sshpb.MFAPromptResponse_Reference:
-		return pv.Verify(ctx, r.Reference.GetChallengeName(), func() *mfav2.SessionIdentifyingPayload {
+	switch r := mfaPromptResp.WhichResponse(); r {
+	case sshpb.MFAPromptResponse_Reference_case:
+		return pv.Verify(ctx, mfaPromptResp.GetReference().GetChallengeName(), func() *mfav2.SessionIdentifyingPayload {
 			return mfav2.SessionIdentifyingPayload_builder{
 				SshSessionId: pv.SessionID(),
 			}.Build()
 		})
 
 	default:
-		return trace.BadParameter("missing or unknown MFAPromptResponse type: %T", r)
+		return trace.BadParameter("missing or unknown MFAPromptResponse type: %v", r)
 	}
 }

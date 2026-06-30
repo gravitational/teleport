@@ -117,9 +117,9 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			chal: mfav2.ValidatedMFAChallenge_builder{
 				Kind:    types.KindValidatedMFAChallenge,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test-challenge-tls",
-				},
+				}.Build(),
 				Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 					Payload: mfav2.SessionIdentifyingPayload_builder{
 						TlsSessionId: []byte("tls-session-id"),

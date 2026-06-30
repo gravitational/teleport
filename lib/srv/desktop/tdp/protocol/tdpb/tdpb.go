@@ -505,55 +505,55 @@ type validatableMessage interface {
 // All top-level messages inside the envelope must implement
 // a 'validate' method.
 func messageFromEnvelope(e *tdpbv1.Envelope) validatableMessage {
-	switch m := e.Payload.(type) {
-	case *tdpbv1.Envelope_ClientHello:
-		return (*ClientHello)(m.ClientHello)
-	case *tdpbv1.Envelope_ServerHello:
-		return (*ServerHello)(m.ServerHello)
-	case *tdpbv1.Envelope_PngFrame:
-		return (*PNGFrame)(m.PngFrame)
-	case *tdpbv1.Envelope_FastPathPdu:
-		return (*FastPathPDU)(m.FastPathPdu)
-	case *tdpbv1.Envelope_RdpResponsePdu:
-		return (*RDPResponsePDU)(m.RdpResponsePdu)
-	case *tdpbv1.Envelope_SyncKeys:
-		return (*SyncKeys)(m.SyncKeys)
-	case *tdpbv1.Envelope_MouseMove:
-		return (*MouseMove)(m.MouseMove)
-	case *tdpbv1.Envelope_MouseButton:
-		return (*MouseButton)(m.MouseButton)
-	case *tdpbv1.Envelope_KeyboardButton:
-		return (*KeyboardButton)(m.KeyboardButton)
-	case *tdpbv1.Envelope_ClientScreenSpec:
-		return (*ClientScreenSpec)(m.ClientScreenSpec)
-	case *tdpbv1.Envelope_Alert:
-		return (*Alert)(m.Alert)
-	case *tdpbv1.Envelope_MouseWheel:
-		return (*MouseWheel)(m.MouseWheel)
-	case *tdpbv1.Envelope_ClipboardData:
-		return (*ClipboardData)(m.ClipboardData)
-	case *tdpbv1.Envelope_Mfa:
-		return (*MFA)(m.Mfa)
-	case *tdpbv1.Envelope_SharedDirectoryAnnounce:
-		return (*SharedDirectoryAnnounce)(m.SharedDirectoryAnnounce)
-	case *tdpbv1.Envelope_SharedDirectoryAcknowledge:
-		return (*SharedDirectoryAcknowledge)(m.SharedDirectoryAcknowledge)
-	case *tdpbv1.Envelope_SharedDirectoryRequest:
-		return (*SharedDirectoryRequest)(m.SharedDirectoryRequest)
-	case *tdpbv1.Envelope_SharedDirectoryResponse:
-		return (*SharedDirectoryResponse)(m.SharedDirectoryResponse)
-	case *tdpbv1.Envelope_LatencyStats:
-		return (*LatencyStats)(m.LatencyStats)
-	case *tdpbv1.Envelope_Ping:
-		return (*Ping)(m.Ping)
-	case *tdpbv1.Envelope_SharedDirectoryRemove:
-		return (*SharedDirectoryRemove)(m.SharedDirectoryRemove)
-	case *tdpbv1.Envelope_AuthPrompt:
-		return (*AuthPrompt)(m.AuthPrompt)
-	case *tdpbv1.Envelope_MfaPromptResponse:
-		return (*MFAPromptResponse)(m.MfaPromptResponse)
-	case *tdpbv1.Envelope_SessionEstablishing:
-		return (*SessionEstablishing)(m.SessionEstablishing)
+	switch e.WhichPayload() {
+	case tdpbv1.Envelope_ClientHello_case:
+		return (*ClientHello)(e.GetClientHello())
+	case tdpbv1.Envelope_ServerHello_case:
+		return (*ServerHello)(e.GetServerHello())
+	case tdpbv1.Envelope_PngFrame_case:
+		return (*PNGFrame)(e.GetPngFrame())
+	case tdpbv1.Envelope_FastPathPdu_case:
+		return (*FastPathPDU)(e.GetFastPathPdu())
+	case tdpbv1.Envelope_RdpResponsePdu_case:
+		return (*RDPResponsePDU)(e.GetRdpResponsePdu())
+	case tdpbv1.Envelope_SyncKeys_case:
+		return (*SyncKeys)(e.GetSyncKeys())
+	case tdpbv1.Envelope_MouseMove_case:
+		return (*MouseMove)(e.GetMouseMove())
+	case tdpbv1.Envelope_MouseButton_case:
+		return (*MouseButton)(e.GetMouseButton())
+	case tdpbv1.Envelope_KeyboardButton_case:
+		return (*KeyboardButton)(e.GetKeyboardButton())
+	case tdpbv1.Envelope_ClientScreenSpec_case:
+		return (*ClientScreenSpec)(e.GetClientScreenSpec())
+	case tdpbv1.Envelope_Alert_case:
+		return (*Alert)(e.GetAlert())
+	case tdpbv1.Envelope_MouseWheel_case:
+		return (*MouseWheel)(e.GetMouseWheel())
+	case tdpbv1.Envelope_ClipboardData_case:
+		return (*ClipboardData)(e.GetClipboardData())
+	case tdpbv1.Envelope_Mfa_case:
+		return (*MFA)(e.GetMfa())
+	case tdpbv1.Envelope_SharedDirectoryAnnounce_case:
+		return (*SharedDirectoryAnnounce)(e.GetSharedDirectoryAnnounce())
+	case tdpbv1.Envelope_SharedDirectoryAcknowledge_case:
+		return (*SharedDirectoryAcknowledge)(e.GetSharedDirectoryAcknowledge())
+	case tdpbv1.Envelope_SharedDirectoryRequest_case:
+		return (*SharedDirectoryRequest)(e.GetSharedDirectoryRequest())
+	case tdpbv1.Envelope_SharedDirectoryResponse_case:
+		return (*SharedDirectoryResponse)(e.GetSharedDirectoryResponse())
+	case tdpbv1.Envelope_LatencyStats_case:
+		return (*LatencyStats)(e.GetLatencyStats())
+	case tdpbv1.Envelope_Ping_case:
+		return (*Ping)(e.GetPing())
+	case tdpbv1.Envelope_SharedDirectoryRemove_case:
+		return (*SharedDirectoryRemove)(e.GetSharedDirectoryRemove())
+	case tdpbv1.Envelope_AuthPrompt_case:
+		return (*AuthPrompt)(e.GetAuthPrompt())
+	case tdpbv1.Envelope_MfaPromptResponse_case:
+		return (*MFAPromptResponse)(e.GetMfaPromptResponse())
+	case tdpbv1.Envelope_SessionEstablishing_case:
+		return (*SessionEstablishing)(e.GetSessionEstablishing())
 	default:
 		return nil
 	}
@@ -564,11 +564,9 @@ type AuthPrompt tdpbv1.AuthPrompt
 
 // Encode encodes an AuthPrompt message.
 func (a *AuthPrompt) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_AuthPrompt{
-			AuthPrompt: (*tdpbv1.AuthPrompt)(a),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		AuthPrompt: proto.ValueOrDefault((*tdpbv1.AuthPrompt)(a)),
+	}.Build())
 }
 
 func (*AuthPrompt) validate() error { return nil }
@@ -578,11 +576,9 @@ type MFAPromptResponse tdpbv1.MFAPromptResponse
 
 // Encode encodes an MFAPromptResponse message.
 func (r *MFAPromptResponse) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_MfaPromptResponse{
-			MfaPromptResponse: (*tdpbv1.MFAPromptResponse)(r),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		MfaPromptResponse: proto.ValueOrDefault((*tdpbv1.MFAPromptResponse)(r)),
+	}.Build())
 }
 
 func (*MFAPromptResponse) validate() error { return nil }
@@ -592,11 +588,9 @@ type SessionEstablishing tdpbv1.SessionEstablishing
 
 // Encode encodes a SessionEstablishing message.
 func (s *SessionEstablishing) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SessionEstablishing{
-			SessionEstablishing: (*tdpbv1.SessionEstablishing)(s),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SessionEstablishing: proto.ValueOrDefault((*tdpbv1.SessionEstablishing)(s)),
+	}.Build())
 }
 
 func (*SessionEstablishing) validate() error { return nil }

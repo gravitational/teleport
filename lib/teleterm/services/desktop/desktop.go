@@ -301,9 +301,9 @@ func (s *Session) handleTDPBHandshake(
 			}
 			promptResp := (*tdpb.MFAPromptResponse)(
 				tdpbv1.MFAPromptResponse_builder{
-					Reference: &tdpbv1.MFAPromptResponseReference{
+					Reference: tdpbv1.MFAPromptResponseReference_builder{
 						ChallengeName: challengeName,
-					},
+					}.Build(),
 				}.Build(),
 			)
 			if err := tdpServerConn.WriteMessage(promptResp); err != nil {

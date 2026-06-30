@@ -3075,10 +3075,10 @@ func wsTDPBFallback(
 	)
 
 	hello := &tdpb.ClientHello{
-		ScreenSpec: &tdpbv1.ClientScreenSpec{
+		ScreenSpec: tdpbv1.ClientScreenSpec_builder{
 			Width:  1920,
 			Height: 1080,
-		},
+		}.Build(),
 	}
 
 	err = tdpClient.WriteMessage(hello)
@@ -3250,10 +3250,10 @@ func wsTDPBNoMFA(t *testing.T, ws *websocket.Conn) {
 	)
 
 	hello := &tdpb.ClientHello{
-		ScreenSpec: &tdpbv1.ClientScreenSpec{
+		ScreenSpec: tdpbv1.ClientScreenSpec_builder{
 			Width:  1920,
 			Height: 1080,
-		},
+		}.Build(),
 	}
 
 	err = tdpClient.WriteMessage(hello)
@@ -3347,10 +3347,10 @@ func TestDesktopInBandMFA_ForceEnvVar(t *testing.T) {
 	)
 
 	hello := &tdpb.ClientHello{
-		ScreenSpec: &tdpbv1.ClientScreenSpec{
+		ScreenSpec: tdpbv1.ClientScreenSpec_builder{
 			Width:  1920,
 			Height: 1080,
-		},
+		}.Build(),
 	}
 
 	err = tdpClient.WriteMessage(hello)

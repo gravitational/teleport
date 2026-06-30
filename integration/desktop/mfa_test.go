@@ -54,10 +54,10 @@ func TestValidatedMFAChallenge_CRUD(t *testing.T) {
 	challenge := mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:    challengeName,
 			Expires: timestamppb.New(time.Now().Add(5 * time.Minute)),
-		},
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload:       payload,
 			SourceCluster: "test-cluster",

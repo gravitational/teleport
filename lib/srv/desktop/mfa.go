@@ -67,21 +67,19 @@ func NewMFAPromptVerifier(
 
 // NewAuthPrompt creates a TDPB AuthPrompt containing an empty MFAPrompt to send to the client.
 func NewAuthPrompt() *tdpbv1.AuthPrompt {
-	return &tdpbv1.AuthPrompt{
-		Prompt: &tdpbv1.AuthPrompt_MfaPrompt{
-			MfaPrompt: &tdpbv1.MFAPrompt{},
-		},
-	}
+	return tdpbv1.AuthPrompt_builder{
+		MfaPrompt: &tdpbv1.MFAPrompt{},
+	}.Build()
 }
 
 // VerifyResponse verifies the MFA response by extracting the challenge name and checking that the validated MFA
 // challenge exists.
 func (pv *MFAPromptVerifier) VerifyResponse(ctx context.Context, resp *tdpbv1.MFAPromptResponse) error {
-	switch r := resp.GetResponse().(type) {
-	case *tdpbv1.MFAPromptResponse_Reference:
+	switch r := resp.WhichResponse(); r {
+	case tdpbv1.MFAPromptResponse_Reference_case:
 		return pv.Verify(
 			ctx,
-			r.Reference.GetChallengeName(),
+			resp.GetReference().GetChallengeName(),
 			func() *mfav2.SessionIdentifyingPayload {
 				return mfav2.SessionIdentifyingPayload_builder{
 					TlsSessionId: pv.SessionID(),
@@ -90,7 +88,7 @@ func (pv *MFAPromptVerifier) VerifyResponse(ctx context.Context, resp *tdpbv1.MF
 		)
 
 	default:
-		return trace.BadParameter("missing or unknown MFAPromptResponse type: %T", r)
+		return trace.BadParameter("missing or unknown MFAPromptResponse type: %v", r)
 	}
 }
 

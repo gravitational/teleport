@@ -118,9 +118,9 @@ func TestTDPBInBandMFA_MessageExchange(t *testing.T) {
 
 	if err := conn.WriteMessage(
 		(*tdpb.MFAPromptResponse)(tdpbv1.MFAPromptResponse_builder{
-			Reference: &tdpbv1.MFAPromptResponseReference{
+			Reference: tdpbv1.MFAPromptResponseReference_builder{
 				ChallengeName: "test-challenge",
-			},
+			}.Build(),
 		}.Build()),
 	); err != nil {
 		t.Fatalf("failed to send MFAPromptResponse: %v", err)
@@ -217,19 +217,17 @@ func TestTDPBLegacyWDS_Alert(t *testing.T) {
 }
 
 func newAuthPrompt() *tdpbv1.AuthPrompt {
-	return &tdpbv1.AuthPrompt{
-		Prompt: &tdpbv1.AuthPrompt_MfaPrompt{
-			MfaPrompt: &tdpbv1.MFAPrompt{},
-		},
-	}
+	return tdpbv1.AuthPrompt_builder{
+		MfaPrompt: &tdpbv1.MFAPrompt{},
+	}.Build()
 }
 
 func newTestClientHello() *tdpb.ClientHello {
 	return &tdpb.ClientHello{
 		Username: login,
-		ScreenSpec: &tdpbv1.ClientScreenSpec{
+		ScreenSpec: tdpbv1.ClientScreenSpec_builder{
 			Width:  1920,
 			Height: 1080,
-		},
+		}.Build(),
 	}
 }

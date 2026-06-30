@@ -630,9 +630,9 @@ func (h *Handler) handleInBandMFA(
 		return trace.Wrap(err)
 	}
 
-	respRef := &tdpbv1.MFAPromptResponseReference{
+	respRef := tdpbv1.MFAPromptResponseReference_builder{
 		ChallengeName: challengeName,
-	}
+	}.Build()
 
 	resp := tdpbv1.MFAPromptResponse_builder{
 		Reference: respRef,
