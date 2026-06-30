@@ -98,6 +98,17 @@ func TestAzureWatcher(t *testing.T) {
 								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm6")),
 								Location: to.Ptr("location2"),
 							},
+							{
+								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm7")),
+								Location: to.Ptr("location2"),
+								Properties: &armcompute.VirtualMachineProperties{
+									StorageProfile: &armcompute.StorageProfile{
+										OSDisk: &armcompute.OSDisk{
+											OSType: to.Ptr(armcompute.OperatingSystemTypesWindows),
+										},
+									},
+								},
+							},
 						},
 					},
 				},
@@ -234,6 +245,16 @@ func TestAzureWatcher(t *testing.T) {
 				Subscriptions:  []string{"*"},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6", "vm7", "vm8", "vm9", "vm10", "vm11", "vm12"},
+		},
+		{
+			name: "filter by operating system",
+			matcher: types.AzureMatcher{
+				ResourceGroups: []string{"rg1", "rg2"},
+				Regions:        []string{"location1", "location2"},
+				ResourceTags:   types.Labels{"teleport": []string{"yes"}},
+				Subscriptions:  []string{sub1},
+			},
+			wantVMs: []string{"vm2", "vm4"},
 		},
 	}
 
