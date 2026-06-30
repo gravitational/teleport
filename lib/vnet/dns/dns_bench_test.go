@@ -39,6 +39,14 @@ func mustBuildQuery(b *testing.B, name string) []byte {
 	return raw
 }
 
+// go test ./lib/vnet/dns -run='^$' -bench=.
+// goos: darwin
+// goarch: arm64
+// pkg: github.com/gravitational/teleport/lib/vnet/dns
+// cpu: Apple M4 Pro
+// BenchmarkDNSParseAndBuildA-14            9789584               112.7 ns/op             0 B/op          0 allocs/op
+// PASS
+// ok      github.com/gravitational/teleport/lib/vnet/dns  1.539s
 func BenchmarkDNSParseAndBuildA(b *testing.B) {
 	query := mustBuildQuery(b, "app.example.com.")
 	respBuf := make([]byte, 0, maxUDPDNSMessageSize)
