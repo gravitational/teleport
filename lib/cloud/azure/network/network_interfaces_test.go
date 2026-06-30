@@ -92,12 +92,14 @@ func TestInterfacesClientLiveGet(t *testing.T) {
 //     `az login`, or set AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET.
 //     The identity needs Microsoft.Network/networkInterfaces/read on the NICs.
 //   - Set AZURE_SUBSCRIPTION_ID to a subscription ID that has at least one NIC.
+//   - Optionally set AZURE_RESOURCE_GROUP to a resource group that has at least one NIC.
 //
 // Run with:
 //
-//	TELEPORT_TEST_AZURE=1 \
-//	AZURE_SUBSCRIPTION_ID=<sub> \
-//	go test ./lib/cloud/azure/network/ -run TestInterfacesClientLiveList -v
+//		TELEPORT_TEST_AZURE=1 \
+//		AZURE_SUBSCRIPTION_ID=<sub> \
+//	  AZURE_RESOURCE_GROUP=<rg> \
+//		go test ./lib/cloud/azure/network/ -run TestInterfacesClientLiveList -v
 func TestInterfacesClientLiveList(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_AZURE") == "" {
 		t.Skip("Set TELEPORT_TEST_AZURE to run this test against a real Azure subscription.")
@@ -114,7 +116,11 @@ func TestInterfacesClientLiveList(t *testing.T) {
 
 	nicClient := NewInterfacesClient(queryClient)
 
-	nicsByVM, err := nicClient.List(ctx, os.Getenv("AZURE_SUBSCRIPTION_ID"), types.Wildcard)
+	rg := os.Getenv("AZURE_RESOURCE_GROUP")
+	if rg == "" {
+		rg = types.Wildcard
+	}
+	nicsByVM, err := nicClient.List(ctx, os.Getenv("AZURE_SUBSCRIPTION_ID"), rg)
 	require.NoError(t, err)
 	require.NotNil(t, nicsByVM)
 
