@@ -63,7 +63,7 @@ groupC -> groupA
 Teleport removes the `groupC -> groupA` edge that introduces a cycle. Later, if you
 remove `groupB -> groupC` membership to break the cycle in Entra ID, delta sync will
 remove `groupB -> groupC` from Teleport, but it will not be able to restore `groupC -> groupA` 
-that was filtered out. Only a full sync can restore it, as it rescans all groups 
+that was filtered out. Only a full sync can restore it, as it scans all groups 
 and group memberships from Entra ID.
 
 ## What permissions does Teleport need to authenticate with the Microsoft Graph API?
