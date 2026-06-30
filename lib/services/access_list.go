@@ -366,10 +366,11 @@ func AccessListTitleIndexKey(al *accesslist.AccessList) string {
 //   - If owners filter is provided, the access list must have at least one matching owner
 //   - If roles filter is provided, the access list must grant at least one matching role
 //   - If search filter is provided, all search terms must be found across the access list's
-//     title, name, owner names, description, granted roles, and origin fields
+//     title, name, owner names, description, granted roles, and origin fields, or matchAccessListSearchTerm
 //
 // All matching is case-insensitive and supports partial matches.
-func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFilter) bool {
+// matchAccessListSearchTerm is evaluated for search terms that do not match stored access list fields.
+func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFilter, matchAccessListSearchTerm func(al *accesslist.AccessList, term string) bool) bool {
 	if req == nil {
 		return true
 	}
@@ -456,6 +457,10 @@ func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFil
 						break
 					}
 				}
+			}
+
+			if !termFound && matchAccessListSearchTerm != nil && matchAccessListSearchTerm(al, term) {
+				termFound = true
 			}
 
 			// If this term wasn't found in any field, the search fails

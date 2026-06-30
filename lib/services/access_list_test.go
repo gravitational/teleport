@@ -398,13 +398,40 @@ func TestMatchAccessList(t *testing.T) {
 				Roles:  tt.roles,
 				Origin: tt.origin,
 			}.Build()
-			result := MatchAccessList(al, filter)
+			result := MatchAccessList(al, filter, nil)
 			if result != tt.expected {
 				t.Errorf("MatchAccessList(search: %q, owners: %v, roles: %v) = %v, want %v",
 					tt.search, tt.owners, tt.roles, result, tt.expected)
 			}
 		})
 	}
+}
+
+func TestMatchAccessListSearchTermMatcher(t *testing.T) {
+	t.Parallel()
+
+	al := &accesslist.AccessList{
+		Spec: accesslist.Spec{
+			Title:       "Production Database Access",
+			Description: "Access to production MySQL and PostgreSQL databases",
+			Owners: []accesslist.Owner{
+				{Name: "123456", MembershipKind: accesslist.MembershipKindUser},
+				{Name: "nested-list", MembershipKind: accesslist.MembershipKindList},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"db-admin"},
+			},
+		},
+	}
+	al.SetName("prod-db-access")
+
+	filter := accesslistv1.AccessListsFilter_builder{
+		Search: "prod Garcia",
+	}.Build()
+
+	require.True(t, MatchAccessList(al, filter, func(matchedAccessList *accesslist.AccessList, term string) bool {
+		return term == "Garcia"
+	}))
 }
 
 // TestAccessListReviewMarshal verifies a marshaled access list review resource can be unmarshaled back.
