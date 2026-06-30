@@ -98,112 +98,93 @@ func TestListPodRBAC(t *testing.T) {
 	// close tests
 	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
 
-	// create a user with full access to kubernetes Pods.
-	// (kubernetes_user and kubernetes_groups specified)
-	userWithFullAccess, _ := testCtx.CreateUserAndRole(
-		testCtx.Context,
-		t,
-		usernameWithFullAccess,
-		RoleSpec{
-			Name:       usernameWithFullAccess,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
+	kubeResourceDefs := map[string][]types.KubernetesResource{
+		usernameWithFullAccess: []types.KubernetesResource{
+			{
+				Kind:      "pods",
+				Name:      types.Wildcard,
+				Namespace: types.Wildcard,
+				Verbs:     []string{types.Wildcard},
+				APIGroup:  types.Wildcard,
+			},
+		},
+		usernameWithNamespaceAccess: []types.KubernetesResource{
+			{
+				Kind:      "pods",
+				Name:      types.Wildcard,
+				Namespace: metav1.NamespaceDefault,
+				Verbs:     []string{types.Wildcard},
+				APIGroup:  types.Wildcard,
+			},
+		},
+		usernameWithLimitedAccess: []types.KubernetesResource{
+			{
+				Kind:      "pods",
+				Name:      "nginx-*",
+				Namespace: metav1.NamespaceDefault,
+				Verbs:     []string{types.Wildcard},
+				APIGroup:  types.Wildcard,
+			},
+		},
+		usernameWithoutListVerbAccess: []types.KubernetesResource{
+			{
+				Kind:      "pods",
+				Name:      "*",
+				Namespace: metav1.NamespaceDefault,
+				Verbs:     []string{"get"},
+				APIGroup:  types.Wildcard,
+			},
+		},
+	}
 
-			SetupRoleFunc: func(r types.Role) {
-				r.SetKubeResources(types.Allow, []types.KubernetesResource{
-					{
-						Kind:      "pods",
-						Name:      types.Wildcard,
-						Namespace: types.Wildcard,
-						Verbs:     []string{types.Wildcard},
-						APIGroup:  types.Wildcard,
+	scopedAssignments := make([]*accessv1.CreateScopedRoleAssignmentResponse, 0, len(kubeResourceDefs))
+	users := make(map[string]types.User)
+	for username, kubeResources := range kubeResourceDefs {
+		// create unscoped user
+		unscopedUser, _ := testCtx.CreateUserAndRole(
+			testCtx.Context,
+			t,
+			username,
+			RoleSpec{
+				Name:       username,
+				KubeUsers:  roleKubeUsers,
+				KubeGroups: roleKubeGroups,
+				SetupRoleFunc: func(r types.Role) {
+					r.SetKubeResources(types.Allow, kubeResources)
+				},
+			},
+		)
+		users[unscopedUser.GetName()] = unscopedUser
+
+		// create scoped user
+		scopedResources := make([]*accessv1.KubeResource, len(kubeResources))
+		for idx, resource := range kubeResources {
+			scopedResources[idx] = toScopedKubeResource(resource)
+		}
+		scopedUser, scopedAssignment := testCtx.CreateUserAndScopedRole(
+			t,
+			scopedUsername(username),
+			scope,
+			accessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scope},
+				Kube: accessv1.ScopedRoleKube_builder{
+					Users:  roleKubeUsers,
+					Groups: roleKubeGroups,
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						}.Build(),
 					},
-				})
-			},
-		},
-	)
+					Resources: scopedResources,
+				}.Build(),
+			}.Build())
+		scopedAssignments = append(scopedAssignments, scopedAssignment)
+		users[scopedUser.GetName()] = scopedUser
+	}
+	waitForSRACache(t, testCtx.TLSServer, scopedAssignments...)
 
-	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
-		t,
-		"scoped-"+usernameWithFullAccess,
-		scope,
-		accessv1.ScopedRoleSpec_builder{
-			AssignableScopes: []string{scope},
-			Kube: accessv1.ScopedRoleKube_builder{
-				Users:  roleKubeUsers,
-				Groups: roleKubeGroups,
-				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
-						Name:   types.Wildcard,
-						Values: []string{types.Wildcard},
-					}.Build(),
-				},
-				Resources: []*accessv1.KubeResource{
-					accessv1.KubeResource_builder{
-						Kind:      "pods",
-						Name:      types.Wildcard,
-						Namespace: types.Wildcard,
-						Verbs:     []string{types.Wildcard},
-						ApiGroup:  types.Wildcard,
-					}.Build(),
-				},
-			}.Build(),
-		}.Build())
-
-	// create a user with full access to kubernetes Pods within the default namespace.
-	// (kubernetes_user and kubernetes_groups specified)
-	userWithNamespaceAccess, _ := testCtx.CreateUserAndRole(
-		testCtx.Context,
-		t,
-		usernameWithNamespaceAccess,
-		RoleSpec{
-			Name:       usernameWithNamespaceAccess,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
-			SetupRoleFunc: func(r types.Role) {
-				r.SetKubeResources(types.Allow,
-					[]types.KubernetesResource{
-						{
-							Kind:      "pods",
-							Name:      types.Wildcard,
-							Namespace: metav1.NamespaceDefault,
-							Verbs:     []string{types.Wildcard},
-							APIGroup:  types.Wildcard,
-						},
-					})
-			},
-		},
-	)
-
-	// create a scoped user with full access to kubernetes pods within the default namespace.
-	// (kubernetes_user and kubernetes_groups specified)
-	scopedUserWithNamespaceAccess, scopedRoleWithNamespaceAccess := testCtx.CreateUserAndScopedRole(
-		t,
-		"scoped-"+usernameWithNamespaceAccess,
-		scope,
-		accessv1.ScopedRoleSpec_builder{
-			AssignableScopes: []string{scope},
-			Kube: accessv1.ScopedRoleKube_builder{
-				Users:  roleKubeUsers,
-				Groups: roleKubeGroups,
-				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
-						Name:   types.Wildcard,
-						Values: []string{types.Wildcard},
-					}.Build(),
-				},
-				Resources: []*accessv1.KubeResource{
-					accessv1.KubeResource_builder{
-						Kind:      "pods",
-						Name:      types.Wildcard,
-						Namespace: metav1.NamespaceDefault,
-						Verbs:     []string{types.Wildcard},
-						ApiGroup:  types.Wildcard,
-					}.Build(),
-				},
-			}.Build(),
-		}.Build())
-
+	// create a user with traits
 	userWithTraits, _ := testCtx.CreateUserWithTraitsAndRole(
 		testCtx.Context,
 		t,
@@ -229,119 +210,7 @@ func TestListPodRBAC(t *testing.T) {
 			},
 		},
 	)
-
-	// create a moderator user with access to kubernetes
-	// (kubernetes_user and kubernetes_groups specified)
-	userWithLimitedAccess, _ := testCtx.CreateUserAndRole(
-		testCtx.Context,
-		t,
-		usernameWithLimitedAccess,
-		RoleSpec{
-			Name:       usernameWithLimitedAccess,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
-			SetupRoleFunc: func(r types.Role) {
-				r.SetKubeResources(types.Allow,
-					[]types.KubernetesResource{
-						{
-							Kind:      "pods",
-							Name:      "nginx-*",
-							Namespace: metav1.NamespaceDefault,
-							Verbs:     []string{types.Wildcard},
-							APIGroup:  types.Wildcard,
-						},
-					},
-				)
-			},
-		},
-	)
-
-	// create a scoped user with limited access to kubernetes pods within the default namespace
-	// (kubernetes_user and kubernetes_groups specified)
-	scopedUserWithLimitedAccess, scopedRoleWithLimitedAccess := testCtx.CreateUserAndScopedRole(
-		t,
-		"scoped-"+usernameWithLimitedAccess,
-		scope,
-		accessv1.ScopedRoleSpec_builder{
-			AssignableScopes: []string{scope},
-			Kube: accessv1.ScopedRoleKube_builder{
-				Users:  roleKubeUsers,
-				Groups: roleKubeGroups,
-				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
-						Name:   types.Wildcard,
-						Values: []string{types.Wildcard},
-					}.Build(),
-				},
-				Resources: []*accessv1.KubeResource{
-					accessv1.KubeResource_builder{
-						Kind:      "pods",
-						Name:      "nginx-*",
-						Namespace: metav1.NamespaceDefault,
-						Verbs:     []string{types.Wildcard},
-						ApiGroup:  types.Wildcard,
-					}.Build(),
-				},
-			}.Build(),
-		}.Build())
-
-	// create a moderator user with access to kubernetes
-	// (kubernetes_user and kubernetes_groups specified)
-	userWithoutListVerb, _ := testCtx.CreateUserAndRole(
-		testCtx.Context,
-		t,
-		usernameWithoutListVerbAccess,
-		RoleSpec{
-			Name:       usernameWithoutListVerbAccess,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
-			SetupRoleFunc: func(r types.Role) {
-				r.SetKubeResources(types.Allow,
-					[]types.KubernetesResource{
-						{
-							Kind:      "pods",
-							Name:      "*",
-							Namespace: metav1.NamespaceDefault,
-							Verbs:     []string{"get"},
-							APIGroup:  types.Wildcard,
-						},
-					},
-				)
-			},
-		},
-	)
-
-	// create a scoped user with "get" access to the default kubernetes namespace
-	// (kubernetes_user and kubernetes_groups specified)
-	scopedUserWithoutListVerb, scopedRoleWithoutListVerb := testCtx.CreateUserAndScopedRole(
-		t,
-		"scoped-"+usernameWithoutListVerbAccess,
-		scope,
-		accessv1.ScopedRoleSpec_builder{
-			AssignableScopes: []string{scope},
-			Kube: accessv1.ScopedRoleKube_builder{
-				Users:  roleKubeUsers,
-				Groups: roleKubeGroups,
-				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
-						Name:   types.Wildcard,
-						Values: []string{types.Wildcard},
-					}.Build(),
-				},
-				Resources: []*accessv1.KubeResource{
-					accessv1.KubeResource_builder{
-						Kind:      "pods",
-						Name:      "*",
-						Namespace: metav1.NamespaceDefault,
-						Verbs:     []string{"get"},
-						ApiGroup:  types.Wildcard,
-					}.Build(),
-				},
-			}.Build(),
-		}.Build())
-
-	// create a user allowed to access all namespaces except the default namespace.
-	// (kubernetes_user and kubernetes_groups specified)
+	// create a user with deny rules
 	userWithDenyRule, _ := testCtx.CreateUserAndRole(
 		testCtx.Context,
 		t,
@@ -377,14 +246,6 @@ func TestListPodRBAC(t *testing.T) {
 		},
 	)
 
-	waitForSRACache(
-		t,
-		testCtx.TLSServer,
-		scopedRoleWithFullAccess,
-		scopedRoleWithNamespaceAccess,
-		scopedRoleWithLimitedAccess,
-		scopedRoleWithoutListVerb,
-	)
 	type args struct {
 		user      types.User
 		namespace string
@@ -403,7 +264,7 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list default namespace pods for user with full access",
 			args: args{
-				user:      userWithFullAccess,
+				user:      users[usernameWithFullAccess],
 				namespace: metav1.NamespaceDefault,
 			},
 			want: want{
@@ -417,9 +278,9 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list default namespace pods for scoped user with full access",
 			args: args{
-				user:      scopedUserWithFullAccess,
+				user:      users[scopedUsername(usernameWithFullAccess)],
 				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUserWithFullAccess.GetName(), scope),
+				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithFullAccess), scope),
 			},
 			want: want{
 				listPodsResult: []string{
@@ -432,7 +293,7 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list pods in every namespace for user with full access",
 			args: args{
-				user:      userWithFullAccess,
+				user:      users[usernameWithFullAccess],
 				namespace: metav1.NamespaceAll,
 			},
 			want: want{
@@ -448,9 +309,9 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list pods in every namespace for scoped user with full access",
 			args: args{
-				user:      scopedUserWithFullAccess,
+				user:      users[scopedUsername(usernameWithFullAccess)],
 				namespace: metav1.NamespaceAll,
-				opts:      makeScopedOpts(t, testCtx, scopedUserWithFullAccess.GetName(), scope),
+				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithFullAccess), scope),
 			},
 			want: want{
 				listPodsResult: []string{
@@ -465,7 +326,7 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list default namespace pods for user with default namespace",
 			args: args{
-				user:      userWithNamespaceAccess,
+				user:      users[usernameWithNamespaceAccess],
 				namespace: metav1.NamespaceDefault,
 			},
 			want: want{
@@ -479,9 +340,9 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list default namespace pods for scoped user with default namespace",
 			args: args{
-				user:      scopedUserWithNamespaceAccess,
+				user:      users[usernameWithNamespaceAccess],
 				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUserWithNamespaceAccess.GetName(), scope),
+				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithNamespaceAccess), scope),
 			},
 			want: want{
 				listPodsResult: []string{
@@ -494,7 +355,7 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list pods in every namespace for user with default namespace",
 			args: args{
-				user:      userWithNamespaceAccess,
+				user:      users[usernameWithNamespaceAccess],
 				namespace: metav1.NamespaceAll,
 			},
 			want: want{
@@ -508,9 +369,9 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list pods in every namespace for scoped user with default namespace",
 			args: args{
-				user:      scopedUserWithNamespaceAccess,
+				user:      users[scopedUsername(usernameWithNamespaceAccess)],
 				namespace: metav1.NamespaceAll,
-				opts:      makeScopedOpts(t, testCtx, scopedUserWithNamespaceAccess.GetName(), scope),
+				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithNamespaceAccess), scope),
 			},
 			want: want{
 				listPodsResult: []string{
@@ -551,7 +412,7 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list default namespace pods for user with limited access",
 			args: args{
-				user:      userWithLimitedAccess,
+				user:      users[usernameWithLimitedAccess],
 				namespace: metav1.NamespaceDefault,
 			},
 			want: want{
@@ -572,9 +433,9 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list default namespace pods for scoped user with limited access",
 			args: args{
-				user:      scopedUserWithLimitedAccess,
+				user:      users[scopedUsername(usernameWithLimitedAccess)],
 				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUserWithLimitedAccess.GetName(), scope),
+				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithLimitedAccess), scope),
 			},
 			want: want{
 				listPodsResult: []string{
@@ -614,7 +475,7 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list default namespace pods for user with limited access and a resource access request",
 			args: args{
-				user:      userWithNamespaceAccess,
+				user:      users[usernameWithNamespaceAccess],
 				namespace: metav1.NamespaceDefault,
 				opts: []GenTestKubeClientTLSCertOptions{
 					WithResourceAccessRequests(
@@ -648,7 +509,7 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "user with legacy pod access request that no longer fullfills the role requirements",
 			args: args{
-				user:      userWithLimitedAccess,
+				user:      users[usernameWithLimitedAccess],
 				namespace: metav1.NamespaceDefault,
 				opts: []GenTestKubeClientTLSCertOptions{
 					WithResourceAccessRequests(
@@ -686,7 +547,7 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "user with pod access request that no longer fullfills the role requirements",
 			args: args{
-				user:      userWithLimitedAccess,
+				user:      users[usernameWithLimitedAccess],
 				namespace: metav1.NamespaceDefault,
 				opts: []GenTestKubeClientTLSCertOptions{
 					WithResourceAccessRequests(
@@ -724,7 +585,7 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list default namespace pods for user with limited access",
 			args: args{
-				user:      userWithoutListVerb,
+				user:      users[usernameWithoutListVerbAccess],
 				namespace: metav1.NamespaceDefault,
 			},
 			want: want{
@@ -742,9 +603,9 @@ func TestListPodRBAC(t *testing.T) {
 		{
 			name: "list default namespace pods for scoped user with limited access",
 			args: args{
-				user:      scopedUserWithoutListVerb,
+				user:      users[scopedUsername(usernameWithoutListVerbAccess)],
 				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUserWithoutListVerb.GetName(), scope),
+				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithoutListVerbAccess), scope),
 			},
 			want: want{
 				listPodsResult: []string{},
@@ -4921,4 +4782,18 @@ func makeScopedOpts(t *testing.T, testCtx *TestContext, username, scope string) 
 			i.ScopePin = testCtx.GetScopePinForUser(t, username, scope)
 		},
 	}
+}
+
+func toScopedKubeResource(resource types.KubernetesResource) *accessv1.KubeResource {
+	return accessv1.KubeResource_builder{
+		Kind:      resource.Kind,
+		Name:      resource.Name,
+		Namespace: resource.Namespace,
+		Verbs:     resource.Verbs,
+		ApiGroup:  resource.APIGroup,
+	}.Build()
+}
+
+func scopedUsername(username string) string {
+	return "scoped-" + username
 }
