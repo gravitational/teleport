@@ -9568,8 +9568,26 @@ type SessionSummaryCreateEvent struct {
 	//
 	// PostHog property: tp.ai.has_stored_embeddings
 	HasStoredEmbeddings bool `protobuf:"varint,8,opt,name=has_stored_embeddings,json=hasStoredEmbeddings,proto3" json:"has_stored_embeddings,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// session_duration_ms is the length of the summarized session recording, in
+	// milliseconds.
+	SessionDurationMs uint64 `protobuf:"varint,9,opt,name=session_duration_ms,json=sessionDurationMs,proto3" json:"session_duration_ms,omitempty"`
+	// processing_duration_ms is the wall-clock time spent summarizing the
+	// session, in milliseconds.
+	ProcessingDurationMs uint64 `protobuf:"varint,10,opt,name=processing_duration_ms,json=processingDurationMs,proto3" json:"processing_duration_ms,omitempty"`
+	// llm_calls is the number of inference requests made while summarizing the
+	// session.
+	LlmCalls uint32 `protobuf:"varint,11,opt,name=llm_calls,json=llmCalls,proto3" json:"llm_calls,omitempty"`
+	// events_analyzed is the number of events (desktop) or commands (ssh/k8s)
+	// extracted from the session.
+	EventsAnalyzed uint32 `protobuf:"varint,12,opt,name=events_analyzed,json=eventsAnalyzed,proto3" json:"events_analyzed,omitempty"`
+	// screenshots is the number of screenshots captured for a desktop session;
+	// zero for other session kinds.
+	Screenshots uint32 `protobuf:"varint,13,opt,name=screenshots,proto3" json:"screenshots,omitempty"`
+	// chunks is the number of inference chunks (desktop image batches or ssh/k8s
+	// command chunks) processed for the session.
+	Chunks        uint32 `protobuf:"varint,14,opt,name=chunks,proto3" json:"chunks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SessionSummaryCreateEvent) Reset() {
@@ -9656,6 +9674,48 @@ func (x *SessionSummaryCreateEvent) GetHasStoredEmbeddings() bool {
 		return x.HasStoredEmbeddings
 	}
 	return false
+}
+
+func (x *SessionSummaryCreateEvent) GetSessionDurationMs() uint64 {
+	if x != nil {
+		return x.SessionDurationMs
+	}
+	return 0
+}
+
+func (x *SessionSummaryCreateEvent) GetProcessingDurationMs() uint64 {
+	if x != nil {
+		return x.ProcessingDurationMs
+	}
+	return 0
+}
+
+func (x *SessionSummaryCreateEvent) GetLlmCalls() uint32 {
+	if x != nil {
+		return x.LlmCalls
+	}
+	return 0
+}
+
+func (x *SessionSummaryCreateEvent) GetEventsAnalyzed() uint32 {
+	if x != nil {
+		return x.EventsAnalyzed
+	}
+	return 0
+}
+
+func (x *SessionSummaryCreateEvent) GetScreenshots() uint32 {
+	if x != nil {
+		return x.Screenshots
+	}
+	return 0
+}
+
+func (x *SessionSummaryCreateEvent) GetChunks() uint32 {
+	if x != nil {
+		return x.Chunks
+	}
+	return 0
 }
 
 // SessionSummarySearchEvent is emitted when a user runs a session summary
@@ -13295,7 +13355,7 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\fsession_type\x18\x01 \x01(\tR\vsessionType\x12\x1b\n" +
 	"\tuser_name\x18\x02 \x01(\tR\buserName\x12#\n" +
 	"\rresource_name\x18\x03 \x01(\tR\fresourceName\x125\n" +
-	"\tuser_kind\x18\x04 \x01(\x0e2\x18.prehog.v1alpha.UserKindR\buserKind\"\xe0\x02\n" +
+	"\tuser_kind\x18\x04 \x01(\x0e2\x18.prehog.v1alpha.UserKindR\buserKind\"\xc6\x04\n" +
 	"\x19SessionSummaryCreateEvent\x12!\n" +
 	"\fsession_type\x18\x01 \x01(\tR\vsessionType\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12,\n" +
@@ -13304,7 +13364,14 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\asuccess\x18\x05 \x01(\bR\asuccess\x12#\n" +
 	"\rresource_name\x18\x06 \x01(\tR\fresourceName\x123\n" +
 	"\x16is_cloud_default_model\x18\a \x01(\bR\x13isCloudDefaultModel\x122\n" +
-	"\x15has_stored_embeddings\x18\b \x01(\bR\x13hasStoredEmbeddings\"\xb1\x01\n" +
+	"\x15has_stored_embeddings\x18\b \x01(\bR\x13hasStoredEmbeddings\x12.\n" +
+	"\x13session_duration_ms\x18\t \x01(\x04R\x11sessionDurationMs\x124\n" +
+	"\x16processing_duration_ms\x18\n" +
+	" \x01(\x04R\x14processingDurationMs\x12\x1b\n" +
+	"\tllm_calls\x18\v \x01(\rR\bllmCalls\x12'\n" +
+	"\x0fevents_analyzed\x18\f \x01(\rR\x0eeventsAnalyzed\x12 \n" +
+	"\vscreenshots\x18\r \x01(\rR\vscreenshots\x12\x16\n" +
+	"\x06chunks\x18\x0e \x01(\rR\x06chunks\"\xb1\x01\n" +
 	"\x19SessionSummarySearchEvent\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\tR\buserName\x125\n" +
 	"\tuser_kind\x18\x02 \x01(\x0e2\x18.prehog.v1alpha.UserKindR\buserKind\x12\x1f\n" +
