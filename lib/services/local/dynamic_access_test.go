@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -336,6 +337,7 @@ func setupDynamicAccessService(t *testing.T) (*DynamicAccessService, *memory.Mem
 
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
+		Clock:   clockwork.NewRealClock(),
 	})
 	require.NoError(t, err)
 

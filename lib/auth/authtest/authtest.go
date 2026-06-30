@@ -126,6 +126,9 @@ type AuthServerConfig struct {
 	Modules modules.Modules
 	// ScopesFeatures dictates which scoped components are enabled for the test auth server.
 	ScopesFeatures scopes.Features
+	// EnableAppSessionExpiryService opts the test auth server into the app session
+	// expiry service code path.
+	EnableAppSessionExpiryService bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -335,7 +338,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	access := local.NewAccessService(srv.Backend)
-	identity, err := local.NewTestIdentityService(srv.Backend)
+	identity, err := local.NewTestIdentityService(srv.Backend, local.WithAppSessionExpiryService(cfg.EnableAppSessionExpiryService))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

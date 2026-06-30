@@ -2454,6 +2454,14 @@ func (process *TeleportProcess) initAuthService() error {
 	// latest known version in backend.
 	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
 
+	appSessionExpiryService := os.Getenv("TELEPORT_UNSTABLE_ENABLE_APP_SESSION_EXPIRY_EVENTS") == "yes"
+	identityService, err := local.NewIdentityService(b,
+		local.WithAppSessionExpiryService(appSessionExpiryService),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(
 		process.ExitContext(),
@@ -2482,7 +2490,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Presence:                    cfg.Presence,
 			Events:                      cfg.Events,
 			Provisioner:                 cfg.Provisioner,
-			Identity:                    cfg.Identity,
+			Identity:                    identityService,
 			Access:                      cfg.Access,
 			StaticTokens:                cfg.Auth.StaticTokens,
 			StaticScopedTokens:          cfg.Auth.StaticScopedTokens,
@@ -3020,9 +3028,10 @@ func (process *TeleportProcess) initAuthService() error {
 		Log: logger.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "expiry_service"),
 		),
-		Emitter:     authServer,
-		AccessPoint: authServer.Services,
-		HostID:      connector.HostUUID(),
+		Emitter:                       authServer,
+		AccessPoint:                   authServer.Services,
+		HostID:                        connector.HostUUID(),
+		EnableAppSessionExpiryService: appSessionExpiryService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
