@@ -73,9 +73,11 @@ const (
 	defaultMaxBytes int64 = 5 * 1024 * 1024 * 1024 // 5 GiB
 
 	// staleTmpThreshold is how old an in-progress <uuid>.tmp/ directory
-	// must be before the orphan scanner removes it. Anything younger may
-	// still belong to a peer that's mid-creation.
-	staleTmpThreshold = time.Hour
+	// must be before the orphan scanner removes it. Under normal circumstances,
+	// A `.tmp` directory will only exist for a few milliseconds.
+	staleTmpThreshold       = time.Hour
+	initQueueDirMaxAttempts = 10
+	initQueueDirRetryDelay  = 50 * time.Millisecond
 )
 
 // A note on `AUTOINCREMENT`, to quote the SQLite docs:
@@ -245,10 +247,27 @@ func initializeDb(path string, maxBytes int64) (*sql.DB, error) {
 // initQueueDir creates and initializes the directory where the audit log queue
 // will reside. It does this in a way that is safe from race conditions.
 func initQueueDir(path string) (func() error, error) {
-	// Create the tmp directory with the suffix `.tmp`
-	// This avoids a race conditions from other audit log instances attempting
-	// to claim this as an orphaned directory before it is fully initialized.
 	tmpPath := path + tmpDirSuffix
+	var err error
+	for attempt := range initQueueDirMaxAttempts {
+		var unlock func() error
+		unlock, err = tryInitQueueDir(path, tmpPath)
+		if err == nil {
+			return unlock, nil
+		}
+
+		if !errors.Is(err, utils.ErrUnsuccessfulLockTry) && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		if attempt < initQueueDirMaxAttempts-1 {
+			time.Sleep(initQueueDirRetryDelay)
+		}
+	}
+	return nil, trace.Wrap(err, "failed to initialize audit-queue directory %q after %d attempts (is the system time set correctly?)", path, initQueueDirMaxAttempts)
+}
+
+func tryInitQueueDir(path, tmpPath string) (func() error, error) {
 	if err := os.MkdirAll(tmpPath, 0o700); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -257,14 +276,14 @@ func initQueueDir(path string) (func() error, error) {
 	// instances try to adopt this queue.
 	unlock, err := utils.FSTryWriteLock(filepath.Join(tmpPath, queueLockFile))
 	if err != nil {
-		_ = os.RemoveAll(tmpPath)
 		return nil, trace.Wrap(err)
 	}
 
 	// Remove the `.tmp` suffix, marking this as a live queue.
 	if err := os.Rename(tmpPath, path); err != nil {
-		_ = unlock()
+		// Only remove the directory if we own the flock.
 		_ = os.RemoveAll(tmpPath)
+		_ = unlock()
 		return nil, trace.ConvertSystemError(err)
 	}
 	return unlock, nil
