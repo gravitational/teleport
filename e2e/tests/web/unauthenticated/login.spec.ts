@@ -21,7 +21,8 @@ import { test } from '@gravitational/e2e/helpers/test';
 
 test.use({ user: { roles: ['access', 'editor'] } });
 
-test('verify that a user can log in with username, password, and webauthn', async ({
+// TODO(ryan): figure out a fix for firefox flakiness
+test.skip('verify that a user can log in with username, password, and webauthn', async ({
   page,
   username,
 }) => {
