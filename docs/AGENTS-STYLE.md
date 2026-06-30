@@ -1,87 +1,77 @@
-# Teleport docs style reference
+# Reviewing docs for style (agent guide)
 
-Condensed style rules for AI agents reviewing docs PRs. This file covers only
-checkable conventions. Many style questions have equally justifiable
-alternatives; where a rule is not listed here, consistency within the page
-wins (do not flag it).
+This file tells an AI agent **how to apply** Teleport's documentation
+conventions when reviewing a docs PR. It deliberately does not restate the
+conventions themselves: those live in
+[`../contributing/documentation-style-guide.md`](../contributing/documentation-style-guide.md),
+the single source of truth shared by human contributors and agents. When a
+question isn't answered there, consistency within the page wins — do not flag
+it.
 
-## Page types and their required shape
+For the review process, output format, and severity labels, see
+[`AGENTS.md`](./AGENTS.md). This file covers the style/prose dimension
+specifically.
 
-- **How-to guides** are task oriented. They include: introductory paragraphs
-  stating the task, the scenario, and the expected outcome; a Prerequisites
-  block before the first step; `Step N/M.` numbered step headings; and a
-  `Next steps` section. Avoid links that break the reader's focus
-  mid-procedure, and avoid admonitions or collapsed details unless necessary.
-  External links must state why to follow them and what to take away
-  ("Follow the installation instructions in the AWS documentation", not
-  "Read the AWS documentation for more information").
-- **Tutorials** are learning oriented for first-time users. They include: a
-  "Before you begin" tool list, learning objectives, sequenced steps, and a
-  guaranteed successful outcome with no unexplained errors.
-- **Conceptual guides** explain what something is, why it matters, and how it
-  works. Diagrams and links to related topics are encouraged when useful.
-- **Reference manuals** are comprehensive (list all options, not a sample),
-  prefer tables over prose, keep all content on one searchable page, and
-  favor brevity.
+## Before flagging a style issue
 
-## Voice and body text
+- **Check it against the style guide; don't assert from memory.** If a rule
+  isn't in `documentation-style-guide.md`, it isn't a rule. Do not invent
+  conventions or carry them in from other projects.
+- **Don't duplicate the linters.** remark-lint (formatting, spacing, line
+  length) and Vale (word choice, prose style, spelling, banned terms) already
+  run in CI. Never raise a finding that one of those tools enforces — it's
+  noise. Spend review effort on what a linter can't judge: structure, voice,
+  internal consistency, and correctness.
+- **Prefer no finding on judgment calls.** Voice and component choice need
+  judgment (see below). Raise these only when the violation is clear, and as a
+  Suggestion or Nit — never a Blocker.
 
-- Technical precision over broad benefit statements. Good: "Teleport replaces
-  shared secrets with short-lived X.509 and SSH certificates." Bad: "Teleport
-  replaces insecure secrets with true identity."
-- Prefer sparse one-to-two-sentence paragraph groupings over long blocks.
-- List items end with a period, unless the item ends in a command.
-- Prefer short paragraphs over lists; when listing, prefer bullets over
-  numbers; use numbered lists only for step sequences.
+## What an agent can check reliably vs. what needs a human
 
-## Code, commands, and values
+Check with confidence (flag when violated):
 
-- Inline mentions of `tsh`, `tctl`, `tbot`, and other commands go in
-  backticks, as do ports and literal values (e.g. `443`).
-- Prefer full-line code snippets for commands so the copy button renders.
-- Commands and configuration examples should be copy-pastable with minimal
-  modification.
+- Heading case (sentence case).
+- Internal consistency within a page: a term capitalized or formatted two
+  ways, or an acronym/keyword that switches forms ("two-factor" vs. "2FA").
+- Product proper nouns wrapped in quotes, or not capitalized.
+- Page-title length over the 55-character budget (before the
+  "| Teleport Docs" suffix).
+- List-item punctuation (period unless the item ends in a command).
 
-## Headings, titles, and sidebar labels
+Needs judgment (raise tentatively, or defer to a human):
 
-- Section headings use sentence case ("Next steps", not "Next Steps");
-  proper nouns and product names keep their capitals.
-- Page titles use Teleport title-case conventions and should not exceed
-  55 characters (the site appends "| Teleport Docs" toward a 70-character
-  SEO ceiling).
-- Sibling pages should not repeat a common prefix in sidebar labels
-  ("AWS", "Azure" nested under a "Deployments" category, not "Deploy on
-  AWS", "Deploy on Azure").
+- Whether the voice is appropriately technical for the page's audience.
+- Whether a component (`Tabs`, `Details`, `Admonition`) earns its place or
+  should be prose or subheadings.
+- Whether the page is the right *type* (how-to vs. tutorial vs. reference) for
+  its content.
 
-## Product and concept names
+## Severity defaults for style findings
 
-- Product proper nouns are capitalized ("Trusted Cluster", not "trusted
-  cluster"), generally bolded on their first meaningful mention within a
-  page, and never wrapped in quotes.
-- Acronyms are introduced after the full concept keyword and used
-  consistently thereafter. Use one variant per page (e.g. pick one of
-  "two-factor" or "2FA"; do not mix).
+Apply the severity labels from `AGENTS.md` as follows:
 
-## Frontmatter and tags
+- **Blocker:** essentially never for pure style. Style issues don't block a
+  merge.
+- **Suggestion:** a clear convention violation with an unambiguous fix — a
+  Title-Case heading, an inconsistent term, a command missing backticks.
+- **Nit:** minor polish the author may ignore — a product noun not bolded on
+  first use, a title near the length ceiling.
 
-- Required on every standalone page (not `includes/` partials): `title` and
-  `description`.
-- `description` is one sentence that starts with a verb, summarizes the
-  page, ends with a period, and uses common keywords for the subject.
-- Common optional fields: `sidebar_label`, `sidebar_position`, `tags`
-  (a YAML list), keywords, a video banner link, or an alternate first-level
-  heading.
-- Some repositories or page types may require additional frontmatter fields;
-  follow repository-specific review guidance.
-- The canonical definitions of valid frontmatter fields and tags live in the
-  separate docs-website repo (`frontmatter_fields.yaml` and `tags.yml`), not
-  in this repo. Reviewers must not invent tag names or "correct" a tag to a
-  guessed value. If a tag looks unfamiliar, flag it for human verification
-  against docs-website `tags.yml`.
+## Page-type shape
 
-## Additional conventions
+The required shape of each page type (how-to, tutorial, conceptual, reference)
+is defined in `documentation-style-guide.md`. Use it as a checklist, but only
+flag a *missing* structural element when the PR adds a new page or heavily
+rewrites the introduction, per the diff-context rule in `AGENTS.md`. Don't
+assume an element is absent just because it falls outside the diff.
 
-- Footnotes appear in the order they are referenced.
-- Prefer paragraphs, headings, and code snippets over additional UI
-  components. Use components such as Tabs or Details only when they
-  materially improve readability or reduce duplication.
+## Frontmatter and tags (verification discipline)
+
+- Every standalone page (not an `includes/` partial) needs `title` and
+  `description`. The `description` is one sentence that starts with a verb and
+  ends with a period.
+- **Do not invent or "correct" tag names.** The canonical lists of valid
+  frontmatter fields and tags live in the docs-website repo
+  (`frontmatter_fields.yaml`, `tags.yml`), not here. If a tag looks
+  unfamiliar, flag it for human verification against `tags.yml` rather than
+  guessing a "right" value.
