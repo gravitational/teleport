@@ -17,14 +17,9 @@
 package jointest
 
 import (
-	"bytes"
 	"cmp"
 
-	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
-	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -181,99 +176,9 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			StaticJwks: staticJWKS,
 			Oidc:       oidc,
 		}.Build())
-	case types.JoinMethodGenericOIDC:
-		if base.GenericOIDC == nil {
-			return nil, trace.BadParameter("generic_oidc configuration must be defined for generic_oidc join method")
-		}
-
-		var mustMatchAny *structpb.Struct
-		var err error
-		if base.GenericOIDC.MustMatchFields != nil {
-			mustMatchAny, err = convertGogoStruct(&base.GenericOIDC.MustMatchFields.Struct)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		allowAny := make([]*joiningv1.GenericOIDC_Rule, len(base.GenericOIDC.AllowAny))
-		for i, rule := range base.GenericOIDC.AllowAny {
-			if len(rule.Conditions) > 0 {
-				var conditions []*joiningv1.GenericOIDC_Condition
-				for _, cond := range rule.Conditions {
-					newCond := joiningv1.GenericOIDC_Condition_builder{
-						Attribute: cond.Attribute,
-					}.Build()
-
-					switch {
-					case cond.Eq != nil:
-						newCond.SetEq(joiningv1.GenericOIDC_ConditionEq_builder{
-							Value: cond.Eq.Value,
-						}.Build())
-					case cond.NotEq != nil:
-						newCond.SetNotEq(joiningv1.GenericOIDC_ConditionNotEq_builder{
-							Value: cond.NotEq.Value,
-						}.Build())
-					case cond.In != nil:
-						newCond.SetIn(joiningv1.GenericOIDC_ConditionIn_builder{
-							Values: cond.In.Values,
-						}.Build())
-					case cond.NotIn != nil:
-						newCond.SetNotIn(joiningv1.GenericOIDC_ConditionNotIn_builder{
-							Values: cond.NotIn.Values,
-						}.Build())
-					default:
-						return nil, trace.BadParameter("generic_oidc condition has no operator")
-					}
-
-					conditions = append(conditions, newCond)
-				}
-
-				allowAny[i] = joiningv1.GenericOIDC_Rule_builder{
-					Conditions: conditions,
-				}.Build()
-			} else if rule.Expression != "" {
-				allowAny[i] = joiningv1.GenericOIDC_Rule_builder{
-					Expression: rule.Expression,
-				}.Build()
-			} else {
-				return nil, trace.BadParameter("invalid allow_any rule")
-			}
-		}
-
-		scopedToken.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
-			Issuer:                  base.GenericOIDC.Issuer,
-			InsecureAllowHttpIssuer: base.GenericOIDC.InsecureAllowHTTPIssuer,
-			Audience:                base.GenericOIDC.Audience,
-			StaticJwks:              base.GenericOIDC.StaticJWKS,
-			TlsCa:                   base.GenericOIDC.TLSCA,
-			AllowAny:                allowAny,
-			MustMatchFields:         mustMatchAny,
-		}.Build())
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)
 	}
 
 	return scopedToken, nil
-}
-
-// convertGogoStruct converts a gogo-generated types.Struct into a
-// structpb.Struct. It is the inverse of lib/scopes/joining.convertStructPB and
-// uses the same proto-aware marshal roundtrip so the Value oneof survives.
-// Returns (nil, nil) for a nil input so it's safe to call unconditionally.
-func convertGogoStruct(s *gogotypes.Struct) (*structpb.Struct, error) {
-	if s == nil {
-		return nil, nil
-	}
-
-	var buf bytes.Buffer
-	if err := (&jsonpb.Marshaler{}).Marshal(&buf, s); err != nil {
-		return nil, trace.Wrap(err, "marshaling gogo struct")
-	}
-
-	out := &structpb.Struct{}
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(buf.Bytes(), out); err != nil {
-		return nil, trace.Wrap(err, "unmarshaling into structpb")
-	}
-
-	return out, nil
 }
