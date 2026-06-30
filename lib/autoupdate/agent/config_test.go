@@ -130,13 +130,13 @@ func TestValidateConfigSpec(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
-		name                          string
-		config                        UpdateSpec
-		override                      UpdateSpec
+		name                        string
+		config                      UpdateSpec
+		override                    UpdateSpec
 		insecureSkipSignatureVerify bool
-		insecureChanged               bool
-		result                        UpdateSpec
-		errMatch                      string
+		insecureChanged             bool
+		result                      UpdateSpec
+		errMatch                    string
 	}{
 		{
 			name: "overrides",
@@ -229,16 +229,16 @@ func TestValidateConfigSpec(t *testing.T) {
 				BaseURL: "https://example.com",
 			},
 			insecureSkipSignatureVerify: true,
-			insecureChanged:               true,
+			insecureChanged:             true,
 			result: UpdateSpec{
-				BaseURL:                       "https://example.com",
-				InsecureSkipSignatureVerify:   true,
+				BaseURL:                     "https://example.com",
+				InsecureSkipSignatureVerify: true,
 			},
 		},
 		{
-			name:                          "insecure checksum-only mode allowed with default base URL",
-			insecureSkipSignatureVerify:   true,
-			insecureChanged:               true,
+			name:                        "insecure checksum-only mode allowed with default base URL",
+			insecureSkipSignatureVerify: true,
+			insecureChanged:             true,
 			result: UpdateSpec{
 				InsecureSkipSignatureVerify: true,
 			},
@@ -246,8 +246,8 @@ func TestValidateConfigSpec(t *testing.T) {
 		{
 			name: "insecure checksum-only mode can be cleared",
 			config: UpdateSpec{
-				BaseURL:                       "https://example.com",
-				InsecureSkipSignatureVerify:   true,
+				BaseURL:                     "https://example.com",
+				InsecureSkipSignatureVerify: true,
 			},
 			insecureChanged: true,
 			result: UpdateSpec{
@@ -258,13 +258,13 @@ func TestValidateConfigSpec(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := updateConfigSpec(&tt.config, OverrideConfig{
 				UpdateSpec: UpdateSpec{
-					Proxy:                         tt.override.Proxy,
-					Path:                          tt.override.Path,
-					Group:                         tt.override.Group,
-					BaseURL:                       tt.override.BaseURL,
-					Enabled:                       tt.override.Enabled,
-					Pinned:                        tt.override.Pinned,
-					SELinuxSSH:                    tt.override.SELinuxSSH,
+					Proxy:                       tt.override.Proxy,
+					Path:                        tt.override.Path,
+					Group:                       tt.override.Group,
+					BaseURL:                     tt.override.BaseURL,
+					Enabled:                     tt.override.Enabled,
+					Pinned:                      tt.override.Pinned,
+					SELinuxSSH:                  tt.override.SELinuxSSH,
 					InsecureSkipSignatureVerify: tt.insecureSkipSignatureVerify,
 				},
 				InsecureSkipSignatureVerifyChanged: tt.insecureChanged,
