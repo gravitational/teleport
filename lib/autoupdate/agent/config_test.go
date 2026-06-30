@@ -130,11 +130,13 @@ func TestValidateConfigSpec(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
-		name     string
-		config   UpdateSpec
-		override UpdateSpec
-		result   UpdateSpec
-		errMatch string
+		name                          string
+		config                        UpdateSpec
+		override                      UpdateSpec
+		insecureSkipArtifactSignature bool
+		insecureChanged               bool
+		result                        UpdateSpec
+		errMatch                      string
 	}{
 		{
 			name: "overrides",
@@ -221,9 +223,52 @@ func TestValidateConfigSpec(t *testing.T) {
 			},
 			errMatch: "must use TLS",
 		},
+		{
+			name: "insecure checksum-only mode allowed",
+			override: UpdateSpec{
+				BaseURL: "https://example.com",
+			},
+			insecureSkipArtifactSignature: true,
+			insecureChanged:               true,
+			result: UpdateSpec{
+				BaseURL:                       "https://example.com",
+				InsecureSkipArtifactSignature: true,
+			},
+		},
+		{
+			name:                          "insecure checksum-only mode allowed with default base URL",
+			insecureSkipArtifactSignature: true,
+			insecureChanged:               true,
+			result: UpdateSpec{
+				InsecureSkipArtifactSignature: true,
+			},
+		},
+		{
+			name: "insecure checksum-only mode can be cleared",
+			config: UpdateSpec{
+				BaseURL:                       "https://example.com",
+				InsecureSkipArtifactSignature: true,
+			},
+			insecureChanged: true,
+			result: UpdateSpec{
+				BaseURL: "https://example.com",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			err := updateConfigSpec(&tt.config, OverrideConfig{UpdateSpec: tt.override})
+			err := updateConfigSpec(&tt.config, OverrideConfig{
+				UpdateSpec: UpdateSpec{
+					Proxy:                         tt.override.Proxy,
+					Path:                          tt.override.Path,
+					Group:                         tt.override.Group,
+					BaseURL:                       tt.override.BaseURL,
+					Enabled:                       tt.override.Enabled,
+					Pinned:                        tt.override.Pinned,
+					SELinuxSSH:                    tt.override.SELinuxSSH,
+					InsecureSkipArtifactSignature: tt.insecureSkipArtifactSignature,
+				},
+				InsecureSkipArtifactSignatureChanged: tt.insecureChanged,
+			})
 			if tt.errMatch != "" {
 				require.ErrorContains(t, err, tt.errMatch)
 				return

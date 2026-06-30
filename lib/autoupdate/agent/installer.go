@@ -36,12 +36,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
-
-	"github.com/gravitational/teleport/lib/autoupdate"
-	"github.com/gravitational/teleport/lib/utils"
+	sigopts "github.com/sigstore/sigstore/pkg/signature/options"
 )
 
 const (
@@ -158,7 +158,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, rev Revision) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force bool) (err error) {
+func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force, insecureSkipArtifactSignature bool) (err error) {
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
@@ -171,8 +171,6 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 		return trace.Wrap(err)
 	}
 
-	// Get new and old checksums. If they match, skip download.
-	// Otherwise, clear the old version directory and re-download.
 	checksumURI := uri + "." + checksumType
 	newSum, err := li.getChecksum(ctx, checksumURI)
 	if err != nil {
@@ -225,12 +223,20 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 	context.AfterFunc(ctx, func() {
 		_ = f.Close() // safe to close file multiple times
 	})
-	// Check integrity before decompression
-	if !bytes.Equal(newSum, pathSum) {
-		return trace.Errorf("mismatched checksum, download possibly corrupt")
+
+	if !insecureSkipArtifactSignature {
+		if err := li.verifyArtifactSignature(ctx, f, uri+"."+artifactSignatureType, pathSum); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		li.Log.WarnContext(ctx, "artifact signature verification is disabled. Falling back to checksum-only verification.", "version", rev)
+		if err := li.verifyArtifactChecksum(pathSum, newSum); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	if err := li.verifyArtifactSignature(ctx, f, uri+"."+artifactSignatureType); err != nil {
-		return trace.Wrap(err)
+
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return trace.Wrap(err, "failed to reset artifact after verification")
 	}
 	// Get uncompressed size of the tgz
 	n, err := uncompressedSize(f)
@@ -374,7 +380,7 @@ func (li *LocalInstaller) getSignature(ctx context.Context, url string) ([]byte,
 	return sig, nil
 }
 
-func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, artifact io.ReadSeeker, url string) error {
+func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, artifact io.ReadSeeker, url string, digest []byte) error {
 	verifier, err := li.artifactSignatureVerifier()
 	if err != nil {
 		return trace.Wrap(err)
@@ -386,11 +392,18 @@ func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, artifact 
 	if _, err := artifact.Seek(0, io.SeekStart); err != nil {
 		return trace.Wrap(err, "failed to seek artifact for signature verification")
 	}
-	if err := verifier.VerifySignature(bytes.NewReader(sig), artifact); err != nil {
+	if err := verifier.VerifySignature(bytes.NewReader(sig), artifact, sigopts.WithDigest(digest)); err != nil {
 		return trace.Wrap(err, "artifact signature verification failed")
 	}
 	if _, err := artifact.Seek(0, io.SeekStart); err != nil {
 		return trace.Wrap(err, "failed to reset artifact after signature verification")
+	}
+	return nil
+}
+
+func (li *LocalInstaller) verifyArtifactChecksum(digest, expected []byte) error {
+	if !bytes.Equal(expected, digest) {
+		return trace.BadParameter("downloaded checksum does not match artifact digest")
 	}
 	return nil
 }

@@ -64,8 +64,11 @@ func TestLocalInstaller_Install(t *testing.T) {
 		reservedTmp     uint64
 		reservedInstall uint64
 		existingSum     string
+		checksumValue   string
 		flags           autoupdate.InstallFlags
 		force           bool
+		insecure        bool
+		alreadyPresent  bool
 
 		errMatch string
 	}{
@@ -73,13 +76,25 @@ func TestLocalInstaller_Install(t *testing.T) {
 			name: "not present",
 		},
 		{
-			name:        "present",
-			existingSum: testSum,
+			name:          "not present insecure checksum only",
+			insecure:      true,
+			checksumValue: testSum,
+		},
+		{
+			name:           "present",
+			existingSum:    testSum,
+			alreadyPresent: true,
 		},
 		{
 			name:        "mismatched checksum",
 			existingSum: hex.EncodeToString(sha256.New().Sum(nil)),
 			force:       true,
+		},
+		{
+			name:          "insecure checksum mismatch",
+			insecure:      true,
+			checksumValue: strings.Repeat("0", checksumHexLen),
+			errMatch:      "downloaded checksum does not match artifact digest",
 		},
 		{
 			name:        "unreadable checksum",
@@ -117,16 +132,19 @@ func TestLocalInstaller_Install(t *testing.T) {
 			}
 
 			// test parameters
-			var dlPath, shaPath, sigPath, shasum string
+			var dlPath, shaPath, sigPath string
 
 			// test server
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				shasum = testSum
 				var out *bytes.Buffer
 				switch {
 				case strings.HasSuffix(r.URL.Path, "."+checksumType): // checksum request
 					shaPath = r.URL.Path
-					out = bytes.NewBufferString(testSum)
+					checksum := testSum
+					if tt.checksumValue != "" {
+						checksum = tt.checksumValue
+					}
+					out = bytes.NewBufferString(checksum)
 				case strings.HasSuffix(r.URL.Path, "."+artifactSignatureType):
 					sigPath = r.URL.Path
 					out = bytes.NewBufferString(sig)
@@ -152,7 +170,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 				ArtifactSignatureVerifier: verifier,
 			}
 			ctx := context.Background()
-			err = installer.Install(ctx, NewRevision(version, tt.flags), server.URL, tt.force)
+			err = installer.Install(ctx, NewRevision(version, tt.flags), server.URL, tt.force, tt.insecure)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -161,15 +179,20 @@ func TestLocalInstaller_Install(t *testing.T) {
 			require.NoError(t, err)
 
 			const expectedPath = "/teleport-" + runtime.GOOS + "/" + runtime.GOARCH + "/" + version
-			require.Equal(t, expectedPath+"."+checksumType, shaPath)
-
-			if tt.existingSum == testSum {
+			if tt.alreadyPresent {
+				require.Equal(t, expectedPath+"."+checksumType, shaPath)
+				require.Empty(t, dlPath)
 				require.Empty(t, sigPath)
 				return
 			}
 
 			require.Equal(t, expectedPath, dlPath)
-			require.Equal(t, expectedPath+"."+artifactSignatureType, sigPath)
+			require.Equal(t, expectedPath+"."+checksumType, shaPath)
+			if tt.insecure {
+				require.Empty(t, sigPath)
+			} else {
+				require.Equal(t, expectedPath+"."+artifactSignatureType, sigPath)
+			}
 
 			for _, p := range []string{
 				filepath.Join(dir, version, "lib", "systemd", "system", "teleport.service"),
@@ -183,7 +206,11 @@ func TestLocalInstaller_Install(t *testing.T) {
 
 			sum, err := os.ReadFile(filepath.Join(dir, version, checksumType))
 			require.NoError(t, err)
-			require.Equal(t, string(sum), shasum)
+			expectedSum := testSum
+			if tt.checksumValue != "" {
+				expectedSum = tt.checksumValue
+			}
+			require.Equal(t, expectedSum, string(sum))
 		})
 	}
 }
@@ -219,7 +246,7 @@ func TestLocalInstaller_Install_InvalidSignature(t *testing.T) {
 		ArtifactSignatureVerifier: verifier,
 	}
 
-	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false)
+	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false, false)
 	require.ErrorContains(t, err, "artifact signature verification failed")
 }
 
@@ -253,8 +280,51 @@ func TestLocalInstaller_Install_MissingSignature(t *testing.T) {
 		ArtifactSignatureVerifier: verifier,
 	}
 
-	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false)
+	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false, false)
 	require.ErrorContains(t, err, "signature not found")
+}
+
+func TestLocalInstaller_Install_MismatchedChecksumMetadata(t *testing.T) {
+	t.Parallel()
+
+	const version = "new-version"
+	tgz, _ := testTGZ(t, version)
+	verifier, sig := testArtifactSignatureVerifier(t, tgz.Bytes())
+	var shaPath string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "."+checksumType):
+			shaPath = r.URL.Path
+			_, err := fmt.Fprint(w, strings.Repeat("0", checksumHexLen))
+			require.NoError(t, err)
+		case strings.HasSuffix(r.URL.Path, "."+artifactSignatureType):
+			_, err := fmt.Fprint(w, sig)
+			require.NoError(t, err)
+		default:
+			w.Header().Set("Content-Length", strconv.Itoa(tgz.Len()))
+			_, err := io.Copy(w, bytes.NewReader(tgz.Bytes()))
+			require.NoError(t, err)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	installDir := t.TempDir()
+	installer := &LocalInstaller{
+		InstallDir:                installDir,
+		HTTP:                      http.DefaultClient,
+		Log:                       slog.Default(),
+		Template:                  "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
+		ArtifactSignatureVerifier: verifier,
+	}
+
+	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false, false)
+	require.NoError(t, err)
+	require.Equal(t, "/teleport-"+runtime.GOOS+"/"+runtime.GOARCH+"/"+version+"."+checksumType, shaPath)
+
+	sum, err := os.ReadFile(filepath.Join(installDir, version, checksumType))
+	require.NoError(t, err)
+	require.Equal(t, strings.Repeat("0", checksumHexLen), string(sum))
 }
 
 func TestNewArtifactSignatureVerifier(t *testing.T) {
