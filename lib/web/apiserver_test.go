@@ -5043,6 +5043,7 @@ func TestGetAppDetails(t *testing.T) {
 		endpoint         string
 		fqdn             string
 		expectedResponse GetAppDetailsResponse
+		wantErr          string
 	}{
 		{
 			name:     "request app details with clientName and publicAddr",
@@ -5077,18 +5078,9 @@ func TestGetAppDetails(t *testing.T) {
 			},
 		},
 		{
-			// Scoped app + required_apps + use_any_proxy_public_addr: both the app
-			// and its required app must come back as their derived hash FQDNs, not
-			// "<name>.<proxy>".
 			name:     "scoped app derives hash FQDNs for itself and required apps",
 			endpoint: pack.clt.Endpoint("webapi", "apps", scopedApp.GetPublicAddr(), s.server.ClusterName(), scopedApp.GetPublicAddr()),
-			expectedResponse: GetAppDetailsResponse{
-				FQDN: scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
-				RequiredAppFQDNs: []string{
-					scopedapp.ScopedAppPublicAddr(scope, "scoped-dependency", proxyDNS),
-					scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
-				},
-			},
+			wantErr:  "scoped apps do not support required app redirects",
 		},
 	}
 
@@ -5097,6 +5089,10 @@ func TestGetAppDetails(t *testing.T) {
 			t.Parallel()
 
 			re, err := pack.clt.Get(ctx, tc.endpoint, url.Values{})
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			resp := GetAppDetailsResponse{}
 
