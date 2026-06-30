@@ -90,6 +90,9 @@ const (
 	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
 	// JoinMethodEnv0 indicates the node will join using the env0 join method.
 	JoinMethodEnv0 JoinMethod = "env0"
+	// JoinMethodGenericOIDC indicates the node will join using the generic_oidc
+	// join method.
+	JoinMethodGenericOIDC JoinMethod = "generic_oidc"
 )
 
 var JoinMethods = []JoinMethod{
@@ -172,6 +175,8 @@ type ProvisionToken interface {
 	GetBoundKeypair() *ProvisionTokenSpecV2BoundKeypair
 	// GetBoundKeypairStatus returns bound keypair status for this token.
 	GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair
+	// GetGenericOIDC returns generic_oidc-specific configuration for this token.
+	GetGenericOIDC() (*ProvisionTokenSpecV2GenericOIDC, error)
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -501,6 +506,14 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := p.Spec.Env0.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.env0: failed validation")
 		}
+	case JoinMethodGenericOIDC:
+		if p.Spec.GenericOIDC == nil {
+			p.Spec.GenericOIDC = &ProvisionTokenSpecV2GenericOIDC{}
+		}
+
+		if err := p.Spec.GenericOIDC.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.generic_oidc: failed validation")
+		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -596,6 +609,11 @@ func (p *ProvisionTokenV2) GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundK
 		return nil
 	}
 	return p.Status.BoundKeypair
+}
+
+// GetGenericOIDC returns generic_oidc-specific configuration for this token.
+func (p *ProvisionTokenV2) GetGenericOIDC() (*ProvisionTokenSpecV2GenericOIDC, error) {
+	return p.Spec.GenericOIDC, nil
 }
 
 // GetJoinMethod returns joining method that must be used with this token.
@@ -1221,6 +1239,77 @@ func (a *ProvisionTokenSpecV2Env0) checkAndSetDefaults() error {
 		if allowRule.ProjectID == "" && allowRule.ProjectName == "" {
 			return trace.BadParameter("allow[%d]: at least one of ['project_id', 'project_name'] must be set", i)
 		}
+	}
+
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2GenericOIDC) checkAndSetDefaults() error {
+	if a.Issuer == "" {
+		return trace.BadParameter("%s: issuer is required", JoinMethodGenericOIDC)
+	}
+
+	if a.Audience == "" {
+		return trace.BadParameter("%s: audience is required", JoinMethodGenericOIDC)
+	}
+
+	hasAnyAllowAny := len(a.AllowAny) > 0
+	hasAnyMustMatchFields := false
+	if a.MustMatchFields != nil {
+		hasAnyMustMatchFields = len(a.MustMatchFields.Fields) > 0
+	}
+
+	// At least one must_match_fields or allow_any rule is required; this check
+	// is a simpler variant of the one in genericoidc's
+	// `validateFieldRulesContainsAnyRule` and won't catch useless nesting
+	// checks; we'll catch those at runtime to avoid an unnecessary api/ import.
+	if !hasAnyAllowAny && !hasAnyMustMatchFields {
+		return trace.BadParameter("the %q join method requires at least "+
+			"one rule under either `must_match_fields` or `allow_any`",
+			JoinMethodGenericOIDC)
+	}
+
+	for i, rule := range a.AllowAny {
+		if rule.Expression != "" && len(rule.Conditions) > 0 {
+			return trace.BadParameter("allow_any[%d]: only one of `expression` or `conditions` may be set", i)
+		}
+
+		for j, cond := range rule.Conditions {
+			if cond.Attribute == "" {
+				return trace.BadParameter("allow_any[%d].conditions[%d]: attribute is required", i, j)
+			}
+
+			conds := 0
+			if cond.Eq != nil {
+				conds++
+			}
+			if cond.NotEq != nil {
+				conds++
+			}
+			if cond.In != nil {
+				conds++
+			}
+			if cond.NotIn != nil {
+				conds++
+			}
+
+			if conds == 0 || conds > 1 {
+				return trace.BadParameter("allow_any[%d].conditions[%d]: exactly one operator is required", i, j)
+			}
+		}
+	}
+
+	parsed, err := url.Parse(a.Issuer)
+	if err != nil {
+		return trace.BadParameter("issuer: must be a valid URL")
+	}
+
+	if parsed.Scheme == "http" {
+		if !a.InsecureAllowHTTPIssuer {
+			return trace.BadParameter("issuer: must be https:// unless insecure_allow_http_issuer is set")
+		}
+	} else if parsed.Scheme != "https" {
+		return trace.BadParameter("issuer: invalid URL scheme, must be https://")
 	}
 
 	return nil
