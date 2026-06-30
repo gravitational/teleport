@@ -78,9 +78,21 @@ const (
 	staleTmpThreshold = time.Hour
 )
 
+// A note on `AUTOINCREMENT`, to quote the SQLite docs:
+// > The AUTOINCREMENT keyword imposes extra CPU, memory, disk space, and disk
+// > I/O overhead and should be avoided if not strictly needed.
+// > It is usually not needed.
+//
+// In the context of audit_queue, AUTOINCREMENT is not strictly needed. IDs
+// cannot be re-used during the fetch-deliver-ack window, because we only call
+// delete on the rows that we have fetched from the database, and which still
+// reside in the database.
+//
+// We are including AUTOINCREMENT here as a belt-and-suspenders approach to
+// guard against potential future changes.
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS audit_queue (
-    id      INTEGER PRIMARY KEY,
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
     payload BLOB NOT NULL
 ) STRICT;
 
