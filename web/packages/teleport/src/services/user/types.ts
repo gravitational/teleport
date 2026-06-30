@@ -133,6 +133,7 @@ export interface Acl {
   inferencePolicy: Access;
   inferenceModel: Access;
   inferenceSecret: Access;
+  classifier: Access;
   beam: Access;
   mobileDevice: MobileDeviceAccess;
 }
