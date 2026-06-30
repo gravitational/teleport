@@ -186,8 +186,14 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 			{{ if .IDPrefix -}}
 			id := formatID(idPrefix, id)
 			{{ end -}}
+{{ if .Scoped -}}
+			tfID := formatSQN({{.VarName}}Resource.Scope, id)
+			existErr := fmt.Sprintf("{{.Name}} exists in Teleport. Either remove it (tctl rm {{.Kind}}/%v)"+
+				" or import it to the existing state (terraform import {{.TerraformResourceType}}.%v %v)", tfID, id, tfID)
+{{- else -}}
 			existErr := fmt.Sprintf("{{.Name}} exists in Teleport. Either remove it (tctl rm {{.Kind}}/%v)"+
 				" or import it to the existing state (terraform import {{.TerraformResourceType}}.%v %v)", id, id, id)
+{{- end }}
 
 			resp.Diagnostics.Append(diagFromErr("{{.Name}} exists in Teleport", trace.Errorf(existErr)))
 			return
@@ -300,8 +306,12 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		return
 	}
 
-	{{ if .IDPrefix -}}
+	{{ if and .IDPrefix .Scoped -}}
+	plan.Attrs["id"] = types.String{Value: formatSQN(scope, formatID(idPrefix, {{.ID}}))}
+	{{- else if .IDPrefix -}}
 	plan.Attrs["id"] = types.String{Value: formatID(idPrefix, {{.ID}})}
+	{{- else if .Scoped -}}
+	plan.Attrs["id"] = types.String{Value: formatSQN(scope, id)}
 	{{- else -}}
 	plan.Attrs["id"] = types.String{Value: {{.ID}}}
 	{{- end }}
@@ -485,6 +495,13 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if and .IDPrefix .Scoped}}
+
+	state.Attrs["id"] = types.String{Value: formatSQN(scope.Value, formatID(idPrefix.Value, id.Value))}
+{{- else if .Scoped}}
+
+	state.Attrs["id"] = types.String{Value: formatSQN(scope.Value, id.Value)}
+{{- end}}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -675,6 +692,13 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if and .IDPrefix .Scoped}}
+
+	plan.Attrs["id"] = types.String{Value: formatSQN(scope, formatID(idPrefix, name))}
+{{- else if .Scoped}}
+
+	plan.Attrs["id"] = types.String{Value: formatSQN(scope, name)}
+{{- end}}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -864,12 +888,12 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 	{{- end}}
 {{- else}}
 	{{- if .IDPrefix}}
-	idPrefix, name, err := parseID(req.ID)
+	idPrefix, name, err := parseID({{if .Scoped}}qn.Name{{else}}req.ID{{end}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error parsing Member ID", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
-	{{.VarName}}, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}idPrefix, name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}idPrefix, name{{if .Scoped}}, qn.Scope{{end}}{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	{{- else}}
 	{{.VarName}}, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .Scoped}}qn.Name, qn.Scope{{else}}req.ID{{end}}{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	{{- end}}
@@ -901,10 +925,16 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 
-{{- if .IDPrefix }}
+{{- if and .IDPrefix .Scoped}}
+	id := formatSQN(qn.Scope, formatID(idPrefix, name))
+{{- else if .IDPrefix }}
 	id := req.ID
 {{- else if or .IsPlainStruct .ConvertPackagePath}}
+	{{ if .Scoped -}}
+	id := formatSQN(qn.Scope, qn.Name)
+	{{- else -}}
 	id := {{.VarName}}.Metadata.Name
+	{{- end}}
 {{- else }}
 	id := {{.VarName}}Resource.GetName()
 {{- end}}

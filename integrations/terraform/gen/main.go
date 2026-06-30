@@ -144,7 +144,8 @@ type payload struct {
 	DefaultSubKind string
 	// Scoped indicates that the resource exists in a scope and must be
 	// identified by the (name, scope) pair. As a result the get and delete
-	// methods will include the scope parameter.
+	// methods will include the scope parameter and the SQN will be used as
+	// the Terraform ID to avoid collisions.
 	Scoped bool
 }
 

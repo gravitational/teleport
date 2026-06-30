@@ -157,6 +157,13 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if and .IDPrefix .Scoped}}
+
+	state.Attrs["id"] = types.String{Value: formatSQN(scope.Value, formatID(idPrefix.Value, id.Value))}
+{{- else if .Scoped}}
+
+	state.Attrs["id"] = types.String{Value: formatSQN(scope.Value, id.Value)}
+{{- end}}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
