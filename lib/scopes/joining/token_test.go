@@ -962,7 +962,7 @@ func TestValidateScopedToken(t *testing.T) {
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.Bot = "/aa/bb::foo"
 			},
-			expectedStrongErr: "bot_scope cannot be set",
+			expectedStrongErr: "bot cannot be set for a non-bot token",
 		},
 		{
 			name: "non-bot token with bot usage mode",
@@ -1514,6 +1514,7 @@ func TestValidateTokenForUse(t *testing.T) {
 
 	// validation should succeed for bot role even if agent scope pins are disabled
 	token.Spec.Bot = token.Spec.AssignedScope + "::bot-name"
+	token.Spec.AssignedScope = "" // we expect this to be empty for bot tokens
 	token.Spec.JoinMethod = string(types.JoinMethodBoundKeypair)
 	token.Spec.UsageMode = string(joining.TokenUsageModeBot)
 	token.Spec.Roles = []string{string(types.RoleBot)}
