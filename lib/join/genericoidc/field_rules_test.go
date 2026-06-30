@@ -24,8 +24,9 @@ import (
 	"testing"
 
 	gogotypes "github.com/gogo/protobuf/types"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func specStruct(t *testing.T, doc string) *types.Struct {

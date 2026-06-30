@@ -22,8 +22,9 @@ import (
 	"strings"
 
 	gogotypes "github.com/gogo/protobuf/types"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // validateFieldRulesContainsAnyRule ensures `must_match_fields` contains at
