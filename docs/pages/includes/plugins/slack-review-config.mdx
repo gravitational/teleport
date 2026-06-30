@@ -1,0 +1,259 @@
+{/* this comment is here to make the includes below render */}
+
+<Tabs>
+<TabItem label="Executable">
+
+The Teleport Slack plugin uses a configuration file in TOML format. Generate a
+boilerplate configuration by running the following command (the plugin will not run
+unless the config file is in `/etc/teleport-slack.toml`):
+
+```code
+$ teleport-slack configure | sudo tee /etc/teleport-slack.toml > /dev/null
+```
+
+This should result in a configuration file like the one below:
+
+```toml
+[teleport]
+addr = "<Var name="teleport.example.com:443" />"
+identity = "<Var name="/var/lib/teleport/plugins/slack/identity" />"
+refresh_identity = true
+
+[slack]
+# Slack Bot OAuth token.
+# Provides the plugin permissions to read Slack user info and write to channels.
+# Set this up under "OAuth & Permissions" in your Slack app settings.
+#
+# You can also use an absolute path to a token file, e.g.,
+# "/var/lib/teleport/token"
+token = "<Var name="xoxb-..." />"
+
+[review]
+# Toggles native review feature. Default is false.
+enabled = true
+
+# Slack App-level token.
+# Provides the plugin permissions to receive user interactions from Slack.
+# This is different from the Bot OAuth token, and must be set up separately.
+# Set this up under "Basic Information" in your Slack app settings.
+#
+# You can also use an absolute path to a token file, e.g.,
+# "/var/lib/teleport/appToken"
+app_token = "<Var name="xapp-..." />"
+
+# Allows binding between Teleport username and Slack email.
+# This should only be set to true if `slack_user_id_trait` is not configured in Teleport.
+# We recommend configuring a trait for stronger identity binding. Default is false.
+allow_email_username_match = true
+
+# Name of the Teleport trait to bind Teleport user and Slack user.
+# The trait should hold value of Slack user ID.
+slack_user_id_trait = ""
+
+[role_to_recipients]
+# Map roles to recipients.
+#
+# Provide slack user_email/channel recipients for access requests for specific roles. 
+# role.suggested_reviewers will automatically be treated as additional email recipients.
+# "*" must be provided to match non-specified roles.
+"*" = "<Var name="access-requests" />"
+"editor" = ["<Var name="alice@example.com" />"]
+
+[log]
+# Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/slack.log"
+output = "stdout"
+# Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+severity = "INFO"
+
+```
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+The Slack Helm Chart uses a YAML values file to configure the plugin.
+On your local workstation, create a file called `teleport-slack-helm.yaml`
+based on the following example:
+
+```yaml
+teleport:
+  address: <Var name="teleport.example.com:443" />
+  identitySecretName: teleport-plugin-slack-identity
+  identitySecretPath: identity
+
+slack:
+  # Slack Bot OAuth token.
+  # Provides the plugin permissions to read Slack user info and write to channels.
+  # Set this up under "OAuth & Permissions" in your Slack app settings.
+  token: <Var name="xoxb-..." />
+
+review:
+  # Toggles native review feature. Default is false.
+  enabled: true
+  # Slack App-level token.
+  # Provides the plugin permissions to receive user interactions from Slack.
+  # This is different from the Bot OAuth token, and must be set up separately.
+  # Set this up under "Basic Information" in your Slack app settings.
+  appToken: <Var name="xapp-..." />
+  # Allows binding between Teleport username and Slack email.
+  # This should only be set to true if `review.slackUserIdTrait` is not configured in Teleport.
+  # We recommend configuring a trait for stronger identity binding. Default is false.
+  allowEmailUsernameMatch: true
+  # Name of the Teleport trait to bind Teleport user and Slack user.
+  # The trait should hold value of Slack user ID.
+  slackUserIdTrait: ""
+
+# Mapping from role to recipients
+# It must contain a mapping for `*` in case no matching roles are found.
+roleToRecipients:
+  "*": "<Var name="access-requests" />"
+  "editor": ["<Var name="alice@example.com" />"]
+
+log:
+  # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/slack.log"
+  output: stdout
+  # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+  severity: INFO
+```
+
+</TabItem>
+</Tabs>
+
+Update the following fields:
+
+<Tabs>
+<TabItem label="Executable">
+
+**`[teleport]`**
+
+`addr`: Include the hostname and HTTPS port of your Teleport Proxy Service
+or Teleport Enterprise Cloud account: <Var name="teleport.example.com:443" />
+
+`identity`: Fill this in with the path to the identity file you exported
+earlier: <Var name="/var/lib/teleport/plugins/slack/identity" />
+
+If you are providing credentials to the plugin using a `tbot` binary that runs
+on a Linux server, make sure the value of `identity` is the same as the path of
+the identity file you configured `tbot` to generate, `/opt/machine-id/identity`.
+
+`refresh_identity`: Set this to true only if you are providing credentials to the plugin
+using a `tbot` binary.
+
+Configure the plugin to periodically reload the identity file, ensuring that it
+does not attempt to connect to the Teleport Auth Service with expired
+credentials.
+
+**`[slack]`**
+
+`token`: Open [`https://api.slack.com/apps`](https://api.slack.com/apps), find
+the Slack app you created earlier, navigate to the **OAuth & Permissions** tab,
+copy the **Bot User OAuth Token**, and paste it into this field: <Var name="xoxb-..." />
+
+**`[review]`**
+
+`enabled`: Set to true to enable native Access Request reviews.
+
+`app_token`: Open [`https://api.slack.com/apps`](https://api.slack.com/apps), find
+the Slack app you created earlier, navigate to the **Basic Information** tab,
+copy your app-level token from the **App-Level Tokens** section,
+and paste it into this field: <Var name="xapp-..." />
+
+`allow_email_username_match`: Set this to true to allow reviewer user binding between
+Teleport username and Slack email.
+
+`slack_user_id_trait`: Fill this in with the name of the Teleport trait to bind
+Teleport user and Slack user. The trait should hold value of Slack user ID.
+If no trait is set up in Teleport, this should remain empty.
+
+**`[role_to_recipients]`**
+
+The `role_to_recipients` map configures the channels that the Slack plugin will
+notify when a user requests access to a specific role.
+
+Configure the Slack plugin to notify you when a user requests the `editor` role
+by adding the following to your `role_to_recipients` config.
+To route all other requests to a default channel, either create an `access-requests` channel
+in your Slack workspace or rename the value of the `"*"` key to an existing channel.
+
+```toml
+[role_to_recipients]
+"*" = "<Var name="access-requests" />"
+"editor" = ["<Var name="alice@example.com" />"]
+```
+
+In the `role_to_recipients` map, each key is the name of a Teleport role. Each
+value configures the Slack channel (or channels) to notify. Each string must be
+either the name of a Slack channel (including a user's direct message channel)
+or the email address of a Slack user. If the recipient is an email address, the
+Slack plugin will use that email address to look up a direct message channel.
+
+The `role_to_recipients` map must also include an entry for `"*"`, which the
+plugin looks up if no other entry matches a given role name. In the example
+above, requests for roles aside from `editor` will notify the
+`access-requests` channel.
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+**`teleport`**
+
+`address`: Include the hostname and HTTPS port of your Teleport Proxy Service
+or Teleport Enterprise Cloud account: <Var name="teleport.example.com:443" />
+
+`identitySecretName`: Fill in the `identitySecretName` field with the name
+of the Kubernetes secret you created earlier.
+
+`identitySecretPath`: Fill in the `identitySecretPath` field with the path
+of the identity file within the Kubernetes secret. If you have followed the
+instructions above, this will be `identity`.
+
+**`slack`**
+
+`token`: Open [`https://api.slack.com/apps`](https://api.slack.com/apps), find
+the Slack app you created earlier, navigate to the **OAuth & Permissions** tab,
+copy the **Bot User OAuth Token**, and paste it into this field: <Var name="xoxb-..." />
+
+**`review`**
+
+`enabled`: Set to true to enable native Access Request reviews.
+
+`appToken`: Open [`https://api.slack.com/apps`](https://api.slack.com/apps), find
+the Slack app you created earlier, navigate to the **Basic Information** tab,
+copy your app-level token from the **App-Level Tokens** section,
+and paste it into this field: <Var name="xapp-..." />
+
+`allowEmailUsernameMatch`: Set this to true to allow reviewer user binding between
+Teleport username and Slack email.
+
+`slackUserIdTrait`: Fill this in with the name of the Teleport trait to bind
+Teleport user and Slack user. The trait should hold value of Slack user ID.
+If no trait is set up in Teleport, this should remain empty.
+
+**`roleToRecipients`**
+
+The `roleToRecipients` map configures the channels that the Slack plugin will
+notify when a user requests access to a specific role.
+
+Configure the Slack plugin to notify you when a user requests the `editor` role
+by adding the following to your `roleToRecipients` config.
+To route all other requests to a default channel, either create an `access-requests` channel
+in your Slack workspace or rename the value of the `"*"` key to an existing channel.
+
+```yaml
+roleToRecipients:
+  "*": "<Var name="access-requests" />"
+  "editor": ["<Var name="alice@example.com" />"]
+```
+
+In the `roleToRecipients` map, each key is the name of a Teleport role. Each
+value configures the Slack channel (or channels) to notify. Each string must be
+either the name of a Slack channel (including a user's direct message channel)
+or the email address of a Slack user. If the recipient is an email address, the
+Slack plugin will use that email address to look up a direct message channel.
+
+The `roleToRecipients` map must also include an entry for `"*"`, which the
+plugin looks up if no other entry matches a given role name. In the example
+above, requests for roles aside from `editor` will notify the
+`access-requests` channel.
+
+</TabItem>
+</Tabs>
