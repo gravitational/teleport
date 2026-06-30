@@ -8,10 +8,27 @@ Teleport Auth on the same Kubernetes clusters, such as for regional proxies
 closer to users. To deploy the Teleport Proxy and Teleport Auth together, use
 [teleport-cluster](../teleport-cluster/) instead.
 
+> [!NOTE] This teleport-proxy chart is for self-hosted installs of Teleport. If
+> you're using
+> [Teleport Enterprise Cloud](https://goteleport.com/docs/reference/architecture/teleport-cloud-architecture/)
+> Teleport Proxy servers are managed for you.
+
 ## Prerequisites
 
-- An existing Teleport cluster with Auth Service endpoint reachable from where
-  you're deploying this proxy.
+- An existing Teleport cluster on the same network where this proxy is being
+  deployed.
+
+  > [!WARNING] Teleport Auth and Proxy servers must all share a **IP space with
+  > routing and firewall rules** allowing traffic between them. All Teleport
+  > Proxies must be able to reach all Teleport Auth servers and all other
+  > Teleport Proxies.
+  >
+  > Teleport Agents must **also** be able to reach all proxies, but may go
+  > through a load balancer, the address of which is configured in
+  > `proxy_server.public_addr`. Agents therefore need not share a contiguous,
+  > routable IP space with Proxy and Auth servers so long as all Proxies are
+  > reachable via the load balancer.
+
 - A Teleport provision token that allows Proxy joining.
   - [Terraform](https://goteleport.com/docs/reference/infrastructure-as-code/terraform-provider/resources/provision_token/)
   - [tctl](https://goteleport.com/docs/reference/cli/tctl/#tctl-tokens-add)
