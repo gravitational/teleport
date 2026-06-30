@@ -3296,12 +3296,9 @@ func splitRoles(roles string) []string {
 
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
-	// Unfortunately we have to compare using `reflect` because JoinParams
-	// contains a `[]string` (via generic_oidc's `Command` field) which cannot
-	// be compared using the usual empty-struct compares used throughout the
-	// config handler. This method is used elsewhere for the same purpose,
-	// including `applyJamfConfig`.
-	joinParamsSet := !reflect.DeepEqual(fc.JoinParams, JoinParams{})
+	// Determine if JoinParams is set to something beyond its zero value using
+	// a go-derive generated helper.
+	joinParamsSet := fc.JoinParams.IsEqual(&JoinParams{})
 
 	if fc.AuthToken != "" {
 		if joinParamsSet {

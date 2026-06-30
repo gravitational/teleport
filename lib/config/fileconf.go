@@ -520,6 +520,11 @@ type JoinParams struct {
 	GenericOIDC  GenericOIDCParams  `yaml:"generic_oidc,omitempty"`
 }
 
+// IsEqual determines if two JoinParams objects are deeply equal.
+func (a *JoinParams) IsEqual(b *JoinParams) bool {
+	return deriveTeleportEqualJoinParams(a, b)
+}
+
 // AzureJoinParams configures the parameters specific to the Azure join method.
 type AzureJoinParams struct {
 	ClientID string `yaml:"client_id"`
