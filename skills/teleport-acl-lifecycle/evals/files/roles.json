@@ -1,0 +1,14 @@
+[
+  {
+    "kind": "role",
+    "metadata": {
+      "name": "auditor"
+    }
+  },
+  {
+    "kind": "role",
+    "metadata": {
+      "name": "access"
+    }
+  }
+]

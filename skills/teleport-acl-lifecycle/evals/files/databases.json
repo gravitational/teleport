@@ -1,0 +1,41 @@
+[
+  {
+    "metadata": {
+      "name": "billing-prod",
+      "labels": {
+        "db-service": "label",
+        "env": "prod",
+        "team": "finance"
+      }
+    },
+    "spec": {
+      "protocol": "postgres"
+    }
+  },
+  {
+    "metadata": {
+      "name": "orders-staging",
+      "labels": {
+        "db-service": "label",
+        "env": "staging",
+        "team": "orders"
+      }
+    },
+    "spec": {
+      "protocol": "mysql"
+    }
+  },
+  {
+    "metadata": {
+      "name": "analytics-dev",
+      "labels": {
+        "db-service": "label",
+        "env": "dev",
+        "team": "analytics"
+      }
+    },
+    "spec": {
+      "protocol": "postgres"
+    }
+  }
+]
