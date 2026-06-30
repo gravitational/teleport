@@ -706,8 +706,9 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 type EqualAccessListsOption func(*equalAccessListsConfig)
 
 type equalAccessListsConfig struct {
-	skipClone     bool
-	resetFieldsFn func(*AccessList)
+	skipClone      bool
+	resetFieldsFn  func(*AccessList)
+	canonicalizeFn func(*AccessList)
 }
 
 // WithSkipClone configures EqualAccessLists to skip cloning
@@ -772,6 +773,24 @@ func WithIgnoreOktaUserManagedFields() EqualAccessListsOption {
 	}
 }
 
+// WithCanonicalFields configures EqualAccessLists to canonicalize slice fields
+// within the Spec to ensure a consistent order and remove duplicates before
+// comparison. This prevents false negatives in equality checks where slices
+// might have different orders or contain duplicates.
+//
+// The following fields are canonicalized: Grants (roles/traits/scopedRoles),
+// OwnerGrants (roles/traits/scopedRoles), MembershipRequires (roles/traits),
+// and OwnershipRequires (roles/traits).
+//
+// Note: This option reorders and de-duplicates the listed slice fields. As with
+// [WithIgnoreEphemeralFields], the input Access Lists are cloned (unless
+// [WithSkipClone] is also used) to avoid modifying the originals.
+func WithCanonicalFields() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.canonicalizeFn = canonicalizeAccessList
+	}
+}
+
 // EqualAccessLists compares two access lists for semantic equality.
 //
 // By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()
@@ -796,6 +815,11 @@ func EqualAccessLists(a, b *AccessList, opts ...EqualAccessListsOption) bool {
 		cfg.resetFieldsFn(b)
 	}
 
+	if cfg.canonicalizeFn != nil {
+		cfg.canonicalizeFn(a)
+		cfg.canonicalizeFn(b)
+	}
+
 	return deriveTeleportEqualAccessList(a, b)
 }
 
@@ -810,4 +834,46 @@ func resetEphemeralFieldsAccessList(a *AccessList) {
 	for i := range a.Spec.Owners {
 		a.Spec.Owners[i].IneligibleStatus = ""
 	}
+}
+
+func canonicalizeAccessList(a *AccessList) {
+	if a == nil {
+		return
+	}
+
+	canonicalizeGrants(&a.Spec.Grants)
+	canonicalizeGrants(&a.Spec.OwnerGrants)
+	canonicalizeRequires(&a.Spec.MembershipRequires)
+	canonicalizeRequires(&a.Spec.OwnershipRequires)
+}
+
+func canonicalizeGrants(g *Grants) {
+	if g == nil {
+		return
+	}
+
+	slices.Sort(g.Roles)
+	g.Roles = slices.Compact(g.Roles)
+
+	trait.Merge(g.Traits, nil)
+
+	slices.SortFunc(g.ScopedRoles, func(a, b ScopedRoleGrant) int {
+		if a.Role == b.Role {
+			return strings.Compare(a.Scope, b.Scope)
+		}
+		return strings.Compare(a.Role, b.Role)
+	})
+
+	g.ScopedRoles = slices.Compact(g.ScopedRoles)
+}
+
+func canonicalizeRequires(r *Requires) {
+	if r == nil {
+		return
+	}
+
+	slices.Sort(r.Roles)
+	r.Roles = slices.Compact(r.Roles)
+
+	trait.Merge(r.Traits, nil)
 }
