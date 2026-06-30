@@ -7,9 +7,14 @@ import { RiskLevel as RiskLevelValue } from 'teleport/services/recordings/types'
 interface RiskLevelProps {
   riskLevel: RiskLevelValue;
   inPopover?: boolean;
+  'data-testid'?: string;
 }
 
-export function RiskLevel({ inPopover, riskLevel }: RiskLevelProps) {
+export function RiskLevel({
+  inPopover,
+  riskLevel,
+  'data-testid': dataTestId,
+}: RiskLevelProps) {
   const theme = useTheme();
   const riskLevelColor = getRiskColor(theme, riskLevel, inPopover);
 
@@ -26,6 +31,7 @@ export function RiskLevel({ inPopover, riskLevel }: RiskLevelProps) {
       px={2}
       fontSize="small"
       borderRadius="8px"
+      data-testid={dataTestId}
     >
       {getRiskLevelLabel(riskLevel)}
     </Flex>

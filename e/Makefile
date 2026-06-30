@@ -336,6 +336,13 @@ clean:
 	-cargo clean
 	rm -rf *gz
 
+# Proxy to the OSS target. The e2e runner invokes `make ensure-js-deps` from
+# the dir containing the teleport binary's Makefile (e/ for enterprise runs),
+# so we forward to OSS rather than duplicating the recipe.
+.PHONY: ensure-js-deps
+ensure-js-deps:
+	$(MAKE) -C .. ensure-js-deps
+
 # make deploy-cloud - Produces a docker image and deploys to a cloud
 # tenant in the staging cluster.
 .PHONY: deploy-cloud

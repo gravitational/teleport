@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@gravitational/e2e/helpers": ["../../e2e/helpers"],
+      "@gravitational/e2e/helpers/*": ["../../e2e/helpers/*"],
+      "@gravitational/e-e2e/helpers": ["./helpers"],
+      "@gravitational/e-e2e/helpers/*": ["./helpers/*"]
+    }
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}

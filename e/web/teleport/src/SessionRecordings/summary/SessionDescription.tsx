@@ -66,6 +66,7 @@ export function SessionDescription({
   return (
     <>
       <Box
+        data-testid="session-summary-short-description"
         backgroundColor="levels.surface"
         px="8px"
         pt={2}
@@ -114,6 +115,7 @@ export function SessionDescription({
             />
 
             <Box
+              data-testid="session-summary-detailed-description"
               px={3}
               style={{ overflowY: 'auto' }}
               maxHeight="1200px"

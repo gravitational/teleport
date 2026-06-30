@@ -226,7 +226,10 @@ function RecordingWithMetadataE({
                 <InfoGridLabel>Risk Score</InfoGridLabel>
 
                 <Flex alignItems="center" flexWrap="wrap" gap={2}>
-                  <RiskLevel riskLevel={summary.riskLevel} />
+                  <RiskLevel
+                    riskLevel={summary.riskLevel}
+                    data-testid="session-risk-level"
+                  />
 
                   {summary.needsFurtherReviewReasons.length > 0 && (
                     <HoverTooltip

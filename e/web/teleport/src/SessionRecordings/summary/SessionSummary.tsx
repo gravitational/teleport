@@ -120,7 +120,7 @@ export function SessionSummary({
 
     if (data.enhancedSummary) {
       return (
-        <EnhancedSummaryContainer>
+        <EnhancedSummaryContainer data-testid="session-summary">
           <Box px="10px">
             <H3 ml="6px">Session Summary</H3>
 

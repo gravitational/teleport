@@ -3,6 +3,9 @@
 /.github/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @aadc-dev @rosstimothy
 /.environments/ @klizhentas @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
 
+# E2E Tests
+/.github/workflows/e2e-* @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @rosstimothy @ryanclark @avatus @ravicious
+
 # Internal Tools files
 /tooling/ @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
 /.sops.yaml @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
