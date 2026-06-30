@@ -326,6 +326,10 @@ const (
 	KubernetesClusterUpdateCode = "T3011I"
 	// KubernetesClusterDeleteCode is the kube.delete event code.
 	KubernetesClusterDeleteCode = "T3012I"
+	// AgentForwardCode is the agent forward event code.
+	AgentForwardCode = "T3013I"
+	// AgentForwardFailureCode is the agent forward failure event code.
+	AgentForwardFailureCode = "T3013W"
 
 	// The following codes correspond to SFTP file operations.
 	SFTPOpenCode           = "TS001I"
