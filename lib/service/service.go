@@ -5552,6 +5552,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ConnectionMonitor: connMonitor,
 			CipherSuites:      cfg.CipherSuites,
 			ServiceComponent:  teleport.ComponentWebProxy,
+			InsecureMode:      lib.IsInsecureDevMode(),
 			AWSConfigOptions: []awsconfig.OptionsFn{
 				awsconfig.WithOIDCIntegrationClient(conn.Client),
 				awsconfig.WithRolesAnywhereIntegrationClient(conn.Client),
@@ -6970,6 +6971,7 @@ func (process *TeleportProcess) initApps() {
 			ServiceComponent:  teleport.ComponentApp,
 			Logger:            logger,
 			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
+			InsecureMode:      lib.IsInsecureDevMode(),
 		})
 		if err != nil {
 			return trace.Wrap(err)

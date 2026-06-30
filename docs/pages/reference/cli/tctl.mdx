@@ -558,7 +558,7 @@ Flags:
 |`--integration`|*no default*|Name of the integration. Only applies to "github" CAs.|
 |`--[no-]keys`|`false`|if set, will print private keys|
 |`--out`|*no default*|If set writes exported authorities to files with the given path prefix|
-|`--type`|*no default* (one of: `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `tls-spiffe`, `windows`, `db`, `db-der`, `db-client`, `db-client-der`, `openssh`, `saml-idp`, `github`, `awsra`)|export certificate type (user, host, tls-host, tls-user, tls-user-der, tls-spiffe, windows, db, db-der, db-client, db-client-der, openssh, saml-idp, github, awsra)|
+|`--type`|*no default* (one of: `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `tls-spiffe`, `windows`, `db`, `db-der`, `db-client`, `db-client-der`, `openssh`, `saml-idp`, `github`, `awsra`, `app-client`)|export certificate type (user, host, tls-host, tls-user, tls-user-der, tls-spiffe, windows, db, db-der, db-client, db-client-der, openssh, saml-idp, github, awsra, app-client)|
 
 ## tctl auth ls
 
@@ -611,7 +611,7 @@ Flags:
 |`--[no-]interactive`|`false`|Enable interactive mode|
 |`--[no-]manual`|`false`|Activate manual rotation, set rotation phases manually|
 |`--phase`|*no default*|Target rotation phase to set, used in manual rotation, one of: init, standby, update_clients, update_servers, rollback|
-|`--type`|*no default* (one of: `host`, `windows`, `user`, `db`, `db_client`, `openssh`, `jwt`, `saml_idp`, `oidc_idp`, `spiffe`, `okta`, `awsra`, `bound_keypair`)|Certificate authority to rotate.|
+|`--type`|*no default* (one of: `host`, `windows`, `user`, `db`, `db_client`, `openssh`, `jwt`, `saml_idp`, `oidc_idp`, `spiffe`, `okta`, `awsra`, `bound_keypair`, `app_client`)|Certificate authority to rotate.|
 
 ## tctl auth sign
 

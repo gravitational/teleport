@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -43,12 +44,19 @@ import (
 type AccessPoint interface {
 	services.AuthPreferenceGetter
 	services.ClusterNameGetter
+
+	// GetCertAuthority returns cert authority by id.
+	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
 }
 
 // AuthClient defines functions that the MCP server requires from the auth
 // client.
 type AuthClient interface {
 	appcommon.AppTokenGenerator
+
+	// WorkloadIdentityIssuanceClient returns an unadorned client for the
+	// workload identity service.
+	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
 }
 
 // ServerConfig is the config for the MCP forward server.
@@ -70,6 +78,8 @@ type ServerConfig struct {
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 
 	clock clockwork.Clock
 }

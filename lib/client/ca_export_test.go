@@ -338,6 +338,15 @@ func TestExportAllAuthorities(t *testing.T) {
 			assertNoSecrets: validateTLSCertificatePEMFunc,
 			assertSecrets:   validatePrivateKeyPEMFunc,
 		},
+		{
+			name: "app-client",
+			req: ExportAuthoritiesRequest{
+				AuthType: "app-client",
+			},
+			errorCheck:      require.NoError,
+			assertNoSecrets: validateTLSCertificatePEMFunc,
+			assertSecrets:   validatePrivateKeyPEMFunc,
+		},
 	} {
 		runTest := func(
 			t *testing.T,
