@@ -50,7 +50,7 @@ Example of a well-formed finding:
 - **Style and conventions**
   - The conventions themselves (voice, headings, naming, components, page-type
     shape, and so on) live in
-    [`../contributing/documentation-style-guide.md`](../contributing/documentation-style-guide.md),
+    [`contributing/documentation-style-guide.md`](contributing/documentation-style-guide.md),
     the single source of truth shared with human contributors. Do not restate
     or re-derive those rules — consult the guide.
   - For how to *apply* them in review — what an agent can check reliably, what
@@ -116,7 +116,7 @@ Example of a well-formed finding:
 ## References
 
 - Documentation conventions (source of truth):
-  [`../contributing/documentation-style-guide.md`](../contributing/documentation-style-guide.md),
+  [`contributing/documentation-style-guide.md`](contributing/documentation-style-guide.md),
   shared with human contributors.
 - Applying those conventions in review: [`AGENTS-STYLE.md`](./AGENTS-STYLE.md)
   (next to this file) — what's checkable, what the linters cover, and severity
