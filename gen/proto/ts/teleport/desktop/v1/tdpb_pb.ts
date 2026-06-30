@@ -4,22 +4,19 @@
 // tslint:disable
 // @ts-nocheck
 //
+// Copyright 2026 Gravitational, Inc.
 //
-// Teleport
-// Copyright (C) 2025  Gravitational, Inc.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 import type { BinaryWriteOptions } from "@protobuf-ts/runtime";
 import type { IBinaryWriter } from "@protobuf-ts/runtime";
@@ -77,6 +74,10 @@ export interface ServerHello {
      * @generated from protobuf field: bool hidpi_supported = 5;
      */
     hidpiSupported: boolean;
+    /**
+     * @generated from protobuf field: bool multidirectory_sharing_supported = 6;
+     */
+    multidirectorySharingSupported: boolean;
 }
 /**
  * Used to identify sessions available to and selected by users
@@ -588,6 +589,10 @@ export interface SharedDirectoryResponse {
      */
     errorCode: number;
     /**
+     * @generated from protobuf field: uint32 directory_id = 11;
+     */
+    directoryId: number;
+    /**
      * @generated from protobuf oneof: operation
      */
     operation: {
@@ -1073,7 +1078,8 @@ class ServerHello$Type extends MessageType<ServerHello> {
             { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 3, name: "directory_remove_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "sessions", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionIdentifier },
-            { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 6, name: "multidirectory_sharing_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
@@ -1082,6 +1088,7 @@ class ServerHello$Type extends MessageType<ServerHello> {
         message.directoryRemoveSupported = false;
         message.sessions = [];
         message.hidpiSupported = false;
+        message.multidirectorySharingSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ServerHello>(this, message, value);
         return message;
@@ -1105,6 +1112,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
                     break;
                 case /* bool hidpi_supported */ 5:
                     message.hidpiSupported = reader.bool();
+                    break;
+                case /* bool multidirectory_sharing_supported */ 6:
+                    message.multidirectorySharingSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1133,6 +1143,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
         /* bool hidpi_supported = 5; */
         if (message.hidpiSupported !== false)
             writer.tag(5, WireType.Varint).bool(message.hidpiSupported);
+        /* bool multidirectory_sharing_supported = 6; */
+        if (message.multidirectorySharingSupported !== false)
+            writer.tag(6, WireType.Varint).bool(message.multidirectorySharingSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2782,6 +2795,7 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         super("teleport.desktop.v1.SharedDirectoryResponse", [
             { no: 1, name: "completion_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "error_code", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 11, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 3, name: "info", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Info },
             { no: 4, name: "create", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Create },
             { no: 5, name: "delete", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Delete },
@@ -2796,6 +2810,7 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         const message = globalThis.Object.create((this.messagePrototype!));
         message.completionId = 0;
         message.errorCode = 0;
+        message.directoryId = 0;
         message.operation = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<SharedDirectoryResponse>(this, message, value);
@@ -2811,6 +2826,9 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
                     break;
                 case /* uint32 error_code */ 2:
                     message.errorCode = reader.uint32();
+                    break;
+                case /* uint32 directory_id */ 11:
+                    message.directoryId = reader.uint32();
                     break;
                 case /* teleport.desktop.v1.SharedDirectoryResponse.Info info */ 3:
                     message.operation = {
@@ -2878,6 +2896,9 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         /* uint32 error_code = 2; */
         if (message.errorCode !== 0)
             writer.tag(2, WireType.Varint).uint32(message.errorCode);
+        /* uint32 directory_id = 11; */
+        if (message.directoryId !== 0)
+            writer.tag(11, WireType.Varint).uint32(message.directoryId);
         /* teleport.desktop.v1.SharedDirectoryResponse.Info info = 3; */
         if (message.operation.oneofKind === "info")
             SharedDirectoryResponse_Info.internalBinaryWrite(message.operation.info, writer.tag(3, WireType.LengthDelimited).fork(), options).join();

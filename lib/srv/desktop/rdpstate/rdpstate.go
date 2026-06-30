@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"image"
-	"image/draw"
 	"io"
 	"math"
 
@@ -59,8 +58,8 @@ const (
 type RDPState struct {
 	decoder *decoder.Decoder
 
-	mouseX, mouseY uint16
-	hasMouse       bool
+	// mouseButtonInput is set when a mouse button message is processed; the decoder keeps no button state.
+	mouseButtonInput bool
 }
 
 // New creates a new RDPState.
@@ -103,14 +102,15 @@ func (s *RDPState) Image() *image.RGBA {
 }
 
 // ResizeCrop returns the source crop region of the current screen image scaled to exactly outWidth x outHeight using
-// high-quality CatmullRom convolution. The crop must lie within the current frame bounds. Returns an error if the
-// decoder has not been initialized or the resize fails.
-func (s *RDPState) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16) (*image.RGBA, error) {
+// high-quality CatmullRom convolution. The crop must lie within the current frame bounds. When withCursor is true and
+// the decoder's tracked cursor is visible, it is composited onto the source frame before the crop, so the cursor
+// scales with the screen. Returns an error if the decoder has not been initialized or the resize fails.
+func (s *RDPState) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16, withCursor bool) (*image.RGBA, error) {
 	if s.decoder == nil {
 		return nil, trace.BadParameter("rdp state has no image")
 	}
 
-	return s.decoder.ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight)
+	return s.decoder.ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight, withCursor)
 }
 
 // Dimensions returns the current screen width and height in pixels. Returns (0, 0) if the decoder has not been
@@ -141,40 +141,6 @@ func (s *RDPState) Release() {
 	}
 }
 
-// ImageWithCursor returns the current screen image with the cursor composited at its current position, along with the
-// cursor state.
-// When MouseMove TDPB messages have set a position, that overrides the Rust decoder's internal cursor position for compositing.
-func (s *RDPState) ImageWithCursor() (*image.RGBA, decoder.CursorState) {
-	if s.decoder == nil {
-		return nil, decoder.CursorState{}
-	}
-
-	img := s.decoder.Image()
-	cs := s.CursorState()
-	if img == nil || !cs.Visible {
-		return img, cs
-	}
-
-	bmp := s.decoder.CursorBitmap()
-	if bmp == nil {
-		return img, cs
-	}
-
-	cursorX, cursorY := cs.X, cs.Y
-	if s.hasMouse {
-		cursorX, cursorY = s.mouseX, s.mouseY
-	}
-
-	drawX := int(cursorX) - bmp.HotspotX
-	drawY := int(cursorY) - bmp.HotspotY
-	cb := bmp.Image.Bounds()
-
-	dstRect := image.Rect(drawX, drawY, drawX+cb.Dx(), drawY+cb.Dy())
-	draw.Draw(img, dstRect, bmp.Image, image.Point{}, draw.Over)
-
-	return img, cs
-}
-
 // UpdatedRegions returns the individual screen regions updated since the last call to ResetUpdatedRegions.
 func (s *RDPState) UpdatedRegions() []image.Rectangle {
 	if s.decoder == nil {
@@ -188,6 +154,16 @@ func (s *RDPState) ResetUpdatedRegions() {
 	if s.decoder != nil {
 		s.decoder.ResetUpdatedRegions()
 	}
+}
+
+// MouseButtonInput reports whether a mouse button message has been processed since the last reset.
+func (s *RDPState) MouseButtonInput() bool {
+	return s.mouseButtonInput
+}
+
+// ResetMouseButtonInput clears the mouse button input flag.
+func (s *RDPState) ResetMouseButtonInput() {
+	s.mouseButtonInput = false
 }
 
 type connectionActivated struct {
@@ -277,6 +253,9 @@ func (s *RDPState) processTDPBMessage(data []byte) error {
 		return s.handleFastPathPDU(env.GetFastPathPdu())
 	case tdpbv1.Envelope_MouseMove_case:
 		return s.handleMouseMove(env.GetMouseMove())
+	case tdpbv1.Envelope_MouseButton_case:
+		s.mouseButtonInput = true
+		return nil
 	}
 
 	return nil
@@ -347,9 +326,9 @@ func (s *RDPState) handleMouseMove(msg *tdpbv1.MouseMove) error {
 		return trace.BadParameter("mouse coordinates out of range: (%d, %d)", msg.GetX(), msg.GetY())
 	}
 
-	s.mouseX = uint16(msg.GetX())
-	s.mouseY = uint16(msg.GetY())
-	s.hasMouse = true
+	// MouseMove may arrive before ServerHello initializes the decoder, in which case there's nowhere to record
+	// the position. SetCursorPosition is a no-op when the decoder is nil, so drop the update silently.
+	s.decoder.SetCursorPosition(uint16(msg.GetX()), uint16(msg.GetY()))
 
 	return nil
 }

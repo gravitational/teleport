@@ -745,6 +745,11 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 				names = []string{""}
 			}
 			verbs := applyValueTraitsSlice(rec.Verbs, ctx, "kubernetes resource verb")
+			// A trait can reintroduce a wildcard alongside other verbs after
+			// validation has run, so collapse to just the wildcard.
+			if slices.Contains(verbs, types.Wildcard) {
+				verbs = []string{types.Wildcard}
+			}
 			for _, namespace := range namespaces {
 				for _, name := range names {
 					out = append(out, types.KubernetesResource{
@@ -2111,8 +2116,7 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(types.Deny)
-		matched, err := matchDenyRoleImpersonateCondition(cond, impersonateRoles)
+		matched, err := matchDenyRoleImpersonateCondition(role, impersonateRoles)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2123,8 +2127,7 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 
 	// check allow: if any one Role satisfies all the role requests, allow impersonation
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(types.Allow)
-		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, cond, impersonateRoles)
+		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, role, impersonateRoles)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2134,6 +2137,33 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 	}
 
 	return trace.AccessDenied("access denied to '%s' to impersonate roles '%s'", currentUser.GetName(), roleNames(impersonateRoles))
+}
+
+// CheckSubmitForUser checks whether the current user is allowed to
+// submit reviews for other users, to be used by plugins.
+func (set RoleSet) CheckSubmitForUser(currentUser, submitForUser types.User) error {
+	for _, role := range set {
+		denyUsers := role.GetSubmitForUsers(types.Deny)
+		anyDenyUser, err := parse.NewAnyMatcher(denyUsers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if anyDenyUser.Match(submitForUser.GetName()) {
+			return trace.AccessDenied("access denied for '%s' to submit for user '%s'", currentUser.GetName(), submitForUser.GetName())
+		}
+	}
+
+	for _, role := range set {
+		allowUsers := role.GetSubmitForUsers(types.Allow)
+		anyAllowUser, err := parse.NewAnyMatcher(allowUsers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if anyAllowUser.Match(submitForUser.GetName()) {
+			return nil
+		}
+	}
+	return trace.AccessDenied("access denied for '%s' to submit for user '%s'", currentUser.GetName(), submitForUser.GetName())
 }
 
 // LockingMode returns the locking mode to apply with this RoleSet.
@@ -2209,10 +2239,71 @@ func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {
 	return false, nil
 }
 
-// matchSPIFFESVIDConditions compares a slice of SPIFFE Role Conditions against
+// matchSPIFFESVIDDenyConditions compares a slice of SPIFFE Role Conditions against
+// a requested SPIFFE SVID generation. Any field within a condition must match,
+// and any condition in the slice can match for the function to return true.
+func matchSPIFFESVIDDenyConditions(
+	conds []*types.SPIFFERoleCondition,
+	spiffeIDPath string,
+	dnsSANs []string,
+	ipSANs []net.IP,
+) (bool, error) {
+	return contains(conds, func(cond *types.SPIFFERoleCondition) (bool, error) {
+		// Match SPIFFE ID path.
+		isPathMatch, err := utils.MatchString(spiffeIDPath, cond.Path)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !isPathMatch {
+			return false, nil
+		}
+
+		// if any DNS SAN in the condition matches, we say the DNS SAN part
+		// of the condition matches
+		isDNSMatch := true
+		for _, dnsSANMatcher := range cond.DNSSANs {
+			isDNSMatch, err = contains(dnsSANs, func(reqDNSSAN string) (bool, error) {
+				return utils.MatchString(reqDNSSAN, dnsSANMatcher)
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if isDNSMatch {
+				break
+			}
+		}
+		if !isDNSMatch {
+			return false, nil
+		}
+
+		// Any IP SAN requested can match one of the IP SAN matchers in the
+		// condition.
+		isIPMatch := true
+		for _, ipSANMatcher := range cond.IPSANs {
+			isIPMatch, err = contains(ipSANs, func(reqIPSAN net.IP) (bool, error) {
+				_, cidr, err := net.ParseCIDR(ipSANMatcher)
+				if err != nil {
+					return false, trace.Wrap(err, "parsing cidr")
+				}
+				return cidr.Contains(reqIPSAN), nil
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if isIPMatch {
+				break
+			}
+		}
+
+		// all other conditions met
+		return isIPMatch, nil
+	})
+}
+
+// matchSPIFFESVIDAllowConditions compares a slice of SPIFFE Role Conditions against
 // a requested SPIFFE SVID generation. All fields within a condition must match,
 // but any condition in the slice can match for the function to return true.
-func matchSPIFFESVIDConditions(
+func matchSPIFFESVIDAllowConditions(
 	conds []*types.SPIFFERoleCondition,
 	spiffeIDPath string,
 	dnsSANs []string,
@@ -2280,7 +2371,7 @@ func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs
 	// check deny: a single match on a deny rule prohibits generation
 	for _, role := range set {
 		cond := role.GetSPIFFEConditions(types.Deny)
-		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		matched, err := matchSPIFFESVIDDenyConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2292,7 +2383,7 @@ func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs
 	// check allow: if a single condition matches, allow generation
 	for _, role := range set {
 		cond := role.GetSPIFFEConditions(types.Allow)
-		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		matched, err := matchSPIFFESVIDAllowConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2394,7 +2485,8 @@ func matchDenyImpersonateCondition(cond types.ImpersonateConditions, impersonate
 
 // matchAllowRoleImpersonateCondition matches an allow impersonate condition
 // specifically for role-only impersonation, where only roles are matched.
-func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, role types.Role, impersonateRoles []types.Role) (bool, error) {
+	cond := role.GetImpersonateConditions(types.Allow)
 	// an empty set matches nothing
 	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
 		return false, nil
@@ -2402,6 +2494,10 @@ func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser pre
 
 	// Role impersonation can never apply to users.
 	if len(cond.Users) != 0 {
+		slog.WarnContext(context.Background(),
+			"Allow rule did not match due to users being set. For role-only impersonation, only roles should be set in allow/deny rules.",
+			"role", role.GetName(),
+		)
 		return false, nil
 	}
 
@@ -2435,15 +2531,23 @@ func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser pre
 
 // matchDenyRoleImpersonateCondition matches a deny impersonate condition
 // specifically for role impersonation, where only roles are matched.
-func matchDenyRoleImpersonateCondition(cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+func matchDenyRoleImpersonateCondition(role types.Role, impersonateRoles []types.Role) (bool, error) {
+	cond := role.GetImpersonateConditions(types.Deny)
 	// an empty set matches nothing
 	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
 		return false, nil
 	}
 
-	// Role impersonation can never apply to users.
+	// If any users are defined in a role-impersonation deny rule, it always
+	// matches. This functionally disables role impersonation for rules
+	// containing a `users` deny entry, which is acceptable because only bots
+	// should ever use role impersonation.
 	if len(cond.Users) != 0 {
-		return false, nil
+		slog.WarnContext(context.Background(),
+			"Deny rule matched due to users being set. For role-only impersonation, only roles should be set in allow/deny rules.",
+			"role", role.GetName(),
+		)
+		return true, nil
 	}
 
 	// By this point, at least 1 role is guaranteed.

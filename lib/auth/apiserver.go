@@ -127,7 +127,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.Router.UseRawPath = true
 
 	// Passwords and sessions
-	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
+	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
+	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.extendWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
 
@@ -142,7 +143,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
 	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 	srv.POST("/:version/tunnelconnections", srv.WithAuth(srv.upsertTunnelConnection))
+	// TODO(noah): move to httpMigratedHandler in v20.0.0
 	srv.GET("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.getTunnelConnections))
+	// TODO(noah): move to httpMigratedHandler in v20.0.0
 	srv.GET("/:version/tunnelconnections", srv.WithAuth(srv.getAllTunnelConnections))
 	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 	srv.DELETE("/:version/tunnelconnections/:cluster/:conn", srv.WithAuth(srv.deleteTunnelConnection))
@@ -215,9 +218,8 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		}
 
 		auth := &ServerWithRoles{
-			authServer: s.AuthServer,
+			serverBase: serverBase{authServer: s.AuthServer, alog: s.AuthServer},
 			context:    *authContext,
-			alog:       s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -227,23 +229,19 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	})
 }
 
-func (s *APIServer) WithScopedAuth(handler HandlerWithAuthFunc) httprouter.Handle {
+// ScopedHandlerWithAuthFunc is an HTTP handler with a scoped auth context.
+type ScopedHandlerWithAuthFunc func(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error)
+
+func (s *APIServer) WithScopedAuth(handler ScopedHandlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		// HTTPS server expects auth context to be set by the auth middleware
 		scopedContext, err := s.ScopedAuthorizer.AuthorizeScoped(r.Context())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authContext, ok := scopedContext.UnscopedContext()
-		if !ok {
-			authContext = &authz.Context{}
-		}
-
-		auth := &ServerWithRoles{
-			authServer:    s.AuthServer,
-			context:       *authContext,
+		auth := &ScopedServerWithRoles{
+			serverBase:    serverBase{authServer: s.AuthServer, alog: s.AuthServer},
 			scopedContext: scopedContext,
-			alog:          s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -327,7 +325,7 @@ func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r 
 // getProxies returns registered proxies
 //
 // TODO(kiosion) DELETE IN 21.0.0
-func (s *APIServer) getProxies(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+func (s *APIServer) getProxies(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	servers, err := auth.GetProxies()
 	if err != nil {
@@ -354,7 +352,7 @@ func (s *APIServer) deleteProxy(auth *ServerWithRoles, w http.ResponseWriter, r 
 // getAuthServers returns registered auth servers
 //
 // TODO(kiosion) DELETE IN 21.0.0
-func (s *APIServer) getAuthServers(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+func (s *APIServer) getAuthServers(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	servers, err := auth.GetAuthServers()
 	if err != nil {
@@ -399,30 +397,30 @@ func (s *APIServer) validateTrustedCluster(auth *ServerWithRoles, w http.Respons
 	return validateResponseRaw, nil
 }
 
-func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	// nb(strideynet): Whilst CreateWebSession seems not to be invoked for the
-	// purposes of creation anymore - it does appear that this RPC is still
-	// in the hot-path for the Extend behavior.
+// TODO(strideynet): move to httpMigratedHandler in v20.0.0
+func (s *APIServer) extendWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+	// nb(strideynet): Historically this handler/endpoint provided both
+	// Create and Extend WebSession functionality, and was known as
+	// CreateWebSession. The web session creation functionality was unused for
+	// a long time and hence removed and this handler "renamed".
 
 	var req authclient.WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(r.Context(), req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return sess, nil
+	// Requires that PrevSessionID is set. Historically, the lack of this field
+	// indicated that the caller wanted to create (rather than extend) a web
+	// session.
+	if req.PrevSessionID == "" {
+		return nil, trace.BadParameter("RPC cannot be used to create new web sessions")
 	}
 
-	sess, err := auth.CreateWebSession(r.Context(), req.User)
+	sess, err := auth.ExtendWebSession(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
+	return sess, nil
 }
 
 func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
@@ -550,9 +548,11 @@ func (s *APIServer) upsertTunnelConnection(auth *ServerWithRoles, w http.Respons
 	return message("ok"), nil
 }
 
-// getTunnelConnections returns a list of tunnel connections from a cluster
+// getTunnelConnections returns a list of tunnel connections from a cluster.
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	conns, err := auth.GetTunnelConnections(p.ByName("cluster"))
+	conns, err := auth.GetTunnelConnections(r.Context(), p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -567,9 +567,11 @@ func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseW
 	return items, nil
 }
 
-// getAllTunnelConnections returns a list of tunnel connections from a cluster
+// getAllTunnelConnections returns a list of tunnel connections from a cluster.
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) getAllTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	conns, err := auth.GetAllTunnelConnections()
+	conns, err := auth.GetAllTunnelConnections(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

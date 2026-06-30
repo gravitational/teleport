@@ -18,16 +18,20 @@ package services
 
 import (
 	"context"
+	"encoding/base32"
+	"iter"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/text/cases"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // WorkloadIdentities is an interface over the WorkloadIdentities service. This
@@ -38,14 +42,14 @@ type WorkloadIdentities interface {
 	GetWorkloadIdentity(
 		ctx context.Context, name string,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
-	// ListWorkloadIdentities lists all WorkloadIdentities using Google style
-	// pagination.
-	ListWorkloadIdentities(
+	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
+	// range [start, end), ordered by the given sort field and direction.
+	RangeWorkloadIdentities(
 		ctx context.Context,
-		pageSize int,
-		lastToken string,
-		options *ListWorkloadIdentitiesRequestOptions,
-	) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+		start, end string,
+		sortField WorkloadIdentitySortField,
+		sortDesc bool,
+	) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 	// CreateWorkloadIdentity creates a new WorkloadIdentity.
 	CreateWorkloadIdentity(
 		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
@@ -128,6 +132,20 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 		return trace.BadParameter("spec.spiffe.jwt.maximum_ttl: must be less than %s", maxMaxJWTSVIDTTL)
 	}
 
+	// When the WorkloadIdentity is scoped, the scope itself must be valid and
+	// the SPIFFE ID must conform to the scoped SPIFFE ID structure (RFD 0229c).
+	if s.GetScope() != "" {
+		if err := scopes.StrongValidate(s.GetScope()); err != nil {
+			return trace.Wrap(err, "scope")
+		}
+		if scopes.Compare(s.GetScope(), scopes.Root) == scopes.Equivalent {
+			return trace.BadParameter("scope: must not be the root scope")
+		}
+		if err := validateScopedSPIFFEID(s.GetScope(), s.GetSpec().GetSpiffe().GetId()); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	for i, rule := range s.GetSpec().GetRules().GetAllow() {
 		if rule.GetExpression() == "" {
 			if len(rule.GetConditions()) == 0 {
@@ -155,51 +173,132 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 	return nil
 }
 
-type ListWorkloadIdentitiesRequestOptions struct {
-	// The sort field to use for the results. If empty, the default sort field is used.
-	SortField string
-	// The sort order to use for the results. If empty, the default sort order is used.
-	SortDesc bool
-	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
-	FilterSearchTerm string
+// scopedSPIFFEIDSeparator is the path segment that separates the scope-derived
+// section of a scoped SPIFFE ID from the administratively-defined section. A
+// scoped SPIFFE ID for a WorkloadIdentity defined in scope /security/eu looks
+// like /security/eu/_/k8s/cluster-a. See RFD 0229c.
+//
+// The separator is a valid SPIFFE ID path segment but is deliberately not a
+// valid scope segment (scope segments require at least two characters), which
+// keeps the boundary between the two sections unambiguous.
+const scopedSPIFFEIDSeparator = "_"
+
+// validateScopedSPIFFEID validates that the given SPIFFE ID path conforms to
+// the scoped SPIFFE ID structure for the given scope, as defined in RFD 0229c.
+//
+// A scoped SPIFFE ID path consists of three sections:
+//   - the scope section: segments that strictly match the scope of origin
+//   - the separator segment ("/_/")
+//   - the administratively-defined section: one or more freely-defined segments
+//
+// For example, for scope /security/eu, /security/eu/_/k8s/cluster-a is valid.
+//
+// The check is performed on segments (not raw string prefixes) so that, e.g., a
+// scope of /foo matches an ID beginning /foo/... but not /foo-buzz/.... The
+// scope section must match the scope of origin exactly: it may not be an
+// ancestor or descendant of it.
+func validateScopedSPIFFEID(scope, id string) error {
+	if !strings.HasPrefix(id, "/") {
+		return trace.BadParameter("spec.spiffe.id: must begin with a forward slash")
+	}
+	// Reject empty path segments (e.g. a trailing slash or "//"), which
+	// splitPathSegments would otherwise silently trim or mishandle.
+	if strings.HasSuffix(id, "/") || strings.Contains(id, "//") {
+		return trace.BadParameter("spec.spiffe.id %q must not contain empty path segments", id)
+	}
+
+	scopeSegments := splitPathSegments(scope)
+	idSegments := splitPathSegments(id)
+
+	separatorIndex := slices.Index(idSegments, scopedSPIFFEIDSeparator)
+	if separatorIndex < 0 {
+		return trace.BadParameter(
+			"spec.spiffe.id %q is missing the %q separator segment that delimits the scope from the administratively-defined section",
+			id, scopedSPIFFEIDSeparator,
+		)
+	}
+
+	scopeSection := idSegments[:separatorIndex]
+	adminSection := idSegments[separatorIndex+1:]
+
+	if !slices.Equal(scopeSection, scopeSegments) {
+		return trace.BadParameter(
+			"spec.spiffe.id %q must be prefixed with the scope %q, immediately followed by the %q separator segment",
+			id, scope, scopedSPIFFEIDSeparator,
+		)
+	}
+
+	if len(adminSection) == 0 {
+		return trace.BadParameter(
+			"spec.spiffe.id %q must have at least one segment after the %q separator",
+			id, scopedSPIFFEIDSeparator,
+		)
+	}
+
+	if slices.Contains(adminSection, scopedSPIFFEIDSeparator) {
+		return trace.BadParameter(
+			"spec.spiffe.id %q must not contain the %q separator segment in its administratively-defined section",
+			id, scopedSPIFFEIDSeparator,
+		)
+	}
+
+	return nil
 }
 
-func (o *ListWorkloadIdentitiesRequestOptions) GetSortField() string {
-	if o == nil {
-		return ""
+// splitPathSegments splits a slash-delimited path (a scope or a SPIFFE ID path)
+// into its non-empty segments. A leading slash is expected; empty input or "/"
+// yields no segments.
+func splitPathSegments(path string) []string {
+	trimmed := strings.Trim(path, "/")
+	if trimmed == "" {
+		return nil
 	}
-	return o.SortField
+	return strings.Split(trimmed, "/")
 }
 
-func (o *ListWorkloadIdentitiesRequestOptions) GetSortDesc() bool {
-	if o == nil {
-		return false
+// WorkloadIdentitySortField identifies a field that WorkloadIdentities may be
+// sorted (and ranged) by. An empty value defaults to
+// [WorkloadIdentitySortFieldName].
+type WorkloadIdentitySortField string
+
+const (
+	// WorkloadIdentitySortFieldName sorts WorkloadIdentities by name. It is the
+	// default when no sort field is specified.
+	WorkloadIdentitySortFieldName WorkloadIdentitySortField = "name"
+	// WorkloadIdentitySortFieldSPIFFEID sorts WorkloadIdentities by SPIFFE ID.
+	WorkloadIdentitySortFieldSPIFFEID WorkloadIdentitySortField = "spiffe_id"
+)
+
+// WorkloadIdentityKey returns a function deriving the canonical ordering key for
+// a WorkloadIdentity for the given sort field. It is the single source of truth
+// for both the order in which WorkloadIdentities are iterated and the pagination
+// cursor used to resume iteration. Supported sort fields are "" (defaults to
+// name), [WorkloadIdentitySortFieldName] and [WorkloadIdentitySortFieldSPIFFEID];
+// any other sort field returns an error.
+//
+// The sort field is validated once, when the key function is obtained, so
+// callers do not have to handle an error per resource.
+func WorkloadIdentityKey(sortField WorkloadIdentitySortField) (func(*workloadidentityv1pb.WorkloadIdentity) string, error) {
+	switch sortField {
+	case "", WorkloadIdentitySortFieldName:
+		return func(wi *workloadidentityv1pb.WorkloadIdentity) string {
+			return wi.GetMetadata().GetName()
+		}, nil
+	case WorkloadIdentitySortFieldSPIFFEID:
+		return workloadIdentitySPIFFEIDKey, nil
+	default:
+		return nil, trace.BadParameter("unsupported sort %q but expected %s or %s", sortField, WorkloadIdentitySortFieldName, WorkloadIdentitySortFieldSPIFFEID)
 	}
-	return o.SortDesc
 }
 
-func (o *ListWorkloadIdentitiesRequestOptions) GetFilterSearchTerm() string {
-	if o == nil {
-		return ""
-	}
-	return o.FilterSearchTerm
-}
-
-func MatchWorkloadIdentity(item *workloadidentityv1pb.WorkloadIdentity, filterSearchTerm string) bool {
-	if item == nil {
-		return false
-	}
-	if filterSearchTerm == "" {
-		return true
-	}
-
-	values := []string{
-		item.GetMetadata().GetName(),
-		item.GetSpec().GetSpiffe().GetId(),
-		item.GetSpec().GetSpiffe().GetHint(),
-	}
-
-	return slices.ContainsFunc(values, func(val string) bool {
-		return strings.Contains(strings.ToLower(val), strings.ToLower(filterSearchTerm))
-	})
+// workloadIdentitySPIFFEIDKey returns the ordering key for the spiffe_id sort.
+func workloadIdentitySPIFFEIDKey(wi *workloadidentityv1pb.WorkloadIdentity) string {
+	name := wi.GetMetadata().GetName()
+	// Sort case-insensitively to keep /spiffe-1 and /Spiffe-1 together.
+	spiffeID := cases.Fold().String(wi.GetSpec().GetSpiffe().GetId())
+	// Encode to avoid ambiguity; "a/b" + "/" + "c" vs. "a" + "/" + "b/c". Base32
+	// hex maintains the original ordering.
+	spiffeID = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(spiffeID))
+	// SPIFFE IDs may not be unique, so append the resource name.
+	return spiffeID + "/" + name
 }

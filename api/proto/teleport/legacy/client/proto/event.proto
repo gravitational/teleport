@@ -266,5 +266,7 @@ message Event {
     teleport.mfa.v2.ValidatedMFAChallenge ValidatedMFAChallengeV2 = 96;
     // BeamsConfig is the user-provided configuration for Beams.
     teleport.beams.v1.BeamsConfig BeamsConfig = 97;
+    // Classifier is a resource for defining session summarization classifiers.
+    teleport.summarizer.v1.Classifier Classifier = 98;
   }
 }

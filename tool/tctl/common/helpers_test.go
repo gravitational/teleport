@@ -105,6 +105,15 @@ func runEditCommand(t *testing.T, client *authclient.Client, args []string, opts
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
+func runRequestCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &AccessRequestCommand{
+		stdout: &stdoutBuff,
+	}
+	args = append([]string{"requests"}, args...)
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
 func runLockCommand(t *testing.T, client *authclient.Client, args []string) error {
 	command := &LockCommand{}
 	args = append([]string{"lock"}, args...)

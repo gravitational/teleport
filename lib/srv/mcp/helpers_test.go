@@ -23,11 +23,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -41,7 +43,9 @@ import (
 	docker "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -60,6 +64,7 @@ func TestMain(m *testing.M) {
 }
 
 type setupTestContextOptions struct {
+	user       types.User
 	roleSet    services.RoleSet
 	app        types.Application
 	clientConn net.Conn
@@ -70,6 +75,12 @@ type setupTestContextOptionFunc func(*setupTestContextOptions)
 func withApp(app types.Application) setupTestContextOptionFunc {
 	return func(o *setupTestContextOptions) {
 		o.app = app
+	}
+}
+
+func withUser(user types.User) setupTestContextOptionFunc {
+	return func(opts *setupTestContextOptions) {
+		opts.user = user
 	}
 }
 
@@ -126,7 +137,7 @@ func withDenyToolsRole(t *testing.T) setupTestContextOptionFunc {
 	return withRole(role)
 }
 
-func makeDualPipeNetConn(t *testing.T) (net.Conn, net.Conn) {
+func makeDualPipeNetConn(t testing.TB) (net.Conn, net.Conn) {
 	t.Helper()
 	clientSourceConn, clientDestConn, err := utils.DualPipeNetConn(
 		utils.MustParseAddr("127.0.0.1:1111"),
@@ -147,7 +158,7 @@ type testContext struct {
 	clientSourceConn net.Conn
 }
 
-func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) testContext {
+func setupTestContext(t testing.TB, applyOpts ...setupTestContextOptionFunc) testContext {
 	t.Helper()
 
 	var opts setupTestContextOptions
@@ -185,7 +196,7 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 	sessionCtx := &SessionCtx{
 		ClientConn: clientDestConn,
 		App:        opts.app,
-		AuthCtx:    makeTestAuthContext(t, opts.roleSet, opts.app),
+		AuthCtx:    makeTestAuthContext(t, opts.user, opts.roleSet, opts.app),
 	}
 	require.NoError(t, sessionCtx.checkAndSetDefaults())
 
@@ -195,11 +206,14 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 	}
 }
 
-func makeTestAuthContext(t *testing.T, roleSet services.RoleSet, app types.Application) *authz.Context {
+func makeTestAuthContext(t testing.TB, user types.User, roleSet services.RoleSet, app types.Application) *authz.Context {
 	t.Helper()
+	var err error
 
-	user, err := types.NewUser("ai")
-	require.NoError(t, err)
+	if user == nil {
+		user, err = types.NewUser("ai")
+		require.NoError(t, err)
+	}
 	user.SetRoles(slices.Collect(types.ResourceNames(roleSet)))
 
 	identity := authz.LocalUser{
@@ -358,8 +372,25 @@ func forceRemoveContainer(t *testing.T, dockerClient *docker.Client, containerNa
 }
 
 type mockAuthClient struct {
-	mu               sync.Mutex
-	appTokenRequests []types.GenerateAppTokenRequest
+	mu                  sync.Mutex
+	appTokenRequests    []types.GenerateAppTokenRequest
+	workloadIdentityClt workloadidentityv1.WorkloadIdentityIssuanceServiceClient
+}
+
+// WorkloadIdentityIssuanceClient implements [AuthClient].
+func (m *mockAuthClient) WorkloadIdentityIssuanceClient() workloadidentityv1.WorkloadIdentityIssuanceServiceClient {
+	return m.workloadIdentityClt
+}
+
+type fakeIssuanceClient struct {
+	workloadidentityv1.WorkloadIdentityIssuanceServiceClient
+
+	resp *workloadidentityv1.IssueTeleportWorkloadIdentityResponse
+	err  error
+}
+
+func (f *fakeIssuanceClient) IssueTeleportWorkloadIdentity(context.Context, *workloadidentityv1.IssueTeleportWorkloadIdentityRequest, ...grpc.CallOption) (*workloadidentityv1.IssueTeleportWorkloadIdentityResponse, error) {
+	return f.resp, f.err
 }
 
 func (m *mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {
@@ -414,32 +445,14 @@ func checkSessionStartHasExternalSessionID() func(*testing.T, *apievents.MCPSess
 	}
 }
 
-func newAllowAllDenyForbiddenToolRole(t *testing.T, forbiddenTool string) types.Role {
+func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (_ *testRecorder, _ *mcpclienttransport.StreamableHTTP, proxyURL string) {
 	t.Helper()
-	role, err := types.NewRole("allow-all-deny-forbidden", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			AppLabels: map[string]apiutils.Strings{
-				types.Wildcard: {types.Wildcard},
-			},
-			MCP: &types.MCPPermissions{
-				Tools: []string{types.Wildcard},
-			},
-		},
-		Deny: types.RoleConditions{
-			MCP: &types.MCPPermissions{
-				Tools: []string{forbiddenTool},
-			},
-		},
-	})
-	require.NoError(t, err)
-	return role
-}
 
-func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (*eventstest.MockRecorderEmitter, *mcpclienttransport.StreamableHTTP) {
-	t.Helper()
+	recorder := newTestRecorders()
 
 	remoteMCPServer := mcpserver.NewStreamableHTTPServer(upstream)
 	remoteHTTPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recorder.registerHttpRequest(t, r)
 		if r.URL.Path != "/mcp" {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -459,9 +472,8 @@ func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role ty
 	)
 	require.NoError(t, err)
 
-	emitter := eventstest.MockRecorderEmitter{}
 	s, err := NewServer(ServerConfig{
-		Emitter:       &emitter,
+		Emitter:       recorder,
 		ParentContext: t.Context(),
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
@@ -494,15 +506,131 @@ func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role ty
 		}
 	}()
 
-	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP("http://" + listener.Addr().String())
+	proxyURL = "http://" + listener.Addr().String()
+	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(proxyURL)
 	require.NoError(t, err)
 
-	return &emitter, mcpClientTransport
+	return recorder, mcpClientTransport, proxyURL
 }
 
-func testJSONString(t *testing.T, v any) string {
+func testSendRAWRequest(t *testing.T, method, url, sessionID string, body string) (response []byte) {
+	t.Helper()
+	ctx := t.Context()
+
+	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set(mcpclienttransport.HeaderKeySessionID, sessionID)
+
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Contains(t, []int{http.StatusOK, http.StatusAccepted}, resp.StatusCode)
+
+	return respBody
+}
+
+type testRecorder struct {
+	*testHTTPRequestRecorder
+	*eventstest.MockRecorderEmitter
+}
+
+func newTestRecorders() *testRecorder {
+	return &testRecorder{&testHTTPRequestRecorder{}, &eventstest.MockRecorderEmitter{}}
+}
+
+func (r *testRecorder) Reset() {
+	r.testHTTPRequestRecorder.Reset()
+	r.MockRecorderEmitter.Reset()
+}
+
+type testHTTPRequestRecorder struct {
+	mu       sync.RWMutex
+	requests []*http.Request
+}
+
+func (r *testHTTPRequestRecorder) registerHttpRequest(t *testing.T, req *http.Request) {
+	t.Helper()
+
+	data, err := utils.GetAndReplaceRequestBody(req)
+	require.NoError(t, err)
+	req = req.Clone(t.Context())
+	// The requests is now cloned, but it's a shallow clone holding a pointer to the original
+	// body. Let's now set a the cloned body.
+	utils.OverwriteRequestBodyNoDrain(req, data)
+	require.NoError(t, err)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = append(r.requests, req)
+}
+
+func (r *testHTTPRequestRecorder) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = r.requests[:0]
+}
+
+func (r *testHTTPRequestRecorder) HTTPRequests() []*http.Request {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.requests
+}
+
+func testGetRequestPayload(t *testing.T, req *http.Request) []byte {
+	t.Helper()
+	defer req.Body.Close()
+	payload, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	return payload
+}
+
+func testJSON(t *testing.T, v any) []byte {
 	t.Helper()
 	data, err := json.Marshal(v)
 	require.NoError(t, err)
-	return string(data)
+	return data
+}
+
+func requireDeniedToolResponse(t *testing.T, respJSON []byte) {
+	t.Helper()
+	requireRequestResponseError(t, respJSON, mcp.INVALID_PARAMS, "User does not have permissions")
+}
+
+func requireToolNameMissingResponse(t *testing.T, respJSON []byte) {
+	t.Helper()
+	requireRequestResponseError(t, respJSON, mcp.INVALID_REQUEST, errInvalidRequestMissingName.Error())
+}
+
+func requireRequestResponseError(t *testing.T, respJSON []byte, expectedCode int, includedData string) {
+	t.Helper()
+
+	var baseMessage mcputils.BaseJSONRPCMessage
+	err := json.Unmarshal(respJSON, &baseMessage)
+	require.NoError(t, err, string(respJSON))
+
+	// Case everything to string so it's displayed nicely in case of error.
+	require.Empty(t, string(baseMessage.Result), string(respJSON))
+	require.NotEmpty(t, baseMessage.ID)
+	require.NotEmpty(t, string(baseMessage.Error))
+
+	var messageErrorDetails map[string]json.RawMessage
+	err = json.Unmarshal(baseMessage.Error, &messageErrorDetails)
+	require.NoError(t, err)
+
+	require.Contains(t, messageErrorDetails, "code")
+	var code int
+	err = json.Unmarshal(messageErrorDetails["code"], &code)
+	require.NoError(t, err)
+	require.Equal(t, expectedCode, code)
+
+	require.Contains(t, messageErrorDetails, "data")
+	escapedIncludedData, err := json.Marshal(includedData)
+	escapedIncludedData = escapedIncludedData[1 : len(escapedIncludedData)-1]
+	require.NoError(t, err)
+	require.Contains(t, string(messageErrorDetails["data"]), string(escapedIncludedData))
 }

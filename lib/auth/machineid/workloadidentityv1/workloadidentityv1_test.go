@@ -2396,7 +2396,7 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2422,7 +2422,9 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a pre-existing workload identities
-	// Two complete pages of ten, plus one incomplete page of nine
+	// Two complete pages of ten, plus one incomplete page of nine.
+	// SPIFFE IDs alternate between /test/0/ and /test/1/ so the search-filter
+	// subtest can match on a field other than name.
 	created := []*workloadidentityv1pb.WorkloadIdentity{}
 	for i := range 29 {
 		r, err := srv.Auth().CreateWorkloadIdentity(
@@ -2435,7 +2437,7 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 				}.Build(),
 				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
 					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
-						Id: "/example",
+						Id: fmt.Sprintf("/test/%d/id%d", i%2, i),
 					}.Build(),
 				}.Build(),
 			}.Build())
@@ -2497,6 +2499,32 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 			require.True(t, slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
 				return proto.Equal(created, resource)
 			}))
+		}
+	})
+
+	t.Run("success - search filter", func(t *testing.T) {
+		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(
+			authorizedClient.GetConnection(),
+		)
+
+		// The filter is applied at the gRPC layer over the ranged results. The
+		// "test/1" term matches on SPIFFE ID, selecting the odd-indexed
+		// preexisting identities (/test/1/...).
+		var want []*workloadidentityv1pb.WorkloadIdentity
+		for _, wi := range created {
+			if strings.Contains(wi.GetSpec().GetSpiffe().GetId(), "/test/1/") {
+				want = append(want, wi)
+			}
+		}
+		require.NotEmpty(t, want)
+
+		res, err := client.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			FilterSearchTerm: "test/1",
+		}.Build())
+		require.NoError(t, err)
+		require.Len(t, res.GetWorkloadIdentities(), len(want))
+		for _, wi := range res.GetWorkloadIdentities() {
+			require.Contains(t, wi.GetSpec().GetSpiffe().GetId(), "/test/1/")
 		}
 	})
 }

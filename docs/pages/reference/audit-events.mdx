@@ -1180,6 +1180,84 @@ Example:
 }
 ```
 
+## beams.config.create
+
+Beams Config Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM001I",
+  "ei": 0,
+  "event": "beams.config.create",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "e1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
+## beams.config.delete
+
+Beams Config Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM003I",
+  "ei": 0,
+  "event": "beams.config.delete",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:23.869Z",
+  "uid": "a3973df2-4bee-4a67-9925-575c1d38cc82",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
+## beams.config.update
+
+Beams Config Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM002I",
+  "ei": 0,
+  "event": "beams.config.update",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:22.869Z",
+  "uid": "f2973df2-4bee-4a67-9925-575c1d38cc81",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
 ## billing.create_card
 
 Credit Card Added
@@ -1379,6 +1457,21 @@ Example:
   "success": false,
   "time": "2024-04-08T17:33:48.877Z",
   "uid": "2bc5e2cb-5ba1-47d7-a7ae-381cf323ae7f"
+}
+```
+
+### TJ001L
+
+Bot Join Failed
+
+Example:
+
+```json
+{
+  "code": "TJ001L",
+  "event": "bot.join",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 
@@ -1584,6 +1677,217 @@ Example:
   "user_kind": 1,
   "user_roles": [
     "editor"
+  ]
+}
+```
+
+## classifier.create
+
+There are multiple events with the `classifier.create` type.
+
+### INF014I
+
+Classifier Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF014I",
+  "ei": 0,
+  "event": "classifier.create",
+  "name": "my-classifier",
+  "success": true,
+  "time": "2025-03-04T16:01:21.869Z",
+  "uid": "ae973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "my-classifier"
+    },
+    "spec": {
+      "kinds": [
+        "ssh",
+        "k8s"
+      ],
+      "resource_labels": [
+        {
+          "name": "env",
+          "values": [
+            "prod"
+          ]
+        }
+      ],
+      "v1": {}
+    }
+  }
+}
+```
+
+### INF014E
+
+Classifier Creation Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF014E",
+  "ei": 0,
+  "event": "classifier.create",
+  "name": "my-classifier",
+  "error": "classifier \"my-classifier\" already exists",
+  "success": false,
+  "time": "2025-03-04T16:01:31.869Z",
+  "uid": "b1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## classifier.delete
+
+There are multiple events with the `classifier.delete` type.
+
+### INF016I
+
+Classifier Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF016I",
+  "ei": 0,
+  "event": "classifier.delete",
+  "name": "my-classifier",
+  "success": true,
+  "time": "2025-03-04T16:03:21.869Z",
+  "uid": "b0973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+### INF016E
+
+Classifier Deletion Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF016E",
+  "ei": 0,
+  "event": "classifier.delete",
+  "name": "my-classifier",
+  "error": "classifier \"my-classifier\" doesn't exist",
+  "success": false,
+  "time": "2025-03-04T16:03:31.869Z",
+  "uid": "b3973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## classifier.update
+
+There are multiple events with the `classifier.update` type.
+
+### INF015I
+
+Classifier Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF015I",
+  "ei": 0,
+  "event": "classifier.update",
+  "name": "my-classifier",
+  "success": true,
+  "time": "2025-03-04T16:02:21.869Z",
+  "uid": "af973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "my-classifier"
+    },
+    "spec": {
+      "kinds": [
+        "ssh"
+      ],
+      "resource_labels": [
+        {
+          "name": "env",
+          "values": [
+            "prod",
+            "staging"
+          ]
+        }
+      ],
+      "v1": {}
+    }
+  }
+}
+```
+
+### INF015E
+
+Classifier Update Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF015E",
+  "ei": 0,
+  "event": "classifier.update",
+  "name": "my-classifier",
+  "error": "classifier \"my-classifier\" doesn't exist",
+  "success": false,
+  "time": "2025-03-04T16:02:31.869Z",
+  "uid": "b2973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
   ]
 }
 ```
@@ -3972,10 +4276,46 @@ Example:
 
 ```json
 {
+  "cluster_name": "root.tele.ottr.sh",
   "code": "TJ002E",
+  "ei": 0,
   "event": "instance.join",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+  "error": "token expired or not found",
+  "method": "token",
+  "node_name": "noah-laptop-follower",
+  "role": "Instance",
+  "success": true,
+  "time": "2022-12-06T09:17:06.392Z",
+  "token_name": "************************a2418147",
+  "uid": "c1ea0e6c-ee3a-4f7e-9a98-9df283b01a98"
+}
+```
+
+### TJ002L
+
+Instance Join Limit
+
+Example:
+
+```json
+{
+  "cluster_name": "root.tele.ottr.sh",
+  "code": "TJ002L",
+  "ei": 0,
+  "event": "instance.join",
+  "error": "scoped token usage exhausted",
+  "method": "token",
+  "node_name": "noah-laptop-follower",
+  "role": "Instance",
+  "success": true,
+  "time": "2022-12-06T09:17:06.392Z",
+  "token_name": "************************a2418147",
+  "uid": "c1ea0e6c-ee3a-4f7e-9a98-9df283b01a98",
+  "scope": "/ottr",
+  "roles": [
+    "Node",
+    "Kube"
+  ]
 }
 ```
 
@@ -5770,6 +6110,197 @@ Example:
   "teleport_id": "test@example.com",
   "external_id": "external-id-000123456789",
   "display": "test@example.com"
+}
+```
+
+## scoped_token.create
+
+There are multiple events with the `scoped_token.create` type.
+
+### TST000I
+
+Scoped Join Token Created
+
+Example:
+
+```json
+{
+  "code": "TST000I",
+  "event": "scoped_token.create",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "success": true,
+  "user": "alice@example.com"
+}
+```
+
+### TST000E
+
+Scoped Join Token Create Failed
+
+Example:
+
+```json
+{
+  "code": "TST000E",
+  "event": "scoped_token.create",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed create event"
+}
+```
+
+## scoped_token.delete
+
+There are multiple events with the `scoped_token.delete` type.
+
+### TST003I
+
+Scoped Join Token Deleted
+
+Example:
+
+```json
+{
+  "code": "TST003I",
+  "event": "scoped_token.delete",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "scope": "/test",
+  "user": "alice@example.com"
+}
+```
+
+### TST003E
+
+Scoped Join Token Delete Failed
+
+Example:
+
+```json
+{
+  "code": "TST003E",
+  "event": "scoped_token.delete",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed delete event"
+}
+```
+
+## scoped_token.update
+
+There are multiple events with the `scoped_token.update` type.
+
+### TST002I
+
+Scoped Join Token Updated
+
+Example:
+
+```json
+{
+  "code": "TST002I",
+  "event": "scoped_token.update",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com"
+}
+```
+
+### TST002E
+
+Scoped Join Token Update Failed
+
+Example:
+
+```json
+{
+  "code": "TST002E",
+  "event": "scoped_token.update",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed update event"
+}
+```
+
+## scoped_token.upsert
+
+There are multiple events with the `scoped_token.upsert` type.
+
+### TST001I
+
+Scoped Join Token Upserted
+
+Example:
+
+```json
+{
+  "code": "TST001I",
+  "event": "scoped_token.upsert",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com"
+}
+```
+
+### TST001E
+
+Scoped Join Token Upsert Failed
+
+Example:
+
+```json
+{
+  "code": "TST001E",
+  "event": "scoped_token.upsert",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed upsert event"
 }
 ```
 

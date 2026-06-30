@@ -368,6 +368,7 @@ export const kubernetesVerbOptions: KubernetesVerbOption[] = [
       // in our config. We may want to explain them in the UI somehow.
       'exec',
       'portforward',
+      'proxy',
     ] as const
   )
     .toSorted((a, b) => a.localeCompare(b))
@@ -1307,6 +1308,7 @@ const additionalVerbs = new Map<string, Verb[]>([
   [ResourceKind.GithubConnector, ['readnosecrets']],
   [ResourceKind.Semaphore, ['readnosecrets']],
   [ResourceKind.Device, ['create_enroll_token', 'enroll']],
+  [ResourceKind.MobileDevice, ['create_enroll_token']],
   [ResourceKind.AuditQuery, ['use']],
   [ResourceKind.SecurityReport, ['use']],
   [ResourceKind.Integration, ['use']],

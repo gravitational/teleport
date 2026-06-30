@@ -393,6 +393,23 @@ const (
 	// [github.com/gravitational/teleport/api/types.ProvisionToken].
 	ProvisionTokenCreateCode = "TJT00I"
 
+	// ScopedTokenCreateCode is the event code for creating a scoped token.
+	ScopedTokenCreateCode = "TST000I"
+	// ScopedTokenCreateFailureCode is the event code for failing to create a scoped token.
+	ScopedTokenCreateFailureCode = "TST000E"
+	// ScopedTokenUpsertCode is the event code for upserting a scoped token.
+	ScopedTokenUpsertCode = "TST001I"
+	// ScopedTokenUpsertFailureCode is the event code failing to upsert a scoped token.
+	ScopedTokenUpsertFailureCode = "TST001E"
+	// ScopedTokenUpdateCode is the event code for updating a scoped token.
+	ScopedTokenUpdateCode = "TST002I"
+	// ScopedTokenUpdateFailureCode is the event code for failing to update a scoped token.
+	ScopedTokenUpdateFailureCode = "TST002E"
+	// ScopedTokenDeleteCode is the event code for deleting a scoped token.
+	ScopedTokenDeleteCode = "TST003I"
+	// ScopedTokenDeleteFailureCode is the event code for failing to delete a scoped token.
+	ScopedTokenDeleteFailureCode = "TST003E"
+
 	// GithubConnectorCreatedCode is the Github connector created event code.
 	GithubConnectorCreatedCode = "T8000I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.
@@ -425,10 +442,15 @@ const (
 	BotJoinCode = "TJ001I"
 	// BotJoinFailureCode is the 'bot.join' event code for failures.
 	BotJoinFailureCode = "TJ001E"
+	// BotJoinLimitCode is the 'bot.join' event code for failures due to token limits.
+	BotJoinLimitCode = "TJ001L"
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
 	// InstanceJoinFailureCode is the 'node.join' event code for failures.
 	InstanceJoinFailureCode = "TJ002E"
+	// InstanceJoinLimitCode is the 'node.join' event code for failures due to
+	// usage limits.
+	InstanceJoinLimitCode = "TJ002L"
 
 	// BotCreateCode is the `bot.create` event code.
 	BotCreateCode = "TB001I"
@@ -898,6 +920,19 @@ const (
 	// RetrievalModelDeleteCode is the retrieval model delete event code.
 	RetrievalModelDeleteCode = "INF013I"
 
+	// ClassifierCreateCode is the classifier create event code.
+	ClassifierCreateCode = "INF014I"
+	// ClassifierCreateFailureCode is the classifier create failure event code.
+	ClassifierCreateFailureCode = "INF014E"
+	// ClassifierUpdateCode is the classifier update event code.
+	ClassifierUpdateCode = "INF015I"
+	// ClassifierUpdateFailureCode is the classifier update failure event code.
+	ClassifierUpdateFailureCode = "INF015E"
+	// ClassifierDeleteCode is the classifier delete event code.
+	ClassifierDeleteCode = "INF016I"
+	// ClassifierDeleteFailureCode is the classifier delete failure event code.
+	ClassifierDeleteFailureCode = "INF016E"
+
 	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
 	CertAuthOverrideCreateCode = "TCO01I"
 	// CertAuthOverrideUpdateCode is the cert_auth_override update event code.
@@ -915,6 +950,13 @@ const (
 	// CertAuthOverrideCertificatesRemoveCode is the event code for specialized
 	// RemoveCertificateOverride operation.
 	CertAuthOverrideCertificatesRemoveCode = "TCO07I"
+
+	// BeamsConfigCreateCode is the Beams config create event code.
+	BeamsConfigCreateCode = "TBEAM001I"
+	// BeamsConfigUpdateCode is the Beams config update event code.
+	BeamsConfigUpdateCode = "TBEAM002I"
+	// BeamsConfigDeleteCode is the Beams config delete event code.
+	BeamsConfigDeleteCode = "TBEAM003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

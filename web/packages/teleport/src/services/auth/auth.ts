@@ -412,22 +412,23 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
-  getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
-    // If the client is checking if MFA is required for an admin action,
-    // but we know admin action MFA is not enforced, return early.
-    if (!cfg.isAdminActionMfaEnforced()) {
+  async getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
+    // Skip the challenge if we know it's not enforced.
+    if (cfg.isAdminActionMfaEnforced() === false) {
       return;
     }
 
-    return auth
-      .getMfaChallenge({
-        scope: MfaChallengeScope.ADMIN_ACTION,
-        allowReuse: allowReuse,
-        isMfaRequiredRequest: {
-          admin_action: {},
-        },
-      })
-      .then(auth.getMfaChallengeResponse);
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: allowReuse,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
+    if (!challenge) {
+      return;
+    }
+    return auth.getMfaChallengeResponse(challenge);
   },
 };
 

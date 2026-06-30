@@ -373,6 +373,15 @@ const (
 	// also known as Join Token. See [types.ProvisionToken].
 	ProvisionTokenCreateEvent = "join_token.create"
 
+	// ScopedTokenCreateEvent is the event for creating a scoped token.
+	ScopedTokenCreateEvent = "scoped_token.create"
+	// ScopedTokenUpsertEvent is the event for upserting a scoped token.
+	ScopedTokenUpsertEvent = "scoped_token.upsert"
+	// ScopedTokenUpdateEvent is the event for updating a scoped token.
+	ScopedTokenUpdateEvent = "scoped_token.update"
+	// ScopedTokenDeleteEvent is the event for deleting a scoped token.
+	ScopedTokenDeleteEvent = "scoped_token.delete"
+
 	// GithubConnectorCreatedEvent fires when a Github connector is created.
 	GithubConnectorCreatedEvent = "github.created"
 	// GithubConnectorUpdatedEvent fires when a Github connector is updated.
@@ -1038,6 +1047,13 @@ const (
 	// RetrievalModelDeleteEvent is emitted when a retrieval model resource is deleted.
 	RetrievalModelDeleteEvent = "retrieval_model.delete"
 
+	// ClassifierCreateEvent is emitted when a classifier resource is created.
+	ClassifierCreateEvent = "classifier.create"
+	// ClassifierUpdateEvent is emitted when a classifier resource is updated.
+	ClassifierUpdateEvent = "classifier.update"
+	// ClassifierDeleteEvent is emitted when a classifier resource is deleted.
+	ClassifierDeleteEvent = "classifier.delete"
+
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"
 
@@ -1053,6 +1069,13 @@ const (
 	// CertAuthOverrideDeleteEvent is the delete event for cert_auth_override
 	// resources.
 	CertAuthOverrideDeleteEvent = "cert_auth_override.delete"
+
+	// BeamsConfigCreateEvent is emitted when a Beams config resource is created.
+	BeamsConfigCreateEvent = "beams.config.create"
+	// BeamsConfigUpdateEvent is emitted when a Beams config resource is updated.
+	BeamsConfigUpdateEvent = "beams.config.update"
+	// BeamsConfigDeleteEvent is emitted when a Beams config resource is deleted.
+	BeamsConfigDeleteEvent = "beams.config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

@@ -98,9 +98,9 @@ func TestProperty_RDPState_AfterReleaseNeverPanics(t *testing.T) {
 			_ = s.UpdatedRegions()
 
 			s.ResetUpdatedRegions()
-			img, cs := s.ImageWithCursor()
+			img, err := s.ResizeCrop(0, 0, 1, 1, 1, 1, true)
 			_ = img
-			_ = cs
+			_ = err
 		})
 	})
 }
