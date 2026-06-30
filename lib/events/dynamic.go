@@ -109,6 +109,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.Subsystem{}
 	case X11ForwardEvent:
 		e = &events.X11Forward{}
+	case AgentForwardEvent:
+		e = &events.AgentForward{}
 	case PortForwardEvent:
 		e = &events.PortForward{}
 	case PortForwardLocalEvent:
@@ -649,14 +651,20 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		CertAuthOverrideUpsertEvent,
 		CertAuthOverrideDeleteEvent:
 		e = &events.CertAuthorityOverrideEvent{}
-
+	case ScopedTokenCreateEvent:
+		e = &events.ScopedTokenCreate{}
+	case ScopedTokenUpsertEvent:
+		e = &events.ScopedTokenCreate{}
+	case ScopedTokenUpdateEvent:
+		e = &events.ScopedTokenUpdate{}
+	case ScopedTokenDeleteEvent:
+		e = &events.ScopedTokenDelete{}
 	case BeamsConfigCreateEvent:
 		e = &events.BeamsConfigCreate{}
 	case BeamsConfigUpdateEvent:
 		e = &events.BeamsConfigUpdate{}
 	case BeamsConfigDeleteEvent:
 		e = &events.BeamsConfigDelete{}
-
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}

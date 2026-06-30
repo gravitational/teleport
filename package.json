@@ -28,6 +28,8 @@
     "format": "oxfmt 'e/**/*.{ts,tsx,js,jsx,mts}' 'web/**/*.{ts,tsx,js,jsx,mts}' 'e2e/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "pnpm optimize-resource-icons && node web/packages/design/src/Icon/script/script.js && pnpm oxfmt 'web/packages/design/src/Icon/**/*.tsx'",
     "list-installed-versions": "./web/scripts/list-installed-versions.sh",
+    "postinstall": "pnpm generate-theme",
+    "generate-theme": "design-system typegen",
     "nop": "exit 0"
   },
   "private": true,
@@ -70,6 +72,8 @@
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/view": "^6.43.0",
     "@floating-ui/react": "^0.27.19",
+    "@fontsource/ubuntu": "^5.2.8",
+    "@gravitational/design-system": "https://github.com/gravitational/design-system/releases/download/v0.1.2/design-system.tgz",
     "@grpc/grpc-js": "1.14.4",
     "@hookform/resolvers": "^5.4.0",
     "@lezer/highlight": "^1.2.3",
@@ -107,7 +111,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@11.3.0+sha512.2c403d6594527287672b1f7056343a1f7c3634036a67ffabfcc2b3d7595d843768f8787148d1b57cf7956c90606bbd192857c363af19e96d2d0ec9ec5741d215",
+  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b",
   "engines": {
     "node": "^24"
   }

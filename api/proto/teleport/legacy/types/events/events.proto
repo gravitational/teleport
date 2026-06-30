@@ -1450,6 +1450,9 @@ message ResourceMetadata {
   // used for compatibility purposes for some events, Expires should be used instead
   // as it's more useful (contains exact expiration date/time)
   string TTL = 4 [(gogoproto.jsontag) = "ttl,omitempty"];
+
+  // The scope the resource belongs to.
+  string scope = 5 [(gogoproto.jsontag) = "scope,omitempty"];
 }
 
 // UserCreate is emitted when the user is created or upserted.
@@ -1864,6 +1867,13 @@ message X11Forward {
 
   // Status contains operation success or failure status
   Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata holds server information.
+  ServerMetadata Server = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -2529,6 +2539,113 @@ message TrustedClusterDelete {
 
   // ConnectionMetadata holds information about the connection
   ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// The metadata for a scoped token.
+message ScopedTokenMetadata {
+  // The roles that the scoped token can provision.
+  repeated string roles = 1;
+  // The join method that the scoped token can be used with.
+  string join_method = 2;
+  // The usage mode that the scoped token adheres to.
+  string usage_mode = 3;
+  // The scope that the scoped token assigns to provisioned
+  // resources.
+  string assigned_scope = 4;
+}
+
+// The event emitted when a scoped token is created.
+message ScopedTokenCreate {
+  // Common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common user event metadata
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether operation was successful or not.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  ScopedTokenMetadata scoped_token = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// The event emitted when a scoped token is updated.
+message ScopedTokenUpdate {
+  // Common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common user event metadata
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether operation was successful or not.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  ScopedTokenMetadata scoped_token = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// The event emitted when a scoped token is deleted.
+message ScopedTokenDelete {
+  // Common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common user event metadata
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether operation was successful or not.
+  Status Status = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -4412,6 +4529,10 @@ message InstanceJoin {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // The scope the instance will belong to.
+  string scope = 11;
+  // The roles granted by the token.
+  repeated string roles = 12;
 }
 
 // Unknown is a fallback event used when we don't recognize an event from the backend.
@@ -5208,6 +5329,10 @@ message OneOf {
     events.ClassifierCreate ClassifierCreate = 260;
     events.ClassifierUpdate ClassifierUpdate = 261;
     events.ClassifierDelete ClassifierDelete = 262;
+    events.ScopedTokenCreate ScopedTokenCreate = 263;
+    events.ScopedTokenUpdate ScopedTokenUpdate = 264;
+    events.ScopedTokenDelete ScopedTokenDelete = 265;
+    events.AgentForward AgentForward = 266;
   }
 }
 
@@ -10869,6 +10994,44 @@ message ClassifierDelete {
 
   // Status indicates whether the deletion was successful.
   Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AgentForward is emitted when a user requests SSH agent forwarding.
+message AgentForward {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains operation success or failure status
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata holds server information.
+  ServerMetadata Server = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

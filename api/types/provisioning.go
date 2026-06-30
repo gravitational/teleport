@@ -758,15 +758,15 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 	return name
 }
 
-// GetAssignedScope always returns an empty string because a [ProvisionTokenV2] is always
-// unscoped
-func (p *ProvisionTokenV2) GetAssignedScope() string {
-	return ""
-}
-
 // GetScope always returns an empty string because a [ProvisionTokenV2] is always
 // unscoped
 func (p *ProvisionTokenV2) GetScope() string {
+	return ""
+}
+
+// GetAssignedScope always returns an empty string because a [ProvisionTokenV2] is always
+// unscoped
+func (p *ProvisionTokenV2) GetAssignedScope() string {
 	return ""
 }
 

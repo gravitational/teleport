@@ -1343,6 +1343,25 @@ func (c *ServerContext) GetPortForwardEvent(evType, code, addr string) apievents
 	}
 }
 
+func (c *ServerContext) GetAgentForwardEvent() *apievents.AgentForward {
+	sconn := c.ConnectionContext.ServerConn
+	return &apievents.AgentForward{
+		Metadata: apievents.Metadata{
+			Type: events.AgentForwardEvent,
+			Code: events.AgentForwardCode,
+		},
+		UserMetadata: c.Identity.GetUserMetadata(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  sconn.LocalAddr().String(),
+			RemoteAddr: sconn.RemoteAddr().String(),
+		},
+		ServerMetadata: c.ServerMetadata(),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+}
+
 func (c *ServerContext) setApprovedFileTransferRequest(req *reexecsftp.FileTransferRequest) {
 	c.mu.Lock()
 	c.approvedFileReq = req
