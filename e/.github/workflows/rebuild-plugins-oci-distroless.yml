@@ -54,6 +54,7 @@ jobs:
       contents: read
       actions: read
     strategy:
+      fail-fast: false
       matrix:
         plugins:
           # Access plugins
