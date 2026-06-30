@@ -81,6 +81,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -2082,9 +2083,17 @@ func (tc *TeleportClient) connectToNode(ctx context.Context, clt *ClusterClient,
 		return nil, trace.Wrap(err)
 	}
 
+	sshConfig := clt.ProxyClient.SSHConfig(user)
+	sshConfig.AuthCallback = clientssh.AuthCallback(
+		connectCtx,
+		clientssh.AuthCallbackConfig{
+			MFAPerformer: clt.PerformSessionMFACeremony,
+		},
+	)
+
 	nodeClient, err := NewNodeClient(
 		connectCtx,
-		clt.ProxyClient.SSHConfig(user),
+		sshConfig,
 		conn,
 		nodeDetails.ProxyFormat(),
 		nodeDetails.Addr,

@@ -115,9 +115,9 @@ func makeSSEBaseURI(app types.Application) (*url.URL, error) {
 		return nil, trace.Wrap(err, "parsing SSE URI")
 	}
 	switch {
-	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTP):
+	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTP+"://"):
 		baseURL.Scheme = "http"
-	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTPS):
+	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTPS+"://"):
 		baseURL.Scheme = "https"
 	default:
 		return nil, trace.BadParameter("unknown scheme type: %v", baseURL.Scheme)

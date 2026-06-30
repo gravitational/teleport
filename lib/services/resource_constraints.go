@@ -116,6 +116,37 @@ func buildStringConstraintTransform(
 	}
 }
 
+// BuildResourceConstraintMatchers returns RoleMatchers derived from any
+// ResourceConstraints requested for the given resource, correlating the
+// resource against resourceAccessIDs by kind and name. Entries without
+// constraints contribute no matchers, so resource kinds that cannot carry
+// constraints are unaffected.
+//
+// Correlating by kind and name mirrors how requested resources are looked up
+// from their IDs (see [accessrequest.GetResourcesByResourceIDs]); callers are
+// expected to pass resources and resourceAccessIDs scoped to the same cluster.
+//
+// TODO(kiosion): When constraints extend for Kubernetes support, kube sub-resource
+// IDs need name-only correlation against the kube_cluster resource, like
+// getKubeResourcesFromResourceIDs
+func BuildResourceConstraintMatchers(resourceAccessIDs []types.ResourceAccessID, resource types.Resource) ([]RoleMatcher, error) {
+	var matchers []RoleMatcher
+	for _, raid := range resourceAccessIDs {
+		rid := raid.GetResourceID()
+		if rid.Name != resource.GetName() || rid.Kind != resource.GetKind() {
+			continue
+		}
+		rm, err := MatcherFromConstraints(raid.GetConstraints())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if rm != nil {
+			matchers = append(matchers, rm)
+		}
+	}
+	return matchers, nil
+}
+
 // MatcherFromConstraints constructs a RoleMatcher encoding the requested
 // ResourceConstraints for role resolution/validation time.
 //

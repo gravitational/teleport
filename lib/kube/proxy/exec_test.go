@@ -20,16 +20,17 @@ package proxy
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,9 +41,15 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 
 	"github.com/gravitational/teleport"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 var (
@@ -67,10 +74,15 @@ func TestExecKubeService(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+			Scope:    scopedTestScope,
+			ScopesFeatures: scopes.Features{
+				Enabled:         true,
+				AgentPinEnabled: true,
+			},
 		},
 	)
 
@@ -93,7 +105,6 @@ func TestExecKubeService(t *testing.T) {
 		userWithSingleKubeUser.GetName(),
 		kubeCluster,
 	)
-	require.NoError(t, err)
 
 	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
 	userMultiKubeUsers, _ := testCtx.CreateUserAndRole(
@@ -102,7 +113,7 @@ func TestExecKubeService(t *testing.T) {
 		usernameMultiUsers,
 		RoleSpec{
 			Name:       roleNameMultiUsers,
-			KubeUsers:  append(roleKubeUsers, "admin"),
+			KubeUsers:  append(slices.Clone(roleKubeUsers), "admin"),
 			KubeGroups: roleKubeGroups,
 		})
 
@@ -112,8 +123,60 @@ func TestExecKubeService(t *testing.T) {
 		userMultiKubeUsers.GetName(),
 		kubeCluster,
 	)
-	require.NoError(t, err)
+	scopedWithSingleKubeUser, scopedSingleKubeUserRole := testCtx.CreateUserAndScopedRole(
+		t,
+		"scoped-"+username,
+		scopedTestScope,
+		accessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{scopedTestScope},
+			Kube: accessv1.ScopedRoleKube_builder{
+				Users:  roleKubeUsers,
+				Groups: roleKubeGroups,
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   types.Wildcard,
+						Values: []string{types.Wildcard},
+					}.Build(),
+				},
+			}.Build(),
+		}.Build())
 
+	scopedMultiKubeUsers, scopedMultiKubeUserRole := testCtx.CreateUserAndScopedRole(
+		t,
+		"scoped-"+usernameMultiUsers,
+		scopedTestScope,
+		accessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{scopedTestScope},
+			Kube: accessv1.ScopedRoleKube_builder{
+				Users:  append(slices.Clone(roleKubeUsers), "admin"),
+				Groups: roleKubeGroups,
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   types.Wildcard,
+						Values: []string{types.Wildcard},
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	)
+	waitForSRACache(t, testCtx.TLSServer, scopedSingleKubeUserRole, scopedMultiKubeUserRole)
+
+	_, scopedConfigWithSingleKubeUser := testCtx.GenTestKubeClientTLSCert(
+		t,
+		scopedWithSingleKubeUser.GetName(),
+		kubeCluster,
+		func(i *tlsca.Identity) {
+			i.ScopePin = testCtx.GetScopePinForUser(t, scopedWithSingleKubeUser.GetName(), scopedTestScope)
+		},
+	)
+	_, scopedConfigMultiKubeUsers := testCtx.GenTestKubeClientTLSCert(
+		t,
+		scopedMultiKubeUsers.GetName(),
+		kubeCluster,
+		func(i *tlsca.Identity) {
+			i.ScopePin = testCtx.GetScopePinForUser(t, scopedMultiKubeUsers.GetName(), scopedTestScope)
+		},
+	)
 	type args struct {
 		executorBuilder func(*rest.Config, string, *url.URL) (remotecommand.Executor, error)
 		impersonateUser string
@@ -132,6 +195,13 @@ func TestExecKubeService(t *testing.T) {
 			},
 		},
 		{
+			name: "SPDY protocol - scoped",
+			args: args{
+				executorBuilder: remotecommand.NewSPDYExecutor,
+				config:          scopedConfigWithSingleKubeUser,
+			},
+		},
+		{
 			name: "Websocket protocol v4",
 			args: args{
 				// We can delete the dummy client once https://github.com/kubernetes/kubernetes/pull/110142
@@ -144,6 +214,18 @@ func TestExecKubeService(t *testing.T) {
 			},
 		},
 		{
+			name: "Websocket protocol v4 - scoped",
+			args: args{
+				// We can delete the dummy client once https://github.com/kubernetes/kubernetes/pull/110142
+				// is merged into k8s go-client.
+				// For now go-client does not support connections over websockets.
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return newWebSocketClient(c, s, u)
+				},
+				config: scopedConfigWithSingleKubeUser,
+			},
+		},
+		{
 			name: "Websocket protocol v5",
 			args: args{
 				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
@@ -153,10 +235,27 @@ func TestExecKubeService(t *testing.T) {
 			},
 		},
 		{
+			name: "Websocket protocol v5 - scoped",
+			args: args{
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return remotecommand.NewWebSocketExecutor(c, s, u.String())
+				},
+				config: scopedConfigWithSingleKubeUser,
+			},
+		},
+		{
 			name: "SPDY protocol for user with multiple kubernetes users",
 			args: args{
 				executorBuilder: remotecommand.NewSPDYExecutor,
 				config:          configMultiKubeUsers,
+				impersonateUser: "admin",
+			},
+		},
+		{
+			name: "SPDY protocol for user with multiple kubernetes users - scoped",
+			args: args{
+				executorBuilder: remotecommand.NewSPDYExecutor,
+				config:          scopedConfigMultiKubeUsers,
 				impersonateUser: "admin",
 			},
 		},
@@ -174,12 +273,35 @@ func TestExecKubeService(t *testing.T) {
 			},
 		},
 		{
+			name: "Websocket protocol v4 for user with multiple kubernetes users - scoped",
+			args: args{
+				// We can delete the dummy client once https://github.com/kubernetes/kubernetes/pull/110142
+				// is merged into k8s go-client.
+				// For now go-client does not support connections over websockets.
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return newWebSocketClient(c, s, u)
+				},
+				config:          scopedConfigMultiKubeUsers,
+				impersonateUser: "admin",
+			},
+		},
+		{
 			name: "Websocket protocol v5 for user with multiple kubernetes users",
 			args: args{
 				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
 					return remotecommand.NewWebSocketExecutor(c, s, u.String())
 				},
 				config:          configMultiKubeUsers,
+				impersonateUser: "admin",
+			},
+		},
+		{
+			name: "Websocket protocol v5 for user with multiple kubernetes users - scoped",
+			args: args{
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return remotecommand.NewWebSocketExecutor(c, s, u.String())
+				},
+				config:          scopedConfigMultiKubeUsers,
 				impersonateUser: "admin",
 			},
 		},
@@ -192,12 +314,30 @@ func TestExecKubeService(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "SPDY protocol for user with multiple kubernetes users without specifying impersonate user - scoped",
+			args: args{
+				executorBuilder: remotecommand.NewSPDYExecutor,
+				config:          scopedConfigMultiKubeUsers,
+			},
+			wantErr: true,
+		},
+		{
 			name: "Websocket protocol v5 for user with multiple kubernetes users without specifying impersonate user",
 			args: args{
 				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
 					return remotecommand.NewWebSocketExecutor(c, s, u.String())
 				},
 				config: configMultiKubeUsers,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Websocket protocol v5 for user with multiple kubernetes users without specifying impersonate user - scoped",
+			args: args{
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return remotecommand.NewWebSocketExecutor(c, s, u.String())
+				},
+				config: scopedConfigMultiKubeUsers,
 			},
 			wantErr: true,
 		},
@@ -306,7 +446,6 @@ func generateExecRequest(cfg generateExecRequestConfig) (*rest.Request, error) {
 
 func TestExecMissingGETPermissionError(t *testing.T) {
 	t.Parallel()
-
 	const (
 		errorMessage = "pods \"api-1\" is forbidden: User \"bar\" cannot %s resource " +
 			"\"pods/exec\" in API group \"\" in the namespace \"ns\""
@@ -316,6 +455,7 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 		errorMessage   string
 		errorInspector func(*testing.T, error)
 		interactive    bool
+		scope          string
 	}{
 		{
 			name:         "missing get permission",
@@ -349,110 +489,149 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			const errorCode = http.StatusForbidden
+		for _, scope := range []string{"", scopedTestScope} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				const errorCode = http.StatusForbidden
 
-			kubeMock, err := testingkubemock.NewKubeAPIMock(
-				testingkubemock.WithExecError(
-					metav1.Status{
-						Status:  metav1.StatusFailure,
-						Message: tt.errorMessage,
-						Reason:  metav1.StatusReasonForbidden,
-						Code:    errorCode,
+				kubeMock, err := testingkubemock.NewKubeAPIMock(
+					testingkubemock.WithExecError(
+						metav1.Status{
+							Status:  metav1.StatusFailure,
+							Message: tt.errorMessage,
+							Reason:  metav1.StatusReasonForbidden,
+							Code:    errorCode,
+						},
+					),
+				)
+				require.NoError(t, err)
+				t.Cleanup(func() { kubeMock.Close() })
+				var (
+					execEvent  *apievents.Exec
+					eventsLock sync.Mutex
+				)
+
+				// creates a Kubernetes service with a configured cluster pointing to mock api server
+				testCtx := SetupTestContext(
+					t.Context(),
+					t,
+					TestConfig{
+						Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+						OnEvent: func(evt apievents.AuditEvent) {
+							eventsLock.Lock()
+							defer eventsLock.Unlock()
+							if exec, ok := evt.(*apievents.Exec); ok {
+								execEvent = exec
+							}
+						},
+						Scope: scope,
+						ScopesFeatures: scopes.Features{
+							Enabled:         true,
+							AgentPinEnabled: true,
+						},
 					},
-				),
-			)
-			require.NoError(t, err)
-			t.Cleanup(func() { kubeMock.Close() })
-			var (
-				execEvent  *apievents.Exec
-				eventsLock sync.Mutex
-			)
+				)
 
-			// creates a Kubernetes service with a configured cluster pointing to mock api server
-			testCtx := SetupTestContext(
-				context.Background(),
-				t,
-				TestConfig{
-					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-					OnEvent: func(evt apievents.AuditEvent) {
-						eventsLock.Lock()
-						defer eventsLock.Unlock()
-						if exec, ok := evt.(*apievents.Exec); ok {
-							execEvent = exec
-						}
+				t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+				// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+				user, _ := testCtx.CreateUserAndRole(
+					testCtx.Context,
+					t,
+					username,
+					RoleSpec{
+						Name:       roleName,
+						KubeUsers:  roleKubeUsers,
+						KubeGroups: roleKubeGroups,
+					})
+
+				// generate a kube client with user certs for auth
+				_, userRestConfig := testCtx.GenTestKubeClientTLSCert(
+					t,
+					user.GetName(),
+					kubeCluster,
+				)
+
+				scopedUser, scopedUserRole := testCtx.CreateUserAndScopedRole(
+					t,
+					"scoped-"+username,
+					scopedTestScope,
+					accessv1.ScopedRoleSpec_builder{
+						AssignableScopes: []string{scopedTestScope},
+						Kube: accessv1.ScopedRoleKube_builder{
+							Users:  roleKubeUsers,
+							Groups: roleKubeGroups,
+							Labels: []*labelv1.Label{
+								labelv1.Label_builder{
+									Name:   types.Wildcard,
+									Values: []string{types.Wildcard},
+								}.Build(),
+							},
+						}.Build(),
+					}.Build())
+
+				waitForSRACache(t, testCtx.TLSServer, scopedUserRole)
+
+				_, scopedUserRestConfig := testCtx.GenTestKubeClientTLSCert(
+					t,
+					scopedUser.GetName(),
+					kubeCluster,
+					func(i *tlsca.Identity) {
+						i.ScopePin = testCtx.GetScopePinForUser(t, scopedUser.GetName(), scopedTestScope)
 					},
-				},
-			)
-
-			t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
-
-			// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
-			user, _ := testCtx.CreateUserAndRole(
-				testCtx.Context,
-				t,
-				username,
-				RoleSpec{
-					Name:       roleName,
-					KubeUsers:  roleKubeUsers,
-					KubeGroups: roleKubeGroups,
-				})
-
-			// generate a kube client with user certs for auth
-			_, userRestConfig := testCtx.GenTestKubeClientTLSCert(
-				t,
-				user.GetName(),
-				kubeCluster,
-			)
-			var streamOpts remotecommand.StreamOptions
-			if !tt.interactive {
-				streamOpts = remotecommand.StreamOptions{
-					Stdin:  nil,
-					Stdout: &bytes.Buffer{},
-					Stderr: &bytes.Buffer{},
-					Tty:    false,
+				)
+				var streamOpts remotecommand.StreamOptions
+				if !tt.interactive {
+					streamOpts = remotecommand.StreamOptions{
+						Stdin:  nil,
+						Stdout: &bytes.Buffer{},
+						Stderr: &bytes.Buffer{},
+						Tty:    false,
+					}
+				} else {
+					stdinReader, _ := io.Pipe()
+					t.Cleanup(func() { stdinReader.Close() })
+					streamOpts = remotecommand.StreamOptions{
+						Stdin:  stdinReader,
+						Stdout: &bytes.Buffer{},
+						Stderr: nil,
+						Tty:    true,
+					}
 				}
-			} else {
-				stdinReader, _ := io.Pipe()
-				t.Cleanup(func() { stdinReader.Close() })
-				streamOpts = remotecommand.StreamOptions{
-					Stdin:  stdinReader,
-					Stdout: &bytes.Buffer{},
-					Stderr: nil,
-					Tty:    true,
+				req, err := generateExecRequest(
+					generateExecRequestConfig{
+						addr:          testCtx.KubeProxyAddress(),
+						podName:       podName,
+						podNamespace:  podNamespace,
+						containerName: podContainerName,
+						cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
+						options:       streamOpts,
+					},
+				)
+				require.NoError(t, err)
+				cfg := userRestConfig
+				if scope != "" {
+					cfg = scopedUserRestConfig
 				}
-			}
-			req, err := generateExecRequest(
-				generateExecRequestConfig{
-					addr:          testCtx.KubeProxyAddress(),
-					podName:       podName,
-					podNamespace:  podNamespace,
-					containerName: podContainerName,
-					cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
-					options:       streamOpts,
-				},
-			)
-			require.NoError(t, err)
+				exec, err := remotecommand.NewSPDYExecutor(cfg, http.MethodPost, req.URL())
+				require.NoError(t, err)
+				err = exec.StreamWithContext(testCtx.Context, streamOpts)
+				require.Error(t, err)
+				tt.errorInspector(t, err)
 
-			exec, err := remotecommand.NewSPDYExecutor(userRestConfig, http.MethodPost, req.URL())
-			require.NoError(t, err)
-			err = exec.StreamWithContext(testCtx.Context, streamOpts)
-			require.Error(t, err)
-			tt.errorInspector(t, err)
+				require.Eventually(t, func() bool {
+					eventsLock.Lock()
+					defer eventsLock.Unlock()
+					return execEvent != nil
+				}, 5*time.Second, 100*time.Millisecond, "expected exec event to be recorded")
 
-			require.Eventually(t, func() bool {
 				eventsLock.Lock()
-				defer eventsLock.Unlock()
-				return execEvent != nil
-			}, 5*time.Second, 100*time.Millisecond, "expected exec event to be recorded")
-
-			eventsLock.Lock()
-			require.Equal(t, events.ExecFailureCode, execEvent.Code)
-			require.Equal(t, "403", execEvent.ExitCode)
-			require.NotEmpty(t, execEvent.Error)
-			eventsLock.Unlock()
-		})
+				require.Equal(t, events.ExecFailureCode, execEvent.Code)
+				require.Equal(t, "403", execEvent.ExitCode)
+				require.NotEmpty(t, execEvent.Error)
+				eventsLock.Unlock()
+			})
+		}
 	}
 }
 
@@ -462,9 +641,8 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 	const (
 		errorMessage = "pods \"api-1\" is forbidden: User \"bar\" cannot %s resource " +
 			"\"pods/exec\" in API group \"\" in the namespace \"ns\""
+		errorCode = http.StatusForbidden
 	)
-
-	const errorCode = http.StatusForbidden
 
 	kubeMock, err := testingkubemock.NewKubeAPIMock(
 		testingkubemock.WithExecError(
@@ -496,7 +674,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -506,6 +684,11 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 				if exec, ok := evt.(*apievents.Exec); ok {
 					execEvent = exec
 				}
+			},
+			Scope: scopedTestScope,
+			ScopesFeatures: scopes.Features{
+				Enabled:         true,
+				AgentPinEnabled: true,
 			},
 		},
 	)
@@ -578,7 +761,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 
 			exec, err := remotecommand.NewSPDYExecutor(userRestConfig, http.MethodPost, req.URL())
 			require.NoError(t, err)
-			err = exec.StreamWithContext(context.Background(), streamOpts)
+			err = exec.StreamWithContext(t.Context(), streamOpts)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), kubernetes130BreakingChangeHint)
 
@@ -595,4 +778,18 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 			eventsLock.Unlock()
 		})
 	}
+}
+
+func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*accessv1.CreateScopedRoleAssignmentResponse) {
+	t.Helper()
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		for _, resp := range resps {
+			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
+				Name:    resp.GetAssignment().GetMetadata().GetName(),
+				SubKind: resp.GetAssignment().GetSubKind(),
+			}.Build())
+			require.NoError(t, err)
+		}
+	}, 10*time.Second, 100*time.Millisecond)
 }

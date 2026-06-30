@@ -825,6 +825,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		UserType:          u.Identity.UserType,
 		OriginClusterName: u.Identity.TeleportCluster,
 		DeviceExtensions:  u.Identity.DeviceExtensions,
+		BeamID:            u.Identity.BeamID,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.Wrap(ErrIPPinningMissing)
@@ -1114,6 +1115,8 @@ func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Sessi
 				},
 			},
 		)
+	case types.RoleApp:
+		return unscopedDefinitionForBuiltinRole(clusterName, recConfig, types.RoleApp)
 	}
 
 	return nil, trace.NotFound("builtin role for scoped %q is not recognized", role.String())
@@ -1199,6 +1202,11 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindApp, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of apps only being able to read scoped roles that may affect
+						// access decisions for the given app specifically. This verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 					},
 				},
 			})
@@ -1321,6 +1329,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 						types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+						types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
 					},
 				},
 			})
@@ -1912,6 +1921,13 @@ func (r ScopedBuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
 
+// IsServer returns true if the primary role is either RoleInstance, or one of
+// the local service roles (e.g. node).
+func (r ScopedBuiltinRole) IsServer() bool {
+	role := types.SystemRole(r.ScopePin.GetSystemRoles().GetPrimary())
+	return role == types.RoleInstance || role.IsLocalService()
+}
+
 // RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)
 // Teleport service.
 type RemoteBuiltinRole struct {
@@ -2110,12 +2126,7 @@ func IsLocalOrRemoteUser(authContext Context) bool {
 
 // IsLocalOrRemoteService checks if the identity is either a local or remote service.
 func IsLocalOrRemoteService(authContext Context) bool {
-	switch authContext.UnmappedIdentity.(type) {
-	case BuiltinRole, RemoteBuiltinRole:
-		return true
-	default:
-		return false
-	}
+	return isLocalOrRemoteService(authContext.UnmappedIdentity)
 }
 
 // IsCurrentUser checks if the identity is a local user matching the given username
@@ -2127,6 +2138,30 @@ func IsCurrentUser(authContext Context, username string) bool {
 func ScopedIsCurrentUser(scopedContext *ScopedContext, username string) bool {
 	_, isLocal := scopedContext.Identity.(LocalUser)
 	return isLocal && scopedContext.User.GetName() == username
+}
+
+// ScopedIsLocalOrRemoteService checks if the scoped identity is either a local or
+// remote service, for scoped or unscoped agents alike. This is the
+// scoped aware counterpart to [IsLocalOrRemoteService].
+// RemoteBuiltinRoles continue to be only available for unscoped identities.
+func ScopedIsLocalOrRemoteService(scopedContext *ScopedContext) bool {
+	if scopedContext == nil {
+		return false
+	}
+
+	if scopedContext.unscopedContext != nil {
+		return isLocalOrRemoteService(scopedContext.unscopedContext.UnmappedIdentity)
+	}
+	return isLocalOrRemoteService(scopedContext.Identity)
+}
+
+func isLocalOrRemoteService(identity IdentityGetter) bool {
+	switch identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole, ScopedBuiltinRole:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsRemoteUser checks if the identity is a remote user.

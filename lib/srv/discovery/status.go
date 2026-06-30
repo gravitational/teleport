@@ -930,6 +930,7 @@ type azureVMTaskKey struct {
 
 // azureVMTasks contains the Discover Azure VM User Tasks that must be reported to the user.
 type azureVMTasks struct {
+	mu         sync.Mutex
 	taskGroups map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM
 }
 
@@ -942,6 +943,9 @@ func (t *azureVMTasks) addFailedEnrollment(tg usertasks.TaskGroup, key azureVMTa
 	if tg.IssueType == "" {
 		return
 	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	if t.taskGroups == nil {
 		t.taskGroups = make(map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM)
@@ -971,6 +975,8 @@ func (t *azureVMTasks) addFailedEnrollment(tg usertasks.TaskGroup, key azureVMTa
 func (t *azureVMTasks) upsertAll(s *taskUpdater) {
 	expiryTime := s.clock.Now().Add(2 * s.PollInterval)
 
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	for taskGroup, group := range t.taskGroups {
 		for azureKey, vmData := range group {
 			// skip empty entries
@@ -1071,66 +1077,71 @@ func (s *taskUpdater) mergeAzure(oldSpec *usertasksv1.UserTaskSpec, newSpec *use
 	mergeExistingInstances(s, oldSpec.GetDiscoverAzureVm().GetInstances(), newSpec.GetDiscoverAzureVm().GetInstances())
 }
 
-type statusType int
-
-const (
-	statusFound statusType = iota
-	statusEnrolled
-	statusFailed
-)
-
-type fetcherGroupKey struct {
+type discoveryGroupStatusKey struct {
 	discoveryConfigName string
 	integration         string
 }
 
-// resourceStatusMap tracks discovery status (found/enrolled/failed counts)
-// per fetcher group key (discovery config + integration combination).
-type resourceStatusMap struct {
+type discoveryGroupStatus struct {
+	found    int
+	enrolled int
+	failed   int
+}
+
+// discoveryStatus tracks discovery status (found/enrolled/failed counts) per
+// discovery group key (discovery config + integration combination).
+type discoveryStatus struct {
 	resourceType string
-	results      map[fetcherGroupKey]map[statusType]int
+	statusesMu   sync.Mutex
+	statuses     map[discoveryGroupStatusKey]*discoveryGroupStatus
 	syncStart    *time.Time
 	syncEnd      *time.Time
 }
 
-func newStatusMap(resourceType string, syncStart time.Time) *resourceStatusMap {
-	return &resourceStatusMap{
+func newStatusMap(resourceType string, syncStart time.Time) *discoveryStatus {
+	return &discoveryStatus{
 		resourceType: resourceType,
-		results:      make(map[fetcherGroupKey]map[statusType]int),
+		statuses:     make(map[discoveryGroupStatusKey]*discoveryGroupStatus),
 		syncStart:    &syncStart,
 	}
 }
 
-func (s *resourceStatusMap) syncEnded(syncEnd time.Time) {
+func (s *discoveryStatus) syncEnded(syncEnd time.Time) {
 	s.syncEnd = &syncEnd
 }
 
-func (s *resourceStatusMap) add(key fetcherGroupKey, results map[statusType]int) {
-	if s.results[key] == nil {
-		s.results[key] = make(map[statusType]int)
-	}
-	for k, v := range results {
-		s.results[key][k] += v
+func (s *discoveryStatus) add(key discoveryGroupStatusKey) {
+	if status := s.statuses[key]; status == nil {
+		s.statuses[key] = &discoveryGroupStatus{}
 	}
 }
 
-func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
+func (s *discoveryStatus) updateConcurrently(key discoveryGroupStatusKey, update discoveryGroupStatus) {
+	s.statusesMu.Lock()
+	defer s.statusesMu.Unlock()
+	status := s.statuses[key]
+	if status == nil {
+		s.statuses[key] = &update
+		return
+	}
+	status.found += update.found
+	status.enrolled += update.enrolled
+	status.failed += update.failed
+}
+
+func (s *discoveryStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
 	if s == nil {
 		// nil resourceStatusMap is valid, just empty.
 		return existingStatus
 	}
 
-	for key, results := range s.results {
+	for key, status := range s.statuses {
 		if key.discoveryConfigName != discoveryConfigName {
 			continue
 		}
 
-		if results == nil {
-			continue
-		}
-
 		// Update global discovered resources count.
-		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + uint64(results[statusFound])
+		existingStatus.DiscoveredResources += uint64(status.found)
 
 		// Initialize map if needed.
 		if existingStatus.IntegrationDiscoveredResources == nil {
@@ -1153,9 +1164,9 @@ func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, ex
 		}
 
 		resourcesSummary := discoveryconfigv1.ResourcesDiscoveredSummary_builder{
-			Found:     uint64(results[statusFound]),
-			Enrolled:  uint64(results[statusEnrolled]),
-			Failed:    uint64(results[statusFailed]),
+			Found:     uint64(status.found),
+			Enrolled:  uint64(status.enrolled),
+			Failed:    uint64(status.failed),
 			SyncStart: syncStart,
 			SyncEnd:   syncEnd,
 		}.Build()
@@ -1168,13 +1179,13 @@ func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, ex
 	return existingStatus
 }
 
-func (s *resourceStatusMap) discoveryConfigs() []string {
+func (s *discoveryStatus) discoveryConfigs() []string {
 	if s == nil {
 		return nil
 	}
 
 	names := map[string]struct{}{}
-	for key := range s.results {
+	for key := range s.statuses {
 		names[key.discoveryConfigName] = struct{}{}
 	}
 	return slices.Collect(maps.Keys(names))

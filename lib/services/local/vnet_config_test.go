@@ -21,9 +21,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -54,8 +54,8 @@ func TestVnetConfigService(t *testing.T) {
 	created, err := service.CreateVnetConfig(ctx, vnetConfig)
 	require.NoError(t, err)
 	diff := cmp.Diff(vnetConfig, created,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
-		cmpopts.IgnoreUnexported(vnet.VnetConfig{}, vnet.VnetConfigSpec{}, vnet.CustomDNSZone{}, headerv1.Metadata{}),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
 	require.NotEmpty(t, created.GetMetadata().GetRevision())
@@ -64,8 +64,8 @@ func TestVnetConfigService(t *testing.T) {
 	got, err := service.GetVnetConfig(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(vnetConfig, got,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
-		cmpopts.IgnoreUnexported(vnet.VnetConfig{}, vnet.VnetConfigSpec{}, vnet.CustomDNSZone{}, headerv1.Metadata{}),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())

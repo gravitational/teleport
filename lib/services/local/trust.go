@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -866,49 +867,66 @@ func (s *CA) GetTunnelConnection(clusterName, connectionName string, opts ...ser
 }
 
 // GetTunnelConnections returns connections for a trusted cluster
-func (s *CA) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+func (s *CA) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
-	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conns := make([]types.TunnelConnection, len(result.Items))
-	for i, item := range result.Items {
+	conns, err := stream.Collect(s.rangeTunnelConnections(ctx, clusterName, ""))
+	return conns, trace.Wrap(err)
+}
+
+// ListTunnelConnections returns a page of tunnel connections, optionally
+// filtered to a single cluster.
+func (s *CA) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
+	return generic.CollectPageAndCursor(
+		s.rangeTunnelConnections(ctx, filter.GetClusterName(), pageToken),
+		pageSize,
+		func(tc types.TunnelConnection) string {
+			return tc.GetClusterName() + backend.SeparatorString + tc.GetName()
+		},
+	)
+}
+
+// rangeTunnelConnections returns tunnel connection resources starting from the
+// given page token, optionally restricted to a single cluster.
+func (s *CA) rangeTunnelConnections(ctx context.Context, clusterName, pageToken string) iter.Seq2[types.TunnelConnection, error] {
+	mapFn := func(item backend.Item) (types.TunnelConnection, bool) {
 		conn, err := services.UnmarshalTunnelConnection(item.Value,
-			services.AddOptions(opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			s.logger.WarnContext(ctx, "Failed to unmarshal tunnel connection from backend item",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
 		}
-		conns[i] = conn
+		return conn, true
 	}
 
-	return conns, nil
+	prefix := backend.ExactKey(tunnelConnectionsPrefix)
+	if clusterName != "" {
+		prefix = backend.ExactKey(tunnelConnectionsPrefix, clusterName)
+	}
+	startKey := prefix
+	if pageToken != "" {
+		startKey = backend.NewKey(tunnelConnectionsPrefix).AppendKey(backend.KeyFromString(pageToken))
+	}
+	endKey := backend.RangeEnd(prefix)
+
+	return stream.FilterMap(
+		s.Backend.Items(ctx, backend.ItemsParams{
+			StartKey: startKey,
+			EndKey:   endKey,
+		}),
+		mapFn,
+	)
 }
 
 // GetAllTunnelConnections returns all tunnel connections
-func (s *CA) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	startKey := backend.ExactKey(tunnelConnectionsPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conns := make([]types.TunnelConnection, len(result.Items))
-	for i, item := range result.Items {
-		conn, err := services.UnmarshalTunnelConnection(item.Value,
-			services.AddOptions(opts,
-				services.WithExpires(item.Expires),
-				services.WithRevision(item.Revision))...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conns[i] = conn
-	}
-
-	return conns, nil
+func (s *CA) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
+	conns, err := stream.Collect(s.rangeTunnelConnections(ctx, "", ""))
+	return conns, trace.Wrap(err)
 }
 
 // DeleteTunnelConnection deletes tunnel connection by name

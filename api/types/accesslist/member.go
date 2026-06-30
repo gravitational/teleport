@@ -34,14 +34,37 @@ type AccessListMember struct {
 
 	// Spec is the specification for the access list member.
 	Spec AccessListMemberSpec `json:"spec" yaml:"spec"`
+
+	// Status contains dynamically calculated fields. It is ignored when
+	// marshaling so tctl users do not mistake these read-time values for fields
+	// they could update with resource YAML.
+	Status *AccessListMemberStatus `json:"-" yaml:"-"`
+
+	// Scope is the scope of the access list member, it must be equal to the
+	// scope of the parent access list.
+	Scope string `json:"scope" yaml:"scope"`
+}
+
+// AccessListMemberStatus contains dynamic fields calculated during retrieval.
+// Its fields are ignored when marshaling for the same reason as AccessListMember.Status
+type AccessListMemberStatus struct {
+	// Display contains display values for the member user.
+	Display *types.UserDisplay `json:"-" yaml:"-"`
+
+	// AddedByDisplay contains display values for the user that added the member.
+	AddedByDisplay *types.UserDisplay `json:"-" yaml:"-"`
 }
 
 // AccessListMemberSpec describes the specification of a member of an access list.
 type AccessListMemberSpec struct {
 	// AccessList is the name of the associated access list.
+	// If the member is scoped, this is a scope-qualified name.
 	AccessList string `json:"access_list" yaml:"access_list"`
 
-	// Name is the name of the member of the access list.
+	// Name is the name of the member of the access list, depending on MembershipKind:
+	// MEMBERSHIP_KIND_USER: the username of the member.
+	// MEMBERSHIP_KIND_LIST: the name of the member Access List.
+	// MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the member scope Access List.
 	Name string `json:"name" yaml:"name"`
 
 	// TODO (avatus): eventually populate this in the backend/cache.
@@ -66,15 +89,21 @@ type AccessListMemberSpec struct {
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 
 	// MembershipKind describes the kind of membership,
-	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
+	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST" or "MEMBERSHIP_KIND_SCOPED_LIST".
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
 // NewAccessListMember will create a new AccessListMember.
 func NewAccessListMember(metadata header.Metadata, spec AccessListMemberSpec) (*AccessListMember, error) {
+	return NewAccessListMemberWithScope(metadata, spec, "")
+}
+
+// NewAccessListMemberWithScope will create a new AccessListMember.
+func NewAccessListMemberWithScope(metadata header.Metadata, spec AccessListMemberSpec, scope string) (*AccessListMember, error) {
 	member := &AccessListMember{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
+		Scope:          scope,
 	}
 
 	if err := member.CheckAndSetDefaults(); err != nil {
@@ -106,6 +135,10 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 // and should be removed when possible.
 func (a *AccessListMember) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(a.Metadata)
+}
+
+func (a *AccessListMember) GetScope() string {
+	return a.Scope
 }
 
 // MatchSearch goes through select field values of a resource

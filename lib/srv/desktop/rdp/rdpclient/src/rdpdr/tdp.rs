@@ -119,6 +119,7 @@ impl From<&DeviceCreateRequest> for SharedDirectoryInfoRequest {
 /// in response to a `Shared Directory Info Request`.
 #[derive(Debug)]
 pub struct SharedDirectoryInfoResponse {
+    pub device_id: u32,
     pub completion_id: u32,
     pub err_code: TdpErrCode,
     pub fso: FileSystemObject,
@@ -132,6 +133,7 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
         // In other words, all pointer data that needs to persist after this function returns MUST
         // be copied into Rust-owned memory.
         SharedDirectoryInfoResponse {
+            device_id: cgo_res.directory_id,
             completion_id: cgo_res.completion_id,
             err_code: cgo_res.err_code,
             fso: cgo_res.fso.into(),
@@ -344,6 +346,7 @@ impl SharedDirectoryReadRequest {
 #[repr(C)]
 pub struct SharedDirectoryReadResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
     pub read_data: Vec<u8>,
 }
@@ -362,6 +365,7 @@ impl From<CGOSharedDirectoryReadResponse> for SharedDirectoryReadResponse {
     fn from(cgo_response: CGOSharedDirectoryReadResponse) -> SharedDirectoryReadResponse {
         unsafe {
             SharedDirectoryReadResponse {
+                directory_id: cgo_response.directory_id,
                 completion_id: cgo_response.completion_id,
                 err_code: cgo_response.err_code,
                 read_data: from_go_array(cgo_response.read_data, cgo_response.read_data_length),
@@ -376,6 +380,7 @@ impl From<CGOSharedDirectoryReadResponse> for SharedDirectoryReadResponse {
 #[repr(C)]
 pub struct SharedDirectoryWriteResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
     pub bytes_written: u32,
 }
@@ -420,6 +425,7 @@ impl SharedDirectoryCreateRequest {
 #[derive(Debug)]
 pub struct SharedDirectoryListResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
     pub fso_list: Vec<FileSystemObject>,
 }
@@ -440,6 +446,7 @@ impl From<CGOSharedDirectoryListResponse> for SharedDirectoryListResponse {
 
             SharedDirectoryListResponse {
                 completion_id: cgo.completion_id,
+                directory_id: cgo.directory_id,
                 err_code: cgo.err_code,
                 fso_list,
             }
@@ -478,6 +485,7 @@ impl SharedDirectoryMoveRequest {
 /// to acknowledge a SharedDirectoryCreateRequest was received and executed.
 #[derive(Debug)]
 pub struct SharedDirectoryCreateResponse {
+    pub directory_id: u32,
     pub completion_id: u32,
     pub err_code: TdpErrCode,
     pub fso: FileSystemObject,
@@ -492,6 +500,7 @@ impl From<CGOSharedDirectoryCreateResponse> for SharedDirectoryCreateResponse {
         // be copied into Rust-owned memory.
         SharedDirectoryCreateResponse {
             completion_id: cgo_res.completion_id,
+            directory_id: cgo_res.directory_id,
             err_code: cgo_res.err_code,
             fso: cgo_res.fso.into(),
         }
@@ -546,6 +555,7 @@ impl From<&DeviceCreateRequest> for SharedDirectoryDeleteRequest {
 #[repr(C)]
 pub struct SharedDirectoryDeleteResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
 }
 
@@ -555,6 +565,7 @@ pub struct SharedDirectoryDeleteResponse {
 #[repr(C)]
 pub struct SharedDirectoryMoveResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
 }
 
@@ -614,6 +625,7 @@ impl SharedDirectoryTruncateRequest {
 #[repr(C)]
 pub struct SharedDirectoryTruncateResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
 }
 

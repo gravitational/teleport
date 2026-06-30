@@ -409,13 +409,18 @@ func GetAdminActionsMFAStatus(oldPref, newPref types.AuthPreference) apievents.A
 
 // GetClusterNetworkingConfig returns the locally cached networking configuration.
 func (s *Service) GetClusterNetworkingConfig(ctx context.Context, _ *clusterconfigpb.GetClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
-		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadClusterNetworkingConfig, &ruleCtx); err != nil {
+		unscopedCtx, isUnscoped := authzCtx.UnscopedContext()
+		if !isUnscoped {
+			return nil, trace.Wrap(err)
+		}
+		if err2 := unscopedCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -501,6 +506,7 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 	}
 
 	newCfg := req.GetClusterNetworkConfig()
+	PreserveCloudClusterNetworkConfig(*authzCtx, s.modules, newCfg, oldCfg)
 
 	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, s.modules, newCfg, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
@@ -566,6 +572,7 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 	}
 
 	newCfg := req.GetClusterNetworkConfig()
+	PreserveCloudClusterNetworkConfig(*authzCtx, s.modules, newCfg, oldCfg)
 
 	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, s.modules, newCfg, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
@@ -698,8 +705,13 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, modules modules.Mo
 
 	oldts := oldConfig.GetProxyPeeringTunnelStrategy()
 	newts := newConfig.GetProxyPeeringTunnelStrategy()
-	if oldts != nil && newts != nil && oldts.AgentConnectionCount != newts.AgentConnectionCount {
-		return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
+	if oldts != nil && newts != nil {
+		if oldts.AgentConnectionCount != newts.AgentConnectionCount {
+			return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
+		}
+		if oldts.DisconnectThresholdSeconds != newts.DisconnectThresholdSeconds {
+			return trace.BadParameter(cloudUpdateFailureMsg, "disconnect_threshold")
+		}
 	}
 
 	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
@@ -713,27 +725,54 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, modules modules.Mo
 	return nil
 }
 
+// PreserveCloudClusterNetworkConfig preserves cloud-managed fields when an older
+// supported client attempts to update the cluster network config without knowing
+// a field exists. This should only be used to preserve new fields that must only
+// be configured by cloud.
+func PreserveCloudClusterNetworkConfig(authzCtx authz.Context, modules modules.Modules, newConfig, oldConfig types.ClusterNetworkingConfig) {
+	if authz.HasBuiltinRole(authzCtx, string(types.RoleAdmin)) {
+		return
+	}
+	if !modules.Features().Cloud {
+		return
+	}
+
+	oldts := oldConfig.GetProxyPeeringTunnelStrategy()
+	newts := newConfig.GetProxyPeeringTunnelStrategy()
+	if oldts != nil && newts != nil {
+		if oldts.DisconnectThresholdSeconds != 0 && newts.DisconnectThresholdSeconds == 0 {
+			newts.DisconnectThresholdSeconds = oldts.DisconnectThresholdSeconds
+		}
+	}
+}
+
 // GetSessionRecordingConfig returns the locally cached networking configuration.
 func (s *Service) GetSessionRecordingConfig(ctx context.Context, _ *clusterconfigpb.GetSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindSessionRecordingConfig, types.VerbRead); err != nil {
-		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSessionRecordingConfig, &ruleCtx); err != nil {
+		unscopedCtx, isUnscoped := authzCtx.UnscopedContext()
+		if !isUnscoped {
+			return nil, trace.Wrap(err)
+		}
+
+		if err2 := unscopedCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	netConfig, err := s.readOnlyCache.GetReadOnlySessionRecordingConfig(ctx)
+	recConfig, err := s.readOnlyCache.GetReadOnlySessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cfgV2, ok := netConfig.Clone().(*types.SessionRecordingConfigV2)
+	cfgV2, ok := recConfig.Clone().(*types.SessionRecordingConfigV2)
 	if !ok {
-		return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", netConfig, cfgV2))
+		return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", recConfig, cfgV2))
 	}
 	return cfgV2, nil
 }
@@ -1165,12 +1204,13 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 }
 
 func (s *Service) GetClusterName(ctx context.Context, _ *clusterconfigpb.GetClusterNameRequest) (*types.ClusterNameV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindClusterName, types.VerbRead); err != nil {
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadClusterName, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -426,6 +426,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			UserClusterName: ctx.UserOriginClusterName,
 			UserRoles:       slices.Clone(ctx.UserRoles),
 			UserTraits:      ctx.UserTraits.Clone(),
+			BeamID:          ctx.BeamID,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,
@@ -518,6 +519,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 			UserClusterName: ctx.UserOriginClusterName,
 			UserRoles:       slices.Clone(ctx.UserRoles),
 			UserTraits:      ctx.UserTraits.Clone(),
+			BeamID:          ctx.BeamID,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,
@@ -578,6 +580,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			UserClusterName: ctx.UserOriginClusterName,
 			UserRoles:       slices.Clone(ctx.UserRoles),
 			UserTraits:      ctx.UserTraits.Clone(),
+			BeamID:          ctx.BeamID,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,
@@ -640,6 +643,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			UserClusterName: ctx.UserOriginClusterName,
 			UserRoles:       slices.Clone(ctx.UserRoles),
 			UserTraits:      ctx.UserTraits.Clone(),
+			BeamID:          ctx.BeamID,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,

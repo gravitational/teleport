@@ -996,6 +996,11 @@ func (c *Client) BeamServiceClient() beamsv1.BeamServiceClient {
 	return beamsv1.NewBeamServiceClient(c.conn)
 }
 
+// BeamsConfigServiceClient returns a client for the beams config service.
+func (c *Client) BeamsConfigServiceClient() beamsv1.BeamsConfigServiceClient {
+	return beamsv1.NewBeamsConfigServiceClient(c.conn)
+}
+
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
@@ -2536,6 +2541,24 @@ func (c *Client) ListTrustedClusters(ctx context.Context, limit int, start strin
 // RangeTrustedClusters returns Trusted Cluster resources within the range [start, end).
 func (c *Client) RangeTrustedClusters(ctx context.Context, start, end string) iter.Seq2[types.TrustedCluster, error] {
 	return clientutils.RangeResources(ctx, start, end, c.ListTrustedClusters, types.TrustedCluster.GetName)
+}
+
+// ListTunnelConnections returns a page of tunnel connections matching the
+// given filter.
+func (c *Client) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
+	resp, err := c.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+		Filter:    filter,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(resp.TunnelConnections))
+	for i, v2 := range resp.TunnelConnections {
+		conns[i] = v2
+	}
+	return conns, resp.NextPageToken, nil
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
@@ -6097,6 +6120,19 @@ func (c *Client) ValidateTrustedCluster(
 	ctx context.Context, validateRequest *proto.ValidateTrustedClusterRequest,
 ) (*proto.ValidateTrustedClusterResponse, error) {
 	resp, err := c.grpc.ValidateTrustedCluster(ctx, validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// ExtendWebSession creates a new web session for a user based on a valid
+// existing web session, e.g. to apply an approved access request, switch
+// back to default roles, or pick up recent user changes.
+func (c *Client) ExtendWebSession(
+	ctx context.Context, req *proto.ExtendWebSessionRequest,
+) (*proto.ExtendWebSessionResponse, error) {
+	resp, err := c.grpc.ExtendWebSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

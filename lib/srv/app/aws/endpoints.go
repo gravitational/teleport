@@ -20,6 +20,7 @@ package aws
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -30,17 +31,35 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// resolveEndpoint resolves the endpoint by creating the URL
-// from valid "X-Forwarded-Host" header and extracting aws-service and
-// aws-region from the authorization header.
+// resolveEndpoint resolves the AWS endpoint from a valid "X-Forwarded-Host"
+// header and extracts the AWS service and region from the authorization header.
+// The forwarded host is accepted only if it parses as the exact HTTPS URL shape
+// we later dial: no userinfo, path, query, or fragment, an AWS endpoint
+// hostname, and either no port or the default HTTPS port. The returned endpoint
+// URL is built from the same parsed URL that passed validation so validation and
+// forwarding cannot diverge.
 func resolveEndpoint(r *http.Request, authHeader string) (*common.AWSResolvedEndpoint, error) {
 	forwardedHost, err := libutils.GetSingleHeader(r.Header, "X-Forwarded-Host")
 	if err != nil {
 		return nil, trace.BadParameter("proxied requests must include X-Forwarded-Host header")
 	}
 
-	if !awsapiutils.IsAWSEndpoint(forwardedHost) {
-		return nil, trace.BadParameter("invalid AWS endpoint %v", forwardedHost)
+	// Parse the host once, with the scheme we actually dial, so validation and
+	// forwarding can never disagree. Validating the raw header separately from
+	// the "https://"+host we forward to allows a parser differential: e.g.
+	// "attacker.example.com://s3.amazonaws.com" validates as host
+	// s3.amazonaws.com but dials attacker.example.com (an SSRF primitive).
+	u, err := url.Parse("https://" + forwardedHost)
+	if err != nil || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return nil, trace.BadParameter("invalid AWS endpoint %q", forwardedHost)
+	}
+	switch u.Port() {
+	case "", "443":
+	default:
+		return nil, trace.BadParameter("invalid AWS endpoint %q", forwardedHost)
+	}
+	if !awsapiutils.IsAWSEndpoint(u.Hostname()) {
+		return nil, trace.BadParameter("invalid AWS endpoint %q", forwardedHost)
 	}
 
 	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(authHeader))
@@ -49,7 +68,9 @@ func resolveEndpoint(r *http.Request, authHeader string) (*common.AWSResolvedEnd
 	}
 
 	return &common.AWSResolvedEndpoint{
-		URL:           "https://" + forwardedHost,
+		// Build from the validated parse, not the raw header, so the dialed
+		// host is exactly the one validated above.
+		URL:           (&url.URL{Scheme: "https", Host: u.Host}).String(),
 		SigningRegion: awsAuthHeader.Region,
 		SigningName:   awsAuthHeader.Service,
 	}, nil

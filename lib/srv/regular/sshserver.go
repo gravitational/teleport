@@ -126,6 +126,10 @@ type Server struct {
 	// this gets set to true for unit testing
 	isTestStub bool
 
+	// testLoginShell overrides the shell used for sessions. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	testLoginShell string
+
 	// cancel cancels all operations
 	cancel context.CancelFunc
 	// ctx is broadcasting context closure
@@ -870,6 +874,16 @@ func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 func SetPresenceMaxDuration(maxDuration time.Duration) ServerOption {
 	return func(s *Server) error {
 		s.presenceMaxDuration = maxDuration
+		return nil
+	}
+}
+
+// SetTestLoginShell overrides the shell used for sessions instead of resolving
+// the login shell of the OS user. This is intended for tests only to avoid
+// running the real user's shell and polluting shell history.
+func SetTestLoginShell(shell string) ServerOption {
+	return func(s *Server) error {
+		s.testLoginShell = shell
 		return nil
 	}
 }
@@ -1700,6 +1714,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(channel)
 	scx.SessionRecordingConfig.SetMode(types.RecordOff)
 	scx.ExecType = teleport.ChanDirectTCPIP
@@ -1775,6 +1790,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(ch)
 	scx.ExecType = teleport.ChanSession
 	scx.SetAllowFileCopying(s.allowFileCopying)
@@ -2282,6 +2298,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(ch)
 	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
@@ -2413,6 +2430,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 
 	listenAddr := sshutils.JoinHostPort(req.Addr, req.Port)
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.ExecType = teleport.TCPIPForwardRequest
 	scx.SrcAddr = listenAddr
 	scx.DstAddr = ccx.NetConn.RemoteAddr().String()

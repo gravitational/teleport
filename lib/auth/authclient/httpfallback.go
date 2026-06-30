@@ -25,9 +25,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -141,6 +143,100 @@ func (c *HTTPClient) deleteTunnelConnection(ctx context.Context, clusterName, co
 	return trace.Wrap(err)
 }
 
+// GetTunnelConnections returns all tunnel connections for a given cluster.
+//
+// TODO(noah): DELETE IN 20.0.0 — inline the gRPC page-loop directly once the
+// HTTP fallback is removed; keep the method signature.
+func (c *Client) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name parameter")
+	}
+	return c.listAllTunnelConnections(ctx, clusterName)
+}
+
+// GetAllTunnelConnections returns all tunnel connections across all clusters.
+//
+// TODO(noah): DELETE IN 20.0.0
+func (c *Client) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
+	return c.listAllTunnelConnections(ctx, "")
+}
+
+// TODO(noah): DELETE IN 20.0.0
+func (c *Client) listAllTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	var filter *trustpb.ListTunnelConnectionsFilter
+	if clusterName != "" {
+		filter = trustpb.ListTunnelConnectionsFilter_builder{ClusterName: clusterName}.Build()
+	}
+
+	items, err := clientutils.CollectWithFallback(
+		ctx,
+		func(
+			ctx context.Context, pageSize int, pageToken string,
+		) ([]types.TunnelConnection, string, error) {
+			return c.APIClient.ListTunnelConnections(ctx, pageSize, pageToken, filter)
+		},
+		func(ctx context.Context) ([]types.TunnelConnection, error) {
+			if clusterName != "" {
+				return c.HTTPClient.getTunnelConnectionsLegacy(ctx, clusterName)
+			}
+			return c.HTTPClient.getAllTunnelConnectionsLegacy(ctx)
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return items, nil
+}
+
+// getTunnelConnectionsLegacy returns tunnel connections for a given cluster.
+//
+// TODO(noah): DELETE IN 20.0.0
+func (c *HTTPClient) getTunnelConnectionsLegacy(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name parameter")
+	}
+	out, err := c.Get(ctx, c.Endpoint("tunnelconnections", clusterName), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(items))
+	for i, raw := range items {
+		conn, err := services.UnmarshalTunnelConnection(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+	return conns, nil
+}
+
+// getAllTunnelConnectionsLegacy returns all tunnel connections.
+//
+// TODO(noah): DELETE IN 20.0.0
+func (c *HTTPClient) getAllTunnelConnectionsLegacy(ctx context.Context) ([]types.TunnelConnection, error) {
+	out, err := c.Get(ctx, c.Endpoint("tunnelconnections"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(items))
+	for i, raw := range items {
+		conn, err := services.UnmarshalTunnelConnection(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+	return conns, nil
+}
+
 // GetAuthServers returns the list of auth servers registered in the cluster.
 //
 // Deprecated: Prefer paginated variant [APIClient.ListAuthServers].
@@ -237,6 +333,43 @@ func (c *HTTPClient) deleteProxyServerLegacy(ctx context.Context, name string) e
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// ExtendWebSession creates a new web session for a user based on a valid
+// existing web session, e.g. to apply an approved access request, switch back
+// to default roles, or pick up recent user changes. It calls the gRPC
+// AuthService and falls back to the legacy HTTP endpoint if the server does
+// not yet implement the gRPC RPC.
+//
+// TODO(strideynet): DELETE IN v20.0.0 - remove the fallback and call the gRPC
+// RPC directly.
+func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
+	resp, err := c.APIClient.ExtendWebSession(ctx, &proto.ExtendWebSessionRequest{
+		User:            req.User,
+		PrevSessionId:   req.PrevSessionID,
+		AccessRequestId: req.AccessRequestID,
+		Switchback:      req.Switchback,
+		ReloadUser:      req.ReloadUser,
+	})
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.HTTPClient.extendWebSessionLegacy(ctx, req)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetSession(), nil
+}
+
+// extendWebSessionLegacy creates a new web session for a user based on a
+// valid existing web session via the legacy HTTP endpoint.
+//
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *HTTPClient) extendWebSessionLegacy(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("users", req.User, "web", "sessions"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // GetProxies returns the list of auth servers registered in the cluster.
