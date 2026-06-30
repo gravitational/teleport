@@ -392,9 +392,9 @@ func TestRoleSetMisconfiguredDefaultDeny(t *testing.T) {
 // encoded project id as one raw segment, while a plain capture rejects the same
 // encoded segment and a plain glob never spans it.
 func TestEncodedSlashCapture(t *testing.T) {
-	// capture_encoded, paired with the allow_encoded option, admits both a
-	// plain id and an encoded id, binding the decoded value either way.
-	c, err := compileExpression(`path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`)
+	// capture_encoded, the sole per-segment opt-in, admits both a plain id and
+	// an encoded id, binding the decoded value either way.
+	c, err := compileExpression(`path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())))`)
 	require.NoError(t, err)
 
 	got, err := c.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/mygroup%2Fmyproject/issues"}, Identity{})
@@ -407,9 +407,9 @@ func TestEncodedSlashCapture(t *testing.T) {
 	require.True(t, got.Allowed)
 	require.Equal(t, "123", got.Allow.Vars["project"], "plain id matches the same node")
 
-	// A plain capture is safe-only, and the match did not opt into encoded
-	// chars, so the encoded id does not match and the rule denies rather than
-	// binding the encoded value.
+	// A plain capture is safe-only: it rejects a token carrying a percent byte,
+	// so the encoded id does not match and the rule denies rather than binding
+	// the encoded value. Only an encoded node admits it.
 	cp, err := compileExpression(`path.match(literal("api/v4/projects", capture("project", greedy())))`)
 	require.NoError(t, err)
 	gotPlain, err := cp.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/mygroup%2Fmyproject/issues"}, Identity{})
@@ -425,7 +425,7 @@ func TestDoubleEncodedSlashIsInvalid(t *testing.T) {
 	set, err := CompileRoles([]Role{{
 		Name: "developer",
 		Expressions: []string{
-			`path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`,
+			`path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())))`,
 		},
 	}})
 	require.NoError(t, err)
@@ -447,7 +447,7 @@ paths: ["/api/v4/user"]
 methods: [GET]
 `)},
 		Expressions: []string{
-			`path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`,
+			`path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())))`,
 		},
 	}})
 	require.NoError(t, err)
@@ -558,7 +558,7 @@ func TestPercentInPlainLiteralRejected(t *testing.T) {
 	require.Contains(t, err.Error(), "contains %")
 
 	// encoded_literal, the steer, takes the decoded value and compiles.
-	_, err = compileExpression(`path.match(encoded_literal("a/b", set("/")), allow_encoded(set("/")))`)
+	_, err = compileExpression(`path.match(encoded_literal("a/b", set("/")))`)
 	require.NoError(t, err)
 }
 

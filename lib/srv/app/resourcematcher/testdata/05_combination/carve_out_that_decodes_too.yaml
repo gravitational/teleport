@@ -33,8 +33,7 @@ cases:
         method: GET
         path: /files/secret%2fkey
       expect:
-        allowed: false
-        deny_kind: teleport_request_not_allowed
+        allowed: true
     - request:
         method: GET
         path: /other

@@ -24,26 +24,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mustOpt panics if an option constructor returns an error, so a table can
-// build options inline. A panic fails the test.
-func mustOpt(o Option, err error) Option {
-	if err != nil {
-		panic(err)
-	}
-	return o
-}
-
-// TestMatch pins the friendly Match wrapper: it tokenizes the path, applies the
-// encoded-char gate, and walks the tree, returning the match verdict and any
-// captures in one struct. It is the standalone parallel to the path.match
-// predicate, so it fails closed on an encoded char no option admits and on a
-// path the tokenizer rejects.
+// TestMatch pins the friendly Match wrapper: it tokenizes the path and walks
+// the tree, returning the match verdict and any captures in one struct. It is
+// the standalone parallel to the path.match predicate, so an encoded char is
+// admitted only by an encoded node, a plain node fails closed on it, and a path
+// the tokenizer rejects does not match.
 func TestMatch(t *testing.T) {
 	tests := []struct {
 		name     string
 		root     *Node
 		path     string
-		opts     []Option
 		want     bool
 		captures map[string]string
 	}{
@@ -54,15 +44,14 @@ func TestMatch(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "encoded slash admitted by the option",
+			name: "encoded slash admitted by the encoded node",
 			root: Literal("p", mustNode(GlobEncoded([]string{"/"}))),
 			path: "/p/a%2Fb",
-			opts: []Option{mustOpt(AllowEncoded("/"))},
 			want: true,
 		},
 		{
-			name: "encoded slash without the option fails closed",
-			root: Literal("p", mustNode(GlobEncoded([]string{"/"}))),
+			name: "encoded slash fails closed against a plain glob",
+			root: Literal("p", Glob()),
 			path: "/p/a%2Fb",
 			want: false,
 		},
@@ -88,7 +77,7 @@ func TestMatch(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Match(tt.root, tt.path, tt.opts...)
+			got := Match(tt.root, tt.path)
 			require.Equal(t, tt.want, got.Matched)
 			if tt.want {
 				require.Equal(t, tt.captures, nilIfEmpty(got.Captures))
@@ -106,17 +95,4 @@ func nilIfEmpty(m map[string]string) map[string]string {
 		return nil
 	}
 	return m
-}
-
-// TestAllowEncoded pins the option constructor: it admits the separator and
-// rejects every other char, the same rule the encoded-char nodes hold.
-func TestAllowEncoded(t *testing.T) {
-	_, err := AllowEncoded("/")
-	require.NoError(t, err)
-
-	_, err = AllowEncoded("@")
-	require.Error(t, err)
-
-	_, err = AllowEncoded()
-	require.Error(t, err)
 }

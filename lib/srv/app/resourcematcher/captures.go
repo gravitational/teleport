@@ -280,12 +280,11 @@ func literalValueCheck(call *ast.CallExpr) func(string) error {
 }
 
 // validateEncodedSets rejects an encoded-char set literal that names any char
-// other than the separator "/". The encoded-char matchers glob_encoded and
-// capture_encoded, and the allow_encoded option, each take a set(...) of
-// the chars they admit, and only "/" is supported today. Checking at load turns
-// a per-request evaluation error into a clear compile failure. A set built from
-// a non-literal cannot be checked here and is backstopped by the constructor at
-// evaluation.
+// other than the separator "/". The encoded-char matchers glob_encoded,
+// capture_encoded, and encoded_literal each take a set(...) of the chars they
+// admit, and only "/" is supported today. Checking at load turns a per-request
+// evaluation error into a clear compile failure. A set built from a non-literal
+// cannot be checked here and is backstopped by the constructor at evaluation.
 func validateEncodedSets(expr string) error {
 	parsed, err := goparser.ParseExpr(expr)
 	if err != nil {
@@ -300,8 +299,6 @@ func validateEncodedSets(expr string) error {
 		var setArg ast.Expr
 		switch {
 		case isIdentCall(call, "glob_encoded") && len(call.Args) >= 1:
-			setArg = call.Args[0]
-		case isIdentCall(call, "allow_encoded") && len(call.Args) >= 1:
 			setArg = call.Args[0]
 		case isIdentCall(call, "capture_encoded") && len(call.Args) >= 2:
 			setArg = call.Args[1]

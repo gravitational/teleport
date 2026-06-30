@@ -145,11 +145,6 @@ func runGolden(t *testing.T, file string) {
 		return
 	}
 
-	// The bare surface is app_resources_expressions, whether the file authored
-	// it directly or it was generated one-for-one from app_resources.
-	bareSet, err := CompileRoles([]Role{{Name: "test", Expressions: g.AppResourcesExpressions}})
-	require.NoError(t, err, "compiling app_resources_expressions")
-
 	// When app_resources is present, app_resources_expressions is its generated
 	// lowering: each rule lowers to exactly one entry, in order. The sugared
 	// surface is then evaluated alongside the bare one to prove the two decide a
@@ -166,6 +161,17 @@ func runGolden(t *testing.T, file string) {
 			wantExpressions = nil
 		}
 	}
+
+	// The bare surface is app_resources_expressions. For a sugared file it is the
+	// freshly generated lowering, not the stored block, so a stale stored block
+	// is caught by the comparison below rather than failing to compile here; for
+	// an authored-bare file it is what the file carries.
+	bareExpressions := g.AppResourcesExpressions
+	if hasSugar {
+		bareExpressions = wantExpressions
+	}
+	bareSet, err := CompileRoles([]Role{{Name: "test", Expressions: bareExpressions}})
+	require.NoError(t, err, "compiling app_resources_expressions")
 
 	defaultIdentity := g.Identity.toIdentity()
 

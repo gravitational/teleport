@@ -5,8 +5,7 @@ app_resources_expressions:
     - |-
       path.match(literal("api/v4/projects",
           capture_encoded("project", set("/"),
-              greedy_without("secret"))),
-      allow_encoded(set("/")))
+              greedy_without("secret"))))
 identity:
     name: bob
     roles:

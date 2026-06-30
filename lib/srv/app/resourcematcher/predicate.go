@@ -41,49 +41,6 @@ type Identity struct {
 	Traits map[string][]string
 }
 
-// Option is a per-match setting passed to path.match after the matcher tree,
-// such as allow_encoded. By default a match admits no percent encoding at
-// all: any encoded char in the path forces the rule to no-match, fail-closed,
-// so a negated path.match cannot turn an encoded segment into an allow. An
-// option relaxes that default for the one match it sits on, leaving every other
-// match strict.
-type Option struct {
-	// allowEncoded lists the encoded chars this match admits in the path. It is
-	// empty unless allow_encoded set it. Today only the separator "/" is
-	// supported.
-	allowEncoded []string
-}
-
-// allowsEncodedSlash reports whether any option opts this match into the
-// encoded separator. When false, a path carrying any encoded char fails the
-// match closed.
-func allowsEncodedSlash(opts []Option) bool {
-	for _, opt := range opts {
-		for _, c := range opt.allowEncoded {
-			if c == "/" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// encodedBlocked reports whether the path carries an encoded char that no opt
-// admits, in which case a match must fail closed. It is the one gate both
-// path.match and Match consult, so the predicate surface and the Go surface
-// cannot drift on which paths an encoded char rejects.
-func encodedBlocked(tokens []string, opts []Option) bool {
-	if allowsEncodedSlash(opts) {
-		return false
-	}
-	for _, tok := range tokens {
-		if strings.ContainsRune(tok, '%') {
-			return true
-		}
-	}
-	return false
-}
-
 // env is the evaluation environment threaded through one predicate evaluation.
 // The vars map is the channel between a matcher and a later identity condition:
 // a path.match call writes the segments its captures bind, and a vars.<name>
@@ -144,12 +101,6 @@ type evalState struct {
 	// forces the rule to no-match when this is set, so a path the matcher cannot
 	// read fails closed even behind a negation.
 	tokenizeFailed bool
-	// encodedNotAllowed records that a path.match without the allow_encoded
-	// option met a path carrying an encoded char. By default a match admits no
-	// encoding, so the caller forces the rule to no-match, which makes a negated
-	// path.match fail closed on an encoded segment instead of inverting the miss
-	// into an allow.
-	encodedNotAllowed bool
 	// allowCode and allowReason hold the audit code and reason an allow_code
 	// call recorded. allow_code wraps a rule's predicate and commits its code
 	// only when the wrapped expression is true, so a non-matching rule records
@@ -216,21 +167,15 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			// rule to no-match, so a negated path.match cannot turn an unreadable
 			// path into an allow.
 			//
-			// By default the match admits no percent encoding: when no
-			// allow_encoded option is given and the path carries an encoded
-			// char, it records encodedNotAllowed and returns false, and the caller
-			// forces the rule to no-match. This makes a negated path.match fail
-			// closed on an encoded segment rather than inverting the miss into an
-			// allow. The allow_encoded option relaxes this for the one match
-			// it sits on, where a glob_encoded or capture_encoded node then matches
-			// the encoded segment explicitly.
-			"path.match": typical.BinaryVariadicFunctionWithEnv(func(e env, root *Node, opts ...Option) (bool, error) {
+			// An encoded char is admitted only by an encoded node (glob_encoded,
+			// capture_encoded, encoded_literal) at that position; every plain
+			// node (literal, glob, capture, greedy) rejects a token carrying a
+			// percent byte, so an encoded segment matches only where the rule
+			// names an encoded node, and there is no rule-wide gate to keep in
+			// sync.
+			"path.match": typical.UnaryFunctionWithEnv(func(e env, root *Node) (bool, error) {
 				tokens, ok := e.pathTokens()
 				if !ok {
-					return false, nil
-				}
-				if encodedBlocked(tokens, opts) {
-					e.state.encodedNotAllowed = true
 					return false, nil
 				}
 				if matched, caps := Eval(tokens, root); matched {
@@ -240,17 +185,6 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 					return true, nil
 				}
 				return false, nil
-			}),
-			// allow_encoded opts one path.match into admitting the named
-			// encoded chars, paired with a glob_encoded or capture_encoded node at
-			// each position that carries one. Today only the separator "/" is
-			// supported. Without it a match admits no encoding and an encoded path
-			// fails closed.
-			"allow_encoded": typical.UnaryFunction[env](func(allowed []string) (Option, error) {
-				if err := validateEncodedChars(allowed); err != nil {
-					return Option{}, trace.Wrap(err)
-				}
-				return Option{allowEncoded: allowed}, nil
 			}),
 			// allow_code wraps a rule's predicate. It records the structured audit
 			// code, and the human reason, emitted on the allow event when the rule
@@ -311,8 +245,9 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			// encoded char. glob and capture are safe-only and reject any percent
 			// byte; these admit a segment that is plain or carries only an
 			// admitted encoded char (today the separator "/", as set("/")), kept
-			// raw and forwarded byte-faithfully. They pair with the
-			// allow_encoded option on path.match, which gates the match.
+			// raw and forwarded byte-faithfully. The node is the sole opt-in:
+			// it carries both the position and the admitted char set, so there
+			// is no rule-wide allow_encoded flag to keep in sync.
 			"glob_encoded": typical.BinaryVariadicFunction[env](func(allowed []string, children ...*Node) (*Node, error) {
 				return GlobEncoded(allowed, children...)
 			}),

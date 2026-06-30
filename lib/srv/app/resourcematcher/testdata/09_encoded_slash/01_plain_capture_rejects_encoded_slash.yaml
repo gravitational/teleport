@@ -1,17 +1,17 @@
-description: an encoded node without allow_encoded fails closed
+description: a plain capture rejects an encoded slash
 app_resources:
-    # {package:/} names an encoded segment;
-    # without allow_encoded it fails closed.
+    # {package} is a plain capture, safe-only,
+    # so a token carrying %2F fails closed.
+    # Use {package:/} to admit an encoded id.
     # denies /registry/@babel%2fcore
     # allows /registry/lodash
     - paths:
-        - /registry/{package:/}
+        - /registry/{package}
 app_resources_expressions:
     - |-
       path.match(
         literal("registry",
-          capture_encoded("package",
-            set("/"))))
+          capture("package")))
 identity:
     name: bob
     roles:

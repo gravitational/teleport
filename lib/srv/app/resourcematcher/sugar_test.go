@@ -218,22 +218,16 @@ func TestNodeToSourceRoundTripExclusions(t *testing.T) {
 	}
 }
 
-// TestAllowEncodedClause pins how the allow_encoded field lowers: a rule with an
-// encoded node and allow_encoded emits the option on path.match, and the field
-// with no paths to gate is a load error.
-func TestAllowEncodedClause(t *testing.T) {
-	r := Rule{Paths: []string{"/registry/{package:/}"}, AllowEncoded: []string{"/"}}
+// TestEncodedNodeClause pins how an encoded-node pattern lowers: the {name:/}
+// sugar becomes a capture_encoded node, the sole per-segment opt-in, with no
+// rule-wide encoding option on path.match.
+func TestEncodedNodeClause(t *testing.T) {
+	r := Rule{Paths: []string{"/registry/{package:/}"}}
 	got, err := r.pathClause()
 	require.NoError(t, err)
 	require.Equal(t,
-		`path.match(literal("registry", capture_encoded("package", set("/"))), allow_encoded(set("/")))`,
+		`path.match(literal("registry", capture_encoded("package", set("/"))))`,
 		got)
-
-	_, err = Rule{AllowEncoded: []string{"/"}}.pathClause()
-	require.Error(t, err)
-
-	_, err = Rule{Paths: []string{"/x"}, AllowEncoded: []string{"x"}}.pathClause()
-	require.Error(t, err)
 }
 
 // TestUnsafeAllowAll pins the escape hatch: it desugars to the constant true,
@@ -283,7 +277,6 @@ func TestUnsafeAllowAllStandsAlone(t *testing.T) {
 		{UnsafeAllowAll: true, Paths: []string{"/api"}},
 		{UnsafeAllowAll: true, Methods: []string{"GET"}},
 		{UnsafeAllowAll: true, Where: `contains(user.roles, "admin")`},
-		{UnsafeAllowAll: true, AllowEncoded: []string{"/"}},
 		{UnsafeAllowAll: true, AllowCode: "x"},
 		{UnsafeAllowAll: true, DenyCodeHint: "x"},
 	}

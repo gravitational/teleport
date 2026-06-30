@@ -59,13 +59,6 @@ type Rule struct {
 	// Where is a condition over the caller identity, the request, and this
 	// rule's captures. It does not match paths and may not call path.match.
 	Where string `yaml:"where,omitempty"`
-	// AllowEncoded opts the rule's path match into the named encoded chars,
-	// lowering to the allow_encoded option on path.match. Today only the
-	// separator "/" is admitted, so it is written allow_encoded: ["/"]. It
-	// gates the whole match and pairs with an encoded node in a path, such as
-	// "{name:/}" or "{:/}"; without it an encoded node fails closed, and with
-	// no paths to gate it is a load error.
-	AllowEncoded []string `yaml:"allow_encoded,omitempty"`
 	// AllowCode is the structured code emitted on the allow audit event when
 	// this rule matches. Without it, an allow emits no code.
 	AllowCode string `yaml:"allow_code,omitempty"`
@@ -319,21 +312,12 @@ func (r Rule) wrapAllowCode(body string) string {
 
 // pathClause renders the Paths as one path.match over a root() of the compiled
 // patterns. A lone pattern passes its tree straight through, since a root() that
-// wraps a single child is redundant. When AllowEncoded is set it appends the
-// allow_encoded option, which gates the whole match into the named encoded
-// chars. It is empty when no paths are set; AllowEncoded with no paths to gate
-// is a load error.
+// wraps a single child is redundant. It is empty when no paths are set. An
+// encoded char is opted into per segment by an encoded node in the pattern,
+// such as "{name:/}", so there is no rule-wide encoding flag to render.
 func (r Rule) pathClause() (string, error) {
 	if len(r.Paths) == 0 {
-		if len(r.AllowEncoded) > 0 {
-			return "", trace.BadParameter("allow_encoded is set but the rule has no paths to gate")
-		}
 		return "", nil
-	}
-	if len(r.AllowEncoded) > 0 {
-		if err := validateEncodedChars(r.AllowEncoded); err != nil {
-			return "", trace.Wrap(err, "invalid allow_encoded")
-		}
 	}
 	nodes := make([]*Node, 0, len(r.Paths))
 	for _, p := range r.Paths {
@@ -354,9 +338,6 @@ func (r Rule) pathClause() (string, error) {
 	tree := merged[0]
 	if len(merged) > 1 {
 		tree = &Node{kind: kindRoot, children: merged}
-	}
-	if len(r.AllowEncoded) > 0 {
-		return fmt.Sprintf("path.match(%s, allow_encoded(%s))", nodeToSource(tree), setSource(r.AllowEncoded)), nil
 	}
 	return fmt.Sprintf("path.match(%s)", nodeToSource(tree)), nil
 }
@@ -487,7 +468,7 @@ func validateWhereLen(where string) error {
 // hide an authoring mistake.
 func (r Rule) validateUnsafeAllowAllStandsAlone() error {
 	if len(r.Paths) > 0 || len(r.Methods) > 0 || r.Where != "" ||
-		len(r.AllowEncoded) > 0 || r.AllowCode != "" || r.AllowReason != "" ||
+		r.AllowCode != "" || r.AllowReason != "" ||
 		r.DenyCodeHint != "" || r.DenyReasonHint != "" {
 		return trace.BadParameter("unsafe_allow_all cannot be combined with any other field")
 	}
@@ -564,9 +545,8 @@ func nodeToSource(n *Node) string {
 }
 
 // setSource renders a list of strings as a set(...) call, the form the encoded
-// nodes take for their allowed-encoded chars, glob_without takes for its
-// excluded values, and path.match takes for its allow_encoded option, so the
-// rendered source parses back to the same values.
+// nodes take for their allowed-encoded chars and glob_without takes for its
+// excluded values, so the rendered source parses back to the same values.
 func setSource(values []string) string {
 	quoted := make([]string, 0, len(values))
 	for _, v := range values {
@@ -600,12 +580,11 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 	if err != nil {
 		return Decision{}, trace.Wrap(err)
 	}
-	// A read of a capture the matcher did not bind, a path the tokenizer
-	// rejected, or an encoded char in a match that did not opt in, forces the
-	// rule to no-match. All three can only deny, never widen, no matter which
-	// operator read them, so an unbound capture, an unreadable path, or an
-	// unexpected encoded segment fails closed even behind a negation.
-	if allowed && !e.state.unboundRead && !e.state.tokenizeFailed && !e.state.encodedNotAllowed {
+	// A read of a capture the matcher did not bind, or a path the tokenizer
+	// rejected, forces the rule to no-match. Both can only deny, never widen, no
+	// matter which operator read them, so an unbound capture or an unreadable
+	// path fails closed even behind a negation.
+	if allowed && !e.state.unboundRead && !e.state.tokenizeFailed {
 		return Decision{
 			Allowed: true,
 			Allow:   &AllowDetails{Vars: e.vars, Code: e.state.allowCode, Reason: e.state.allowReason},

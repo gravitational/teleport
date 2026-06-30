@@ -1,21 +1,17 @@
 description: npm scoped package binds its decoded id
 app_resources:
-    # allow_encoded opts the match in.
-    # {package:/} binds the decoded id, so
+    # {package:/} is the encoded-node opt-in.
+    # It binds the decoded id, so
     # /@scope%2fname reads as @scope/name.
     # allows /registry/@babel%2fcore
     - paths:
         - /registry/{package:/}
-      allow_encoded:
-        - /
 app_resources_expressions:
     - |-
       path.match(
         literal("registry",
           capture_encoded("package",
-            set("/"))),
-        allow_encoded(
-          set("/")))
+            set("/"))))
 identity:
     name: bob
     roles:

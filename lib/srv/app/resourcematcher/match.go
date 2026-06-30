@@ -18,10 +18,6 @@
 
 package resourcematcher
 
-import (
-	"github.com/gravitational/trace"
-)
-
 // Result is the outcome of Match: whether the tree matched and the captures it
 // bound. A non-match is the zero value, so there is no nil to guard.
 type Result struct {
@@ -32,29 +28,16 @@ type Result struct {
 	Captures map[string]string
 }
 
-// Match tokenizes path, applies the encoded-char gate the opts allow, and walks
-// the matcher tree. It is the standalone parallel to the path.match predicate:
-// a path carrying an encoded char that no allow_encoded option admits does not
-// match (fail closed), and a path the tokenizer rejects does not match. Use
-// Tokenize plus Eval directly to tell a tokenize error from a plain no-match.
-func Match(root *Node, path string, opts ...Option) Result {
+// Match tokenizes path and walks the matcher tree. It is the standalone
+// parallel to the path.match predicate: an encoded char is admitted only by an
+// encoded node at that position, since every plain node rejects a percent
+// token, and a path the tokenizer rejects does not match. Use Tokenize plus
+// Eval directly to tell a tokenize error from a plain no-match.
+func Match(root *Node, path string) Result {
 	tokens, err := Tokenize(path)
 	if err != nil {
 		return Result{}
 	}
-	if encodedBlocked(tokens, opts) {
-		return Result{}
-	}
 	ok, caps := Eval(tokens, root)
 	return Result{Matched: ok, Captures: caps}
-}
-
-// AllowEncoded builds the option that opts a Match (or path.match) into the
-// named encoded chars. A variadic string is natural in Go; the predicate
-// surface uses set("/") instead. Only "/" is supported today.
-func AllowEncoded(chars ...string) (Option, error) {
-	if err := validateEncodedChars(chars); err != nil {
-		return Option{}, trace.Wrap(err)
-	}
-	return Option{allowEncoded: chars}, nil
 }
