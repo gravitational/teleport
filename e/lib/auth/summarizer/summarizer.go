@@ -46,9 +46,10 @@ import (
 )
 
 const (
-	defaultTimeout = 10 * time.Minute
 	// Maximum number of concurrent summarization jobs.
 	concurrencyLimit = 25
+	// desktopConcurrencyLimit caps concurrent desktop session summarizations.
+	desktopConcurrencyLimit = 4
 	// Number of workers in the worker pool for summarization.
 	workerCount = 10
 	// failedSummaryUploadTimeout bounds the upload of a SUMMARY_STATE_ERROR
@@ -170,6 +171,8 @@ type SessionSummarizer struct {
 	clock                            clockwork.Clock
 	logger                           *slog.Logger
 	concurrencyLimiter               *semaphore.Weighted
+	desktopConcurrencyLimiter        *semaphore.Weighted
+	slotAcquireTimeout               time.Duration
 	enableBedrockWithoutRestrictions bool
 	encrypter                        events.EncryptionWrapper
 	awsConfigCache                   *awsconfig.Cache
@@ -234,6 +237,8 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		clock:                            clock,
 		logger:                           slog.With(teleport.ComponentKey, "summarizer"),
 		concurrencyLimiter:               semaphore.NewWeighted(concurrencyLimit),
+		desktopConcurrencyLimiter:        semaphore.NewWeighted(desktopConcurrencyLimit),
+		slotAcquireTimeout:               defaultSlotAcquireTimeout,
 		enableBedrockWithoutRestrictions: cfg.EnableBedrockWithoutRestrictions,
 		encrypter:                        cfg.Encrypter,
 		awsConfigCache:                   cfg.AWSConfigCache,
@@ -449,7 +454,7 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 		return trace.Wrap(err)
 	}
 
-	details.provider = provider
+	details.provider = newTimeoutProvider(provider)
 	details.errorFormatFunc = errorFormatter
 	details.summary = summarizerv1pb.Summary_builder{
 		SessionId: details.sessionID.String(),
@@ -526,6 +531,49 @@ func (s *SessionSummarizer) summarizeNowAndReportMetrics(ctx context.Context, de
 	})
 }
 
+// acquireDesktopSlot bounds the number of concurrent desktop session summarizations, which are heavier than other kinds.
+// Non-desktop kinds are not limited and get a no-op release. The returned release must be called once the summarization finishes.
+func (s *SessionSummarizer) acquireDesktopSlot(ctx context.Context, kind types.SessionKind) (func(), error) {
+	if kind != types.WindowsDesktopSessionKind {
+		return func() {}, nil
+	}
+
+	if err := s.desktopConcurrencyLimiter.Acquire(ctx, 1); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return func() { s.desktopConcurrencyLimiter.Release(1) }, nil
+}
+
+// acquireSlots blocks until both the desktop sub-limit (for desktop kinds) and the global concurrency slot are held,
+// bounded by slotAcquireTimeout so that time spent queueing for a slot doesn't consume the summarization budget. The
+// returned release frees both slots and must be called once the summarization finishes.
+func (s *SessionSummarizer) acquireSlots(ctx context.Context, kind types.SessionKind, modelName string) (func(), error) {
+	ctx, cancel := context.WithTimeout(ctx, s.slotAcquireTimeout)
+	defer cancel()
+
+	// Desktop summarizations are heavier (multimodal image inference), so they get a dedicated sub-limit. Acquire it
+	// before the global limiter so a desktop job that's waiting for a desktop slot doesn't occupy one of the shared
+	// slots while it blocks. For other kinds, acquireDesktopSlot is a no-op returning a release that does nothing.
+	releaseDesktop, err := s.acquireDesktopSlot(ctx, kind)
+	if err != nil {
+		return nil, trace.Wrap(err, "Failed to acquire the desktop concurrency limiter semaphore")
+	}
+
+	metrics.SummarizationsPending.WithLabelValues(modelName).Inc()
+	err = s.concurrencyLimiter.Acquire(ctx, 1)
+	metrics.SummarizationsPending.WithLabelValues(modelName).Dec()
+	if err != nil {
+		releaseDesktop()
+		return nil, trace.Wrap(err, "Failed to acquire the concurrency limiter semaphore")
+	}
+
+	return func() {
+		s.concurrencyLimiter.Release(1)
+		releaseDesktop()
+	}, nil
+}
+
 // summarizeNow summarizes the session recording synchronously and uploads the
 // result. If it's unable to summarize, it stores an error in the summary
 // object. Regardless of the outcome, an attempt is then made to upload the
@@ -536,10 +584,8 @@ func (s *SessionSummarizer) summarizeNowAndReportMetrics(ctx context.Context, de
 // timeout and can be canceled at any time without affecting the summarization
 // process.
 func (s *SessionSummarizer) summarizeNow(ctx context.Context, details *sessionDetails) error {
-	// TODO(bl-nero): Make the timeout configurable, or at least depend on the
-	// provider.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultTimeout)
-	defer cancel()
+	// Detach from the caller's cancellation; each phase below applies its own deadline.
+	ctx = context.WithoutCancel(ctx)
 
 	// Clone the pending result to avoid modifying the original one.
 	result := proto.CloneOf(details.summary)
@@ -548,29 +594,30 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details *sessionDe
 
 	modelName := details.summary.GetModelName()
 
-	metrics.SummarizationsPending.WithLabelValues(modelName).Inc()
-	// sumErr is a summarization error that can be saved into the summary state
-	// and needs to be returned regardless of the state of other operations.
-	sumErr := s.concurrencyLimiter.Acquire(ctx, 1)
-	metrics.SummarizationsPending.WithLabelValues(modelName).Dec()
-
+	// Phase 1: acquire the concurrency slots under their own deadline so that queueing for a slot doesn't eat into the
+	// inference budget below.
+	release, sumErr := s.acquireSlots(ctx, details.kind, modelName)
 	if sumErr != nil {
-		sumErr = trace.Wrap(sumErr, "Failed to acquire the concurrency limiter semaphore")
 		result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR)
 		result.SetErrorMessage(details.errorFormatFunc(sumErr))
 	} else {
-		metrics.SummarizationsRunning.WithLabelValues(modelName).Inc()
+		defer release()
 
+		metrics.SummarizationsRunning.WithLabelValues(modelName).Inc()
 		defer metrics.SummarizationsRunning.WithLabelValues(modelName).Dec()
-		defer s.concurrencyLimiter.Release(1)
+
+		// Phase 2: the actual inference, bounded by the job ceiling now that a slot is held. Per-call timeouts nest
+		// under this.
+		summarizeCtx, cancel := context.WithTimeout(ctx, maxSummarizationTimeout)
+		defer cancel()
 
 		switch details.kind {
 		case types.SSHSessionKind, types.KubernetesSessionKind:
-			sumErr = s.summarizeSession(ctx, log, result, details)
+			sumErr = s.summarizeSession(summarizeCtx, log, result, details)
 		case types.DatabaseSessionKind:
-			sumErr = s.summarizeSimple(ctx, log, result, details)
+			sumErr = s.summarizeSimple(summarizeCtx, log, result, details)
 		case types.WindowsDesktopSessionKind:
-			sumErr = s.summarizeDesktopSession(ctx, result, *details)
+			sumErr = s.summarizeDesktopSession(summarizeCtx, result, *details)
 		// This should be unreachable due to checks in the caller.
 		default:
 			sumErr = trace.BadParameter("unsupported session kind: %v", details.kind)
@@ -581,7 +628,12 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details *sessionDe
 
 	result.SetInferenceFinishedAt(timestamppb.New(s.clock.Now().UTC()))
 
-	return s.uploadSummary(ctx, log, details, result, sumErr)
+	// Phase 3: persist the terminal result under its own deadline, separate from the inference budget, so a job that
+	// exhausted the ceiling still records its terminal state instead of failing to upload.
+	uploadCtx, cancel := context.WithTimeout(ctx, summaryUploadTimeout)
+	defer cancel()
+
+	return s.uploadSummary(uploadCtx, log, details, result, sumErr)
 }
 
 // summarizeSession performs the actual summarization of the session recording.
@@ -633,6 +685,9 @@ func (s *SessionSummarizer) summarizeSimple(
 	result *summarizerv1pb.Summary,
 	details *sessionDetails,
 ) error {
+	ctx, cancel := context.WithTimeout(ctx, perChunkTimeout)
+	defer cancel()
+
 	reader := newSessionReader(ctx, s.streamer, details.sessionID)
 	defer reader.Close()
 
