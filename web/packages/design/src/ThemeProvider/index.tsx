@@ -17,7 +17,7 @@
  */
 
 import isPropValid from '@emotion/is-prop-valid';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import {
   ThemeProvider as StyledThemeProvider,
   StyleSheetManager,
@@ -54,6 +54,21 @@ export function ConfiguredThemeProvider(props: {
   theme: Theme;
   children?: ReactNode;
 }) {
+  // Reflect the active theme as a class on the <html> element so that styles
+  // (e.g. ResourceIcon colors) can theme themselves purely via CSS, without every
+  // component subscribing to the theme context.
+  // TODO(ryan): the new design system does this for us, revert when it merges
+  const {
+    theme: { type: themeType },
+  } = props;
+
+  useEffect(() => {
+    const root = document.documentElement;
+
+    root.classList.remove('dark', 'light');
+    root.classList.add(themeType);
+  }, [themeType]);
+
   return (
     <StyledThemeProvider theme={props.theme}>
       <StyleSheetManager shouldForwardProp={shouldForwardProp}>
