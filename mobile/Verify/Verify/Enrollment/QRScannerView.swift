@@ -19,9 +19,8 @@ import SwiftUI
 import Vision
 import VisionKit
 
-struct QRScannerView<Value>: UIViewControllerRepresentable {
-	var validateScan: (String) -> Value?
-	var onScan: (Value) -> Void
+struct QRScannerView: UIViewControllerRepresentable {
+	var onScan: (String) -> QRScannerDecision
 	var onError: (any Error) -> Void = { _ in }
 
 	func makeUIViewController(context: Context) -> DataScannerViewController {
@@ -66,23 +65,20 @@ struct QRScannerView<Value>: UIViewControllerRepresentable {
 	}
 
 	func makeCoordinator() -> Coordinator {
-		Coordinator(validateScan: validateScan, onScan: onScan, onError: onError)
+		Coordinator(onScan: onScan, onError: onError)
 	}
 
 	@MainActor
 	final class Coordinator: NSObject, DataScannerViewControllerDelegate {
 		private var didScan = false
 		private var didReportError = false
-		private let validateScan: (String) -> Value?
-		private let onScan: (Value) -> Void
+		private let onScan: (String) -> QRScannerDecision
 		private let onError: (any Error) -> Void
 
 		init(
-			validateScan: @escaping (String) -> Value?,
-			onScan: @escaping (Value) -> Void,
+			onScan: @escaping (String) -> QRScannerDecision,
 			onError: @escaping (any Error) -> Void,
 		) {
-			self.validateScan = validateScan
 			self.onScan = onScan
 			self.onError = onError
 		}
@@ -127,16 +123,19 @@ struct QRScannerView<Value>: UIViewControllerRepresentable {
 			for item in items {
 				guard
 					case let .barcode(barcode) = item,
-					let payload = barcode.payloadStringValue,
-					let value = validateScan(payload)
+					let payload = barcode.payloadStringValue
 				else {
 					continue
 				}
 
-				didScan = true
-				dataScanner.stopScanning()
-				onScan(value)
-				return
+				switch onScan(payload) {
+					case .continueScanning:
+						break
+					case .stopScanning:
+						didScan = true
+						dataScanner.stopScanning()
+						return
+				}
 			}
 		}
 	}
@@ -154,4 +153,8 @@ enum QRScannerError: LocalizedError {
 				"QR code scanning is currently unavailable."
 		}
 	}
+}
+
+enum QRScannerDecision {
+	case continueScanning, stopScanning
 }

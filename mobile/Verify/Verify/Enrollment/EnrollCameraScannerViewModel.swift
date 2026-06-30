@@ -41,7 +41,16 @@ extension EnrollCameraScannerViewModel {
 // MARK: - Scanner Actions
 
 extension EnrollCameraScannerViewModel {
-	func validateScannedCode(_ payload: String) -> EnrollMobileDeviceDeepLink? {
+	func didScan(_ payload: String) -> QRScannerDecision{
+		guard let enrollMobileDeviceDeepLink = validateScannedCode(payload) else {
+			return .continueScanning
+		}
+		Self.logger.info("Scanned deep link: \(enrollMobileDeviceDeepLink.debugDescription)")
+		delegate?.enrollCameraScannerViewModel(self, didReceiveEnrollMobileDeviceDeepLink: enrollMobileDeviceDeepLink)
+		return .stopScanning
+	}
+
+	private func validateScannedCode(_ payload: String) -> EnrollMobileDeviceDeepLink? {
 		Self.logger.debug("Validating scanned QR code: \(payload)")
 		do {
 			guard let url = URL(string: payload) else {
@@ -56,11 +65,6 @@ extension EnrollCameraScannerViewModel {
 			Self.logger.debug("\(payload) did not pass validation")
 			return nil
 		}
-	}
-
-	func didReceive(deepLink: EnrollMobileDeviceDeepLink) {
-		Self.logger.info("Scanned deep link: \(deepLink.debugDescription)")
-		delegate?.enrollCameraScannerViewModel(self, didReceiveEnrollMobileDeviceDeepLink: deepLink)
 	}
 }
 

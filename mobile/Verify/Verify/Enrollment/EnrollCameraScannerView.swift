@@ -21,7 +21,7 @@ struct EnrollCameraScannerView: View {
 	var viewModel: EnrollCameraScannerViewModel
 
 	var body: some View {
-		QRScannerView(validateScan: viewModel.validateScannedCode(_:), onScan: viewModel.didReceive(deepLink:))
+		QRScannerView(onScan: viewModel.didScan(_:))
 			.ignoresSafeArea()
 	}
 }
