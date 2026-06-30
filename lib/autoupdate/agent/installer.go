@@ -158,7 +158,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, rev Revision) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force, insecureSkipArtifactSignature bool) (err error) {
+func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force, insecureSkipSignatureVerify bool) (err error) {
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
@@ -216,6 +216,9 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 	if err != nil {
 		return trace.Wrap(err, "failed to download teleport")
 	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return trace.Wrap(err, "failed to reset artifact after download")
+	}
 
 	// If interrupted, close the file immediately to stop extracting.
 	ctx, cancel := context.WithCancel(ctx)
@@ -224,19 +227,15 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 		_ = f.Close() // safe to close file multiple times
 	})
 
-	if !insecureSkipArtifactSignature {
+	if !insecureSkipSignatureVerify {
 		if err := li.verifyArtifactSignature(ctx, f, uri+"."+artifactSignatureType, pathSum); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
 		li.Log.WarnContext(ctx, "artifact signature verification is disabled. Falling back to checksum-only verification.", "version", rev)
-		if err := li.verifyArtifactChecksum(pathSum, newSum); err != nil {
-			return trace.Wrap(err)
+		if !bytes.Equal(newSum, pathSum) {
+			return trace.BadParameter("downloaded checksum does not match artifact digest")
 		}
-	}
-
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return trace.Wrap(err, "failed to reset artifact after verification")
 	}
 	// Get uncompressed size of the tgz
 	n, err := uncompressedSize(f)
@@ -389,21 +388,11 @@ func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, artifact 
 	if err != nil {
 		return trace.Wrap(err, "failed to download signature from %s", url)
 	}
-	if _, err := artifact.Seek(0, io.SeekStart); err != nil {
-		return trace.Wrap(err, "failed to seek artifact for signature verification")
-	}
-	if err := verifier.VerifySignature(bytes.NewReader(sig), artifact, sigopts.WithDigest(digest)); err != nil {
+	if err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader(nil), sigopts.WithDigest(digest)); err != nil {
 		return trace.Wrap(err, "artifact signature verification failed")
 	}
 	if _, err := artifact.Seek(0, io.SeekStart); err != nil {
 		return trace.Wrap(err, "failed to reset artifact after signature verification")
-	}
-	return nil
-}
-
-func (li *LocalInstaller) verifyArtifactChecksum(digest, expected []byte) error {
-	if !bytes.Equal(expected, digest) {
-		return trace.BadParameter("downloaded checksum does not match artifact digest")
 	}
 	return nil
 }

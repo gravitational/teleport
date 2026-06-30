@@ -120,8 +120,8 @@ func Run(args []string) int {
 		Hidden().Envar(installDirEnvVar).StringVar(&ccfg.InstallDir)
 	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
 		BoolVar(&ccfg.Insecure)
-	app.Flag("insecure-skip-artifact-signature", "Disable artifact signature verification and fall back to checksum-only verification. Do not use in production.").
-		Hidden().IsSetByUser(&ccfg.InsecureSkipArtifactSignatureChanged).BoolVar(&ccfg.InsecureSkipArtifactSignature)
+	app.Flag("insecure-skip-signature-verify", "Disable artifact signature verification and fall back to checksum-only verification. Do not use in production.").
+		Hidden().IsSetByUser(&ccfg.InsecureSkipSignatureVerifyChanged).BoolVar(&ccfg.InsecureSkipSignatureVerify)
 
 	app.HelpFlag.Short('h')
 

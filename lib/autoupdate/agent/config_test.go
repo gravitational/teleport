@@ -133,7 +133,7 @@ func TestValidateConfigSpec(t *testing.T) {
 		name                          string
 		config                        UpdateSpec
 		override                      UpdateSpec
-		insecureSkipArtifactSignature bool
+		insecureSkipSignatureVerify bool
 		insecureChanged               bool
 		result                        UpdateSpec
 		errMatch                      string
@@ -228,26 +228,26 @@ func TestValidateConfigSpec(t *testing.T) {
 			override: UpdateSpec{
 				BaseURL: "https://example.com",
 			},
-			insecureSkipArtifactSignature: true,
+			insecureSkipSignatureVerify: true,
 			insecureChanged:               true,
 			result: UpdateSpec{
 				BaseURL:                       "https://example.com",
-				InsecureSkipArtifactSignature: true,
+				InsecureSkipSignatureVerify:   true,
 			},
 		},
 		{
 			name:                          "insecure checksum-only mode allowed with default base URL",
-			insecureSkipArtifactSignature: true,
+			insecureSkipSignatureVerify:   true,
 			insecureChanged:               true,
 			result: UpdateSpec{
-				InsecureSkipArtifactSignature: true,
+				InsecureSkipSignatureVerify: true,
 			},
 		},
 		{
 			name: "insecure checksum-only mode can be cleared",
 			config: UpdateSpec{
 				BaseURL:                       "https://example.com",
-				InsecureSkipArtifactSignature: true,
+				InsecureSkipSignatureVerify:   true,
 			},
 			insecureChanged: true,
 			result: UpdateSpec{
@@ -265,9 +265,9 @@ func TestValidateConfigSpec(t *testing.T) {
 					Enabled:                       tt.override.Enabled,
 					Pinned:                        tt.override.Pinned,
 					SELinuxSSH:                    tt.override.SELinuxSSH,
-					InsecureSkipArtifactSignature: tt.insecureSkipArtifactSignature,
+					InsecureSkipSignatureVerify: tt.insecureSkipSignatureVerify,
 				},
-				InsecureSkipArtifactSignatureChanged: tt.insecureChanged,
+				InsecureSkipSignatureVerifyChanged: tt.insecureChanged,
 			})
 			if tt.errMatch != "" {
 				require.ErrorContains(t, err, tt.errMatch)
