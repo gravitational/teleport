@@ -2990,13 +2990,13 @@ message ListAccessRequestsRequest {
 
   // IncludeUserDisplays requests read-time display values for users referenced
   // by the returned access requests.
-  bool IncludeUserDisplays = 6 [(gogoproto.jsontag) = "include_user_displays,omitempty"];
+  bool IncludeUserDisplays = 6;
 }
 
 // UserDisplay holds read-time display values derived from a user resource.
 message UserDisplay {
-  string Primary = 1 [(gogoproto.jsontag) = "primary,omitempty"];
-  string Secondary = 2 [(gogoproto.jsontag) = "secondary,omitempty"];
+  string Primary = 1;
+  string Secondary = 2;
 }
 
 // ListAccessRequestsResponse is a page of access requests.
@@ -3009,7 +3009,7 @@ message ListAccessRequestsResponse {
 
   // UserDisplays maps usernames referenced by this page's requests
   // (requester, review authors, suggested reviewers) to display values.
-  map<string, UserDisplay> UserDisplays = 3 [(gogoproto.jsontag) = "user_displays,omitempty"];
+  map<string, UserDisplay> UserDisplays = 3;
 }
 
 // AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
