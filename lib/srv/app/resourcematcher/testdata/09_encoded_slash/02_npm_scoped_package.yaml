@@ -1,8 +1,8 @@
-description: npm scoped package keeps its literal "@" raw
+description: npm scoped package binds its decoded id
 app_resources:
     # allow_encoded opts the match in.
-    # {package:/} binds /@scope%2fname raw,
-    # so "@" stays "@", never %40.
+    # {package:/} binds the decoded id, so
+    # /@scope%2fname reads as @scope/name.
     # allows /registry/@babel%2fcore
     - paths:
         - /registry/{package:/}
@@ -27,7 +27,7 @@ cases:
       expect:
         allowed: true
         vars:
-            package: '@babel%2fcore'
+            package: '@babel/core'
     - request:
         method: GET
         path: /registry/lodash

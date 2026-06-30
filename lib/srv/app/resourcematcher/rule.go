@@ -20,6 +20,7 @@ package resourcematcher
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -50,8 +51,10 @@ type Rule struct {
 	// Methods is empty, any method is permitted. Otherwise the request method
 	// must appear in the list. Names are case-insensitive and validated
 	// against the standard HTTP methods (GET, HEAD, POST, PUT, PATCH, DELETE,
-	// CONNECT, OPTIONS, TRACE); an unknown method is a load error, so a typo
-	// fails loudly rather than silently never matching.
+	// OPTIONS, TRACE); an unknown method is a load error, so a typo fails
+	// loudly rather than silently never matching. CONNECT is not a member: a
+	// CONNECT request targets an authority, not a slash-path, so the tokenizer
+	// rejects it and a rule listing CONNECT could never match.
 	Methods []string `yaml:"methods,omitempty"`
 	// Where is a condition over the caller identity, the request, and this
 	// rule's captures. It does not match paths and may not call path.match.
@@ -210,6 +213,10 @@ func compileExpression(expr string) (*CompiledRule, error) {
 	if strings.TrimSpace(expr) == "" {
 		return nil, trace.BadParameter("an app_resources_expression entry cannot be empty")
 	}
+	if len(expr) > maxExpressionBytes {
+		return nil, trace.BadParameter(
+			"app_resources_expression entry is %d bytes, over the %d byte cap", len(expr), maxExpressionBytes)
+	}
 	pred, err := compilePredicate(expr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -279,9 +286,9 @@ func (r Rule) desugar() (string, error) {
 // expression is false and returns that value, so wrapping the where makes the
 // hint fire on the near-miss: the path and method on its left of the && gate
 // it to the rule's territory, and the wrapped where on a false reading records
-// the hint and denies. A deny code with no where has no near-miss condition to
-// wrap, so the hint can never fire and the clause omits it, the same as the
-// rule behaved before the deny code became a predicate primitive.
+// the hint and denies. validate rejects a deny code with no where, so a hint
+// always has a near-miss condition to wrap; the empty-where branch here only
+// renders an unhinted where.
 func (r Rule) whereDenyClause() string {
 	if r.Where == "" {
 		return ""
@@ -368,9 +375,11 @@ func (r Rule) methodClause() string {
 }
 
 // standardMethods is the set of HTTP methods a rule may name, the request
-// methods defined by RFC 9110. A rule that names anything else has a typo, so
-// validateMethods rejects it at load rather than compiling a rule that can
-// never match.
+// methods defined by RFC 9110 less CONNECT. A rule that names anything else has
+// a typo, so validateMethods rejects it at load rather than compiling a rule
+// that can never match. CONNECT is excluded deliberately: it targets an
+// authority rather than a slash-path, so the tokenizer rejects a CONNECT
+// request and a rule listing it could only ever be a dead rule.
 var standardMethods = map[string]bool{
 	"GET":     true,
 	"HEAD":    true,
@@ -378,7 +387,6 @@ var standardMethods = map[string]bool{
 	"PUT":     true,
 	"PATCH":   true,
 	"DELETE":  true,
-	"CONNECT": true,
 	"OPTIONS": true,
 	"TRACE":   true,
 }
@@ -386,12 +394,13 @@ var standardMethods = map[string]bool{
 // validateMethods rejects a method that is not a standard HTTP method. The
 // comparison is case-insensitive, matching how methodClause upper-cases before
 // the membership test, so "get" and "GET" are the same method and a typo such
-// as "GTE" fails loudly at load rather than silently never matching.
+// as "GTE" fails loudly at load rather than silently never matching. CONNECT is
+// rejected here too, since a CONNECT request never reaches a rule.
 func validateMethods(methods []string) error {
 	for _, m := range methods {
 		if !standardMethods[strings.ToUpper(m)] {
 			return trace.BadParameter(
-				"method %q is not a standard HTTP method (GET, HEAD, POST, PUT, PATCH, DELETE, CONNECT, OPTIONS, TRACE)", m)
+				"method %q is not a standard HTTP method (GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE)", m)
 		}
 	}
 	return nil
@@ -408,13 +417,25 @@ func (r Rule) validate() error {
 		return r.validateUnsafeAllowAllStandsAlone()
 	}
 	if len(r.Paths) == 0 {
+		// A present-but-empty list (paths: []) lands here too: it is treated as
+		// unset rather than silently allowed, so an author who clears the list
+		// gets a load error instead of an accidental unrestricted grant.
 		return trace.BadParameter("a rule must set paths or unsafe_allow_all")
 	}
 	if err := validateMethods(r.Methods); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := validateWhereLen(r.Where); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := validateWhereNoPathMatch(r.Where); err != nil {
 		return trace.Wrap(err)
+	}
+	if r.AllowReason != "" && r.AllowCode == "" {
+		// A reason explains a code, so a reason with no code has nothing to
+		// qualify and would be silently dropped by wrapAllowCode. Reject it at
+		// load, the same as the deny side rejects a reason hint with no code.
+		return trace.BadParameter("allow_reason set without allow_code")
 	}
 	if r.AllowCode != "" {
 		if err := validateCode(r.AllowCode); err != nil {
@@ -428,6 +449,34 @@ func (r Rule) validate() error {
 		if err := validateCode(r.DenyCodeHint); err != nil {
 			return trace.Wrap(err, "invalid deny_code_hint")
 		}
+		// A deny hint explains a near-miss, when the rule's path and method
+		// matched but the where condition did not. With no where there is no
+		// near-miss condition to wrap, so the hint could never fire. Reject it
+		// at load rather than silently dropping it, so an author who sets a hint
+		// on a path-only rule learns the hint does nothing.
+		if r.Where == "" {
+			return trace.BadParameter("deny_code_hint set without a where clause for the hint to qualify")
+		}
+	}
+	return nil
+}
+
+// maxWhereBytes caps a sugared rule's where clause. The where compiles to one
+// predicate evaluated per request, so an unbounded clause is both a parse cost
+// and an audit-log hazard; the cap keeps an authored condition to a reviewable
+// size.
+const maxWhereBytes = 1 << 10 // 1 KiB
+
+// maxExpressionBytes caps one app_resources_expression entry, the bare
+// predicate surface. It is wider than the where cap because an expression
+// carries the whole rule, path match included, where the sugared where carries
+// only the identity and request condition.
+const maxExpressionBytes = 4 << 10 // 4 KiB
+
+// validateWhereLen rejects a where clause over the byte cap.
+func validateWhereLen(where string) error {
+	if len(where) > maxWhereBytes {
+		return trace.BadParameter("where clause is %d bytes, over the %d byte cap", len(where), maxWhereBytes)
 	}
 	return nil
 }
@@ -630,14 +679,22 @@ type compiledRole struct {
 	rules []*CompiledRule
 }
 
-// CompileRoles compiles the roles a caller holds into a RoleSet. Within each
-// role the sugared Resources compile first, then the Expressions, so a
-// matching sugared rule's captures and allow code surface ahead of an
-// expression rule's. The order is cosmetic: rules are allow-only, so it never
-// changes whether a request is allowed, only which detail a caller sees.
+// CompileRoles compiles the roles a caller holds into a RoleSet. The roles are
+// evaluated in a deterministic order: by name lexicographically, then within
+// each role the sugared Resources compile first and the Expressions second, so
+// a matching sugared rule's captures and allow code surface ahead of an
+// expression rule's. The order never changes whether a request is allowed,
+// since rules are allow-only, only which allow code or hint order a caller sees;
+// sorting by name pins that detail so it does not vary with the input slice
+// order, which matters for the playground and for reproducible audit output.
 func CompileRoles(roles []Role) (RoleSet, error) {
-	set := make(RoleSet, 0, len(roles))
-	for _, role := range roles {
+	sorted := make([]Role, len(roles))
+	copy(sorted, roles)
+	slices.SortFunc(sorted, func(a, b Role) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	set := make(RoleSet, 0, len(sorted))
+	for _, role := range sorted {
 		cr := compiledRole{name: role.Name, rules: make([]*CompiledRule, 0, len(role.Resources)+len(role.Expressions))}
 		for i, r := range role.Resources {
 			c, err := r.Compile()

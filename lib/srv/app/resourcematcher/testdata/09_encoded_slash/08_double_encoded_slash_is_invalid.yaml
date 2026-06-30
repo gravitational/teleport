@@ -24,4 +24,4 @@ cases:
       expect:
         allowed: true
         vars:
-            project: a%2Fb
+            project: a/b

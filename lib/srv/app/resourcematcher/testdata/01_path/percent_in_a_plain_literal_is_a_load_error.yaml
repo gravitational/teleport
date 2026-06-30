@@ -1,0 +1,12 @@
+description: a percent in a plain literal is a load error
+app_resources:
+    # A plain literal pins exact bytes, so a
+    # "%" in it is a dead rule: a request token
+    # carrying an encoded char never matches a
+    # plain literal. Reject it at load and
+    # steer the author to encoded_literal or
+    # the {name:/} sugar, which match by
+    # decoded value.
+    - paths:
+        - /a%2Fb
+error: 'contains %'

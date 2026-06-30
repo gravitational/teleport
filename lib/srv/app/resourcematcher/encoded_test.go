@@ -117,8 +117,8 @@ func TestEncodedCharsEndToEnd(t *testing.T) {
 	}{
 		{"opted glob_encoded matches encoded", optedGlob, "/p/mygroup%2Fmyproject", true, "", map[string]string{}},
 		{"opted glob_encoded matches plain", optedGlob, "/p/plain", true, "", map[string]string{}},
-		{"opted capture_encoded binds upper hex", optedCapture, "/p/a%2Fb", true, "", map[string]string{"id": "a%2Fb"}},
-		{"opted capture_encoded binds lower hex", optedCapture, "/p/a%2fb", true, "", map[string]string{"id": "a%2fb"}},
+		{"opted capture_encoded binds decoded upper hex", optedCapture, "/p/a%2Fb", true, "", map[string]string{"id": "a/b"}},
+		{"opted capture_encoded binds decoded lower hex", optedCapture, "/p/a%2fb", true, "", map[string]string{"id": "a/b"}},
 		{"opted capture_encoded binds plain", optedCapture, "/p/plain", true, "", map[string]string{"id": "plain"}},
 		{"plain glob rejects encoded even when opted in", optedPlainGlob, "/p/a%2Fb", false, DenyNotAllowed, nil},
 		{"plain glob matches plain when opted in", optedPlainGlob, "/p/plain", true, "", map[string]string{}},
@@ -245,14 +245,16 @@ func TestByteFidelityNeverReEncode(t *testing.T) {
 	require.True(t, got.Allowed)
 	require.Equal(t, "a~b@c:d-e._f~", got.Allow.Vars["x"], "raw bytes forwarded, nothing re-encoded")
 
-	// capture_encoded keeps the same chars raw alongside the encoded separator,
-	// so the "~" and "@" are never re-encoded even on the encoded-slash path.
+	// capture_encoded decodes the separator for the vars view but leaves every
+	// other char alone, so the "~", "@", and ":" are never re-encoded and only
+	// the "%2F" resolves to "/". The raw token still forwards byte-faithfully
+	// upstream; this asserts the decoded vars value the where would compare.
 	enc, err := compileExpression(`path.match(literal("p", capture_encoded("x", set("/"))), allow_encoded(set("/")))`)
 	require.NoError(t, err)
 	got, err = enc.Evaluate(Request{Method: "GET", Path: "/p/a~b@c%2Fd:e"}, Identity{})
 	require.NoError(t, err)
 	require.True(t, got.Allowed)
-	require.Equal(t, "a~b@c%2Fd:e", got.Allow.Vars["x"], "tilde, at, colon stay raw next to %2F")
+	require.Equal(t, "a~b@c/d:e", got.Allow.Vars["x"], "only %2F decodes; tilde, at, colon stay raw")
 
 	// The encoded form of a non-separator char is rejected at tokenize, so it can
 	// never be matched or forwarded. This is why a "~" never needs re-encoding:

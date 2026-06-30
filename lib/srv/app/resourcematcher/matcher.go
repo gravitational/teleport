@@ -63,8 +63,10 @@ const (
 	// count) is supported. It is the explicit per-position opt-in that admits an
 	// encoded char where a real API requires it.
 	kindGlobEncoded
-	// kindCaptureEncoded matches one such token and binds it raw under
-	// capture.<name>, forwarded byte-faithfully with no decode and no re-encode.
+	// kindCaptureEncoded matches one such token and binds its decoded value
+	// under capture.<name>, the encoded separator unescaped to "/", so a where
+	// sees "group/project" for both hex cases. The raw token still forwards
+	// byte-faithfully upstream; only the vars view is decoded.
 	kindCaptureEncoded
 	// kindEncodedLiteral matches one token whose decoded value equals its text,
 	// where the admitted encoded chars are decoded for the comparison. text holds
@@ -197,6 +199,15 @@ func validateSegment(seg string) error {
 			return trace.BadParameter("literal segment %q contains an illegal URL byte %q", seg, string(seg[i]))
 		}
 	}
+	// A plain literal pins exact bytes, so a "%" in it is a dead rule: a request
+	// token carrying an encoded char is rejected by a plain literal unless the
+	// rule also opts in with allow_encoded, and even then the literal is brittle
+	// to the hex case the client sent. Reject "%" here and steer the author to
+	// encoded_literal or the {name:/} sugar, which match by decoded value.
+	if strings.ContainsRune(seg, '%') {
+		return trace.BadParameter(
+			"literal segment %q contains %%; a plain literal cannot match an encoded char, use encoded_literal or {name:/}", seg)
+	}
 	return nil
 }
 
@@ -234,11 +245,14 @@ func GlobEncoded(allowed []string, children ...*Node) (*Node, error) {
 }
 
 // CaptureEncoded builds a node that matches one such segment and binds it under
-// capture.<name>, the capture form of GlobEncoded. The bound value is the raw
-// bytes, forwarded byte-faithfully with no decode and no re-encode, so the
-// agent's view and the upstream's stay identical. The matcher sees one opaque
-// blob and cannot reach inside it; an inner constraint belongs in a where:
-// check on the captured raw string.
+// capture.<name>, the capture form of GlobEncoded. The bound value is the
+// decoded form, the encoded separator unescaped to "/", so a where sees
+// "group/project" for both "group%2Fproject" and "group%2fproj" and the hex
+// case never reaches a comparison. This is the decoded vars view Go's
+// http.ServeMux uses. The raw token still forwards byte-faithfully upstream;
+// only the vars view is decoded. The matcher sees one segment and cannot reach
+// inside it; an inner constraint belongs in a where check on the decoded
+// string.
 func CaptureEncoded(name string, allowed []string, children ...*Node) (*Node, error) {
 	if err := validateEncodedChars(allowed); err != nil {
 		return nil, trace.Wrap(err)
@@ -272,15 +286,18 @@ func EncodedLiteral(value string, allowed []string, children ...*Node) (*Node, e
 // decoded form, and the node re-derives the encoded form to match.
 func validateEncodedLiteralValue(value string) error {
 	for _, part := range strings.Split(value, "/") {
+		// Check for "%" before the shared segment check, so an encoded_literal
+		// value gets the "write the plain value" guidance rather than the plain
+		// literal's "use encoded_literal" steer, which would be circular here.
+		if strings.ContainsRune(part, '%') {
+			return trace.BadParameter(
+				"encoded_literal value %q must be the decoded form and carry no %%-escape; write the plain value", value)
+		}
 		if err := validateSegment(part); err != nil {
 			return trace.Wrap(err)
 		}
 		if part == "." || part == ".." {
 			return trace.BadParameter("encoded_literal value %q has a relative segment %q", value, part)
-		}
-		if strings.ContainsRune(part, '%') {
-			return trace.BadParameter(
-				"encoded_literal value %q must be the decoded form and carry no %%-escape; write the plain value", value)
 		}
 	}
 	return nil
@@ -533,8 +550,13 @@ func matchNode(node *Node, tokens []string, i int, caps map[string]string) bool 
 		if i >= len(tokens) || tokens[i] == "" || !onlyEncodedSlash(tokens[i]) {
 			return false
 		}
-		// Bind the raw bytes so the captured value forwards byte-faithfully.
-		caps[node.text] = tokens[i]
+		// Bind the decoded value, the encoded separator unescaped to "/", so a
+		// where sees "group/project" for both "group%2Fproject" and
+		// "group%2fproj" and the hex case never reaches a comparison. This is
+		// the decoded vars view Go's http.ServeMux uses, and it matches how
+		// encoded_literal compares by decoded value. The raw token still
+		// forwards byte-faithfully upstream; only the vars view is decoded.
+		caps[node.text] = decodeSeparators(tokens[i])
 		return matchChildren(node, tokens, i, caps)
 	case kindEncodedLiteral:
 		// Decode the admitted encoded chars and compare to the literal value, so

@@ -36,11 +36,11 @@ cases:
       expect:
         allowed: true
         vars:
-            project: mygroup%2Fmyproject
+            project: mygroup/myproject
     - request:
         method: GET
         path: /api/v4/projects/mygroup%2Fsub%2Fmyproject/issues
       expect:
         allowed: true
         vars:
-            project: mygroup%2Fsub%2Fmyproject
+            project: mygroup/sub/myproject

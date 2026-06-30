@@ -19,6 +19,7 @@
 package resourcematcher
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -392,14 +393,14 @@ func TestRoleSetMisconfiguredDefaultDeny(t *testing.T) {
 // encoded segment and a plain glob never spans it.
 func TestEncodedSlashCapture(t *testing.T) {
 	// capture_encoded, paired with the allow_encoded option, admits both a
-	// plain id and an encoded id, binding the raw bytes either way.
+	// plain id and an encoded id, binding the decoded value either way.
 	c, err := compileExpression(`path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`)
 	require.NoError(t, err)
 
 	got, err := c.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/mygroup%2Fmyproject/issues"}, Identity{})
 	require.NoError(t, err)
 	require.True(t, got.Allowed)
-	require.Equal(t, "mygroup%2Fmyproject", got.Allow.Vars["project"], "encoded id binds raw as one segment")
+	require.Equal(t, "mygroup/myproject", got.Allow.Vars["project"], "encoded id binds the decoded value as one segment")
 
 	got, err = c.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/123/issues"}, Identity{})
 	require.NoError(t, err)
@@ -460,7 +461,7 @@ methods: [GET]
 	got, err = set.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/mygroup%2Fmyproject/issues"}, Identity{})
 	require.NoError(t, err)
 	require.True(t, got.Allowed)
-	require.Equal(t, "mygroup%2Fmyproject", got.Allow.Vars["project"])
+	require.Equal(t, "mygroup/myproject", got.Allow.Vars["project"])
 
 	// A path neither field grants is denied.
 	got, err = set.Evaluate(Request{Method: "GET", Path: "/api/v4/groups"}, Identity{})
@@ -507,5 +508,91 @@ func TestNodeToSourceContractsLiterals(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.want, nodeToSource(tc.node))
 		})
+	}
+}
+
+// TestWhereByteCap pins the 1 KiB cap on a sugared where clause. A clause at the
+// cap compiles; one byte over is a load error, so an unbounded condition cannot
+// ride into the evaluator or the audit log.
+func TestWhereByteCap(t *testing.T) {
+	// A where of exactly maxWhereBytes built from a long disjunction of identity
+	// reads compiles, and one byte longer does not. The clause is padded with
+	// spaces, which the parser tolerates, so only the length is under test.
+	atCap := "user.name == \"x\"" + strings.Repeat(" ", maxWhereBytes-len("user.name == \"x\""))
+	require.Len(t, atCap, maxWhereBytes)
+	_, err := Rule{Paths: []string{"/api/**"}, Where: atCap}.Compile()
+	require.NoError(t, err, "a where at the cap compiles")
+
+	overCap := atCap + " "
+	_, err = Rule{Paths: []string{"/api/**"}, Where: overCap}.Compile()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "over the")
+}
+
+// TestExpressionByteCap pins the 4 KiB cap on one app_resources_expression
+// entry. An entry at the cap compiles; one byte over is a load error.
+func TestExpressionByteCap(t *testing.T) {
+	atCap := "path.match(literal(\"api\", greedy()))"
+	atCap += strings.Repeat(" ", maxExpressionBytes-len(atCap))
+	require.Len(t, atCap, maxExpressionBytes)
+	_, err := compileExpression(atCap)
+	require.NoError(t, err, "an expression at the cap compiles")
+
+	_, err = compileExpression(atCap + " ")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "over the")
+}
+
+// TestPercentInPlainLiteralRejected pins that a "%" in a plain literal is a load
+// error on both surfaces: the predicate literal() and the sugared paths string.
+// A plain literal pins exact bytes and can never match an encoded char, so a
+// silent dead rule is rejected and the author is steered to encoded_literal or
+// the {name:/} sugar.
+func TestPercentInPlainLiteralRejected(t *testing.T) {
+	_, err := compileExpression(`path.match(literal("a%2Fb"))`)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "contains %")
+
+	_, err = Rule{Paths: []string{"/a%2Fb"}}.Compile()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "contains %")
+
+	// encoded_literal, the steer, takes the decoded value and compiles.
+	_, err = compileExpression(`path.match(encoded_literal("a/b", set("/")), allow_encoded(set("/")))`)
+	require.NoError(t, err)
+}
+
+// TestAllowReasonNeedsCode pins that an allow_reason with no allow_code is a
+// load error, symmetric to the deny side rejecting a reason hint with no code.
+func TestAllowReasonNeedsCode(t *testing.T) {
+	_, err := Rule{Paths: []string{"/api/**"}, AllowReason: "public"}.Compile()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "allow_reason set without allow_code")
+
+	// A reason paired with a code compiles.
+	_, err = Rule{Paths: []string{"/api/**"}, AllowCode: "public_api", AllowReason: "public"}.Compile()
+	require.NoError(t, err)
+}
+
+// TestRolesSortedByName pins the deterministic role order: CompileRoles sorts
+// contributing roles by name, so the evaluated-role order and the recorded
+// allow_code do not depend on the input slice order. Two roles grant the same
+// path with different codes; whichever sorts first by name wins, no matter how
+// the caller ordered them.
+func TestRolesSortedByName(t *testing.T) {
+	zeta := Role{Name: "zeta", Resources: []Rule{{Paths: []string{"/api/**"}, AllowCode: "from_zeta"}}}
+	alpha := Role{Name: "alpha", Resources: []Rule{{Paths: []string{"/api/**"}, AllowCode: "from_alpha"}}}
+
+	for _, order := range [][]Role{{zeta, alpha}, {alpha, zeta}} {
+		set, err := CompileRoles(order)
+		require.NoError(t, err)
+		require.Equal(t, []string{"alpha", "zeta"}, set.EvaluatedRoles(),
+			"evaluated roles are sorted by name regardless of input order")
+
+		got, err := set.Evaluate(Request{Method: "GET", Path: "/api/v4/health"}, Identity{})
+		require.NoError(t, err)
+		require.True(t, got.Allowed)
+		require.Equal(t, "from_alpha", got.Allow.Code,
+			"the lexicographically first role's allow_code wins, deterministically")
 	}
 }

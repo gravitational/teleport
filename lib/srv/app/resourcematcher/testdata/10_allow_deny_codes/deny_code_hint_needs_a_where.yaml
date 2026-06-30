@@ -1,0 +1,13 @@
+description: a deny_code_hint with no where is a load error
+app_resources:
+    # A deny hint explains a near-miss, when
+    # the path and method matched but the where
+    # did not. With no where there is no
+    # near-miss to qualify, so the hint could
+    # never fire. Reject it at load rather than
+    # silently dropping it.
+    - paths:
+        - /api/**
+      deny_code_hint: needs_mfa
+      deny_reason_hint: this endpoint requires MFA
+error: deny_code_hint set without a where clause

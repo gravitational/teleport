@@ -18,7 +18,7 @@ cases:
       expect:
         allowed: true
         vars:
-            project: mygroup%2fmyproject
+            project: mygroup/myproject
     - request:
         method: GET
         path: /api/v4/projects/mygroup%2fmyproject/secret

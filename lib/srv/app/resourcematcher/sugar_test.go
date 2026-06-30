@@ -104,11 +104,11 @@ func TestSugarEval(t *testing.T) {
 		wantVars map[string]string
 	}{
 		{
-			name:     "encoded capture binds the raw slashed id",
+			name:     "encoded capture binds the decoded slashed id",
 			pattern:  "/registry/{package:/}",
 			path:     "/registry/@babel%2fcore",
 			want:     true,
-			wantVars: map[string]string{"package": "@babel%2fcore"},
+			wantVars: map[string]string{"package": "@babel/core"},
 		},
 		{
 			name:     "encoded capture binds a plain id too",

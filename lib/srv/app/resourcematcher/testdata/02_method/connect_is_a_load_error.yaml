@@ -1,0 +1,12 @@
+description: CONNECT is not a routable method, so listing it is a load error
+app_resources:
+    # CONNECT targets an authority, not a
+    # slash-path, so the tokenizer rejects a
+    # CONNECT request and a rule listing it
+    # could only ever be a dead rule. Reject
+    # it at load instead.
+    - paths:
+        - /api/**
+      methods:
+        - CONNECT
+error: not a standard HTTP method

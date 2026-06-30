@@ -1,0 +1,9 @@
+description: a present-but-empty paths list is a load error, not an open grant
+app_resources:
+    # An empty list is treated as unset, the
+    # same as omitting paths, so clearing it
+    # never silently grants unrestricted
+    # access. Use unsafe_allow_all to ask for
+    # that on purpose.
+    - paths: []
+error: a rule must set paths or unsafe_allow_all

@@ -1,13 +1,13 @@
-description: constrain an encoded id with a where check on the raw value
+description: constrain an encoded id with a where check on the decoded value
 app_resources_expression:
-    # An encoded segment is opaque. Pin its
-    # value in a where check on the raw
-    # capture, not in the path tree.
+    # An encoded segment binds its decoded
+    # value, so pin it in a where check on the
+    # decoded capture, with a literal "/".
     - |-
       path.match(literal("api/v4/projects",
           capture_encoded("project", set("/"), greedy())),
       allow_encoded(set("/"))) &&
-      vars.project == "mygroup%2Fmyproject"
+      vars.project == "mygroup/myproject"
 identity:
     name: bob
     roles:
@@ -19,7 +19,7 @@ cases:
       expect:
         allowed: true
         vars:
-            project: mygroup%2Fmyproject
+            project: mygroup/myproject
     - request:
         method: GET
         path: /api/v4/projects/other%2Fthing/issues

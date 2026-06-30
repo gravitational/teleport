@@ -1,0 +1,11 @@
+description: an allow_reason with no allow_code is a load error
+app_resources:
+    # A reason explains a code, so a reason
+    # with no code has nothing to qualify and
+    # would be silently dropped. Reject it at
+    # load, the same as the deny side rejects a
+    # reason hint with no code.
+    - paths:
+        - /api/**
+      allow_reason: this endpoint is public
+error: allow_reason set without allow_code
