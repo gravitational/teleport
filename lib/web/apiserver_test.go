@@ -5004,25 +5004,8 @@ func TestGetAppDetails(t *testing.T) {
 
 	clientFQDN := "client.example.com"
 
-	// Register a scoped app "scoped-app" that requires another scoped app
-	// "scoped-dependency" and uses use_any_proxy_public_addr. Scoped apps are addressed
-	// by their derived hash label, so the required-app redirect chain must use the
-	// hash FQDN, not "<name>.<proxy>".
 	const scope = "/staging/west"
-	// The proxy DNS name in this suite is the cluster name, "localhost".
 	const proxyDNS = "localhost"
-
-	scopedDependencyApp, err := types.NewAppV3(types.Metadata{
-		Name: "scoped-dependency",
-	}, types.AppSpecV3{
-		URI:        "http://127.0.0.1:8080",
-		PublicAddr: scopedapp.ScopedAppPublicAddr(scope, "scoped-dependency", proxyDNS),
-	}, scope)
-	require.NoError(t, err)
-	scopedAPIServer, err := types.NewAppServerV3FromApp(scopedDependencyApp, "host", uuid.New().String())
-	require.NoError(t, err)
-	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, scopedAPIServer)
-	require.NoError(t, err)
 
 	scopedApp, err := types.NewAppV3(types.Metadata{
 		Name: "scoped-app",
@@ -5030,7 +5013,7 @@ func TestGetAppDetails(t *testing.T) {
 		URI:                   "http://127.0.0.1:8080",
 		PublicAddr:            scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
 		UseAnyProxyPublicAddr: true,
-		RequiredAppNames:      []string{"scoped-dependency"},
+		RequiredAppNames:      []string{},
 	}, scope)
 	require.NoError(t, err)
 	scopedClientServer, err := types.NewAppServerV3FromApp(scopedApp, "host", uuid.New().String())
@@ -5038,11 +5021,26 @@ func TestGetAppDetails(t *testing.T) {
 	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, scopedClientServer)
 	require.NoError(t, err)
 
+	scopedAppWithRequiredApp, err := types.NewAppV3(types.Metadata{
+		Name: "bad-app",
+	}, types.AppSpecV3{
+		URI:                   "http://127.0.0.1:8080",
+		PublicAddr:            scopedapp.ScopedAppPublicAddr(scope, "bad-app", proxyDNS),
+		UseAnyProxyPublicAddr: true,
+		RequiredAppNames:      []string{"scoped-dependency"},
+	}, scope)
+	require.NoError(t, err)
+	scopedClientServer2, err := types.NewAppServerV3FromApp(scopedAppWithRequiredApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, scopedClientServer2)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name             string
 		endpoint         string
 		fqdn             string
 		expectedResponse GetAppDetailsResponse
+		wantErr          string
 	}{
 		{
 			name:     "request app details with clientName and publicAddr",
@@ -5077,18 +5075,17 @@ func TestGetAppDetails(t *testing.T) {
 			},
 		},
 		{
-			// Scoped app + required_apps + use_any_proxy_public_addr: both the app
-			// and its required app must come back as their derived hash FQDNs, not
-			// "<name>.<proxy>".
-			name:     "scoped app derives hash FQDNs for itself and required apps",
+			name:     "scoped app derives hash FQDNs for itself",
 			endpoint: pack.clt.Endpoint("webapi", "apps", scopedApp.GetPublicAddr(), s.server.ClusterName(), scopedApp.GetPublicAddr()),
 			expectedResponse: GetAppDetailsResponse{
-				FQDN: scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
-				RequiredAppFQDNs: []string{
-					scopedapp.ScopedAppPublicAddr(scope, "scoped-dependency", proxyDNS),
-					scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
-				},
+				FQDN:             scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
+				RequiredAppFQDNs: []string{scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS)},
 			},
+		},
+		{
+			name:     "scoped app with required apps fails",
+			endpoint: pack.clt.Endpoint("webapi", "apps", scopedAppWithRequiredApp.GetPublicAddr(), s.server.ClusterName(), scopedAppWithRequiredApp.GetPublicAddr()),
+			wantErr:  "scoped apps do not support required app redirects",
 		},
 	}
 
@@ -5097,6 +5094,10 @@ func TestGetAppDetails(t *testing.T) {
 			t.Parallel()
 
 			re, err := pack.clt.Get(ctx, tc.endpoint, url.Values{})
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			resp := GetAppDetailsResponse{}
 
