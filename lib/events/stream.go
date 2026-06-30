@@ -905,7 +905,7 @@ func (w *sliceWriter) completeStream() {
 	// missing, which is a data-loss scenario.
 	if len(uploadErrors) > 0 {
 		log.ErrorContext(w.proto.cancelCtx, "Stream has parts that failed to upload, aborting completion", "failed_parts", len(uploadErrors), "total_parts", w.totalParts)
-		w.proto.setCompleteResult(trace.Aggregate(uploadErrors...))
+		w.proto.setCompleteResult(trace.NewAggregate(uploadErrors...))
 		// Mark the upload as failed so the periodic completer won't
 		// try to finalize a truncated recording after the session tracker
 		// expires. This prevents the backend from emitting a misleading
