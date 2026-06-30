@@ -24,8 +24,9 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/asciitable"
 )
 
 func (s discoverySummary) renderText(w io.Writer, now time.Time) error {
