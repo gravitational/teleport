@@ -8,7 +8,8 @@ app_resources_expressions:
     - |-
       path.match(literal("api/v4/projects",
           encoded_literal("mygroup/myproject", set("/"),
-              literal("issues"))))
+              literal("issues"))),
+      allow_encoded(set("/")))
 identity:
     name: bob
     roles:

@@ -6,7 +6,8 @@ app_resources_expressions:
     # denies other%2Fwidgets
     - |-
       path.match(literal("api/v4/projects",
-          capture_encoded("project", set("/"), greedy()))) &&
+          capture_encoded("project", set("/"), greedy())),
+          allow_encoded(set("/"))) &&
       has_prefix(vars.project, "acme/")
 identity:
     name: bob

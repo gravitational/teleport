@@ -65,7 +65,7 @@ func TestLowerUpper(t *testing.T) {
 // encoded-slash capture, such as has_prefix(vars.project, "acme/") over a
 // {project:/} that binds the decoded "acme/widgets".
 func TestSubstringFuncs(t *testing.T) {
-	const rule = `path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy()))) && has_prefix(vars.project, "acme/")`
+	const rule = `path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/"))) && has_prefix(vars.project, "acme/")`
 	pred, err := compileExpression(rule)
 	require.NoError(t, err)
 

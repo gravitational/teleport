@@ -5,7 +5,8 @@ app_resources_expressions:
     # decoded capture, with a literal "/".
     - |-
       path.match(literal("api/v4/projects",
-          capture_encoded("project", set("/"), greedy()))) &&
+          capture_encoded("project", set("/"), greedy())),
+      allow_encoded(set("/"))) &&
       vars.project == "mygroup/myproject"
 identity:
     name: bob
