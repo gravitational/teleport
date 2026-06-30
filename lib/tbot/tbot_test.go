@@ -1491,8 +1491,7 @@ func TestScopedBotSSH(t *testing.T) {
 				Roles:      []string{types.RoleBot.String()},
 				JoinMethod: string(types.JoinMethodBoundKeypair),
 				UsageMode:  jointoken.TokenUsageModeBot,
-				BotName:    botName,
-				BotScope:   scopeName,
+				Bot:        scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				BoundKeypair: &joiningv1.BoundKeypairSpec{
 					Onboarding: &joiningv1.BoundKeypairSpec_OnboardingSpec{
 						InitialPublicKey: botPublicKey,
