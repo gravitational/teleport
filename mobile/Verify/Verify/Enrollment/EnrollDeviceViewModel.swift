@@ -19,26 +19,21 @@ import Observation
 
 @Observable
 @MainActor
-class EnrollMobileDeviceViewModel {
-	enum Attempt {
-		case idle
-		case loading
-		case success(token: String)
-		case failure(any Error)
-
-		var isLoading: Bool {
-			if case .loading = self { return true }
-			return false
-		}
-	}
-
-	var attempt: Attempt = .idle
-	private let deepURL: EnrollMobileDeviceDeepURL
+class EnrollDeviceViewModel {
+	var attempt: LoadingState<String> = .idle
+	private let deepLink: EnrollMobileDeviceDeepLink
 	private let enrollClient: EnrollClient
 
-	init(deepURL: EnrollMobileDeviceDeepURL, enrollClient: EnrollClient = .liveValue) {
-		self.deepURL = deepURL
+	weak var delegate: (any Delegate)? = nil
+
+	init(
+		deepLink: EnrollMobileDeviceDeepLink,
+		enrollClient: EnrollClient = .liveValue,
+		delegate: (any Delegate)? = nil,
+	) {
+		self.deepLink = deepLink
 		self.enrollClient = enrollClient
+		self.delegate = delegate
 	}
 
 	func requestEnrollToken() async {
@@ -46,13 +41,29 @@ class EnrollMobileDeviceViewModel {
 		let defaultHTTPSPort = 443
 		do {
 			let token = try await enrollClient.requestEnrollmentToken(
-				hostName: deepURL.url.hostname,
-				port: deepURL.url.port ?? defaultHTTPSPort,
-				pairingToken: deepURL.enrollPairingToken,
+				hostName: deepLink.hostname,
+				port: deepLink.port ?? defaultHTTPSPort,
+				pairingToken: deepLink.enrollPairingToken,
 			)
-			attempt = .success(token: token)
+			attempt = .success(token)
 		} catch {
 			attempt = .failure(error)
 		}
+	}
+}
+
+// MARK: - EnrollDeviceViewModel.Delegate
+
+extension EnrollDeviceViewModel {
+	protocol Delegate: AnyObject {
+		func enrollDeviceViewModelDidCancelOperation(_ viewModel: EnrollDeviceViewModel)
+	}
+}
+
+// MARK: - User Actions
+
+extension EnrollDeviceViewModel {
+	func userTappedCancel() {
+		delegate?.enrollDeviceViewModelDidCancelOperation(self)
 	}
 }

@@ -26,7 +26,7 @@ import (
 
 // maxBackoff is an absolute maximum amount of backoff that our backoff helpers will
 // apply. Used as a safety precaution to limit the impact of misconfigured backoffs.
-const maxBackoff = 16 * time.Minute
+const maxBackoff = 3 * time.Hour
 
 // maxAttempts is the peak attempt number we will scale to (used to prevent overflows).
 const maxAttempts = 16

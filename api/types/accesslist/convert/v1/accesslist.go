@@ -24,6 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
@@ -151,6 +152,51 @@ func ConvertGrantsFromProto(protoGrants *accesslistv1.AccessListGrants) accessli
 	}
 }
 
+// ToUserDisplayProto converts display values into the access list proto shape.
+func ToUserDisplayProto(display types.UserDisplay) *accesslistv1.UserDisplay {
+	return &accesslistv1.UserDisplay{
+		Primary:   display.Primary,
+		Secondary: display.Secondary,
+	}
+}
+
+// FromUserDisplayProto converts access list proto display values into the shared type.
+func FromUserDisplayProto(display *accesslistv1.UserDisplay) types.UserDisplay {
+	if display == nil {
+		return types.UserDisplay{}
+	}
+	return types.UserDisplay{
+		Primary:   display.GetPrimary(),
+		Secondary: display.GetSecondary(),
+	}
+}
+
+// ToUserDisplaysProto converts display values keyed by username into proto display values.
+func ToUserDisplaysProto(displays map[string]types.UserDisplay) map[string]*accesslistv1.UserDisplay {
+	if displays == nil {
+		return nil
+	}
+
+	out := make(map[string]*accesslistv1.UserDisplay, len(displays))
+	for username, display := range displays {
+		out[username] = ToUserDisplayProto(display)
+	}
+	return out
+}
+
+// FromUserDisplaysProto converts proto display values keyed by username into the shared type.
+func FromUserDisplaysProto(displays map[string]*accesslistv1.UserDisplay) map[string]types.UserDisplay {
+	if displays == nil {
+		return nil
+	}
+
+	out := make(map[string]types.UserDisplay, len(displays))
+	for username, display := range displays {
+		out[username] = FromUserDisplayProto(display)
+	}
+	return out
+}
+
 func convertScopedRoleGrantsFromProto(scopedRoleGrants []*accesslistv1.ScopedRoleGrant) []accesslist.ScopedRoleGrant {
 	if scopedRoleGrants == nil {
 		return nil
@@ -240,6 +286,7 @@ func convertStatusToProto(status *accesslist.Status) *accesslistv1.AccessListSta
 		MemberOf:               status.MemberOf,
 		CurrentUserAssignments: toCurrentUserAssignmentsProto(status.CurrentUserAssignments),
 		UserAssignments:        toUserAssignmentsProto(status.UserAssignments),
+		OwnerDisplays:          ToUserDisplaysProto(status.OwnerDisplays),
 		ScopedOwnerOf:          status.ScopedOwnerOf,
 		ScopedMemberOf:         status.ScopedMemberOf,
 	}
@@ -260,6 +307,13 @@ func fromStatusProto(msg *accesslistv1.AccessList) *accesslist.Status {
 		UserAssignments:        fromUserAssignmentsProto(protoStatus.GetUserAssignments()),
 		ScopedOwnerOf:          protoStatus.GetScopedOwnerOf(),
 		ScopedMemberOf:         protoStatus.GetScopedMemberOf(),
+	}
+}
+
+// WithOwnerDisplaysField sets the "status.owner_displays" field to the provided proto value.
+func WithOwnerDisplaysField(protoStatus *accesslistv1.AccessListStatus) AccessListOption {
+	return func(a *accesslist.AccessList) {
+		a.Status.OwnerDisplays = FromUserDisplaysProto(protoStatus.GetOwnerDisplays())
 	}
 }
 

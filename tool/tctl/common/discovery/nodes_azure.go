@@ -17,7 +17,6 @@
 package discovery
 
 import (
-	"cmp"
 	"maps"
 	"slices"
 
@@ -86,18 +85,17 @@ func correlateAzureRunEvents(events []*apievents.AzureRun) map[string]instanceIn
 func correlateAzureNodes(nodes []types.Server) map[string]instanceInfo {
 	instances := make(map[string]instanceInfo)
 	for _, node := range nodes {
-		labels := node.GetAllLabels()
-		vmID := cmp.Or(labels[types.VMIDLabel], labels[types.VMIDLabelInternal])
+		vmID := types.GetAzureVMID(node)
 		if vmID == "" {
 			continue
 		}
 		info := instanceInfo{
 			IsOnline: true,
-			Region:   cmp.Or(labels[types.RegionLabel], labels[types.RegionLabelInternal]),
+			Region:   types.GetAzureRegion(node),
 			Azure: &azureInfo{
 				VMID:           vmID,
-				SubscriptionID: cmp.Or(labels[types.SubscriptionIDLabel], labels[types.SubscriptionIDLabelInternal]),
-				ResourceGroup:  cmp.Or(labels[types.ResourceGroupLabel], labels[types.ResourceGroupLabelInternal]),
+				SubscriptionID: types.GetAzureSubscriptionID(node),
+				ResourceGroup:  types.GetAzureResourceGroup(node),
 			},
 		}
 		if !node.Expiry().IsZero() {

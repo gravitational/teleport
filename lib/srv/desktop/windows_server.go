@@ -900,10 +900,27 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	sendInterceptor := asInterceptor(s.makeTDPSendAuditor(ctx, recorder, delay, audit))
 	receiveInterceptor := asInterceptor(s.makeTDPReceiveAuditor(ctx, recorder, delay, audit))
 
+	// TODO(rhammonds): Remove in v20
+	// Some v18 and older clients assume that TDP connections support only a single
+	// shared directory. For this reason, they omit the DirectoryId from their
+	// response messages. These clients also hardcode the DirectoryId to '2'.
+	// To ensure conflicts are avoided, the backend will reject directory announcements
+	// that choose DirectoryId 0 and "fix" omitted DirectoryId fields.
+	// We need to run this mutation early in the connection so that it gets picked up
+	// by the inbound audit interceptor.
+	sharedDirectoryResponseModernizer := tdp.NewReadWriteInterceptor(translatedConn, func(message tdp.Message) ([]tdp.Message, error) {
+		if sdResponse, ok := message.(*tdpb.SharedDirectoryResponse); ok {
+			if sdResponse.DirectoryId == 0 {
+				sdResponse.DirectoryId = 2
+			}
+		}
+		return []tdp.Message{message}, nil
+	}, nil /* No write handler needed */)
+
 	// These hooks snoop for TDPB messages (ignoring legacy TDP) to create necessary audit events.
 	// The client emits only TDPB messages natively, so as long as we run these hooks *above* the translation
 	// interceptors they will be able to properly interpret inbound/outbound messages for audit.
-	auditedConn := tdp.NewReadWriteInterceptor(translatedConn, receiveInterceptor, sendInterceptor)
+	auditedConn := tdp.NewReadWriteInterceptor(sharedDirectoryResponseModernizer, receiveInterceptor, sendInterceptor)
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(auditedConn, hello, rdpclient.Config{
@@ -1162,14 +1179,18 @@ func (s *WindowsService) makeTDPReceiveAuditor(
 				s.emit(ctx, errorEvent)
 				return err
 			}
+		case *tdpb.SharedDirectoryRemove:
+			// This doesn't yield an audit event for removal. It just cleans up
+			// the directory entry from the audit cache.
+			audit.onSharedDirectoryRemove(msg)
 		case *tdpb.SharedDirectoryResponse:
 			// shared directory audit events can be noisy, so we use a compactor
 			// to retain and delay them in an attempt to coalesce contiguous events
 			switch op := msg.Operation.(type) {
 			case *tdpbv1.SharedDirectoryResponse_Read_:
-				audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Read))
+				audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(directoryID(msg.DirectoryId), completionID(msg.CompletionId), msg.ErrorCode, op.Read))
 			case *tdpbv1.SharedDirectoryResponse_Write_:
-				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Write))
+				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(directoryID(msg.DirectoryId), completionID(msg.CompletionId), msg.ErrorCode, op.Write))
 			}
 		}
 		return nil

@@ -1,3 +1,5 @@
+//go:build e_imports && !e_imports
+
 // Teleport
 // Copyright (C) 2026 Gravitational, Inc.
 //
@@ -14,13 +16,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import SwiftUI
+// This file includes imports for packages in e that are not yet merged. It's
+// separate from e_imports.go because it can't be automatically generated.
 
-@main
-struct VerifyApp: App {
-	var body: some Scene {
-		WindowGroup {
-			ContentView()
-		}
-	}
-}
+package dsqlbk
+
+import (
+	_ "github.com/aws/aws-sdk-go-v2/feature/dsql/auth"
+	_ "github.com/aws/aws-sdk-go-v2/service/kinesis"
+	_ "github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+)

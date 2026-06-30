@@ -32,11 +32,14 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -44,12 +47,15 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	libboundkeypair "github.com/gravitational/teleport/lib/auth/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -1983,6 +1989,39 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "/test", botInstance.GetScope())
 
+	// Join event should be emitted
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		evt, err := lastEvent(ctx, srv.Auth(), srv.Auth().GetClock(), events.BotJoinEvent)
+		require.NoError(t, err)
+
+		sqn, err := scopes.ParseQualifiedName(scopedToken.GetSpec().GetBot())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(
+			&apievents.BotJoin{
+				Metadata: apievents.Metadata{
+					Type: "bot.join",
+					Code: events.BotJoinCode,
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					RemoteAddr: "127.0.0.1",
+				},
+				BotInstanceID: firstInstance,
+				TokenName:     scopedToken.GetMetadata().GetName(),
+				Method:        scopedToken.GetSpec().GetJoinMethod(),
+				UserName:      machineidv1.BotResourceName(sqn.Name),
+				BotName:       sqn.Name,
+				Scope:         sqn.Scope,
+			},
+			evt,
+			protocmp.Transform(),
+			cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+				return key == "Time" || key == "ID"
+			}),
+		))
+	}, 5*time.Second, 5*time.Millisecond, "expected bot.join success event not found")
 	// Status should be updated.
 	token, err := adminClient.GetScopedToken(ctx, "example-token", false)
 	require.NoError(t, err)
