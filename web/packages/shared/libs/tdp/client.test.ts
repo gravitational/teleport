@@ -18,7 +18,7 @@
 
 import { Envelope } from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
 
-import { TdpClient, TdpTransport } from './client';
+import { DirectoryDispatcher, TdpClient, TdpTransport } from './client';
 import { SharedDirectoryAccess } from './sharedDirectoryAccess';
 
 let mockTransport: jest.Mocked<TdpTransport> = {
@@ -41,6 +41,7 @@ const mockSharedDirectoryAccess: SharedDirectoryAccess = {
 
 // Disable WASM in tests.
 jest.mock('shared/libs/ironrdp/pkg/ironrdp');
+
 
 test('tdp upgrade', async () => {
   let client = new TdpClient(
@@ -157,4 +158,30 @@ test('shared directory management', async () => {
   // releasing an unknown or unleased identifier does not throw, but
   // should log a warning.
   client.unshareDirectory(3);
+});
+
+test('DirectoryDispatcher happy path', async () => {
+  const dispatcher = new DirectoryDispatcher({} as SharedDirectoryAccess);
+  const respond = jest.fn();
+
+  await dispatcher.dispatch(async _access => 'result', respond);
+
+  expect(respond).toHaveBeenCalledWith('result');
+});
+
+test('DirectoryDispatcher drops response on unshare', async () => {
+  const dispatcher = new DirectoryDispatcher({} as SharedDirectoryAccess);
+  const respond = jest.fn();
+
+  let resolveOperation: (value: string) => void;
+  const dispatchPromise = dispatcher.dispatch(
+    _access => new Promise(resolve => { resolveOperation = resolve; }),
+    respond
+  );
+
+  dispatcher.unshare();
+  resolveOperation('result');
+  await dispatchPromise;
+
+  expect(respond).not.toHaveBeenCalled();
 });
