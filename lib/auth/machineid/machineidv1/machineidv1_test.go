@@ -678,7 +678,7 @@ func TestCreateBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-scoped-bot-success",
+					UserName: "bot-++scopes+granted+scoped-bot-success",
 				}.Build(),
 			}.Build(),
 		},
@@ -704,7 +704,7 @@ func TestCreateBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-scoped-bot-from-unscoped",
+					UserName: "bot-++scopes+granted+scoped-bot-from-unscoped",
 				}.Build(),
 			}.Build(),
 		},
@@ -1134,6 +1134,28 @@ func TestUpdateBot(t *testing.T) {
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
+		{
+			name: "cannot update scoped bot",
+			user: botUpdaterUser.GetName(),
+			req: machineidv1pb.UpdateBotRequest_builder{
+				Bot: machineidv1pb.Bot_builder{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: headerv1.Metadata_builder{
+						Name: preExistingBot.GetMetadata().GetName(),
+					}.Build(),
+					Scope: "/scopes/granted",
+					Spec:  &machineidv1pb.BotSpec{},
+				}.Build(),
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"metadata.description"},
+				},
+			}.Build(),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "cannot update scoped bot")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1289,16 +1311,6 @@ func TestUpsertBot(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 	waitForSRACache(t, srv, sraResp)
-
-	// Pre-existing scoped bot for scope-transition tests.
-	_, err = client.BotServiceClient().UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
-		Bot: machineidv1pb.Bot_builder{
-			Metadata: headerv1.Metadata_builder{Name: "scope-change-test"}.Build(),
-			Scope:    "/scopes/granted",
-			Spec:     &machineidv1pb.BotSpec{},
-		}.Build(),
-	}.Build())
-	require.NoError(t, err)
 
 	tests := []struct {
 		name     string
@@ -1810,7 +1822,7 @@ func TestUpsertBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-scoped-upsert-success",
+					UserName: "bot-++scopes+granted+scoped-upsert-success",
 				}.Build(),
 			}.Build(),
 		},
@@ -1836,7 +1848,7 @@ func TestUpsertBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-scoped-upsert-from-unscoped",
+					UserName: "bot-++scopes+granted+scoped-upsert-from-unscoped",
 				}.Build(),
 			}.Build(),
 		},
@@ -1871,47 +1883,6 @@ func TestUpsertBot(t *testing.T) {
 			}.Build(),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-			},
-		},
-		{
-			name:     "cannot change scope: scoped to unscoped",
-			identity: authtest.TestUser(botCreator.GetName()),
-			req: machineidv1pb.UpsertBotRequest_builder{
-				Bot: machineidv1pb.Bot_builder{
-					Metadata: headerv1.Metadata_builder{Name: "scope-change-test"}.Build(),
-					Spec:     machineidv1pb.BotSpec_builder{Roles: []string{testRole.GetName()}}.Build(),
-				}.Build(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
-			},
-		},
-		{
-			name:     "cannot change scope: unscoped to scoped",
-			identity: authtest.TestUser(botCreator.GetName()),
-			req: machineidv1pb.UpsertBotRequest_builder{
-				Bot: machineidv1pb.Bot_builder{
-					Metadata: headerv1.Metadata_builder{Name: "pre-existing"}.Build(),
-					Scope:    "/scopes/granted",
-					Spec:     &machineidv1pb.BotSpec{},
-				}.Build(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
-			},
-		},
-		{
-			name:     "cannot change scope: scoped to different scope",
-			identity: authtest.TestUser(botCreator.GetName()),
-			req: machineidv1pb.UpsertBotRequest_builder{
-				Bot: machineidv1pb.Bot_builder{
-					Metadata: headerv1.Metadata_builder{Name: "scope-change-test"}.Build(),
-					Scope:    "/scopes/ungranted",
-					Spec:     &machineidv1pb.BotSpec{},
-				}.Build(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
 			},
 		},
 	}
@@ -2175,6 +2146,7 @@ func TestGetBot(t *testing.T) {
 			identity: authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"),
 			req: machineidv1pb.GetBotRequest_builder{
 				BotName: scopedPreExisting.GetMetadata().GetName(),
+				Scope:   "/scopes/granted",
 			}.Build(),
 			assertError: require.NoError,
 			want:        scopedPreExisting,
@@ -2184,6 +2156,7 @@ func TestGetBot(t *testing.T) {
 			identity: authtest.TestUser(botGetterUser.GetName()),
 			req: machineidv1pb.GetBotRequest_builder{
 				BotName: scopedPreExisting.GetMetadata().GetName(),
+				Scope:   "/scopes/granted",
 			}.Build(),
 			assertError: require.NoError,
 			want:        scopedPreExisting,
@@ -2193,6 +2166,7 @@ func TestGetBot(t *testing.T) {
 			identity: authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"),
 			req: machineidv1pb.GetBotRequest_builder{
 				BotName: "scoped-pre-existing-wrong-scope",
+				Scope:   "/scopes/ungranted",
 			}.Build(),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				// GetBot returns NotFound rather than AccessDenied to avoid leaking existence.
@@ -2777,6 +2751,7 @@ func TestDeleteBot(t *testing.T) {
 			identity: authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"),
 			req: machineidv1pb.DeleteBotRequest_builder{
 				BotName: scopedPreExisting.GetMetadata().GetName(),
+				Scope:   "/scopes/granted",
 			}.Build(),
 			assertError:           require.NoError,
 			checkResourcesDeleted: true,
@@ -2787,6 +2762,7 @@ func TestDeleteBot(t *testing.T) {
 			identity: authtest.TestUser(botDeleterUser.GetName()),
 			req: machineidv1pb.DeleteBotRequest_builder{
 				BotName: scopedPreExistingUnscoped.GetMetadata().GetName(),
+				Scope:   "/scopes/granted",
 			}.Build(),
 			assertError:           require.NoError,
 			checkResourcesDeleted: true,
@@ -2797,6 +2773,7 @@ func TestDeleteBot(t *testing.T) {
 			identity: authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"),
 			req: machineidv1pb.DeleteBotRequest_builder{
 				BotName: scopedPreExistingWrongScope.GetMetadata().GetName(),
+				Scope:   "/scopes/ungranted",
 			}.Build(),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -2821,7 +2798,12 @@ func TestDeleteBot(t *testing.T) {
 			_, err = client.BotServiceClient().DeleteBot(ctx, tt.req)
 			tt.assertError(t, err)
 			if tt.checkResourcesDeleted {
-				_, err := srv.Auth().GetUser(ctx, machineidv1.BotResourceName(tt.req.GetBotName()), false)
+				wantUserName := machineidv1.BotResourceName(tt.req.GetBotName())
+				if tt.req.GetScope() != "" {
+					wantUserName, err = machineidv1.ScopedBotResourceName(tt.req.GetScope(), tt.req.GetBotName())
+					require.NoError(t, err)
+				}
+				_, err := srv.Auth().GetUser(ctx, wantUserName, false)
 				require.True(t, trace.IsNotFound(err), "bot user should be deleted")
 				if !tt.scoped {
 					_, err = srv.Auth().GetRole(ctx, machineidv1.BotResourceName(tt.req.GetBotName()))
