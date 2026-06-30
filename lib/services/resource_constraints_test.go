@@ -95,6 +95,93 @@ func TestWithConstraints_ErrorCases(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter("aws_console constraints require role_arns, none provided"))
 }
 
+func roleAllowingSSHLogins(logins ...string) types.Role {
+	return newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.NodeLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+		rv.Spec.Allow.Logins = append([]string{}, logins...)
+	})
+}
+
+func TestWithConstraints_SSH_ScopesLoginMatcher(t *testing.T) {
+	const (
+		rootLogin = "root"
+		userLogin = "ubuntu"
+	)
+
+	role := roleAllowingSSHLogins(rootLogin, userLogin)
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Ssh{
+			Ssh: &types.SSHResourceConstraints{
+				Logins: []string{userLogin},
+			},
+		},
+	}
+	guard := WithConstraints(rc)
+
+	rootMatcher := NewLoginMatcher(rootLogin)
+	userMatcher := NewLoginMatcher(userLogin)
+	rootMatcherScoped := guard(rootMatcher)
+	userMatcherScoped := guard(userMatcher)
+
+	ok, err := rootMatcherScoped.Match(role, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok, "root login should be denied by constraint scoping")
+
+	ok, err = userMatcherScoped.Match(role, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok, "ubuntu login should be allowed by role and constraint")
+}
+
+func TestWithConstraints_SSH_NoOpForNonPrincipalMatchers(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Ssh{
+			Ssh: &types.SSHResourceConstraints{Logins: []string{"root"}},
+		},
+	}
+	dummy := RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
+		return true, nil
+	})
+	wrapped := WithConstraints(rc)(dummy)
+	ok, err := wrapped.Match(roleAllowingSSHLogins("other"), types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestWithConstraints_SSH_ErrorCases(t *testing.T) {
+	rcEmptySSH := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Ssh{
+			Ssh: &types.SSHResourceConstraints{Logins: nil},
+		},
+	}
+	_, err := WithConstraints(rcEmptySSH)(NewLoginMatcher("root")).Match(roleAllowingSSHLogins("root"), types.Allow)
+	require.ErrorIs(t, err, trace.BadParameter("ssh constraints require logins, none provided"))
+}
+
+func TestMatcherFromConstraints_SSH_BuildsAnyOf(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Ssh{
+			Ssh: &types.SSHResourceConstraints{
+				Logins: []string{"root", "ubuntu"},
+			},
+		},
+	}
+
+	m, err := MatcherFromConstraints(rc)
+	require.NoError(t, err)
+	require.NotNil(t, m)
+
+	role1 := roleAllowingSSHLogins("root")
+	ok, err := m.Match(role1, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	role2 := roleAllowingSSHLogins("other")
+	ok, err = m.Match(role2, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
 func TestMatcherFromConstraints_AWSConsole_BuildsAnyOf(t *testing.T) {
 	rc := &types.ResourceConstraints{
 		Details: &types.ResourceConstraints_AwsConsole{
@@ -120,4 +207,73 @@ func TestMatcherFromConstraints_AWSConsole_BuildsAnyOf(t *testing.T) {
 	ok, err = m.Match(role2, types.Allow)
 	require.NoError(t, err)
 	require.False(t, ok)
+}
+
+func TestBuildResourceConstraintMatchers(t *testing.T) {
+	node, err := types.NewServerWithLabels("node-1", types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	sshConstraints := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Ssh{
+			Ssh: &types.SSHResourceConstraints{
+				Logins: []string{"ubuntu"},
+			},
+		},
+	}
+
+	t.Run("constrained entry matching the resource yields its matcher", func(t *testing.T) {
+		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{
+				Id:          types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "node-1"},
+				Constraints: sshConstraints,
+			},
+		}, node)
+		require.NoError(t, err)
+		require.Len(t, matchers, 1)
+
+		ok, err := matchers[0].Match(roleAllowingSSHLogins("ubuntu"), types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		ok, err = matchers[0].Match(roleAllowingSSHLogins("root"), types.Allow)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("entries without constraints yield no matchers", func(t *testing.T) {
+		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "node-1"}},
+		}, node)
+		require.NoError(t, err)
+		require.Empty(t, matchers)
+	})
+
+	t.Run("entries for other resources yield no matchers", func(t *testing.T) {
+		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{
+				Id:          types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "other-node"},
+				Constraints: sshConstraints,
+			},
+			{
+				Id:          types.ResourceID{ClusterName: "cluster", Kind: types.KindApp, Name: "node-1"},
+				Constraints: sshConstraints,
+			},
+		}, node)
+		require.NoError(t, err)
+		require.Empty(t, matchers)
+	})
+
+	t.Run("invalid constraints return an error", func(t *testing.T) {
+		_, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{
+				Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "node-1"},
+				Constraints: &types.ResourceConstraints{
+					Details: &types.ResourceConstraints_Ssh{
+						Ssh: &types.SSHResourceConstraints{Logins: nil},
+					},
+				},
+			},
+		}, node)
+		require.Error(t, err)
+	})
 }
