@@ -154,9 +154,6 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			"request.method": typical.DynamicVariable(func(e env) (string, error) {
 				return e.request.Method, nil
 			}),
-			"request.path": typical.DynamicVariable(func(e env) (string, error) {
-				return e.request.Path, nil
-			}),
 		},
 		Functions: map[string]typical.Function{
 			// Matcher entry point. path.match walks the request path, tokenized
@@ -321,6 +318,19 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			}),
 			"upper": typical.UnaryFunction[env](func(s string) (string, error) {
 				return strings.ToUpper(s), nil
+			}),
+			// Substring helpers for scoping a captured value or identity string in
+			// a where clause. The main use is group-prefix scoping on an
+			// encoded-slash capture, such as has_prefix(vars.project, "acme/").
+			// has_substring is named apart from contains, which is list membership.
+			"has_prefix": typical.BinaryFunction[env](func(s, prefix string) (bool, error) {
+				return strings.HasPrefix(s, prefix), nil
+			}),
+			"has_suffix": typical.BinaryFunction[env](func(s, suffix string) (bool, error) {
+				return strings.HasSuffix(s, suffix), nil
+			}),
+			"has_substring": typical.BinaryFunction[env](func(s, substr string) (bool, error) {
+				return strings.Contains(s, substr), nil
 			}),
 		},
 		// vars.<name> reads a capture bound by this evaluation's matcher. Names

@@ -1,0 +1,35 @@
+description: scope an encoded group id with has_prefix on the decoded capture
+app_resources_expressions:
+    # {project:/} binds the decoded id, so
+    # has_prefix scopes it to the acme group.
+    # allows acme%2Fwidgets
+    # denies other%2Fwidgets
+    - |-
+      path.match(literal("api/v4/projects",
+          capture_encoded("project", set("/"), greedy()))) &&
+      has_prefix(vars.project, "acme/")
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/projects/acme%2Fwidgets/issues
+      expect:
+        allowed: true
+        vars:
+            project: acme/widgets
+    - request:
+        method: GET
+        path: /api/v4/projects/acme%2Fwidgets%2Fsub/issues
+      expect:
+        allowed: true
+        vars:
+            project: acme/widgets/sub
+    - request:
+        method: GET
+        path: /api/v4/projects/other%2Fwidgets/issues
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
