@@ -1870,8 +1870,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 			SubKind: scopedaccess.SubKindDynamic,
 			Scope:   "/test",
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "test-scoped",
-				BotScope: "/test",
+				Bot: scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{Role: "scoped-example", Scope: "/test"},
 				},

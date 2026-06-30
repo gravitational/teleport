@@ -31,6 +31,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 )
@@ -389,16 +390,15 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 				Name: "bernard-01",
 			},
 			Scope: bernardScope,
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-01",
 						Scope: bernardScope,
 					},
 				},
-			},
+			}.Build(),
 			Version: types.V1,
 		},
 		// Assignment to child-scope of main scope
@@ -409,16 +409,15 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 				Name: "bernard-02",
 			},
 			Scope: bernardScope,
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-02",
 						Scope: bernardScope + "/child",
 					},
 				},
-			},
+			}.Build(),
 			Version: types.V1,
 		},
 		// SRA in parent scope, assigning to bot scope.
@@ -429,16 +428,15 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 				Name: "bernard-03",
 			},
 			Scope: "/",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-03",
 						Scope: bernardScope,
 					},
 				},
-			},
+			}.Build(),
 			Version: types.V1,
 		},
 		// SRA in parent scope, assigning to bot's child scope
@@ -449,38 +447,36 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 				Name: "bernard-04",
 			},
 			Scope: "/",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-04",
 						Scope: bernardScope + "/child",
 					},
 				},
-			},
+			}.Build(),
 			Version: types.V1,
 		},
-		// `bot_scope` mismatches bot's actual scope - this should be ignored.
-		{
+		// Scope component of `bot` mismatches bot's actual scope - this should be ignored.
+		scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bernard-invalid-01",
 			},
 			Scope: bernardScope,
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: "/mismatched",
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Bot: scopes.QualifiedName{Scope: "/mismatched", Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "bernard-invalid-01",
 						Scope: bernardScope,
 					},
 				},
-			},
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 		// SRA above bot scope ignored.
 		// nb: we may eventually loosen this to behave more like users.
 		{
@@ -490,16 +486,15 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 				Name: "bernard-invalid-02",
 			},
 			Scope: "/",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "bernard-invalid-02",
 						Scope: "/",
 					},
 				},
-			},
+			}.Build(),
 			Version: types.V1,
 		},
 	}

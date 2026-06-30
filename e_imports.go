@@ -129,7 +129,6 @@ import (
 	_ "github.com/russellhaering/gosaml2"
 	_ "github.com/russellhaering/gosaml2/types"
 	_ "github.com/russellhaering/goxmldsig"
-	_ "github.com/santhosh-tekuri/jsonschema/v6"
 	_ "github.com/scim2/filter-parser/v2"
 	_ "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
 	_ "github.com/sigstore/sigstore-go/pkg/bundle"
