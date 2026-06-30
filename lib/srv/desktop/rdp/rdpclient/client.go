@@ -1079,7 +1079,7 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			ScreenHeight:  uint32(screenHeight),
 		},
 		ClipboardEnabled:               true,
-		DirectoryRemoveSupported:       true,
+		DirectoryRemoveSupported:       false,
 		HidpiSupported:                 true,
 		MultidirectorySharingSupported: true,
 	}); err != nil {
