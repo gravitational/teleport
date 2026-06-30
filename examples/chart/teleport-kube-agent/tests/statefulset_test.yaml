@@ -1096,3 +1096,28 @@ tests:
           content:
             name: "GOMEMLIMIT"
           any: true
+
+  - it: should set sizeLimit on emptyDir when storage.emptyDirSizeLimit is set
+    template: statefulset.yaml
+    values:
+      - ../.lint/storage-emptydirsizelimit.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: "data"
+            emptyDir:
+              sizeLimit: 512Mi
+      - matchSnapshot:
+          path: spec.template.spec.volumes
+
+  - it: should not set sizeLimit on emptyDir when storage.emptyDirSizeLimit is not set
+    template: statefulset.yaml
+    values:
+      - ../.lint/join-params-iam.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: "data"
+            emptyDir: {}

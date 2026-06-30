@@ -300,7 +300,12 @@ spec:
       {{- end }}
 {{- if not .Values.storage.enabled }}
       - name: "data"
+        {{- if .Values.storage.emptyDirSizeLimit }}
+        emptyDir:
+          sizeLimit: {{ .Values.storage.emptyDirSizeLimit }}
+        {{- else }}
         emptyDir: {}
+        {{- end }}
 {{- end}}
 {{- if .Values.tls.existingCASecretName }}
       - name: "teleport-tls-ca"
