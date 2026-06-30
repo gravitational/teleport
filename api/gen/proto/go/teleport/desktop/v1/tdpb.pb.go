@@ -230,12 +230,8 @@ type ClientHello struct {
 	Username       string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	ScreenSpec     *ClientScreenSpec      `protobuf:"bytes,2,opt,name=screen_spec,json=screenSpec,proto3" json:"screen_spec,omitempty"`
 	KeyboardLayout uint32                 `protobuf:"varint,3,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
-	// Indicates whether the client supports in-band MFA. When true, the server may send an AuthPrompt to enforce MFA
-	// during session establishment. When false or absent, the server falls back to validating the per-session MFA
-	// certificate presented during TLS handshake.
-	InBandMfaSupported bool `protobuf:"varint,4,opt,name=in_band_mfa_supported,json=inBandMfaSupported,proto3" json:"in_band_mfa_supported,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ClientHello) Reset() {
@@ -284,13 +280,6 @@ func (x *ClientHello) GetKeyboardLayout() uint32 {
 	return 0
 }
 
-func (x *ClientHello) GetInBandMfaSupported() bool {
-	if x != nil {
-		return x.InBandMfaSupported
-	}
-	return false
-}
-
 func (x *ClientHello) SetUsername(v string) {
 	x.Username = v
 }
@@ -301,10 +290,6 @@ func (x *ClientHello) SetScreenSpec(v *ClientScreenSpec) {
 
 func (x *ClientHello) SetKeyboardLayout(v uint32) {
 	x.KeyboardLayout = v
-}
-
-func (x *ClientHello) SetInBandMfaSupported(v bool) {
-	x.InBandMfaSupported = v
 }
 
 func (x *ClientHello) HasScreenSpec() bool {
@@ -324,10 +309,6 @@ type ClientHello_builder struct {
 	Username       string
 	ScreenSpec     *ClientScreenSpec
 	KeyboardLayout uint32
-	// Indicates whether the client supports in-band MFA. When true, the server may send an AuthPrompt to enforce MFA
-	// during session establishment. When false or absent, the server falls back to validating the per-session MFA
-	// certificate presented during TLS handshake.
-	InBandMfaSupported bool
 }
 
 func (b0 ClientHello_builder) Build() *ClientHello {
@@ -337,7 +318,6 @@ func (b0 ClientHello_builder) Build() *ClientHello {
 	x.Username = b.Username
 	x.ScreenSpec = b.ScreenSpec
 	x.KeyboardLayout = b.KeyboardLayout
-	x.InBandMfaSupported = b.InBandMfaSupported
 	return m0
 }
 
@@ -2134,6 +2114,52 @@ func (b0 MFAPromptResponseReference_builder) Build() *MFAPromptResponseReference
 	return m0
 }
 
+// SessionEstablishing is sent by the Desktop Service after MFA completes (or when MFA is not required) to signal that
+// the session backend is being established. The client can use this to display a connecting indicator while the backend
+// is dialed.
+type SessionEstablishing struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionEstablishing) Reset() {
+	*x = SessionEstablishing{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionEstablishing) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionEstablishing) ProtoMessage() {}
+
+func (x *SessionEstablishing) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type SessionEstablishing_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SessionEstablishing_builder) Build() *SessionEstablishing {
+	m0 := &SessionEstablishing{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 // Sent by client to announce a new shared directory.
 type SharedDirectoryAnnounce struct {
 	state         protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -2145,7 +2171,7 @@ type SharedDirectoryAnnounce struct {
 
 func (x *SharedDirectoryAnnounce) Reset() {
 	*x = SharedDirectoryAnnounce{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2157,7 +2183,7 @@ func (x *SharedDirectoryAnnounce) String() string {
 func (*SharedDirectoryAnnounce) ProtoMessage() {}
 
 func (x *SharedDirectoryAnnounce) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2216,7 +2242,7 @@ type SharedDirectoryRemove struct {
 
 func (x *SharedDirectoryRemove) Reset() {
 	*x = SharedDirectoryRemove{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2228,7 +2254,7 @@ func (x *SharedDirectoryRemove) String() string {
 func (*SharedDirectoryRemove) ProtoMessage() {}
 
 func (x *SharedDirectoryRemove) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2275,7 +2301,7 @@ type SharedDirectoryAcknowledge struct {
 
 func (x *SharedDirectoryAcknowledge) Reset() {
 	*x = SharedDirectoryAcknowledge{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2287,7 +2313,7 @@ func (x *SharedDirectoryAcknowledge) String() string {
 func (*SharedDirectoryAcknowledge) ProtoMessage() {}
 
 func (x *SharedDirectoryAcknowledge) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2361,7 +2387,7 @@ type SharedDirectoryRequest struct {
 
 func (x *SharedDirectoryRequest) Reset() {
 	*x = SharedDirectoryRequest{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2373,7 +2399,7 @@ func (x *SharedDirectoryRequest) String() string {
 func (*SharedDirectoryRequest) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2764,7 +2790,7 @@ func (b0 SharedDirectoryRequest_builder) Build() *SharedDirectoryRequest {
 type case_SharedDirectoryRequest_Operation protoreflect.FieldNumber
 
 func (x case_SharedDirectoryRequest_Operation) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[25].Descriptor()
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[26].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -2850,7 +2876,7 @@ type SharedDirectoryResponse struct {
 
 func (x *SharedDirectoryResponse) Reset() {
 	*x = SharedDirectoryResponse{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2862,7 +2888,7 @@ func (x *SharedDirectoryResponse) String() string {
 func (*SharedDirectoryResponse) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3267,7 +3293,7 @@ func (b0 SharedDirectoryResponse_builder) Build() *SharedDirectoryResponse {
 type case_SharedDirectoryResponse_Operation protoreflect.FieldNumber
 
 func (x case_SharedDirectoryResponse_Operation) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[26].Descriptor()
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[27].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -3340,7 +3366,7 @@ type FileSystemObject struct {
 
 func (x *FileSystemObject) Reset() {
 	*x = FileSystemObject{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3352,7 +3378,7 @@ func (x *FileSystemObject) String() string {
 func (*FileSystemObject) ProtoMessage() {}
 
 func (x *FileSystemObject) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3452,7 +3478,7 @@ type LatencyStats struct {
 
 func (x *LatencyStats) Reset() {
 	*x = LatencyStats{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3464,7 +3490,7 @@ func (x *LatencyStats) String() string {
 func (*LatencyStats) ProtoMessage() {}
 
 func (x *LatencyStats) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3524,7 +3550,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3536,7 +3562,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3605,6 +3631,7 @@ type Envelope struct {
 	//	*Envelope_SessionSelection
 	//	*Envelope_AuthPrompt
 	//	*Envelope_MfaPromptResponse
+	//	*Envelope_SessionEstablishing
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3612,7 +3639,7 @@ type Envelope struct {
 
 func (x *Envelope) Reset() {
 	*x = Envelope{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3624,7 +3651,7 @@ func (x *Envelope) String() string {
 func (*Envelope) ProtoMessage() {}
 
 func (x *Envelope) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3858,6 +3885,15 @@ func (x *Envelope) GetMfaPromptResponse() *MFAPromptResponse {
 	return nil
 }
 
+func (x *Envelope) GetSessionEstablishing() *SessionEstablishing {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SessionEstablishing); ok {
+			return x.SessionEstablishing
+		}
+	}
+	return nil
+}
+
 func (x *Envelope) SetClientHello(v *ClientHello) {
 	if v == nil {
 		x.Payload = nil
@@ -4048,6 +4084,14 @@ func (x *Envelope) SetMfaPromptResponse(v *MFAPromptResponse) {
 		return
 	}
 	x.Payload = &Envelope_MfaPromptResponse{v}
+}
+
+func (x *Envelope) SetSessionEstablishing(v *SessionEstablishing) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_SessionEstablishing{v}
 }
 
 func (x *Envelope) HasPayload() bool {
@@ -4249,6 +4293,14 @@ func (x *Envelope) HasMfaPromptResponse() bool {
 	return ok
 }
 
+func (x *Envelope) HasSessionEstablishing() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_SessionEstablishing)
+	return ok
+}
+
 func (x *Envelope) ClearPayload() {
 	x.Payload = nil
 }
@@ -4397,6 +4449,12 @@ func (x *Envelope) ClearMfaPromptResponse() {
 	}
 }
 
+func (x *Envelope) ClearSessionEstablishing() {
+	if _, ok := x.Payload.(*Envelope_SessionEstablishing); ok {
+		x.Payload = nil
+	}
+}
+
 const Envelope_Payload_not_set_case case_Envelope_Payload = 0
 const Envelope_ClientHello_case case_Envelope_Payload = 1
 const Envelope_ServerHello_case case_Envelope_Payload = 2
@@ -4422,6 +4480,7 @@ const Envelope_SharedDirectoryRemove_case case_Envelope_Payload = 21
 const Envelope_SessionSelection_case case_Envelope_Payload = 22
 const Envelope_AuthPrompt_case case_Envelope_Payload = 23
 const Envelope_MfaPromptResponse_case case_Envelope_Payload = 24
+const Envelope_SessionEstablishing_case case_Envelope_Payload = 25
 
 func (x *Envelope) WhichPayload() case_Envelope_Payload {
 	if x == nil {
@@ -4476,6 +4535,8 @@ func (x *Envelope) WhichPayload() case_Envelope_Payload {
 		return Envelope_AuthPrompt_case
 	case *Envelope_MfaPromptResponse:
 		return Envelope_MfaPromptResponse_case
+	case *Envelope_SessionEstablishing:
+		return Envelope_SessionEstablishing_case
 	default:
 		return Envelope_Payload_not_set_case
 	}
@@ -4509,6 +4570,7 @@ type Envelope_builder struct {
 	SessionSelection           *SessionSelection
 	AuthPrompt                 *AuthPrompt
 	MfaPromptResponse          *MFAPromptResponse
+	SessionEstablishing        *SessionEstablishing
 	// -- end of Payload
 }
 
@@ -4588,13 +4650,16 @@ func (b0 Envelope_builder) Build() *Envelope {
 	if b.MfaPromptResponse != nil {
 		x.Payload = &Envelope_MfaPromptResponse{b.MfaPromptResponse}
 	}
+	if b.SessionEstablishing != nil {
+		x.Payload = &Envelope_SessionEstablishing{b.SessionEstablishing}
+	}
 	return m0
 }
 
 type case_Envelope_Payload protoreflect.FieldNumber
 
 func (x case_Envelope_Payload) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[30].Descriptor()
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[31].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -4701,6 +4766,10 @@ type Envelope_MfaPromptResponse struct {
 	MfaPromptResponse *MFAPromptResponse `protobuf:"bytes,24,opt,name=mfa_prompt_response,json=mfaPromptResponse,proto3,oneof"`
 }
 
+type Envelope_SessionEstablishing struct {
+	SessionEstablishing *SessionEstablishing `protobuf:"bytes,25,opt,name=session_establishing,json=sessionEstablishing,proto3,oneof"`
+}
+
 func (*Envelope_ClientHello) isEnvelope_Payload() {}
 
 func (*Envelope_ServerHello) isEnvelope_Payload() {}
@@ -4749,6 +4818,8 @@ func (*Envelope_AuthPrompt) isEnvelope_Payload() {}
 
 func (*Envelope_MfaPromptResponse) isEnvelope_Payload() {}
 
+func (*Envelope_SessionEstablishing) isEnvelope_Payload() {}
+
 // Info request.
 type SharedDirectoryRequest_Info struct {
 	state         protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -4759,7 +4830,7 @@ type SharedDirectoryRequest_Info struct {
 
 func (x *SharedDirectoryRequest_Info) Reset() {
 	*x = SharedDirectoryRequest_Info{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4771,7 +4842,7 @@ func (x *SharedDirectoryRequest_Info) String() string {
 func (*SharedDirectoryRequest_Info) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Info) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4818,7 +4889,7 @@ type SharedDirectoryRequest_Create struct {
 
 func (x *SharedDirectoryRequest_Create) Reset() {
 	*x = SharedDirectoryRequest_Create{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4830,7 +4901,7 @@ func (x *SharedDirectoryRequest_Create) String() string {
 func (*SharedDirectoryRequest_Create) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Create) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4889,7 +4960,7 @@ type SharedDirectoryRequest_Delete struct {
 
 func (x *SharedDirectoryRequest_Delete) Reset() {
 	*x = SharedDirectoryRequest_Delete{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4901,7 +4972,7 @@ func (x *SharedDirectoryRequest_Delete) String() string {
 func (*SharedDirectoryRequest_Delete) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Delete) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4947,7 +5018,7 @@ type SharedDirectoryRequest_List struct {
 
 func (x *SharedDirectoryRequest_List) Reset() {
 	*x = SharedDirectoryRequest_List{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4959,7 +5030,7 @@ func (x *SharedDirectoryRequest_List) String() string {
 func (*SharedDirectoryRequest_List) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_List) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5007,7 +5078,7 @@ type SharedDirectoryRequest_Read struct {
 
 func (x *SharedDirectoryRequest_Read) Reset() {
 	*x = SharedDirectoryRequest_Read{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5019,7 +5090,7 @@ func (x *SharedDirectoryRequest_Read) String() string {
 func (*SharedDirectoryRequest_Read) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Read) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5093,7 +5164,7 @@ type SharedDirectoryRequest_Write struct {
 
 func (x *SharedDirectoryRequest_Write) Reset() {
 	*x = SharedDirectoryRequest_Write{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5105,7 +5176,7 @@ func (x *SharedDirectoryRequest_Write) String() string {
 func (*SharedDirectoryRequest_Write) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Write) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5181,7 +5252,7 @@ type SharedDirectoryRequest_Move struct {
 
 func (x *SharedDirectoryRequest_Move) Reset() {
 	*x = SharedDirectoryRequest_Move{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5193,7 +5264,7 @@ func (x *SharedDirectoryRequest_Move) String() string {
 func (*SharedDirectoryRequest_Move) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Move) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5253,7 +5324,7 @@ type SharedDirectoryRequest_Truncate struct {
 
 func (x *SharedDirectoryRequest_Truncate) Reset() {
 	*x = SharedDirectoryRequest_Truncate{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5265,7 +5336,7 @@ func (x *SharedDirectoryRequest_Truncate) String() string {
 func (*SharedDirectoryRequest_Truncate) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Truncate) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5324,7 +5395,7 @@ type SharedDirectoryResponse_Info struct {
 
 func (x *SharedDirectoryResponse_Info) Reset() {
 	*x = SharedDirectoryResponse_Info{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5336,7 +5407,7 @@ func (x *SharedDirectoryResponse_Info) String() string {
 func (*SharedDirectoryResponse_Info) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Info) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5393,7 +5464,7 @@ type SharedDirectoryResponse_Create struct {
 
 func (x *SharedDirectoryResponse_Create) Reset() {
 	*x = SharedDirectoryResponse_Create{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[40]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5405,7 +5476,7 @@ func (x *SharedDirectoryResponse_Create) String() string {
 func (*SharedDirectoryResponse_Create) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Create) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[40]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5461,7 +5532,7 @@ type SharedDirectoryResponse_Delete struct {
 
 func (x *SharedDirectoryResponse_Delete) Reset() {
 	*x = SharedDirectoryResponse_Delete{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[41]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5473,7 +5544,7 @@ func (x *SharedDirectoryResponse_Delete) String() string {
 func (*SharedDirectoryResponse_Delete) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Delete) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[41]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5506,7 +5577,7 @@ type SharedDirectoryResponse_List struct {
 
 func (x *SharedDirectoryResponse_List) Reset() {
 	*x = SharedDirectoryResponse_List{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[42]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5518,7 +5589,7 @@ func (x *SharedDirectoryResponse_List) String() string {
 func (*SharedDirectoryResponse_List) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_List) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[42]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5564,7 +5635,7 @@ type SharedDirectoryResponse_Read struct {
 
 func (x *SharedDirectoryResponse_Read) Reset() {
 	*x = SharedDirectoryResponse_Read{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[43]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5576,7 +5647,7 @@ func (x *SharedDirectoryResponse_Read) String() string {
 func (*SharedDirectoryResponse_Read) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Read) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[43]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5625,7 +5696,7 @@ type SharedDirectoryResponse_Write struct {
 
 func (x *SharedDirectoryResponse_Write) Reset() {
 	*x = SharedDirectoryResponse_Write{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[44]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5637,7 +5708,7 @@ func (x *SharedDirectoryResponse_Write) String() string {
 func (*SharedDirectoryResponse_Write) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Write) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[44]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5682,7 +5753,7 @@ type SharedDirectoryResponse_Move struct {
 
 func (x *SharedDirectoryResponse_Move) Reset() {
 	*x = SharedDirectoryResponse_Move{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[45]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5694,7 +5765,7 @@ func (x *SharedDirectoryResponse_Move) String() string {
 func (*SharedDirectoryResponse_Move) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Move) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[45]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5726,7 +5797,7 @@ type SharedDirectoryResponse_Truncate struct {
 
 func (x *SharedDirectoryResponse_Truncate) Reset() {
 	*x = SharedDirectoryResponse_Truncate{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[46]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5738,7 +5809,7 @@ func (x *SharedDirectoryResponse_Truncate) String() string {
 func (*SharedDirectoryResponse_Truncate) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Truncate) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[46]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5765,13 +5836,12 @@ var File_teleport_desktop_v1_tdpb_proto protoreflect.FileDescriptor
 
 const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\n" +
-	"\x1eteleport/desktop/v1/tdpb.proto\x12\x13teleport.desktop.v1\x1a google/protobuf/descriptor.proto\x1a\x1fteleport/mfa/v1/challenge.proto\"\xcd\x01\n" +
+	"\x1eteleport/desktop/v1/tdpb.proto\x12\x13teleport.desktop.v1\x1a google/protobuf/descriptor.proto\x1a\x1fteleport/mfa/v1/challenge.proto\"\x9a\x01\n" +
 	"\vClientHello\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +
 	"screenSpec\x12'\n" +
-	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\x121\n" +
-	"\x15in_band_mfa_supported\x18\x04 \x01(\bR\x12inBandMfaSupported\"\xb8\x02\n" +
+	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\x82\x03\n" +
 	"\vServerHello\x12Q\n" +
 	"\x0factivation_spec\x18\x01 \x01(\v2(.teleport.desktop.v1.ConnectionActivatedR\x0eactivationSpec\x12+\n" +
 	"\x11clipboard_enabled\x18\x02 \x01(\bR\x10clipboardEnabled\x12<\n" +
@@ -5844,7 +5914,8 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\n" +
 	"\bresponse\"C\n" +
 	"\x1aMFAPromptResponseReference\x12%\n" +
-	"\x0echallenge_name\x18\x01 \x01(\tR\rchallengeName\"P\n" +
+	"\x0echallenge_name\x18\x01 \x01(\tR\rchallengeName\"\x15\n" +
+	"\x13SessionEstablishing\"P\n" +
 	"\x17SharedDirectoryAnnounce\x12!\n" +
 	"\fdirectory_id\x18\x01 \x01(\rR\vdirectoryId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\":\n" +
@@ -5929,7 +6000,7 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x11client_latency_ms\x18\x01 \x01(\rR\x0fclientLatencyMs\x12*\n" +
 	"\x11server_latency_ms\x18\x02 \x01(\rR\x0fserverLatencyMs\"\x1a\n" +
 	"\x04Ping\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\fR\x04uuid\"\xe5\x0e\n" +
+	"\x04uuid\x18\x01 \x01(\fR\x04uuid\"\xc4\x0f\n" +
 	"\bEnvelope\x12E\n" +
 	"\fclient_hello\x18\x01 \x01(\v2 .teleport.desktop.v1.ClientHelloH\x00R\vclientHello\x12E\n" +
 	"\fserver_hello\x18\x02 \x01(\v2 .teleport.desktop.v1.ServerHelloH\x00R\vserverHello\x12<\n" +
@@ -5958,7 +6029,8 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x11session_selection\x18\x16 \x01(\v2%.teleport.desktop.v1.SessionSelectionH\x00R\x10sessionSelection\x12B\n" +
 	"\vauth_prompt\x18\x17 \x01(\v2\x1f.teleport.desktop.v1.AuthPromptH\x00R\n" +
 	"authPrompt\x12X\n" +
-	"\x13mfa_prompt_response\x18\x18 \x01(\v2&.teleport.desktop.v1.MFAPromptResponseH\x00R\x11mfaPromptResponseB\t\n" +
+	"\x13mfa_prompt_response\x18\x18 \x01(\v2&.teleport.desktop.v1.MFAPromptResponseH\x00R\x11mfaPromptResponse\x12]\n" +
+	"\x14session_establishing\x18\x19 \x01(\v2(.teleport.desktop.v1.SessionEstablishingH\x00R\x13sessionEstablishingB\t\n" +
 	"\apayload*\x8b\x01\n" +
 	"\x0fMouseButtonType\x12!\n" +
 	"\x1dMOUSE_BUTTON_TYPE_UNSPECIFIED\x10\x00\x12\x1a\n" +
@@ -5980,7 +6052,7 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\fMFA_TYPE_U2F\x10\x02BOZMgithub.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1;tdpbv1b\x06proto3"
 
 var file_teleport_desktop_v1_tdpb_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_teleport_desktop_v1_tdpb_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
+var file_teleport_desktop_v1_tdpb_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_teleport_desktop_v1_tdpb_proto_goTypes = []any{
 	(MouseButtonType)(0),                     // 0: teleport.desktop.v1.MouseButtonType
 	(AlertSeverity)(0),                       // 1: teleport.desktop.v1.AlertSeverity
@@ -6008,33 +6080,34 @@ var file_teleport_desktop_v1_tdpb_proto_goTypes = []any{
 	(*MFAPrompt)(nil),                        // 23: teleport.desktop.v1.MFAPrompt
 	(*MFAPromptResponse)(nil),                // 24: teleport.desktop.v1.MFAPromptResponse
 	(*MFAPromptResponseReference)(nil),       // 25: teleport.desktop.v1.MFAPromptResponseReference
-	(*SharedDirectoryAnnounce)(nil),          // 26: teleport.desktop.v1.SharedDirectoryAnnounce
-	(*SharedDirectoryRemove)(nil),            // 27: teleport.desktop.v1.SharedDirectoryRemove
-	(*SharedDirectoryAcknowledge)(nil),       // 28: teleport.desktop.v1.SharedDirectoryAcknowledge
-	(*SharedDirectoryRequest)(nil),           // 29: teleport.desktop.v1.SharedDirectoryRequest
-	(*SharedDirectoryResponse)(nil),          // 30: teleport.desktop.v1.SharedDirectoryResponse
-	(*FileSystemObject)(nil),                 // 31: teleport.desktop.v1.FileSystemObject
-	(*LatencyStats)(nil),                     // 32: teleport.desktop.v1.LatencyStats
-	(*Ping)(nil),                             // 33: teleport.desktop.v1.Ping
-	(*Envelope)(nil),                         // 34: teleport.desktop.v1.Envelope
-	(*SharedDirectoryRequest_Info)(nil),      // 35: teleport.desktop.v1.SharedDirectoryRequest.Info
-	(*SharedDirectoryRequest_Create)(nil),    // 36: teleport.desktop.v1.SharedDirectoryRequest.Create
-	(*SharedDirectoryRequest_Delete)(nil),    // 37: teleport.desktop.v1.SharedDirectoryRequest.Delete
-	(*SharedDirectoryRequest_List)(nil),      // 38: teleport.desktop.v1.SharedDirectoryRequest.List
-	(*SharedDirectoryRequest_Read)(nil),      // 39: teleport.desktop.v1.SharedDirectoryRequest.Read
-	(*SharedDirectoryRequest_Write)(nil),     // 40: teleport.desktop.v1.SharedDirectoryRequest.Write
-	(*SharedDirectoryRequest_Move)(nil),      // 41: teleport.desktop.v1.SharedDirectoryRequest.Move
-	(*SharedDirectoryRequest_Truncate)(nil),  // 42: teleport.desktop.v1.SharedDirectoryRequest.Truncate
-	(*SharedDirectoryResponse_Info)(nil),     // 43: teleport.desktop.v1.SharedDirectoryResponse.Info
-	(*SharedDirectoryResponse_Create)(nil),   // 44: teleport.desktop.v1.SharedDirectoryResponse.Create
-	(*SharedDirectoryResponse_Delete)(nil),   // 45: teleport.desktop.v1.SharedDirectoryResponse.Delete
-	(*SharedDirectoryResponse_List)(nil),     // 46: teleport.desktop.v1.SharedDirectoryResponse.List
-	(*SharedDirectoryResponse_Read)(nil),     // 47: teleport.desktop.v1.SharedDirectoryResponse.Read
-	(*SharedDirectoryResponse_Write)(nil),    // 48: teleport.desktop.v1.SharedDirectoryResponse.Write
-	(*SharedDirectoryResponse_Move)(nil),     // 49: teleport.desktop.v1.SharedDirectoryResponse.Move
-	(*SharedDirectoryResponse_Truncate)(nil), // 50: teleport.desktop.v1.SharedDirectoryResponse.Truncate
-	(*v1.AuthenticateChallenge)(nil),         // 51: teleport.mfa.v1.AuthenticateChallenge
-	(*v1.AuthenticateResponse)(nil),          // 52: teleport.mfa.v1.AuthenticateResponse
+	(*SessionEstablishing)(nil),              // 26: teleport.desktop.v1.SessionEstablishing
+	(*SharedDirectoryAnnounce)(nil),          // 27: teleport.desktop.v1.SharedDirectoryAnnounce
+	(*SharedDirectoryRemove)(nil),            // 28: teleport.desktop.v1.SharedDirectoryRemove
+	(*SharedDirectoryAcknowledge)(nil),       // 29: teleport.desktop.v1.SharedDirectoryAcknowledge
+	(*SharedDirectoryRequest)(nil),           // 30: teleport.desktop.v1.SharedDirectoryRequest
+	(*SharedDirectoryResponse)(nil),          // 31: teleport.desktop.v1.SharedDirectoryResponse
+	(*FileSystemObject)(nil),                 // 32: teleport.desktop.v1.FileSystemObject
+	(*LatencyStats)(nil),                     // 33: teleport.desktop.v1.LatencyStats
+	(*Ping)(nil),                             // 34: teleport.desktop.v1.Ping
+	(*Envelope)(nil),                         // 35: teleport.desktop.v1.Envelope
+	(*SharedDirectoryRequest_Info)(nil),      // 36: teleport.desktop.v1.SharedDirectoryRequest.Info
+	(*SharedDirectoryRequest_Create)(nil),    // 37: teleport.desktop.v1.SharedDirectoryRequest.Create
+	(*SharedDirectoryRequest_Delete)(nil),    // 38: teleport.desktop.v1.SharedDirectoryRequest.Delete
+	(*SharedDirectoryRequest_List)(nil),      // 39: teleport.desktop.v1.SharedDirectoryRequest.List
+	(*SharedDirectoryRequest_Read)(nil),      // 40: teleport.desktop.v1.SharedDirectoryRequest.Read
+	(*SharedDirectoryRequest_Write)(nil),     // 41: teleport.desktop.v1.SharedDirectoryRequest.Write
+	(*SharedDirectoryRequest_Move)(nil),      // 42: teleport.desktop.v1.SharedDirectoryRequest.Move
+	(*SharedDirectoryRequest_Truncate)(nil),  // 43: teleport.desktop.v1.SharedDirectoryRequest.Truncate
+	(*SharedDirectoryResponse_Info)(nil),     // 44: teleport.desktop.v1.SharedDirectoryResponse.Info
+	(*SharedDirectoryResponse_Create)(nil),   // 45: teleport.desktop.v1.SharedDirectoryResponse.Create
+	(*SharedDirectoryResponse_Delete)(nil),   // 46: teleport.desktop.v1.SharedDirectoryResponse.Delete
+	(*SharedDirectoryResponse_List)(nil),     // 47: teleport.desktop.v1.SharedDirectoryResponse.List
+	(*SharedDirectoryResponse_Read)(nil),     // 48: teleport.desktop.v1.SharedDirectoryResponse.Read
+	(*SharedDirectoryResponse_Write)(nil),    // 49: teleport.desktop.v1.SharedDirectoryResponse.Write
+	(*SharedDirectoryResponse_Move)(nil),     // 50: teleport.desktop.v1.SharedDirectoryResponse.Move
+	(*SharedDirectoryResponse_Truncate)(nil), // 51: teleport.desktop.v1.SharedDirectoryResponse.Truncate
+	(*v1.AuthenticateChallenge)(nil),         // 52: teleport.mfa.v1.AuthenticateChallenge
+	(*v1.AuthenticateResponse)(nil),          // 53: teleport.mfa.v1.AuthenticateResponse
 }
 var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
 	17, // 0: teleport.desktop.v1.ClientHello.screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
@@ -6046,26 +6119,26 @@ var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
 	1,  // 6: teleport.desktop.v1.Alert.severity:type_name -> teleport.desktop.v1.AlertSeverity
 	2,  // 7: teleport.desktop.v1.MouseWheel.axis:type_name -> teleport.desktop.v1.MouseWheelAxis
 	3,  // 8: teleport.desktop.v1.MFA.type:type_name -> teleport.desktop.v1.MFAType
-	51, // 9: teleport.desktop.v1.MFA.challenge:type_name -> teleport.mfa.v1.AuthenticateChallenge
-	52, // 10: teleport.desktop.v1.MFA.authentication_response:type_name -> teleport.mfa.v1.AuthenticateResponse
+	52, // 9: teleport.desktop.v1.MFA.challenge:type_name -> teleport.mfa.v1.AuthenticateChallenge
+	53, // 10: teleport.desktop.v1.MFA.authentication_response:type_name -> teleport.mfa.v1.AuthenticateResponse
 	23, // 11: teleport.desktop.v1.AuthPrompt.mfa_prompt:type_name -> teleport.desktop.v1.MFAPrompt
 	25, // 12: teleport.desktop.v1.MFAPromptResponse.reference:type_name -> teleport.desktop.v1.MFAPromptResponseReference
-	35, // 13: teleport.desktop.v1.SharedDirectoryRequest.info:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Info
-	36, // 14: teleport.desktop.v1.SharedDirectoryRequest.create:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Create
-	37, // 15: teleport.desktop.v1.SharedDirectoryRequest.delete:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Delete
-	38, // 16: teleport.desktop.v1.SharedDirectoryRequest.list:type_name -> teleport.desktop.v1.SharedDirectoryRequest.List
-	39, // 17: teleport.desktop.v1.SharedDirectoryRequest.read:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Read
-	40, // 18: teleport.desktop.v1.SharedDirectoryRequest.write:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Write
-	41, // 19: teleport.desktop.v1.SharedDirectoryRequest.move:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Move
-	42, // 20: teleport.desktop.v1.SharedDirectoryRequest.truncate:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Truncate
-	43, // 21: teleport.desktop.v1.SharedDirectoryResponse.info:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Info
-	44, // 22: teleport.desktop.v1.SharedDirectoryResponse.create:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Create
-	45, // 23: teleport.desktop.v1.SharedDirectoryResponse.delete:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Delete
-	46, // 24: teleport.desktop.v1.SharedDirectoryResponse.list:type_name -> teleport.desktop.v1.SharedDirectoryResponse.List
-	47, // 25: teleport.desktop.v1.SharedDirectoryResponse.read:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Read
-	48, // 26: teleport.desktop.v1.SharedDirectoryResponse.write:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Write
-	49, // 27: teleport.desktop.v1.SharedDirectoryResponse.move:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Move
-	50, // 28: teleport.desktop.v1.SharedDirectoryResponse.truncate:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Truncate
+	36, // 13: teleport.desktop.v1.SharedDirectoryRequest.info:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Info
+	37, // 14: teleport.desktop.v1.SharedDirectoryRequest.create:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Create
+	38, // 15: teleport.desktop.v1.SharedDirectoryRequest.delete:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Delete
+	39, // 16: teleport.desktop.v1.SharedDirectoryRequest.list:type_name -> teleport.desktop.v1.SharedDirectoryRequest.List
+	40, // 17: teleport.desktop.v1.SharedDirectoryRequest.read:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Read
+	41, // 18: teleport.desktop.v1.SharedDirectoryRequest.write:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Write
+	42, // 19: teleport.desktop.v1.SharedDirectoryRequest.move:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Move
+	43, // 20: teleport.desktop.v1.SharedDirectoryRequest.truncate:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Truncate
+	44, // 21: teleport.desktop.v1.SharedDirectoryResponse.info:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Info
+	45, // 22: teleport.desktop.v1.SharedDirectoryResponse.create:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Create
+	46, // 23: teleport.desktop.v1.SharedDirectoryResponse.delete:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Delete
+	47, // 24: teleport.desktop.v1.SharedDirectoryResponse.list:type_name -> teleport.desktop.v1.SharedDirectoryResponse.List
+	48, // 25: teleport.desktop.v1.SharedDirectoryResponse.read:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Read
+	49, // 26: teleport.desktop.v1.SharedDirectoryResponse.write:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Write
+	50, // 27: teleport.desktop.v1.SharedDirectoryResponse.move:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Move
+	51, // 28: teleport.desktop.v1.SharedDirectoryResponse.truncate:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Truncate
 	4,  // 29: teleport.desktop.v1.Envelope.client_hello:type_name -> teleport.desktop.v1.ClientHello
 	5,  // 30: teleport.desktop.v1.Envelope.server_hello:type_name -> teleport.desktop.v1.ServerHello
 	9,  // 31: teleport.desktop.v1.Envelope.png_frame:type_name -> teleport.desktop.v1.PNGFrame
@@ -6080,24 +6153,25 @@ var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
 	19, // 40: teleport.desktop.v1.Envelope.mouse_wheel:type_name -> teleport.desktop.v1.MouseWheel
 	20, // 41: teleport.desktop.v1.Envelope.clipboard_data:type_name -> teleport.desktop.v1.ClipboardData
 	21, // 42: teleport.desktop.v1.Envelope.mfa:type_name -> teleport.desktop.v1.MFA
-	26, // 43: teleport.desktop.v1.Envelope.shared_directory_announce:type_name -> teleport.desktop.v1.SharedDirectoryAnnounce
-	28, // 44: teleport.desktop.v1.Envelope.shared_directory_acknowledge:type_name -> teleport.desktop.v1.SharedDirectoryAcknowledge
-	29, // 45: teleport.desktop.v1.Envelope.shared_directory_request:type_name -> teleport.desktop.v1.SharedDirectoryRequest
-	30, // 46: teleport.desktop.v1.Envelope.shared_directory_response:type_name -> teleport.desktop.v1.SharedDirectoryResponse
-	32, // 47: teleport.desktop.v1.Envelope.latency_stats:type_name -> teleport.desktop.v1.LatencyStats
-	33, // 48: teleport.desktop.v1.Envelope.ping:type_name -> teleport.desktop.v1.Ping
-	27, // 49: teleport.desktop.v1.Envelope.shared_directory_remove:type_name -> teleport.desktop.v1.SharedDirectoryRemove
+	27, // 43: teleport.desktop.v1.Envelope.shared_directory_announce:type_name -> teleport.desktop.v1.SharedDirectoryAnnounce
+	29, // 44: teleport.desktop.v1.Envelope.shared_directory_acknowledge:type_name -> teleport.desktop.v1.SharedDirectoryAcknowledge
+	30, // 45: teleport.desktop.v1.Envelope.shared_directory_request:type_name -> teleport.desktop.v1.SharedDirectoryRequest
+	31, // 46: teleport.desktop.v1.Envelope.shared_directory_response:type_name -> teleport.desktop.v1.SharedDirectoryResponse
+	33, // 47: teleport.desktop.v1.Envelope.latency_stats:type_name -> teleport.desktop.v1.LatencyStats
+	34, // 48: teleport.desktop.v1.Envelope.ping:type_name -> teleport.desktop.v1.Ping
+	28, // 49: teleport.desktop.v1.Envelope.shared_directory_remove:type_name -> teleport.desktop.v1.SharedDirectoryRemove
 	7,  // 50: teleport.desktop.v1.Envelope.session_selection:type_name -> teleport.desktop.v1.SessionSelection
 	22, // 51: teleport.desktop.v1.Envelope.auth_prompt:type_name -> teleport.desktop.v1.AuthPrompt
 	24, // 52: teleport.desktop.v1.Envelope.mfa_prompt_response:type_name -> teleport.desktop.v1.MFAPromptResponse
-	31, // 53: teleport.desktop.v1.SharedDirectoryResponse.Info.fso:type_name -> teleport.desktop.v1.FileSystemObject
-	31, // 54: teleport.desktop.v1.SharedDirectoryResponse.Create.fso:type_name -> teleport.desktop.v1.FileSystemObject
-	31, // 55: teleport.desktop.v1.SharedDirectoryResponse.List.fso_list:type_name -> teleport.desktop.v1.FileSystemObject
-	56, // [56:56] is the sub-list for method output_type
-	56, // [56:56] is the sub-list for method input_type
-	56, // [56:56] is the sub-list for extension type_name
-	56, // [56:56] is the sub-list for extension extendee
-	0,  // [0:56] is the sub-list for field type_name
+	26, // 53: teleport.desktop.v1.Envelope.session_establishing:type_name -> teleport.desktop.v1.SessionEstablishing
+	32, // 54: teleport.desktop.v1.SharedDirectoryResponse.Info.fso:type_name -> teleport.desktop.v1.FileSystemObject
+	32, // 55: teleport.desktop.v1.SharedDirectoryResponse.Create.fso:type_name -> teleport.desktop.v1.FileSystemObject
+	32, // 56: teleport.desktop.v1.SharedDirectoryResponse.List.fso_list:type_name -> teleport.desktop.v1.FileSystemObject
+	57, // [57:57] is the sub-list for method output_type
+	57, // [57:57] is the sub-list for method input_type
+	57, // [57:57] is the sub-list for extension type_name
+	57, // [57:57] is the sub-list for extension extendee
+	0,  // [0:57] is the sub-list for field type_name
 }
 
 func init() { file_teleport_desktop_v1_tdpb_proto_init() }
@@ -6111,7 +6185,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 	file_teleport_desktop_v1_tdpb_proto_msgTypes[20].OneofWrappers = []any{
 		(*MFAPromptResponse_Reference)(nil),
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[25].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[26].OneofWrappers = []any{
 		(*SharedDirectoryRequest_Info_)(nil),
 		(*SharedDirectoryRequest_Create_)(nil),
 		(*SharedDirectoryRequest_Delete_)(nil),
@@ -6121,7 +6195,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*SharedDirectoryRequest_Move_)(nil),
 		(*SharedDirectoryRequest_Truncate_)(nil),
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[26].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[27].OneofWrappers = []any{
 		(*SharedDirectoryResponse_Info_)(nil),
 		(*SharedDirectoryResponse_Create_)(nil),
 		(*SharedDirectoryResponse_Delete_)(nil),
@@ -6131,7 +6205,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*SharedDirectoryResponse_Move_)(nil),
 		(*SharedDirectoryResponse_Truncate_)(nil),
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[30].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[31].OneofWrappers = []any{
 		(*Envelope_ClientHello)(nil),
 		(*Envelope_ServerHello)(nil),
 		(*Envelope_PngFrame)(nil),
@@ -6156,6 +6230,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*Envelope_SessionSelection)(nil),
 		(*Envelope_AuthPrompt)(nil),
 		(*Envelope_MfaPromptResponse)(nil),
+		(*Envelope_SessionEstablishing)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -6163,7 +6238,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_desktop_v1_tdpb_proto_rawDesc), len(file_teleport_desktop_v1_tdpb_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   47,
+			NumMessages:   48,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

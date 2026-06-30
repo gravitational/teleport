@@ -214,7 +214,7 @@ func (t *tdpHandshaker) forwardTDP(w io.Writer, username string, forwardKeyboard
 	return sendAll(w, append(messages, t.withheld...))
 }
 
-func (t *tdpHandshaker) forwardTDPB(w io.Writer, username string, _ bool) error {
+func (t *tdpHandshaker) forwardTDPB(w io.Writer, username string) error {
 	// Convert to Client Hello
 	hello := &tdpb.ClientHello{
 		ScreenSpec: tdpbv1.ClientScreenSpec_builder{
@@ -227,7 +227,7 @@ func (t *tdpHandshaker) forwardTDPB(w io.Writer, username string, _ bool) error 
 		hello.KeyboardLayout = t.keyboardLayout.KeyboardLayout
 	}
 
-	withheld, err := translateAll(t.withheld, tdpb.TranslateToModern)
+	withheld, err := translateAll(t.withheld, tdpb.TranslateToTDPB)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -312,7 +312,7 @@ func (t *tdpbHandshaker) forwardTDP(w io.Writer, username string, forwardKeyboar
 		messages = append(messages, legacy.ClientKeyboardLayout{KeyboardLayout: t.hello.KeyboardLayout})
 	}
 
-	withheld, err := translateAll(t.withheld, tdpb.TranslateToLegacy)
+	withheld, err := translateAll(t.withheld, tdpb.TranslateToTDP)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -320,10 +320,9 @@ func (t *tdpbHandshaker) forwardTDP(w io.Writer, username string, forwardKeyboar
 }
 
 // forwardTDPB forwards the ClientHello to the WDS. The browser originates the ClientHello with screen spec and keyboard
-// layout. The Proxy enriches it with the Windows login and signals in-band MFA support.
-func (t *tdpbHandshaker) forwardTDPB(w io.Writer, username string, _ bool) error {
+// layout. The Proxy enriches it with the Windows login.
+func (t *tdpbHandshaker) forwardTDPB(w io.Writer, username string) error {
 	t.hello.Username = username
-	t.hello.InBandMfaSupported = true
 	return trace.Wrap(sendAll(w, append([]tdp.Message{t.hello}, t.withheld...)))
 }
 
@@ -341,7 +340,7 @@ type handshaker interface {
 	getPromptBuilder(*slog.Logger) mfaPromptBuilder
 	performInitialHandshake(context.Context, *slog.Logger) error
 	forwardTDP(io.Writer, string, bool) error
-	forwardTDPB(io.Writer, string, bool) error
+	forwardTDPB(io.Writer, string) error
 }
 
 // creates a handshaker instance that interops with either TDP or TDPB clients
@@ -484,8 +483,10 @@ func (h *Handler) createDesktopConnection(
 		serverProtocol = protocolTDP
 		sendKeyboardLayout, _ := utils.MinVerWithoutPreRelease(version, "18.0.0")
 		err = handshaker.forwardTDP(serviceConnTLS, username, sendKeyboardLayout)
+	case tdpb.ProtocolNameV1_1:
+		fallthrough
 	case tdpb.ProtocolName:
-		err = handshaker.forwardTDPB(serviceConnTLS, username, true /* unused */)
+		err = handshaker.forwardTDPB(serviceConnTLS, username)
 	default:
 		err = trace.BadParameter("Unknown desktop agent protocol %v", serverProtocol)
 	}
@@ -495,59 +496,67 @@ func (h *Handler) createDesktopConnection(
 		return handshaker.sendError(ctx, log, err)
 	}
 
-	// For TDPB, read the first message from WDS after forwarding ClientHello. If WDS sends AuthPrompt, it requires
-	// in-band MFA. Run the MFA ceremony and send the response. If WDS sends Alert, it rejected the connection (e.g.,
-	// possibly legacy WDS without in-band MFA support). Fallback to per-session MFA cert and reconnect.
+	// For TDPB, determine MFA flow from ALPN negotiation. If the WDS negotiated teleport-tdpb-1.0, it's a legacy
+	// service without in-band MFA support then fall back to per-session MFA cert. If it negotiated 1.1, read the first
+	// message: AuthPrompt for in-band MFA, ServerHello if MFA is not required.
 	//
 	// TODO(cthach): DELETE IN v20.0 when legacy per-session certs support is removed.
-	if serverProtocol == tdpb.ProtocolName {
-		wdsConn := tdp.NewConn(serviceConnTLS, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
-
-		firstMsg, err := wdsConn.ReadMessage()
-		if err != nil {
-			return handshaker.sendError(ctx, log, err)
-		}
-
-		switch msg := firstMsg.(type) {
-		case *tdpb.AuthPrompt:
-			// WDS requires in-band MFA. Run the MFA ceremony and send the response.
-			if err := h.handleInBandMFA(ctx, log, sctx, serviceConnTLS, wdsConn, handshaker, clusterName); err != nil {
-				return handshaker.sendError(ctx, log, err)
-			}
-
-		case *tdpb.Alert:
-			// WDS rejected with an active error. If force in-band MFA is enabled, reject the connection. Otherwise,
-			// fall back to legacy per-session MFA.
-			//
-			// TODO(cthach): DELETE IN v20.0 when the legacy per-session MFA with certificates flow is removed.
+	var wdsConn tdp.MessageReadWriteCloser
+	if serverProtocol == tdpb.ProtocolNameV1_1 || serverProtocol == tdpb.ProtocolName {
+		if serverProtocol == tdpb.ProtocolName {
+			// Legacy WDS negotiated > fall back to per-session MFA cert, unless force env var is set.
 			if os.Getenv(mfa.ForceInBandEnv) == "yes" {
 				return handshaker.sendError(
-					ctx,
-					log,
-					trace.AccessDenied(
-						"in-band MFA is required but the server does not support it",
-					),
+					ctx, log, trace.AccessDenied("in-band MFA is required but the server does not support it"),
 				)
 			}
 
 			if err := handshaker.sendError(
-				ctx,
-				log,
-				trace.Errorf("MFA is required before session can start, re-authenticating"),
+				ctx, log, trace.Errorf("MFA is required before session can start, re-authenticating"),
 			); err != nil {
 				return trace.Wrap(err)
 			}
-			return trace.Wrap(h.fallbackToLegacyPerSessionMFA(ctx, r, desktopName, clusterName, log, sctx, cluster, ws, username, handshaker, version))
 
-		case *tdpb.ServerHello:
-			// MFA not required. WDS sent ServerHello. Forward to browser before starting the proxy.
-			if err := tdp.EncodeTo(&WebsocketIO{Conn: ws}, msg); err != nil {
+			return trace.Wrap(h.fallbackToLegacyPerSessionMFA(ctx, r, desktopName, clusterName, log, sctx, cluster, ws, username, handshaker, version))
+		}
+
+		// Read messages from WDS until ServerHello is received.
+		wdsConn = tdp.NewConn(serviceConnTLS, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+
+		for {
+			msg, err := wdsConn.ReadMessage()
+			if err != nil {
 				return handshaker.sendError(ctx, log, err)
 			}
 
-		default:
-			return handshaker.sendError(ctx, log, trace.Errorf("expected AuthPrompt, Alert, or ServerHello from WDS but got %T", firstMsg))
+			switch msg := msg.(type) {
+			case *tdpb.AuthPrompt:
+				// WDS requires in-band MFA. Run the MFA ceremony and send the response.
+				if err := h.handleInBandMFA(ctx, log, sctx, serviceConnTLS, wdsConn, handshaker, clusterName); err != nil {
+					return handshaker.sendError(ctx, log, err)
+				}
+
+			case *tdpb.Alert:
+				return handshaker.sendError(ctx, log, trace.Errorf("%s", msg.Message))
+
+			case *tdpb.SessionEstablishing:
+				log.InfoContext(ctx, "MFA complete, WDS establishing session backend")
+				if err := tdp.EncodeTo(&WebsocketIO{Conn: ws}, msg); err != nil {
+					return handshaker.sendError(ctx, log, err)
+				}
+
+			case *tdpb.ServerHello:
+				if err := tdp.EncodeTo(&WebsocketIO{Conn: ws}, msg); err != nil {
+					return handshaker.sendError(ctx, log, err)
+				}
+				goto proxyStart
+
+			default:
+				return handshaker.sendError(ctx, log, trace.Errorf("unknown message %T", msg))
+			}
 		}
+
+	proxyStart:
 	}
 
 	// this blocks until the connection is closed
@@ -560,6 +569,7 @@ func (h *Handler) createDesktopConnection(
 			clientProtocol,
 			serverProtocol,
 			log,
+			wdsConn,
 		}.run(ctx),
 		log,
 	)
@@ -573,7 +583,7 @@ func (h *Handler) handleInBandMFA(
 	log *slog.Logger,
 	sctx *SessionContext,
 	tlsConn *tls.Conn,
-	wdsConn *tdp.Conn,
+	wdsConn tdp.MessageReadWriteCloser,
 	hs handshaker,
 	clusterName string,
 ) error {
@@ -687,8 +697,10 @@ func connectToWDS(
 		sendKeyboardLayout, _ := utils.MinVerWithoutPreRelease(version, "18.0.0")
 		err = hs.forwardTDP(serviceConnTLS, username, sendKeyboardLayout)
 
+	case tdpb.ProtocolNameV1_1:
+		fallthrough
 	case tdpb.ProtocolName:
-		err = hs.forwardTDPB(serviceConnTLS, username, true)
+		err = hs.forwardTDPB(serviceConnTLS, username)
 
 	default:
 		err = trace.BadParameter("unknown desktop agent protocol %v", serverProtocol)
@@ -821,7 +833,7 @@ func (h *Handler) createDesktopTLSConfig(
 	}
 
 	tlsConfig.Certificates = []tls.Certificate{certConf}
-	tlsConfig.NextProtos = []string{tdpb.ProtocolName}
+	tlsConfig.NextProtos = []string{tdpb.ProtocolNameV1_1, tdpb.ProtocolName}
 	// Pass target desktop name via SNI.
 	tlsConfig.ServerName = desktopName + SNISuffix
 	return tlsConfig, nil
@@ -845,7 +857,7 @@ func (h *Handler) createDesktopTLSConfigFromSession(
 	}
 
 	tlsConfig.Certificates = []tls.Certificate{cert}
-	tlsConfig.NextProtos = []string{tdpb.ProtocolName}
+	tlsConfig.NextProtos = []string{tdpb.ProtocolNameV1_1, tdpb.ProtocolName}
 
 	// Pass target desktop name via SNI.
 	tlsConfig.ServerName = desktopName + SNISuffix
@@ -921,6 +933,8 @@ func readClientProtocol(r *http.Request) (string, error) {
 	switch tdpbVersion {
 	case "":
 		return protocolTDP, nil
+	case tdpb.ProtocolNameV1_1:
+		return tdpb.ProtocolNameV1_1, nil
 	case tdpb.ProtocolName:
 		return tdpb.ProtocolName, nil
 	default:
@@ -1004,10 +1018,14 @@ func (d desktopPinger) pingTDPB(ctx context.Context) error {
 }
 
 func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
-	if protocol == tdpb.ProtocolName {
+	if isTDPB(protocol) {
 		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 	}
 	return tdp.NewConn(rwc, legacy.Decode, legacy.WarningConstructor)
+}
+
+func isTDPB(protocol string) bool {
+	return protocol == tdpb.ProtocolName || protocol == tdpb.ProtocolNameV1_1
 }
 
 type desktopWebsocketProxy struct {
@@ -1022,6 +1040,9 @@ type desktopWebsocketProxy struct {
 	// Server protocol (TDP/TDPB)
 	serverProtocol string
 	log            *slog.Logger
+	// Pre-existing TDPB conn from handshake. If set, the proxy reuses it
+	// instead of wrapping wds with a fresh decoder/buffer to avoid losing buffered data.
+	existingServerConn tdp.MessageReadWriteCloser
 }
 
 // run does a bidrectional copy between the websocket
@@ -1043,6 +1064,9 @@ func (p desktopWebsocketProxy) run(ctx context.Context) error {
 	// Create a single pair of legacy.Conn instances. legacy.Conn protects the underlying
 	// streams with a mutex to allow for concurrent writes.
 	serverConn := tdp.MessageReadWriteCloser(newConn(p.wds, p.serverProtocol))
+	if p.existingServerConn != nil {
+		serverConn = p.existingServerConn
+	}
 	clientConn := tdp.MessageReadWriteCloser(newConn(&WebsocketIO{Conn: p.ws}, p.clientProtocol))
 
 	pinger := desktopPinger{
@@ -1058,25 +1082,25 @@ func (p desktopWebsocketProxy) run(ctx context.Context) error {
 	serverConn = tdp.NewReadWriteInterceptor(serverConn, pinger.intercept, nil)
 
 	// Translation interceptors will be (optionally) installed in the *write* paths of each connection.
-	needTranslation := p.clientProtocol != p.serverProtocol
+	needTranslation := isTDPB(p.clientProtocol) != isTDPB(p.serverProtocol)
 	if needTranslation {
 		// Translation is needed
-		if p.serverProtocol == tdpb.ProtocolName {
-			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", tdpb.ProtocolName, "client_dialect", protocolTDP)
+		if isTDPB(p.serverProtocol) {
+			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", p.serverProtocol, "client_dialect", p.clientProtocol)
 			// Agent speaks TDPB
 			// Translate to TDPB when writing to the server. Intercept pings when reading from the server.
-			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToModern)
+			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToTDPB)
 			// Client speaks TDP
 			// Translate to TDP (legacy) when writing to this connection
-			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdpb.TranslateToLegacy)
+			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdpb.TranslateToTDP)
 		} else {
-			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDP, "client_dialect", tdpb.ProtocolName)
+			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", p.serverProtocol, "client_dialect", p.clientProtocol)
 			// Agent speaks TDP
 			// Translate to TDPB when reading from this connection.
-			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToLegacy)
+			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToTDP)
 			// The client speaks TDPB
 			// Translate to TDPB (modern) when writing to this connection
-			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdpb.TranslateToModern)
+			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdpb.TranslateToTDPB)
 		}
 	} else {
 		p.log.InfoContext(ctx, "Proxying desktop connection without translation", "dialect", p.serverProtocol)
@@ -1089,10 +1113,10 @@ func (p desktopWebsocketProxy) run(ctx context.Context) error {
 		pingerFunc := pinger.pingTDPB
 		reportFunc := pinger.reportTDPB
 		// Optionally use TDP versions
-		if p.serverProtocol == protocolTDP {
+		if !isTDPB(p.serverProtocol) {
 			pingerFunc = pinger.pingTDP
 		}
-		if p.clientProtocol == protocolTDP {
+		if !isTDPB(p.clientProtocol) {
 			reportFunc = pinger.reportTDP
 		}
 

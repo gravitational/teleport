@@ -206,11 +206,11 @@ func TestTranslation(t *testing.T) {
 	// the resulting message for equality with the original.
 	for _, msg := range cases {
 		t.Run(fmt.Sprintf("translate %T", msg), func(t *testing.T) {
-			modern, err := TranslateToModern(msg)
+			modern, err := TranslateToTDPB(msg)
 			require.NoError(t, err)
 			require.Len(t, modern, 1)
 
-			legacyMsgs, err := TranslateToLegacy(modern[0])
+			legacyMsgs, err := TranslateToTDP(modern[0])
 			require.NoError(t, err)
 			require.Len(t, legacyMsgs, 1)
 			require.Equal(t, msg, legacyMsgs[0])

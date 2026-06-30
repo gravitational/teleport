@@ -253,7 +253,7 @@ func TestProxyConnection(t *testing.T) {
 			wg := sync.WaitGroup{}
 			var proxyErr, echoErr error
 			wg.Go(func() {
-				proxyErr = desktopWebsocketProxy{clientIn, serverIn, test.version, test.clientProtocol, test.serverProtocol, slog.Default()}.run(t.Context())
+				proxyErr = desktopWebsocketProxy{clientIn, serverIn, test.version, test.clientProtocol, test.serverProtocol, slog.Default(), nil}.run(t.Context())
 			})
 			wg.Go(func() {
 				echoErr = test.echoFn(serverOut)
@@ -322,7 +322,7 @@ func TestHandshaker(t *testing.T) {
 
 		// Now test forwarding as TDPB
 		// Ask for keyboard layout, though we won't get one
-		require.NoError(t, shaker.forwardTDPB(buf, "bob", true))
+		require.NoError(t, shaker.forwardTDPB(buf, "bob"))
 
 		msg, err = tdpb.DecodeStrict(buf)
 		require.NoError(t, err)
@@ -359,14 +359,13 @@ func TestHandshaker(t *testing.T) {
 		require.NoError(t, <-done)
 
 		buf := bytes.NewBuffer(nil)
-		require.NoError(t, shaker.forwardTDPB(buf, "bob", false /* should be ignored */))
+		require.NoError(t, shaker.forwardTDPB(buf, "bob"))
 
 		msg, err := tdpb.DecodeStrict(buf)
 		require.NoError(t, err)
 		// Should get the Client Hello back
 		require.IsType(t, &tdpb.ClientHello{}, msg)
 		assert.Equal(t, "bob", msg.(*tdpb.ClientHello).Username)
-		assert.True(t, msg.(*tdpb.ClientHello).InBandMfaSupported)
 		assert.Equal(t, uint32(1), msg.(*tdpb.ClientHello).ScreenSpec.Width)
 		assert.Equal(t, uint32(2), msg.(*tdpb.ClientHello).ScreenSpec.Height)
 		assert.Equal(t, uint32(12), msg.(*tdpb.ClientHello).KeyboardLayout)
@@ -434,7 +433,7 @@ func TestHandshaker(t *testing.T) {
 		}
 
 		buf := bytes.NewBuffer(nil)
-		require.NoError(t, tdbHandshaker.forwardTDPB(buf, "someuser", false))
+		require.NoError(t, tdbHandshaker.forwardTDPB(buf, "someuser"))
 		hello, err := tdpb.DecodePermissive(buf)
 		require.IsType(t, &tdpb.ClientHello{}, hello)
 		require.NoError(t, err)

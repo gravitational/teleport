@@ -140,7 +140,7 @@ func (s *Session) Start(
 			DesktopName: s.desktopName(),
 			DesktopCert: cert,
 			RootCAs:     tlsConfig.RootCAs,
-			Protocol:    tdpb.ProtocolName,
+			Protocols:   []string{tdpb.ProtocolNameV1_1, tdpb.ProtocolName},
 		},
 	)
 	if err != nil {
@@ -167,10 +167,11 @@ func (s *Session) Start(
 	// (Username, ClientScreenSpec, ClientScreenSpec) depends on
 	// the server's serverProtocol selection.
 	serverProtocol := conn.ConnectionState().NegotiatedProtocol
+	wdsSupportsInBandMFA := serverProtocol == tdpb.ProtocolNameV1_1
 
 	var tdpServerConn tdp.MessageReadWriteCloser
-	if serverProtocol == tdpb.ProtocolName {
-		tdpServerConn, err = s.handleTDPBHandshake(ctx, clusterClient, proxyClient, conn, clientConn, hello)
+	if serverProtocol == tdpb.ProtocolNameV1_1 || serverProtocol == tdpb.ProtocolName {
+		tdpServerConn, err = s.handleTDPBHandshake(ctx, clusterClient, proxyClient, conn, clientConn, hello, wdsSupportsInBandMFA)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -196,7 +197,7 @@ func (s *Session) Start(
 		// Aside from this block, Teleport Connect will be speaking TDPB.
 		// Install a translation layer to convert inbound messages to TDPB, and
 		// outbound messages to TDP for compatibility with this legacy WDS instance.
-		tdpServerConn = tdp.NewReadWriteInterceptor(tdpServerConn, tdpb.TranslateToModern, tdpb.TranslateToLegacy)
+		tdpServerConn = tdp.NewReadWriteInterceptor(tdpServerConn, tdpb.TranslateToTDPB, tdpb.TranslateToTDP)
 	}
 
 	fsHandle := fsRequestHandler{
@@ -248,7 +249,6 @@ func (s *Session) readClientHello(downstreamRW *streamutils.ReadWriter) (*tdp.Co
 
 	// Enrich with username and capabilities.
 	hello.Username = s.login
-	hello.InBandMfaSupported = true
 
 	return clientConn, hello, nil
 }
@@ -261,7 +261,20 @@ func (s *Session) handleTDPBHandshake(
 	conn *tls.Conn,
 	clientConn *tdp.Conn,
 	hello *tdpb.ClientHello,
+	wdsSupportsInBandMFA bool,
 ) (tdp.MessageReadWriteCloser, error) {
+	// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility with
+	// clients that do not support in-band MFA is no longer needed.
+	if !wdsSupportsInBandMFA {
+		slog.WarnContext(ctx, "Legacy WDS detected, falling back to legacy out-of-band MFA")
+
+		if os.Getenv(mfa.ForceInBandEnv) == "yes" {
+			return nil, trace.AccessDenied("in-band MFA is required but the server does not support it")
+		}
+
+		return s.fallbackToLegacyMFA(ctx, clusterClient, proxyClient, hello.ScreenSpec)
+	}
+
 	// Use TDPB decoder.
 	tdpServerConn := tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 
@@ -270,71 +283,51 @@ func (s *Session) handleTDPBHandshake(
 		return nil, trace.Wrap(err)
 	}
 
-	msg, err := tdpServerConn.ReadMessage()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch msg := msg.(type) {
-	case *tdpb.AuthPrompt:
-		if (*tdpbv1.AuthPrompt)(msg).GetMfaPrompt() == nil {
-			return nil, trace.BadParameter("received AuthPrompt without MFAPrompt")
-		}
-
-		challengeName, err := s.performInBandMFA(ctx, clusterClient, conn)
+	// Read messages from WDS until ServerHello is received.
+	for {
+		msg, err := tdpServerConn.ReadMessage()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		promptResp := (*tdpb.MFAPromptResponse)(
-			tdpbv1.MFAPromptResponse_builder{
-				Reference: &tdpbv1.MFAPromptResponseReference{
-					ChallengeName: challengeName,
-				},
-			}.Build(),
-		)
+		switch msg := msg.(type) {
+		case *tdpb.AuthPrompt:
+			if (*tdpbv1.AuthPrompt)(msg).GetMfaPrompt() == nil {
+				return nil, trace.BadParameter("received AuthPrompt without MFAPrompt")
+			}
+			challengeName, err := s.performInBandMFA(ctx, clusterClient, conn)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			promptResp := (*tdpb.MFAPromptResponse)(
+				tdpbv1.MFAPromptResponse_builder{
+					Reference: &tdpbv1.MFAPromptResponseReference{
+						ChallengeName: challengeName,
+					},
+				}.Build(),
+			)
+			if err := tdpServerConn.WriteMessage(promptResp); err != nil {
+				return nil, trace.Wrap(err)
+			}
 
-		if err := tdpServerConn.WriteMessage(promptResp); err != nil {
-			return nil, trace.Wrap(err)
+		case *tdpb.Alert:
+			return nil, trace.BadParameter("WDS alert: %s", msg.Message)
+
+		case *tdpb.SessionEstablishing:
+			slog.InfoContext(ctx, "MFA complete, WDS establishing session backend")
+			if err := clientConn.WriteMessage(msg); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+		case *tdpb.ServerHello:
+			if err := clientConn.WriteMessage(msg); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return tdpServerConn, nil
+
+		default:
+			return nil, trace.BadParameter("unknown message %T", msg)
 		}
-
-		return tdpServerConn, nil
-
-	case *tdpb.ServerHello:
-		if err := clientConn.WriteMessage(msg); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return tdpServerConn, nil
-
-	case *tdpb.Alert:
-		// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility with
-		// legacy clients is no longer needed.
-		slog.WarnContext(
-			ctx,
-			"Legacy WDS detected, falling back to legacy out-of-band MFA",
-			"alert",
-			msg.Message,
-		)
-
-		if os.Getenv(mfa.ForceInBandEnv) == "yes" {
-			return nil,
-				trace.AccessDenied(
-					"in-band MFA is required but the server does not support it",
-				)
-		}
-
-		originalErr := trace.AccessDenied("WDS rejected connection: %s", msg.Message)
-
-		result, err := s.fallbackToLegacyMFA(ctx, clusterClient, proxyClient, hello.ScreenSpec)
-		if err != nil {
-			return nil, trace.NewAggregate(originalErr, err)
-		}
-
-		return result, nil
-
-	default:
-		return nil, trace.BadParameter("expected AuthPrompt, ServerHello, or Alert from WDS, got %T (this is a bug)", msg)
 	}
 }
 
@@ -431,7 +424,7 @@ func (s *Session) fallbackToLegacyMFA(
 		DesktopName: s.desktopName(),
 		DesktopCert: cert,
 		RootCAs:     tlsConfig.RootCAs,
-		Protocol:    tdpb.ProtocolName,
+		Protocols:   []string{tdpb.ProtocolName},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

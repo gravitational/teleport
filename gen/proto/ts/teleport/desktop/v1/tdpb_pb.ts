@@ -47,14 +47,6 @@ export interface ClientHello {
      * @generated from protobuf field: uint32 keyboard_layout = 3;
      */
     keyboardLayout: number;
-    /**
-     * Indicates whether the client supports in-band MFA. When true, the server may send an AuthPrompt to enforce MFA
-     * during session establishment. When false or absent, the server falls back to validating the per-session MFA
-     * certificate presented during TLS handshake.
-     *
-     * @generated from protobuf field: bool in_band_mfa_supported = 4;
-     */
-    inBandMfaSupported: boolean;
 }
 /**
  * Sent by server in response to a 'Client Hello'. Advertises server capabilities.
@@ -410,6 +402,15 @@ export interface MFAPromptResponseReference {
      * @generated from protobuf field: string challenge_name = 1;
      */
     challengeName: string;
+}
+/**
+ * SessionEstablishing is sent by the Desktop Service after MFA completes (or when MFA is not required) to signal that
+ * the session backend is being established. The client can use this to display a connecting indicator while the backend
+ * is dialed.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SessionEstablishing
+ */
+export interface SessionEstablishing {
 }
 /**
  * Sent by client to announce a new shared directory.
@@ -1000,6 +1001,12 @@ export interface Envelope {
          */
         mfaPromptResponse: MFAPromptResponse;
     } | {
+        oneofKind: "sessionEstablishing";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SessionEstablishing session_establishing = 25;
+         */
+        sessionEstablishing: SessionEstablishing;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -1093,15 +1100,13 @@ class ClientHello$Type extends MessageType<ClientHello> {
         super("teleport.desktop.v1.ClientHello", [
             { no: 1, name: "username", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "screen_spec", kind: "message", T: () => ClientScreenSpec },
-            { no: 3, name: "keyboard_layout", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 4, name: "in_band_mfa_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 3, name: "keyboard_layout", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<ClientHello>): ClientHello {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.username = "";
         message.keyboardLayout = 0;
-        message.inBandMfaSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ClientHello>(this, message, value);
         return message;
@@ -1119,9 +1124,6 @@ class ClientHello$Type extends MessageType<ClientHello> {
                     break;
                 case /* uint32 keyboard_layout */ 3:
                     message.keyboardLayout = reader.uint32();
-                    break;
-                case /* bool in_band_mfa_supported */ 4:
-                    message.inBandMfaSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1144,9 +1146,6 @@ class ClientHello$Type extends MessageType<ClientHello> {
         /* uint32 keyboard_layout = 3; */
         if (message.keyboardLayout !== 0)
             writer.tag(3, WireType.Varint).uint32(message.keyboardLayout);
-        /* bool in_band_mfa_supported = 4; */
-        if (message.inBandMfaSupported !== false)
-            writer.tag(4, WireType.Varint).bool(message.inBandMfaSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2323,6 +2322,31 @@ class MFAPromptResponseReference$Type extends MessageType<MFAPromptResponseRefer
  * @generated MessageType for protobuf message teleport.desktop.v1.MFAPromptResponseReference
  */
 export const MFAPromptResponseReference = new MFAPromptResponseReference$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SessionEstablishing$Type extends MessageType<SessionEstablishing> {
+    constructor() {
+        super("teleport.desktop.v1.SessionEstablishing", []);
+    }
+    create(value?: PartialMessage<SessionEstablishing>): SessionEstablishing {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SessionEstablishing>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionEstablishing): SessionEstablishing {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: SessionEstablishing, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SessionEstablishing
+ */
+export const SessionEstablishing = new SessionEstablishing$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SharedDirectoryAnnounce$Type extends MessageType<SharedDirectoryAnnounce> {
     constructor() {
@@ -3708,7 +3732,8 @@ class Envelope$Type extends MessageType<Envelope> {
             { no: 21, name: "shared_directory_remove", kind: "message", oneof: "payload", T: () => SharedDirectoryRemove },
             { no: 22, name: "session_selection", kind: "message", oneof: "payload", T: () => SessionSelection },
             { no: 23, name: "auth_prompt", kind: "message", oneof: "payload", T: () => AuthPrompt },
-            { no: 24, name: "mfa_prompt_response", kind: "message", oneof: "payload", T: () => MFAPromptResponse }
+            { no: 24, name: "mfa_prompt_response", kind: "message", oneof: "payload", T: () => MFAPromptResponse },
+            { no: 25, name: "session_establishing", kind: "message", oneof: "payload", T: () => SessionEstablishing }
         ]);
     }
     create(value?: PartialMessage<Envelope>): Envelope {
@@ -3867,6 +3892,12 @@ class Envelope$Type extends MessageType<Envelope> {
                         mfaPromptResponse: MFAPromptResponse.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).mfaPromptResponse)
                     };
                     break;
+                case /* teleport.desktop.v1.SessionEstablishing session_establishing */ 25:
+                    message.payload = {
+                        oneofKind: "sessionEstablishing",
+                        sessionEstablishing: SessionEstablishing.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sessionEstablishing)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -3951,6 +3982,9 @@ class Envelope$Type extends MessageType<Envelope> {
         /* teleport.desktop.v1.MFAPromptResponse mfa_prompt_response = 24; */
         if (message.payload.oneofKind === "mfaPromptResponse")
             MFAPromptResponse.internalBinaryWrite(message.payload.mfaPromptResponse, writer.tag(24, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SessionEstablishing session_establishing = 25; */
+        if (message.payload.oneofKind === "sessionEstablishing")
+            SessionEstablishing.internalBinaryWrite(message.payload.sessionEstablishing, writer.tag(25, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

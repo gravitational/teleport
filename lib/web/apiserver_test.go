@@ -2756,6 +2756,10 @@ type windowsDesktopServiceMock struct {
 }
 
 func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server, requireInBandMFA bool, sendServerHello ...bool) *windowsDesktopServiceMock {
+	return mustStartWindowsDesktopMockWithALPN(t, authClient, requireInBandMFA, false, sendServerHello...)
+}
+
+func mustStartWindowsDesktopMockWithALPN(t *testing.T, authClient *auth.Server, requireInBandMFA bool, advertiseOnlyTDPB1_0 bool, sendServerHello ...bool) *windowsDesktopServiceMock {
 	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
@@ -2780,7 +2784,11 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server, requireI
 	require.NoError(t, err)
 
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	tlsConfig.NextProtos = []string{tdpb.ProtocolName}
+	if advertiseOnlyTDPB1_0 {
+		tlsConfig.NextProtos = []string{tdpb.ProtocolName}
+	} else {
+		tlsConfig.NextProtos = []string{tdpb.ProtocolNameV1_1, tdpb.ProtocolName}
+	}
 
 	ca, err := authClient.GetCertAuthority(
 		t.Context(),
@@ -2846,7 +2854,7 @@ func (w *windowsDesktopServiceMock) handleTDPBConn(t *testing.T, conn *tls.Conn,
 	}
 
 	if requireInBandMFA {
-		// Modern WDS: send AuthPrompt, wait for MFAPromptResponse, then send ServerHello.
+		// Modern WDS: send AuthPrompt, wait for MFAPromptResponse, then send SessionEstablishing + ServerHello.
 		if err := tdpConn.WriteMessage((*tdpb.AuthPrompt)(desktop.NewAuthPrompt())); err != nil {
 			t.Errorf("WDS mock: write AuthPrompt: %v", err)
 			return
@@ -2864,6 +2872,11 @@ func (w *windowsDesktopServiceMock) handleTDPBConn(t *testing.T, conn *tls.Conn,
 		}
 
 		// Accept any challenge name (verification tested in lib/srv/desktop/mfa_test.go).
+		// Send SessionEstablishing to signal backend establishment started.
+		if err := tdpConn.WriteMessage(&tdpb.SessionEstablishing{}); err != nil {
+			t.Errorf("WDS mock: write SessionEstablishing: %v", err)
+			return
+		}
 		// Send ServerHello to signal session ready.
 		if err := tdpConn.WriteMessage(&tdpb.ServerHello{
 			ClipboardEnabled: true,
@@ -2875,7 +2888,11 @@ func (w *windowsDesktopServiceMock) handleTDPBConn(t *testing.T, conn *tls.Conn,
 	}
 
 	if sendServerHello {
-		// Modern WDS, no MFA required: send ServerHello directly.
+		// Modern WDS, no MFA required: send SessionEstablishing + ServerHello.
+		if err := tdpConn.WriteMessage(&tdpb.SessionEstablishing{}); err != nil {
+			t.Errorf("WDS mock: write SessionEstablishing: %v", err)
+			return
+		}
 		if err := tdpConn.WriteMessage(&tdpb.ServerHello{
 			ClipboardEnabled: true,
 		}); err != nil {
@@ -3058,7 +3075,6 @@ func wsTDPBFallback(
 	)
 
 	hello := &tdpb.ClientHello{
-		InBandMfaSupported: true,
 		ScreenSpec: &tdpbv1.ClientScreenSpec{
 			Width:  1920,
 			Height: 1080,
@@ -3215,7 +3231,7 @@ func TestDesktopInBandMFA_ServerHello(t *testing.T) {
 }
 
 // wsTDPBNoMFA drives the browser side of the no-MFA flow:
-// 1. Send ClientHello with InBandMfaSupported=true
+// 1. Send ClientHello
 // 2. WDS sends ServerHello (MFA not required)
 // 3. Proxy relays ServerHello to browser
 func wsTDPBNoMFA(t *testing.T, ws *websocket.Conn) {
@@ -3234,7 +3250,6 @@ func wsTDPBNoMFA(t *testing.T, ws *websocket.Conn) {
 	)
 
 	hello := &tdpb.ClientHello{
-		InBandMfaSupported: true,
 		ScreenSpec: &tdpbv1.ClientScreenSpec{
 			Width:  1920,
 			Height: 1080,
@@ -3244,8 +3259,13 @@ func wsTDPBNoMFA(t *testing.T, ws *websocket.Conn) {
 	err = tdpClient.WriteMessage(hello)
 	require.NoError(t, err)
 
-	// WDS sends ServerHello (MFA not required), Proxy relays to browser.
+	// WDS sends SessionEstablishing (MFA not required).
 	msg, err := tdpClient.ReadMessage()
+	require.NoError(t, err)
+	require.IsType(t, &tdpb.SessionEstablishing{}, msg)
+
+	// WDS sends ServerHello, Proxy relays to browser.
+	msg, err = tdpClient.ReadMessage()
 	require.NoError(t, err)
 
 	// Sometimes LatencyStats will be sent before we get ServerHello.
@@ -3269,8 +3289,8 @@ func TestDesktopInBandMFA_ForceEnvVar(t *testing.T) {
 
 	wdID := uuid.New().String()
 
-	// Simulating legacy WDS without in-band MFA support.
-	wdMock := mustStartWindowsDesktopMock(t, env.server.Auth(), false)
+	// Simulating legacy WDS without in-band MFA support (only advertises teleport-tdpb-1.0).
+	wdMock := mustStartWindowsDesktopMockWithALPN(t, env.server.Auth(), false, true)
 
 	wd, err := types.NewWindowsDesktopV3(
 		"desktop1",
@@ -3327,7 +3347,6 @@ func TestDesktopInBandMFA_ForceEnvVar(t *testing.T) {
 	)
 
 	hello := &tdpb.ClientHello{
-		InBandMfaSupported: true,
 		ScreenSpec: &tdpbv1.ClientScreenSpec{
 			Width:  1920,
 			Height: 1080,
@@ -3337,7 +3356,7 @@ func TestDesktopInBandMFA_ForceEnvVar(t *testing.T) {
 	err = tdpClient.WriteMessage(hello)
 	require.NoError(t, err)
 
-	// With force env var set, Proxy should reject with an Alert instead of falling back.
+	// With force env var set, Proxy detects legacy WDS via ALPN and rejects with an Alert instead of falling back.
 	msg, err := tdpClient.ReadMessage()
 	require.NoError(t, err)
 

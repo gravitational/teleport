@@ -75,8 +75,7 @@ func TestTDPBInBandMFA_MessageExchange(t *testing.T) {
 		if err != nil {
 			return
 		}
-		hello, ok := msg.(*tdpb.ClientHello)
-		if !ok || !hello.InBandMfaSupported {
+		if _, ok := msg.(*tdpb.ClientHello); !ok {
 			return
 		}
 
@@ -96,6 +95,9 @@ func TestTDPBInBandMFA_MessageExchange(t *testing.T) {
 			return
 		}
 
+		if err := conn.WriteMessage(&tdpb.SessionEstablishing{}); err != nil {
+			return
+		}
 		if err := conn.WriteMessage(&tdpb.ServerHello{ClipboardEnabled: true}); err != nil {
 			return
 		}
@@ -126,6 +128,12 @@ func TestTDPBInBandMFA_MessageExchange(t *testing.T) {
 
 	msg, err = conn.ReadMessage()
 	require.NoError(t, err)
+	if _, ok := msg.(*tdpb.SessionEstablishing); !ok {
+		t.Fatalf("expected SessionEstablishing, got %T", msg)
+	}
+
+	msg, err = conn.ReadMessage()
+	require.NoError(t, err)
 	serverHello, ok := msg.(*tdpb.ServerHello)
 	require.True(t, ok, "expected ServerHello, got %T", msg)
 	require.True(t, serverHello.ClipboardEnabled)
@@ -145,6 +153,9 @@ func TestTDPBNoMFA_MessageExchange(t *testing.T) {
 			return
 		}
 
+		if err := conn.WriteMessage(&tdpb.SessionEstablishing{}); err != nil {
+			return
+		}
 		if err := conn.WriteMessage(&tdpb.ServerHello{ClipboardEnabled: true}); err != nil {
 			return
 		}
@@ -157,6 +168,12 @@ func TestTDPBNoMFA_MessageExchange(t *testing.T) {
 	}
 
 	msg, err := conn.ReadMessage()
+	require.NoError(t, err)
+	if _, ok := msg.(*tdpb.SessionEstablishing); !ok {
+		t.Fatalf("expected SessionEstablishing, got %T", msg)
+	}
+
+	msg, err = conn.ReadMessage()
 	require.NoError(t, err)
 	serverHello, ok := msg.(*tdpb.ServerHello)
 	require.True(t, ok, "expected ServerHello, got %T", msg)
@@ -209,8 +226,7 @@ func newAuthPrompt() *tdpbv1.AuthPrompt {
 
 func newTestClientHello() *tdpb.ClientHello {
 	return &tdpb.ClientHello{
-		InBandMfaSupported: true,
-		Username:           login,
+		Username: login,
 		ScreenSpec: &tdpbv1.ClientScreenSpec{
 			Width:  1920,
 			Height: 1080,

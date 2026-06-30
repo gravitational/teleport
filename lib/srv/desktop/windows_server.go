@@ -649,7 +649,7 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 }
 
 func newErrorSender(protocol string, conn *tdp.Conn, logger *slog.Logger) func(string) {
-	if protocol == tdpb.ProtocolName {
+	if protocol == tdpb.ProtocolNameV1_1 || protocol == tdpb.ProtocolName {
 		return func(message string) {
 			if err := conn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
 				logger.ErrorContext(context.Background(), "Failed to send TDPB error message", "error", err, "message", message)
@@ -677,8 +677,11 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// Figure out which protocol the client is using
 	clientProtocol := proxyConn.ConnectionState().NegotiatedProtocol
+	clientSupportsInBandMFA := clientProtocol == tdpb.ProtocolNameV1_1
 	var tdpConn *tdp.Conn
 	switch clientProtocol {
+	case tdpb.ProtocolNameV1_1:
+		fallthrough
 	case tdpb.ProtocolName:
 		tdpConn = tdp.NewConn(proxyConn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 	case "":
@@ -757,7 +760,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log.DebugContext(ctx, "Connecting to Windows desktop")
 	defer log.DebugContext(ctx, "Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, proxyConn, tdpConn, desktop, authContext, clientProtocol); err != nil {
+	if err := s.connectRDP(ctx, log, proxyConn, tdpConn, desktop, authContext, clientProtocol, clientSupportsInBandMFA); err != nil {
 		log.ErrorContext(context.Background(), "RDP connection failed", "error", err)
 		msg := "RDP connection failed."
 		var um trace.UserMessager
@@ -777,6 +780,7 @@ func (s *WindowsService) connectRDP(
 	desktop types.WindowsDesktop,
 	authCtx *authz.Context,
 	clientProtocol string,
+	clientSupportsInBandMFA bool,
 ) error {
 	identity := authCtx.Identity.GetIdentity()
 
@@ -814,15 +818,15 @@ func (s *WindowsService) connectRDP(
 		switch precond.GetKind() {
 		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 			// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility
-			// with legacy clients is no longer supported.
-			if !(*tdpbv1.ClientHello)(hello).GetInBandMfaSupported() {
+			// with clients that do not support in-band MFA is no longer supported.
+			if !clientSupportsInBandMFA {
 				if os.Getenv(mfa.ForceInBandEnv) == "yes" {
 					return errInBandMFARequired
 				}
 
 				log.DebugContext(
 					ctx,
-					"Client did not present a valid per-session MFA cert and does not support in-band MFA, rejecting",
+					"in-band MFA is required but the client does not support it",
 				)
 				return services.ErrSessionMFARequired
 			}
@@ -848,6 +852,13 @@ func (s *WindowsService) connectRDP(
 		default:
 			// If an unknown or unsupported precondition is provided, fail close to prevent potential auth bypasses.
 			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
+		}
+	}
+
+	// Signal clients that support in-band MFA that MFA is complete and the session backend is being established.
+	if clientSupportsInBandMFA {
+		if err := tdpConn.WriteMessage(&tdpb.SessionEstablishing{}); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

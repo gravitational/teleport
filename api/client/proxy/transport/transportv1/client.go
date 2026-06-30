@@ -79,7 +79,7 @@ type WindowsDesktopSessionConfig struct {
 	DesktopName string
 	DesktopCert tls.Certificate
 	RootCAs     *x509.CertPool
-	Protocol    string
+	Protocols   []string
 }
 
 // ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
@@ -128,7 +128,7 @@ func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel cont
 	conn := streamutils.NewConn(desktopReadWriter, &net.TCPAddr{}, &net.TCPAddr{})
 	tlsConfig := &tls.Config{
 		ServerName:   config.DesktopName + DesktopSNISuffix,
-		NextProtos:   []string{config.Protocol},
+		NextProtos:   config.Protocols,
 		Certificates: []tls.Certificate{config.DesktopCert},
 		RootCAs:      config.RootCAs,
 	}
