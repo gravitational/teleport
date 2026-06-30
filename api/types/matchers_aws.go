@@ -17,13 +17,10 @@ limitations under the License.
 package types
 
 import (
-	"os"
 	"slices"
-	"strconv"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 )
@@ -211,30 +208,6 @@ func (m *AWSMatcher) checkAndSetDefaultsEC2() error {
 	if m.Params == nil {
 		m.Params = &InstallerParams{
 			InstallTeleport: true,
-		}
-	}
-
-	switch m.Params.EnrollMode {
-	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED:
-		m.Params.EnrollMode = InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT
-		if m.Integration != "" {
-			m.Params.EnrollMode = InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE
-		}
-
-	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
-		if m.Integration == "" {
-			return trace.BadParameter("integration is required for eice enroll mode")
-		}
-
-	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
-
-	default:
-		return trace.BadParameter("invalid enroll mode %s", m.Params.EnrollMode.String())
-	}
-
-	if m.Params.EnrollMode == InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
-		if eiceEnabled, _ := strconv.ParseBool(os.Getenv(constants.UnstableEnableEICEEnvVar)); !eiceEnabled {
-			return trace.BadParameter(constants.EICEDisabledMessage)
 		}
 	}
 

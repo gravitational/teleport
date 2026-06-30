@@ -141,11 +141,6 @@
       "permanent": true
     },
     {
-      "source": "/reference/operator-resources/resources.teleport.dev_openssheiceserversv2/",
-      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-openssheiceserversv2/",
-      "permanent": true
-    },
-    {
       "source": "/reference/operator-resources/resources.teleport.dev_opensshserversv2/",
       "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-opensshserversv2/",
       "permanent": true
@@ -1938,11 +1933,6 @@
     {
       "source": "/reference/operator-resources/resources-teleport-dev-oktaimportrules/",
       "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-oktaimportrules/",
-      "permanent": true
-    },
-    {
-      "source": "/reference/operator-resources/resources-teleport-dev-openssheiceserversv2/",
-      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-openssheiceserversv2/",
       "permanent": true
     },
     {

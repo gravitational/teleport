@@ -280,7 +280,6 @@ func deriveTeleportEqual_17(this, that *types.InstallerParams) bool {
 			this.SSHDConfig == that.SSHDConfig &&
 			this.PublicProxyAddr == that.PublicProxyAddr &&
 			deriveTeleportEqual_22(this.Azure, that.Azure) &&
-			this.EnrollMode == that.EnrollMode &&
 			this.Suffix == that.Suffix &&
 			this.UpdateGroup == that.UpdateGroup &&
 			deriveTeleportEqual_23(this.HTTPProxySettings, that.HTTPProxySettings)

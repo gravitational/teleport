@@ -77,9 +77,6 @@ type EC2Instances struct {
 	// DiscoveryConfigName is the DiscoveryConfig name which originated this Run Request.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
 	DiscoveryConfigName string
-
-	// EnrollMode is the mode used to enroll the instance into Teleport.
-	EnrollMode types.InstallParamEnrollMode
 }
 
 // EC2Instance represents an AWS EC2 instance that has been
@@ -160,14 +157,8 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
 
-	switch instances.EnrollMode {
-	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
-		resourceType = types.DiscoveredResourceEICENode
-
-	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
-		if instances.DocumentName == types.AWSAgentlessInstallerDocument {
-			resourceType = types.DiscoveredResourceAgentlessNode
-		}
+	if instances.DocumentName == types.AWSAgentlessInstallerDocument {
+		resourceType = types.DiscoveredResourceAgentlessNode
 	}
 
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
@@ -390,7 +381,7 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []t
 
 	for _, node := range nodes {
 		// Heartbeating and expiration keeps Teleport Agents up to date, no need to consider those nodes.
-		// Agentless and EICE Nodes don't heartbeat, so they must be manually managed by the DiscoveryService.
+		// Agentless Nodes don't heartbeat, so they must be manually managed by the DiscoveryService.
 		if !types.IsOpenSSHNodeSubKind(node.GetSubKind()) {
 			continue
 		}
@@ -656,7 +647,6 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 					AssumeRoleARN:       params.assumeRole.RoleARN,
 					ExternalID:          params.assumeRole.ExternalID,
 					DiscoveryConfigName: f.DiscoveryConfigName,
-					EnrollMode:          f.Matcher.Params.EnrollMode,
 				}
 				for _, ec2inst := range pageInstances[i:end] {
 					f.cachedInstances.add(ownerID, aws.ToString(ec2inst.InstanceId))

@@ -72,7 +72,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -281,7 +280,6 @@ func TestDiscoveryServer(t *testing.T) {
 			SSM:     &types.AWSSSM{DocumentName: "AWS-RunShellScript"},
 			Params: &types.InstallerParams{
 				InstallTeleport: true,
-				EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 			},
 		}},
 	}
@@ -310,7 +308,6 @@ func TestDiscoveryServer(t *testing.T) {
 				SSM:     &types.AWSSSM{DocumentName: "document"},
 				Params: &types.InstallerParams{
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				Integration: "my-integration",
 			}},
@@ -330,7 +327,6 @@ func TestDiscoveryServer(t *testing.T) {
 				SSM:     &types.AWSSSM{DocumentName: "document"},
 				Params: &types.InstallerParams{
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				Integration: "my-integration",
 			}},
@@ -350,7 +346,6 @@ func TestDiscoveryServer(t *testing.T) {
 				SSM:     &types.AWSSSM{DocumentName: "document"},
 				Params: &types.InstallerParams{
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				Integration: "my-integration",
 			}},
@@ -370,7 +365,6 @@ func TestDiscoveryServer(t *testing.T) {
 				SSM:     &types.AWSSSM{DocumentName: "document"},
 				Params: &types.InstallerParams{
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 			}},
 		},
@@ -1277,137 +1271,6 @@ func TestDiscoveryServer_dynamicMatcherGroupReassign(t *testing.T) {
 		server.dynamicDiscoveryConfigMu.RLock()
 		require.Contains(t, server.dynamicDiscoveryConfig, "dc-next")
 		server.dynamicDiscoveryConfigMu.RUnlock()
-	})
-}
-
-func TestDiscoveryServerConcurrency(t *testing.T) {
-	// Most Server installations flows rely on installing teleport in the target server, which then joins the cluster.
-	// Even if multiple installations happen, only one agent will run at the same time in the target server.
-	// So, there's effectively no concurrency issue.
-	//
-	// EICE flow is different, because servers are created in the cluster directly.
-	// If two different discovery servers discover the same EC2 instance, they will both try to create
-	// the same EICE Node in the cluster, causing a conflict.
-	//
-	// After removing the EICE feature, this test must be removed as well.
-	t.Setenv(constants.UnstableEnableEICEEnvVar, "true")
-	logger := logtest.NewLogger()
-
-	defaultDiscoveryGroup := "dg01"
-	awsMatcher := types.AWSMatcher{
-		Types:       []string{"ec2"},
-		Regions:     []string{"eu-central-1"},
-		Tags:        map[string]utils.Strings{"teleport": {"yes"}},
-		Integration: "my-integration",
-		SSM:         &types.AWSSSM{DocumentName: "document"},
-	}
-	require.NoError(t, awsMatcher.CheckAndSetDefaults())
-	staticMatcher := Matchers{
-		AWS: []types.AWSMatcher{awsMatcher},
-	}
-
-	emitter := &mockEmitter{
-		eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
-			t.Helper()
-		},
-	}
-
-	ec2Client := &mockEC2Client{
-		output: &ec2.DescribeInstancesOutput{
-			Reservations: []ec2types.Reservation{
-				{
-					OwnerId: aws.String("123456789012"),
-					Instances: []ec2types.Instance{
-						{
-							InstanceId: aws.String("i-123456789012"),
-							Tags: []ec2types.Tag{
-								{
-									Key:   aws.String("env"),
-									Value: aws.String("dev"),
-								},
-							},
-							PrivateIpAddress: aws.String("172.0.1.2"),
-							VpcId:            aws.String("vpcId"),
-							SubnetId:         aws.String("subnetId"),
-							PrivateDnsName:   aws.String("privateDnsName"),
-							State: &ec2types.InstanceState{
-								Name: ec2types.InstanceStateNameRunning,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
-		// Create and start test auth server.
-		testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-			Dir: t.TempDir(),
-		})
-		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
-
-		tlsServer, err := testAuthServer.NewTestTLSServer(authtest.WithBufconnListener())
-		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
-
-		// Auth client for discovery service.
-		identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
-		authClient, err := tlsServer.NewClient(identity)
-		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, authClient.Close()) })
-
-		getEC2Client := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
-			return ec2Client, nil
-		}
-
-		// Create Server1
-		server1, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
-			GetEC2Client:     getEC2Client,
-			ClusterFeatures:  func() proto.Features { return proto.Features{} },
-			KubernetesClient: fake.NewClientset(),
-			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-			Matchers:         staticMatcher,
-			Emitter:          emitter,
-			Log:              logger,
-			DiscoveryGroup:   defaultDiscoveryGroup,
-		})
-		require.NoError(t, err)
-
-		// Create Server2
-		server2, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
-			GetEC2Client:     getEC2Client,
-			ClusterFeatures:  func() proto.Features { return proto.Features{} },
-			KubernetesClient: fake.NewClientset(),
-			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-			Matchers:         staticMatcher,
-			Emitter:          emitter,
-			Log:              logger,
-			DiscoveryGroup:   defaultDiscoveryGroup,
-		})
-		require.NoError(t, err)
-
-		// Start both servers.
-		go server1.Start()
-		t.Cleanup(server1.Stop)
-
-		go server2.Start()
-		t.Cleanup(server2.Stop)
-
-		// We must get only one EC2 EICE Node.
-		// Even when two servers are discovering the same EC2 Instance, they will use the same name when converting to EICE Node.
-		synctest.Wait()
-		allNodes, err := tlsServer.Auth().GetNodes(ctx, "default")
-		require.NoError(t, err)
-		require.Len(t, allNodes, 1)
-
-		// We should never get a duplicate instance.
-		synctest.Wait()
-		allNodes, err = tlsServer.Auth().GetNodes(ctx, "default")
-		require.NoError(t, err)
-		require.Len(t, allNodes, 1)
 	})
 }
 

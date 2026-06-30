@@ -128,18 +128,6 @@ func MakeServer(server types.Server, c MakeServerConfig) Server {
 		uiServer.SupportedFeatureIDs = f
 	}
 
-	if server.GetSubKind() == types.SubKindOpenSSHEICENode {
-		awsMetadata := server.GetAWSInfo()
-		uiServer.AWS = &AWSMetadata{
-			AccountID:   awsMetadata.AccountID,
-			InstanceID:  awsMetadata.InstanceID,
-			Region:      awsMetadata.Region,
-			Integration: awsMetadata.Integration,
-			SubnetID:    awsMetadata.SubnetID,
-			VPCID:       awsMetadata.VPCID,
-		}
-	}
-
 	return uiServer
 }
 

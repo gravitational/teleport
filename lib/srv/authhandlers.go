@@ -874,11 +874,6 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 	// Use the server's shutdown context.
 	ctx := h.c.Server.Context()
 
-	// For SubKindOpenSSHEICENode we use SSH Keys (EC2 does not support Certificates in ec2.SendSSHPublicKey).
-	if h.c.Server.GetInfo().GetSubKind() == types.SubKindOpenSSHEICENode {
-		return nil
-	}
-
 	// If strict host key checking is enabled, reject host key fallback.
 	recConfig, err := h.c.AccessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {

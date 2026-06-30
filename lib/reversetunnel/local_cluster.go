@@ -496,7 +496,6 @@ func (s *localCluster) dialAndForward(params reversetunnelclient.DialParams) (_ 
 		LockWatcher:              s.srv.LockWatcher,
 		TargetServer:             params.TargetServer,
 		Clock:                    s.clock,
-		EICESigner:               s.srv.EICESigner,
 	}
 
 	remoteServer, err := forward.New(serverConfig)
@@ -598,7 +597,7 @@ This usually means that the agent is offline or has disconnected. Check the
 agent logs and, if the issue persists, try restarting it or re-registering it
 with the cluster.`
 
-	if params.TargetServer != nil && (params.TargetServer.IsOpenSSHNode() || params.TargetServer.IsEICE()) {
+	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
 		errorMessageTemplate = `Teleport proxy failed to connect to %q server %q over %s:
 
   %v
@@ -629,32 +628,6 @@ func stringOrEmpty(addr net.Addr) string {
 
 func (s *localCluster) getConn(params reversetunnelclient.DialParams) (conn net.Conn, useTunnel bool, err error) {
 	dialStart := s.srv.Clock.Now()
-
-	// Creates a connection to the target EC2 instance using its private IP.
-	// This relies on EC2 Instance Connect Endpoint service.
-	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-		awsInfo := params.TargetServer.GetAWSInfo()
-		if awsInfo == nil {
-			return nil, false, trace.BadParameter("missing aws cloud metadata")
-		}
-
-		token, err := s.client.GenerateAWSOIDCToken(s.srv.ctx, awsInfo.Integration)
-		if err != nil {
-			return nil, false, trace.BadParameter("failed to generate aws token: %v", err)
-		}
-
-		integration, err := s.client.GetIntegration(s.srv.ctx, awsInfo.Integration)
-		if err != nil {
-			return nil, false, trace.BadParameter("failed to fetch integration details: %v", err)
-		}
-
-		conn, err := s.srv.EICEDialer(s.srv.ctx, params.TargetServer, integration, token)
-		if err != nil {
-			return nil, false, trace.Wrap(err, "failed dialing instance")
-		}
-
-		return newMetricConn(conn, dialTypeDirect, dialStart, s.srv.Clock), false, nil
-	}
 
 	if params.TargetScope != "" && params.TargetServer != nil {
 		if scopes.Compare(params.TargetScope, params.TargetServer.GetScope()) != scopes.Equivalent {

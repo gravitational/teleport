@@ -29,7 +29,6 @@ import (
 
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/aws"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
@@ -99,12 +98,8 @@ type Server interface {
 	SetCloudMetadata(meta *CloudMetadata)
 
 	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
+	// This returns true for SubKindOpenSSHNode.
 	IsOpenSSHNode() bool
-
-	// IsEICE returns whether the Node is an EICE instance.
-	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
-	IsEICE() bool
 
 	// GetAWSInstanceID returns the AWS Instance ID if this node comes from an EC2 instance.
 	GetAWSInstanceID() string
@@ -153,22 +148,6 @@ func NewNode(name, subKind string, spec ServerSpecV2, labels map[string]string) 
 		SubKind: subKind,
 		Metadata: Metadata{
 			Name:   name,
-			Labels: labels,
-		},
-		Spec: spec,
-	}
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return server, nil
-}
-
-// NewNode is a convenience method to create an EICE Node.
-func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
-	server := &ServerV2{
-		Kind:    KindNode,
-		SubKind: SubKindOpenSSHEICENode,
-		Metadata: Metadata{
 			Labels: labels,
 		},
 		Spec: spec,
@@ -474,7 +453,7 @@ func (s *ServerV2) setStaticFields() {
 }
 
 // IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
+// This returns true for SubKindOpenSSHNode.
 func (s *ServerV2) IsOpenSSHNode() bool {
 	return IsOpenSSHNodeSubKind(s.SubKind)
 }
@@ -482,7 +461,7 @@ func (s *ServerV2) IsOpenSSHNode() bool {
 // IsOpenSSHNodeSubKind returns whether the Node SubKind is from a server which accepts connections over the
 // OpenSSH daemon (instead of a Teleport Node).
 func IsOpenSSHNodeSubKind(subkind string) bool {
-	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
+	return subkind == SubKindOpenSSHNode
 }
 
 // GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
@@ -507,23 +486,12 @@ func (s *ServerV2) GetAWSInstanceID() string {
 	return awsInstanceID
 }
 
-// IsEICE returns whether the Node is an EICE instance.
-// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
-func (s *ServerV2) IsEICE() bool {
-	if s.SubKind != SubKindOpenSSHEICENode {
-		return false
-	}
-
-	return s.GetAWSAccountID() != "" && s.GetAWSInstanceID() != ""
-}
-
 // GetGitHub returns the GitHub server spec.
 func (s *ServerV2) GetGitHub() *GitHubServerMetadata {
 	return s.Spec.GitHub
 }
 
-// openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
-// They include SubKindOpenSSHNode and SubKindOpenSSHEICENode.
+// openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes..
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	if s.Spec.Addr == "" {
 		return trace.BadParameter("addr must be set when server SubKind is %q", s.GetSubKind())
@@ -542,57 +510,6 @@ func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	return nil
 }
 
-// openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults are validations for SubKindOpenSSHEICENode.
-func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() error {
-	if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// AWS fields are required for SubKindOpenSSHEICENode.
-	switch {
-	case s.Spec.CloudMetadata == nil || s.Spec.CloudMetadata.AWS == nil:
-		return trace.BadParameter("missing AWS CloudMetadata (required for %q SubKind)", s.SubKind)
-
-	case s.Spec.CloudMetadata.AWS.AccountID == "":
-		return trace.BadParameter("missing AWS Account ID (required for %q SubKind)", s.SubKind)
-
-	case s.Spec.CloudMetadata.AWS.Region == "":
-		return trace.BadParameter("missing AWS Region (required for %q SubKind)", s.SubKind)
-
-	case s.Spec.CloudMetadata.AWS.Integration == "":
-		return trace.BadParameter("missing AWS OIDC Integration (required for %q SubKind)", s.SubKind)
-
-	case s.Spec.CloudMetadata.AWS.InstanceID == "":
-		return trace.BadParameter("missing AWS InstanceID (required for %q SubKind)", s.SubKind)
-
-	case s.Spec.CloudMetadata.AWS.VPCID == "":
-		return trace.BadParameter("missing AWS VPC ID (required for %q SubKind)", s.SubKind)
-
-	case s.Spec.CloudMetadata.AWS.SubnetID == "":
-		return trace.BadParameter("missing AWS Subnet ID (required for %q SubKind)", s.SubKind)
-	}
-
-	return nil
-}
-
-// serverNameForEICE returns the deterministic Server's name for an EICE instance.
-// This name must comply with the expected format for EC2 Nodes as defined here: api/utils/aws.IsEC2NodeID
-// Returns an error if AccountID or InstanceID is not present.
-func serverNameForEICE(s *ServerV2) (string, error) {
-	awsAccountID := s.GetAWSAccountID()
-	awsInstanceID := s.GetAWSInstanceID()
-
-	if awsAccountID != "" && awsInstanceID != "" {
-		eiceNodeName := fmt.Sprintf("%s-%s", awsAccountID, awsInstanceID)
-		if !aws.IsEC2NodeID(eiceNodeName) {
-			return "", trace.BadParameter("invalid account %q or instance id %q", awsAccountID, awsInstanceID)
-		}
-		return eiceNodeName, nil
-	}
-
-	return "", trace.BadParameter("missing account id or instance id in %s node", SubKindOpenSSHEICENode)
-}
-
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
@@ -601,13 +518,6 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 
 	if s.Metadata.Name == "" {
 		switch s.SubKind {
-		case SubKindOpenSSHEICENode:
-			// For EICE nodes, use a deterministic name.
-			eiceNodeName, err := serverNameForEICE(s)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			s.Metadata.Name = eiceNodeName
 		case SubKindOpenSSHNode:
 			// if the server is a registered OpenSSH node, allow the name to be
 			// randomly generated
@@ -652,11 +562,6 @@ func (s *ServerV2) nodeCheckAndSetDefaults() error {
 		// allow but do nothing
 	case SubKindOpenSSHNode:
 		if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
-	case SubKindOpenSSHEICENode:
-		if err := s.openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 
