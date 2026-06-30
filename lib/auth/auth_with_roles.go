@@ -7325,7 +7325,7 @@ func (a *ScopedServerWithRoles) CreateKubernetesCluster(ctx context.Context, clu
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbCreate); err != nil {
 			return err
 		}
-		// Don't allow users create clusters they wouldn't have access to (e.g.
+		// Don't allow users to create clusters they wouldn't have access to (e.g.
 		// non-matching labels).
 		return checker.Kube().CanAccessCluster(cluster)
 	}); err != nil {

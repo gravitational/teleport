@@ -1299,7 +1299,7 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 							allowedResourceKinds[resource] = true
 						}
 					}
-					// ensure required reosurce kinds are present
+					// ensure required resource kinds are present
 					requiredKinds := []string{types.KindKubernetesCluster}
 					for _, kind := range requiredKinds {
 						assert.True(t, allowedResourceKinds[kind], "expected RoleKube to allow resource kind %s", kind)
