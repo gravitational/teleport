@@ -91,6 +91,55 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 	}))
 }
 
+func TestUserDisplayProtoConversion(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, &accesslistv1.UserDisplay{}, ToUserDisplayProto(types.UserDisplay{}))
+	require.Equal(t, types.UserDisplay{}, FromUserDisplayProto(nil))
+	require.Equal(t, types.UserDisplay{}, FromUserDisplayProto(&accesslistv1.UserDisplay{}))
+
+	display := types.UserDisplay{Primary: "Display Name", Secondary: "display@example.com"}
+	require.Equal(t, display, FromUserDisplayProto(ToUserDisplayProto(display)))
+}
+
+func TestUserDisplaysProtoConversion(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, FromUserDisplaysProto(nil))
+
+	displays := map[string]*accesslistv1.UserDisplay{
+		"empty":     {},
+		"populated": {Primary: "Display Name", Secondary: "display@example.com"},
+		"missing":   nil,
+	}
+
+	require.Equal(t, map[string]types.UserDisplay{
+		"empty":     {},
+		"populated": {Primary: "Display Name", Secondary: "display@example.com"},
+		"missing":   {},
+	}, FromUserDisplaysProto(displays))
+}
+
+func TestWithOwnerDisplaysField(t *testing.T) {
+	t.Parallel()
+
+	accessList := newAccessList(t, "access-list")
+	accessList.Status.OwnerDisplays = map[string]types.UserDisplay{
+		"test-user1": {Primary: "Test User", Secondary: "test@example.com"},
+		"test-user2": {},
+	}
+	protoAccessList := ToProto(accessList)
+
+	converted, err := FromProto(protoAccessList)
+	require.NoError(t, err)
+	require.Empty(t, converted.Status.OwnerDisplays)
+	require.Equal(t, accessList.Status.MemberCount, converted.Status.MemberCount)
+
+	converted, err = FromProto(protoAccessList, WithOwnerDisplaysField(protoAccessList.GetStatus()))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList.Status.OwnerDisplays, converted.Status.OwnerDisplays))
+}
+
 func TestRoundtrip(t *testing.T) {
 	t.Parallel()
 

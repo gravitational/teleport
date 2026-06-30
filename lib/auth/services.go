@@ -99,6 +99,7 @@ type Services struct {
 	services.ScopedTokenService
 	MFAService
 	services.Beams
+	services.BeamsConfigService
 	services.SubCAService
 	services.EnrollPairing
 }

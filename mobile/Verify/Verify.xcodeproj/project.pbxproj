@@ -13,6 +13,7 @@
 		CD79992C2FE33F0600133048 /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CD79992B2FE33EFF00133048 /* libresolv.9.tbd */; };
 		CD7999332FE345D400133048 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = CD7999322FE345D400133048 /* Dependencies */; };
 		CD7999352FE346B800133048 /* DependenciesMacros in Frameworks */ = {isa = PBXBuildFile; productRef = CD7999342FE346B800133048 /* DependenciesMacros */; };
+		CD7999D62FE9C9F300133048 /* SwiftUINavigation in Frameworks */ = {isa = PBXBuildFile; productRef = CD7999D52FE9C9F300133048 /* SwiftUINavigation */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,6 +80,7 @@
 			files = (
 				0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */,
 				CD7999232FE33AE000133048 /* Core.framework in Frameworks */,
+				CD7999D62FE9C9F300133048 /* SwiftUINavigation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -157,6 +159,7 @@
 			);
 			name = Verify;
 			packageProductDependencies = (
+				CD7999D52FE9C9F300133048 /* SwiftUINavigation */,
 			);
 			productName = Verify;
 			productReference = 0C94C8522FA232E600C13C9A /* Verify.app */;
@@ -219,6 +222,7 @@
 			packageReferences = (
 				CDDEB8752FE1F5F10052BC27 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */,
 				CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */,
+				CD7999D42FE9C9F300133048 /* XCRemoteSwiftPackageReference "swift-navigation" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0C94C8532FA232E600C13C9A /* Products */;
@@ -703,6 +707,14 @@
 				minimumVersion = 1.14.0;
 			};
 		};
+		CD7999D42FE9C9F300133048 /* XCRemoteSwiftPackageReference "swift-navigation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-navigation";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.0;
+			};
+		};
 		CDDEB8752FE1F5F10052BC27 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SimplyDanny/SwiftLintPlugins";
@@ -728,6 +740,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */;
 			productName = DependenciesMacros;
+		};
+		CD7999D52FE9C9F300133048 /* SwiftUINavigation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD7999D42FE9C9F300133048 /* XCRemoteSwiftPackageReference "swift-navigation" */;
+			productName = SwiftUINavigation;
 		};
 		CDDEB8762FE1F5FC0052BC27 /* SwiftLintBuildToolPlugin */ = {
 			isa = XCSwiftPackageProductDependency;

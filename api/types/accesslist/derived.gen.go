@@ -3,6 +3,7 @@
 package accesslist
 
 import (
+	types "github.com/gravitational/teleport/api/types"
 	header "github.com/gravitational/teleport/api/types/header"
 	"time"
 )
@@ -57,6 +58,12 @@ func deriveDeepCopyAccessListMember(dst, src *AccessListMember) {
 		deriveDeepCopy_2(field, &src.Spec)
 		dst.Spec = *field
 	}()
+	if src.Status == nil {
+		dst.Status = nil
+	} else {
+		dst.Status = new(AccessListMemberStatus)
+		deriveDeepCopy_3(dst.Status, src.Status)
+	}
 	dst.Scope = src.Scope
 }
 
@@ -69,7 +76,7 @@ func deriveDeepCopyReview(dst, src *Review) {
 	}()
 	func() {
 		field := new(ReviewSpec)
-		deriveDeepCopy_3(field, &src.Spec)
+		deriveDeepCopy_4(field, &src.Spec)
 		dst.Spec = *field
 	}()
 	dst.Scope = src.Scope
@@ -122,7 +129,7 @@ func deriveDeepCopy(dst, src *header.ResourceHeader) {
 	dst.Version = src.Version
 	func() {
 		field := new(header.Metadata)
-		deriveDeepCopy_4(field, &src.Metadata)
+		deriveDeepCopy_5(field, &src.Metadata)
 		dst.Metadata = *field
 	}()
 }
@@ -152,27 +159,27 @@ func deriveDeepCopy_(dst, src *Spec) {
 	}
 	func() {
 		field := new(Audit)
-		deriveDeepCopy_5(field, &src.Audit)
+		deriveDeepCopy_6(field, &src.Audit)
 		dst.Audit = *field
 	}()
 	func() {
 		field := new(Requires)
-		deriveDeepCopy_6(field, &src.MembershipRequires)
+		deriveDeepCopy_7(field, &src.MembershipRequires)
 		dst.MembershipRequires = *field
 	}()
 	func() {
 		field := new(Requires)
-		deriveDeepCopy_6(field, &src.OwnershipRequires)
+		deriveDeepCopy_7(field, &src.OwnershipRequires)
 		dst.OwnershipRequires = *field
 	}()
 	func() {
 		field := new(Grants)
-		deriveDeepCopy_7(field, &src.Grants)
+		deriveDeepCopy_8(field, &src.Grants)
 		dst.Grants = *field
 	}()
 	func() {
 		field := new(Grants)
-		deriveDeepCopy_7(field, &src.OwnerGrants)
+		deriveDeepCopy_8(field, &src.OwnerGrants)
 		dst.OwnerGrants = *field
 	}()
 }
@@ -226,6 +233,12 @@ func deriveDeepCopy_1(dst, src *Status) {
 			dst.MemberOf = make([]string, len(src.MemberOf))
 		}
 		copy(dst.MemberOf, src.MemberOf)
+	}
+	if src.OwnerDisplays != nil {
+		dst.OwnerDisplays = make(map[string]types.UserDisplay, len(src.OwnerDisplays))
+		deriveDeepCopy_9(dst.OwnerDisplays, src.OwnerDisplays)
+	} else {
+		dst.OwnerDisplays = nil
 	}
 	if src.ScopedOwnerOf == nil {
 		dst.ScopedOwnerOf = nil
@@ -284,12 +297,12 @@ func deriveDeepCopy_2(dst, src *AccessListMemberSpec) {
 	dst.Title = src.Title
 	func() {
 		field := new(time.Time)
-		deriveDeepCopy_8(field, &src.Joined)
+		deriveDeepCopy_10(field, &src.Joined)
 		dst.Joined = *field
 	}()
 	func() {
 		field := new(time.Time)
-		deriveDeepCopy_8(field, &src.Expires)
+		deriveDeepCopy_10(field, &src.Expires)
 		dst.Expires = *field
 	}()
 	dst.Reason = src.Reason
@@ -299,7 +312,23 @@ func deriveDeepCopy_2(dst, src *AccessListMemberSpec) {
 }
 
 // deriveDeepCopy_3 recursively copies the contents of src into dst.
-func deriveDeepCopy_3(dst, src *ReviewSpec) {
+func deriveDeepCopy_3(dst, src *AccessListMemberStatus) {
+	if src.Display == nil {
+		dst.Display = nil
+	} else {
+		dst.Display = new(types.UserDisplay)
+		*dst.Display = *src.Display
+	}
+	if src.AddedByDisplay == nil {
+		dst.AddedByDisplay = nil
+	} else {
+		dst.AddedByDisplay = new(types.UserDisplay)
+		*dst.AddedByDisplay = *src.AddedByDisplay
+	}
+}
+
+// deriveDeepCopy_4 recursively copies the contents of src into dst.
+func deriveDeepCopy_4(dst, src *ReviewSpec) {
 	dst.AccessList = src.AccessList
 	if src.Reviewers == nil {
 		dst.Reviewers = nil
@@ -321,13 +350,13 @@ func deriveDeepCopy_3(dst, src *ReviewSpec) {
 	}
 	func() {
 		field := new(time.Time)
-		deriveDeepCopy_8(field, &src.ReviewDate)
+		deriveDeepCopy_10(field, &src.ReviewDate)
 		dst.ReviewDate = *field
 	}()
 	dst.Notes = src.Notes
 	func() {
 		field := new(ReviewChanges)
-		deriveDeepCopy_9(field, &src.Changes)
+		deriveDeepCopy_11(field, &src.Changes)
 		dst.Changes = *field
 	}()
 }
@@ -384,37 +413,37 @@ func deriveTeleportEqual_6(this, that *Grants) bool {
 			deriveTeleportEqual_10(this.ScopedRoles, that.ScopedRoles)
 }
 
-// deriveDeepCopy_4 recursively copies the contents of src into dst.
-func deriveDeepCopy_4(dst, src *header.Metadata) {
+// deriveDeepCopy_5 recursively copies the contents of src into dst.
+func deriveDeepCopy_5(dst, src *header.Metadata) {
 	dst.Name = src.Name
 	dst.Description = src.Description
 	if src.Labels != nil {
 		dst.Labels = make(map[string]string, len(src.Labels))
-		deriveDeepCopy_10(dst.Labels, src.Labels)
+		deriveDeepCopy_12(dst.Labels, src.Labels)
 	} else {
 		dst.Labels = nil
 	}
 	func() {
 		field := new(time.Time)
-		deriveDeepCopy_8(field, &src.Expires)
+		deriveDeepCopy_10(field, &src.Expires)
 		dst.Expires = *field
 	}()
 	dst.Revision = src.Revision
 }
 
-// deriveDeepCopy_5 recursively copies the contents of src into dst.
-func deriveDeepCopy_5(dst, src *Audit) {
+// deriveDeepCopy_6 recursively copies the contents of src into dst.
+func deriveDeepCopy_6(dst, src *Audit) {
 	func() {
 		field := new(time.Time)
-		deriveDeepCopy_8(field, &src.NextAuditDate)
+		deriveDeepCopy_10(field, &src.NextAuditDate)
 		dst.NextAuditDate = *field
 	}()
 	dst.Recurrence = src.Recurrence
 	dst.Notifications = src.Notifications
 }
 
-// deriveDeepCopy_6 recursively copies the contents of src into dst.
-func deriveDeepCopy_6(dst, src *Requires) {
+// deriveDeepCopy_7 recursively copies the contents of src into dst.
+func deriveDeepCopy_7(dst, src *Requires) {
 	if src.Roles == nil {
 		dst.Roles = nil
 	} else {
@@ -435,14 +464,14 @@ func deriveDeepCopy_6(dst, src *Requires) {
 	}
 	if src.Traits != nil {
 		dst.Traits = make(map[string][]string, len(src.Traits))
-		deriveDeepCopy_11(dst.Traits, src.Traits)
+		deriveDeepCopy_13(dst.Traits, src.Traits)
 	} else {
 		dst.Traits = nil
 	}
 }
 
-// deriveDeepCopy_7 recursively copies the contents of src into dst.
-func deriveDeepCopy_7(dst, src *Grants) {
+// deriveDeepCopy_8 recursively copies the contents of src into dst.
+func deriveDeepCopy_8(dst, src *Grants) {
 	if src.Roles == nil {
 		dst.Roles = nil
 	} else {
@@ -463,7 +492,7 @@ func deriveDeepCopy_7(dst, src *Grants) {
 	}
 	if src.Traits != nil {
 		dst.Traits = make(map[string][]string, len(src.Traits))
-		deriveDeepCopy_11(dst.Traits, src.Traits)
+		deriveDeepCopy_13(dst.Traits, src.Traits)
 	} else {
 		dst.Traits = nil
 	}
@@ -487,18 +516,25 @@ func deriveDeepCopy_7(dst, src *Grants) {
 	}
 }
 
-// deriveDeepCopy_8 recursively copies the contents of src into dst.
-func deriveDeepCopy_8(dst, src *time.Time) {
+// deriveDeepCopy_9 recursively copies the contents of src into dst.
+func deriveDeepCopy_9(dst, src map[string]types.UserDisplay) {
+	for src_key, src_value := range src {
+		dst[src_key] = src_value
+	}
+}
+
+// deriveDeepCopy_10 recursively copies the contents of src into dst.
+func deriveDeepCopy_10(dst, src *time.Time) {
 	*dst = *src
 }
 
-// deriveDeepCopy_9 recursively copies the contents of src into dst.
-func deriveDeepCopy_9(dst, src *ReviewChanges) {
+// deriveDeepCopy_11 recursively copies the contents of src into dst.
+func deriveDeepCopy_11(dst, src *ReviewChanges) {
 	if src.MembershipRequirementsChanged == nil {
 		dst.MembershipRequirementsChanged = nil
 	} else {
 		dst.MembershipRequirementsChanged = new(Requires)
-		deriveDeepCopy_6(dst.MembershipRequirementsChanged, src.MembershipRequirementsChanged)
+		deriveDeepCopy_7(dst.MembershipRequirementsChanged, src.MembershipRequirementsChanged)
 	}
 	if src.RemovedMembers == nil {
 		dst.RemovedMembers = nil
@@ -612,15 +648,15 @@ func deriveTeleportEqual_10(this, that []ScopedRoleGrant) bool {
 	return true
 }
 
-// deriveDeepCopy_10 recursively copies the contents of src into dst.
-func deriveDeepCopy_10(dst, src map[string]string) {
+// deriveDeepCopy_12 recursively copies the contents of src into dst.
+func deriveDeepCopy_12(dst, src map[string]string) {
 	for src_key, src_value := range src {
 		dst[src_key] = src_value
 	}
 }
 
-// deriveDeepCopy_11 recursively copies the contents of src into dst.
-func deriveDeepCopy_11(dst, src map[string][]string) {
+// deriveDeepCopy_13 recursively copies the contents of src into dst.
+func deriveDeepCopy_13(dst, src map[string][]string) {
 	for src_key, src_value := range src {
 		if src_value == nil {
 			dst[src_key] = nil
