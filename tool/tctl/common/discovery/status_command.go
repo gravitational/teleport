@@ -22,52 +22,52 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type summaryArgs struct {
+type statusArgs struct {
 	cmd *kingpin.CmdClause
 
 	format      string
 	cloudFilter string
 }
 
-func (s *summaryArgs) initSummary(app *kingpin.CmdClause) {
-	summaryCmd := app.Command("summary", "Summarize AWS and Azure discovery_config resources and their enrollment progress.")
+func (s *statusArgs) initStatus(app *kingpin.CmdClause) {
+	statusCmd := app.Command("status", "Show AWS and Azure auto-discovery status and enrollment progress.")
 
-	summaryCmd.Flag("format", "Output format.").
+	statusCmd.Flag("format", "Output format.").
 		Default(teleport.Text).
 		EnumVar(&s.format, teleport.Text, teleport.JSON, teleport.YAML)
-	summaryCmd.Flag("cloud", "Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.").
+	statusCmd.Flag("cloud", "Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.").
 		Default("").
 		StringVar(&s.cloudFilter)
 
-	s.cmd = summaryCmd
+	s.cmd = statusCmd
 }
 
-func (s *summaryArgs) run(ctx context.Context, clt discoveryClient, w io.Writer) error {
+func (s *statusArgs) run(ctx context.Context, clt discoveryClient, w io.Writer) error {
 	cloudProviders, err := parseCloudProviders(s.cloudFilter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	discoveryConfigs, err := listDiscoveryConfigs(ctx, clt)
+	discoveryConfigs, err := stream.Collect(clientutils.Resources(ctx, clt.DiscoveryConfigClient().ListDiscoveryConfigs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	summaries := buildConfigSummaries(discoveryConfigs, cloudProviders)
+	status := newDiscoverySummary(discoveryConfigs, cloudProviders)
 	switch s.format {
 	case teleport.Text:
-		return trace.Wrap(renderSummaryText(w, summaries, time.Now()))
+		return trace.Wrap(status.renderText(w, time.Now()))
 	case teleport.JSON:
-		structuredSummaries := buildStructuredSummaries(summaries)
-		return trace.Wrap(utils.WriteJSONArray(w, structuredSummaries))
+		return trace.Wrap(utils.WriteJSONArray(w, status))
 	case teleport.YAML:
-		structuredSummaries := buildStructuredSummaries(summaries)
-		return trace.Wrap(utils.WriteYAML(w, structuredSummaries))
+		return trace.Wrap(utils.WriteYAML(w, status))
 	default:
 		return trace.BadParameter("unknown format %q", s.format)
 	}
