@@ -430,7 +430,7 @@ func TestEC2Watcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
+	watcher := NewWatcher[*EC2DiscoveryResult](t.Context(), logtest.NewLogger())
 	watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 	go watcher.Run()
@@ -472,18 +472,21 @@ func TestEC2Watcher(t *testing.T) {
 		},
 	}
 
-	for _, instances := range expectedInstances {
+	var gotInstances []*EC2Instances
+	for len(gotInstances) < len(expectedInstances) {
 		select {
 		case result := <-watcher.InstancesC:
-			require.Equal(t, instances, result)
+			require.NotNil(t, result)
+			gotInstances = append(gotInstances, result.Instances...)
 		case <-t.Context().Done():
 			require.Fail(t, "context canceled")
 		}
 	}
+	require.ElementsMatch(t, expectedInstances, gotInstances)
 
 	select {
-	case inst := <-watcher.InstancesC:
-		require.Fail(t, "unexpected instance: %v", inst)
+	case result := <-watcher.InstancesC:
+		require.Fail(t, "unexpected result: %v", result)
 	default:
 	}
 }
@@ -558,7 +561,7 @@ func TestEC2WatcherMergesReservationInstances(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
+		watcher := NewWatcher[*EC2DiscoveryResult](t.Context(), logtest.NewLogger())
 		watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 		go watcher.Run()
@@ -572,7 +575,9 @@ func TestEC2WatcherMergesReservationInstances(t *testing.T) {
 
 		select {
 		case result := <-watcher.InstancesC:
-			require.Equal(t, expectedInstances, result)
+			require.NotNil(t, result)
+			require.Len(t, result.Instances, 1)
+			require.Equal(t, expectedInstances, result.Instances[0])
 		case <-t.Context().Done():
 			require.Fail(t, "context canceled")
 		}
@@ -605,8 +610,12 @@ func TestEC2WatcherMergesReservationInstances(t *testing.T) {
 		var gotInstances []*EC2Instances
 
 		synctest.Test(t, func(t *testing.T) {
-			watcher := NewWatcher(t.Context(), logtest.NewLogger(), WithPerInstanceHookFn(func(groups []*EC2Instances) {
-				gotInstances = append(gotInstances, groups...)
+			watcher := NewWatcher(t.Context(), logtest.NewLogger(), WithPerInstanceHookFn(func(results []*EC2DiscoveryResult) {
+				for _, result := range results {
+					if result != nil {
+						gotInstances = append(gotInstances, result.Instances...)
+					}
+				}
 			}))
 			watcher.SetFetchers(noDiscoveryConfig, fetchers)
 			go watcher.Run()
@@ -744,7 +753,7 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
+	watcher := NewWatcher[*EC2DiscoveryResult](t.Context(), logtest.NewLogger())
 	watcher.SetFetchers("", fetchers)
 
 	go watcher.Run()
@@ -764,19 +773,20 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 		},
 	}
 
-	for _, instances := range expectedInstances {
-		select {
-		case result := <-watcher.InstancesC:
-			require.NotNil(t, result)
-			require.Equal(t, instances, *result)
-		case <-t.Context().Done():
-			require.Fail(t, "context canceled")
+	select {
+	case result := <-watcher.InstancesC:
+		require.NotNil(t, result)
+		require.Len(t, result.Instances, len(expectedInstances))
+		for i, instances := range expectedInstances {
+			require.Equal(t, instances, *result.Instances[i])
 		}
+	case <-t.Context().Done():
+		require.Fail(t, "context canceled")
 	}
 
 	select {
-	case inst := <-watcher.InstancesC:
-		require.Fail(t, "unexpected instance: %v", inst)
+	case result := <-watcher.InstancesC:
+		require.Fail(t, "unexpected result: %v", result)
 	default:
 	}
 }
