@@ -105,8 +105,8 @@ type Client struct {
 }
 
 // DoRequest retrieves a single page of the resource graph query, requesting the rows that follow skipToken (empty for the first page).
-func DoRequest[T any](ctx context.Context, client *Client, request *http.Request) (*T, error) {
-	var parsedResponse *T
+func DoRequest[T any](ctx context.Context, client *Client, request *http.Request) (T, error) {
+	var parsedResponse T
 	var currentRetry int
 	for {
 		responseBodyBS, err := singleFlightRequest(ctx, client, request)
@@ -115,19 +115,19 @@ func DoRequest[T any](ctx context.Context, client *Client, request *http.Request
 			if rateLimitErr, isRateLimitErr := errors.AsType[*azure.RateLimitError](err); isRateLimitErr && client.retryOnRateLimitErrors {
 				if currentRetry <= maxRetriesAfterRateLimitErrors {
 					if err := logAndWaitRetryAfter(ctx, client.logger, rateLimitErr); err != nil {
-						return nil, trace.Wrap(err)
+						return parsedResponse, trace.Wrap(err)
 					}
 					currentRetry++
 					continue
 				}
-				return nil, trace.NewAggregate(err, trace.BadParameter("exceeded maximum retries (%d) after rate limit errors", maxRetriesAfterRateLimitErrors))
+				return parsedResponse, trace.NewAggregate(err, trace.BadParameter("exceeded maximum retries (%d) after rate limit errors", maxRetriesAfterRateLimitErrors))
 			}
 
-			return nil, trace.Wrap(err, "failed to fetch resource graph page")
+			return parsedResponse, trace.Wrap(err, "failed to fetch resource graph page")
 		}
 
-		if err := json.Unmarshal(responseBodyBS, parsedResponse); err != nil {
-			return nil, trace.Wrap(err, "failed to unmarshal azure api response: %s", string(responseBodyBS))
+		if err := json.Unmarshal(responseBodyBS, &parsedResponse); err != nil {
+			return parsedResponse, trace.Wrap(err, "failed to unmarshal azure api response: %s", string(responseBodyBS))
 		}
 		break
 	}
