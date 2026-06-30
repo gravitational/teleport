@@ -18,14 +18,7 @@ import (
 
 func TestListDevices_byAssetTag(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t, withModules(&modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust: {Enabled: true},
-			},
-		},
-	}))
+	s := newWebSuiteForDeviceTrust(t)
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "devices")
 	authClient := s.newAdminAuthClient(s.ctx, t)
@@ -95,14 +88,7 @@ func TestListDevices_byAssetTag(t *testing.T) {
 
 func TestListDevices_paginated(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t, withModules(&modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust: {Enabled: true},
-			},
-		},
-	}))
+	s := newWebSuiteForDeviceTrust(t)
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "devices")
 	authClient := s.newAdminAuthClient(s.ctx, t)
@@ -221,14 +207,7 @@ func unmarshalWebResponse(t *testing.T, resp []byte) *ui.ListDevicesResponse {
 
 func TestListDevices_errors(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t, withModules(&modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust: {Enabled: true},
-			},
-		},
-	}))
+	s := newWebSuiteForDeviceTrust(t)
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "devices")
 
@@ -277,4 +256,15 @@ func TestListDevices_errors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newWebSuiteForDeviceTrust(t *testing.T) *webSuite {
+	return newWebSuite(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust: {Enabled: true},
+			},
+		},
+	}))
 }

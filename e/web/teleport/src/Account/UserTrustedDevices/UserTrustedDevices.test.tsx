@@ -2,6 +2,7 @@ import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
 import { act, render, screen } from 'design/utils/testing';
 
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { TrustedDevice } from 'teleport/DeviceTrust/types';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
@@ -19,7 +20,7 @@ const renderComponent = (ctx: TeleportContextE) => {
 };
 
 test('renders empty state', async () => {
-  const ctx = new TeleportContextE();
+  const ctx = createTeleportContextE();
 
   jest.spyOn(ctx.deviceService, 'fetchDevicesByUser').mockResolvedValue({
     startKey: '',
@@ -35,7 +36,7 @@ test('renders empty state', async () => {
 });
 
 test('renders users trusted devices with infinite scroll', async () => {
-  const ctx = new TeleportContextE();
+  const ctx = createTeleportContextE();
 
   jest.spyOn(ctx.deviceService, 'fetchDevicesByUser').mockResolvedValueOnce({
     startKey: '',
@@ -52,7 +53,7 @@ test('renders users trusted devices with infinite scroll', async () => {
 });
 
 test('renders error', async () => {
-  const ctx = new TeleportContextE();
+  const ctx = createTeleportContextE();
 
   jest
     .spyOn(ctx.deviceService, 'fetchDevicesByUser')

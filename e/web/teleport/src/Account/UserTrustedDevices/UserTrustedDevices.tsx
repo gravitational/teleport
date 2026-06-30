@@ -1,10 +1,12 @@
 import { useCallback } from 'react';
 import styled from 'styled-components';
+import { useBoolean } from 'usehooks-ts';
 
 import { Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
 import { displayDate } from 'design/datetime';
+import * as Icon from 'design/Icon';
 import { Devices } from 'design/Icon';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
 import {
@@ -14,8 +16,10 @@ import {
 
 import { IconCell } from 'e-teleport/DeviceTrust/DeviceList/DeviceList';
 import useTeleportE from 'e-teleport/useTeleportE';
-import { Header } from 'teleport/Account/Header';
+import { ActionButtonSecondary, Header } from 'teleport/Account/Header';
 import { TrustedDevice } from 'teleport/DeviceTrust/types';
+
+import { EnrollMobileDeviceWizard } from './wizards/EnrollMobileDeviceWizard';
 
 export const UserTrustedDevices = () => {
   const ctx = useTeleportE();
@@ -40,6 +44,21 @@ export const UserTrustedDevices = () => {
     fetch: fetch,
   });
 
+  const {
+    value: isMobileDeviceEnrollmentOpen,
+    setTrue: openMobileDeviceEnrollment,
+    setFalse: closeMobileDeviceEnrollment,
+  } = useBoolean(false);
+
+  const canEnrollMobileDevice =
+    ctx.storeUser.getMobileDeviceAccess().createEnrollToken;
+  const enrollMobileDeviceButton = canEnrollMobileDevice ? (
+    <ActionButtonSecondary onClick={() => openMobileDeviceEnrollment()}>
+      <Icon.Add size={20} />
+      Enroll a Mobile Device
+    </ActionButtonSecondary>
+  ) : null;
+
   return (
     <MultiRowBox data-testid="user-trusted-devices">
       <Row>
@@ -51,7 +70,7 @@ export const UserTrustedDevices = () => {
           }
           icon={<Devices />}
           description="Devices that have been authorized for your use with Teleport. Some actions may be disabled without a trusted device."
-          actions={[]} // no actions, we're just displaying their devices
+          actions={enrollMobileDeviceButton}
         />
       </Row>
       <Row>
@@ -94,6 +113,9 @@ export const UserTrustedDevices = () => {
         )}
       </Row>
       <div ref={setTrigger} />
+      {isMobileDeviceEnrollmentOpen && (
+        <EnrollMobileDeviceWizard close={closeMobileDeviceEnrollment} />
+      )}
     </MultiRowBox>
   );
 };

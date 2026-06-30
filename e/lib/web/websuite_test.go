@@ -574,6 +574,7 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 		types.NewRule(types.KindDatabaseCertificate, services.RW()),
 		types.NewRule(types.KindInstaller, services.RW()),
 		types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+		types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
 		types.NewRule(types.KindDatabaseService, services.RO()),
 		types.NewRule(types.KindInstance, services.RO()),
 		types.NewRule(types.KindLoginRule, services.RW()),

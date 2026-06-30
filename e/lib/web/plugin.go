@@ -256,6 +256,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	// Device Trust handlers
 	h.GET("/enterprise/devices", h.WithAuth(p.listDevicesHandle))
 	h.GET("/enterprise/user/devices", h.WithAuth(p.listDevicesByUserHandle))
+	h.POST("/enterprise/devices/enroll_pairing", h.WithAuth(p.createEnrollPairingHandle))
+	h.GET("/enterprise/devices/enroll_pairing", h.WithAuth(p.getEnrollPairingHandle))
 
 	h.GET("/enterprise/authconnectors", h.WithAuth(p.getAuthConnectorsHandle))
 	h.POST("/enterprise/saml", h.WithAuth(p.createSAMLConnectorHandle))

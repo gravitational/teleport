@@ -224,6 +224,7 @@ const cfg = {
     devices: '/v1/enterprise/devices?limit=:limit?&startKey=:startKey?',
     deviceByUser:
       '/v1/enterprise/user/devices?limit=:limit?&startKey=:startKey?',
+    enrollPairing: '/v1/enterprise/devices/enroll_pairing',
 
     surveyPath: '/v1/enterprise/cloud/survey',
 
@@ -318,6 +319,10 @@ const cfg = {
 
   getTrustedDevicesByUserUrl(params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.deviceByUser, { ...params });
+  },
+
+  getEnrollPairingUrl() {
+    return cfg.api.enrollPairing;
   },
 
   getUsageSummarySummaryRoute(clusterId: string) {

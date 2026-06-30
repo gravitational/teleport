@@ -1,1 +1,1 @@
-export { deviceService } from './devices';
+export * from './devices';
