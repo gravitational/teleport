@@ -16,9 +16,9 @@
 
 import Foundation
 
-/// In the absence of a proper design system, we define a few useful constants that will punch above their weight class.
-/// They adhere to an [8-point grid](https://spec.fm/specifics/8-pt-grid) that allows us to achieve a reasonable-looking
-/// UI without much effort.
+/// Spacing constants.
+///
+/// These values are based on an [8-point grid](<https://spec.fm/specifics/8-pt-grid>).
 extension CGFloat {
 	static let xxsmall: CGFloat = 2
 	static let xsmall: CGFloat = 4

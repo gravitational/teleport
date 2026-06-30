@@ -87,10 +87,10 @@ extension LandingView {
 				)
 			}
 			instructionStep(stepNumber: 2) {
-				Text("Click on \"Enroll Device\" to display the QR code for device enrollment")
+				Text("Click on \"Enroll Device\" to display the QR code for device enrollment.")
 			}
 			instructionStep(stepNumber: 3) {
-				Text("Tap the \"Scan QR Code\" button")
+				Text("Tap the \"Scan QR Code\" button.")
 			}
 		}
 	}
