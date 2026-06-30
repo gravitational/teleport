@@ -534,10 +534,11 @@ func TestGitHubConnectorNameTooLarge(t *testing.T) {
 // connector with secrets requires admin action MFA.
 func TestAuthConnectorReadSecretsAdminActionMFA(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	role, err := types.NewRole("test-role", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -585,12 +586,10 @@ func TestAuthConnectorReadSecretsAdminActionMFA(t *testing.T) {
 	require.NoError(t, err)
 	signingKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	clock := clockwork.NewFakeClock()
 	certBytes, err := ca.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     clock,
 		PublicKey: signingKey.Public(),
 		Subject:   pkix.Name{CommonName: "test"},
-		NotAfter:  clock.Now().Add(time.Hour),
+		NotAfter:  time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
 	samlConn, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
