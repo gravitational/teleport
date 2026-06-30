@@ -59,6 +59,7 @@ import (
 	appllm "github.com/gravitational/teleport/lib/srv/app/llm"
 	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -126,6 +127,10 @@ type ConnectionsHandlerConfig struct {
 
 	// InsecureMode defines whether insecure connections are allowed.
 	InsecureMode bool
+
+	// UsageReporter is used to emit beam inference usage events.
+	// Optional — if nil, no beam inference usage events are emitted.
+	UsageReporter usagereporter.UsageReporter
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -251,6 +256,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	llmHandler, err := appllm.NewHandler(closeContext, appllm.HandlerConfig{
 		Log:               cfg.Logger.With(teleport.ComponentKey, teleport.ComponentLLM),
 		AWSConfigProvider: awsConfigProvider,
+		UsageReporter:     cfg.UsageReporter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

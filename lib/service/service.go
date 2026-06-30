@@ -7036,6 +7036,10 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		var appUsageReporter usagereporter.UsageReporter
+		if authSrv := process.GetAuthServer(); authSrv != nil {
+			appUsageReporter = authSrv.Services.UsageReporter
+		}
 		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
 			InsecureMode:      process.Config.InsecureMode,
 			Clock:             process.Config.Clock,
@@ -7052,6 +7056,7 @@ func (process *TeleportProcess) initApps() {
 			Logger:            logger,
 			LimiterConfig:     process.Config.Apps.Limiter,
 			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
+			UsageReporter:     appUsageReporter,
 		})
 		if err != nil {
 			return trace.Wrap(err)

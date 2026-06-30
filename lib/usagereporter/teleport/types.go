@@ -2380,3 +2380,22 @@ func (e *BeamsDestroyedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEve
 		},
 	}
 }
+
+// BeamsInferenceRequestEvent is emitted when a beam makes an AI inference call.
+type BeamsInferenceRequestEvent prehogv1a.BeamsInferenceRequestEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsInferenceRequestEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsInferenceRequest{
+			BeamsInferenceRequest: &prehogv1a.BeamsInferenceRequestEvent{
+				BeamId:           a.AnonymizeString(e.BeamId),
+				Provider:         e.Provider,
+				Model:            e.Model,
+				InputTokenCount:  e.InputTokenCount,
+				OutputTokenCount: e.OutputTokenCount,
+				Success:          e.Success,
+			},
+		},
+	}
+}
