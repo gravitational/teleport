@@ -3,9 +3,8 @@ import { act, renderHook } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
-import { testQueryClient } from 'design/utils/testing';
+import { testQueryClient, theme } from 'design/utils/testing';
 
 import {
   OverlayEntity,
@@ -193,7 +192,7 @@ function wrapper({
     return (
       <MemoryRouter initialEntries={initialEntries}>
         <QueryClientProvider client={testQueryClient}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <SessionSummariesManagementProvider>
               {children}
             </SessionSummariesManagementProvider>

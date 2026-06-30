@@ -10,7 +10,6 @@ import styled, { useTheme } from 'styled-components';
 
 import { Button, Flex } from 'design';
 import Indicator from 'design/Indicator';
-import { darkTheme, lightTheme } from 'design/theme';
 import { Theme } from 'design/theme/themes/types';
 import { useAttemptNext } from 'shared/hooks';
 
@@ -236,7 +235,7 @@ export function QueryEditor() {
   );
 }
 
-function createEditorTheme(theme: typeof lightTheme | typeof darkTheme) {
+function createEditorTheme(theme: Theme) {
   return createTheme({
     theme: theme.type === 'light' ? 'light' : 'dark',
     settings: {

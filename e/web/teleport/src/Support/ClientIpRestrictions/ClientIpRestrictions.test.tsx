@@ -64,8 +64,9 @@ describe('ClientIpRestrictions', () => {
       edit: false,
       create: false,
     });
-    const { container } = renderComponent(ctx);
-    expect(container).toBeEmptyDOMElement();
+    renderComponent(ctx);
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByText(/edit/i)).not.toBeInTheDocument();
   });
 
   test('disables edit button without edit access', async () => {

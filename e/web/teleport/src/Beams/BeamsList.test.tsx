@@ -1,7 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { PropsWithChildren } from 'react';
 
-import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   enableMswServer,
@@ -10,6 +9,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   waitFor,
   waitForElementToBeRemoved,
 } from 'design/utils/testing';
@@ -386,7 +386,7 @@ function makeWrapper(
 
     return (
       <QueryClientProvider client={testQueryClient}>
-        <ConfiguredThemeProvider theme={darkTheme}>
+        <ConfiguredThemeProvider theme={theme}>
           <TeleportProviderBasic
             teleportCtx={ctx}
             initialEntries={[cfg.routes.beamsList]}

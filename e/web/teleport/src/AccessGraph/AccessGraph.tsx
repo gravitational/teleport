@@ -122,6 +122,7 @@ export function AccessGraph() {
           flexDirection="column"
         >
           <Graph
+            key={theme}
             clusterId={clusterId}
             awsOnboardingEnabled={true}
             urlNavigationEnabled={true}

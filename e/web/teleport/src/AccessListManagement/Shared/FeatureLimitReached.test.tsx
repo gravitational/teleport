@@ -38,11 +38,13 @@ test('limit of 0 returns empty; no warning (unlimited use)', () => {
   const ctx = createTeleportContext();
   ctx.isEnterprise = true;
 
-  const { container } = render(
+  render(
     <TeleportContextProvider ctx={ctx}>
       <FeatureLimitBlurb limit={0} />
     </TeleportContextProvider>
   );
 
-  expect(container).toBeEmptyDOMElement();
+  expect(
+    screen.queryByText(/Your current plan supports/i)
+  ).not.toBeInTheDocument();
 });

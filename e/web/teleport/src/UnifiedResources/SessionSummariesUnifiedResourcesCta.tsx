@@ -1,3 +1,7 @@
+import {
+  resolveColorTokens,
+  useDesignSystemContext,
+} from '@gravitational/design-system';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import styled, { useTheme } from 'styled-components';
@@ -148,7 +152,15 @@ const StyledButtonBorder = styled(ButtonBorder)`
 
 function SessionPreview() {
   const theme = useTheme();
-  const styles = useMemo(() => generateTerminalSVGStyleTag(theme), [theme]);
+  const system = useDesignSystemContext();
+  const styles = useMemo(
+    () =>
+      generateTerminalSVGStyleTag(
+        resolveColorTokens(system, theme.colors.terminal, theme.type),
+        theme.fonts.mono
+      ),
+    [system, theme]
+  );
   const dataUri = useThumbnailSvg(previewSvg, styles);
 
   const buttonRef = useRef<HTMLButtonElement>(null);
