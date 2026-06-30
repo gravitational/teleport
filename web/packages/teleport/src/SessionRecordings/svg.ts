@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo } from 'react';
-
 import type { LegacyThemeColors } from '@gravitational/design-system';
+import { useMemo } from 'react';
 
 type ResolvedTerminalColors = Record<
   keyof LegacyThemeColors['terminal'],
