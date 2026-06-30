@@ -145,9 +145,19 @@ type FindPublicAddrClient interface {
 //
 // For a scoped app, the address is always derived as the
 // scope-qualified FQDN "<hash(name,scope)>.<proxy>"
-func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicAddr, appName, scope string) (string, error) {
+// TODO(williamo/scopes): We added a scopeVar as a variadic parameter to not break the e submodule.
+// This will be amended in a future PR.
+func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicAddr, appName string, scopeVar ...string) (string, error) {
 	// If the application has a public address already set, use it. Scoped apps
 	// always derive their address, so the config value is not honored.
+	scope := ""
+	switch len(scopeVar) {
+	case 1:
+		scope = scopeVar[0]
+	case 0:
+	default:
+		return "", trace.BadParameter("multiple scopes not allowed")
+	}
 	if appPublicAddr != "" && scope == "" {
 		return appPublicAddr, nil
 	}
