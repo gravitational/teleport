@@ -87,7 +87,8 @@
             "default": "",
             "enum": [
                 "off",
-                "on"
+                "on",
+                ""
             ]
         },
         "proxy": {
