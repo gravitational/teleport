@@ -81,11 +81,19 @@ pred: |
     literal("api", literal("v4", literal("projects",
       capture("project",
         literal("repository", greedy())))))) &&
-  contains(set("GET", "HEAD"), request.method)
+  contains(set("GET", "HEAD"), upper(request.method))
 `,
 			probes: []probe{
 				{
 					method: "GET",
+					path:   "/api/v4/projects/myproj/repository/tree",
+					allow:  true,
+					vars:   map[string]string{"project": "myproj"},
+				},
+				{
+					// A lowercase request method matches the upper-cased
+					// list, since matching folds case on both sides.
+					method: "get",
 					path:   "/api/v4/projects/myproj/repository/tree",
 					allow:  true,
 					vars:   map[string]string{"project": "myproj"},
@@ -114,7 +122,7 @@ pred: |
   path.match(
     literal("api", literal("v4", literal("projects",
       capture("project", greedy()))))) &&
-  contains(set("GET"), request.method) &&
+  contains(set("GET"), upper(request.method)) &&
   (contains(user.traits["allowed_projects"], vars.project))
 `,
 			probes: []probe{
@@ -154,7 +162,7 @@ pred: |
   path.match(
     literal("api", literal("v4", literal("projects",
       glob(capture("project", greedy())))))) &&
-  contains(set("GET"), request.method)
+  contains(set("GET"), upper(request.method))
 `,
 			probes: []probe{
 				{
@@ -186,7 +194,7 @@ methods: [GET]
 			desugared: `
 pred: |
   path.match(literal("api/v4/health", slash())) &&
-  contains(set("GET"), request.method)
+  contains(set("GET"), upper(request.method))
 `,
 			probes: []probe{
 				{
@@ -212,7 +220,7 @@ methods: [GET]
 			desugared: `
 pred: |
   path.match(slash()) &&
-  contains(set("GET"), request.method)
+  contains(set("GET"), upper(request.method))
 `,
 			probes: []probe{
 				{

@@ -49,10 +49,13 @@ type Rule struct {
 	Paths []string `yaml:"paths,omitempty"`
 	// Methods are HTTP methods that further scope a Paths rule, OR-ed. If
 	// Methods is empty, any method is permitted. Otherwise the request method
-	// must appear in the list. Names are case-insensitive and validated
-	// against the standard HTTP methods (GET, HEAD, POST, PUT, PATCH, DELETE,
-	// OPTIONS, TRACE); an unknown method is a load error, so a typo fails
-	// loudly rather than silently never matching. CONNECT is not a member: a
+	// must appear in the list, matched case-insensitively: both the listed
+	// names and the request method are folded to upper case before the
+	// membership test, so a request sent as "get" matches a rule listing
+	// "GET". Names are validated against the standard HTTP methods (GET, HEAD,
+	// POST, PUT, PATCH, DELETE, OPTIONS, TRACE); an unknown method is a load
+	// error, so a typo fails loudly rather than silently never matching.
+	// CONNECT is not a member: a
 	// CONNECT request targets an authority, not a slash-path, so the tokenizer
 	// rejects it and a rule listing CONNECT could never match.
 	Methods []string `yaml:"methods,omitempty"`
@@ -362,7 +365,10 @@ func (r Rule) pathClause() (string, error) {
 }
 
 // methodClause renders the Methods as a membership test against the request
-// method. It is empty when no methods are set.
+// method. It is empty when no methods are set. The listed methods are
+// upper-cased and the request method is folded with upper() before the
+// membership test, so matching is case-insensitive on both sides and a request
+// sent as "get" matches a rule listing "GET".
 func (r Rule) methodClause() string {
 	if len(r.Methods) == 0 {
 		return ""
@@ -371,7 +377,7 @@ func (r Rule) methodClause() string {
 	for _, m := range r.Methods {
 		quoted = append(quoted, strconv.Quote(strings.ToUpper(m)))
 	}
-	return fmt.Sprintf("contains(set(%s), request.method)", strings.Join(quoted, ", "))
+	return fmt.Sprintf("contains(set(%s), upper(request.method))", strings.Join(quoted, ", "))
 }
 
 // standardMethods is the set of HTTP methods a rule may name, the request

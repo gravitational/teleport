@@ -12,7 +12,8 @@ app_resources_expressions:
           capture("team",
             greedy()))) &&
       contains(
-        set("GET"), request.method) &&
+        set("GET"),
+        upper(request.method)) &&
       contains(user.traits["teams"], vars.team)
 identity:
     name: alice

@@ -10,7 +10,8 @@ app_resources_expressions:
         literal("api",
           greedy())) &&
       contains(
-        set("GET"), request.method)
+        set("GET"),
+        upper(request.method))
 identity:
     name: bob
     roles:
@@ -30,5 +31,10 @@ cases:
     - request:
         method: GET
         path: /api
+      expect:
+        allowed: true
+    - request:
+        method: get
+        path: /api/users
       expect:
         allowed: true

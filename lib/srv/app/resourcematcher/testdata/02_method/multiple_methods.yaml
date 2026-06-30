@@ -11,7 +11,8 @@ app_resources_expressions:
         literal("api",
           greedy())) &&
       contains(
-        set("GET", "HEAD"), request.method)
+        set("GET", "HEAD"),
+        upper(request.method))
 identity:
     name: bob
     roles:
