@@ -252,6 +252,32 @@ function upsertLinksSection(body, linksSection) {
   return `${body}\n\n---\n\n${linksSection}`;
 }
 
+// Pull the Amplify preview host (origin only, no path) out of the deployment
+// comment that the amplify-preview action posts. That comment builds its URL
+// from the branch DisplayName (the real default-domain prefix), which differs
+// from the raw branch name for names Amplify sanitizes, e.g. "feature/foo".
+// When appId is given, prefer the URL for that app (the comment may list
+// several). Returns null if no Amplify URL is found.
+function extractPreviewHost(commentBody, appId) {
+  if (!commentBody) return null;
+  if (appId) {
+    const escaped = appId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const scoped = commentBody.match(
+      new RegExp(`https://[A-Za-z0-9-]+\\.${escaped}\\.amplifyapp\\.com`)
+    );
+    if (scoped) return scoped[0];
+  }
+  const any = commentBody.match(/https:\/\/[A-Za-z0-9-]+\.[A-Za-z0-9-]+\.amplifyapp\.com/);
+  return any ? any[0] : null;
+}
+
+// Best-effort approximation of Amplify's domain-prefix sanitization, used only
+// as a fallback when the deployment comment (the authoritative source) is not
+// found. Amplify replaces characters like "/" and "." with "-".
+function sanitizeBranchForDomain(branch) {
+  return branch.replace(/[^A-Za-z0-9-]+/g, '-');
+}
+
 module.exports = {
   START_MARKER,
   END_MARKER,
@@ -269,4 +295,6 @@ module.exports = {
   buildPageEntries,
   composeLinksSection,
   upsertLinksSection,
+  extractPreviewHost,
+  sanitizeBranchForDomain,
 };

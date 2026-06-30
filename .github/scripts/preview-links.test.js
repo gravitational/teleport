@@ -24,6 +24,8 @@ const {
   buildPageEntries,
   composeLinksSection,
   upsertLinksSection,
+  extractPreviewHost,
+  sanitizeBranchForDomain,
 } = require('./preview-links.js');
 
 const { listMdxPages } = require('./post-preview-links.js');
@@ -386,6 +388,43 @@ test('composeLinksSection: includes an orphaned-partials subsection when present
   const section = composeLinksSection(['- entry'], [], ['docs/pages/includes/orphan.mdx']);
   assert.ok(section.includes('#### Changed partials not included by any page'));
   assert.ok(section.includes('- `docs/pages/includes/orphan.mdx`'));
+});
+
+// --- extractPreviewHost -----------------------------------------------------
+
+test('extractPreviewHost: pulls the host from a deployment comment URL', () => {
+  // amplify-preview builds this link from the branch display name.
+  const body = 'Amplify deployment status\n\n[feature-foo](https://feature-foo.d123abc.amplifyapp.com)';
+  assert.equal(
+    extractPreviewHost(body),
+    'https://feature-foo.d123abc.amplifyapp.com'
+  );
+});
+
+test('extractPreviewHost: prefers the URL matching the given app id', () => {
+  const body = [
+    '[branch](https://branch.d111.amplifyapp.com)',
+    '[branch](https://branch.d222.amplifyapp.com)',
+  ].join('\n');
+  assert.equal(extractPreviewHost(body, 'd222'), 'https://branch.d222.amplifyapp.com');
+});
+
+test('extractPreviewHost: falls back to the first URL when the app id is absent', () => {
+  const body = '[branch](https://branch.d111.amplifyapp.com)';
+  assert.equal(extractPreviewHost(body, 'd999'), 'https://branch.d111.amplifyapp.com');
+});
+
+test('extractPreviewHost: returns null when there is no Amplify URL', () => {
+  assert.equal(extractPreviewHost('no url here', 'd1'), null);
+  assert.equal(extractPreviewHost(null, 'd1'), null);
+});
+
+// --- sanitizeBranchForDomain ------------------------------------------------
+
+test('sanitizeBranchForDomain: replaces slashes and dots with hyphens', () => {
+  assert.equal(sanitizeBranchForDomain('feature/foo'), 'feature-foo');
+  assert.equal(sanitizeBranchForDomain('fix/bar.baz'), 'fix-bar-baz');
+  assert.equal(sanitizeBranchForDomain('plain-branch'), 'plain-branch');
 });
 
 // --- upsertLinksSection ----------------------------------------------------

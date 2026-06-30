@@ -25,6 +25,8 @@ const {
   buildPageEntries,
   composeLinksSection,
   upsertLinksSection,
+  extractPreviewHost,
+  sanitizeBranchForDomain,
   START_MARKER,
 } = require('./preview-links.js');
 
@@ -53,24 +55,6 @@ async function listMdxPages(dir, { skipIncludes = true } = {}) {
 }
 
 async function run({ github, context, core }) {
-  const previewBranch = process.env.PREVIEW_BRANCH;
-  if (!previewBranch) {
-    core.warning(
-      'No preview branch name available from amplify-preview step; skipping per-page comment.'
-    );
-    return;
-  }
-
-  const previewAppId = process.env.PREVIEW_APP_ID;
-  if (!previewAppId) {
-    core.warning(
-      'No preview app ID available from amplify-preview step; skipping per-page comment.'
-    );
-    return;
-  }
-
-  const previewHost = `https://${previewBranch}.${previewAppId}.amplifyapp.com`;
-
   // --- Changed files come from the dorny/paths-filter step as a JSON array
   // (passed via CHANGED_FILES). That action handles diffing and pagination,
   // and the added|modified filter already excludes deleted files, so there is
@@ -135,10 +119,11 @@ async function run({ github, context, core }) {
   const orphanedImages = computeOrphanedImages(changedImages, referencedImagePaths);
   const orphanedPartials = computeOrphanedPartials(changedPartials, affectedPages);
   const allPagePaths = buildAllPagePaths(directlyChangedPages, imageRefMap, partialRefMap);
-  const pageEntries = buildPageEntries(allPagePaths, previewHost, { imageRefMap, partialRefMap });
-  const linksSection = composeLinksSection(pageEntries, orphanedImages, orphanedPartials);
 
-  // --- Find the deployment-status comment to append to (GitHub API) ---
+  // --- Find the Amplify deployment-status comment. We both append our links
+  // to it and read the canonical preview host from it: Amplify builds that URL
+  // from the branch display name, which differs from the raw branch name for
+  // names containing characters it sanitizes (e.g. "feature/foo"). ---
   const { data: comments } = await github.rest.issues.listComments({
     owner: context.repo.owner,
     repo: context.repo.repo,
@@ -151,6 +136,29 @@ async function run({ github, context, core }) {
       c.body?.includes('Amplify deployment status') &&
       c.body?.includes('amplifyapp.com')
   );
+
+  // Prefer the host from the deployment comment (built from the display name).
+  // Fall back to a sanitized branch name only if the comment is missing.
+  const previewAppId = process.env.PREVIEW_APP_ID;
+  let previewHost = deploymentComment
+    ? extractPreviewHost(deploymentComment.body, previewAppId)
+    : null;
+  if (!previewHost) {
+    const previewBranch = process.env.PREVIEW_BRANCH;
+    if (previewBranch && previewAppId) {
+      previewHost = `https://${sanitizeBranchForDomain(previewBranch)}.${previewAppId}.amplifyapp.com`;
+    }
+  }
+  if (!previewHost) {
+    core.warning(
+      'Could not determine the Amplify preview host from the deployment comment ' +
+        'or environment; skipping per-page comment.'
+    );
+    return;
+  }
+
+  const pageEntries = buildPageEntries(allPagePaths, previewHost, { imageRefMap, partialRefMap });
+  const linksSection = composeLinksSection(pageEntries, orphanedImages, orphanedPartials);
 
   if (!deploymentComment) {
     core.warning(
