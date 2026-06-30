@@ -36,12 +36,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravitational/teleport/lib/autoupdate"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 	sigopts "github.com/sigstore/sigstore/pkg/signature/options"
+
+	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
