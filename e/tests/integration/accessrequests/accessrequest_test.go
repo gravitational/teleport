@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -55,6 +56,98 @@ func TestAccessRequest(t *testing.T) {
 	// Bob now has access to the dev app
 	resources = common.MustListUnifedResources(t, bobWebJITClient)
 	require.Len(t, resources.Items, 1)
+}
+
+// TestAccessRequestSuggestedAccessLists exercises the owner-reviewer Access List
+// suggestion flow.
+func TestAccessRequestSuggestedAccessLists(t *testing.T) {
+	sut := common.InitSUT(t,
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithApp("dev", "http://localhost:443", map[string]string{"env": "dev"}),
+		common.WithRole(t, "requester", func(r *types.RoleV6) {
+			r.Spec.Allow.Request = &types.AccessRequestConditions{
+				SearchAsRoles: []string{"access"},
+			}
+		}),
+		// The reviewer role grants no access_list read, so the reviewer can only
+		// reach the candidate Access List through inherited ownership, not RBAC.
+		common.WithRole(t, "reviewer", func(r *types.RoleV6) {
+			r.Spec.Allow.ReviewRequests = &types.AccessReviewConditions{
+				Roles: []string{"access"},
+			}
+		}),
+		common.WithUser(t, "alice", "reviewer"),
+		common.WithUser(t, "bob", "requester"),
+	)
+
+	// reviewers-acl: alice is a member, not a direct owner.
+	common.CreateAccessList(t, sut,
+		common.WithName("reviewers-acl"),
+		common.WithOwners("list-owner"),
+		common.WithMembers("alice"),
+	)
+
+	// app-acl grants access to the dev app and is owned by the nested reviewers-acl,
+	// so alice is only an inherited owner of app-acl.
+	common.CreateAccessList(t, sut,
+		common.WithName("app-acl"),
+		common.WithListOwners("reviewers-acl"),
+		common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+	)
+
+	// other-acl also grants the dev app but is owned by someone else, so alice can
+	// neither own nor read it. It must be skipped from suggestions, not fail them.
+	common.CreateAccessList(t, sut,
+		common.WithName("other-acl"),
+		common.WithOwners("list-owner"),
+		common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+	)
+
+	bobWebClient := sut.CreateWebClientForUser(t, "bob")
+	aliceWebClient := sut.CreateWebClientForUser(t, "alice")
+
+	// Bob requests access to the dev app.
+	accessRequest, err := common.CreateAccessRequest(t.Context(), bobWebClient, ui.AccessRequestParameters{
+		Roles:       []string{"access"},
+		RequestKind: types.AccessRequestKind_SHORT_TERM,
+		ResourceIDs: []ui.ResourceID{
+			{
+				Kind:        types.KindApp,
+				Name:        "dev",
+				ClusterName: "local-site",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, accessRequest.ID)
+
+	// suggestedNames returns the Access Lists suggested to alice for the request.
+	// The fetch must succeed even though other-acl is an unreadable candidate.
+	suggestedNames := func(t *testing.T) []string {
+		t.Helper()
+		suggestions, err := common.GetSuggestedAccessLists(t.Context(), aliceWebClient, accessRequest.ID)
+		require.NoError(t, err)
+		var names []string
+		for _, al := range suggestions.AccessLists {
+			names = append(names, al.GetName())
+		}
+		return names
+	}
+
+	// app-acl is suggested even though alice's ownership is inherited via the nested
+	// reviewers-acl, resolved server-side and trusted (she can't enumerate the
+	// nested list's members herself).
+	t.Run("inherited ownership is honored", func(t *testing.T) {
+		require.Contains(t, suggestedNames(t), "app-acl")
+	})
+
+	// other-acl, a valid promotion candidate alice can't read, is skipped rather
+	// than failing the whole suggestions request.
+	t.Run("skips inaccessible candidates", func(t *testing.T) {
+		names := suggestedNames(t)
+		require.Contains(t, names, "app-acl")
+		require.NotContains(t, names, "other-acl")
+	})
 }
 
 func TestAccessRequestWithSSHResourceConstraints(t *testing.T) {

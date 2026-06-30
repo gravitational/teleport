@@ -177,6 +177,13 @@ func MustApproveAccessRequest(t *testing.T, client *helpers.WebClientPack, acces
 	return resp
 }
 
+// GetSuggestedAccessLists fetches the Access Lists suggested as promotion targets
+// for the given access request, from the perspective of the calling (reviewer) user.
+func GetSuggestedAccessLists(ctx context.Context, client *helpers.WebClientPack, accessRequestID string) (ui.SuggestedAccessLists, error) {
+	endpoint := client.Endpoint("enterprise", "accessrequest", accessRequestID, "suggestions", "accesslist")
+	return Roundtrip[ui.SuggestedAccessLists](ctx, client, http.MethodGet, endpoint, nil)
+}
+
 type renewSessionRequest struct {
 	AccessRequestID string `json:"requestId"`
 }

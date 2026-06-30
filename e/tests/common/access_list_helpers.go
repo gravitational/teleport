@@ -17,16 +17,19 @@ import (
 
 // AccessListConfig holds the configurable fields for creating an AccessList.
 type AccessListConfig struct {
-	Name      string
-	Title     string
-	Owners    []string
-	Grants    accesslist.Grants
-	Members   []string
-	Kind      string
-	SubKind   string
-	AuditDate time.Time
-	Type      accesslist.Type
-	Cleanup   bool
+	Name   string
+	Title  string
+	Owners []string
+	// ListOwners are owners that are themselves Access Lists (nested ownership),
+	// i.e. members of these lists are inherited owners of this list.
+	ListOwners []string
+	Grants     accesslist.Grants
+	Members    []string
+	Kind       string
+	SubKind    string
+	AuditDate  time.Time
+	Type       accesslist.Type
+	Cleanup    bool
 }
 
 // AccessListOption configures an AccessListConfig.
@@ -50,6 +53,14 @@ func WithTitle(title string) AccessListOption {
 func WithOwners(owners ...string) AccessListOption {
 	return func(cfg *AccessListConfig) {
 		cfg.Owners = owners
+	}
+}
+
+// WithListOwners sets nested (Access List) owners. Members of these lists are
+// inherited owners of the created Access List.
+func WithListOwners(owners ...string) AccessListOption {
+	return func(cfg *AccessListConfig) {
+		cfg.ListOwners = owners
 	}
 }
 
@@ -103,6 +114,13 @@ func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accessl
 			Name:             owner,
 			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
 			MembershipKind:   accesslist.MembershipKindUser,
+		})
+	}
+	for _, owner := range cfg.ListOwners {
+		accessListOwners = append(accessListOwners, accesslist.Owner{
+			Name:             owner,
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+			MembershipKind:   accesslist.MembershipKindList,
 		})
 	}
 

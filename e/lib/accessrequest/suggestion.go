@@ -371,10 +371,18 @@ func GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt 
 	accessLists := make([]*accesslist.AccessList, 0, len(allowedPromotions.Promotions))
 	for _, promotion := range allowedPromotions.Promotions {
 		accList, err := accessListGetter.GetAccessList(ctx, promotion.AccessListName)
-		if err != nil {
+		switch {
+		case err == nil:
+			accessLists = append(accessLists, accList)
+		case trace.IsAccessDenied(err):
+			// The reviewer can't read this promotion candidate (they neither own it
+			// nor have global read access). It would be filtered out by canModifyAccessList
+			// below regardless, so skip it instead of failing the whole request.
+			slog.Log(ctx, logutils.TraceLevel, "Skipping promotion candidate the reviewer cannot read",
+				"error", err, "access_list", promotion.AccessListName)
+		default:
 			return nil, trace.Wrap(err)
 		}
-		accessLists = append(accessLists, accList)
 	}
 
 	cursor := 0
@@ -399,15 +407,36 @@ func GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt 
 	return ranked, nil
 }
 
-func canModifyAccessList(ctx context.Context, clt modules.RoleGetter, reviewer types.User, accessList *accesslist.AccessList, accessListGetter modules.AccessListAndMembersGetter) error {
-	// if owner, then can list and modify
+// reviewerOwnsAccessList reports whether the reviewer owns the access list. It
+// prefers the ownership Auth already computed and returned on the fetched list
+// (which resolves inherited ownership via an unrestricted getter), and only
+// falls back to deriving ownership locally when Auth didn't populate it. This is
+// only a suggestion filter; promotion is re-authorized server-side.
+func reviewerOwnsAccessList(ctx context.Context, reviewer types.User, accessList *accesslist.AccessList, accessListGetter modules.AccessListAndMembersGetter) (bool, error) {
+	if assignments := accessList.Status.CurrentUserAssignments; assignments != nil {
+		return assignments.IsOwner(), nil
+	}
+
+	// Older Auth doesn't always populate CurrentUserAssignments. Fall back to
+	// deriving ownership locally, which still recognizes explicit owners but
+	// can't resolve inherited ownership over a scoped client.
 	ownershipType, err := accesslists.IsAccessListOwner(ctx, reviewer, accessList, accessListGetter, nil, clockwork.NewRealClock())
-	// Owner is inherited or explicit
 	if ownershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-		return nil
+		return true, nil
 	}
 	if !trace.IsAccessDenied(err) {
+		return false, trace.Wrap(err)
+	}
+	return false, nil
+}
+
+func canModifyAccessList(ctx context.Context, clt modules.RoleGetter, reviewer types.User, accessList *accesslist.AccessList, accessListGetter modules.AccessListAndMembersGetter) error {
+	owns, err := reviewerOwnsAccessList(ctx, reviewer, accessList, accessListGetter)
+	if err != nil {
 		return trace.Wrap(err)
+	}
+	if owns {
+		return nil
 	}
 
 	// If the reviewer is not an owner, check if they have access to modify the access list.
