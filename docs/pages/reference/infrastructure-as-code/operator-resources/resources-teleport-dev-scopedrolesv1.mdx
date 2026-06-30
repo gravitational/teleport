@@ -67,6 +67,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |groups|[]string|The list of kubernetes groups this role allows.|
 |labels|[][object](#speckubelabels-items)|The map of kubernetes cluster labels used for RBAC.|
 |lock|[object](#speckubelock)|Lock configures the role's locking behavior for kubernetes sessions.|
+|resources|[][object](#speckuberesources-items)|The kubernetes resources this role grants access to.|
 |users|[]string|An optional list of impersonatable kubernetes users this role allows.|
 
 ### spec.kube.labels items
@@ -81,6 +82,16 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |mode|string|Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.|
+
+### spec.kube.resources items
+
+|Field|Type|Description|
+|---|---|---|
+|api_group|string|The kube API group of the kube resource. It supports wildcards.|
+|kind|string|The kube resource type.|
+|name|string|The kube resource name. It supports wildcards.|
+|namespace|string|The kube resource namespace. It supports wildcards.|
+|verbs|[]string|The allowed kube verbs for interacting with the kube resource.|
 
 ### spec.rules items
 
