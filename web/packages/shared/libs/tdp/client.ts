@@ -674,32 +674,39 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    try {
-      const info = await sharedDirectory.stat(path);
-      this.sendSharedDirectoryInfoResponse({
-        completionId: req.completionId,
-        directoryId: req.directoryId,
-        errCode: SharedDirectoryErrCode.Nil,
-        fso: this.toFso(info),
-      });
-    } catch (e) {
-      if (e.constructor === PathDoesNotExistError) {
-        this.sendSharedDirectoryInfoResponse({
-          completionId: req.completionId,
-          directoryId: req.directoryId,
-          errCode: SharedDirectoryErrCode.DoesNotExist,
-          fso: {
-            lastModified: BigInt(0),
-            fileType: FileType.File,
-            size: BigInt(0),
-            isEmpty: true,
-            path: path,
-          },
-        });
-      } else {
-        throw e;
+    await sharedDirectory.dispatch<SharedDirectoryInfoResponse>(
+      async directoryAccess => {
+        try {
+          const info = await directoryAccess.stat(path);
+          return {
+            completionId: req.completionId,
+            directoryId: req.directoryId,
+            errCode: SharedDirectoryErrCode.Nil,
+            fso: this.toFso(info),
+          };
+        } catch (e) {
+          if (e.constructor === PathDoesNotExistError) {
+            return {
+              completionId: req.completionId,
+              directoryId: req.directoryId,
+              errCode: SharedDirectoryErrCode.DoesNotExist,
+              fso: {
+                lastModified: BigInt(0),
+                fileType: FileType.File,
+                size: BigInt(0),
+                isEmpty: true,
+                path: path,
+              },
+            };
+          } else {
+            throw e;
+          }
+        }
+      },
+      result => {
+        this.sendSharedDirectoryInfoResponse(result);
       }
-    }
+    );
   }
 
   async handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest) {
@@ -710,30 +717,35 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    try {
-      await sharedDirectory.create(req.path, req.fileType);
-      const info = await sharedDirectory.stat(req.path);
-      this.sendSharedDirectoryCreateResponse({
-        completionId: req.completionId,
-        directoryId: req.directoryId,
-        errCode: SharedDirectoryErrCode.Nil,
-        fso: this.toFso(info),
-      });
-    } catch (e) {
-      this.sendSharedDirectoryCreateResponse({
-        completionId: req.completionId,
-        directoryId: req.directoryId,
-        errCode: SharedDirectoryErrCode.Failed,
-        fso: {
-          lastModified: BigInt(0),
-          fileType: FileType.File,
-          size: BigInt(0),
-          isEmpty: true,
-          path: req.path,
-        },
-      });
-      this.handleWarning(e.message, TdpClientEvent.CLIENT_WARNING);
-    }
+    await sharedDirectory.dispatch<SharedDirectoryCreateResponse>(
+      async directoryAccess => {
+        try {
+          await directoryAccess.create(req.path, req.fileType);
+          const info = await directoryAccess.stat(req.path);
+          return {
+            completionId: req.completionId,
+            directoryId: req.directoryId,
+            errCode: SharedDirectoryErrCode.Nil,
+            fso: this.toFso(info),
+          };
+        } catch (e) {
+          this.handleWarning(e.message, TdpClientEvent.CLIENT_WARNING);
+          return {
+            completionId: req.completionId,
+            directoryId: req.directoryId,
+            errCode: SharedDirectoryErrCode.Failed,
+            fso: {
+              lastModified: BigInt(0),
+              fileType: FileType.File,
+              size: BigInt(0),
+              isEmpty: true,
+              path: req.path,
+            },
+          };
+        }
+      },
+      result => this.sendSharedDirectoryCreateResponse(result)
+    );
   }
 
   async handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest) {
@@ -744,21 +756,26 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    try {
-      await sharedDirectory.delete(req.path);
-      this.sendSharedDirectoryDeleteResponse({
-        completionId: req.completionId,
-        directoryId: req.directoryId,
-        errCode: SharedDirectoryErrCode.Nil,
-      });
-    } catch (e) {
-      this.sendSharedDirectoryDeleteResponse({
-        completionId: req.completionId,
-        directoryId: req.directoryId,
-        errCode: SharedDirectoryErrCode.Failed,
-      });
-      this.handleWarning(e.message, TdpClientEvent.CLIENT_WARNING);
-    }
+    await sharedDirectory.dispatch<SharedDirectoryDeleteResponse>(
+      async directoryAccess => {
+        await directoryAccess.delete(req.path);
+        try {
+          return {
+            completionId: req.completionId,
+            directoryId: req.directoryId,
+            errCode: SharedDirectoryErrCode.Nil,
+          };
+        } catch (e) {
+          this.handleWarning(e.message, TdpClientEvent.CLIENT_WARNING);
+          return {
+            completionId: req.completionId,
+            directoryId: req.directoryId,
+            errCode: SharedDirectoryErrCode.Failed,
+          };
+        }
+      },
+      result => this.sendSharedDirectoryDeleteResponse(result)
+    );
   }
 
   async handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest) {
@@ -768,18 +785,24 @@ export class TdpClient extends EventEmitter<EventMap> {
     if (!sharedDirectory) {
       return;
     }
-    const readData = await sharedDirectory.read(
-      req.path,
-      req.offset,
-      req.length
+
+    await sharedDirectory.dispatch<SharedDirectoryReadResponse>(
+      async directoryAccess => {
+        const readData = await directoryAccess.read(
+          req.path,
+          req.offset,
+          req.length
+        );
+        return {
+          completionId: req.completionId,
+          directoryId: req.directoryId,
+          errCode: SharedDirectoryErrCode.Nil,
+          readDataLength: readData.length,
+          readData,
+        };
+      },
+      result => this.sendSharedDirectoryReadResponse(result)
     );
-    this.sendSharedDirectoryReadResponse({
-      completionId: req.completionId,
-      directoryId: req.directoryId,
-      errCode: SharedDirectoryErrCode.Nil,
-      readDataLength: readData.length,
-      readData,
-    });
   }
 
   async handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest) {
@@ -790,18 +813,22 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    const bytesWritten = await sharedDirectory.write(
-      req.path,
-      req.offset,
-      req.writeData
+    await sharedDirectory.dispatch<SharedDirectoryWriteResponse>(
+      async directoryAccess => {
+        const bytesWritten = await directoryAccess.write(
+          req.path,
+          req.offset,
+          req.writeData
+        );
+        return {
+          completionId: req.completionId,
+          directoryId: req.directoryId,
+          errCode: SharedDirectoryErrCode.Nil,
+          bytesWritten,
+        };
+      },
+      result => this.sendSharedDirectoryWriteResponse(result)
     );
-
-    this.sendSharedDirectoryWriteResponse({
-      completionId: req.completionId,
-      directoryId: req.directoryId,
-      errCode: SharedDirectoryErrCode.Nil,
-      bytesWritten,
-    });
   }
 
   handleSharedDirectoryMoveRequest(req: SharedDirectoryMoveRequest) {
@@ -827,15 +854,19 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    const infoList = await sharedDirectory.readDir(path);
-    const fsoList = infoList.map(info => this.toFso(info));
-
-    this.sendSharedDirectoryListResponse({
-      completionId: req.completionId,
-      directoryId: req.directoryId,
-      errCode: SharedDirectoryErrCode.Nil,
-      fsoList,
-    });
+    await sharedDirectory.dispatch<SharedDirectoryListResponse>(
+      async directoryAccess => {
+        const infoList = await directoryAccess.readDir(path);
+        const fsoList = infoList.map(info => this.toFso(info));
+        return {
+          completionId: req.completionId,
+          directoryId: req.directoryId,
+          errCode: SharedDirectoryErrCode.Nil,
+          fsoList,
+        };
+      },
+      result => this.sendSharedDirectoryListResponse(result)
+    );
   }
 
   async handleSharedDirectoryTruncateRequest(
@@ -861,12 +892,17 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    await sharedDirectory.truncate(req.path, Number(req.endOfFile));
-    this.sendSharedDirectoryTruncateResponse({
-      completionId: req.completionId,
-      directoryId: req.directoryId,
-      errCode: SharedDirectoryErrCode.Nil,
-    });
+    await sharedDirectory.dispatch<SharedDirectoryTruncateResponse>(
+      async directoryAccess => {
+        await directoryAccess.truncate(req.path, Number(req.endOfFile));
+        return {
+          completionId: req.completionId,
+          directoryId: req.directoryId,
+          errCode: SharedDirectoryErrCode.Nil,
+        };
+      },
+      result => this.sendSharedDirectoryTruncateResponse(result)
+    );
   }
 
   private toFso(info: FileOrDirInfo): FileSystemObject {
@@ -1051,7 +1087,7 @@ export class TdpError extends Error {
 
 class SharedDirectoryManager {
   private deviceId: Identifiers;
-  private sharedDirectories: Map<number, SharedDirectoryAccess>;
+  private sharedDirectories: Map<number, DirectoryDispatcher>;
 
   constructor(
     private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
@@ -1069,7 +1105,7 @@ class SharedDirectoryManager {
       // before they're re-used.
       2 + maxDirectories * 2
     );
-    this.sharedDirectories = new Map<number, SharedDirectoryAccess>();
+    this.sharedDirectories = new Map<number, DirectoryDispatcher>();
   }
 
   // Clear all shared directories
@@ -1082,7 +1118,7 @@ class SharedDirectoryManager {
     this.deviceId.reset();
   }
 
-  getSharedDirectory(directoryId: number): SharedDirectoryAccess | undefined {
+  getSharedDirectory(directoryId: number): DirectoryDispatcher | undefined {
     const directoryAccess = this.sharedDirectories.get(directoryId);
     if (!directoryAccess) {
       // The directory may have been recently unshared while the server had
@@ -1105,7 +1141,7 @@ class SharedDirectoryManager {
       throw Error('Error acquiring identifier for shared directory');
     }
 
-    this.sharedDirectories.set(id, directory);
+    this.sharedDirectories.set(id, new DirectoryDispatcher(directory));
     this.logger.info(
       `Sharing directory '${directory.getDirectoryName()}' with device id '${id}'`
     );
@@ -1113,6 +1149,7 @@ class SharedDirectoryManager {
   }
 
   unshareDirectory(directoryId: number): void {
+    this.sharedDirectories.get(directoryId)?.unshare();
     const del = this.sharedDirectories.delete(directoryId);
     const rel = this.deviceId.release(directoryId);
     if (!(del && rel)) {
@@ -1169,5 +1206,34 @@ class Identifiers {
     this.leased.forEach(value => this.free.push(value));
     this.leased.clear();
     this.free.sort((a, b) => a - b);
+  }
+}
+
+// Wraps a SharedDirectoryAccess and provides a framework
+// for dispatching IO requests against a given directory.
+// Once the directory is unshared, pending I/O responses
+// will be dropped. We consider it a protocol violation
+// to send a response for a directory which has been removed.
+export class DirectoryDispatcher {
+  private ac = new AbortController();
+  constructor(private access: SharedDirectoryAccess) {}
+
+  unshare() {
+    this.ac.abort();
+  }
+
+  async dispatch<T>(
+    operation: (access: SharedDirectoryAccess) => Promise<T>,
+    respond: (result: T) => void
+  ): Promise<void> {
+    const result = await operation(this.access);
+    if (!this.ac.signal.aborted) {
+      respond(result);
+    }
+  }
+
+  // For sync access where needed (e.g. getDirectoryName)
+  getDirectoryName() {
+    return this.access.getDirectoryName();
   }
 }
