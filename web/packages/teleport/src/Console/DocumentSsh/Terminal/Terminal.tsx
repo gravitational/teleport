@@ -16,14 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  resolveColorTokens,
+  useDesignSystemContext,
+} from '@gravitational/design-system';
 import { ITheme } from '@xterm/xterm';
 import React, {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
 } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { Flex } from 'design';
 import { getPlatformType } from 'design/platform';
@@ -37,8 +42,6 @@ import StyledXterm from '../../StyledXterm';
 
 export interface TerminalProps {
   tty: Tty;
-  fontFamily: string;
-  theme: ITheme;
   // convertEol when set to true cursor will be set to the beginning of the next line with every received new line symbol.
   // This is equivalent to replacing each '\n' with '\r\n'.
   convertEol?: boolean;
@@ -56,6 +59,13 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const toastNotifications = useToastNotifications();
   // Keeps track of the notification id so that we can ensure there is only maximum one copy block notification showing at a time.
   const copyBlockedToastIdRef = useRef<string>(undefined);
+  const theme = useTheme();
+  const system = useDesignSystemContext();
+
+  const xtermTheme = useMemo<ITheme>(
+    () => resolveColorTokens(system, theme.colors.terminal, theme.type),
+    [system, theme.colors.terminal, theme.type]
+  );
 
   useImperativeHandle(
     ref,
@@ -71,9 +81,9 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
 
     const termCtrl = new XTermCtrl(props.tty, {
       el: elementRef.current,
-      fontFamily: props.fontFamily,
+      fontFamily: theme.fonts.mono,
       fontSize,
-      theme: props.theme,
+      theme: xtermTheme,
       convertEol: props.convertEol,
       disableCopy: props.disableCopy,
       onCopyBlocked: () => {
@@ -92,6 +102,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
         });
       },
     });
+
     termCtrlRef.current = termCtrl;
 
     termCtrl.open();
@@ -118,8 +129,8 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   }, []);
 
   useEffect(() => {
-    termCtrlRef.current?.updateTheme(props.theme);
-  }, [props.theme]);
+    termCtrlRef.current?.updateTheme(xtermTheme);
+  }, [xtermTheme]);
 
   useEffect(() => {
     if (!props.disableAutoFocus) {

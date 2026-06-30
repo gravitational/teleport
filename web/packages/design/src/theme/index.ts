@@ -24,3 +24,4 @@ export * from './themes/types';
 
 export { darkTheme, lightTheme, bblpTheme };
 export { breakpointsPx } from './themes/sharedStyles';
+export { resolveTheme } from './themes/resolveTheme';

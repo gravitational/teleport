@@ -636,7 +636,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	if cfg.ScopedTokenService == nil {
-		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend)
+		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend, cfg.ScopesFeatures)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
