@@ -39,16 +39,29 @@ import (
 // Endpoint supplies the provider-specific behavior needed by a
 // [ResponseRecorder].
 type Endpoint interface {
+	EndpointNonStreaming
+	EndpointStreaming
+
+	// MarshalError encodes err into the provider's on-the-wire error format. It
+	// must always return a valid payload, even when err cannot be marshaled.
+	MarshalError(err error) (body []byte)
+}
+
+// EndpointNonStreaming contains the endpoint functions used for non streaming
+// requests.
+type EndpointNonStreaming interface {
 	// ParseError parses a non-streaming error response body into a provider
 	// error. statusCode is the HTTP status of the response. The second return
 	// value is non-nil only when the body itself could not be parsed.
 	ParseError(statusCode int, body []byte) (providerError *llmerrors.ProviderError, err error)
-	// MarshalError encodes err into the provider's on-the-wire error format. It
-	// must always return a valid payload, even when err cannot be marshaled.
-	MarshalError(err error) (body []byte)
 	// ParseUsage extracts the input/output token usage from a non-streaming
 	// success response body.
 	ParseUsage(body []byte) (inputTokens int, outputTokens int, err error)
+}
+
+// EndpointNonStreaming contains the endpoint functions used for streaming
+// requests.
+type EndpointStreaming interface {
 	// ProcessSSE reads SSE events from reader, forwarding them to writer while
 	// recording token usage.
 	ProcessSSE(ctx context.Context, log *slog.Logger, reader io.ReadCloser, writer io.Writer) (inputTokens int, outputTokens int, err error)

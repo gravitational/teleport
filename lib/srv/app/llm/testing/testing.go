@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/httplib/sse"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -71,9 +71,13 @@ func (w *FailingResponseWriter) Flush()                    {}
 
 // ReadSSEOneEvent parses str and asserts it contains exactly one SSE event,
 // which it returns.
-func ReadSSEOneEvent(t require.TestingT, str string) sse.Event {
+func ReadSSEOneEvent(str string) (sse.Event, error) {
 	events, err := stream.Collect(sse.ReadEvents(strings.NewReader(str)))
-	require.NoError(t, err)
-	require.Len(t, events, 1)
-	return events[0]
+	if err != nil {
+		return sse.Event{}, trace.Wrap(err)
+	}
+	if len(events) != 1 {
+		return sse.Event{}, trace.BadParameter("must contain exactly one SSE event")
+	}
+	return events[0], nil
 }
