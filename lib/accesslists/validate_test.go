@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -108,8 +107,8 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	}
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members:     make(map[scopes.QualifiedName][]*accesslist.AccessListMember),
-		accessLists: make(map[scopes.QualifiedName]*accesslist.AccessList),
+		members:     make(map[NormalizedSQN][]*accesslist.AccessListMember),
+		accessLists: make(map[NormalizedSQN]*accesslist.AccessList),
 	}
 
 	// Create members up to MaxAllowedDepth
@@ -508,7 +507,7 @@ func TestAccessListValidateWithMembers_members(t *testing.T) {
 	}
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members: map[scopes.QualifiedName][]*accesslist.AccessListMember{
+		members: map[NormalizedSQN][]*accesslist.AccessListMember{
 			ScopeQualifiedName(rootAcl): {},
 		},
 		accessLists: mockAccessLists(rootAcl),
@@ -550,8 +549,8 @@ func TestAccessListValidateWithMembers_members(t *testing.T) {
 	}
 
 	accessListAndMembersGetter = &mockAccessListAndMembersGetter{
-		members:     map[scopes.QualifiedName][]*accesslist.AccessListMember{},
-		accessLists: map[scopes.QualifiedName]*accesslist.AccessList{},
+		members:     map[NormalizedSQN][]*accesslist.AccessListMember{},
+		accessLists: map[NormalizedSQN]*accesslist.AccessList{},
 	}
 
 	// Create the members for the first hierarchy.
@@ -599,8 +598,8 @@ func Test_ValidateAccessListWithMembers_audit(t *testing.T) {
 	var accessList *accesslist.AccessList
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members: map[scopes.QualifiedName][]*accesslist.AccessListMember{},
-		accessLists: map[scopes.QualifiedName]*accesslist.AccessList{
+		members: map[NormalizedSQN][]*accesslist.AccessListMember{},
+		accessLists: map[NormalizedSQN]*accesslist.AccessList{
 			{Name: accessListName}: accessList,
 		},
 	}

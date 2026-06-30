@@ -43,13 +43,13 @@ import (
 
 // Mock implementation of AccessListAndMembersGetter.
 type mockAccessListAndMembersGetter struct {
-	accessLists map[scopes.QualifiedName]*accesslist.AccessList
-	members     map[scopes.QualifiedName][]*accesslist.AccessListMember
+	accessLists map[NormalizedSQN]*accesslist.AccessList
+	members     map[NormalizedSQN][]*accesslist.AccessListMember
 }
 
 func (m *mockAccessListAndMembersGetter) GetAccessListMember(ctx context.Context, accessListName, memberName string) (*accesslist.AccessListMember, error) {
 	// TODO(nklaassen): support scoped access list members.
-	member, exists := m.members[scopes.QualifiedName{Name: accessListName}]
+	member, exists := m.members[NormalizedSQN{Name: accessListName}]
 	if !exists {
 		return nil, trace.NotFound("access list %v member %v not found", accessListName, memberName)
 	}
@@ -68,10 +68,10 @@ func (m *mockAccessListAndMembersGetter) GetAccessList(ctx context.Context, acce
 }
 
 func (m *mockAccessListAndMembersGetter) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
-	accessListName := scopes.QualifiedName{
+	accessListName := NormalizeSQN(scopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
-	}
+	})
 	accessList, exists := m.accessLists[accessListName]
 	if !exists {
 		return nil, trace.NotFound("access list %v not found", accessListName)
@@ -81,25 +81,25 @@ func (m *mockAccessListAndMembersGetter) GetAccessListV2(ctx context.Context, re
 
 func (m *mockAccessListAndMembersGetter) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	// TODO(nklaassen): support scoped access list members.
-	members, exists := m.members[scopes.QualifiedName{Name: accessListName}]
+	members, exists := m.members[NormalizedSQN{Name: accessListName}]
 	if !exists {
 		return nil, "", nil
 	}
 	return members, "", nil
 }
 
-func mockAccessLists(accessLists ...*accesslist.AccessList) map[scopes.QualifiedName]*accesslist.AccessList {
-	out := make(map[scopes.QualifiedName]*accesslist.AccessList, len(accessLists))
+func mockAccessLists(accessLists ...*accesslist.AccessList) map[NormalizedSQN]*accesslist.AccessList {
+	out := make(map[NormalizedSQN]*accesslist.AccessList, len(accessLists))
 	for _, accessList := range accessLists {
 		out[ScopeQualifiedName(accessList)] = accessList
 	}
 	return out
 }
 
-func mockAccessListMembers(members ...*accesslist.AccessListMember) map[scopes.QualifiedName][]*accesslist.AccessListMember {
-	out := make(map[scopes.QualifiedName][]*accesslist.AccessListMember)
+func mockAccessListMembers(members ...*accesslist.AccessListMember) map[NormalizedSQN][]*accesslist.AccessListMember {
+	out := make(map[NormalizedSQN][]*accesslist.AccessListMember)
 	for _, member := range members {
-		listName := scopes.QualifiedName{Name: member.Spec.AccessList}
+		listName := NormalizedSQN{Name: member.Spec.AccessList}
 		out[listName] = append(out[listName], member)
 	}
 	return out
@@ -850,7 +850,7 @@ func TestGetInheritedRequires(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			listsByID := make(map[scopes.QualifiedName]*accesslist.AccessList, len(tc.lists))
+			listsByID := make(map[NormalizedSQN]*accesslist.AccessList, len(tc.lists))
 			listsByName := make(map[string]*accesslist.AccessList, len(tc.lists))
 			for _, ls := range tc.lists {
 				acl, err := accesslist.NewAccessList(
@@ -868,13 +868,14 @@ func TestGetInheritedRequires(t *testing.T) {
 				listsByName[ls.name] = acl
 			}
 
-			members := make(map[scopes.QualifiedName][]*accesslist.AccessListMember)
+			members := make(map[NormalizedSQN][]*accesslist.AccessListMember)
 			for _, ls := range tc.lists {
 				child := listsByName[ls.name]
 				for _, parentName := range ls.memberOf {
 					parent := listsByName[parentName]
 					child.Status.MemberOf = append(child.Status.MemberOf, parent.GetName())
-					members[ScopeQualifiedName(parent)] = append(members[ScopeQualifiedName(parent)], newAccessListMember(t, parent.GetName(), child.GetName(), accesslist.MembershipKindList, clock))
+					members[ScopeQualifiedName(parent)] = append(members[ScopeQualifiedName(parent)],
+						newAccessListMember(t, parent.GetName(), child.GetName(), accesslist.MembershipKindList, clock))
 				}
 			}
 
@@ -1006,9 +1007,9 @@ func generateAccessList(name string) *accesslist.AccessList {
 	}
 }
 
-func generateNestedALs(level, directMembers int, rootListName, userName string) (map[scopes.QualifiedName]*accesslist.AccessList, map[scopes.QualifiedName][]*accesslist.AccessListMember) {
+func generateNestedALs(level, directMembers int, rootListName, userName string) (map[NormalizedSQN]*accesslist.AccessList, map[NormalizedSQN][]*accesslist.AccessListMember) {
 	accesslists := []*accesslist.AccessList{generateAccessList(rootListName)}
-	members := make(map[scopes.QualifiedName][]*accesslist.AccessListMember)
+	members := make(map[NormalizedSQN][]*accesslist.AccessListMember)
 
 	for i := range level - 1 {
 		parentName := accesslists[i].GetName()
@@ -1042,10 +1043,10 @@ func generateNestedALs(level, directMembers int, rootListName, userName string) 
 			},
 		})
 
-		members[scopes.QualifiedName{Name: parentName}] = listMembers
+		members[NormalizedSQN{Name: parentName}] = listMembers
 	}
 
-	alMap := make(map[scopes.QualifiedName]*accesslist.AccessList)
+	alMap := make(map[NormalizedSQN]*accesslist.AccessList)
 	for _, al := range accesslists {
 		alMap[ScopeQualifiedName(al)] = al
 	}
