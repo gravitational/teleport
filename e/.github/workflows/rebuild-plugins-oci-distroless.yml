@@ -30,14 +30,6 @@ on:
         type: string
         default: stage/oci-rebuild
 
-      architectures:
-        description:
-          A newline-separated list of the CPU architectures to build for
-        type: string
-        default: |
-          arm64
-          amd64
-
 run-name: Rebuild Distroless Plugin Images for Teleport ${{ inputs.teleport-release-tag }}
 
 jobs:
@@ -113,7 +105,9 @@ jobs:
       dest-image-repo: teleport-plugin-${{ matrix.plugins.name }}${{ matrix.image-type.repo-suffix }}
       dest-image-tags: ${{ needs.configure.outputs.image_tags }}
       environment: ${{ inputs.environment }}
-      architectures: ${{ inputs.architectures }}
+      architectures: |
+        arm64
+        amd64
       # Used to reconstruct tarball name
       image-build-args: |
         ARTIFACT_NAME=${{ matrix.plugins.artifact-name }}

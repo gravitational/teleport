@@ -27,14 +27,6 @@ on:
         type: string
         default: stage/oci-rebuild
 
-      architectures:
-        description:
-          A newline-separated list of the CPU architectures to build for
-        type: string
-        default: |
-          arm64
-          amd64
-          arm
 run-name: Rebuild distroless operator OCI Image ${{ inputs.teleport-release-tag }}
 
 jobs:
@@ -70,7 +62,10 @@ jobs:
       dest-image-registry-region: us-east-1
       dest-image-repo: teleport-operator
       dest-image-tags: ${{ needs.configure.outputs.image-tags }}
-      architectures: ${{ inputs.architectures }}
+      architectures: |
+        arm64
+        amd64
+        arm
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport-version }}
       image-build-context: ./teleport/.
