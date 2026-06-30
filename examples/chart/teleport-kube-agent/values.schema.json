@@ -804,6 +804,32 @@
             "$id": "#/properties/jamfSecret",
             "type": "string",
             "default": ""
+        },
+        "storage": {
+            "$id": "#/properties/storage",
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/storage/properties/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "storageClassName": {
+                    "$id": "#/properties/storage/properties/storageClassName",
+                    "type": "string",
+                    "default": ""
+                },
+                "requests": {
+                    "$id": "#/properties/storage/properties/requests",
+                    "type": "string",
+                    "default": "128Mi"
+                },
+                "emptyDirSizeLimit": {
+                    "$id": "#/properties/storage/properties/emptyDirSizeLimit",
+                    "type": "string",
+                    "default": ""
+                }
+            }
         }
     }
 }
