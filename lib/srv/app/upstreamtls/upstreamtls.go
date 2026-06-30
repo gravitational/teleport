@@ -418,19 +418,15 @@ func issueClientCertificate(ctx context.Context, opts Options) (*tls.Certificate
 	}
 
 	clt := opts.WorkloadIdentityClientGetter.WorkloadIdentityIssuanceClient()
-	resp, err := clt.IssueTeleportWorkloadIdentity(ctx, &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
-		Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
-			X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-				PublicKey: pubBytes,
-			},
-		},
+	resp, err := clt.IssueTeleportWorkloadIdentity(ctx, workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_builder{
+		X509SvidParams: workloadidentityv1pb.X509SVIDParams_builder{
+			PublicKey: pubBytes,
+		}.Build(),
 		RequestedTtl: durationpb.New(common.MaxSessionChunkDuration),
-		Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
-			AppAccess: &workloadidentityv1pb.AppAccessUsage{
-				UserCertificate: userCert,
-			},
-		},
-	})
+		AppAccess: workloadidentityv1pb.AppAccessUsage_builder{
+			UserCertificate: userCert,
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return nil, time.Time{}, trace.Wrap(err)
 	}
