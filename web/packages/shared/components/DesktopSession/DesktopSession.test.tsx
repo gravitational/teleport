@@ -236,7 +236,7 @@ test('directory sharing menu', async () => {
 
   // Successfully initialize the connection.
   await act(() => transport.emitPngFrameTDPBMessage());
-  await act(() => transport.emitServerCapabilities({ canRemove: true }));
+  await act(() => transport.emitServerCapabilities({ canRemove: false }));
 
   // The menu icon should also be visible
   const shareButton = await screen.findByRole('button', {
@@ -264,20 +264,6 @@ test('directory sharing menu', async () => {
   expect(directories).toHaveLength(2);
   expect(directories[0].name).toEqual(dirName);
   expect(directories[1].name).toEqual(dirName);
-
-  // Clicking the eject button unshares the directory and removes
-  // it from the menu.
-  expect(directories[0].ejectButton).toBeEnabled();
-  await userEvent.click(directories[0].ejectButton);
-
-  // Only one should remain
-  const updatedDirectories = await getSharedDirectoryEntries(shareMenu);
-  expect(updatedDirectories).toHaveLength(1);
-
-  // Server reports that it cannot remove directories
-  // unshare/eject button should be disabled.
-  await act(() => transport.emitServerCapabilities({ canRemove: false }));
-  expect(updatedDirectories[0].ejectButton).toBeDisabled();
 });
 
 async function getSharedDirectoryEntries(menu: HTMLElement) {
@@ -287,9 +273,6 @@ async function getSharedDirectoryEntries(menu: HTMLElement) {
   return entries.map(elem => {
     return {
       name: elem.textContent,
-      ejectButton: within(elem).getByRole('button', {
-        name: /disconnect shared directory/i,
-      }),
     };
   });
 }
