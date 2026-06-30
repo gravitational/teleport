@@ -229,8 +229,11 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 	})
 
 	if !insecureSkipSignatureVerify {
-		if err := li.verifyArtifactSignature(ctx, f, uri+"."+artifactSignatureType, pathSum); err != nil {
+		if err := li.verifyArtifactSignature(ctx, uri+"."+artifactSignatureType, pathSum); err != nil {
 			return trace.Wrap(err)
+		}
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return trace.Wrap(err, "failed to reset artifact after signature verification")
 		}
 	} else {
 		li.Log.WarnContext(ctx, "artifact signature verification is disabled. Falling back to checksum-only verification.", "version", rev)
@@ -380,7 +383,7 @@ func (li *LocalInstaller) getSignature(ctx context.Context, url string) ([]byte,
 	return sig, nil
 }
 
-func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, artifact io.ReadSeeker, url string, digest []byte) error {
+func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, url string, digest []byte) error {
 	verifier, err := li.artifactSignatureVerifier()
 	if err != nil {
 		return trace.Wrap(err)
@@ -391,9 +394,6 @@ func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, artifact 
 	}
 	if err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader(nil), sigopts.WithDigest(digest)); err != nil {
 		return trace.Wrap(err, "artifact signature verification failed")
-	}
-	if _, err := artifact.Seek(0, io.SeekStart); err != nil {
-		return trace.Wrap(err, "failed to reset artifact after signature verification")
 	}
 	return nil
 }
