@@ -1525,8 +1525,7 @@ func TestScopedBotSSH(t *testing.T) {
 			},
 			Scope: scopeName,
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  botName,
-				BotScope: scopeName,
+				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{Role: scopedRoleName, Scope: scopeName},
 				},
