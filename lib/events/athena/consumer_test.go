@@ -20,17 +20,16 @@ package athena
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"math/big"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -39,7 +38,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
@@ -50,189 +48,164 @@ import (
 )
 
 func Test_consumer_sqsMessagesCollector(t *testing.T) {
-	// channelClosedCondition returns function that can be used to check if eventually
-	// channel was closed.
-	channelClosedCondition := func(t *testing.T, ch <-chan eventAndAckID) func() bool {
-		return func() bool {
-			select {
-			case _, ok := <-ch:
-				if ok {
-					t.Log("Received unexpected message")
-					t.Fail()
-					return false
-				} else {
-					// channel is closed, that's what we are waiting for.
-					return true
-				}
-			default:
-				// retry
-				return false
-			}
-		}
-	}
-
 	maxWaitTimeOnReceiveMessagesInFake := 5 * time.Millisecond
-	maxWaitOnResults := 200 * time.Millisecond
 
 	t.Run("verify if events are sent over channel", func(t *testing.T) {
-		// Given SqsMessagesCollector reading from fake sqs with random wait time on receiveMessage call
-		// When 3 messages are published
-		// Then 3 messages can be received from eventsChan.
+		synctest.Test(t, func(t *testing.T) {
+			// Given SqsMessagesCollector reading from fake sqs with a delayed ReceiveMessage call
+			// When 3 messages are published
+			// Then 3 messages can be received from eventsChan.
 
-		// Given
-		fclock := clockwork.NewFakeClock()
-		fq := &fakeSQS{
-			clock:       fclock,
-			maxWaitTime: maxWaitTimeOnReceiveMessagesInFake,
-		}
-		cfg := validCollectCfgForTests(t)
-		cfg.sqsReceiver = fq
-		require.NoError(t, cfg.CheckAndSetDefaults())
-		c := newSqsMessagesCollector(cfg)
-		eventsChan := c.getEventsChan()
+			// Given
+			fq := &fakeSQS{maxWaitTime: maxWaitTimeOnReceiveMessagesInFake}
+			cfg := validCollectCfgForTests(t)
+			cfg.sqsReceiver = fq
+			cfg.noOfWorkers = 1
+			require.NoError(t, cfg.CheckAndSetDefaults())
+			c := newSqsMessagesCollector(cfg)
+			eventsChan := c.getEventsChan()
 
-		readSQSCtx := t.Context()
-		go c.fromSQS(readSQSCtx)
+			ctx, readCancel := context.WithCancel(t.Context())
+			defer readCancel()
+			go c.fromSQS(ctx)
 
-		// receiver is used to read messages from eventsChan.
-		r := &receiver{}
-		go r.Do(eventsChan)
+			// When
+			wantEvents := []apievents.AuditEvent{
+				&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app1"}},
+				&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app2"}},
+				&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app3"}},
+			}
+			fq.addEvents(wantEvents...)
 
-		// When
-		wantEvents := []apievents.AuditEvent{
-			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app1"}},
-			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app2"}},
-			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app3"}},
-		}
-		fq.addEvents(wantEvents...)
-		// Advance clock to simulate random wait time on receive messages endpoint.
-		fclock.BlockUntil(cfg.noOfWorkers)
-		fclock.Advance(maxWaitTimeOnReceiveMessagesInFake)
-
-		// Then
-		require.Eventually(t, func() bool {
-			return len(r.GetMsgs()) == 3
-		}, maxWaitOnResults, 1*time.Millisecond)
-		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(r.GetMsgs()))
+			// Then
+			got := receiveEvents(t, eventsChan, 3)
+			readCancel()
+			requireChannelClosed(t, eventsChan)
+			requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(got))
+		})
 	})
 
 	t.Run("verify if collector finishes execution (via closing channel) upon ctx.Cancel", func(t *testing.T) {
-		// Given SqsMessagesCollector reading from fake sqs with random wait time on receiveMessage call
-		// When ctx is canceled
-		// Then reading chan is closed.
+		synctest.Test(t, func(t *testing.T) {
+			// Given SqsMessagesCollector reading from fake sqs with a delayed ReceiveMessage call
+			// When ctx is canceled
+			// Then reading chan is closed.
 
-		// Given
-		fclock := clockwork.NewFakeClock()
-		fq := &fakeSQS{
-			clock:       fclock,
-			maxWaitTime: maxWaitTimeOnReceiveMessagesInFake,
-		}
-		cfg := validCollectCfgForTests(t)
-		cfg.sqsReceiver = fq
-		require.NoError(t, cfg.CheckAndSetDefaults())
-		c := newSqsMessagesCollector(cfg)
-		eventsChan := c.getEventsChan()
+			// Given
+			fq := &fakeSQS{maxWaitTime: maxWaitTimeOnReceiveMessagesInFake}
+			cfg := validCollectCfgForTests(t)
+			cfg.sqsReceiver = fq
+			cfg.noOfWorkers = 1
+			require.NoError(t, cfg.CheckAndSetDefaults())
+			c := newSqsMessagesCollector(cfg)
+			eventsChan := c.getEventsChan()
 
-		readSQSCtx, readCancel := context.WithCancel(context.Background())
-		go c.fromSQS(readSQSCtx)
+			readSQSCtx, readCancel := context.WithCancel(t.Context())
+			go c.fromSQS(readSQSCtx)
 
-		// When
-		readCancel()
+			// When
+			readCancel()
 
-		// Then
-		// Make sure that channel is closed.
-		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
+			// Then
+			// Make sure that channel is closed.
+			requireChannelClosed(t, eventsChan)
+		})
 	})
 
 	t.Run("verify if collector finishes execution (via closing channel) upon reaching batchMaxItems", func(t *testing.T) {
-		// Given SqsMessagesCollector reading from fake sqs with random wait time on receiveMessage call
-		// When batchMaxItems is reached.
-		// Then reading chan is closed.
+		synctest.Test(t, func(t *testing.T) {
+			// Given SqsMessagesCollector reading from fake sqs with a delayed ReceiveMessage call
+			// When batchMaxItems is reached.
+			// Then reading chan is closed.
 
-		// Given
-		fclock := clockwork.NewFakeClock()
-		fq := &fakeSQS{
-			clock:       fclock,
-			maxWaitTime: maxWaitTimeOnReceiveMessagesInFake,
-		}
-		cfg := validCollectCfgForTests(t)
-		cfg.sqsReceiver = fq
-		cfg.batchMaxItems = 3
-		require.NoError(t, cfg.CheckAndSetDefaults())
-		c := newSqsMessagesCollector(cfg)
+			// Given
+			fq := &fakeSQS{maxWaitTime: maxWaitTimeOnReceiveMessagesInFake}
+			cfg := validCollectCfgForTests(t)
+			cfg.sqsReceiver = fq
+			cfg.noOfWorkers = 1
+			cfg.batchMaxItems = 3
+			require.NoError(t, cfg.CheckAndSetDefaults())
+			c := newSqsMessagesCollector(cfg)
 
-		eventsChan := c.getEventsChan()
+			eventsChan := c.getEventsChan()
 
-		readSQSCtx := t.Context()
+			go c.fromSQS(t.Context())
 
-		go c.fromSQS(readSQSCtx)
+			// When
+			wantEvents := []apievents.AuditEvent{
+				&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app1"}},
+				&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app2"}},
+				&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app3"}},
+			}
+			fq.addEvents(wantEvents...)
+			got := receiveEvents(t, eventsChan, 3)
 
-		// receiver is used to read messages from eventsChan.
-		r := &receiver{}
-		go r.Do(eventsChan)
-
-		// When
-		wantEvents := []apievents.AuditEvent{
-			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app1"}},
-			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app2"}},
-			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app3"}},
-		}
-		fq.addEvents(wantEvents...)
-		fclock.BlockUntil(cfg.noOfWorkers)
-		fclock.Advance(maxWaitTimeOnReceiveMessagesInFake)
-		require.Eventually(t, func() bool {
-			return len(r.GetMsgs()) == 3
-		}, maxWaitOnResults, 1*time.Millisecond)
-
-		// Then
-		// Make sure that channel is closed.
-		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
-		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(r.GetMsgs()))
+			// Then
+			// Make sure that channel is closed.
+			requireChannelClosed(t, eventsChan)
+			requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(got))
+		})
 	})
 	t.Run("verify if collector finishes execution (via closing channel) upon reaching maxUniquePerDayEvents", func(t *testing.T) {
-		// Given SqsMessagesCollector reading from fake sqs with random wait time on receiveMessage call
-		// When maxUniquePerDayEvents is reached.
-		// Then reading chan is closed.
+		synctest.Test(t, func(t *testing.T) {
+			// Given SqsMessagesCollector reading from fake sqs with a delayed ReceiveMessage call
+			// When maxUniquePerDayEvents is reached.
+			// Then reading chan is closed.
 
-		// Given
-		fclock := clockwork.NewFakeClock()
-		fq := &fakeSQS{
-			clock:       fclock,
-			maxWaitTime: maxWaitTimeOnReceiveMessagesInFake,
-		}
-		cfg := validCollectCfgForTests(t)
-		cfg.sqsReceiver = fq
-		cfg.batchMaxItems = 1000
-		require.NoError(t, cfg.CheckAndSetDefaults())
-		c := newSqsMessagesCollector(cfg)
+			// Given
+			fq := &fakeSQS{maxWaitTime: maxWaitTimeOnReceiveMessagesInFake}
+			cfg := validCollectCfgForTests(t)
+			cfg.sqsReceiver = fq
+			cfg.noOfWorkers = 1
+			cfg.batchMaxItems = 1000
+			require.NoError(t, cfg.CheckAndSetDefaults())
+			c := newSqsMessagesCollector(cfg)
 
-		eventsChan := c.getEventsChan()
+			eventsChan := c.getEventsChan()
 
-		readSQSCtx := t.Context()
+			go c.fromSQS(t.Context())
 
-		go c.fromSQS(readSQSCtx)
+			// When over 100 unique days are sent
+			eventsToSend := make([]apievents.AuditEvent, 0, 101)
+			for i := range 101 {
+				day := time.Now().Add(time.Duration(i) * 24 * time.Hour)
+				eventsToSend = append(eventsToSend, &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: day}, AppMetadata: apievents.AppMetadata{AppName: "app1"}})
+			}
+			fq.addEvents(eventsToSend...)
+			receiveEvents(t, eventsChan, 101)
 
-		// receiver is used to read messages from eventsChan.
-		r := &receiver{}
-		go r.Do(eventsChan)
-
-		// When over 100 unique days are sent
-		eventsToSend := make([]apievents.AuditEvent, 0, 101)
-		for i := range 101 {
-			day := fclock.Now().Add(time.Duration(i) * 24 * time.Hour)
-			eventsToSend = append(eventsToSend, &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: day}, AppMetadata: apievents.AppMetadata{AppName: "app1"}})
-		}
-		fq.addEvents(eventsToSend...)
-		fclock.BlockUntil(cfg.noOfWorkers)
-		fclock.Advance(maxWaitTimeOnReceiveMessagesInFake)
-		require.Eventually(t, func() bool {
-			return len(r.GetMsgs()) == 101
-		}, maxWaitOnResults, 1*time.Millisecond)
-
-		// Then
-		// Make sure that channel is closed.
-		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
+			// Then
+			// Make sure that channel is closed.
+			requireChannelClosed(t, eventsChan)
+		})
 	})
+}
+
+func receiveEvents(t *testing.T, ch <-chan eventAndAckID, n int) []eventAndAckID {
+	t.Helper()
+
+	out := make([]eventAndAckID, 0, n)
+	for len(out) < n {
+		select {
+		case event, ok := <-ch:
+			require.True(t, ok, "events channel closed after receiving %d of %d events", len(out), n)
+			out = append(out, event)
+		case <-time.After(15 * time.Second):
+			t.Fatalf("timed out waiting for event %d of %d", len(out)+1, n)
+		}
+	}
+	return out
+}
+
+func requireChannelClosed(t *testing.T, ch <-chan eventAndAckID) {
+	t.Helper()
+
+	select {
+	case event, ok := <-ch:
+		require.False(t, ok, "expected events channel to be closed, received %v", event)
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for events channel to close")
+	}
 }
 
 func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
@@ -262,7 +235,6 @@ func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
 type fakeSQS struct {
 	mu          sync.Mutex
 	msgs        []sqsTypes.Message
-	clock       clockwork.Clock
 	maxWaitTime time.Duration
 }
 
@@ -275,17 +247,10 @@ func (f *fakeSQS) addEvents(events ...apievents.AuditEvent) {
 }
 
 func (f *fakeSQS) ReceiveMessage(ctx context.Context, params *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
-	// Let's use random sleep duration. That's how sqs works, you could wait up until max wait time but
-	// it can return earlier.
-
-	randInt, err := rand.Int(rand.Reader, big.NewInt(f.maxWaitTime.Nanoseconds()))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-f.clock.After(time.Duration(randInt.Int64())):
+	case <-time.After(f.maxWaitTime):
 		// continue below
 	}
 	f.mu.Lock()
@@ -346,7 +311,7 @@ func rawProtoMessage(in apievents.AuditEvent) sqsTypes.Message {
 // from ReceiveMessage endpoint, will wait specified interval before retrying
 // after receiving error from API call.
 func TestSQSMessagesCollectorErrorsOnReceive(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	defer cancel()
 
 	mockReceiver := &mockReceiver{
@@ -411,90 +376,111 @@ func (m *mockReceiver) ReceiveMessage(ctx context.Context, params *sqs.ReceiveMe
 }
 
 func TestConsumerRunContinuouslyOnSingleAuth(t *testing.T) {
-	log := slog.Default()
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	defer backend.Close()
+	synctest.Test(t, func(t *testing.T) {
+		log := slog.New(slog.DiscardHandler)
+		backend, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+		defer backend.Close()
 
-	batchInterval := 20 * time.Millisecond
+		batchInterval := 20 * time.Millisecond
 
-	c1 := consumer{
-		logger:           log,
-		backend:          backend,
-		batchMaxInterval: batchInterval,
-	}
-	c2 := consumer{
-		logger:           log,
-		backend:          backend,
-		batchMaxInterval: batchInterval,
-	}
-	m1 := mockEventsProcessor{interval: batchInterval}
-	m2 := mockEventsProcessor{interval: batchInterval}
+		c1 := consumer{
+			logger:           log,
+			backend:          backend,
+			batchMaxInterval: batchInterval,
+		}
+		c2 := consumer{
+			logger:           log,
+			backend:          backend,
+			batchMaxInterval: batchInterval,
+		}
+		m1 := newMockEventsProcessor()
+		m2 := newMockEventsProcessor()
 
-	ctx1, cancel1 := context.WithCancel(context.Background())
-	defer cancel1()
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	defer cancel2()
+		ctx1, cancel1 := context.WithCancel(t.Context())
+		defer cancel1()
+		ctx2, cancel2 := context.WithCancel(t.Context())
+		defer cancel2()
 
-	// start two consumer with different mocks in background.
-	go c1.runContinuouslyOnSingleAuth(ctx1, m1.Run)
-	go c2.runContinuouslyOnSingleAuth(ctx2, m2.Run)
+		// Start two consumers with different mocks in background. Backend locking
+		// should allow only one mock to start processing.
+		go c1.runContinuouslyOnSingleAuth(ctx1, m1.Run)
+		go c2.runContinuouslyOnSingleAuth(ctx2, m2.Run)
 
-	// We want wait till we processing of events starts.
-	// Check if there only single consumer is processing is below.
-	require.Eventually(t, func() bool {
-		// let's wait for at least 2 iteration.
-		return m1.getCount() >= 2 || m2.getCount() >= 2
-	}, 5*batchInterval, batchInterval/2, "events were never processed by mock")
+		started := waitForProcessorStart(t, map[*mockEventsProcessor]context.CancelFunc{
+			m1: cancel1,
+			m2: cancel2,
+		})
+		if started.mockEventsProcessor == m1 {
+			requireProcessorNotStarted(t, m2)
+		} else {
+			requireProcessorNotStarted(t, m1)
+		}
 
-	m1Processing := m1.getCount() >= 2
-	if m1Processing {
-		require.Zero(t, m2.getCount(), "expected 0 events by mock2")
-	} else {
-		require.Zero(t, m1.getCount(), "expected 0 events by mock1")
-	}
-
-	// let's cancel ctx of single mock and verify if 2nd take over.
-	if m1Processing {
-		cancel1()
-		require.Eventually(t, func() bool {
-			return m2.getCount() >= 1
-		}, 5*batchInterval, batchInterval/2, "mock2 hasn't started processing")
-	} else {
-		cancel2()
-		require.Eventually(t, func() bool {
-			return m1.getCount() >= 1
-		}, 5*batchInterval, batchInterval/2, "mock1 hasn't started processing")
-	}
+		// Cancel the consumer that holds the lock and verify the other one takes over.
+		started.cancel()
+		if started.mockEventsProcessor == m1 {
+			waitForProcessorStart(t, map[*mockEventsProcessor]context.CancelFunc{m2: cancel2})
+		} else {
+			waitForProcessorStart(t, map[*mockEventsProcessor]context.CancelFunc{m1: cancel1})
+		}
+	})
 }
 
 type mockEventsProcessor struct {
-	mu       sync.Mutex
-	count    int
-	interval time.Duration
+	started chan struct{}
+}
+
+func newMockEventsProcessor() *mockEventsProcessor {
+	return &mockEventsProcessor{started: make(chan struct{}, 1)}
 }
 
 func (m *mockEventsProcessor) Run(ctx context.Context) {
+	select {
+	case m.started <- struct{}{}:
+	default:
+	}
+	<-ctx.Done()
+}
+
+type startedProcessor struct {
+	*mockEventsProcessor
+	cancel context.CancelFunc
+}
+
+func waitForProcessorStart(t *testing.T, processors map[*mockEventsProcessor]context.CancelFunc) startedProcessor {
+	t.Helper()
+
+	timeout := time.After(15 * time.Second)
 	for {
+		for processor, cancel := range processors {
+			select {
+			case <-processor.started:
+				return startedProcessor{mockEventsProcessor: processor, cancel: cancel}
+			default:
+			}
+		}
+
 		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(m.interval):
-			m.mu.Lock()
-			m.count++
-			m.mu.Unlock()
+		case <-time.After(time.Millisecond):
+		case <-timeout:
+			t.Fatal("timed out waiting for processor to start")
 		}
 	}
 }
 
-func (m *mockEventsProcessor) getCount() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.count
+func requireProcessorNotStarted(t *testing.T, processor *mockEventsProcessor) {
+	t.Helper()
+
+	synctest.Wait()
+	select {
+	case <-processor.started:
+		t.Fatal("processor started while another consumer should hold the lock")
+	default:
+	}
 }
 
 func TestRunWithMinInterval(t *testing.T) {
-	ctx := context.Background()
 	t.Run("function returns earlier than minInterval, wait should happen", func(t *testing.T) {
 		fn := func(ctx context.Context) bool {
 			// did not reached max size
@@ -502,7 +488,7 @@ func TestRunWithMinInterval(t *testing.T) {
 		}
 		minInterval := 5 * time.Millisecond
 		start := time.Now()
-		stop := runWithMinInterval(ctx, fn, minInterval)
+		stop := runWithMinInterval(t.Context(), fn, minInterval)
 		elapsed := time.Since(start)
 		require.False(t, stop)
 		require.GreaterOrEqual(t, elapsed, minInterval)
@@ -520,7 +506,7 @@ func TestRunWithMinInterval(t *testing.T) {
 			}
 		}
 		start := time.Now()
-		stop := runWithMinInterval(ctx, fn, minInterval)
+		stop := runWithMinInterval(t.Context(), fn, minInterval)
 		elapsed := time.Since(start)
 		require.False(t, stop)
 		require.GreaterOrEqual(t, elapsed, 2*minInterval)
@@ -532,7 +518,7 @@ func TestRunWithMinInterval(t *testing.T) {
 		}
 		minInterval := 5 * time.Millisecond
 		start := time.Now()
-		stop := runWithMinInterval(ctx, fn, minInterval)
+		stop := runWithMinInterval(t.Context(), fn, minInterval)
 		elapsed := time.Since(start)
 		require.False(t, stop)
 		require.Less(t, elapsed, minInterval)
@@ -549,7 +535,7 @@ func TestRunWithMinInterval(t *testing.T) {
 				return false
 			}
 		}
-		ctx, cancel := context.WithCancel(ctx)
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		stop := runWithMinInterval(ctx, fn, minInterval)
 		require.True(t, stop)
@@ -561,7 +547,7 @@ func TestRunWithMinInterval(t *testing.T) {
 // files are created and compare it against file in testdata.
 // Testdata files should be verified with "parquet tools" cli after changing.
 func TestConsumerWriteToS3(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	defer cancel()
 
 	tmp := t.TempDir()
@@ -659,7 +645,6 @@ func parquetRowsToAuditEvents(in []eventParquet) ([]apievents.AuditEvent, error)
 
 func TestDeleteMessagesFromQueue(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
 	handlesGen := func(n int) []string {
 		out := make([]string, 0, n)
@@ -752,7 +737,7 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 				queueURL:      "queue-url",
 				collectConfig: collectConfig,
 			}
-			err := c.deleteMessagesFromQueue(ctx, handles)
+			err := c.deleteMessagesFromQueue(t.Context(), handles)
 			tt.wantCheck(t, err, mock)
 		})
 	}
