@@ -331,8 +331,8 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 }
 
 // isVerbAllowed returns true if the verb is allowed in the resource.
-// If the resource has a wildcard verb, it matches all verbs, otherwise
-// the resource must have the verb we're looking for.
+// A wildcard verb anywhere in the list matches all verbs, otherwise the verb
+// must appear in the list explicitly.
 func isVerbAllowed(allowedVerbs []string, verb string) bool {
-	return len(allowedVerbs) != 0 && (allowedVerbs[0] == types.Wildcard || slices.Contains(allowedVerbs, verb))
+	return len(allowedVerbs) != 0 && (slices.Contains(allowedVerbs, types.Wildcard) || slices.Contains(allowedVerbs, verb))
 }

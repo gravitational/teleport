@@ -531,6 +531,11 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 				names = []string{""}
 			}
 			verbs := applyValueTraitsSlice(rec.Verbs, traits, "kubernetes resource verb")
+			// A trait can reintroduce a wildcard alongside other verbs after
+			// validation has run, so collapse to just the wildcard.
+			if slices.Contains(verbs, types.Wildcard) {
+				verbs = []string{types.Wildcard}
+			}
 			for _, namespace := range namespaces {
 				for _, name := range names {
 					out = append(out, types.KubernetesResource{
