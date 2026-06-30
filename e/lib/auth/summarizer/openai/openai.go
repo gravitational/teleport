@@ -3,7 +3,6 @@ package openai
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +21,7 @@ import (
 	summarizererrorstypes "github.com/gravitational/teleport/e/lib/auth/summarizer/errors/types"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/structured"
 	libmetrics "github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -79,6 +79,9 @@ type ProviderConfig struct {
 	// ModelResourceName is the name of an inference model this configuration is
 	// derived from.
 	ModelResourceName string
+	// StructuredOutputCache persists across providers whether an endpoint (base URL + model) supports the native
+	// json_schema response format, so a failed native attempt is not repeated for every session. Optional.
+	StructuredOutputCache *structured.SupportCache
 }
 
 // ClientFactory is an interface for creating OpenAI clients.
@@ -127,6 +130,14 @@ type InferenceProvider struct {
 	modelResourceName string
 	totalInputTokens  atomic.Uint64
 	totalOutputTokens atomic.Uint64
+	// structuredOutputCache remembers, for endpoints of unknown capability, whether the native json_schema response
+	// format has been observed not to work, keyed by the endpoint (base URL + model). Shared across the providers
+	// built for each session.
+	structuredOutputCache *structured.SupportCache
+	// nativeSupportKey identifies this endpoint (base URL + model) as the provider-key dimension of the
+	// structuredOutputCache, so verdicts are scoped per endpoint: the same model can support json_schema on one
+	// base URL but not another.
+	nativeSupportKey string
 }
 
 // NewProvider creates a new OpenAI inference provider.
@@ -158,14 +169,18 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 	}
 	client := clientFactory.NewClient(clientOptions...)
 
+	modelName := cfg.ModelProvider.GetOpenaiModelId()
+
 	logger := slog.With(teleport.ComponentKey, "openai", "inference_model", cfg.ModelResourceName)
 	return &InferenceProvider{
-		openAIModelName:   cfg.ModelProvider.GetOpenaiModelId(),
-		temperature:       cfg.ModelProvider.GetTemperature(),
-		maxSessionLength:  maxSessionLength,
-		client:            client,
-		logger:            logger,
-		modelResourceName: cfg.ModelResourceName,
+		openAIModelName:       modelName,
+		temperature:           cfg.ModelProvider.GetTemperature(),
+		maxSessionLength:      maxSessionLength,
+		client:                client,
+		logger:                logger,
+		modelResourceName:     cfg.ModelResourceName,
+		structuredOutputCache: cfg.StructuredOutputCache,
+		nativeSupportKey:      baseURL + "\x00" + modelName,
 	}, nil
 }
 
@@ -233,8 +248,7 @@ func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID sess
 
 	systemPrompt := schema.SummarizeCommandSystemPrompt(username, loginName)
 
-	var analysis schema.CommandAnalysis
-	res, err := p.makeStructuredTextRequest(ctx, sessionID, "CommandAnalysis", schema.CommandAnalysisSchema, systemPrompt, command, &analysis)
+	analysis, res, err := makeStructuredTextRequest[schema.CommandAnalysis](ctx, p, sessionID, "CommandAnalysis", schema.CommandAnalysisSchema, systemPrompt, command)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -256,8 +270,7 @@ func (p *InferenceProvider) SummarizeMultipleCommands(ctx context.Context, sessi
 
 	systemPrompt := schema.SummarizeMultipleCommandsSystemPrompt(username, loginName)
 
-	var analysis schema.SessionAnalysis
-	res, err := p.makeStructuredTextRequest(ctx, sessionID, "SessionAnalysis", schema.SessionAnalysisSchema, systemPrompt, prompt, &analysis)
+	analysis, res, err := makeStructuredTextRequest[schema.SessionAnalysis](ctx, p, sessionID, "SessionAnalysis", schema.SessionAnalysisSchema, systemPrompt, prompt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -285,13 +298,11 @@ func (p *InferenceProvider) SummarizeMultipleImages(ctx context.Context, session
 		}))
 	}
 
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(systemPrompt),
+	userMessages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(parts),
 	}
 
-	var analysis schema.DesktopScreenshotAnalysis
-	res, err := p.makeStructuredRequest(ctx, sessionID, "DesktopScreenshotAnalysis", schema.DesktopScreenshotAnalysisSchema, messages, &analysis)
+	analysis, res, err := makeStructuredRequest[schema.DesktopScreenshotAnalysis](ctx, p, sessionID, "DesktopScreenshotAnalysis", schema.DesktopScreenshotAnalysisSchema, systemPrompt, userMessages)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -311,8 +322,7 @@ func (p *InferenceProvider) SummarizeMultipleImages(ctx context.Context, session
 func (p *InferenceProvider) SummarizeDesktopSession(ctx context.Context, sessionID session.ID, systemPrompt, prompt string) (*schema.DesktopSessionAnalysis, error) {
 	p.logger.DebugContext(ctx, "Summarizing desktop session", "session_id", sessionID)
 
-	var analysis schema.DesktopSessionAnalysis
-	res, err := p.makeStructuredTextRequest(ctx, sessionID, "DesktopSessionAnalysis", schema.DesktopSessionAnalysisSchema, systemPrompt, prompt, &analysis)
+	analysis, res, err := makeStructuredTextRequest[schema.DesktopSessionAnalysis](ctx, p, sessionID, "DesktopSessionAnalysis", schema.DesktopSessionAnalysisSchema, systemPrompt, prompt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -329,43 +339,6 @@ func (p *InferenceProvider) SummarizeDesktopSession(ctx context.Context, session
 }
 
 // makeStructuredRequest sends messages with a JSON-schema response format and unmarshals the response into out.
-func (p *InferenceProvider) makeStructuredRequest(ctx context.Context, sessionID session.ID, schemaName string, schema any, messages []openai.ChatCompletionMessageParamUnion, out any) (*response, error) {
-	completionParams := openai.ChatCompletionNewParams{
-		Messages: messages,
-		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
-			OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
-				JSONSchema: openai.ResponseFormatJSONSchemaJSONSchemaParam{
-					Name:   schemaName,
-					Schema: schema,
-					Strict: openai.Bool(true),
-				},
-			},
-		},
-		Model: p.openAIModelName,
-	}
-
-	res, err := p.makeRequest(ctx, sessionID, completionParams)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := json.Unmarshal([]byte(res.result), out); err != nil {
-		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
-			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
-		})
-	}
-
-	return res, nil
-}
-
-func (p *InferenceProvider) makeStructuredTextRequest(ctx context.Context, sessionID session.ID, schemaName string, schema any, systemPrompt, message string, out any) (*response, error) {
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(systemPrompt),
-		openai.UserMessage(message),
-	}
-	return p.makeStructuredRequest(ctx, sessionID, schemaName, schema, messages, out)
-}
-
 type response struct {
 	promptTokens     int64
 	completionTokens int64
@@ -488,8 +461,7 @@ func (p *InferenceProvider) CondenseForEmbedding(ctx context.Context, input *sum
 		return "", trace.Wrap(err, "failed to marshal input to JSON")
 	}
 
-	var proseEmbedding schema.ProseEmbedding
-	res, err := p.makeStructuredTextRequest(ctx, "", "GenerateProseEmbeddings", schema.ProseEmbeddingSchema, systemPrompt, string(query), &proseEmbedding)
+	proseEmbedding, res, err := makeStructuredTextRequest[schema.ProseEmbedding](ctx, p, "", "GenerateProseEmbeddings", schema.ProseEmbeddingSchema, systemPrompt, string(query))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

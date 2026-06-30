@@ -61,21 +61,23 @@ func (s *Service) newProvider(ctx context.Context, model *pb.InferenceModel, sec
 		}
 
 		p, err := openai.NewProvider(ctx, openai.ProviderConfig{
-			ModelProvider:     model.GetSpec().GetOpenai(),
-			SecretSpec:        secret,
-			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
-			ClientFactory:     s.openAIClientFactory,
-			ModelResourceName: model.GetMetadata().GetName(),
+			ModelProvider:         model.GetSpec().GetOpenai(),
+			SecretSpec:            secret,
+			MaxSessionLength:      model.GetSpec().GetMaxSessionLengthBytes(),
+			ClientFactory:         s.openAIClientFactory,
+			ModelResourceName:     model.GetMetadata().GetName(),
+			StructuredOutputCache: s.structuredOutputCache,
 		})
 		return p, trace.Wrap(err)
 
 	case pb.InferenceModelSpec_Bedrock_case:
 		p, err := bedrock.NewProvider(ctx, bedrock.ProviderConfig{
-			Spec:              model.GetSpec().GetBedrock(),
-			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
-			ClientFactory:     s.bedrockClientFactory,
-			ModelResourceName: model.GetMetadata().GetName(),
-			AWSConfigCache:    s.awsConfigCache,
+			Spec:                  model.GetSpec().GetBedrock(),
+			MaxSessionLength:      model.GetSpec().GetMaxSessionLengthBytes(),
+			ClientFactory:         s.bedrockClientFactory,
+			ModelResourceName:     model.GetMetadata().GetName(),
+			AWSConfigCache:        s.awsConfigCache,
+			StructuredOutputCache: s.structuredOutputCache,
 		})
 		return p, trace.Wrap(err)
 

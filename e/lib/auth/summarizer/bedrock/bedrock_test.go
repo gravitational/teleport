@@ -15,6 +15,7 @@ import (
 	summarizererrorstypes "github.com/gravitational/teleport/e/lib/auth/summarizer/errors/types"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/structured"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 )
@@ -85,9 +86,10 @@ func TestInferenceProvider(t *testing.T) {
 					BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
 					Integration:    tc.integration,
 				}.Build(),
-				ModelResourceName: "claude",
-				ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
-				AWSConfigCache:    cache,
+				ModelResourceName:     "claude",
+				ClientFactory:         &FakeClientFactory{Clock: clockwork.NewFakeClock()},
+				AWSConfigCache:        cache,
+				StructuredOutputCache: testStructuredOutputCache(),
 			})
 			require.NoError(t, err)
 
@@ -112,9 +114,10 @@ func TestSummarizeCommand(t *testing.T) {
 			Region:         "us-east-1",
 			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
 		}.Build(),
-		ModelResourceName: "claude",
-		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
-		AWSConfigCache:    cache,
+		ModelResourceName:     "claude",
+		ClientFactory:         &FakeClientFactory{Clock: clockwork.NewFakeClock()},
+		AWSConfigCache:        cache,
+		StructuredOutputCache: testStructuredOutputCache(),
 	})
 	require.NoError(t, err)
 
@@ -182,9 +185,10 @@ func TestSummarizeMultipleImages(t *testing.T) {
 			Region:         "us-east-1",
 			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
 		}.Build(),
-		ModelResourceName: "claude",
-		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
-		AWSConfigCache:    cache,
+		ModelResourceName:     "claude",
+		ClientFactory:         &FakeClientFactory{Clock: clockwork.NewFakeClock()},
+		AWSConfigCache:        cache,
+		StructuredOutputCache: testStructuredOutputCache(),
 	})
 	require.NoError(t, err)
 
@@ -216,9 +220,10 @@ func TestSummarizeDesktopSession(t *testing.T) {
 			Region:         "us-east-1",
 			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
 		}.Build(),
-		ModelResourceName: "claude",
-		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
-		AWSConfigCache:    cache,
+		ModelResourceName:     "claude",
+		ClientFactory:         &FakeClientFactory{Clock: clockwork.NewFakeClock()},
+		AWSConfigCache:        cache,
+		StructuredOutputCache: testStructuredOutputCache(),
 	})
 	require.NoError(t, err)
 
@@ -246,9 +251,10 @@ func TestCondenseForEmbedding(t *testing.T) {
 			Region:         "us-east-1",
 			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
 		}.Build(),
-		ModelResourceName: "claude",
-		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
-		AWSConfigCache:    cache,
+		ModelResourceName:     "claude",
+		ClientFactory:         &FakeClientFactory{Clock: clockwork.NewFakeClock()},
+		AWSConfigCache:        cache,
+		StructuredOutputCache: testStructuredOutputCache(),
 	})
 	require.NoError(t, err)
 
@@ -274,11 +280,13 @@ func TestCondenseForEmbedding(t *testing.T) {
 			},
 		},
 		{
-			name:  "bad JSON response returns BadResponseError",
+			name:  "bad JSON response returns BadResponseError after exhausting retries",
 			input: summarizerv1pb.Summary_builder{SessionId: "trigger-bad-json"}.Build(),
 			assert: func(t *testing.T, result string, err error) {
+				// claude-3-haiku uses the prompt-based path, which re-prompts
+				// once before giving up on an unparseable response.
 				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
-					Message: "failed to unmarshal model response: invalid character 'o' in literal null (expecting 'u')",
+					Message: "failed to unmarshal model response after 1 retries: invalid character 'o' in literal null (expecting 'u')",
 				})
 				assert.Empty(t, result)
 			},
@@ -291,6 +299,10 @@ func TestCondenseForEmbedding(t *testing.T) {
 			tc.assert(t, result, err)
 		})
 	}
+}
+
+func testStructuredOutputCache() *structured.SupportCache {
+	return structured.NewSupportCache(clockwork.NewFakeClock(), structured.DefaultSupportCacheTTL)
 }
 
 func createCache() (*awsconfig.Cache, error) {

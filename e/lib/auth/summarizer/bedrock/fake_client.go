@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -44,6 +45,9 @@ func structuredResponse(value any) (*bedrockruntime.ConverseOutput, error) {
 type FakeClientFactory struct {
 	Clock            *clockwork.FakeClock
 	configValidation func(cfg aws.Config)
+	// recorder, when set, captures which structured output path each Converse
+	// call used. Optional; used by tests.
+	recorder *fakeRecorder
 }
 
 func (m *FakeClientFactory) NewFromConfig(cfg aws.Config) Client {
@@ -51,14 +55,16 @@ func (m *FakeClientFactory) NewFromConfig(cfg aws.Config) Client {
 		m.configValidation(cfg)
 	}
 	return &fakeClient{
-		clock:  m.Clock,
-		region: cfg.Region,
+		clock:    m.Clock,
+		region:   cfg.Region,
+		recorder: m.recorder,
 	}
 }
 
 type fakeClient struct {
-	clock  *clockwork.FakeClock
-	region string
+	clock    *clockwork.FakeClock
+	region   string
+	recorder *fakeRecorder
 }
 
 func (m *fakeClient) Converse(
@@ -67,16 +73,34 @@ func (m *fakeClient) Converse(
 	// Advance the clock to test if the inference end timestamp is captured.
 	m.clock.Advance(10 * time.Second)
 
-	messageCount := len(params.Messages)
-	if messageCount == 0 {
+	if len(params.Messages) == 0 {
 		return nil, errors.New("no content in the message")
 	}
 
-	if _, isImage := params.Messages[messageCount-1].Content[0].(*bedrocktypes.ContentBlockMemberImage); isImage {
+	// The native structured output path sets OutputConfig; the prompt-based path does not.
+	native := params.OutputConfig != nil
+	m.recorder.record(native)
+
+	// Route on the first user message: it holds the original input and is stable across the prompt-based retry loop,
+	// which appends further messages. isRetry distinguishes the initial attempt from a re-prompt.
+	firstUser := params.Messages[0]
+	isRetry := false
+	for _, msg := range params.Messages {
+		if msg.Role == bedrocktypes.ConversationRoleAssistant {
+			isRetry = true
+			break
+		}
+	}
+
+	if _, isImage := firstUser.Content[0].(*bedrocktypes.ContentBlockMemberImage); isImage {
 		return handleBedrockDesktopScreenshotAnalysis(params)
 	}
 
-	content := params.Messages[messageCount-1].Content[0].(*bedrocktypes.ContentBlockMemberText).Value
+	content := firstUser.Content[0].(*bedrocktypes.ContentBlockMemberText).Value
+
+	if resp, handled, err := handleStructuredOutputTriggers(content, native, isRetry); handled {
+		return resp, err
+	}
 
 	switch content {
 	case "cause an error":
@@ -162,16 +186,27 @@ func (m *fakeClient) Converse(
 		}, nil
 	case "json response for command analysis":
 		return structuredResponse(map[string]any{
-			"command":           "ls -al",
-			"risk_level":        "low",
-			"risk_score":        10,
-			"category":          "file_operation",
-			"timeline_title":    "Listed directory contents",
-			"timeline_subtitle": "",
-			"short_description": "Listed all files in the directory",
-			"description":       "The command 'ls -al' was executed to list all files, including hidden ones, in the current directory.",
-			"threat_category":   "none",
-			"success":           true,
+			"command":             "ls -al",
+			"risk_level":          "low",
+			"risk_score":          10,
+			"category":            "file_operation",
+			"timeline_title":      "Listed directory contents",
+			"timeline_subtitle":   "",
+			"short_description":   "Listed all files in the directory",
+			"description":         "The command 'ls -al' was executed to list all files, including hidden ones, in the current directory.",
+			"threat_category":     "none",
+			"success":             true,
+			"error_messages":      []string{},
+			"suspicious_flags":    []string{},
+			"sensitive_items":     []string{},
+			"suspicious_patterns": []string{},
+			"iocs":                []string{},
+			//nolint:misspell // ignore MITRE
+			"mitre_attack_ids":     []string{},
+			"has_sensitive_data":   false,
+			"privilege_escalation": false,
+			"data_exfiltration":    false,
+			"persistence":          false,
 		})
 
 	case "respond with region and Bedrock model ID":
@@ -261,16 +296,27 @@ func handleBedrockCommandAnalysis(content string) (*bedrockruntime.ConverseOutpu
 	}
 
 	return structuredResponse(map[string]any{
-		"command":           "test-command",
-		"risk_level":        "low",
-		"risk_score":        10,
-		"category":          "other",
-		"timeline_title":    "Executed test command",
-		"timeline_subtitle": "",
-		"short_description": "Test command executed",
-		"description":       "A test command was executed during the session.",
-		"threat_category":   "none",
-		"success":           true,
+		"command":             "test-command",
+		"risk_level":          "low",
+		"risk_score":          10,
+		"category":            "other",
+		"timeline_title":      "Executed test command",
+		"timeline_subtitle":   "",
+		"short_description":   "Test command executed",
+		"description":         "A test command was executed during the session.",
+		"threat_category":     "none",
+		"success":             true,
+		"error_messages":      []string{},
+		"suspicious_flags":    []string{},
+		"sensitive_items":     []string{},
+		"suspicious_patterns": []string{},
+		"iocs":                []string{},
+		//nolint:misspell // ignore MITRE
+		"mitre_attack_ids":     []string{},
+		"has_sensitive_data":   false,
+		"privilege_escalation": false,
+		"data_exfiltration":    false,
+		"persistence":          false,
 	})
 }
 
@@ -333,10 +379,6 @@ func handleBedrockDesktopScreenshotAnalysis(params *bedrockruntime.ConverseInput
 	}
 
 	return structuredResponse(map[string]any{
-		"short_description":    "Spreadsheet open with financial data visible",
-		"screenshot_context":   "Excel window showing a budget worksheet.",
-		"sensitive_info_found": false,
-		"risk_level":           "low",
 		"notable_session_events": []map[string]any{
 			{
 				"start_screenshot_index": 0,
@@ -395,14 +437,14 @@ func handleBedrockSessionAnalysis(content string) (*bedrockruntime.ConverseOutpu
 	}
 
 	return structuredResponse(map[string]any{
-		"short_description":     "Test session with commands",
-		"session_description":   "The user executed test commands during this session.",
-		"suspicious_activities": []string{},
-		"security_incidents":    []string{},
-		"compromise_indicators": false,
-		"risk_level":            "low",
-		"risk_score":            15,
-		"too_large":             false,
+		"short_description":       "Test session with commands",
+		"session_description":     "The user executed test commands during this session.",
+		"suspicious_activities":   []string{},
+		"security_incidents":      []string{},
+		"compromise_indicators":   false,
+		"notable_command_indexes": []int{},
+		"risk_level":              "low",
+		"risk_score":              15,
 	})
 }
 
@@ -441,4 +483,157 @@ func (m *fakeClient) InvokeModel(
 		}
 		return &bedrockruntime.InvokeModelOutput{Body: body}, nil
 	}
+}
+
+// textResponse builds a ConverseOutput containing a single text content block.
+func textResponse(text string) *bedrockruntime.ConverseOutput {
+	return &bedrockruntime.ConverseOutput{
+		Output: &bedrocktypes.ConverseOutputMemberMessage{
+			Value: bedrocktypes.Message{
+				Content: []bedrocktypes.ContentBlock{
+					&bedrocktypes.ContentBlockMemberText{Value: text},
+				},
+			},
+		},
+		StopReason: bedrocktypes.StopReasonEndTurn,
+		Usage: &bedrocktypes.TokenUsage{
+			InputTokens:  aws.Int32(100),
+			OutputTokens: aws.Int32(50),
+		},
+	}
+}
+
+// fakeCommandAnalysisJSON is a valid CommandAnalysis JSON payload (conforming to the command analysis schema, including
+// every required field) used by the structured output path tests.
+func fakeCommandAnalysisJSON() string {
+	data, err := json.Marshal(map[string]any{
+		"command":             "ls -al",
+		"risk_level":          "low",
+		"risk_score":          10,
+		"category":            "file_operation",
+		"timeline_title":      "Listed directory contents",
+		"timeline_subtitle":   "",
+		"short_description":   "Listed all files in the directory",
+		"description":         "The command 'ls -al' was executed to list files.",
+		"threat_category":     "none",
+		"success":             true,
+		"error_messages":      []string{},
+		"suspicious_flags":    []string{},
+		"sensitive_items":     []string{},
+		"suspicious_patterns": []string{},
+		"iocs":                []string{},
+		//nolint:misspell // ignore MITRE
+		"mitre_attack_ids":     []string{},
+		"has_sensitive_data":   false,
+		"privilege_escalation": false,
+		"data_exfiltration":    false,
+		"persistence":          false,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
+}
+
+// handleStructuredOutputTriggers implements fake responses for the structured output path tests (native-vs-prompt
+// selection, fallback, and prompt-path resiliency). It returns handled=false for inputs it does not recognize so the
+// caller falls through to the default routing.
+func handleStructuredOutputTriggers(content string, native, isRetry bool) (*bedrockruntime.ConverseOutput, bool, error) {
+	switch {
+	// The native attempt is rejected with a ValidationException; the prompt-based fallback (native=false) is left to the
+	// default routing so it produces a valid analysis.
+	case strings.Contains(content, "native-validation-fail"):
+		if native {
+			return nil, true, &smithy.OperationError{
+				ServiceID:     "Bedrock Runtime",
+				OperationName: "Converse",
+				Err:           &smithy.GenericAPIError{Code: "ValidationException", Message: "output format not supported for this model"},
+			}
+		}
+		return nil, false, nil
+
+	// The native attempt fails with a transient error that must not trigger a prompt-based fallback.
+	case strings.Contains(content, "native-throttle"):
+		if native {
+			return nil, true, &smithy.OperationError{
+				ServiceID:     "Bedrock Runtime",
+				OperationName: "Converse",
+				Err:           &smithy.GenericAPIError{Code: "ThrottlingException", Message: "rate exceeded"},
+			}
+		}
+		return nil, false, nil
+
+	// Prompt-path resiliency: valid JSON wrapped in Markdown fences and prose.
+	case strings.Contains(content, "prompt-prose-wrap"):
+		return textResponse("Sure, here is the analysis you requested:\n\n```json\n" +
+			fakeCommandAnalysisJSON() + "\n```\n\nLet me know if you need anything else."), true, nil
+
+	// Prompt-path re-prompt recovery: the first response is unparseable, the re-prompt returns valid JSON.
+	case strings.Contains(content, "prompt-retry-recover"):
+		if isRetry {
+			return textResponse(fakeCommandAnalysisJSON()), true, nil
+		}
+		return textResponse("I'm not able to help with that request."), true, nil
+
+	// Prompt-path re-prompt exhaustion: every response is unparseable.
+	case strings.Contains(content, "prompt-retry-exhaust"):
+		return textResponse("I'm not able to help with that request."), true, nil
+
+	// Prompt-path schema validation: every response is decodable JSON but violates the schema (only "command" is set, so
+	// the other required fields are missing). json.Unmarshal accepts it, so it must be rejected by schema validation.
+	case strings.Contains(content, "prompt-schema-violation"):
+		return textResponse(`{"command":"ls -al"}`), true, nil
+	}
+
+	return nil, false, nil
+}
+
+// fakeRecorder records, in call order, whether each Converse request used the native structured output API
+// (OutputConfig set) or the prompt-based path. It lets tests assert which path was exercised.
+type fakeRecorder struct {
+	mu    sync.Mutex
+	calls []bool // true = native (OutputConfig set), false = prompt-based
+}
+
+func (r *fakeRecorder) record(native bool) {
+	if r == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.calls = append(r.calls, native)
+}
+
+func (r *fakeRecorder) nativeCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	n := 0
+	for _, native := range r.calls {
+		if native {
+			n++
+		}
+	}
+
+	return n
+}
+
+func (r *fakeRecorder) promptCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return len(r.calls) - r.nativeCallsLocked()
+}
+
+func (r *fakeRecorder) nativeCallsLocked() int {
+	n := 0
+	for _, native := range r.calls {
+		if native {
+			n++
+		}
+	}
+
+	return n
 }

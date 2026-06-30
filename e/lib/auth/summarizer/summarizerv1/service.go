@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -22,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
 	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/structured"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -78,6 +80,7 @@ type Service struct {
 	openAIClientFactory              openai.ClientFactory
 	bedrockClientFactory             bedrock.ClientFactory
 	awsConfigCache                   *awsconfig.Cache
+	structuredOutputCache            *structured.SupportCache
 	enableBedrockWithoutRestrictions bool
 	usageReporter                    usagereporter.UsageReporter
 }
@@ -122,6 +125,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		openAIClientFactory:              cfg.OpenAIClientFactory,
 		bedrockClientFactory:             cfg.BedrockClientFactory,
 		awsConfigCache:                   cfg.AWSConfigCache,
+		structuredOutputCache:            structured.NewSupportCache(clockwork.NewRealClock(), structured.DefaultSupportCacheTTL),
 		enableBedrockWithoutRestrictions: cfg.EnableBedrockWithoutRestrictions,
 		usageReporter:                    cfg.UsageReporter,
 	}, nil

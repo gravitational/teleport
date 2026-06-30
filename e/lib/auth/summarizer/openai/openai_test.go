@@ -3,8 +3,10 @@ package openai
 import (
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,6 +16,7 @@ import (
 	summarizererrorstypes "github.com/gravitational/teleport/e/lib/auth/summarizer/errors/types"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/structured"
 )
 
 func newTestProvider() *InferenceProvider {
@@ -54,12 +57,14 @@ func TestCondenseForEmbedding(t *testing.T) {
 			},
 		},
 		{
-			name:  "bad JSON response returns BadResponseError",
+			// The native json_schema response is unparseable, so the request falls back to the prompt-based json_object
+			// path, which re-prompts and then returns a BadResponseError once the retries are exhausted.
+			name:  "permanently bad JSON returns BadResponseError after retries",
 			input: summarizerv1pb.Summary_builder{SessionId: "trigger-bad-json"}.Build(),
 			assert: func(t *testing.T, result string, err error) {
-				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
-					Message: "failed to unmarshal model response: invalid character 'o' in literal null (expecting 'u')",
-				})
+				var badResp summarizererrorstypes.BadResponseError
+				require.ErrorAs(t, err, &badResp)
+				assert.Contains(t, badResp.Message, "after 1 retries")
 				assert.Empty(t, result)
 			},
 		},
@@ -71,6 +76,38 @@ func TestCondenseForEmbedding(t *testing.T) {
 			tc.assert(t, result, err)
 		})
 	}
+}
+
+func TestStructuredOutputFallbackAndCache(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	cache := structured.NewSupportCache(clockwork.NewFakeClock(), time.Hour)
+	rec := &fakeRecorder{}
+	p := &InferenceProvider{
+		openAIModelName:       openai.ChatModelGPT5,
+		temperature:           1.0,
+		client:                &fakeClient{recorder: rec},
+		modelResourceName:     "test-model",
+		structuredOutputCache: cache,
+		nativeSupportKey:      "https://proxy.example\x00gpt-5",
+	}
+	p.logger = slog.With(teleport.ComponentKey, "openai", "inference_model", p.modelResourceName)
+
+	// First request: the endpoint rejects native json_schema, so the request falls back to the prompt-based
+	// json_object path, which succeeds. That success is cached as a "json_schema unsupported" verdict.
+	resp, err := p.SummarizeCommand(ctx, "sid", "user", "ubuntu", "native-unsupported please")
+	require.NoError(t, err)
+	require.Equal(t, "ls -al", resp.Command)
+	require.Equal(t, 1, rec.native)
+	require.Equal(t, 1, rec.prompt)
+
+	// Second request: the cached verdict skips the wasted native attempt and goes straight to json_object.
+	resp, err = p.SummarizeCommand(ctx, "sid", "user", "ubuntu", "native-unsupported again")
+	require.NoError(t, err)
+	require.Equal(t, "ls -al", resp.Command)
+	require.Equal(t, 1, rec.native) // unchanged: native no longer attempted
+	require.Equal(t, 2, rec.prompt)
 }
 
 func TestSummarizeCommand(t *testing.T) {

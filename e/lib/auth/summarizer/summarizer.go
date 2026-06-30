@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/structured"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/tokenizer"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/ttyterminal"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1"
@@ -188,6 +189,10 @@ type SessionSummarizer struct {
 	// glyphCache lazy-initializes a desktop.GlyphCache the first time a desktop session is summarized and reuses it
 	// for the lifetime of the SessionSummarizer.
 	glyphCache func() *desktop.GlyphCache
+
+	// structuredOutputCache remembers, for the lifetime of the summarizer, whether models of unknown capability
+	// support a provider's native structured output API, so the failed native attempt is not repeated for every session.
+	structuredOutputCache *structured.SupportCache
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -251,6 +256,7 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		accessGraphAvailabilityChecker:   cfg.AvailabilityCache,
 		isLicensed:                       cfg.IsLicensed,
 		glyphCache:                       sync.OnceValue(desktop.NewGlyphCache),
+		structuredOutputCache:            structured.NewSupportCache(clock, structured.DefaultSupportCacheTTL),
 	}, nil
 }
 
@@ -911,11 +917,12 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 		}
 
 		p, err := openai.NewProvider(ctx, openai.ProviderConfig{
-			ModelProvider:     model.GetSpec().GetOpenai(),
-			SecretSpec:        apiKey.GetSpec(),
-			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
-			ClientFactory:     s.openAIClientFactory,
-			ModelResourceName: modelName,
+			ModelProvider:         model.GetSpec().GetOpenai(),
+			SecretSpec:            apiKey.GetSpec(),
+			MaxSessionLength:      model.GetSpec().GetMaxSessionLengthBytes(),
+			ClientFactory:         s.openAIClientFactory,
+			ModelResourceName:     modelName,
+			StructuredOutputCache: s.structuredOutputCache,
 		})
 		return p, func(err error) string {
 			return openai.FormatError(err, model.GetSpec().GetOpenai())
@@ -946,11 +953,12 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 		}
 
 		p, err := bedrock.NewProvider(ctx, bedrock.ProviderConfig{
-			Spec:              bedrockCfg,
-			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
-			ClientFactory:     s.bedrockClientFactory,
-			ModelResourceName: modelName,
-			AWSConfigCache:    s.awsConfigCache,
+			Spec:                  bedrockCfg,
+			MaxSessionLength:      model.GetSpec().GetMaxSessionLengthBytes(),
+			ClientFactory:         s.bedrockClientFactory,
+			ModelResourceName:     modelName,
+			AWSConfigCache:        s.awsConfigCache,
+			StructuredOutputCache: s.structuredOutputCache,
 		})
 		return p, func(err error) string {
 			return bedrock.FormatError(err, model.GetSpec().GetBedrock())
