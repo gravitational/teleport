@@ -47,17 +47,22 @@ Example of a well-formed finding:
 
 ## What to check
 
-- **Style guide compliance**
-  - Detailed style rules live in `AGENTS-STYLE.md` alongside this file.
-    Common review checks include:
-  - Headings use sentence case.
+- **Style and conventions**
+  - The conventions themselves (voice, headings, naming, components, page-type
+    shape, and so on) live in
+    [`../contributing/documentation-style-guide.md`](../contributing/documentation-style-guide.md),
+    the single source of truth shared with human contributors. Do not restate
+    or re-derive those rules — consult the guide.
+  - For how to *apply* them in review — what an agent can check reliably, what
+    the linters already cover, and how to rate severity — see
+    [`AGENTS-STYLE.md`](./AGENTS-STYLE.md).
+  - Beyond the guide, flag internal inconsistency within a page: the same term
+    capitalized or formatted two ways, or an acronym/concept keyword that
+    switches forms (e.g. "two-factor" in one place, "2FA" in another).
   - Code fences declare a language and follow repo conventions (e.g., `code`
     for commands, `yaml` for config).
   - Admonitions (`<Admonition>`) are used for warnings and notes, not for
     content that belongs in body text.
-  - Flag internal inconsistency within a page: the same term capitalized or
-    formatted two ways, or an acronym/concept keyword that switches forms
-    (e.g. "two-factor" in one place, "2FA" in another).
 - **Structural patterns**
   - How-to guides include a `How it works` section after the introduction.
   - A Prerequisites block appears before the first step.
@@ -110,8 +115,12 @@ Example of a well-formed finding:
 
 ## References
 
-- Style rules: `AGENTS-STYLE.md` (next to this file), condensed from the
-  internal Teleport documentation style guide.
+- Documentation conventions (source of truth):
+  [`../contributing/documentation-style-guide.md`](../contributing/documentation-style-guide.md),
+  shared with human contributors.
+- Applying those conventions in review: [`AGENTS-STYLE.md`](./AGENTS-STYLE.md)
+  (next to this file) — what's checkable, what the linters cover, and severity
+  for style findings.
 - CLI references: `docs/pages/reference/cli/{tctl,tsh,tbot}.mdx`.
 - Automated linting: docs content is checked by remark-lint in the
   docs-website repo (`.remarkrc.mjs`, run via `yarn markdown-lint` in CI). Do
