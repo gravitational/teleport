@@ -86,6 +86,8 @@ type Modules struct {
 	// during tests when hardware key support is enabled. This
 	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
+	// TestLicenseExpiry is returned from the LicenseExpiry function.
+	TestLicenseExpiry time.Time
 
 	GenerateAccessRequestPromotionsFn         func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	GenerateAccessRequestSuggestedReviewersFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) ([]string, error)
@@ -168,7 +170,7 @@ func (m *Modules) IsOSSBuild() bool {
 
 // LicenseExpiry implements modules.Modules.
 func (m *Modules) LicenseExpiry() time.Time {
-	return time.Time{}
+	return m.TestLicenseExpiry
 }
 
 // PrintVersion implements modules.Modules.
