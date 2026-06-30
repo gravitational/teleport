@@ -16,7 +16,7 @@
 
 import Foundation
 
-enum DeepLink {
+enum DeepLink: Equatable {
 	case enrollMobileDevice(EnrollMobileDeviceDeepLink)
 
 	init(from url: URL) throws {
@@ -32,7 +32,7 @@ enum DeepLink {
 	}
 }
 
-enum DeepLinkParseError: LocalizedError {
+enum DeepLinkParseError: LocalizedError, Equatable {
 	case unsupportedPath
 	case urlComponentsFailed
 	case missingPart(String)
