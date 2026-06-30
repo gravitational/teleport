@@ -63,5 +63,9 @@ message CertAuthorityOverrideSpec {
 message CertAuthorityOverrideStatus {
   // CRLs generated for each certificate override, keyed by normalized/lowercase
   // public_key_hash.
+  //
+  // CRLs for disabled overrides may be created asynchronously, using
+  // CertAuthorityOverride watchers, if the Auth server performing the writes
+  // lacks access to certain keys.
   map<string, CertificateRevocationList> public_key_hash_to_crl = 1;
 }
