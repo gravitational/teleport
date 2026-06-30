@@ -29,7 +29,7 @@
     "@grpc/grpc-js": "1.11.3",
     "@types/which": "^3.0.4",
     "node-forge": "^1.4.0",
-    "node-pty": "1.2.0-beta.12",
+    "node-pty": "1.2.0-beta.14",
     "ring-buffer-ts": "^1.2.0",
     "split2": "4.2.0",
     "strip-ansi": "^7.1.0",
