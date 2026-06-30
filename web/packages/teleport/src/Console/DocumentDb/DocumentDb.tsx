@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { useEffect, useRef } from 'react';
-import { useTheme } from 'styled-components';
 
 import { Box, Indicator } from 'design';
 
@@ -42,7 +41,6 @@ export function DocumentDb({ doc, visible }: Props) {
     // when switching tabs or closing tabs, focus on visible terminal
     terminalRef.current?.focus();
   }, [visible, mfa, status]);
-  const theme = useTheme();
 
   return (
     <Document visible={visible} flexDirection="column">
@@ -65,8 +63,6 @@ export function DocumentDb({ doc, visible }: Props) {
         <Terminal
           ref={terminalRef}
           tty={tty}
-          fontFamily={theme.fonts.mono}
-          theme={theme.colors.terminal}
           convertEol
           // TODO(gabrielcorado): remove this once the server can properly handle it.
           disableCtrlC={true}
