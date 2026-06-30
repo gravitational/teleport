@@ -45,14 +45,12 @@ export default function TopBar(props: Props) {
     alerts,
     sharedDirectories,
     onRemoveAlert,
-    onRemoveSharedDirectory,
     isConnected,
     latency,
     hiDpiEnabled,
     onToggleHiDpi,
     screenIsHiDpi,
     hiDpiSupported,
-    canRemoveSharedDirectory,
     maxSharedDirectories,
     directorySharingMessage,
     multidirectorySharingSupported,
@@ -89,9 +87,7 @@ export default function TopBar(props: Props) {
           {multidirectorySharingSupported ? (
             <SharedDirectoryList
               sharedDirectories={sharedDirectories}
-              onRemoveSharedDirectory={onRemoveSharedDirectory}
               onAddSharedDirectory={onAddSharedDirectory}
-              canRemoveSharedDirectory={canRemoveSharedDirectory}
               canShareDirectories={canShareDirectory}
               maxSharedDirectories={maxSharedDirectories}
               directorySharingMessage={directorySharingMessage}
@@ -163,12 +159,10 @@ type Props = {
   screenIsHiDpi: boolean;
   hiDpiSupported: boolean;
   onRemoveAlert(id: string): void;
-  onRemoveSharedDirectory(directoryId: number);
   latency: {
     client: number;
     server: number;
   };
-  canRemoveSharedDirectory: boolean;
   maxSharedDirectories: number;
   directorySharingMessage: string;
   multidirectorySharingSupported: boolean;
