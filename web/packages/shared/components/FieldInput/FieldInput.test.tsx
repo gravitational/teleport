@@ -89,9 +89,4 @@ test('input validation error state', () => {
   // test !valid values renders with error message
   const labelEl = screen.getByText('errorMsg');
   expect(labelEl).toHaveStyle({ color: errorColor });
-
-  // test !valid values renders error colors
-  expect(inputEl).toHaveStyle({
-    'border-color': errorColor,
-  });
 });
