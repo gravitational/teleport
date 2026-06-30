@@ -53,20 +53,6 @@ message ClientIPRestrictionSpec {
 // modified during runtime of a Teleport process. They should not be modified by users.
 message ClientIPRestrictionStatus {
   // state is the current enforcement state of the restrictions at the ingress layer.
-  ClientIPRestrictionState state = 1;
-}
-
-// ClientIPRestrictionState is the enforcement state of the restrictions at the ingress layer.
-enum ClientIPRestrictionState {
-  // CLIENT_IP_RESTRICTION_STATE_UNSPECIFIED is the `unset` default value. This
-  // should never be used in practice.
-  CLIENT_IP_RESTRICTION_STATE_UNSPECIFIED = 0;
-
-  // CLIENT_IP_RESTRICTION_STATE_PENDING indicates that the restrictions have been
-  // accepted but are not yet enforced at the ingress layer.
-  CLIENT_IP_RESTRICTION_STATE_PENDING = 1;
-
-  // CLIENT_IP_RESTRICTION_STATE_ACTIVE indicates that the restrictions are
-  // enforced at the ingress layer.
-  CLIENT_IP_RESTRICTION_STATE_ACTIVE = 2;
+  // Possible values: "pending", "active".
+  string state = 1;
 }
