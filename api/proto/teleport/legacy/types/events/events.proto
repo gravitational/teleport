@@ -1823,6 +1823,13 @@ message X11Forward {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ServerMetadata holds server information.
+  ServerMetadata Server = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // CommandMetadata specifies common command fields
@@ -5058,6 +5065,7 @@ message OneOf {
     events.RetrievalModelDelete RetrievalModelDelete = 252;
     events.AzureRun AzureRun = 253;
     events.EnvironmentProfileUpdate EnvironmentProfileUpdate = 256;
+    events.AgentForward AgentForward = 266;
   }
 }
 
@@ -10370,4 +10378,42 @@ message X509OverrideMetadata {
   string serial_number = 3 [(gogoproto.jsontag) = "serial_number,omitempty"];
   // Public key hash, encoded as SHA256(SubjectPublicKeyInfo DER).
   string public_key_hash = 4 [(gogoproto.jsontag) = "public_key_hash,omitempty"];
+}
+
+// AgentForward is emitted when a user requests SSH agent forwarding.
+message AgentForward {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains operation success or failure status
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata holds server information.
+  ServerMetadata Server = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }

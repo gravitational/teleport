@@ -230,6 +230,8 @@ export const eventCodes = {
   USER_UPDATED: 'T1003I',
   X11_FORWARD: 'T3008I',
   X11_FORWARD_FAILURE: 'T3008W',
+  AGENT_FORWARD: 'T3013I',
+  AGENT_FORWARD_FAILURE: 'T3013W',
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
   ENVIRONMENT_PROFILE_UPDATED: 'TEP01I',
@@ -1352,6 +1354,10 @@ export type RawEvents = {
   [eventCodes.X11_FORWARD]: RawEvent<typeof eventCodes.X11_FORWARD>;
   [eventCodes.X11_FORWARD_FAILURE]: RawEvent<
     typeof eventCodes.X11_FORWARD_FAILURE
+  >;
+  [eventCodes.AGENT_FORWARD]: RawEvent<typeof eventCodes.AGENT_FORWARD>;
+  [eventCodes.AGENT_FORWARD_FAILURE]: RawEvent<
+    typeof eventCodes.AGENT_FORWARD_FAILURE
   >;
   [eventCodes.SESSION_CONNECT]: RawEvent<
     typeof eventCodes.SESSION_CONNECT,
