@@ -142,3 +142,87 @@ func TestEnrollPairingService_GetCurrentEnrollPairing(t *testing.T) {
 		assert.ErrorAs(t, err, new(*trace.BadParameterError))
 	})
 }
+
+func TestEnrollPairingService_GetEnrollPairingByToken(t *testing.T) {
+	t.Parallel()
+
+	s := newEnrollPairingService(t)
+
+	t.Run("returns the pairing matching the token", func(t *testing.T) {
+		ctx := t.Context()
+		want, err := s.CreateEnrollPairing(ctx, "by-token-ok")
+		require.NoError(t, err)
+
+		got, err := s.GetEnrollPairingByToken(ctx, want.GetStatus().GetToken())
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
+	})
+
+	t.Run("returns NotFound for an unknown token", func(t *testing.T) {
+		_, err := s.GetEnrollPairingByToken(t.Context(), "does-not-exist")
+		assert.ErrorAs(t, err, new(*trace.NotFoundError))
+	})
+
+	t.Run("rejects empty token", func(t *testing.T) {
+		_, err := s.GetEnrollPairingByToken(t.Context(), "")
+		assert.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+}
+
+func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
+	t.Parallel()
+
+	s := newEnrollPairingService(t)
+	device := devicepb.EnrollPairingDevice_builder{
+		OsType:       devicepb.OSType_OS_TYPE_IOS,
+		SerialNumber: "CXXXXXXXXX01",
+		OsVersion:    "26.3.1",
+	}.Build()
+
+	t.Run("transitions to awaiting approval and persists the device", func(t *testing.T) {
+		ctx := t.Context()
+		created, err := s.CreateEnrollPairing(ctx, "approve-ok")
+		require.NoError(t, err)
+		token := created.GetStatus().GetToken()
+
+		updated, err := s.RequestEnrollPairingApproval(ctx, token, device)
+		require.NoError(t, err)
+		assert.Equal(t,
+			devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_APPROVAL,
+			updated.GetStatus().GetState())
+		assert.Empty(t, cmp.Diff(device, updated.GetStatus().GetDevice(), protocmp.Transform()))
+
+		// The transition is persisted and the pairing is still resolvable by token.
+		got, err := s.GetEnrollPairingByToken(ctx, token)
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(updated, got, protocmp.Transform()))
+	})
+
+	t.Run("rejects a pairing that is no longer awaiting a device", func(t *testing.T) {
+		ctx := t.Context()
+		created, err := s.CreateEnrollPairing(ctx, "approve-twice")
+		require.NoError(t, err)
+		token := created.GetStatus().GetToken()
+
+		_, err = s.RequestEnrollPairingApproval(ctx, token, device)
+		require.NoError(t, err)
+
+		_, err = s.RequestEnrollPairingApproval(ctx, token, device)
+		assert.ErrorAs(t, err, new(*trace.CompareFailedError))
+	})
+
+	t.Run("returns NotFound for an unknown token", func(t *testing.T) {
+		_, err := s.RequestEnrollPairingApproval(t.Context(), "does-not-exist", device)
+		assert.ErrorAs(t, err, new(*trace.NotFoundError))
+	})
+
+	t.Run("rejects empty token", func(t *testing.T) {
+		_, err := s.RequestEnrollPairingApproval(t.Context(), "", device)
+		assert.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	t.Run("rejects nil device", func(t *testing.T) {
+		_, err := s.RequestEnrollPairingApproval(t.Context(), "any-token", nil)
+		assert.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+}
