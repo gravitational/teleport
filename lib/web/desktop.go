@@ -29,7 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -401,12 +401,75 @@ func (h *Handler) createDesktopConnection(
 
 	// Create TLS config for connecting to the Windows Desktop Service.
 	//
-	// - TDPB clients: reuse the existing session login cert and let WDS drive MFA via in-band MFA.
+	// - TDPB clients: connect with login cert. If ALPN negotiates 1.0, GetClientCertificate
+	//   issues per-session MFA cert on-demand. If 1.1, in-band MFA proceeds normally.
 	// - TDP clients: cannot do in-band MFA, Proxy performs MFA before connecting and issues a new cert.
 	var tlsConfig *tls.Config
 
 	if isTDPB(clientProtocol) {
-		tlsConfig, err = h.createDesktopTLSConfigFromSession(ctx, sctx, desktopName)
+		loginCert, parseErr := tls.X509KeyPair(sctx.cfg.Session.GetTLSCert(), sctx.cfg.Session.GetTLSPriv())
+		if parseErr != nil {
+			return handshaker.sendError(ctx, log, parseErr)
+		}
+
+		// Capture the ALPN in order to determine whether to use in-band MFA or fall back to legacy MFA cert.
+		//
+		// XXX: Add some functional and defensive tests to lock in this behavior. Consider defining the functions
+		// elsewhere so this is easier to read and don't need to duplicate it. This is for POC purposes only and needs a
+		// full refactor for prod.
+		var negotiatedProtocol atomic.Value
+
+		baseTLSConfig, baseErr := sctx.ClientTLSConfig(ctx)
+		if baseErr != nil {
+			return handshaker.sendError(ctx, log, baseErr)
+		}
+
+		tlsConfig = &tls.Config{
+			ServerName: desktopName + SNISuffix,
+			NextProtos: []string{tdpb.ProtocolNameV1_1, tdpb.ProtocolName},
+			RootCAs:    baseTLSConfig.RootCAs,
+			GetClientCertificate: func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+				alpn := negotiatedProtocol.Load()
+				if alpn == nil {
+					return nil, trace.BadParameter("ALPN should not be nil (this is a bug)")
+				}
+
+				alpnStr, ok := alpn.(string)
+				if !ok {
+					return nil, trace.BadParameter("ALPN should be a string (this is a bug)")
+				}
+
+				if alpnStr == tdpb.ProtocolName {
+					pk, parseErr := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
+					if parseErr != nil {
+						return nil, trace.Wrap(parseErr)
+					}
+
+					certsReq, certsReqErr := createUserCertsRequest(sctx, pk.Public(), desktopName, username, cluster.GetName())
+					if certsReqErr != nil {
+						return nil, trace.Wrap(certsReqErr)
+					}
+
+					certs, certsErr := h.performSessionMFACeremony(ctx, sctx, certsReq, handshaker.getPromptBuilder(log))
+					if certsErr != nil {
+						return nil, trace.Wrap(certsErr)
+					}
+
+					mfaCert, certErr := pk.TLSCertificate(certs.TLS)
+					if certErr != nil {
+						return nil, trace.Wrap(certErr)
+					}
+
+					return &mfaCert, nil
+				}
+
+				return &loginCert, nil
+			},
+			VerifyConnection: func(state tls.ConnectionState) error {
+				negotiatedProtocol.Store(state.NegotiatedProtocol)
+				return nil
+			},
+		}
 	} else {
 		// TODO(cthach): DELETE IN v20.0 when legacy TDP protocol support is removed.
 		pk, parseErr := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
@@ -496,30 +559,10 @@ func (h *Handler) createDesktopConnection(
 		return handshaker.sendError(ctx, log, err)
 	}
 
-	// For TDPB, determine MFA flow from ALPN negotiation. If the WDS negotiated teleport-tdpb-1.0, it's a legacy
-	// service without in-band MFA support then fall back to per-session MFA cert. If it negotiated 1.1, read the first
-	// message: AuthPrompt for in-band MFA, ServerHello if MFA is not required.
-	//
-	// TODO(cthach): DELETE IN v20.0 when legacy per-session certs support is removed.
+	// For TDPB, read messages from WDS until ServerHello is received. If ALPN negotiated 1.0 (legacy WDS), the cert
+	// already has MFAVerified from GetClientCertificate callback. If 1.1 (modern WDS), WDS drives in-band MFA via AuthPrompt.
 	var wdsConn tdp.MessageReadWriteCloser
 	if serverProtocol == tdpb.ProtocolNameV1_1 || serverProtocol == tdpb.ProtocolName {
-		if serverProtocol == tdpb.ProtocolName {
-			// Legacy WDS negotiated > fall back to per-session MFA cert, unless force env var is set.
-			if os.Getenv(mfa.ForceInBandEnv) == "yes" {
-				return handshaker.sendError(
-					ctx, log, trace.AccessDenied("in-band MFA is required but the server does not support it"),
-				)
-			}
-
-			if err := handshaker.sendError(
-				ctx, log, trace.Errorf("MFA is required before session can start, re-authenticating"),
-			); err != nil {
-				return trace.Wrap(err)
-			}
-
-			return trace.Wrap(h.fallbackToLegacyPerSessionMFA(ctx, r, desktopName, clusterName, log, sctx, cluster, ws, username, handshaker, version))
-		}
-
 		// Read messages from WDS until ServerHello is received.
 		wdsConn = tdp.NewConn(serviceConnTLS, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 
@@ -645,132 +688,6 @@ func (h *Handler) handleInBandMFA(
 	return nil
 }
 
-// connectToWDS establishes a TLS connection to the WDS, negotiates the protocol, forwards the hello message, and starts
-// the bidirectional proxy between the browser and WDS.
-func connectToWDS(
-	ctx context.Context,
-	r *http.Request,
-	log *slog.Logger,
-	sctx *SessionContext,
-	cluster reversetunnelclient.Cluster,
-	ws *websocket.Conn,
-	username string,
-	desktopName string,
-	clusterName string,
-	version string,
-	hs handshaker,
-	tlsConfig *tls.Config,
-) error {
-	clt, err := sctx.GetUserClient(ctx, cluster)
-	if err != nil {
-		return hs.sendError(ctx, log, err)
-	}
-
-	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
-
-	serviceConn, _, err := desktop.ConnectToWindowsService(
-		ctx,
-		&desktop.ConnectionConfig{
-			Log:            log,
-			DesktopsGetter: clt,
-			Cluster:        cluster,
-			ClientSrcAddr:  clientSrcAddr,
-			ClientDstAddr:  clientDstAddr,
-			DesktopName:    desktopName,
-			ClusterName:    clusterName,
-		},
-	)
-	if err != nil {
-		return hs.sendError(ctx, log, err)
-	}
-	defer serviceConn.Close()
-
-	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
-	if err := serviceConnTLS.HandshakeContext(ctx); err != nil {
-		return hs.sendError(ctx, log, err)
-	}
-
-	serverProtocol := serviceConnTLS.ConnectionState().NegotiatedProtocol
-	switch serverProtocol {
-	case "":
-		serverProtocol = protocolTDP
-		sendKeyboardLayout, _ := utils.MinVerWithoutPreRelease(version, "18.0.0")
-		err = hs.forwardTDP(serviceConnTLS, username, sendKeyboardLayout)
-
-	case tdpb.ProtocolNameV1_1:
-		fallthrough
-	case tdpb.ProtocolName:
-		err = hs.forwardTDPB(serviceConnTLS, username)
-
-	default:
-		err = trace.BadParameter("unknown desktop agent protocol %v", serverProtocol)
-	}
-
-	if err != nil {
-		return hs.sendError(ctx, log, err)
-	}
-
-	clientProtocol, err := readClientProtocol(r)
-	if err != nil {
-		return hs.sendError(ctx, log, err)
-	}
-
-	handleDesktopWebsocketProxyErr(
-		ctx,
-		desktopWebsocketProxy{
-			ws:             ws,
-			wds:            serviceConnTLS,
-			version:        version,
-			clientProtocol: clientProtocol,
-			serverProtocol: serverProtocol,
-			log:            log,
-		}.run(ctx),
-		log,
-	)
-
-	return nil
-}
-
-// fallbackToLegacyPerSessionMFA closes the WDS connection, performs the MFA ceremony with the browser, issues a
-// per-session MFA cert, and reconnects to the WDS.
-//
-// TODO(cthach): DELETE IN v20.0 when the legacy per-session MFA with certificates flow is removed.
-func (h *Handler) fallbackToLegacyPerSessionMFA(
-	ctx context.Context,
-	r *http.Request,
-	desktopName string,
-	clusterName string,
-	log *slog.Logger,
-	sctx *SessionContext,
-	cluster reversetunnelclient.Cluster,
-	ws *websocket.Conn,
-	username string,
-	hs handshaker,
-	version string,
-) error {
-	key, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
-	if err != nil {
-		return hs.sendError(ctx, log, err)
-	}
-
-	certsReq, err := createUserCertsRequest(sctx, key.Public(), desktopName, username, cluster.GetName())
-	if err != nil {
-		return hs.sendError(ctx, log, err)
-	}
-
-	certs, err := h.performSessionMFACeremony(ctx, sctx, certsReq, hs.getPromptBuilder(log))
-	if err != nil {
-		return hs.sendError(ctx, log, err)
-	}
-
-	tlsConfig, err := h.createDesktopTLSConfig(ctx, sctx, desktopName, key, certs)
-	if err != nil {
-		return hs.sendError(ctx, log, err)
-	}
-
-	return connectToWDS(ctx, r, log, sctx, cluster, ws, username, desktopName, clusterName, version, hs, tlsConfig)
-}
-
 const (
 	// SNISuffix is the server name suffix used during SNI to specify the
 	// target desktop to connect to. The client (proxy_service) will use SNI
@@ -832,36 +749,13 @@ func (h *Handler) createDesktopTLSConfig(
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig.Certificates = []tls.Certificate{certConf}
+	tlsConfig.Certificates = nil
+	tlsConfig.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		return &certConf, nil
+	}
 	tlsConfig.NextProtos = []string{tdpb.ProtocolNameV1_1, tdpb.ProtocolName}
 	// Pass target desktop name via SNI.
 	tlsConfig.ServerName = desktopName + SNISuffix
-	return tlsConfig, nil
-}
-
-// createDesktopTLSConfigFromSession creates a TLS config for connecting to a Windows Desktop Service using the existing
-// session certificate.
-func (h *Handler) createDesktopTLSConfigFromSession(
-	ctx context.Context,
-	sctx *SessionContext,
-	desktopName string,
-) (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(sctx.cfg.Session.GetTLSCert(), sctx.cfg.Session.GetTLSPriv())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig, err := sctx.ClientTLSConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig.Certificates = []tls.Certificate{cert}
-	tlsConfig.NextProtos = []string{tdpb.ProtocolNameV1_1, tdpb.ProtocolName}
-
-	// Pass target desktop name via SNI.
-	tlsConfig.ServerName = desktopName + SNISuffix
-
 	return tlsConfig, nil
 }
 

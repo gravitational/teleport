@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -131,16 +132,62 @@ func (s *Session) Start(
 	if len(tlsConfig.Certificates) == 0 {
 		return trace.AccessDenied("no TLS certificate available; re-authentication required")
 	}
-	cert := tlsConfig.Certificates[0]
+	loginCert := tlsConfig.Certificates[0]
 
-	// conn is the server connection.
+	// Capture the ALPN in order to determine whether to use in-band MFA or fall back to legacy MFA cert.
+	//
+	// XXX: Add some functional and defensive tests to lock in this behavior. Consider defining the functions
+	// elsewhere so this is easier to read and don't need to duplicate it. This is for POC purposes only and needs a
+	// full refactor for prod.
+	var negotiatedProtocol atomic.Value
+
 	conn, err := proxyClient.ProxyWindowsDesktopSession(
 		ctx, transportv1.WindowsDesktopSessionConfig{
 			Cluster:     clusterClient.SiteName,
 			DesktopName: s.desktopName(),
-			DesktopCert: cert,
 			RootCAs:     tlsConfig.RootCAs,
 			Protocols:   []string{tdpb.ProtocolNameV1_1, tdpb.ProtocolName},
+			VerifyConnection: func(state tls.ConnectionState) error {
+				negotiatedProtocol.Store(state.NegotiatedProtocol)
+				return nil
+			},
+			GetClientCertificate: func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+				alpn := negotiatedProtocol.Load()
+				if alpn == nil {
+					return nil, trace.BadParameter("ALPN should not be nil (this is a bug)")
+				}
+
+				alpnStr, ok := alpn.(string)
+				if !ok {
+					return nil, trace.BadParameter("ALPN should be a string (this is a bug)")
+				}
+
+				if alpnStr == tdpb.ProtocolName {
+					keyRing, err := clusterClient.IssueUserCertsWithMFA(
+						ctx,
+						client.ReissueParams{
+							RouteToCluster: clusterClient.SiteName,
+							TTL:            clusterClient.KeyTTL,
+							RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
+								WindowsDesktop: s.desktopName(),
+								Login:          s.login,
+							},
+						},
+					)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					mfaCert, err := keyRing.WindowsDesktopTLSCert(s.desktopName())
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					return &mfaCert, nil
+				}
+
+				return &loginCert, nil
+			},
 		},
 	)
 	if err != nil {
@@ -163,15 +210,11 @@ func (s *Session) Start(
 		return trace.Wrap(err)
 	}
 
-	// Whether we forward the ClientHello as-is, or send a triple
-	// (Username, ClientScreenSpec, ClientScreenSpec) depends on
-	// the server's serverProtocol selection.
 	serverProtocol := conn.ConnectionState().NegotiatedProtocol
-	wdsSupportsInBandMFA := serverProtocol == tdpb.ProtocolNameV1_1
 
 	var tdpServerConn tdp.MessageReadWriteCloser
 	if serverProtocol == tdpb.ProtocolNameV1_1 || serverProtocol == tdpb.ProtocolName {
-		tdpServerConn, err = s.handleTDPBHandshake(ctx, clusterClient, proxyClient, conn, clientConn, hello, wdsSupportsInBandMFA)
+		tdpServerConn, err = s.handleTDPBHandshake(ctx, clusterClient, conn, clientConn, hello)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -257,24 +300,10 @@ func (s *Session) readClientHello(downstreamRW *streamutils.ReadWriter) (*tdp.Co
 func (s *Session) handleTDPBHandshake(
 	ctx context.Context,
 	clusterClient *client.TeleportClient,
-	proxyClient *proxy.Client,
 	conn *tls.Conn,
 	clientConn *tdp.Conn,
 	hello *tdpb.ClientHello,
-	wdsSupportsInBandMFA bool,
 ) (tdp.MessageReadWriteCloser, error) {
-	// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility with
-	// clients that do not support in-band MFA is no longer needed.
-	if !wdsSupportsInBandMFA {
-		slog.WarnContext(ctx, "Legacy WDS detected, falling back to legacy out-of-band MFA")
-
-		if os.Getenv(mfa.ForceInBandEnv) == "yes" {
-			return nil, trace.AccessDenied("in-band MFA is required but the server does not support it")
-		}
-
-		return s.fallbackToLegacyMFA(ctx, clusterClient, proxyClient, hello.ScreenSpec)
-	}
-
 	// Use TDPB decoder.
 	tdpServerConn := tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 
@@ -383,65 +412,6 @@ func (s *Session) performInBandMFA(
 	}
 
 	return name, nil
-}
-
-// fallbackToLegacyMFA closes the connection, issues a per-session MFA cert, and reconnects to the WDS.
-//
-// TODO(cthach): DELETE IN v20.0 when the legacy per-session MFA with certificates flow is removed.
-func (s *Session) fallbackToLegacyMFA(
-	ctx context.Context,
-	clusterClient *client.TeleportClient,
-	proxyClient *proxy.Client,
-	screenSpec *tdpbv1.ClientScreenSpec,
-) (tdp.MessageReadWriteCloser, error) {
-	keyRing, err := clusterClient.IssueUserCertsWithMFA(
-		ctx,
-		client.ReissueParams{
-			RouteToCluster: clusterClient.SiteName,
-			TTL:            clusterClient.KeyTTL,
-			RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
-				WindowsDesktop: s.desktopName(),
-				Login:          s.login,
-			},
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, err := keyRing.WindowsDesktopTLSCert(s.desktopName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig, err := clusterClient.LoadTLSConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, transportv1.WindowsDesktopSessionConfig{
-		Cluster:     clusterClient.SiteName,
-		DesktopName: s.desktopName(),
-		DesktopCert: cert,
-		RootCAs:     tlsConfig.RootCAs,
-		Protocols:   []string{tdpb.ProtocolName},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tdpServerConn := tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
-
-	fallbackHello := &tdpb.ClientHello{
-		Username:   s.login,
-		ScreenSpec: screenSpec,
-	}
-
-	if err := tdpServerConn.WriteMessage(fallbackHello); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return tdpServerConn, nil
 }
 
 // clientStream implements the [streamutils.Source] interface

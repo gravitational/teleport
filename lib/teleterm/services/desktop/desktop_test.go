@@ -180,42 +180,6 @@ func TestTDPBNoMFA_MessageExchange(t *testing.T) {
 	require.True(t, serverHello.ClipboardEnabled)
 }
 
-func TestTDPBLegacyWDS_Alert(t *testing.T) {
-	t.Parallel()
-
-	clientPipe, serverPipe := net.Pipe()
-	defer clientPipe.Close()
-	defer serverPipe.Close()
-
-	go func() {
-		conn := tdp.NewConn(serverPipe, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
-
-		_, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-
-		if err := conn.WriteMessage(&tdpb.Alert{
-			Message:  "in-band MFA not supported",
-			Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING,
-		}); err != nil {
-			return
-		}
-	}()
-
-	conn := tdp.NewConn(clientPipe, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
-
-	if err := conn.WriteMessage(newTestClientHello()); err != nil {
-		t.Fatalf("failed to send ClientHello: %v", err)
-	}
-
-	msg, err := conn.ReadMessage()
-	require.NoError(t, err)
-	alert, ok := msg.(*tdpb.Alert)
-	require.True(t, ok, "expected Alert, got %T", msg)
-	require.Equal(t, "in-band MFA not supported", alert.Message)
-}
-
 func newAuthPrompt() *tdpbv1.AuthPrompt {
 	return tdpbv1.AuthPrompt_builder{
 		MfaPrompt: &tdpbv1.MFAPrompt{},
