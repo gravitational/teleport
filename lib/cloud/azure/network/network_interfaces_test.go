@@ -20,11 +20,13 @@ package network
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -62,7 +64,7 @@ func TestInterfacesClientLiveGet(t *testing.T) {
 		t.Skip("Set TELEPORT_TEST_AZURE_NIC_ID to the resource ID of a real Azure network interface.")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
@@ -105,7 +107,7 @@ func TestInterfacesClientLiveList(t *testing.T) {
 		t.Skip("Set TELEPORT_TEST_AZURE to run this test against a real Azure subscription.")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
@@ -143,22 +145,23 @@ const testNICID = "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.N
 const token = "fake-token"
 
 // fakeDoer is an HTTP doer that returns canned responses and records the request
-// it received, so tests can run without contacting Azure. It returns, in order
-// of precedence: an error if set; whatever respond returns (route by request); a
-// fresh response from repeatBody on every call (for pagination loops); otherwise
-// resp.
+// it received, so tests can run without contacting Azure.
 type fakeDoer struct {
 	resp       *http.Response
 	repeatBody string
 	respond    func(*http.Request) (*http.Response, error)
 	err        error
-	calls      int
-	last       *http.Request
+
+	mu    sync.Mutex
+	calls int
+	last  *http.Request
 }
 
 func (f *fakeDoer) Do(req *http.Request) (*http.Response, error) {
+	f.mu.Lock()
 	f.calls++
 	f.last = req
+	f.mu.Unlock()
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -182,39 +185,43 @@ func jsonResponse(status int, body string) *http.Response {
 	}
 }
 
+// uniformSet is a single uniform VM Scale Set with one instance NIC.
+type uniformSet struct {
+	id, instance, nicName, privateIP string
+}
+
+// uniformScaleSets builds n uniform scale sets and their VM Scale Sets list
+// entries (unwrapped JSON objects, ready to compose into a "value" array).
+func uniformScaleSets(n int) ([]uniformSet, []string) {
+	sets := make([]uniformSet, n)
+	entries := make([]string, n)
+	for i := range sets {
+		name := fmt.Sprintf("uniform-ss-%d", i)
+		id := "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/" + name
+		sets[i] = uniformSet{
+			id:        id,
+			instance:  fmt.Sprintf("%s/virtualMachines/%d", id, i),
+			nicName:   name + "-nic",
+			privateIP: fmt.Sprintf("10.1.0.%d", i+1),
+		}
+		entries[i] = fmt.Sprintf(`{"id":%q,"name":%q,"properties":{"orchestrationMode":"Uniform"}}`, id, name)
+	}
+	return sets, entries
+}
+
+// setForPath returns the scale set that matches the given path, or false if
+// none match.
+func setForPath(sets []uniformSet, path string) (uniformSet, bool) {
+	for _, s := range sets {
+		if strings.HasPrefix(path, s.id+"/") {
+			return s, true
+		}
+	}
+	return uniformSet{}, false
+}
+
 // emptyList is an empty paged list response body.
 const emptyList = `{"value":[]}`
-
-// listRoute routes the requests List makes to canned response bodies: the flat
-// networkInterfaces list, the VM Scale Sets list, and per-scale-set NIC lists
-// (perScaleSetNICs is returned for any of those). pages maps a nextLink path to
-// its body. Empty bodies default to an empty list; unmatched requests 404.
-func listRoute(flatNICs, scaleSets, perScaleSetNICs string, pages map[string]string) func(*http.Request) (*http.Response, error) {
-	if flatNICs == "" {
-		flatNICs = emptyList
-	}
-	if scaleSets == "" {
-		scaleSets = emptyList
-	}
-	if perScaleSetNICs == "" {
-		perScaleSetNICs = emptyList
-	}
-	return func(req *http.Request) (*http.Response, error) {
-		p := req.URL.Path
-		if body, ok := pages[p]; ok {
-			return jsonResponse(http.StatusOK, body), nil
-		}
-		switch {
-		case strings.Contains(p, "/virtualMachineScaleSets/") && strings.HasSuffix(p, "/networkInterfaces"):
-			return jsonResponse(http.StatusOK, perScaleSetNICs), nil
-		case strings.HasSuffix(p, "/virtualMachineScaleSets"):
-			return jsonResponse(http.StatusOK, scaleSets), nil
-		case strings.HasSuffix(p, "/networkInterfaces"):
-			return jsonResponse(http.StatusOK, flatNICs), nil
-		}
-		return jsonResponse(http.StatusNotFound, `{}`), nil
-	}
-}
 
 func newTestClient(t *testing.T, doer *fakeDoer) InterfacesClient {
 	t.Helper()
@@ -287,7 +294,7 @@ func TestInterfacesClientGet(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			doer := &fakeDoer{resp: jsonResponse(http.StatusOK, test.body)}
-			nic, err := newTestClient(t, doer).Get(context.Background(), testNICID)
+			nic, err := newTestClient(t, doer).Get(t.Context(), testNICID)
 			require.NoError(t, err)
 			require.Equal(t, testNICID, nic.ID)
 			require.Equal(t, test.wantName, nic.Name)
@@ -300,7 +307,7 @@ func TestInterfacesClientGetRequest(t *testing.T) {
 	t.Parallel()
 
 	doer := &fakeDoer{resp: jsonResponse(http.StatusOK, `{"name":"my-nic"}`)}
-	_, err := newTestClient(t, doer).Get(context.Background(), testNICID)
+	_, err := newTestClient(t, doer).Get(t.Context(), testNICID)
 	require.NoError(t, err)
 
 	require.Equal(t, 1, doer.calls)
@@ -330,7 +337,7 @@ func TestInterfacesClientGetErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			doer := &fakeDoer{resp: jsonResponse(test.status, `{"error":{"code":"fail","message":"bye"}}`)}
-			_, err := newTestClient(t, doer).Get(context.Background(), testNICID)
+			_, err := newTestClient(t, doer).Get(t.Context(), testNICID)
 			require.Error(t, err)
 			require.True(t, test.assertErr(err), "unexpected error type: %v", err)
 		})
@@ -341,7 +348,7 @@ func TestInterfacesClientGetInvalidResourceID(t *testing.T) {
 	t.Parallel()
 
 	doer := &fakeDoer{resp: jsonResponse(http.StatusOK, `{}`)}
-	_, err := newTestClient(t, doer).Get(context.Background(), "not-a-valid-resource-id")
+	_, err := newTestClient(t, doer).Get(t.Context(), "not-a-valid-resource-id")
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
 	require.Zero(t, doer.calls, "transport must not be called for an invalid resource ID")
 }
@@ -361,63 +368,101 @@ func nicJSON(name, vmID, privateIP string) string {
 		`"ipConfigurations":[{"properties":{"privateIPAddress":"` + privateIP + `","primary":true}}]}}`
 }
 
+// TestInterfacesClientList checks that standalone, flexible-VMSS, and
+// uniform-VMSS NICs are all listed, grouped per VM, with orphan NICs dropped.
 func TestInterfacesClientList(t *testing.T) {
 	t.Parallel()
 
-	// Flat-list page 1 has a NIC for vmA and an orphan NIC (no virtualMachine);
-	// page 2 has a NIC for vmB. The orphan must be omitted from the result.
-	page1 := `{"value":[` + nicJSON("nicA", testVMA, "10.0.0.4") + `,` + nicJSON("orphan", "", "10.0.0.5") + `],"nextLink":"https://management.azure.com/flat-page-2"}`
-	page2 := `{"value":[` + nicJSON("nicB", testVMB, "10.0.0.6") + `]}`
+	const (
+		flexSSID     = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/flex-ss"
+		flexInstance = flexSSID + "/virtualMachines/0"
+	)
 
-	doer := &fakeDoer{respond: listRoute(page1, "", "", map[string]string{"/flat-page-2": page2})}
+	uniform, uniformEntries := uniformScaleSets(3)
 
-	nicsByVM, err := newTestClient(t, doer).List(context.Background(), "sub", "rg")
+	// The VM Scale Sets list enumerates the uniform sets plus a flexible set. The
+	// flexible set's instances are already in the flat list, so it must not be
+	// queried per-set.
+	scaleSets := `{"value":[` + strings.Join(append(uniformEntries,
+		`{"id":"`+flexSSID+`","name":"flex-ss","properties":{"orchestrationMode":"Flexible"}}`), ",") + `]}`
+
+	// Two pages of flat NICs: standalone vmA (one NIC per page, so grouping spans
+	// pages) and vmB, the flexible-VMSS instance, and an orphan NIC to be dropped.
+	flatPage1 := `{"value":[` + nicJSON("nicA1", testVMA, "10.0.0.4") + `,` + nicJSON("orphan", "", "10.0.0.5") + `],"nextLink":"https://management.azure.com/flat-page-2"}`
+	flatPage2 := `{"value":[` + nicJSON("nicA2", testVMA, "10.0.0.7") + `,` + nicJSON("nicB", testVMB, "10.0.0.6") + `,` + nicJSON("flex-nic", flexInstance, "10.0.0.8") + `]}`
+
+	var mu sync.Mutex
+	var requestedPaths []string
+	doer := &fakeDoer{respond: func(req *http.Request) (*http.Response, error) {
+		p := req.URL.Path
+		mu.Lock()
+		requestedPaths = append(requestedPaths, p)
+		mu.Unlock()
+		switch {
+		case p == "/flat-page-2":
+			return jsonResponse(http.StatusOK, flatPage2), nil
+		case strings.Contains(p, "/virtualMachineScaleSets/") && strings.HasSuffix(p, "/networkInterfaces"):
+			if s, ok := setForPath(uniform, p); ok {
+				return jsonResponse(http.StatusOK, `{"value":[`+nicJSON(s.nicName, s.instance, s.privateIP)+`]}`), nil
+			}
+			return jsonResponse(http.StatusNotFound, `{}`), nil
+		case strings.HasSuffix(p, "/virtualMachineScaleSets"):
+			return jsonResponse(http.StatusOK, scaleSets), nil
+		case strings.HasSuffix(p, "/networkInterfaces"):
+			return jsonResponse(http.StatusOK, flatPage1), nil
+		}
+		return jsonResponse(http.StatusNotFound, `{}`), nil
+	}}
+
+	nicsByVM, err := newTestClient(t, doer).List(t.Context(), "sub", "rg")
 	require.NoError(t, err)
 
-	require.Len(t, nicsByVM, 2, "orphan NIC without a VM must be omitted")
+	// VMs with NICs: standalone vmA and vmB and the flexible-VMSS instance (all
+	// from the flat list), plus one instance per uniform scale set. The orphan NIC
+	// is dropped.
+	require.Len(t, nicsByVM, 3+len(uniform))
 
-	a := nicsByVM[strings.ToLower(testVMA)]
-	require.Len(t, a, 1)
-	require.Equal(t, "10.0.0.4", a[0].PrivateIP)
+	// vmA's two NICs are grouped together, collected across both flat pages.
+	vmA := nicsByVM[strings.ToLower(testVMA)]
+	require.Len(t, vmA, 2)
+	require.ElementsMatch(t, []string{"10.0.0.4", "10.0.0.7"}, []string{vmA[0].PrivateIP, vmA[1].PrivateIP})
 
-	b := nicsByVM[strings.ToLower(testVMB)]
-	require.Len(t, b, 1)
-	require.Equal(t, "10.0.0.6", b[0].PrivateIP)
-}
+	// Standalone vmB and the flexible-VMSS instance each have one NIC.
+	require.Equal(t, "10.0.0.6", nicsByVM[strings.ToLower(testVMB)][0].PrivateIP)
+	require.Equal(t, "10.0.0.8", nicsByVM[strings.ToLower(flexInstance)][0].PrivateIP)
 
-func TestInterfacesClientListGroupsMultipleNICs(t *testing.T) {
-	t.Parallel()
+	// Each uniform scale set's instance NIC is fetched per-set and merged in.
+	for _, s := range uniform {
+		nics := nicsByVM[strings.ToLower(s.instance)]
+		require.Len(t, nics, 1, "expected exactly one NIC for %s", s.instance)
+		require.Equal(t, s.privateIP, nics[0].PrivateIP)
+	}
 
-	// A single VM with two attached NICs should collect both.
-	body := `{"value":[` + nicJSON("nic1", testVMA, "10.0.0.4") + `,` + nicJSON("nic2", testVMA, "10.0.0.7") + `]}`
-	doer := &fakeDoer{respond: listRoute(body, "", "", nil)}
-
-	nicsByVM, err := newTestClient(t, doer).List(context.Background(), "sub", "rg")
-	require.NoError(t, err)
-
-	nics := nicsByVM[strings.ToLower(testVMA)]
-	require.Len(t, nics, 2)
-	ips := []string{nics[0].PrivateIP, nics[1].PrivateIP}
-	require.ElementsMatch(t, []string{"10.0.0.4", "10.0.0.7"}, ips)
+	// The flexible scale set shouldn't be requested directly through the Compute
+	// API. Instead it should have been found via the Network API.
+	for _, p := range requestedPaths {
+		require.NotContains(t, p, "flex-ss/networkInterfaces")
+	}
 }
 
 func TestInterfacesClientListMaxPages(t *testing.T) {
 	t.Parallel()
 
 	// Every response points to a next page, which would loop forever without the
-	// page cap. Both the flat-list and scale-set enumerations hit it.
+	// page cap.
 	doer := &fakeDoer{repeatBody: `{"value":[],"nextLink":"https://management.azure.com/next"}`}
 
-	_, err := newTestClient(t, doer).List(context.Background(), "sub", "rg")
+	_, err := newTestClient(t, doer).List(t.Context(), "sub", "rg")
 	require.Error(t, err)
-	require.ErrorContains(t, err, "maximum")
+	require.ErrorIs(t, err, trace.LimitExceeded("listing Azure network interfaces exceeded the maximum of %d pages", maxListPages))
 }
 
 func TestInterfacesClientListRequest(t *testing.T) {
 	t.Parallel()
 
-	// check lists with the given resource group and asserts both the flat NIC
-	// request and the VM Scale Sets request use the expected path and api-version.
+	// check lists with the given resource group and asserts both the Network API
+	// request and the VM Scale Sets Compute API request use the expected path and
+	// api-version.
 	check := func(t *testing.T, resourceGroup, wantNICPath, wantScaleSetPath string) {
 		t.Helper()
 		var reqs []*url.URL
@@ -425,7 +470,7 @@ func TestInterfacesClientListRequest(t *testing.T) {
 			reqs = append(reqs, req.URL)
 			return jsonResponse(http.StatusOK, emptyList), nil
 		}}
-		_, err := newTestClient(t, doer).List(context.Background(), "sub", resourceGroup)
+		_, err := newTestClient(t, doer).List(t.Context(), "sub", resourceGroup)
 		require.NoError(t, err)
 
 		var nicURL, scaleSetURL *url.URL
@@ -438,11 +483,11 @@ func TestInterfacesClientListRequest(t *testing.T) {
 			}
 		}
 
-		require.NotNil(t, nicURL, "expected a flat network interfaces request")
+		require.NotNil(t, nicURL, "expected a network API interfaces request")
 		require.Equal(t, wantNICPath, nicURL.Path)
 		require.Equal(t, interfaceAPIVersion, nicURL.Query().Get("api-version"))
 
-		require.NotNil(t, scaleSetURL, "expected a VM Scale Sets request")
+		require.NotNil(t, scaleSetURL, "expected a compute API request")
 		require.Equal(t, wantScaleSetPath, scaleSetURL.Path)
 		require.Equal(t, computeAPIVersion, scaleSetURL.Query().Get("api-version"))
 	}
@@ -460,51 +505,4 @@ func TestInterfacesClientListRequest(t *testing.T) {
 			"/subscriptions/sub/providers/Microsoft.Network/networkInterfaces",
 			"/subscriptions/sub/providers/Microsoft.Compute/virtualMachineScaleSets")
 	})
-}
-
-func TestInterfacesClientListIncludesUniformVMSS(t *testing.T) {
-	t.Parallel()
-
-	const (
-		uniformSSID     = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/uniform-ss"
-		flexSSID        = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/flex-ss"
-		uniformInstance = uniformSSID + "/virtualMachines/0"
-	)
-
-	flat := `{"value":[` + nicJSON("standalone-nic", testVMA, "10.0.0.4") + `]}`
-	scaleSets := `{"value":[` +
-		`{"id":"` + uniformSSID + `","name":"uniform-ss","properties":{"orchestrationMode":"Uniform"}},` +
-		`{"id":"` + flexSSID + `","name":"flex-ss","properties":{"orchestrationMode":"Flexible"}}` +
-		`]}`
-	uniformNICs := `{"value":[` + nicJSON("uniform-nic", uniformInstance, "10.0.0.5") + `]}`
-
-	var requestedPaths []string
-	doer := &fakeDoer{respond: func(req *http.Request) (*http.Response, error) {
-		p := req.URL.Path
-		requestedPaths = append(requestedPaths, p)
-		switch {
-		case strings.Contains(p, "/virtualMachineScaleSets/") && strings.HasSuffix(p, "/networkInterfaces"):
-			return jsonResponse(http.StatusOK, uniformNICs), nil
-		case strings.HasSuffix(p, "/virtualMachineScaleSets"):
-			return jsonResponse(http.StatusOK, scaleSets), nil
-		case strings.HasSuffix(p, "/networkInterfaces"):
-			return jsonResponse(http.StatusOK, flat), nil
-		}
-		return jsonResponse(http.StatusNotFound, `{}`), nil
-	}}
-
-	nicsByVM, err := newTestClient(t, doer).List(context.Background(), "sub", "rg")
-	require.NoError(t, err)
-
-	// The standalone VM comes from the flat list; the uniform VMSS instance comes
-	// from the per-scale-set list.
-	require.Len(t, nicsByVM, 2)
-	require.Equal(t, "10.0.0.4", nicsByVM[strings.ToLower(testVMA)][0].PrivateIP)
-	require.Equal(t, "10.0.0.5", nicsByVM[strings.ToLower(uniformInstance)][0].PrivateIP)
-
-	// The flexible scale set must NOT be queried for NICs; its instances are
-	// already covered by the flat list.
-	for _, p := range requestedPaths {
-		require.NotContains(t, p, "flex-ss/networkInterfaces")
-	}
 }
