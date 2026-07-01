@@ -98,6 +98,9 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: id.Value,
+		{{- if .Scoped}}
+		Scope: scope.Value,
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: subKind.Value,
 		{{- end}}

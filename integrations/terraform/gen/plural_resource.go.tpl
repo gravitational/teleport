@@ -343,6 +343,9 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		{{- if .RequestWrapper }}
 			{{ .VarName }}Resp, err := r.p.Client.{{ .GetMethod }}(ctx, &{{ .ProtoPackage }}.{{ .RequestWrapper.GetRequest }}{
 				Name: id,
+				{{- if .Scoped }}
+				Scope: scope,
+				{{- end }}
 				{{- if .DefaultSubKind }}
 				SubKind: {{ .VarName }}Resource.SubKind,
 				{{- end }}
@@ -639,6 +642,9 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	{{- if .RequestWrapper}}
 		{{.VarName}}GetResp, getErr := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 			Name: name,
+			{{- if .Scoped}}
+			Scope: scope,
+			{{- end}}
 			{{- if .DefaultSubKind}}
 			SubKind: {{.VarName}}Resource.SubKind,
 			{{- end}}
@@ -724,6 +730,9 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		{{- if .RequestWrapper }}
 			{{ .VarName }}Resp, err := r.p.Client.{{ .GetMethod }}(ctx, &{{ .ProtoPackage }}.{{ .RequestWrapper.GetRequest }}{
 				Name: name,
+				{{- if .Scoped }}
+				Scope: scope,
+				{{- end }}
 				{{- if .DefaultSubKind }}
 				SubKind: {{ .VarName }}Resource.SubKind,
 				{{- end }}
