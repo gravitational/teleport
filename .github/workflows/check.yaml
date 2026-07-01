@@ -28,6 +28,7 @@ permissions:
     repository-projects: none
     security-events: none
     statuses: none
+    id-token: write
 
 jobs:
   check-reviews:
@@ -35,6 +36,18 @@ jobs:
     if: ${{ !github.event.pull_request.draft && !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-latest
     steps:
+      - name: Get runtime values from kvstore
+        id: kvstore
+        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.0
+        with:
+          cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
+          cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
+          existing-gh-secrets: "${{ toJSON(secrets) }}"
+          existing-gh-variables: "${{ toJSON(vars) }}"
+          # values: |
+          #   REVIEWERS_APP_ID,secret
+          #   REVIEWERS_PRIVATE_KEY,secret
+          #   REVIEWERS,secret
       - name: Generate GitHub Token
         id: generate_token
         uses: actions/create-github-app-token@v1
