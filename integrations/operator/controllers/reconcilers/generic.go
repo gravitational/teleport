@@ -111,7 +111,7 @@ func (r ResourceKey) String() string {
 // Implementing this interface allows to be reconciled by the resourceReconciler
 // instead of writing a new specific reconciliation loop.
 // resourceClient implementations can optionally implement the resourceMutator
-// interface.
+// and resourceMutator interfaces.
 type resourceClient[T Resource] interface {
 	Get(context.Context, ResourceKey) (T, error)
 	Create(context.Context, T) error
@@ -243,10 +243,9 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	r.adapter.SetResourceLabels(teleportResource, teleportLabels)
 	debugLog.Info("Propagating labels from kube resource", "kubeLabels", kubeLabels, "teleportLabels", teleportLabels)
 
-	objKey := kclient.ObjectKeyFromObject(k8sResource)
-
 	if mutator, ok := r.resourceClient.(resourceMutator[T]); ok {
 		debugLog.Info("Mutating resource")
+		objKey := kclient.ObjectKeyFromObject(k8sResource)
 		if err := mutator.Mutate(ctx, teleportResource, existingResource, objKey); err != nil {
 			// If an error happens we want to put it in status.conditions before returning.
 			updateErr = updateStatus(updateStatusConfig{
