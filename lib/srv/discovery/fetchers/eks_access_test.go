@@ -71,6 +71,23 @@ func TestEKSAccessReresolvesIdentity(t *testing.T) {
 	require.Equal(t, 2, sts.calls)
 }
 
+// TestEKSAccessIdentityLookupRegion verifies the identity lookup uses the
+// cluster's region.
+func TestEKSAccessIdentityLookupRegion(t *testing.T) {
+	getter := &mockRegionalEKSClientGetterWithSTS{
+		mockRegionalEKSClientGetter: mockRegionalEKSClientGetter{
+			AWSConfigProvider: mocks.AWSConfigProvider{},
+		},
+		stsClient: &mockSTSClient{arn: "arn:aws:iam::123456789012:role/discovery"},
+	}
+	mgr, err := NewEKSAccessManager(getter, logtest.NewLogger())
+	require.NoError(t, err)
+	cluster := testDiscoveredEKSCluster(t, testEKSCluster(ekstypes.AuthenticationModeConfigMap), types.AWSMatcher{})
+
+	require.NotNil(t, mgr.Provision(context.Background(), cluster))
+	require.Equal(t, "eu-west-1", getter.stsRegion)
+}
+
 // TestEKSAccessSkipsWithoutBootstrap verifies that the manager
 // inspects the access entry but does not provision admin access when the
 // bootstrap ARN is unresolved.
@@ -258,9 +275,11 @@ func testDiscoveredEKSCluster(t *testing.T, awsCluster *ekstypes.Cluster, matche
 type mockRegionalEKSClientGetterWithSTS struct {
 	mockRegionalEKSClientGetter
 	stsClient STSClient
+	stsRegion string
 }
 
-func (g *mockRegionalEKSClientGetterWithSTS) GetAWSSTSClient(aws.Config) STSClient {
+func (g *mockRegionalEKSClientGetterWithSTS) GetAWSSTSClient(cfg aws.Config) STSClient {
+	g.stsRegion = cfg.Region
 	return g.stsClient
 }
 

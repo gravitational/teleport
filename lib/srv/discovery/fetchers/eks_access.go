@@ -108,7 +108,7 @@ func NewEKSAccessManager(clientGetter AWSClientGetter, logger *slog.Logger) (*EK
 func (m *EKSAccessManager) Provision(ctx context.Context, cluster *DiscoveredEKSCluster) *types.KubernetesClusterStatus {
 	bootstrapARN := cluster.GetAssumeRoleARN()
 	if bootstrapARN == "" {
-		bootstrapARN = m.ambientIdentity(ctx)
+		bootstrapARN = m.ambientIdentity(ctx, cluster.GetAWSConfig().Region)
 	}
 	principalARN := cmp.Or(cluster.GetSetupAccessForARN(), bootstrapARN)
 	if principalARN == "" {
@@ -192,14 +192,15 @@ func (m *EKSAccessManager) ProvisionAll(ctx context.Context, clusters []*Discove
 
 // ambientIdentity resolves the discovery service's own IAM identity and caches it for
 // the cycle. It returns empty until the lookup succeeds, so a cluster that needs it
-// defers provisioning to a later cycle.
-func (m *EKSAccessManager) ambientIdentity(ctx context.Context) string {
+// defers provisioning to a later cycle. The region keeps the lookup in the same AWS
+// partition as the cluster.
+func (m *EKSAccessManager) ambientIdentity(ctx context.Context, region string) string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.callerIdentityARN != "" {
 		return m.callerIdentityARN
 	}
-	arn, err := m.resolveCallerIdentity(ctx)
+	arn, err := m.resolveCallerIdentity(ctx, region)
 	if err != nil {
 		m.logger.WarnContext(ctx, "Failed to resolve discovery service identity; ambient-credential clusters will retry next cycle", "error", err)
 		return ""
@@ -208,10 +209,10 @@ func (m *EKSAccessManager) ambientIdentity(ctx context.Context) string {
 	return arn
 }
 
-// resolveCallerIdentity returns the discovery service's own IAM role ARN. The caller
-// identity does not depend on region, so the lookup uses the ambient region.
-func (m *EKSAccessManager) resolveCallerIdentity(ctx context.Context) (string, error) {
-	cfg, err := m.clientGetter.GetConfig(ctx, "", accessCredentialOpts(nil)...)
+// resolveCallerIdentity returns the discovery service's own IAM role ARN, looked up
+// via STS in the given region.
+func (m *EKSAccessManager) resolveCallerIdentity(ctx context.Context, region string) (string, error) {
+	cfg, err := m.clientGetter.GetConfig(ctx, region, accessCredentialOpts(nil)...)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
