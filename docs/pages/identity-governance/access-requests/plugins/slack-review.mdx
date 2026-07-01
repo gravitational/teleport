@@ -66,7 +66,7 @@ Copy the generated app-level token for use in a later step: <Var name="xapp-..."
 Head to the **Socket Mode** tab and enable Socket Mode. This will allow the Teleport Slack plugin
 to build a WebSocket connection with the Slack server in order to process Access Request reviews from Slack.
 
-![Enable Slack Socket Mode](../../../../img/slack-socketmode.png)
+![Enable Slack Socket Mode](https://goteleport.com/_uploads/slack_socketmode_4badb28ce0.png)
 
 ## Step 2/7. Define requester and reviewer users
 
@@ -291,7 +291,7 @@ message from "Teleport" in Slack with Access Request details.
 This message will contain “Approve” and “Deny” buttons for the user to either
 approve or deny the request.
 
-![Slack Access Request message with approve and deny buttons](../../../../img/slack-review-request.png)
+![Slack Access Request message with approve and deny buttons](https://goteleport.com/_uploads/slack_review_request_20fcbbb8fe.png)
 
 ### Resolve the request
 
@@ -304,16 +304,17 @@ was approved or denied.
 
 The Web UI will also reflect the resolved Access Request.
 
-![Access Request reviewed on Web UI](../../../../img/slack-approve-request.png)
+![Access Request reviewed on Web UI](https://goteleport.com/_uploads/slack_approve_request_00532ec851.png)
 
 The Teleport audit log will report the Access Request as submitted by the Teleport Slack plugin identity.
 The `submitted_by` field represents the plugin identity that submitted on behalf of the `reviewer` user.
 
-<Details title="Audit log">
+<details>
+<summary>Audit log</summary>
 
-![Audit log for Access Request review](../../../../img/slack-review-audit-log.png)
+![Audit log for Access Request review](https://goteleport.com/_uploads/slack_review_audit_log_628108813c.png)
 
-</Details>
+</details>
 
 <Admonition type="info" title="Auditing Access Requests">
 
