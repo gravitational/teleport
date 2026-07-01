@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { useEffect, useRef } from 'react';
-import { useTheme } from 'styled-components';
 
 import { Box, Indicator } from 'design';
 
@@ -47,17 +46,9 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
       terminalRef.current?.focus();
     }
   }, [visible, mfa.challenge, status]);
-  const theme = useTheme();
 
   const terminal = (
-    <Terminal
-      ref={terminalRef}
-      tty={tty}
-      fontFamily={theme.fonts.mono}
-      theme={theme.colors.terminal}
-      convertEol
-      disableAutoFocus={true}
-    />
+    <Terminal ref={terminalRef} tty={tty} convertEol disableAutoFocus={true} />
   );
 
   return (

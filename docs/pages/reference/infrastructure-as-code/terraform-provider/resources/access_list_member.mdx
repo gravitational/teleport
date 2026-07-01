@@ -99,6 +99,7 @@ resource "teleport_access_list_member" "npcs" {
 ### Optional
 
 - `header` (Attributes) header is the header for the resource. (see [below for nested schema](#nested-schema-for-header))
+- `scope` (String) scope is the scope of the Access List member, it must be equal to the scope of the parent Access List.
 - `spec` (Attributes) spec is the specification for the Access List member. (see [below for nested schema](#nested-schema-for-spec))
 
 ### Nested Schema for `header`
@@ -134,12 +135,12 @@ Optional:
 Required:
 
 - `access_list` (String) associated Access List
-- `membership_kind` (Number) membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+- `membership_kind` (Number) membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
 
 Optional:
 
 - `added_by` (String) added_by is the user that added this user to the Access List.
 - `expires` (String) expires is when the user's membership to the Access List expires.
 - `joined` (String) joined is when the user joined the Access List.
-- `name` (String) name is the name of the member of the Access List.
+- `name` (String) name is the name of the member of the Access List, depending on MembershipKind: MEMBERSHIP_KIND_USER: the username of the member. MEMBERSHIP_KIND_LIST: the name of the member Access List. MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the member scope Access List.
 - `reason` (String) reason is the reason this user was added to the Access List.

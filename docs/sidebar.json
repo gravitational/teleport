@@ -168,6 +168,14 @@
       ]
     },
     {
+      "type": "doc",
+      "label": "Beams",
+      "id": "beams/beams",
+      "customProps": {
+        "tag": "new"
+      }
+    },
+    {
       "type": "category",
       "label": "User Guides",
       "collapsible": true,

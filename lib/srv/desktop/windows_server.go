@@ -899,10 +899,27 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	sendInterceptor := asInterceptor(makeTDPSendAuditor(ctx, s, s.cfg.Clock, s.cfg.Logger, recorder, delay, audit))
 	receiveInterceptor := asInterceptor(makeTDPReceiveAuditor(ctx, s, s.cfg.Clock, s.cfg.Logger, recorder, delay, audit))
 
+	// TODO(rhammonds): Remove in v20
+	// Some v18 and older clients assume that TDP connections support only a single
+	// shared directory. For this reason, they omit the DirectoryId from their
+	// response messages. These clients also hardcode the DirectoryId to '2'.
+	// To ensure conflicts are avoided, the backend will reject directory announcements
+	// that choose DirectoryId 0 and "fix" omitted DirectoryId fields.
+	// We need to run this mutation early in the connection so that it gets picked up
+	// by the inbound audit interceptor.
+	sharedDirectoryResponseModernizer := tdp.NewReadWriteInterceptor(translatedConn, func(message tdp.Message) ([]tdp.Message, error) {
+		if sdResponse, ok := message.(*tdpb.SharedDirectoryResponse); ok {
+			if sdResponse.DirectoryId == 0 {
+				sdResponse.DirectoryId = 2
+			}
+		}
+		return []tdp.Message{message}, nil
+	}, nil /* No write handler needed */)
+
 	// These hooks snoop for TDPB messages (ignoring legacy TDP) to create necessary audit events.
 	// The client emits only TDPB messages natively, so as long as we run these hooks *above* the translation
 	// interceptors they will be able to properly interpret inbound/outbound messages for audit.
-	auditedConn := tdp.NewReadWriteInterceptor(translatedConn, receiveInterceptor, sendInterceptor)
+	auditedConn := tdp.NewReadWriteInterceptor(sharedDirectoryResponseModernizer, receiveInterceptor, sendInterceptor)
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(auditedConn, hello, rdpclient.Config{

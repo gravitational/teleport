@@ -33,9 +33,13 @@ If you manage multiple AWS accounts in an AWS Organization, see [Organization-le
 
 - AWS account with EC2 instances and permissions to create and attach IAM
 policies.
-- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2/Amazon Linux 2023 and SSM agent version 3.1 or greater if making use of the
-default Teleport install script. (For other Linux distributions, you can
-install Teleport manually.)
+- EC2 instances to enroll with your Teleport cluster. These instances must be
+  running Ubuntu/Debian/RHEL/Amazon Linux 2/Amazon Linux 2023 and SSM agent
+  version 3.1 or greater if making use of the default Teleport install script.
+  (For other Linux distributions, you can install Teleport manually.)
+- An EC2 instance to run the Teleport Discovery Service. This instance must have
+  an instance profile. In this guide, we assume the instance role is called
+  `TeleportDiscoveryService`.
 - (!docs/pages/includes/tctl.mdx!)
 
 All EC2 instances that are to be added to the Teleport cluster by the Discovery
@@ -53,33 +57,44 @@ documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/A
 The `teleport discovery bootstrap` command will automate the process of
 defining and implementing IAM policies required to make auto-discovery work. It
 requires only a single pre-defined policy, attached to the EC2 instance running
-the command:
+the command.
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "iam:GetPolicy",
-                "iam:TagPolicy",
-                "iam:ListPolicyVersions",
-                "iam:CreatePolicyVersion",
-                "iam:CreatePolicy",
-                "iam:GetRole",
-                "ssm:CreateDocument",
-                "iam:DeletePolicyVersion",
-                "iam:AttachRolePolicy",
-                "iam:PutRolePermissionsBoundary"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-```
+1. Create the following policy and save it to a file called
+   `discovery-service.json`:
 
-Create this policy and apply it to the Node (EC2 instance) that will run the Discovery Service.
+   ```json
+   {
+       "Version": "2012-10-17",
+       "Statement": [
+           {
+               "Effect": "Allow",
+               "Action": [
+                   "iam:GetPolicy",
+                   "iam:TagPolicy",
+                   "iam:ListPolicyVersions",
+                   "iam:CreatePolicyVersion",
+                   "iam:CreatePolicy",
+                   "iam:GetRole",
+                   "ssm:CreateDocument",
+                   "iam:DeletePolicyVersion",
+                   "iam:AttachRolePolicy",
+                   "iam:PutRolePermissionsBoundary"
+               ],
+               "Resource": "*"
+           }
+       ]
+   }
+   ```
+
+1. Create the policy, retrieving its ARN, and attach it to the Discovery Service
+   IAM role:
+
+   ```code
+   $ POLICY_ARN=$(aws iam create-policy --policy-name TeleportDiscoveryServicePolicy \
+     --policy-document file://discovery-service.json --query 'Policy.Arn' --output text)
+   $ aws iam attach-role-policy --role-name TeleportDiscoveryService \
+     --policy-arn ${POLICY_ARN}
+   ```
 
 ## Step 3/6. Install Teleport on the Discovery Node
 

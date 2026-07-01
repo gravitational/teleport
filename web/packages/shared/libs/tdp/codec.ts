@@ -218,6 +218,7 @@ export type SharedDirectoryInfoResponse = {
   completionId: number;
   errCode: SharedDirectoryErrCode;
   fso: FileSystemObject;
+  directoryId: number;
 };
 
 // | message type (15) | completion_id uint32 | directory_id uint32 | file_type uint32 | path_length uint32 | path []byte |
@@ -233,6 +234,7 @@ export type SharedDirectoryCreateResponse = {
   completionId: number;
   errCode: SharedDirectoryErrCode;
   fso: FileSystemObject;
+  directoryId: number;
 };
 
 // | message type (17) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
@@ -246,6 +248,7 @@ export type SharedDirectoryDeleteRequest = {
 export type SharedDirectoryDeleteResponse = {
   completionId: number;
   errCode: SharedDirectoryErrCode;
+  directoryId: number;
 };
 
 // | message type (19) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | length uint32 |
@@ -264,6 +267,7 @@ export type SharedDirectoryReadResponse = {
   errCode: SharedDirectoryErrCode;
   readDataLength: number;
   readData: Uint8Array;
+  directoryId: number;
 };
 
 // | message type (21) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | write_data_length uint32 | write_data []byte |
@@ -281,6 +285,7 @@ export type SharedDirectoryWriteResponse = {
   completionId: number;
   errCode: number;
   bytesWritten: number;
+  directoryId: number;
 };
 
 // | message type (23) | completion_id uint32 | directory_id uint32 | original_path_length uint32 | original_path []byte | new_path_length uint32 | new_path []byte |
@@ -297,6 +302,7 @@ export type SharedDirectoryMoveRequest = {
 export type SharedDirectoryMoveResponse = {
   completionId: number;
   errCode: SharedDirectoryErrCode;
+  directoryId: number;
 };
 
 // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
@@ -311,6 +317,7 @@ export type SharedDirectoryListResponse = {
   completionId: number;
   errCode: SharedDirectoryErrCode;
   fsoList: FileSystemObject[];
+  directoryId: number;
 };
 
 // | message type (33) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | end_of_file uint32 |
@@ -325,6 +332,7 @@ export type SharedDirectoryTruncateRequest = {
 export type SharedDirectoryTruncateResponse = {
   completionId: number;
   errCode: SharedDirectoryErrCode;
+  directoryId: number;
 };
 
 // | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
@@ -362,12 +370,18 @@ export type ServerHello = {
   clipboardSupport: boolean;
   hidpiSupported: boolean;
   activationEvent: RdpConnectionActivated;
+  directoryRemovalSupport: boolean;
+  multidirectorySharingSupported: boolean;
   sessions: string[];
 };
 
 export type ClientHello = {
   keyboardLayout: number;
   screenSpec: ClientScreenSpec;
+};
+
+export type SharedDirectoryRemoveRequest = {
+  directoryId: number;
 };
 
 export type MfaResponse = {
@@ -450,6 +464,9 @@ export interface Codec {
   ): Message;
   encodeSharedDirectoryTruncateResponse(
     resp: SharedDirectoryTruncateResponse
+  ): Message;
+  encodeSharedDirectoryRemoveRequest(
+    req: SharedDirectoryRemoveRequest
   ): Message;
 }
 
@@ -639,6 +656,9 @@ export class TdpbCodec implements Codec {
             clipboardSupport: hello.clipboardEnabled,
             hidpiSupported: hello.hidpiSupported,
             activationEvent: hello.activationSpec,
+            directoryRemovalSupport: hello.directoryRemoveSupported,
+            multidirectorySharingSupported:
+              hello.multidirectorySharingSupported,
           },
         };
       case 'pngFrame':
@@ -950,6 +970,7 @@ export class TdpbCodec implements Codec {
       oneofKind: 'sharedDirectoryResponse',
       sharedDirectoryResponse: SharedDirectoryResponse.create({
         completionId: res.completionId,
+        directoryId: res.directoryId,
         errorCode: res.errCode,
         operation: {
           oneofKind: 'info',
@@ -964,6 +985,7 @@ export class TdpbCodec implements Codec {
       oneofKind: 'sharedDirectoryResponse',
       sharedDirectoryResponse: SharedDirectoryResponse.create({
         completionId: res.completionId,
+        directoryId: res.directoryId,
         errorCode: res.errCode,
         operation: {
           oneofKind: 'read',
@@ -978,6 +1000,7 @@ export class TdpbCodec implements Codec {
       oneofKind: 'sharedDirectoryResponse',
       sharedDirectoryResponse: SharedDirectoryResponse.create({
         completionId: res.completionId,
+        directoryId: res.directoryId,
         errorCode: res.errCode,
         operation: {
           oneofKind: 'move',
@@ -992,6 +1015,7 @@ export class TdpbCodec implements Codec {
       oneofKind: 'sharedDirectoryResponse',
       sharedDirectoryResponse: SharedDirectoryResponse.create({
         completionId: res.completionId,
+        directoryId: res.directoryId,
         errorCode: res.errCode,
         operation: {
           oneofKind: 'list',
@@ -1017,6 +1041,7 @@ export class TdpbCodec implements Codec {
       oneofKind: 'sharedDirectoryResponse',
       sharedDirectoryResponse: SharedDirectoryResponse.create({
         completionId: resp.completionId,
+        directoryId: resp.directoryId,
         errorCode: resp.errCode,
         operation: {
           oneofKind: 'create',
@@ -1035,6 +1060,7 @@ export class TdpbCodec implements Codec {
       oneofKind: 'sharedDirectoryResponse',
       sharedDirectoryResponse: SharedDirectoryResponse.create({
         completionId: resp.completionId,
+        directoryId: resp.directoryId,
         errorCode: resp.errCode,
         operation: {
           oneofKind: 'delete',
@@ -1051,6 +1077,7 @@ export class TdpbCodec implements Codec {
       oneofKind: 'sharedDirectoryResponse',
       sharedDirectoryResponse: SharedDirectoryResponse.create({
         completionId: resp.completionId,
+        directoryId: resp.directoryId,
         errorCode: resp.errCode,
         operation: {
           oneofKind: 'write',
@@ -1069,6 +1096,7 @@ export class TdpbCodec implements Codec {
       oneofKind: 'sharedDirectoryResponse',
       sharedDirectoryResponse: SharedDirectoryResponse.create({
         completionId: resp.completionId,
+        directoryId: resp.directoryId,
         errorCode: resp.errCode,
         operation: {
           oneofKind: 'truncate',
@@ -1085,6 +1113,15 @@ export class TdpbCodec implements Codec {
         screenSpec: hello.screenSpec,
         keyboardLayout: hello.keyboardLayout,
       }),
+    });
+  }
+
+  encodeSharedDirectoryRemoveRequest(
+    req: SharedDirectoryRemoveRequest
+  ): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryRemove',
+      sharedDirectoryRemove: req,
     });
   }
 }
@@ -1680,6 +1717,14 @@ export class TdpCodec implements Codec {
     new Uint8Array(buffer, offset).set(new Uint8Array(responseFrame));
 
     return buffer;
+  }
+
+  encodeSharedDirectoryRemoveRequest(): Message {
+    // This is a bug. TDP connections should not negotiate shared directory removal
+    // with the server, and the client UI should not show directory removal as an option.
+    throw new Error(
+      'Legacy TDP codec does not support shared directory removal'
+    );
   }
 
   // decodeClipboardData decodes clipboard data

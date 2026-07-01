@@ -2875,3 +2875,12 @@ func (a IdentityCenterAccountAssignment) GetAccount() string {
 func IsLegacySAMLRBAC(roleVersion string) bool {
 	return slices.Contains([]string{V7, V6, V5, V4, V3, V2, V1}, roleVersion)
 }
+
+// ToLabels converts a map (map[string][]string) into Labels.
+func ToLabels(m map[string][]string) Labels {
+	out := make(Labels, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}

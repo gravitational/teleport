@@ -80,10 +80,11 @@ func (a *Authorizer) Exchange(ctx context.Context, authorizationCode string, red
 
 	_, err := a.client.R().
 		SetContext(ctx).
-		SetQueryParam("client_id", a.clientID).
-		SetQueryParam("client_secret", a.clientSecret).
-		SetQueryParam("code", authorizationCode).
-		SetQueryParam("redirect_uri", redirectURI).
+		SetBasicAuth(a.clientID, a.clientSecret).
+		SetFormData(map[string]string{
+			"code":         authorizationCode,
+			"redirect_uri": redirectURI,
+		}).
 		SetResult(&result).
 		Post("oauth.v2.access")
 
@@ -112,10 +113,11 @@ func (a *Authorizer) Refresh(ctx context.Context, refreshToken string) (*storage
 
 	_, err := a.client.R().
 		SetContext(ctx).
-		SetQueryParam("client_id", a.clientID).
-		SetQueryParam("client_secret", a.clientSecret).
-		SetQueryParam("grant_type", "refresh_token").
-		SetQueryParam("refresh_token", refreshToken).
+		SetBasicAuth(a.clientID, a.clientSecret).
+		SetFormData(map[string]string{
+			"grant_type":    "refresh_token",
+			"refresh_token": refreshToken,
+		}).
 		SetResult(&result).
 		Post("oauth.v2.access")
 

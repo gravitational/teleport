@@ -38,6 +38,7 @@ import (
 var rolesSupportingScopes = types.SystemRoles{
 	types.RoleNode,
 	types.RoleKube,
+	types.RoleApp,
 	types.RoleBot,
 }
 
@@ -508,7 +509,11 @@ var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage e
 
 // ValidateTokenForUse checks if a given scoped token can be used for
 // provisioning. Returns a [*trace.LimitExceededError] if the token is expired
-func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
+func ValidateTokenForUse(token *joiningv1.ScopedToken, features scopes.Features) error {
+	if err := features.AssertEnabled(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := StrongValidateToken(token); err != nil {
 		return trace.Wrap(err)
 	}
@@ -528,7 +533,26 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 		}
 	}
 
-	return nil
+	// if agent scope pins are enabled, all system roles are allowed to join
+	// with a scoped token
+	if features.AgentPinEnabled {
+		return nil
+	}
+
+	// if agent scope pins are disabled, then we need to ensure that only node and
+	// bot roles can be provisioned with a scoped token. Using [slices.ContainsFunc]
+	// to make it easier to fail closed
+	roles, err := types.NewTeleportRoles(token.GetSpec().GetRoles())
+	if err != nil {
+		return trace.Wrap(err, "normalizing system roles")
+	}
+	if !slices.ContainsFunc(roles, func(role types.SystemRole) bool {
+		return role != types.RoleNode && role != types.RoleBot
+	}) {
+		return nil
+	}
+
+	return trace.BadParameter("scoped token cannot be used to join [%s] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes", strings.Join(token.GetSpec().GetRoles(), ", "))
 }
 
 // ValidateTokenUpdate checks for invalid updates between two tokens.
@@ -662,6 +686,11 @@ func (t *Token) GetBot() (name, scope string) {
 // provisioned using the wrapped [joiningv1.ScopedToken].
 func (t *Token) GetAssignedScope() string {
 	return t.scoped.GetSpec().GetAssignedScope()
+}
+
+// GetScope returns the scope of the wrapped [joiningv1.ScopedToken].
+func (t *Token) GetScope() string {
+	return t.scoped.GetScope()
 }
 
 // GetSecret returns the token's secret value.
@@ -817,6 +846,81 @@ func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
 // token.
 func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
 	return BoundKeypairStatusFromScopedToken(t.scoped)
+}
+
+// convertGenericOIDCCondition converts a scoped generic_oidc condition to a
+// ProvisionTokenV2-style condition (with gogoproto semantics).
+func convertGenericOIDCCondition(c *joiningv1.GenericOIDC_Condition) (*types.ProvisionTokenSpecV2GenericOIDC_Condition, error) {
+	v := &types.ProvisionTokenSpecV2GenericOIDC_Condition{
+		Attribute: c.GetAttribute(),
+	}
+
+	switch {
+	case c.GetEq() != nil:
+		v.Eq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionEq{
+			Value: c.GetEq().GetValue(),
+		}
+	case c.GetNotEq() != nil:
+		v.NotEq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotEq{
+			Value: c.GetNotEq().GetValue(),
+		}
+	case c.GetIn() != nil:
+		v.In = &types.ProvisionTokenSpecV2GenericOIDC_ConditionIn{
+			Values: c.GetIn().GetValues(),
+		}
+	case c.GetNotIn() != nil:
+		v.NotIn = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotIn{
+			Values: c.GetNotIn().GetValues(),
+		}
+	default:
+		return nil, trace.BadParameter("an operator is required but found none")
+	}
+
+	return v, nil
+}
+
+// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+func (t *Token) GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error) {
+	spec := t.scoped.GetSpec().GetGenericOidc()
+
+	var globalMatchers *types.Struct
+	if gm := spec.GetMustMatchFields(); gm != nil {
+		gogo, err := convertStructPB(spec.GetMustMatchFields())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		globalMatchers = gogo
+	}
+
+	allow := make([]*types.ProvisionTokenSpecV2GenericOIDC_Rule, len(spec.GetAllowAny()))
+	for i, rule := range spec.GetAllowAny() {
+		conditions := make([]*types.ProvisionTokenSpecV2GenericOIDC_Condition, len(rule.GetConditions()))
+		for j, condition := range rule.GetConditions() {
+			converted, err := convertGenericOIDCCondition(condition)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			conditions[j] = converted
+		}
+
+		allow[i] = &types.ProvisionTokenSpecV2GenericOIDC_Rule{
+			Expression: rule.GetExpression(),
+			Conditions: conditions,
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GenericOIDC{
+		Issuer:                  spec.GetIssuer(),
+		InsecureAllowHTTPIssuer: spec.GetInsecureAllowHttpIssuer(),
+		Audience:                spec.GetAudience(),
+		StaticJWKS:              spec.GetStaticJwks(),
+		TLSCA:                   spec.GetTlsCa(),
+
+		MustMatchFields: globalMatchers,
+		AllowAny:        allow,
+	}, nil
 }
 
 // GetScoped returns the inner scoped token wrapped by this [provision.Token].

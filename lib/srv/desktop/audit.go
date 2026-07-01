@@ -19,6 +19,7 @@
 package desktop
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"time"
@@ -315,7 +316,7 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 // are cached for future audit events. An event is returned only if there was
 // an error.
 func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m *tdpb.SharedDirectoryAnnounce) *events.DesktopSharedDirectoryStart {
-	err := d.auditCache.SetName(directoryID(m.DirectoryId), directoryName(m.Name))
+	err := d.auditCache.NewDirectory(directoryID(m.DirectoryId), directoryName(m.Name))
 	if err == nil {
 		// no work to do yet, but data is cached for future events
 		return nil
@@ -344,6 +345,11 @@ func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m *tdpb.SharedDirector
 		DirectoryID:   m.DirectoryId,
 		DesktopName:   d.getName(),
 	}
+}
+
+// onSharedDirectoryRemove handles a shared directory removal message.
+func (d *desktopSessionAuditor) onSharedDirectoryRemove(m *tdpb.SharedDirectoryRemove) {
+	d.auditCache.RemoveDirectory(directoryID(m.DirectoryId))
 }
 
 // makeSharedDirectoryStart creates a DesktopSharedDirectoryStart event.
@@ -386,10 +392,9 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(completion completi
 	path := m.GetPath()
 	offset := m.GetOffset()
 
-	err := d.auditCache.SetReadRequestInfo(completion, readRequestInfo{
-		directoryID: did,
-		path:        path,
-		offset:      offset,
+	err := d.auditCache.SetReadRequestInfo(directory, completion, readRequestInfo{
+		path:   path,
+		offset: offset,
 	})
 	if err == nil {
 		// no work to do yet, but data is cached for future events
@@ -427,31 +432,21 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(completion completi
 }
 
 // makeSharedDirectoryReadResponse creates a DesktopSharedDirectoryRead audit event.
-func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(completion completionID, errorCode uint32, m *tdpbv1.SharedDirectoryResponse_Read) *events.DesktopSharedDirectoryRead {
-	var did directoryID
-	var name directoryName
-
+func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(did directoryID, completion completionID, errorCode uint32, m *tdpbv1.SharedDirectoryResponse_Read) *events.DesktopSharedDirectoryRead {
 	var path string
 	var offset uint64
 
 	code := libevents.DesktopSharedDirectoryReadCode
 
 	// Gather info from the audit cache
-	info, ok := d.auditCache.TakeReadRequestInfo(completion)
+	info, name, ok := d.auditCache.TakeReadRequestInfo(did, completion)
+	name = cmp.Or(name, "unknown")
 	if ok {
-		did = info.directoryID
-		// Only search for the directory name if we retrieved the directory ID from the audit cache.
-		name, ok = d.auditCache.GetName(did)
-		if !ok {
-			code = libevents.DesktopSharedDirectoryReadFailureCode
-			name = "unknown"
-		}
 		path = info.path
 		offset = info.offset
 	} else {
 		code = libevents.DesktopSharedDirectoryReadFailureCode
 		path = "unknown"
-		name = "unknown"
 	}
 
 	if errorCode != legacy.ErrCodeNil {
@@ -489,11 +484,11 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(completion complet
 	offset := m.GetOffset()
 
 	err := d.auditCache.SetWriteRequestInfo(
+		directory,
 		completion,
 		writeRequestInfo{
-			directoryID: did,
-			path:        path,
-			offset:      offset,
+			path:   path,
+			offset: offset,
 		})
 	if err == nil {
 		// no work to do yet, but data is cached for future events
@@ -531,8 +526,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(completion complet
 }
 
 // makeSharedDirectoryWriteResponse creates a DesktopSharedDirectoryWrite audit event.
-func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(completion completionID, errorCode uint32, m *tdpbv1.SharedDirectoryResponse_Write) *events.DesktopSharedDirectoryWrite {
-	var did directoryID
+func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(did directoryID, completion completionID, errorCode uint32, m *tdpbv1.SharedDirectoryResponse_Write) *events.DesktopSharedDirectoryWrite {
 	var name directoryName
 
 	var path string
@@ -540,21 +534,14 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(completion comp
 
 	code := libevents.DesktopSharedDirectoryWriteCode
 	// Gather info from the audit cache
-	info, ok := d.auditCache.TakeWriteRequestInfo(completion)
+	info, name, ok := d.auditCache.TakeWriteRequestInfo(did, completion)
+	name = cmp.Or(name, "unknown")
 	if ok {
-		did = info.directoryID
-		// Only search for the directory name if we retrieved the directoryID from the audit cache.
-		name, ok = d.auditCache.GetName(did)
-		if !ok {
-			code = libevents.DesktopSharedDirectoryWriteFailureCode
-			name = "unknown"
-		}
 		path = info.path
 		offset = info.offset
 	} else {
 		code = libevents.DesktopSharedDirectoryWriteFailureCode
 		path = "unknown"
-		name = "unknown"
 	}
 
 	if errorCode != legacy.ErrCodeNil {
@@ -752,14 +739,18 @@ func makeTDPReceiveAuditor(
 				s.emit(ctx, errorEvent)
 				return err
 			}
+		case *tdpb.SharedDirectoryRemove:
+			// This doesn't yield an audit event for removal. It just cleans up
+			// the directory entry from the audit cache.
+			audit.onSharedDirectoryRemove(msg)
 		case *tdpb.SharedDirectoryResponse:
 			// shared directory audit events can be noisy, so we use a compactor
 			// to retain and delay them in an attempt to coalesce contiguous events
 			switch op := msg.Operation.(type) {
 			case *tdpbv1.SharedDirectoryResponse_Read_:
-				audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Read))
+				audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(directoryID(msg.DirectoryId), completionID(msg.CompletionId), msg.ErrorCode, op.Read))
 			case *tdpbv1.SharedDirectoryResponse_Write_:
-				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Write))
+				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(directoryID(msg.DirectoryId), completionID(msg.CompletionId), msg.ErrorCode, op.Write))
 			}
 		}
 		return nil

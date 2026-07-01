@@ -312,6 +312,32 @@ spec:
                         type: string
                     type: object
                 type: object
+              workload_identity:
+                description: WorkloadIdentity specifies controls that govern issuance
+                  using WorkloadIdentity resources.
+                nullable: true
+                properties:
+                  labels:
+                    description: Labels is the set of WorkloadIdentity labels used
+                      to dynamically select which WorkloadIdentity resources this
+                      role permits issuance with. Issuance additionally requires the
+                      caller to hold read_no_secrets (and, for the multi-issue RPC,
+                      list) rules for the workload_identity kind in the relevant scope.
+                    items:
+                      properties:
+                        name:
+                          description: The name of the label.
+                          type: string
+                        values:
+                          description: The values associated with the label.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
             type: object
           status:
             description: Status defines the observed state of the Teleport resource

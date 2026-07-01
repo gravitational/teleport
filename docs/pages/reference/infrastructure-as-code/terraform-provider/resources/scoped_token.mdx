@@ -106,6 +106,7 @@ Optional:
 - `bot` (String) The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.
 - `bound_keypair` (Attributes) Configuration specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
 - `gcp` (Attributes) The GCP-specific configuration used with the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
+- `generic_oidc` (Attributes) Configuration specific to the "generic_oidc" join method. (see [below for nested schema](#nested-schema-for-specgeneric_oidc))
 - `immutable_labels` (Attributes) Immutable labels that should be applied to any resulting resources provisioned using this token. (see [below for nested schema](#nested-schema-for-specimmutable_labels))
 - `kubernetes` (Attributes) The Kubernetes-specific configuration used with the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
 - `oracle` (Attributes) The Oracle-specific configuration used with the "oracle" join method. (see [below for nested schema](#nested-schema-for-specoracle))
@@ -207,6 +208,65 @@ Optional:
 - `locations` (List of String) A list of regions (e.g. "us-west1") and/or zones (e.g. "us-west1-b").
 - `project_ids` (List of String) A list of project IDs (e.g. `<example-id-123456>`).
 - `service_accounts` (List of String) A list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).
+
+
+
+### Nested Schema for `spec.generic_oidc`
+
+Optional:
+
+- `allow_any` (Attributes List) Complex rules evaluated using "OR" semantics. If any rules are specified, at least one rule must evaluate to `true` for the join attempt/ to be allowed. These rules are evaluated after `must_match_fields`, if any field matchers are specified in that block.  Note that at least one rule, either in `must_match_fields` or `allow_any`, must be specified for any join attempts to succeed. (see [below for nested schema](#nested-schema-for-specgeneric_oidcallow_any))
+- `audience` (String) The expected JWT audience value (required). This must match or be included in the list of `aud` values in the JWT provided by the client when joining.  For providers that do not allow you to configure this value yourself (this is technically an OIDC spec violation, but is common), use the value they provide. Otherwise, we recommend using a value that uniquely identifies the Teleport cluster and join token. For example, you can use this scheme: $clusterName/$tokenName  For a cluster named `example.teleport.sh` and a token named `example`, this would result in an audience of `example.teleport.sh/example`. If you prefer, you can also use a UUID instead of the token name. Note that you will need to configure the matching value with the issuer, usually at request time.
+- `insecure_allow_http_issuer` (Boolean) If set, disables the requirement that the issuer must use HTTPS.
+- `issuer` (String) The expected `iss` value as written in the JWT you wish to trust. Unless `static_jwks` is configured, this issuer must be accessible over HTTPS to the Teleport cluster and must serve valid OIDC metadata, including discovery configuration and JWKS keys.
+- `static_jwks` (String) An optional static JWKS value that can be used to specify JWKS keys when either OIDC discovery is either not supported by the provider or the discovery configuration is not accessible to Teleport. When set, configuration and JWKS keys will not be fetched from the URL contained in `issuer` and JWTs will be validated using the key set specified here.
+- `tls_ca` (String) A TLS CA certificate that should be used to verify requests for OIDC metadata from the issuer instead of Teleport's CA store, useful if the issuer is not public or otherwise uses a self-signed certificate. If unset, the standard web PKI root certificates will be used to verify the connection to the issuer when fetching OIDC metadata. Note that this value only applies to requests using this token, and will be used instead of and not in addition to the system CA store, and will need to be updated manually if the remote CA is updated.
+
+### Nested Schema for `spec.generic_oidc.allow_any`
+
+Optional:
+
+- `conditions` (Attributes List) Conditions are simple eq/not_eq/in/not_in conditions that check individual fields. All conditions must be satisfied for a join attempt to be allowed. Mutually exclusive with `expression`. (see [below for nested schema](#nested-schema-for-specgeneric_oidcallow_anyconditions))
+- `expression` (String) A predicate expression that must evaluate to `true` for the join attempt to be allowed. It is mutually exclusive with `conditions`. TODO: Include name of variable available to the expr in docs
+
+### Nested Schema for `spec.generic_oidc.allow_any.conditions`
+
+Optional:
+
+- `attribute` (String) The name of the field this condition should check, separated by "." for nested fields.
+- `eq` (Attributes) An "equals" operator. Only one operator may be set within a condition. (see [below for nested schema](#nested-schema-for-specgeneric_oidcallow_anyconditionseq))
+- `in` (Attributes) An "in" operator. Only one operator may be set within a condition. (see [below for nested schema](#nested-schema-for-specgeneric_oidcallow_anyconditionsin))
+- `not_eq` (Attributes) A "not equals" operator. Only one operator may be set within a condition. (see [below for nested schema](#nested-schema-for-specgeneric_oidcallow_anyconditionsnot_eq))
+- `not_in` (Attributes) A "not in" operator. Only one operator may be set within a condition. (see [below for nested schema](#nested-schema-for-specgeneric_oidcallow_anyconditionsnot_in))
+
+### Nested Schema for `spec.generic_oidc.allow_any.conditions.eq`
+
+Optional:
+
+- `value` (String) The value to compare the attribute against.
+
+
+### Nested Schema for `spec.generic_oidc.allow_any.conditions.in`
+
+Optional:
+
+- `values` (List of String) The list of values to compare the attribute against.
+
+
+### Nested Schema for `spec.generic_oidc.allow_any.conditions.not_eq`
+
+Optional:
+
+- `value` (String) The value to compare the attribute against.
+
+
+### Nested Schema for `spec.generic_oidc.allow_any.conditions.not_in`
+
+Optional:
+
+- `values` (List of String) The list of values to compare the attribute against.
+
+
 
 
 

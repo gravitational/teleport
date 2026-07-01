@@ -1584,6 +1584,8 @@ type Cache interface {
 	services.SummarizerServiceGetter
 	// BeamReader defines methods for reading beam resources.
 	services.BeamReader
+	// BeamsConfigGetter reads BeamsConfig.
+	services.BeamsConfigGetter
 
 	// SubCAServiceGetter reads CertAuthorityOverride resources.
 	services.SubCAServiceGetter

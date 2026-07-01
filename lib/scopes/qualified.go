@@ -25,7 +25,7 @@ import (
 )
 
 // QualifiedNameSeparator is the separator between scope and name in a
-// scope-qualified name. This separator must never appear in scope segements.
+// scope-qualified name. This separator must never appear in scope segments.
 const QualifiedNameSeparator = "::"
 
 // QualifiedName pairs a scope with a resource name to uniquely identify a scoped
@@ -35,6 +35,10 @@ const QualifiedNameSeparator = "::"
 // is necessary to fully specify the unique identifier of a scoped resource. Internally,
 // teleport APIs should generally continue to use separate scope and name fields, as
 // should structured logs/events.
+//
+// A QualifiedName may be used in APIs that need to refer to a resource that
+// may be scoped or unscoped. In these cases the Scope field may be empty, and
+// WeakValidate and StrongValidate will return an error.
 type QualifiedName struct {
 	// Scope is the resource's scope path, e.g. "/staging/west".
 	Scope string
@@ -42,8 +46,12 @@ type QualifiedName struct {
 	Name string
 }
 
-// String returns encodes the string representation of the QualifiedName.
+// String returns the string representation of the QualifiedName.
+// If the Scope is empty, the Name is returned verbatim.
 func (q QualifiedName) String() string {
+	if q.Scope == "" {
+		return q.Name
+	}
 	return q.Scope + QualifiedNameSeparator + q.Name
 }
 

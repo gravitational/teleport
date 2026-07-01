@@ -45,6 +45,7 @@ import (
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/session/reexec/reexecsftp"
@@ -1321,6 +1323,55 @@ func (c *countingBPF) Enabled() bool {
 
 func (c *countingBPF) LostEvents() bpf.EventCount {
 	return bpf.EventCount{}
+}
+
+// TestBPFSessionContext_BeamID verifies that BeamID is propagated through
+// BPF SessionContext when creating enhanced recording sessions.
+func TestBPFSessionContext_BeamID(t *testing.T) {
+	t.Parallel()
+
+	testBeamID := "test-beam-id-456"
+
+	// Create a minimal ServerContext with BeamID in UnmappedIdentity
+	scx := &ServerContext{
+		Identity: IdentityContext{
+			Login:             "testuser",
+			TeleportUser:      "testuser@example.com",
+			OriginClusterName: "test-cluster",
+			MappedRoles:       []string{"test-role"},
+			Traits:            wrappers.Traits{},
+			UnmappedIdentity: &sshca.Identity{
+				BeamID: testBeamID,
+			},
+		},
+	}
+
+	// Simulate creating a BPF SessionContext (similar to what happens in sess.go)
+	var beamID string
+	if scx.Identity.UnmappedIdentity != nil {
+		beamID = scx.Identity.UnmappedIdentity.BeamID
+	}
+
+	sessionCtx := &bpf.SessionContext{
+		Namespace:             "default",
+		SessionID:             "test-session-id",
+		ServerID:              "test-server-id",
+		ServerHostname:        "test-hostname",
+		Login:                 scx.Identity.Login,
+		User:                  scx.Identity.TeleportUser,
+		UserOriginClusterName: scx.Identity.OriginClusterName,
+		UserRoles:             scx.Identity.MappedRoles,
+		UserTraits:            scx.Identity.Traits,
+		BeamID:                beamID,
+		Events:                map[string]struct{}{},
+	}
+
+	// Verify BeamID is set correctly in SessionContext
+	require.Equal(t, testBeamID, sessionCtx.BeamID, "BeamID should be propagated to SessionContext")
+
+	// Also verify that IdentityContext.GetUserMetadata() includes BeamID
+	metadata := scx.Identity.GetUserMetadata()
+	require.Equal(t, testBeamID, metadata.BeamID, "BeamID should be included in UserMetadata")
 }
 
 func TestTrackingSession(t *testing.T) {

@@ -637,7 +637,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	if cfg.ScopedTokenService == nil {
-		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend)
+		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend, cfg.ScopesFeatures)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -657,17 +657,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	if cfg.WorkloadClusterService == nil {
-		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating WorkloadClusterService")
-		}
-	}
-
 	if cfg.Beams == nil {
 		cfg.Beams, err = local.NewBeamService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating BeamsService")
+		}
+	}
+	if cfg.BeamsConfigService == nil {
+		cfg.BeamsConfigService, err = local.NewBeamsConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsConfigService")
 		}
 	}
 
@@ -678,6 +677,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "creating SubCAService")
+		}
+	}
+
+	if cfg.EnrollPairing == nil {
+		cfg.EnrollPairing, err = local.NewEnrollPairingService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating EnrollPairingService")
 		}
 	}
 
@@ -744,9 +750,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		ScopedTokenService:              cfg.ScopedTokenService,
 		AppAuthConfig:                   cfg.AppAuthConfig,
 		MFAService:                      cfg.MFAService,
-		WorkloadClusterService:          cfg.WorkloadClusterService,
 		Beams:                           cfg.Beams,
+		BeamsConfigService:              cfg.BeamsConfigService,
 		SubCAService:                    cfg.SubCAService,
+		EnrollPairing:                   cfg.EnrollPairing,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -3897,6 +3904,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				BotName:                  req.BotName,
 				BotInstanceID:            req.BotInstanceID,
 				DelegationSessionID:      req.DelegationSessionID,
+				BeamID:                   req.BeamID,
 				JoinToken:                req.JoinToken,
 				CertificateExtensions:    certificateExtensions,
 				AllowedResourceIDs:       allowedResourceIDs,
@@ -4044,6 +4052,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		BotInstanceID:            req.BotInstanceID,
 		BotInternal:              req.BotInternal,
 		DelegationSessionID:      req.DelegationSessionID,
+		BeamID:                   req.BeamID,
 		JoinToken:                req.JoinToken,
 		AllowedResourceIDs:       allowedResourceIDs,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,

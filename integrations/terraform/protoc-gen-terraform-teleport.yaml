@@ -235,7 +235,11 @@ exclude_fields:
     # credentials is excluded intentionally so that we dont have to handle plugin credentials, which are stored separately.
     - "IntegrationV1.Spec.credentials"
     - "IntegrationV1.Spec.GitHub"
-    
+
+    # Uses a google.protobuf.Struct field that isn't supported (see
+    # https://github.com/gravitational/protoc-gen-terraform/issues/52)
+    - "ProvisionTokenV2.Spec.GenericOIDC.MustMatchFields"
+
 name_overrides:
 
 # These fields will be marked as Computed: true

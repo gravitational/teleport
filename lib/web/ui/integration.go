@@ -172,6 +172,7 @@ type ResourcesCount struct {
 	Enrolled int `json:"enrolled"`
 	// Failed is the count of resources that were found but failed to be enrolled
 	Failed int `json:"failed"`
+	// TODO(gavin): add Pending count
 }
 
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.

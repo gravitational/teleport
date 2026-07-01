@@ -262,9 +262,10 @@ const (
 	SubsystemError = "exitError"
 
 	// X11 forwarding event
-	X11ForwardEvent   = "x11-forward"
-	X11ForwardSuccess = "success"
-	X11ForwardErr     = "error"
+	X11ForwardEvent = "x11-forward"
+
+	// Agent forwarding event
+	AgentForwardEvent = "agent-forward"
 
 	// Port forwarding event
 	PortForwardEvent           = "port"
@@ -372,6 +373,15 @@ const (
 	// ProvisionTokenCreateEvent is the event for creating a provisioning token,
 	// also known as Join Token. See [types.ProvisionToken].
 	ProvisionTokenCreateEvent = "join_token.create"
+
+	// ScopedTokenCreateEvent is the event for creating a scoped token.
+	ScopedTokenCreateEvent = "scoped_token.create"
+	// ScopedTokenUpsertEvent is the event for upserting a scoped token.
+	ScopedTokenUpsertEvent = "scoped_token.upsert"
+	// ScopedTokenUpdateEvent is the event for updating a scoped token.
+	ScopedTokenUpdateEvent = "scoped_token.update"
+	// ScopedTokenDeleteEvent is the event for deleting a scoped token.
+	ScopedTokenDeleteEvent = "scoped_token.delete"
 
 	// GithubConnectorCreatedEvent fires when a Github connector is created.
 	GithubConnectorCreatedEvent = "github.created"

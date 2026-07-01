@@ -345,6 +345,55 @@ message SessionStartBeamMetadata {
   string beam_id = 1;
 }
 
+// BeamsCreatedEvent is emitted when a beam VM is created and becomes ready.
+//
+// PostHog event: tp.beams.created
+message BeamsCreatedEvent {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
+
+  // the region where the beam was created
+  //
+  // PostHog property: tp.beam.region
+  string region = 2;
+
+  // time in milliseconds from CreateBeam call to VM ready
+  //
+  // PostHog property: tp.beam.startup_duration_ms
+  int64 startup_duration_ms = 3;
+}
+
+// BeamDestroyReason is the reason a beam was destroyed.
+enum BeamDestroyReason {
+  BEAM_DESTROY_REASON_UNSPECIFIED = 0;
+  // the user explicitly deleted the beam
+  BEAM_DESTROY_REASON_USER_DELETED = 1;
+  // the beam was deleted by the garbage collector after expiry
+  BEAM_DESTROY_REASON_GC_EXPIRED = 2;
+}
+
+// BeamsDestroyedEvent is emitted when a beam VM is destroyed.
+//
+// PostHog event: tp.beams.destroyed
+message BeamsDestroyedEvent {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
+
+  // the reason the beam was destroyed
+  //
+  // PostHog property: tp.beam.destroy_reason
+  BeamDestroyReason reason = 2;
+
+  // the region where the beam was running
+  //
+  // PostHog property: tp.beam.region
+  string region = 3;
+}
+
 // the issuance of a user certificate from the user CA
 //
 // PostHog event: tp.certificate.issued
@@ -2310,6 +2359,9 @@ message SubmitEventRequest {
 
     SessionSummarySearchEvent session_summary_search_event = 121;
     UIInteractionEvent ui_interaction = 122;
+
+    BeamsCreatedEvent beams_created = 123;
+    BeamsDestroyedEvent beams_destroyed = 124;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
