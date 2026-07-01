@@ -712,7 +712,16 @@ func (s *Server) appWithUpdatedLabelsLocked(app types.Application) *types.AppV3 
 		s.c.CloudLabels.Apply(copy)
 	}
 
-	copy.Scope = s.c.GetScope()
+	// A statically configured app on a scoped agent carries no scope, so use the agent's scope
+	// onto it.
+	// An app that already has a scope keeps it, rather than being silently re-scoped to the
+	// agent's scope.
+	// If it doesn't match this agent's scope, the resulting server/app scope mismatch
+	// is rejected via heartbeat (ValidateAppServer and the inventory controller).
+	// TODO (williamo/scopes) - reject scoped app creation via tctl
+	if copy.GetScope() == "" {
+		copy.Scope = s.c.GetScope()
+	}
 
 	return copy
 }

@@ -33,10 +33,10 @@ import (
 //
 // In all other cases, i.e. if the public address is not set or the application
 // is running in a remote cluster, the FQDN is formatted as
-// <appName>.<localProxyDNSName>
+// <appName>.<localProxyDNSName>.
+// A scoped app is always addressed by its computed hash label under the
+// selected proxy as <hash(appName, scope)>.<localProxyDNSName>.
 func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClusterName string, app types.Application) string {
-	// A scoped app is always addressed by its computed hash label under the
-	// selected proxy ("<hash(name,scope)>.<proxy>").
 	if scope := app.GetScope(); scope != "" {
 		return scopedapp.ScopedAppPublicAddr(scope, app.GetName(), localProxyDNSName)
 	}

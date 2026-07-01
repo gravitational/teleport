@@ -107,7 +107,6 @@ func TestMatchAppServerForRoute(t *testing.T) {
 		},
 		// scoped app matching - matches based on its computed app name and scope as the subdomain.
 		{
-
 			desc:      "scoped app matches its hash under a different proxy",
 			appName:   "grafana",
 			appScope:  "/staging/west",
