@@ -1952,6 +1952,30 @@ message SessionSummaryCreateEvent {
   //
   // PostHog property: tp.ai.has_stored_embeddings
   bool has_stored_embeddings = 8;
+
+  // session_duration_ms is the length of the summarized session recording, in
+  // milliseconds.
+  uint64 session_duration_ms = 9;
+
+  // processing_duration_ms is the wall-clock time spent summarizing the
+  // session, in milliseconds.
+  uint64 processing_duration_ms = 10;
+
+  // llm_calls is the number of inference requests made while summarizing the
+  // session.
+  uint32 llm_calls = 11;
+
+  // events_analyzed is the number of events (desktop) or commands (ssh/k8s)
+  // extracted from the session.
+  uint32 events_analyzed = 12;
+
+  // screenshots is the number of screenshots captured for a desktop session;
+  // zero for other session kinds.
+  uint32 screenshots = 13;
+
+  // chunks is the number of inference chunks (desktop image batches or ssh/k8s
+  // command chunks) processed for the session.
+  uint32 chunks = 14;
 }
 
 // SessionSummarySearchEvent is emitted when a user runs a session summary

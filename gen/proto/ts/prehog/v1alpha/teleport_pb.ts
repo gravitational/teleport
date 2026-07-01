@@ -3347,6 +3347,48 @@ export interface SessionSummaryCreateEvent {
      * @generated from protobuf field: bool has_stored_embeddings = 8;
      */
     hasStoredEmbeddings: boolean;
+    /**
+     * session_duration_ms is the length of the summarized session recording, in
+     * milliseconds.
+     *
+     * @generated from protobuf field: uint64 session_duration_ms = 9;
+     */
+    sessionDurationMs: bigint;
+    /**
+     * processing_duration_ms is the wall-clock time spent summarizing the
+     * session, in milliseconds.
+     *
+     * @generated from protobuf field: uint64 processing_duration_ms = 10;
+     */
+    processingDurationMs: bigint;
+    /**
+     * llm_calls is the number of inference requests made while summarizing the
+     * session.
+     *
+     * @generated from protobuf field: uint32 llm_calls = 11;
+     */
+    llmCalls: number;
+    /**
+     * events_analyzed is the number of events (desktop) or commands (ssh/k8s)
+     * extracted from the session.
+     *
+     * @generated from protobuf field: uint32 events_analyzed = 12;
+     */
+    eventsAnalyzed: number;
+    /**
+     * screenshots is the number of screenshots captured for a desktop session;
+     * zero for other session kinds.
+     *
+     * @generated from protobuf field: uint32 screenshots = 13;
+     */
+    screenshots: number;
+    /**
+     * chunks is the number of inference chunks (desktop image batches or ssh/k8s
+     * command chunks) processed for the session.
+     *
+     * @generated from protobuf field: uint32 chunks = 14;
+     */
+    chunks: number;
 }
 /**
  * SessionSummarySearchEvent is emitted when a user runs a session summary
@@ -12807,7 +12849,13 @@ class SessionSummaryCreateEvent$Type extends MessageType<SessionSummaryCreateEve
             { no: 5, name: "success", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 6, name: "resource_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "is_cloud_default_model", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 8, name: "has_stored_embeddings", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 8, name: "has_stored_embeddings", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 9, name: "session_duration_ms", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 10, name: "processing_duration_ms", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 11, name: "llm_calls", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 12, name: "events_analyzed", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 13, name: "screenshots", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 14, name: "chunks", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<SessionSummaryCreateEvent>): SessionSummaryCreateEvent {
@@ -12820,6 +12868,12 @@ class SessionSummaryCreateEvent$Type extends MessageType<SessionSummaryCreateEve
         message.resourceName = "";
         message.isCloudDefaultModel = false;
         message.hasStoredEmbeddings = false;
+        message.sessionDurationMs = 0n;
+        message.processingDurationMs = 0n;
+        message.llmCalls = 0;
+        message.eventsAnalyzed = 0;
+        message.screenshots = 0;
+        message.chunks = 0;
         if (value !== undefined)
             reflectionMergePartial<SessionSummaryCreateEvent>(this, message, value);
         return message;
@@ -12852,6 +12906,24 @@ class SessionSummaryCreateEvent$Type extends MessageType<SessionSummaryCreateEve
                     break;
                 case /* bool has_stored_embeddings */ 8:
                     message.hasStoredEmbeddings = reader.bool();
+                    break;
+                case /* uint64 session_duration_ms */ 9:
+                    message.sessionDurationMs = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 processing_duration_ms */ 10:
+                    message.processingDurationMs = reader.uint64().toBigInt();
+                    break;
+                case /* uint32 llm_calls */ 11:
+                    message.llmCalls = reader.uint32();
+                    break;
+                case /* uint32 events_analyzed */ 12:
+                    message.eventsAnalyzed = reader.uint32();
+                    break;
+                case /* uint32 screenshots */ 13:
+                    message.screenshots = reader.uint32();
+                    break;
+                case /* uint32 chunks */ 14:
+                    message.chunks = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -12889,6 +12961,24 @@ class SessionSummaryCreateEvent$Type extends MessageType<SessionSummaryCreateEve
         /* bool has_stored_embeddings = 8; */
         if (message.hasStoredEmbeddings !== false)
             writer.tag(8, WireType.Varint).bool(message.hasStoredEmbeddings);
+        /* uint64 session_duration_ms = 9; */
+        if (message.sessionDurationMs !== 0n)
+            writer.tag(9, WireType.Varint).uint64(message.sessionDurationMs);
+        /* uint64 processing_duration_ms = 10; */
+        if (message.processingDurationMs !== 0n)
+            writer.tag(10, WireType.Varint).uint64(message.processingDurationMs);
+        /* uint32 llm_calls = 11; */
+        if (message.llmCalls !== 0)
+            writer.tag(11, WireType.Varint).uint32(message.llmCalls);
+        /* uint32 events_analyzed = 12; */
+        if (message.eventsAnalyzed !== 0)
+            writer.tag(12, WireType.Varint).uint32(message.eventsAnalyzed);
+        /* uint32 screenshots = 13; */
+        if (message.screenshots !== 0)
+            writer.tag(13, WireType.Varint).uint32(message.screenshots);
+        /* uint32 chunks = 14; */
+        if (message.chunks !== 0)
+            writer.tag(14, WireType.Varint).uint32(message.chunks);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
