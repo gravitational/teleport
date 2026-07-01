@@ -90,7 +90,7 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 		t.Cleanup(func() { _ = process.Close() })
 
 		c, err := process.reconnectToAuthService(types.RoleInstance)
-		var tooOld *joinclient.ClientTooOldError
+		var tooOld *clientTooOldError
 		require.ErrorAs(t, err, &tooOld)
 		require.Nil(t, c)
 	})
@@ -107,11 +107,11 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 		// With the check skipped the join fails against the stub with an
 		// ordinary connection error, which reconnectToAuthService treats as
 		// retryable and would loop on forever. Failing with anything other
-		// than ClientTooOldError proves SkipVersionCheck was plumbed through
+		// than clientTooOldError proves SkipVersionCheck was plumbed through
 		// and bypassed the check.
 		c, err := process.connectToAuthService(types.RoleInstance)
 		require.Error(t, err)
-		var tooOld *joinclient.ClientTooOldError
+		var tooOld *clientTooOldError
 		require.NotErrorAs(t, err, &tooOld)
 		require.Nil(t, c)
 	})
@@ -124,7 +124,7 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 		t.Cleanup(func() { _ = process.Close() })
 
 		c, err := process.reconnectToAuthService(types.RoleInstance)
-		var tooNew *joinclient.ClientTooNewError
+		var tooNew *clientTooNewError
 		require.ErrorAs(t, err, &tooNew)
 		require.Nil(t, c)
 	})
@@ -141,11 +141,11 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 		// With the check skipped the join fails against the stub with an
 		// ordinary connection error, which reconnectToAuthService treats as
 		// retryable and would loop on forever. Failing with anything other
-		// than ClientTooNewError proves SkipVersionCheck was plumbed through
+		// than clientTooNewError proves SkipVersionCheck was plumbed through
 		// and bypassed the check.
 		c, err := process.connectToAuthService(types.RoleInstance)
 		require.Error(t, err)
-		var tooNew *joinclient.ClientTooNewError
+		var tooNew *clientTooNewError
 		require.NotErrorAs(t, err, &tooNew)
 		require.Nil(t, c)
 	})
