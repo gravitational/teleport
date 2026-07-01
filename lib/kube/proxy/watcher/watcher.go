@@ -154,7 +154,6 @@ func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherCo
 		return nil, trace.Wrap(err, "creating retry")
 	}
 
-	cfg.Logger = cfg.Logger.With("resource_kinds", types.KindKubeServer)
 	ctx, cancel := context.WithCancel(ctx)
 
 	w := &ProxyKubeServerWatcher{
