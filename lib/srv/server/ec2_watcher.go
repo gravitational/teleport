@@ -35,11 +35,11 @@ import (
 	accounttypes "github.com/aws/aws-sdk-go-v2/service/account/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/trace"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	awsregions "github.com/gravitational/teleport/lib/cloud/aws/regions"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -827,6 +827,9 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 				ssmRunParams: ssmRunParams,
 			})
 			if err != nil {
+				if result.collectError(err) {
+					continue
+				}
 				f.Logger.WarnContext(ctx, "Failed to get instances for EC2 discovery",
 					"region", region,
 					"assume_role_arn", assumeRole.RoleARN,
