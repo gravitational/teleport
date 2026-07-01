@@ -424,24 +424,13 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
-func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	if err := a.localServerAction(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tracker, err := a.authServer.CreateSessionTracker(ctx, tracker)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tracker, nil
-}
-
-// CreateSessionTracker is the scoped equivalent of [ServerWithRoles.CreateSessionTracker].
 func (a *ScopedServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
 	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
-		return unscoped.CreateSessionTracker(ctx, tracker)
+		if err := unscoped.localServerAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	if _, isServer := getBuiltinServerID(a.scopedContext.Identity); !isServer {
+	if _, isServer := getLocalServerID(a.scopedContext.Identity); !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
 	tracker, err := a.authServer.CreateSessionTracker(ctx, tracker)
@@ -682,20 +671,13 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 }
 
 // UpdateSessionTracker updates a tracker resource for an active session.
-func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if err := a.localServerAction(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.UpdateSessionTracker(ctx, req)
-}
-
-// UpdateSessionTracker is the scoped equivalent of [ServerWithRoles.UpdateSessionTracker].
 func (a *ScopedServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
 	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
-		return unscoped.UpdateSessionTracker(ctx, req)
+		if err := unscoped.localServerAction(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	if _, isServer := getBuiltinServerID(a.scopedContext.Identity); !isServer {
+	if _, isServer := getLocalServerID(a.scopedContext.Identity); !isServer {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
 	return a.authServer.UpdateSessionTracker(ctx, req)
@@ -815,7 +797,7 @@ func (a *ScopedServerWithRoles) GenerateHostCerts(ctx context.Context, req *prot
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
 func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
 	// ensure requesting cert's primary role is a server role.
-	_, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	_, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
 	}
@@ -899,7 +881,7 @@ func (a *ServerWithRoles) AssertSystemRole(ctx context.Context, req proto.System
 // use it for metrics purposes.
 func (a *ScopedServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
 	// Ensure that caller is a teleport server
-	serverID, isBuiltinServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isBuiltinServer := getLocalServerID(a.scopedContext.Identity)
 	if !isBuiltinServer {
 		return nil, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
@@ -5201,7 +5183,7 @@ func (a *ScopedServerWithRoles) EmitAuditEvent(ctx context.Context, event apieve
 	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedEmitEvent(ctx, &ruleCtx); err != nil {
 		return trace.Wrap(err)
 	}
-	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
@@ -5228,7 +5210,7 @@ func (a *ScopedServerWithRoles) CreateAuditStream(ctx context.Context, sid sessi
 	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
@@ -5249,7 +5231,7 @@ func (a *ScopedServerWithRoles) ResumeAuditStream(ctx context.Context, sid sessi
 	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
@@ -6688,29 +6670,18 @@ func (a *ServerWithRoles) canDeleteWebSession(username string) error {
 }
 
 // GenerateAppToken creates a JWT token with application access.
-func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
-	if err := a.authorizeAction(types.KindJWT, types.VerbCreate); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	token, err := a.authServer.generateAppToken(ctx, req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
-}
-
-// GenerateAppToken is the scoped equivalent of [ServerWithRoles.GenerateAppToken].
 func (a *ScopedServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
-		return unscoped.GenerateAppToken(ctx, req)
-	}
-
-	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, types.VerbCreate)
-	}); err != nil {
-		return "", trace.Wrap(err)
+		if err := unscoped.authorizeAction(types.KindJWT, types.VerbCreate); err != nil {
+			return "", trace.Wrap(err)
+		}
+	} else {
+		ruleCtx := a.scopedContext.RuleContext()
+		if err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, types.VerbCreate)
+		}); err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 
 	// TODO(williamo/scopes): bind req.Scope to the generated token.
@@ -8971,9 +8942,9 @@ func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks ser
 	return okta.CheckAccess(authzCtx, existingLock, verb)
 }
 
-// getBuiltinServerID returns the builtin server ID associated with the identity.
+// getLocalServerID returns the builtin server ID associated with the identity.
 // If the identity is not a builtin server role, and empty string and false are returned.
-func getBuiltinServerID(identityGetter authz.IdentityGetter) (serverID string, isBuiltinServer bool) {
+func getLocalServerID(identityGetter authz.IdentityGetter) (serverID string, isBuiltinServer bool) {
 	switch role := identityGetter.(type) {
 	case authz.BuiltinRole:
 		return role.GetServerID(), role.IsServer()
