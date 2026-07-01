@@ -50,10 +50,16 @@ import (
 
 const (
 	// defaultBatchItems defines default value for batch items count.
-	// 20000 items, per average 500KB event size = 10MB
-	defaultBatchItems = 20000
+	// 10_000 items, per average 500KB event size = 5GB
+	defaultBatchItems = 10_000
 	// defaultBatchInterval defines default batch interval.
 	defaultBatchInterval = 1 * time.Minute
+	// defaultBatchMaxBytes defines the default maximum total size in bytes of events
+	// in a single batch. Defaults to 1GB.
+	defaultBatchMaxBytes = 1024 * 1024 * 1024
+	// defaultConsumerWorkers defines how many concurrent workers receive SQS
+	// messages for a single Athena consumer.
+	defaultConsumerWorkers = 5
 
 	// topicARNBypass is a magic value for TopicARN that signifies that the
 	// Athena audit log should send messages directly to SQS instead of going
@@ -123,12 +129,18 @@ type Config struct {
 	// batch (optional).
 	// It's soft limit.
 	BatchMaxItems int
+	// BatchMaxBytes defines the maximum total size in bytes of events in a
+	// single batch (optional). Default is 1GB.
+	BatchMaxBytes int
 	// BatchMaxInterval defined interval at which parquet files will be created (optional).
 	BatchMaxInterval time.Duration
 	// ConsumerLockName defines a name of a SQS consumer lock (optional).
 	// If provided, it will be prefixed with "athena/" to avoid accidental
 	// collision with existing locks.
 	ConsumerLockName string
+	// ConsumerWorkers defines how many concurrent workers receive messages from
+	// SQS for a single consumer (optional).
+	ConsumerWorkers int
 	// ConsumerDisabled defines if SQS consumer should be disabled (optional).
 	ConsumerDisabled bool
 
@@ -235,15 +247,19 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		return trace.BadParameter("QueueURL must be valid url and start with https")
 	}
 
-	if cfg.GetQueryResultsInterval == 0 {
+	if cfg.GetQueryResultsInterval <= 0 {
 		cfg.GetQueryResultsInterval = 100 * time.Millisecond
 	}
 
-	if cfg.BatchMaxItems == 0 {
+	if cfg.BatchMaxItems <= 0 {
 		cfg.BatchMaxItems = defaultBatchItems
 	}
 
-	if cfg.BatchMaxInterval == 0 {
+	if cfg.BatchMaxBytes <= 0 {
+		cfg.BatchMaxBytes = defaultBatchMaxBytes
+	}
+
+	if cfg.BatchMaxInterval <= 0 {
 		cfg.BatchMaxInterval = defaultBatchInterval
 	}
 
@@ -254,6 +270,12 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		// no-one should use that short interval, so it's easier to check here.
 		// For high load operation, BatchMaxItems will happen first.
 		return trace.BadParameter("BatchMaxInterval too short, must be greater than 5s")
+	}
+	if cfg.ConsumerWorkers < 0 {
+		return trace.BadParameter("ConsumerWorkers cannot be negative")
+	}
+	if cfg.ConsumerWorkers == 0 {
+		cfg.ConsumerWorkers = defaultConsumerWorkers
 	}
 
 	if cfg.LimiterRefillAmount < 0 {
@@ -412,6 +434,14 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		}
 		cfg.BatchMaxItems = intMaxItems
 	}
+	batchMaxBytes := url.Query().Get("batchMaxBytes")
+	if batchMaxBytes != "" {
+		intMaxBytes, err := strconv.Atoi(batchMaxBytes)
+		if err != nil {
+			return trace.BadParameter("invalid batchMaxBytes value (it must be int): %v", err)
+		}
+		cfg.BatchMaxBytes = intMaxBytes
+	}
 	batchMaxInterval := url.Query().Get("batchMaxInterval")
 	if batchMaxInterval != "" {
 		dur, err := time.ParseDuration(batchMaxInterval)
@@ -422,6 +452,13 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	}
 	if consumerLockName := url.Query().Get("consumerLockName"); consumerLockName != "" {
 		cfg.ConsumerLockName = consumerLockName
+	}
+	if consumerWorkers := url.Query().Get("consumerWorkers"); consumerWorkers != "" {
+		intConsumerWorkers, err := strconv.Atoi(consumerWorkers)
+		if err != nil {
+			return trace.BadParameter("invalid consumerWorkers value (it must be int): %v", err)
+		}
+		cfg.ConsumerWorkers = intConsumerWorkers
 	}
 	if val := url.Query().Get("consumerDisabled"); val != "" {
 		boolVal, err := strconv.ParseBool(val)
