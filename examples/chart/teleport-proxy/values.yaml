@@ -11,7 +11,7 @@
 # need to configure the DNS provider for this domain to point to the external
 # load balancer address of your Teleport cluster. If you're using this proxy-only
 # chart, this typically means adding the external IP of this proxy's load-balancer
-# to your geodns service or putting it behind the load balancer for the Anycast
+# to your geography-aware DNS service or putting it behind the load balancer for the Anycast
 # VIP used by your existing Teleport cluster.
 clusterName: ""
 
@@ -23,7 +23,7 @@ clusterName: ""
 # teleport-cluster chart instead.
 auth_server: ""
 
-# join_params(object) -- are arameters for joining the Teleport Cluster.
+# join_params(object) -- are parameters for joining the Teleport Cluster.
 #
 # To use this chart, you must pre-provision a Teleport Provision Token this
 # proxy can use to authenticate to the cluster. Configure the token name and
@@ -44,7 +44,7 @@ join_params:
   
 # join_params.token_name(string) -- The name of the Teleport join token.
 #
-# If method is 'token' and joinTokenSecre.create is true, token_name is
+# If method is 'token' and joinTokenSecret.create is true, token_name is
 # actually the token secret value obtained from running `tctl tokens add`.
 # This is **NOT** recommended. If possible, use one of the join methods that
 # doesn't require a secret or pre-create the secret to keep it out of helm
@@ -545,7 +545,7 @@ service:
   # ```
   spec: {}
 
-# ingress(object) -- is the Kubernets Ingress object.
+# ingress(object) -- is the Kubernetes Ingress object.
 #
 # If you set `ingress.enabled` to true, service.type MUST also be set to something other than "LoadBalancer" to prevent
 # additional unnecessary load balancers from being created. Ingress controllers should provision their own load balancer.
@@ -559,7 +559,7 @@ ingress:
   # The chart will configure Teleport like it's running behind an ingress, but will not create the ingress resource.
   # You are responsible for creating and managing the ingress.
   useExisting: false
-  # ingress.supressAutomaticWildcards(bool) -- will not automatically add 
+  # ingress.suppressAutomaticWildcards(bool) -- will not automatically add 
   # `*.<clusterName>` as a hostname served by the Ingress. This may be
   # desirable if you don't use Teleport Application Access.
   suppressAutomaticWildcards: false
@@ -581,12 +581,12 @@ extraEnv: []
 #
 # Example:
 # ```yaml
-# - name: nscenter
+# - name: my-extra-tool
 #   command:
 #     - /bin/bash
 #     - -c
 #     - sleep infinity & wait
-#   image: praqma/network-multitool
+#   image: network-tool
 #   imagePullPolicy: IfNotPresent
 #   securityContext:
 #     privileged: true
@@ -728,7 +728,7 @@ readinessProbe:
   # successful after having failed. Minimum value is 1.
   successThreshold: 1
 
-# terminationGracePeriodSecongs(int) -- Kubernetes termination grace period
+# terminationGracePeriodSeconds(int) -- Kubernetes termination grace period
 # https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#hook-handler-execution
 #
 # This should be greater than 30 seconds as pods are waiting 30 seconds in a preStop hook.

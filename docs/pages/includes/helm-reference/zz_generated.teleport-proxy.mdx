@@ -16,7 +16,7 @@ Note: When using a fully qualified domain name as your `clusterName`, you will a
 need to configure the DNS provider for this domain to point to the external
 load balancer address of your Teleport cluster. If you're using this proxy-only
 chart, this typically means adding the external IP of this proxy's load-balancer
-to your geodns service or putting it behind the load balancer for the Anycast
+to your geography-aware DNS service or putting it behind the load balancer for the Anycast
 VIP used by your existing Teleport cluster.
 
 ## `join_params`
@@ -25,7 +25,7 @@ VIP used by your existing Teleport cluster.
 |------|---------|
 | `object` | `{"method":"kubernetes","token_name":""}` |
 
-`join_params` are arameters for joining the Teleport Cluster.
+`join_params` are parameters for joining the Teleport Cluster.
 
 To use this chart, you must pre-provision a Teleport Provision Token this
 proxy can use to authenticate to the cluster. Configure the token name and
@@ -56,7 +56,7 @@ Running on eks/aks/gke? Consider cloud-specific Workload Identity instead of Kub
 
 `join_params.token_name` The name of the Teleport join token.
 
-If method is 'token' and joinTokenSecre.create is true, token_name is
+If method is 'token' and joinTokenSecret.create is true, token_name is
 actually the token secret value obtained from running `tctl tokens add`.
 This is **NOT** recommended. If possible, use one of the join methods that
 doesn't require a secret or pre-create the secret to keep it out of helm
@@ -879,7 +879,7 @@ loadBalancerIP: "1.2.3.4"
 |------|---------|
 | `object` | `{"enabled":false,"spec":{},"suppressAutomaticWildcards":false,"useExisting":false}` |
 
-`ingress` is the Kubernets Ingress object.
+`ingress` is the Kubernetes Ingress object.
 
 If you set `ingress.enabled` to true, service.type MUST also be set to something other than "LoadBalancer" to prevent
 additional unnecessary load balancers from being created. Ingress controllers should provision their own load balancer.
@@ -905,9 +905,13 @@ See [TLS Routing](https://goteleport.com/docs/architecture/tls-routing/#working-
 The chart will configure Teleport like it's running behind an ingress, but will not create the ingress resource.
 You are responsible for creating and managing the ingress.
 
-### `ingress.supressAutomaticWildcards`
+### `ingress.suppressAutomaticWildcards`
 
-`ingress.supressAutomaticWildcards` will not automatically add 
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`ingress.suppressAutomaticWildcards` will not automatically add 
 `*.<clusterName>` as a hostname served by the Ingress. This may be
 desirable if you don't use Teleport Application Access.
 
@@ -933,12 +937,12 @@ ingressClassName: nginx
 
 Example:
 ```yaml
-- name: nscenter
+- name: my-extra-tool
   command:
     - /bin/bash
     - -c
     - sleep infinity & wait
-  image: praqma/network-multitool
+  image: network-tool
   imagePullPolicy: IfNotPresent
   securityContext:
     privileged: true
@@ -1133,9 +1137,13 @@ after having succeeded. Minimum value is 1.
 `readinessProbe.successThreshold` is the minimum consecutive successes for the probe to be considered
 successful after having failed. Minimum value is 1.
 
-## `terminationGracePeriodSecongs`
+## `terminationGracePeriodSeconds`
 
-`terminationGracePeriodSecongs` Kubernetes termination grace period
+| Type | Default |
+|------|---------|
+| `int` | `60` |
+
+`terminationGracePeriodSeconds` Kubernetes termination grace period
 https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#hook-handler-execution
 
 This should be greater than 30 seconds as pods are waiting 30 seconds in a preStop hook.
