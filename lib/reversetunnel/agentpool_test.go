@@ -261,14 +261,38 @@ func TestAgentPoolKeepAliveCountUpdatesAgent(t *testing.T) {
 		require.NoError(t, err)
 		pool.tracker.TrackExpected(track.Proxy{Name: "proxy-1"})
 
+		agentClosedEvents := make(chan AgentState, 1)
+		wrapStateCallback := func(agent Agent) AgentStateCallback {
+			callback := pool.getStateCallback(agent)
+			return func(state AgentState) {
+				if state == AgentClosed {
+					select {
+					case agentClosedEvents <- state:
+					default:
+					}
+				}
+				callback(state)
+			}
+		}
+		drainAgentClosedEvents := func() {
+			for {
+				select {
+				case <-agentClosedEvents:
+				default:
+					return
+				}
+			}
+		}
+
 		agentCount := 0
 		var keepAliveCountMax atomic.Int64 // starting at 0 will default to apidefaults.KeepAliveCountMax
 
 		pool.newAgentFunc = func(ctx context.Context, tracker *track.Tracker, lease *track.Lease) (Agent, error) {
 			agentCount++
+			agentNumber := agentCount
 			// Each agent gets a unique principal so it never collides with a
 			// previously claimed proxy.
-			principal := fmt.Sprintf("proxy-%d", agentCount)
+			principal := fmt.Sprintf("proxy-%d", agentNumber)
 
 			mu.Lock()
 			reqs := currentRequests
@@ -312,7 +336,7 @@ func TestAgentPoolKeepAliveCountUpdatesAgent(t *testing.T) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			a.stateCallback = pool.getStateCallback(a)
+			a.stateCallback = wrapStateCallback(a)
 			return a, nil
 		}
 
@@ -324,7 +348,6 @@ func TestAgentPoolKeepAliveCountUpdatesAgent(t *testing.T) {
 		}
 
 		require.NoError(t, pool.Start())
-		defer pool.Stop()
 
 		synctest.Wait()
 
@@ -345,10 +368,22 @@ func TestAgentPoolKeepAliveCountUpdatesAgent(t *testing.T) {
 		close(oldReqs)
 
 		synctest.Wait()
+		drainAgentClosedEvents()
 
 		require.Equal(t, 700*time.Millisecond, <-watchdogTimeouts,
 			"second agent: watchdog timeout should be keepAlive(100ms) * keepAliveCount(7)")
 
+		drainAgentClosedEvents()
 		close(newReqs)
+
+		stopDone := make(chan struct{})
+		go func() {
+			pool.Stop()
+			close(stopDone)
+		}()
+
+		synctest.Wait()
+		require.Equal(t, AgentClosed, <-agentClosedEvents)
+		<-stopDone
 	})
 }
