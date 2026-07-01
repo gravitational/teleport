@@ -267,7 +267,7 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 // TestLoginWithExpiredProfileUpdates verifies that login performs a managed update
 // when the current profile exists but its credentials are no longer usable.
 func TestLoginWithExpiredProfileUpdates(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, homeDir := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
