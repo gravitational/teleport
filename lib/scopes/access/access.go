@@ -18,6 +18,7 @@ package access
 
 import (
 	"iter"
+	"slices"
 	"strings"
 	"time"
 
@@ -149,6 +150,9 @@ func WeakValidateRole(role *scopedaccessv1.ScopedRole) error {
 	return nil
 }
 
+const invalidChars = "{}^$*"
+const invalidLabelChars = "{}^$"
+
 // StrongValidateRole performs robust validation of a role to ensure it complies with all expected constraints. Prefer
 // using this function for validating roles loaded from "external" sources (e.g. user input), and [WeakValidateRole] for
 // validating roles loaded from "internal" sources (e.g. backend/control-plane).
@@ -201,8 +205,6 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	const invalidChars = "{}^$*"
-	const invalidLabelChars = "{}^$"
 	// verify that ssh logins are well-formed
 	if login := validateDoesNotContain(role.GetSpec().GetSsh().GetLogins(), invalidChars); login != "" {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
@@ -288,41 +290,9 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// verify that lock.Mode is a recognized value for Kube
-	if lock := role.GetSpec().GetKube().GetLock(); lock != nil {
-		if err := validateLock(lock); err != nil {
-			return trace.BadParameter("scoped role %q has invalid kube.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
-		}
-	}
-
-	// verify that kube labels are well-formed
-	for _, label := range role.GetSpec().GetKube().GetLabels() {
-		// we currently don't support any form of wildcard/regex/substitution in scoped role
-		// node labels. we likely will support such things in the future, but its best to disallow
-		// them until that has landed.
-
-		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
-			return trace.BadParameter("scoped role %q has invalid kube label name %q", role.GetMetadata().GetName(), label.GetName())
-		}
-		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
-			return trace.BadParameter("scoped role %q has invalid kube label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
-		}
-	}
-
-	// verify that kube groups are well-formed
-	if group := validateDoesNotContain(role.GetSpec().GetKube().GetGroups(), invalidChars); group != "" {
-		// we currently don't support any form of wildcard/regex/substitution in scoped role
-		// kube gruops. we likely will support substitution in the future, but its best to disallow
-		// it until that has landed.
-		return trace.BadParameter("scoped role %q has invalid kube group %q", role.GetMetadata().GetName(), group)
-	}
-
-	// verify that kube users are well-formed
-	if user := validateDoesNotContain(role.GetSpec().GetKube().GetUsers(), invalidChars); user != "" {
-		// we currently don't support any form of wildcard/regex/substitution in scoped role
-		// kube users. we likely will support substitution in the future, but its best to disallow
-		// it until that has landed.
-		return trace.BadParameter("scoped role %q has invalid kube user %q", role.GetMetadata().GetName(), user)
+	// verify that kube block is well-formed
+	if err := validateKubeBlock(role.GetSpec().GetKube()); err != nil {
+		return trace.BadParameter("scoped role %q has %s", role.GetMetadata().GetName(), err)
 	}
 
 	// verify that workload_identity labels are well-formed
@@ -579,6 +549,157 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBot() == "" {
 		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot", assignment.GetMetadata().GetName())
+	}
+
+	return nil
+}
+
+// kubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
+// that are namespaced. It is copied from api/types/constants.go to prevent exporting it
+// from the public API. Any changes should also be made in the original.
+//
+// Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
+// The format is "<plural>.<apigroup>".
+//
+// Only used to validate the api_group field.
+// If we have a match, we know we need a namespaced value, if we don't
+// have a match, we don't know we don't. Best effort basis.
+//
+// Key: resource kind, value: api group.
+var kubernetesNamespacedResourceKinds = map[string]string{
+	"bindings":                  "",
+	"configmaps":                "",
+	"controllerrevisions":       "apps",
+	"cronjobs":                  "batch",
+	"csistoragecapacities":      "storage.k8s.io",
+	"daemonsets":                "apps",
+	"deployments":               "apps",
+	"endpoints":                 "",
+	"endpointslices":            "discovery.k8s.io",
+	"events":                    "events.k8s.io",
+	"horizontalpodautoscalers":  "autoscaling",
+	"ingresses":                 "networking.k8s.io",
+	"jobs":                      "batch",
+	"leases":                    "coordination.k8s.io",
+	"limitranges":               "",
+	"localsubjectaccessreviews": "authorization.k8s.io",
+	"networkpolicies":           "networking.k8s.io",
+	"persistentvolumeclaims":    "",
+	"poddisruptionbudgets":      "policy",
+	"pods":                      "",
+	"podtemplates":              "",
+	"replicasets":               "apps",
+	"replicationcontrollers":    "",
+	"resourcequotas":            "",
+	"rolebindings":              "rbac.authorization.k8s.io",
+	"roles":                     "rbac.authorization.k8s.io",
+	"secrets":                   "",
+	"serviceaccounts":           "",
+	"services":                  "",
+	"statefulsets":              "apps",
+}
+
+// validateKubeResources validates the following rules for each kubeResources entry:
+// - Kind doesn't belong to kubernetesNamespacedResourceKinds
+// - Name is not empty
+// - Namespace is not empty
+// - ApiGroup not empty
+// This validator is largely copied from the role v8 case of validateKubeResources found in api/types/role.go.
+// It is ported to support scoped roles and any changes should consider applying to the original as well.
+func validateKubeResource(resource *scopedaccessv1.KubeResource) error {
+	// NOTE(eriktate): errors must start with the field name producing the error so the final reported error
+	// renders correctly.
+	// (e.g. `scoped role "/my/scope::my-role" has invalid kube resource: spec.kube.resources[0].kind is required`)
+	for _, verb := range resource.GetVerbs() {
+		if !slices.Contains(types.KubernetesVerbs, verb) && verb != types.Wildcard {
+			return trace.BadParameter("verbs contain invalid or unsupported %q; Supported: %v", verb, types.KubernetesVerbs)
+		}
+		if verb == types.Wildcard && len(resource.GetVerbs()) > 1 {
+			return trace.BadParameter("verbs contains %q which cannot be used with other verbs", verb)
+		}
+	}
+
+	if resource.GetKind() == "" {
+		return trace.BadParameter("kind is required")
+	}
+	// If we have a kind in singular form for a known resource kind, check the api group.
+	if slices.Contains(types.KubernetesResourcesKinds, resource.GetKind()) {
+		// If the api group is a wildcard or matches a legacy group, then it is most definitely a mistake. Reject the role.
+		if resource.GetApiGroup() == types.Wildcard || resource.GetApiGroup() == types.KubernetesResourcesV7KindGroups[resource.GetKind()] {
+			return trace.BadParameter("kind %q is invalid. Please use plural name", resource.GetKind())
+		}
+	}
+	// Only allow empty string for known core resources.
+	if resource.GetApiGroup() == "" {
+		if _, ok := types.KubernetesCoreResourceKinds[resource.GetKind()]; !ok {
+			return trace.BadParameter("api_group is required for resource %q", resource.GetKind())
+		}
+	}
+	// Best effort attempt to validate if the namespace field is needed.
+	if resource.GetNamespace() == "" {
+		if apiGroup, ok := kubernetesNamespacedResourceKinds[resource.GetKind()]; ok && apiGroup == resource.GetApiGroup() {
+			return trace.BadParameter("namespace must be included for kind %q", resource.GetKind())
+		}
+	}
+
+	return nil
+}
+
+// validateKubeBlock validates the given kube configuration in a scoped role spec.
+func validateKubeBlock(kube *scopedaccessv1.ScopedRoleKube) error {
+	// the kube block is not required for all scoped roles, so nil is
+	// not an error
+	if kube == nil {
+		return nil
+	}
+
+	// verify that lock.Mode is a recognized value for Kube
+	if lock := kube.GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("invalid kube.lock.mode %q", lock.GetMode())
+		}
+	}
+
+	// verify that kube labels are well-formed
+	for _, label := range kube.GetLabels() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// node labels. we likely will support such things in the future, but its best to disallow
+		// them until that has landed.
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
+			return trace.BadParameter("invalid kube label name %q", label.GetName())
+		}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("invalid kube label value %q for label %q", value, label.GetName())
+		}
+	}
+
+	// verify that at least one resource is defined - scoped roles are deny by default, so a wildcard entry for resources
+	// must be explicitly provided when resource-based RBAC is not desired
+	if len(kube.GetResources()) == 0 {
+		return trace.BadParameter("no spec.kube.resources defined, if resource-based RBAC is not required please configure explicit wildcard access")
+	}
+
+	// verify that kube resources are well-formed
+	for idx, resource := range kube.GetResources() {
+		if err := validateKubeResource(resource); err != nil {
+			return trace.BadParameter("invalid kube resource: spec.kube.resources[%d].%s", idx, err)
+		}
+	}
+
+	// verify that kube groups are well-formed
+	if group := validateDoesNotContain(kube.GetGroups(), invalidChars); group != "" {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// kube gruops. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		return trace.BadParameter("invalid kube group %q", group)
+	}
+
+	// verify that kube users are well-formed
+	if user := validateDoesNotContain(kube.GetUsers(), invalidChars); user != "" {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// kube users. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		return trace.BadParameter("invalid kube user %q", user)
 	}
 
 	return nil

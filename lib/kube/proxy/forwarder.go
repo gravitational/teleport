@@ -1361,7 +1361,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	// If the user has active Access requests we need to validate that they allow
 	// the kubeResource.
 	// This is required because CheckAccess does not validate the subresource type.
-	// TODO(eriktate/scopes): scoped identities don't support resources or access requests, so we skip
+	// TODO(eriktate/scopes): scoped identities don't support access requests, so we skip
 	// these checks for now.
 	if !isScoped && !actx.metaResource.isList {
 		if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(unscopedCtx.Checker.GetAllowedResourceAccessIDs()) > 0 {

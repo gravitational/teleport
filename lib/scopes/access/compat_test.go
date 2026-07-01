@@ -490,6 +490,20 @@ func TestKubeConversion(t *testing.T) {
 						Values: []string{"blue"},
 					}.Build(),
 				},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      "pods",
+						Namespace: "default",
+						Name:      "pod-name",
+						Verbs:     []string{"get", "list"},
+						ApiGroup:  "pod-group",
+					}.Build(),
+				},
+				ClientIdleTimeout:     "30m",
+				DisconnectExpiredCert: new(bool),
+				Lock: scopedaccessv1.Lock_builder{
+					Mode: "strict",
+				}.Build(),
 			}.Build(),
 			expect: types.RoleConditions{
 				KubeUsers:  []string{"system:user", "system:admin"},
@@ -498,7 +512,15 @@ func TestKubeConversion(t *testing.T) {
 					"env":  apiutils.Strings{"prod", "staging"},
 					"team": apiutils.Strings{"blue"},
 				},
-				KubernetesResources: wildcardResources,
+				KubernetesResources: []types.KubernetesResource{
+					types.KubernetesResource{
+						Kind:      "pods",
+						Namespace: "default",
+						Name:      "pod-name",
+						Verbs:     []string{"get", "list"},
+						APIGroup:  "pod-group",
+					},
+				},
 			},
 		},
 	}
