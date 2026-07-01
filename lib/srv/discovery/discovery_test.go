@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -39,7 +38,6 @@ import (
 
 	"cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
@@ -3222,16 +3220,7 @@ func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandR
 	m.attemptedVMs[req.VMName] = struct{}{}
 
 	if strings.HasPrefix(req.VMName, azureApiErrorPrefix) {
-		const statusCode = 403
-		const errorCode = "AuthorizationFailed"
-		const message = "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"
-
-		resp := &http.Response{
-			StatusCode: statusCode,
-			Body:       io.NopCloser(strings.NewReader(message)),
-			Request:    &http.Request{Method: http.MethodPut, URL: &url.URL{}},
-		}
-		return nil, azruntime.NewResponseErrorWithErrorCode(resp, errorCode)
+		return nil, trace.AccessDenied("does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'")
 	}
 
 	if strings.HasPrefix(req.VMName, azureInstallErrorPrefix) {
