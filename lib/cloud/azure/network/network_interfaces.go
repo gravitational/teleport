@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -146,7 +147,7 @@ func (c *interfacesClient) Get(ctx context.Context, resourceID string) (*Interfa
 		return nil, trace.Wrap(err)
 	}
 
-	nic := interfaceFromARM(resourceID, raw)
+	nic := interfaceFromARM(resourceID, &raw)
 	c.logger.DebugContext(ctx, "fetched Azure network interface",
 		"resource_id", nic.ID,
 		"name", nic.Name,
@@ -245,16 +246,33 @@ func (c *interfacesClient) listUniformVMSSNICs(
 		return nil, trace.Wrap(err)
 	}
 
+	nicsByScaleSet := make([]map[string][]*Interface, len(scaleSets))
+	var g errgroup.Group
+	// Limit the number of concurrent scale set NIC list calls to avoid being
+	// throttled by the Azure API. Any throttles are handled by the client.
+	g.SetLimit(10)
+	for i, scaleSet := range scaleSets {
+		g.Go(func() error {
+			first, err := buildURL(scaleSet.ID+"/networkInterfaces", computeAPIVersion)
+			if err != nil {
+				c.logger.DebugContext(ctx, "skipping VM Scale Set with an unparseable ID", "scale_set_id", scaleSet.ID, "error", err)
+				return nil
+			}
+			nicsByScaleSet[i] = make(map[string][]*Interface)
+			if err := c.collectNICsByVM(ctx, first, nicsByScaleSet[i]); err != nil {
+				c.logger.WarnContext(ctx, "failed to list network interfaces for VM Scale Set", "scale_set_id", scaleSet.ID, "error", err)
+				nicsByScaleSet[i] = nil
+			}
+			return nil
+		})
+	}
+	// errors are logged above, not returned
+	_ = g.Wait()
+
 	nicsByVM := make(map[string][]*Interface)
-	for _, scaleSet := range scaleSets {
-		first, err := buildURL(scaleSet.ID+"/networkInterfaces", computeAPIVersion)
-		if err != nil {
-			c.logger.DebugContext(ctx, "skipping VM Scale Set with an unparseable ID", "scale_set_id", scaleSet.ID, "error", err)
-			continue
-		}
-		if err := c.collectNICsByVM(ctx, first, nicsByVM); err != nil {
-			c.logger.WarnContext(ctx, "failed to list network interfaces for VM Scale Set", "scale_set_id", scaleSet.ID, "error", err)
-			continue
+	for _, scaleSetNICs := range nicsByScaleSet {
+		for vmID, vmNICs := range scaleSetNICs {
+			nicsByVM[vmID] = append(nicsByVM[vmID], vmNICs...)
 		}
 	}
 	return nicsByVM, nil
