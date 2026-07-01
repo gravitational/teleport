@@ -51,7 +51,7 @@ jobs:
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
       - name: Assume env-loader secrets decryption AWS role
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
           aws-region: us-west-2
           role-to-assume: ${{ vars.PUBLISH_PLUGINS_ENV_LOADER_AWS_ROLE_ARN }}
@@ -75,7 +75,7 @@ jobs:
 
       # Sync artifacts down (required by everything)
       - name: Assume AWS role for uploading the artifacts
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
@@ -91,7 +91,7 @@ jobs:
 
       # Terraform promotion
       - name: Assume AWS role for syncing the Terraform artifacts
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2

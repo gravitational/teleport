@@ -43,7 +43,7 @@ jobs:
       - name: List files to upload
         run: ls -lah "${ASSETS_PATH}"
       - name: Authenticate with AWS
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.PUBLISH_INSTALL_SCRIPTS_ROLE_ARN }}
