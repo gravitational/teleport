@@ -353,7 +353,6 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		testCtx.Context,
 		kubewatcher.ProxyKubeServerWatcherConfig{
 			Logger:           logtest.NewLogger(),
-			Component:        teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube),
 			AccessPoint:      accessPoint,
 			FallbackGetter:   proxyAuthClient,
 			PrimaryTimeout:   time.Second,
