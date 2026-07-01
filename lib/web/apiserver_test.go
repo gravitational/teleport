@@ -10231,7 +10231,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		proxySigner = nil
 	}
 	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(ctx, kubewatcher.ProxyKubeServerWatcherConfig{
-		Component:      component,
 		AccessPoint:    client,
 		FallbackGetter: client,
 	})
