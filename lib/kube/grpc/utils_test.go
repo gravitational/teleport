@@ -326,7 +326,6 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(
 		testCtx.Context,
 		kubewatcher.ProxyKubeServerWatcherConfig{
-			Component:      teleport.ComponentKube,
 			AccessPoint:    client,
 			FallbackGetter: client,
 		},
