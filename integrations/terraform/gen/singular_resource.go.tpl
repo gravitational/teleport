@@ -357,8 +357,26 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		},
 	}
 
-	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+	result, err := stateConf.WaitForStateContext(ctx)
+	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
+		return
+	}
+	// WaitForStateContext returns the last polled resource, which carries the
+	// settled status (e.g. "active"). Persist it so state reflects what we waited
+	// for instead of the create-time status.
+	if settled, ok := result.(*{{.ProtoPackage}}.{{.TypeName}}); ok {
+		diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, settled, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Attrs["id"] = types.String{Value: settled.Metadata.Name}
+		diags = resp.State.Set(ctx, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 {{- end }}
 }
@@ -672,8 +690,25 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		},
 	}
 
-	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+	result, err := stateConf.WaitForStateContext(ctx)
+	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
+		return
+	}
+	// WaitForStateContext returns the last polled resource, which carries the
+	// settled status (e.g. "active"). Persist it so state reflects what we waited
+	// for instead of the update-time status.
+	if settled, ok := result.(*{{.ProtoPackage}}.{{.TypeName}}); ok {
+		diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, settled, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		diags = resp.State.Set(ctx, plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 {{- end }}
 }

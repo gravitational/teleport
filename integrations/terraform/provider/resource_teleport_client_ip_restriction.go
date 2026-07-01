@@ -201,8 +201,26 @@ func (r resourceTeleportClientIPRestriction) Create(ctx context.Context, req tfs
 		},
 	}
 
-	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+	result, err := stateConf.WaitForStateContext(ctx)
+	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for ClientIPRestriction", trace.Wrap(err), "client_ip_restriction"))
+		return
+	}
+	// WaitForStateContext returns the last polled resource, which carries the
+	// settled status (e.g. "active"). Persist it so state reflects what we waited
+	// for instead of the create-time status.
+	if settled, ok := result.(*clientiprestrictionv1.ClientIPRestriction); ok {
+		diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, settled, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Attrs["id"] = types.String{Value: settled.Metadata.Name}
+		diags = resp.State.Set(ctx, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 }
 
@@ -356,8 +374,25 @@ func (r resourceTeleportClientIPRestriction) Update(ctx context.Context, req tfs
 		},
 	}
 
-	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+	result, err := stateConf.WaitForStateContext(ctx)
+	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for ClientIPRestriction", trace.Wrap(err), "client_ip_restriction"))
+		return
+	}
+	// WaitForStateContext returns the last polled resource, which carries the
+	// settled status (e.g. "active"). Persist it so state reflects what we waited
+	// for instead of the update-time status.
+	if settled, ok := result.(*clientiprestrictionv1.ClientIPRestriction); ok {
+		diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, settled, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		diags = resp.State.Set(ctx, plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 }
 
