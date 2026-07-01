@@ -7,7 +7,7 @@ locals {
     var.azure_management_group_id != null
     ? (startswith(var.azure_management_group_id, "/providers/Microsoft.Management/managementGroups/")
       ? var.azure_management_group_id
-      : "/providers/Microsoft.Management/managementGroups/${var.azure_management_group_id}")
+    : "/providers/Microsoft.Management/managementGroups/${var.azure_management_group_id}")
     : null
   )
 
