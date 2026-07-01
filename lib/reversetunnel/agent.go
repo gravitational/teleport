@@ -748,10 +748,11 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 // round trip time and a new round trip time measurement. The new measurement
 // has a weight of 1/8 to avoid overreacting to temporary network jitter.
 func calculateSmoothedRTT(srtt time.Duration, rtt time.Duration) time.Duration {
-	if srtt == 0 {
-		return rtt
-	}
-	return (7*srtt + rtt) / 8
+	const (
+		newRttWeight    = 1
+		smoothingFactor = 8
+	)
+	return ((smoothingFactor-newRttWeight)*srtt + newRttWeight*rtt) / smoothingFactor
 }
 
 const (
