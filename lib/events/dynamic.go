@@ -109,6 +109,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.Subsystem{}
 	case X11ForwardEvent:
 		e = &events.X11Forward{}
+	case AgentForwardEvent:
+		e = &events.AgentForward{}
 	case PortForwardEvent:
 		e = &events.PortForward{}
 	case PortForwardLocalEvent:
