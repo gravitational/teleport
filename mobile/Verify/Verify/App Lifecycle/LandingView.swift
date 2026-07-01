@@ -76,9 +76,8 @@ extension LandingView {
 				.font(.title2)
 				.fontWeight(.semibold)
 			Text("Enroll this device for your cluster by scanning the QR code in your web browser")
-				.font(.callout)
 				.multilineTextAlignment(.center)
-				.foregroundStyle(.secondary)
+				.foregroundStyle(Color.Foreground.slightlyMuted)
 		}
 	}
 
@@ -116,6 +115,8 @@ extension LandingView {
 	private func instructionStep(stepNumber: UInt, @ViewBuilder label: () -> some View) -> some View {
 		Label {
 			label()
+				.font(.callout)
+				.foregroundStyle(Color.Foreground.slightlyMuted)
 		} icon: {
 			Image(systemName: "\(stepNumber).circle.fill")
 				.foregroundStyle(.tint.opacity(0.8))
