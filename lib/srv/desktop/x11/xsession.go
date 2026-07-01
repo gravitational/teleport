@@ -144,8 +144,8 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		cmdd = wrapped
 	} else {
 		cfg.Logger.WarnContext(ctx, "No D-Bus session launcher (dbus-run-session or dbus-launch and dbus-daemon) found; "+
-			"the session may fail to start without a D-Bus session bus. Install the 'dbus' or 'dbus-x11' package."+
-			"On OpenSUSE you also need 'dbus-1-daemon' package")
+			"the session may fail to start without a D-Bus session bus. Install the 'dbus' or 'dbus-x11' package. "+
+			"On OpenSUSE you also need 'dbus-1-daemon' package.")
 	}
 
 	cmdmsg := &reexec.ExecCommand{
