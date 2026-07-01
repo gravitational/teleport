@@ -236,7 +236,7 @@ func fillEventBuf(ctx context.Context, buf []types.Event, w types.Watcher, maxSi
 }
 
 // createWatcherAndInit creates a new watcher and waits for the initial event to mark the watcher as initialized.
-func (w *ProxyKubeServerWatcher) createWatcherAndInit() (types.Watcher, error) {
+func (w *ProxyKubeServerWatcher) createWatcherAndInit() (_ types.Watcher, err error) {
 	watcher, err := w.AccessPoint.NewWatcher(w.ctx, types.Watch{
 		Name:            componentName,
 		MetricComponent: componentName,
@@ -245,6 +245,12 @@ func (w *ProxyKubeServerWatcher) createWatcherAndInit() (types.Watcher, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "creating a watcher")
 	}
+
+	defer func() {
+		if err != nil {
+			watcher.Close()
+		}
+	}()
 
 	watcherInitTimeout := time.NewTimer(w.PrimaryTimeout)
 	defer watcherInitTimeout.Stop()
