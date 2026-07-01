@@ -17,10 +17,10 @@
 package access
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/binary"
 	"iter"
 	"log/slog"
 	"maps"
@@ -32,12 +32,14 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils/set"
@@ -62,12 +64,12 @@ const (
 
 // AccessListReader provides the upstream source of access list and member resources.
 type AccessListReader interface {
-	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
-	GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
+	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
+	GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error)
 
-	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
+	ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
+	GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error)
 }
 
 // AssignmentStore is the interface the materializer uses to persist
@@ -79,10 +81,53 @@ type AssignmentStore interface {
 
 // listAccessListMembers is a helper for calling clientutils.Resources to range
 // over all members of [listName].
-func listAccessListMembers(aclReader AccessListReader, listName string) func(context.Context, int, string) ([]*accesslist.AccessListMember, string, error) {
+func listAccessListMembers(aclReader AccessListReader, listName accesslists.NormalizedSQN) func(context.Context, int, string) ([]*accesslist.AccessListMember, string, error) {
 	return func(ctx context.Context, pageSize int, cursor string) ([]*accesslist.AccessListMember, string, error) {
-		return aclReader.ListAccessListMembers(ctx, listName, pageSize, cursor)
+		return aclReader.ListAccessListMembersV2(ctx, accesslistv1.ListAccessListMembersRequest_builder{
+			AccessListScope: listName.Scope,
+			AccessList:      listName.Name,
+			PageSize:        int32(pageSize),
+			PageToken:       cursor,
+		}.Build())
 	}
+}
+
+// listAllAccessListMembers is a helper for calling clientutils.Resources to range
+// over all access list members.
+func listAllAccessListMembers(aclReader AccessListReader) func(context.Context, int, string) ([]*accesslist.AccessListMember, string, error) {
+	return func(ctx context.Context, pageSize int, cursor string) ([]*accesslist.AccessListMember, string, error) {
+		return aclReader.ListAllAccessListMembersV2(ctx, accesslistv1.ListAllAccessListMembersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: cursor,
+		}.Build())
+	}
+}
+
+// listAccessLists is a helper for calling clientutils.Resources to range
+// over all access lists.
+func listAccessLists(aclReader AccessListReader) func(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
+	return func(ctx context.Context, pageSize int, cursor string) ([]*accesslist.AccessList, string, error) {
+		return aclReader.ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
+			PageSize:  int32(pageSize),
+			PageToken: cursor,
+		}.Build())
+	}
+}
+
+func getAccessList(ctx context.Context, aclReader AccessListReader, listName accesslists.NormalizedSQN) (*accesslist.AccessList, error) {
+	return aclReader.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: listName.Scope,
+		Name:  listName.Name,
+	}.Build())
+}
+
+func getAccessListMember(ctx context.Context, aclReader AccessListReader, listName, memberName accesslists.NormalizedSQN) (*accesslist.AccessListMember, error) {
+	return aclReader.GetAccessListMemberV2(ctx, accesslistv1.GetAccessListMemberRequest_builder{
+		AccessListScope: listName.Scope,
+		AccessList:      listName.Name,
+		MemberScope:     memberName.Scope,
+		MemberName:      memberName.Name,
+	}.Build())
 }
 
 // Materializer is responsible for "materializing" scoped role assignments into
@@ -146,17 +191,42 @@ type Materializer struct {
 type MaterializedAssignmentKey struct {
 	// User is the name of the user the assignment is materialized for.
 	User string
-	// List is the name of the access list the assignment is materialized for.
-	List string
+	// ListName is the name of the access list the assignment is materialized for.
+	ListName string
+	// ListScope is the normalized scope of the access list the assignment is materialized for.
+	ListScope string
+}
+
+func newMaterializedAssignmentKey(list *accesslist.AccessList, userName string) MaterializedAssignmentKey {
+	return MaterializedAssignmentKey{
+		User:      userName,
+		ListName:  list.GetName(),
+		ListScope: scopes.NormalizeForEquality(list.GetScope()),
+	}
 }
 
 // AssignmentName returns the canonical name for the materialized scoped role assignment.
 func (k MaterializedAssignmentKey) AssignmentName() string {
 	h := sha256.New224()
-	binary.Write(h, binary.LittleEndian, uint16(len(k.User)))
 	h.Write([]byte(k.User))
-	h.Write([]byte(k.List))
+	h.Write([]byte{0})
+	h.Write([]byte(k.ListName))
+	h.Write([]byte{0})
+	h.Write([]byte(k.ListScope))
 	return "acl-" + base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+}
+
+func (k MaterializedAssignmentKey) assignmentScope() string {
+	return cmp.Or(k.ListScope, scopes.Root)
+}
+
+// listSQN returns the scope-qualified name of the access list the asignment
+// was materialized for.
+func (k MaterializedAssignmentKey) listSQN() accesslists.NormalizedSQN {
+	return accesslists.NormalizedSQN{
+		Name:  k.ListName,
+		Scope: k.ListScope,
+	}
 }
 
 // NewMaterializer returns a new scoped role assignment materializer.
@@ -193,12 +263,20 @@ func (m *Materializer) Init(ctx context.Context) (err error) {
 	// can react to member expiration.
 	now := time.Now()
 	nextExpiry := now.Add(century)
-	for member, err := range clientutils.Resources(ctx, m.aclReader.ListAllAccessListMembers) {
+	for member, err := range clientutils.Resources(ctx, listAllAccessListMembers(m.aclReader)) {
 		if err != nil {
 			return trace.Wrap(err, "reading access list members")
 		}
-		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			m.ancestorCache.addMembership(member.Spec.AccessList, member.GetName())
+		if member.IsList() {
+			memberSQN, err := accesslists.MemberScopeQualifiedName(member)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			parentSQN, err := accesslists.ParentListOf(member)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			m.ancestorCache.addMembership(parentSQN, memberSQN)
 		}
 		if member.Spec.Expires.After(now) && member.Spec.Expires.Before(nextExpiry) {
 			nextExpiry = member.Spec.Expires
@@ -206,21 +284,27 @@ func (m *Materializer) Init(ctx context.Context) (err error) {
 	}
 	m.reportFutureMemberExpiry(ctx, nextExpiry)
 
-	for list, err := range clientutils.Resources(ctx, m.aclReader.ListAccessLists) {
+	for list, err := range clientutils.Resources(ctx, listAccessLists(m.aclReader)) {
 		if err != nil {
 			return trace.Wrap(err, "reading access lists")
 		}
+		listSQN := accesslists.ScopeQualifiedName(list)
 		for _, owner := range list.Spec.Owners {
-			if owner.MembershipKind == accesslist.MembershipKindList {
-				m.ancestorCache.addOwnership(owner.Name, list.GetName())
+			if !owner.IsMembershipKindList() {
+				continue
 			}
+			ownerSQN, err := accesslists.OwnerScopeQualifiedName(owner)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			m.ancestorCache.addOwnership(ownerSQN, listSQN)
 		}
 	}
 
 	// We iterate the access lists again separately so that the ancestor cache
 	// is fully initialized before it may be referenced in
 	// m.initAccessListMembers.
-	for list, err := range clientutils.Resources(ctx, m.aclReader.ListAccessLists) {
+	for list, err := range clientutils.Resources(ctx, listAccessLists(m.aclReader)) {
 		if err != nil {
 			return trace.Wrap(err, "reading access lists")
 		}
@@ -252,14 +336,34 @@ func (m *Materializer) ProcessEvent(ctx context.Context, event types.Event) (err
 	case types.OpDelete:
 		switch event.Resource.GetKind() {
 		case types.KindAccessList:
-			m.handleAccessListDelete(ctx, event.Resource.GetName())
+			if list, ok := event.Resource.(*accesslist.AccessList); ok {
+				m.handleAccessListDelete(ctx, accesslists.ScopeQualifiedName(list))
+				return nil
+			}
+			m.handleAccessListDelete(ctx, accesslists.NormalizedSQN{Name: event.Resource.GetName()})
 		case types.KindAccessListMember:
+			if member, ok := event.Resource.(*accesslist.AccessListMember); ok {
+				listName, err := accesslists.ParentListOf(member)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				memberName, err := accesslists.MemberScopeQualifiedName(member)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if memberName.Scope == "" {
+					m.handleAccessListMemberDelete(ctx, listName, memberName.Name)
+				} else {
+					m.handleListMemberDelete(ctx, listName, memberName)
+				}
+				return nil
+			}
 			listName := event.Resource.GetMetadata().Description
 			if listName == "" {
 				// This is a bug, return a hard failure.
 				return trace.Errorf("missing access list name in access list member delete event description")
 			}
-			m.handleAccessListMemberDelete(ctx, listName, event.Resource.GetName())
+			m.handleAccessListMemberDelete(ctx, accesslists.NormalizedSQN{Name: listName}, event.Resource.GetName())
 		}
 	}
 	return nil
@@ -269,7 +373,7 @@ func (m *Materializer) handleAccessListMemberPut(ctx context.Context, member *ac
 	if member.IsUser() {
 		m.handleUserMemberPut(ctx, member)
 	}
-	if member.Spec.MembershipKind == accesslist.MembershipKindList {
+	if member.IsList() {
 		m.handleListMemberPut(ctx, member)
 	}
 }
@@ -280,15 +384,19 @@ func (m *Materializer) handleAccessListMemberPut(ctx context.Context, member *ac
 // If the member resource is expired, it re-checks all materialized assignments
 // for the user in case they were granted via this membership.
 func (m *Materializer) handleUserMemberPut(ctx context.Context, member *accesslist.AccessListMember) {
-	listName := member.Spec.AccessList
 	userName := member.GetName()
+	listName, err := accesslists.ParentListOf(member)
+	if err != nil {
+		m.logger.WarnContext(ctx, "Access list member is invalid, unable to parse parent list", "error", err)
+		return
+	}
 
-	if m.ancestorCache.children.Get(listName).Contains(userName) {
+	if m.ancestorCache.children.Get(listName).Contains(accesslists.NormalizedSQN{Name: userName}) {
 		// Due to presence in the ancestor cache, this access list member must
 		// have been observed with membership kind list before, and now has
 		// membership kind user. Process a list member delete first, and then
 		// carry on to handle the user member put.
-		m.handleListMemberDelete(ctx, listName, userName)
+		m.handleListMemberDelete(ctx, listName, accesslists.NormalizedSQN{Name: userName})
 	}
 
 	if member.IsExpired(time.Now()) {
@@ -297,7 +405,7 @@ func (m *Materializer) handleUserMemberPut(ctx context.Context, member *accessli
 	}
 	m.reportFutureMemberExpiry(ctx, member.Spec.Expires)
 
-	list, err := m.aclReader.GetAccessList(ctx, listName)
+	list, err := getAccessList(ctx, m.aclReader, listName)
 	if err != nil {
 		m.logger.InfoContext(ctx, "Failed to get access list while handling member put",
 			"error", err,
@@ -322,7 +430,7 @@ func (m *Materializer) handleUserMemberPut(ctx context.Context, member *accessli
 			"list", list.GetName())
 	}
 
-	ancestors, validationErrors := m.collectAncestors(ctx, list.GetName())
+	ancestors, validationErrors := m.collectAncestors(ctx, listName)
 	for _, validationError := range validationErrors {
 		m.logger.InfoContext(ctx, "Error while validating access list ancestors, some scoped role assignments may not be materialized",
 			"error", validationError)
@@ -338,7 +446,7 @@ func (m *Materializer) handleUserMemberPut(ctx context.Context, member *accessli
 			m.logger.WarnContext(ctx, "Failed to materialize assignment",
 				"error", err,
 				"user", userName,
-				"list", ancestor.list.GetName())
+				"list", accesslists.ScopeQualifiedName(ancestor.list))
 		}
 	}
 }
@@ -351,12 +459,23 @@ func (m *Materializer) handleUserMemberPut(ctx context.Context, member *accessli
 // If the member resource is expired, it re-checks all materialized assignments
 // for the parent list and all of its ancestors, in case they were granted via this membership.
 func (m *Materializer) handleListMemberPut(ctx context.Context, member *accesslist.AccessListMember) {
-	parentListName, memberListName := member.Spec.AccessList, member.Spec.Name
+	parentListName, err := accesslists.ParentListOf(member)
+	if err != nil {
+		m.logger.WarnContext(ctx, "Access list member is invalid, unable to parse parent list", "error", err)
+		return
+	}
+	memberListName, err := accesslists.MemberScopeQualifiedName(member)
+	if err != nil {
+		m.logger.WarnContext(ctx, "Access list member is invalid, unable to parse member name", "error", err)
+		return
+	}
 
-	// It's possible this member resource used to have membership kind user and
-	// was updated to have membership kind list, so we must clear anything
-	// related to a previous user membership.
-	m.handleUserMemberDeleteOrExpired(ctx, parentListName, memberListName)
+	// If unscoped it's possible this member resource used to have membership
+	// kind user and was updated to have membership kind list, so we must clear
+	// anything related to a previous user membership.
+	if memberListName.Scope == "" {
+		m.handleUserMemberDeleteOrExpired(ctx, parentListName, memberListName.Name)
+	}
 
 	m.ancestorCache.addMembership(parentListName, memberListName)
 
@@ -369,7 +488,7 @@ func (m *Materializer) handleListMemberPut(ctx context.Context, member *accessli
 	// Every user that is a nested member of memberList may have just become a
 	// member of parentList and all lists it is a nested member of. They also
 	// may have become an owner of every list parentList is an owner of.
-	parentList, err := m.aclReader.GetAccessList(ctx, parentListName)
+	parentList, err := getAccessList(ctx, m.aclReader, parentListName)
 	if err != nil {
 		m.logger.InfoContext(ctx, "Failed to get access list while handling list member put, some scoped role assignments may not be materialized",
 			"error", err,
@@ -378,7 +497,7 @@ func (m *Materializer) handleListMemberPut(ctx context.Context, member *accessli
 		m.scheduleMissedMembersRepair(ctx)
 		return
 	}
-	memberList, err := m.aclReader.GetAccessList(ctx, memberListName)
+	memberList, err := getAccessList(ctx, m.aclReader, memberListName)
 	if err != nil {
 		m.logger.InfoContext(ctx, "Failed to get access list while handling list member put, some scoped role assignments may not be materialized",
 			"error", err,
@@ -440,22 +559,22 @@ func (m *Materializer) handleListMemberPut(ctx context.Context, member *accessli
 	}
 }
 
-func (m *Materializer) handleAccessListMemberDelete(ctx context.Context, listName, memberName string) {
+func (m *Materializer) handleAccessListMemberDelete(ctx context.Context, listName accesslists.NormalizedSQN, memberName string) {
 	// We don't get enough info from the event to know if the deleted member
 	// was a user or a list. Luckily member names are unique, so we know that
 	// if this membership is present in the ancestor cache as a list, then this
 	// member was last observed as a list. If it is not present in the ancestor
 	// cache, then it was last observed as a user (or not observed at all) and
 	// we handle it as a user member delete.
-	if m.ancestorCache.children.Get(listName).Contains(memberName) {
-		m.handleListMemberDelete(ctx, listName, memberName)
+	if m.ancestorCache.children.Get(listName).Contains(accesslists.NormalizedSQN{Name: memberName}) {
+		m.handleListMemberDelete(ctx, listName, accesslists.NormalizedSQN{Name: memberName})
 		return
 	}
 	m.handleUserMemberDeleteOrExpired(ctx, listName, memberName)
 }
 
 // handleListMemberDelete handles delete events for nested access list memberships.
-func (m *Materializer) handleListMemberDelete(ctx context.Context, parentListName, memberListName string) {
+func (m *Materializer) handleListMemberDelete(ctx context.Context, parentListName, memberListName accesslists.NormalizedSQN) {
 	// First and foremost, always keep the ancestor cache up to date with all
 	// direct list->list memberships.
 	m.ancestorCache.removeMembership(parentListName, memberListName)
@@ -470,7 +589,7 @@ func (m *Materializer) handleListMemberDelete(ctx context.Context, parentListNam
 // no longer be valid members or owners of the parent list or any of its
 // ancestors. At risk of being overly pessimistic, we re-check every
 // materialized assignment for the parent list and all of its ancestors.
-func (m *Materializer) handleListMemberExpired(ctx context.Context, parentListName string) {
+func (m *Materializer) handleListMemberExpired(ctx context.Context, parentListName accesslists.NormalizedSQN) {
 	// We must iterate all ancestors without relying on paging through
 	// collections in the cache to make sure we don't miss any assignments that
 	// need to be invalidated due to a paging error or any other transient
@@ -480,8 +599,8 @@ func (m *Materializer) handleListMemberExpired(ctx context.Context, parentListNa
 
 	// Iterate all currently materialized assignments.
 	for key := range m.materializedAssignments {
-		_, isAncestor := ancestors[key.List]
-		if key.List != parentListName && !isAncestor {
+		_, isAncestor := ancestors[key.listSQN()]
+		if key.listSQN() != parentListName && !isAncestor {
 			// We don't need to validate any assignments that are not for the
 			// parent list or any of its ancestors.
 			continue
@@ -502,7 +621,7 @@ func (m *Materializer) handleListMemberExpired(ctx context.Context, parentListNa
 // It's possible they are no longer a valid member of the parent list or any of
 // its ancestors. We need to re-check all current materialized assignments for
 // this user in the initial list or any of its ancestors.
-func (m *Materializer) handleUserMemberDeleteOrExpired(ctx context.Context, parentListName, userName string) {
+func (m *Materializer) handleUserMemberDeleteOrExpired(ctx context.Context, parentListName accesslists.NormalizedSQN, userName string) {
 	// We must iterate all ancestors without relying on paging through
 	// collections in the cache to make sure we don't miss any assignments that
 	// need to be invalidated due to a paging error or any other transient
@@ -510,8 +629,8 @@ func (m *Materializer) handleUserMemberDeleteOrExpired(ctx context.Context, pare
 	// memberships and ownerships, which is sufficient.
 	ancestors := m.collectAncestorListsWithoutValidation(parentListName)
 	for key := range m.materializedAssignmentsForUser(userName) {
-		_, isAncestor := ancestors[key.List]
-		if key.List != parentListName && !isAncestor {
+		_, isAncestor := ancestors[key.listSQN()]
+		if key.listSQN() != parentListName && !isAncestor {
 			// We don't need to validate any assignments that are not for the
 			// parent list or any of its ancestors.
 			continue
@@ -543,19 +662,27 @@ func (m *Materializer) handleUserMemberDeleteOrExpired(ctx context.Context, pare
 // If the list has any scoped owner grants and any owner lists were added,
 // materialize an assignment for them.
 func (m *Materializer) handleAccessListPut(ctx context.Context, list *accesslist.AccessList) {
+	listName := accesslists.ScopeQualifiedName(list)
+
 	// Update any owner list edges in the ancestor cache.
-	m.ancestorCache.clearOwnersOf(list.GetName())
+	m.ancestorCache.clearOwnersOf(listName)
 	for _, owner := range list.Spec.Owners {
-		if owner.MembershipKind != accesslist.MembershipKindList {
+		if !owner.IsMembershipKindList() {
 			continue
 		}
-		m.ancestorCache.addOwnership(owner.Name, list.GetName())
+		ownerName, err := accesslists.OwnerScopeQualifiedName(owner)
+		if err != nil {
+			m.logger.WarnContext(ctx, "Failed to parse owner name, ownership will not be considered",
+				"error", err, "name", owner.Name)
+			continue
+		}
+		m.ancestorCache.addOwnership(ownerName, listName)
 	}
 
 	// Re-check all extant assignments for this list in case any grants were added
 	// or removed or ownership status changed.
 	hasScopedGrants := hasMemberGrants(list) || hasOwnerGrants(list)
-	for key := range m.materializedAssignmentsForList(list.GetName()) {
+	for key := range m.materializedAssignmentsForList(listName) {
 		if hasScopedGrants {
 			// The list has some grants we should re-check. This may delete
 			// assignments as necessary.
@@ -580,7 +707,7 @@ func (m *Materializer) handleAccessListPut(ctx context.Context, list *accesslist
 	// is not possible for an access list update to invalidate membership in
 	// any other lists.
 	if hasMembershipRequires(list) {
-		ancestors := m.collectAncestorListsWithoutValidation(list.GetName())
+		ancestors := m.collectAncestorListsWithoutValidation(listName)
 		for ancestorListName := range ancestors {
 			for key := range m.materializedAssignmentsForList(ancestorListName) {
 				if err := m.recheckAssignment(ctx, key); err != nil {
@@ -611,7 +738,7 @@ func (m *Materializer) initAccessListMembers(ctx context.Context, list *accessli
 		return
 	}
 
-	ancestors, validationErrors := m.collectAncestors(ctx, list.GetName())
+	ancestors, validationErrors := m.collectAncestors(ctx, accesslists.ScopeQualifiedName(list))
 	for _, validationError := range validationErrors {
 		m.logger.InfoContext(ctx, "Error while validating access list ancestors, some scoped role assignments may not be materialized",
 			"error", validationError)
@@ -673,11 +800,12 @@ func (m *Materializer) initAccessListOwners(ctx context.Context, list *accesslis
 		// There is nothing to materialize for owners of this list.
 		return
 	}
+	listName := accesslists.ScopeQualifiedName(list)
 
 	// Keep track of users and lists that have already been seen across member
 	// iterations to avoid duplicating work if the same user or list is a
 	// member of multiple owner lists.
-	seenLists := set.New[string]()
+	seenLists := set.New[accesslists.NormalizedSQN]()
 	seenUsers := set.New[string]()
 
 	for _, owner := range list.Spec.Owners {
@@ -689,16 +817,22 @@ func (m *Materializer) initAccessListOwners(ctx context.Context, list *accesslis
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", owner.Name,
-					"list", list.GetName())
+					"list", listName)
 			}
 			continue
 		}
 
-		if owner.MembershipKind != accesslist.MembershipKindList {
+		if !owner.IsMembershipKindList() {
 			continue
 		}
 
-		ownerList, err := m.aclReader.GetAccessList(ctx, owner.Name)
+		ownerName, err := accesslists.OwnerScopeQualifiedName(owner)
+		if err != nil {
+			m.logger.InfoContext(ctx, "Owner is invalid, failed to parse name",
+				"error", err, "name", owner.Name)
+			return
+		}
+		ownerList, err := getAccessList(ctx, m.aclReader, ownerName)
 		if err != nil {
 			m.logger.InfoContext(ctx, "Failed to get owner list, some scoped role assignments may not be materialized for owners",
 				"error", err)
@@ -713,7 +847,7 @@ func (m *Materializer) initAccessListOwners(ctx context.Context, list *accesslis
 			if err != nil {
 				m.logger.WarnContext(ctx, "Error while walking members of access list, some scoped role assignments may not be materialized",
 					"error", err,
-					"list", list.GetName())
+					"list", listName)
 				m.scheduleMissedMembersRepair(ctx)
 				// walkUserMembersRecursive may yield errors from walking members of any
 				// member lists, but it may not be done, so continue the loop.
@@ -723,7 +857,7 @@ func (m *Materializer) initAccessListOwners(ctx context.Context, list *accesslis
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", member.GetName(),
-					"list", list.GetName())
+					"list", listName)
 			}
 		}
 	}
@@ -734,7 +868,7 @@ func (m *Materializer) initAccessListOwners(ctx context.Context, list *accesslis
 // another list (the access list service attempts to prevent it), but to be
 // defensive we re-check assignments for all ancestors anyway in case a
 // membership path through this list has been broken.
-func (m *Materializer) handleAccessListDelete(ctx context.Context, listName string) {
+func (m *Materializer) handleAccessListDelete(ctx context.Context, listName accesslists.NormalizedSQN) {
 	// First of all, keep the ancestor cache up to date with respect to owners.
 	// Access lists are the source of truth for direct owner relationships.
 	// While the deletion of the access list may invalidate a direct membership
@@ -752,8 +886,8 @@ func (m *Materializer) handleAccessListDelete(ctx context.Context, listName stri
 
 	// Iterate all currently materialized assignments.
 	for key := range m.materializedAssignments {
-		_, isAncestor := ancestors[key.List]
-		if key.List != listName && !isAncestor {
+		_, isAncestor := ancestors[key.listSQN()]
+		if key.listSQN() != listName && !isAncestor {
 			// We don't need to validate any assignments that are not for the
 			// deleted list or any of its ancestors.
 			continue
@@ -800,10 +934,7 @@ func (m *Materializer) updateRelationshipAndMaterialize(
 	relation ancestorRelation,
 	userName string,
 ) error {
-	currentRelation := m.materializedAssignments[MaterializedAssignmentKey{
-		List: list.GetName(),
-		User: userName,
-	}]
+	currentRelation := m.materializedAssignments[newMaterializedAssignmentKey(list, userName)]
 	relation.isMember = relation.isMember || currentRelation.isMember
 	relation.isOwner = relation.isOwner || currentRelation.isOwner
 	return m.materializeAssignment(ctx, list, relation, userName)
@@ -820,10 +951,7 @@ func (m *Materializer) materializeAssignment(
 	relation ancestorRelation,
 	userName string,
 ) error {
-	key := MaterializedAssignmentKey{
-		User: userName,
-		List: list.GetName(),
-	}
+	key := newMaterializedAssignmentKey(list, userName)
 
 	if (!relation.isMember || !hasMemberGrants(list)) && (!relation.isOwner || !hasOwnerGrants(list)) {
 		// This access list does not grant any scoped roles to this user,
@@ -836,7 +964,7 @@ func (m *Materializer) materializeAssignment(
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindMaterialized,
 		Version: types.V1,
-		Scope:   scopes.Root,
+		Scope:   key.assignmentScope(),
 		Metadata: headerv1.Metadata_builder{
 			Name: key.AssignmentName(),
 		}.Build(),
@@ -846,7 +974,7 @@ func (m *Materializer) materializeAssignment(
 		Status: scopedaccessv1.ScopedRoleAssignmentStatus_builder{
 			Origin: scopedaccessv1.ScopedRoleAssignmentStatus_Origin_builder{
 				CreatorKind: scopedaccess.CreatorKindAccessList,
-				CreatorName: list.GetName(),
+				CreatorName: key.listSQN().String(),
 			}.Build(),
 		}.Build(),
 	}.Build()
@@ -870,7 +998,7 @@ func (m *Materializer) materializeAssignment(
 
 	m.logger.DebugContext(ctx, "Materializing scoped role assignment",
 		"user", key.User,
-		"list", key.List)
+		"list", key.listSQN().String())
 	if err := m.assignmentStore.Put(assignment); err != nil {
 		return trace.Wrap(err, "putting materialized assignment into cache")
 	}
@@ -883,9 +1011,10 @@ func (m *Materializer) deleteMaterializedAssignment(ctx context.Context, key Mat
 	if _, ok := m.materializedAssignments[key]; ok {
 		m.logger.DebugContext(ctx, "Deleting materialized scoped role assignment",
 			"user", key.User,
-			"list", key.List)
+			"list", key.listSQN().String(),
+		)
 		m.assignmentStore.Delete(scopes.QualifiedName{
-			Scope: scopes.Root,
+			Scope: key.assignmentScope(),
 			Name:  key.AssignmentName(),
 		}, scopedaccess.SubKindMaterialized)
 		delete(m.materializedAssignments, key)
@@ -899,9 +1028,9 @@ func (m *Materializer) syncMaterializedAssignmentsMetric() {
 }
 
 func (m *Materializer) recheckAssignment(ctx context.Context, key MaterializedAssignmentKey) error {
-	list, err := m.aclReader.GetAccessList(ctx, key.List)
+	list, err := getAccessList(ctx, m.aclReader, key.listSQN())
 	if err != nil {
-		return trace.Wrap(err, "getting access list %v", key.List)
+		return trace.Wrap(err, "getting access list %v", key.listSQN().String())
 	}
 
 	relation := ancestorRelation{
@@ -934,10 +1063,15 @@ func (m *Materializer) checkNestedOwnership(ctx context.Context, list *accesslis
 
 	// Then check if user is a member or nested member of any owner lists.
 	for _, owner := range list.Spec.Owners {
-		if owner.MembershipKind != accesslist.MembershipKindList {
+		if !owner.IsMembershipKindList() {
 			continue
 		}
-		ownerList, err := m.aclReader.GetAccessList(ctx, owner.Name)
+		ownerName, err := accesslists.OwnerScopeQualifiedName(owner)
+		if err != nil {
+			// Must assume any membership is invalid if the owner name can't be parsed
+			continue
+		}
+		ownerList, err := getAccessList(ctx, m.aclReader, ownerName)
 		if err != nil {
 			// Must assume any membership is invalid if we can't fetch the access list.
 			continue
@@ -951,14 +1085,15 @@ func (m *Materializer) checkNestedOwnership(ctx context.Context, list *accesslis
 }
 
 func (m *Materializer) checkNestedMembership(ctx context.Context, list *accesslist.AccessList, userName string) bool {
-	seen := set.New[string]()
+	seen := set.New[accesslists.NormalizedSQN]()
 
 	var checkNestedMembershipRecursive func(*accesslist.AccessList) bool
 	checkNestedMembershipRecursive = func(list *accesslist.AccessList) bool {
-		if seen.Contains(list.GetName()) {
+		listName := accesslists.ScopeQualifiedName(list)
+		if seen.Contains(listName) {
 			return false
 		}
-		seen.Add(list.GetName())
+		seen.Add(listName)
 
 		if hasMembershipRequires(list) {
 			// Memberships can not be valid, for the purposes of granting scoped
@@ -967,7 +1102,7 @@ func (m *Materializer) checkNestedMembership(ctx context.Context, list *accessli
 		}
 
 		// Check if the user is a non-expired direct member of this list.
-		member, err := m.aclReader.GetAccessListMember(ctx, list.GetName(), userName)
+		member, err := getAccessListMember(ctx, m.aclReader, listName, accesslists.NormalizedSQN{Name: userName})
 		if err == nil {
 			if member.IsUser() && !member.IsExpired(time.Now()) {
 				// This user is a valid member.
@@ -976,14 +1111,14 @@ func (m *Materializer) checkNestedMembership(ctx context.Context, list *accessli
 		}
 
 		// Recursively check if the user is a valid member of any child lists.
-		for childListName := range m.ancestorCache.children.Get(list.GetName()).Items() {
-			listMember, err := m.aclReader.GetAccessListMember(ctx, list.GetName(), childListName)
+		for childListName := range m.ancestorCache.children.Get(listName).Items() {
+			listMember, err := getAccessListMember(ctx, m.aclReader, listName, childListName)
 			if err != nil || listMember.IsExpired(time.Now()) {
 				// Couldn't fetch child list member or its membership is
 				// expired, don't walk this membership path.
 				continue
 			}
-			childList, err := m.aclReader.GetAccessList(ctx, childListName)
+			childList, err := getAccessList(ctx, m.aclReader, childListName)
 			if err != nil {
 				// Must assume any membership is invalid if we can't fetch the access list.
 				continue
@@ -1000,10 +1135,10 @@ func (m *Materializer) checkNestedMembership(ctx context.Context, list *accessli
 	return checkNestedMembershipRecursive(list)
 }
 
-func (m *Materializer) materializedAssignmentsForList(listName string) iter.Seq2[MaterializedAssignmentKey, ancestorRelation] {
+func (m *Materializer) materializedAssignmentsForList(listName accesslists.NormalizedSQN) iter.Seq2[MaterializedAssignmentKey, ancestorRelation] {
 	return func(yield func(MaterializedAssignmentKey, ancestorRelation) bool) {
 		for key, relation := range m.materializedAssignments {
-			if key.List != listName {
+			if key.listSQN() != listName {
 				continue
 			}
 			if !yield(key, relation) {
@@ -1037,7 +1172,7 @@ func (m *Materializer) materializedAssignmentsForUser(userName string) iter.Seq2
 // It will yield any errors encountered while fetching list or member resources
 // but may continue iterating over other lists/members.
 func (m *Materializer) walkUserMembers(ctx context.Context, list *accesslist.AccessList) iter.Seq2[*accesslist.AccessListMember, error] {
-	seenLists := set.New[string]()
+	seenLists := set.New[accesslists.NormalizedSQN]()
 	seenUsers := set.New[string]()
 	return m.walkUserMembersRecursive(ctx, list, seenLists, seenUsers)
 }
@@ -1060,16 +1195,17 @@ func (m *Materializer) walkUserMembers(ctx context.Context, list *accesslist.Acc
 //
 // It will yield any errors encountered while fetching list or member resources
 // but may continue iterating over other lists/members.
-func (m *Materializer) walkUserMembersRecursive(ctx context.Context, list *accesslist.AccessList, seenLists set.Set[string], seenUsers set.Set[string]) iter.Seq2[*accesslist.AccessListMember, error] {
+func (m *Materializer) walkUserMembersRecursive(ctx context.Context, list *accesslist.AccessList, seenLists set.Set[accesslists.NormalizedSQN], seenUsers set.Set[string]) iter.Seq2[*accesslist.AccessListMember, error] {
 	return func(yield func(*accesslist.AccessListMember, error) bool) {
-		seenLists.Add(list.GetName())
+		listName := accesslists.ScopeQualifiedName(list)
+		seenLists.Add(listName)
 		if hasMembershipRequires(list) {
 			// membership requires are not supported in lists that transitively
 			// grant scoped roles, do not walk members of this list.
 			return
 		}
 
-		for member, err := range clientutils.Resources(ctx, listAccessListMembers(m.aclReader, list.GetName())) {
+		for member, err := range clientutils.Resources(ctx, listAccessListMembers(m.aclReader, listName)) {
 			if err != nil {
 				if !yield(nil, trace.Wrap(err)) {
 					return
@@ -1094,20 +1230,26 @@ func (m *Materializer) walkUserMembersRecursive(ctx context.Context, list *acces
 				}
 			}
 
-			if member.Spec.MembershipKind != accesslist.MembershipKindList {
-				// Currently members can only be users or lists, may need to
-				// handle bots in the future.
+			if !member.IsList() {
+				continue
+			}
+
+			memberListName, err := accesslists.MemberScopeQualifiedName(member)
+			if err != nil {
+				if !yield(nil, trace.Wrap(err)) {
+					return
+				}
 				continue
 			}
 
 			// Don't walk through this list if has already been seen.
-			if seenLists.Contains(member.GetName()) {
+			if seenLists.Contains(memberListName) {
 				continue
 			}
 
 			// Fetch the member list resource so the recursive call can check
 			// if it has any membership requires.
-			memberList, err := m.aclReader.GetAccessList(ctx, member.GetName())
+			memberList, err := getAccessList(ctx, m.aclReader, memberListName)
 			if err != nil {
 				// Yield the error so the caller can handle it how it wants,
 				// but continue iterating other nested members.
@@ -1123,96 +1265,96 @@ func (m *Materializer) walkUserMembersRecursive(ctx context.Context, list *acces
 	}
 }
 
-type mapStringSet struct {
-	m map[string]set.Set[string]
+type mapNormalizedSQNSet struct {
+	m map[accesslists.NormalizedSQN]set.Set[accesslists.NormalizedSQN]
 }
 
-func newMapStringSet() mapStringSet {
-	return mapStringSet{
-		m: make(map[string]set.Set[string]),
+func newMapNormalizedSQNSet() mapNormalizedSQNSet {
+	return mapNormalizedSQNSet{
+		m: make(map[accesslists.NormalizedSQN]set.Set[accesslists.NormalizedSQN]),
 	}
 }
 
 // readOnlySet implements a read-only view of a set.Set[string] that only
 // contains methods guaranteed to work even if the underlying map is nil.
 type readOnlySet struct {
-	s set.Set[string]
+	s set.Set[accesslists.NormalizedSQN]
 }
 
 // Contains implements a membership test for the readOnlySet.
-func (s readOnlySet) Contains(key string) bool {
+func (s readOnlySet) Contains(key accesslists.NormalizedSQN) bool {
 	return s.s.Contains(key)
 }
 
 // Items returns an iterator over all items in the set.
-func (s readOnlySet) Items() iter.Seq[string] {
+func (s readOnlySet) Items() iter.Seq[accesslists.NormalizedSQN] {
 	return maps.Keys(s.s)
 }
 
 // Get returns a read-only view of the set for the given key, it does not
 // allocate a set if the key is not present.
-func (m *mapStringSet) Get(key string) readOnlySet {
+func (m *mapNormalizedSQNSet) Get(key accesslists.NormalizedSQN) readOnlySet {
 	return readOnlySet{m.m[key]}
 }
 
 // Ensure returns a set for the given key, creating an empty set if one is not
-// currently present. Prefer [mapStringSet.Get] if the retuned set does not
+// currently present. Prefer [mapNormalizedSQNSet.Get] if the returned set does not
 // need to be mutated.
-func (m *mapStringSet) Ensure(key string) set.Set[string] {
+func (m *mapNormalizedSQNSet) Ensure(key accesslists.NormalizedSQN) set.Set[accesslists.NormalizedSQN] {
 	if s, ok := m.m[key]; ok {
 		return s
 	}
-	s := set.New[string]()
+	s := set.New[accesslists.NormalizedSQN]()
 	m.m[key] = s
 	return s
 }
 
 type ancestorCache struct {
-	parents  mapStringSet
-	children mapStringSet
-	ownedBy  mapStringSet
-	ownersOf mapStringSet
+	parents  mapNormalizedSQNSet
+	children mapNormalizedSQNSet
+	ownedBy  mapNormalizedSQNSet
+	ownersOf mapNormalizedSQNSet
 }
 
 func newAncestorCache() *ancestorCache {
 	return &ancestorCache{
-		parents:  newMapStringSet(),
-		children: newMapStringSet(),
-		ownedBy:  newMapStringSet(),
-		ownersOf: newMapStringSet(),
+		parents:  newMapNormalizedSQNSet(),
+		children: newMapNormalizedSQNSet(),
+		ownedBy:  newMapNormalizedSQNSet(),
+		ownersOf: newMapNormalizedSQNSet(),
 	}
 }
 
-func (c *ancestorCache) addMembership(parent, member string) {
+func (c *ancestorCache) addMembership(parent, member accesslists.NormalizedSQN) {
 	c.parents.Ensure(member).Add(parent)
 	c.children.Ensure(parent).Add(member)
 }
 
-func (c *ancestorCache) removeMembership(parent, member string) {
+func (c *ancestorCache) removeMembership(parent, member accesslists.NormalizedSQN) {
 	c.parents.Ensure(member).Remove(parent)
 	c.children.Ensure(parent).Remove(member)
 }
 
-func (c *ancestorCache) addOwnership(owner, owned string) {
+func (c *ancestorCache) addOwnership(owner, owned accesslists.NormalizedSQN) {
 	c.ownedBy.Ensure(owner).Add(owned)
 	c.ownersOf.Ensure(owned).Add(owner)
 }
 
-func (c *ancestorCache) removeOwnership(owner, owned string) {
+func (c *ancestorCache) removeOwnership(owner, owned accesslists.NormalizedSQN) {
 	c.ownedBy.Ensure(owner).Remove(owned)
 	c.ownersOf.Ensure(owned).Remove(owner)
 }
 
-func (c *ancestorCache) clearOwnersOf(owned string) {
+func (c *ancestorCache) clearOwnersOf(owned accesslists.NormalizedSQN) {
 	for owner := range c.ownersOf.Get(owned).Items() {
 		c.removeOwnership(owner, owned)
 	}
 }
 
 type collectAncestorListsParams struct {
-	startListName      string
-	validateMembership func(parentListName, memberListName string) bool
-	validateOwnership  func(ownerListName, ownedListName string) bool
+	startListName      accesslists.NormalizedSQN
+	validateMembership func(parentListName, memberListName accesslists.NormalizedSQN) bool
+	validateOwnership  func(ownerListName, ownedListName accesslists.NormalizedSQN) bool
 }
 
 type ancestorRelation struct {
@@ -1224,23 +1366,23 @@ type ancestorRelation struct {
 // list, that is all lists where the given list is a (nested) member or owner.
 // This may be useful for calculating all related lists that may require an
 // assignment to be materialized for members of the starting list.
-func (c *ancestorCache) collectAncestorLists(params collectAncestorListsParams) map[string]ancestorRelation {
-	result := make(map[string]ancestorRelation)
-	markOwned := func(ownedListName string) {
+func (c *ancestorCache) collectAncestorLists(params collectAncestorListsParams) map[accesslists.NormalizedSQN]ancestorRelation {
+	result := make(map[accesslists.NormalizedSQN]ancestorRelation)
+	markOwned := func(ownedListName accesslists.NormalizedSQN) {
 		curr := result[ownedListName]
 		curr.isOwner = true
 		result[ownedListName] = curr
 	}
-	markMember := func(parentListName string) {
+	markMember := func(parentListName accesslists.NormalizedSQN) {
 		curr := result[parentListName]
 		curr.isMember = true
 		result[parentListName] = curr
 	}
 
-	seen := set.New[string]()
+	seen := set.New[accesslists.NormalizedSQN]()
 
-	var collectAncestorsRecursive func(currListName string)
-	collectAncestorsRecursive = func(currListName string) {
+	var collectAncestorsRecursive func(currListName accesslists.NormalizedSQN)
+	collectAncestorsRecursive = func(currListName accesslists.NormalizedSQN) {
 		if seen.Contains(currListName) {
 			return
 		}
@@ -1282,11 +1424,11 @@ func (c *ancestorCache) collectAncestorLists(params collectAncestorListsParams) 
 // This is useful when handling membership deletions, which requires
 // pessimistic validation of every possible already-materialized assignment
 // that may need to be invalidated.
-func (m *Materializer) collectAncestorListsWithoutValidation(startListName string) map[string]ancestorRelation {
+func (m *Materializer) collectAncestorListsWithoutValidation(startListName accesslists.NormalizedSQN) map[accesslists.NormalizedSQN]ancestorRelation {
 	return m.ancestorCache.collectAncestorLists(collectAncestorListsParams{
 		startListName:      startListName,
-		validateMembership: func(string, string) bool { return true },
-		validateOwnership:  func(string, string) bool { return true },
+		validateMembership: func(accesslists.NormalizedSQN, accesslists.NormalizedSQN) bool { return true },
+		validateOwnership:  func(accesslists.NormalizedSQN, accesslists.NormalizedSQN) bool { return true },
 	})
 }
 
@@ -1313,15 +1455,23 @@ type ancestor struct {
 // contain any ownership requires.
 //
 // Finally, any lists that do not contain any effective scoped role grants are
-// filted out. It is safe to materialize an assignment for all returned lists
+// filtered out. It is safe to materialize an assignment for all returned lists
 // without any further validation.
-func (m *Materializer) collectAncestors(ctx context.Context, startListName string) ([]ancestor, []error) {
+func (m *Materializer) collectAncestors(ctx context.Context, startListName accesslists.NormalizedSQN) ([]ancestor, []error) {
 	var validationErrors []error
-	fetchedLists := make(map[string]*accesslist.AccessList)
+	fetchedLists := make(map[accesslists.NormalizedSQN]*accesslist.AccessList)
 	ancestorRelations := m.ancestorCache.collectAncestorLists(collectAncestorListsParams{
 		startListName: startListName,
-		validateMembership: func(parentListName, memberListName string) bool {
-			memberResource, err := m.aclReader.GetAccessListMember(ctx, parentListName, memberListName)
+		validateMembership: func(parentListName, memberListName accesslists.NormalizedSQN) bool {
+			if memberListName.Scope != "" && !scopes.PolicyResourceScope(parentListName.Scope).CanDependOnStateFromPolicyResourceAtScope(memberListName.Scope) {
+				return false
+			}
+			memberResource, err := m.aclReader.GetAccessListMemberV2(ctx, accesslistv1.GetAccessListMemberRequest_builder{
+				AccessList:      parentListName.Name,
+				AccessListScope: parentListName.Scope,
+				MemberName:      memberListName.Name,
+				MemberScope:     memberListName.Scope,
+			}.Build())
 			if err != nil {
 				validationErrors = append(validationErrors,
 					trace.Wrap(err, "getting access list member %q in list %q", memberListName, parentListName))
@@ -1332,7 +1482,7 @@ func (m *Materializer) collectAncestors(ctx context.Context, startListName strin
 				// expected but should not be followed.
 				return false
 			}
-			parentList, err := m.aclReader.GetAccessList(ctx, parentListName)
+			parentList, err := getAccessList(ctx, m.aclReader, parentListName)
 			if err != nil {
 				validationErrors = append(validationErrors,
 					trace.Wrap(err, "getting access list %q", parentListName))
@@ -1348,8 +1498,11 @@ func (m *Materializer) collectAncestors(ctx context.Context, startListName strin
 			}
 			return true
 		},
-		validateOwnership: func(parentListName, ownedListName string) bool {
-			ownedList, err := m.aclReader.GetAccessList(ctx, ownedListName)
+		validateOwnership: func(ownerListName, ownedListName accesslists.NormalizedSQN) bool {
+			if ownerListName.Scope != "" && !scopes.PolicyResourceScope(ownedListName.Scope).CanDependOnStateFromPolicyResourceAtScope(ownerListName.Scope) {
+				return false
+			}
+			ownedList, err := getAccessList(ctx, m.aclReader, ownedListName)
 			if err != nil {
 				validationErrors = append(validationErrors,
 					trace.Wrap(err, "getting access list %q", ownedListName))
@@ -1529,7 +1682,7 @@ func (m *Materializer) repairExpiredMembers(ctx context.Context) {
 
 // collectExpiredMembers collects all expired access list members by parent
 // list, and returns the earliest seen future expiry.
-func (m *Materializer) collectExpiredMembers(ctx context.Context) (expiredMembersOf map[string]expiredMembers, nextExpiry time.Time) {
+func (m *Materializer) collectExpiredMembers(ctx context.Context) (expiredMembersOf map[accesslists.NormalizedSQN]expiredMembers, nextExpiry time.Time) {
 	// Use a consistent time for "now" so that this will report all members
 	// expired before this time, and schedule another repair for any members
 	// expiring after this time.
@@ -1538,11 +1691,11 @@ func (m *Materializer) collectExpiredMembers(ctx context.Context) (expiredMember
 	// Keep track of the nearest seen member expiry time that's in the future.
 	nextExpiry = now.Add(century)
 
-	expiredMembersOf = make(map[string]expiredMembers)
+	expiredMembersOf = make(map[accesslists.NormalizedSQN]expiredMembers)
 	expiredCount := 0
 
 	// Iterate all access list members to find any that are expired.
-	for member, err := range clientutils.Resources(ctx, m.aclReader.ListAllAccessListMembers) {
+	for member, err := range clientutils.Resources(ctx, listAllAccessListMembers(m.aclReader)) {
 		if err != nil {
 			// Failed to iterate all access list member resources, we may have
 			// missed an expired member or one that will be expiring soon.
@@ -1568,10 +1721,19 @@ func (m *Materializer) collectExpiredMembers(ctx context.Context) (expiredMember
 			"membership_kind", member.Spec.MembershipKind,
 			"expired", member.Spec.Expires)
 
+		parentList, err := accesslists.ParentListOf(member)
+		if err != nil {
+			m.logger.DebugContext(ctx, "Failed to parse parent list of expired member resource",
+				"list", member.Spec.AccessList,
+				"member", member.GetName(),
+				"membership_kind", member.Spec.MembershipKind,
+				"expired", member.Spec.Expires)
+		}
+
 		// Collect the expired membership.
-		knownExpiredMembers := expiredMembersOf[member.Spec.AccessList]
+		knownExpiredMembers := expiredMembersOf[parentList]
 		knownExpiredMembers.insert(member)
-		expiredMembersOf[member.Spec.AccessList] = knownExpiredMembers
+		expiredMembersOf[parentList] = knownExpiredMembers
 		expiredCount++
 	}
 	oteltrace.SpanFromContext(ctx).SetAttributes(attribute.Int("members.expired", expiredCount))
@@ -1581,8 +1743,8 @@ func (m *Materializer) collectExpiredMembers(ctx context.Context) (expiredMember
 
 // affectedAssignmentsForExpiredMembers returns an iterator of all current
 // materialized assignments that may be affected by an expired membership.
-func (m *Materializer) affectedAssignmentsForExpiredMembers(expiredMembersOf map[string]expiredMembers) iter.Seq[MaterializedAssignmentKey] {
-	assignmentFilters := make(map[string]assignmentFilter)
+func (m *Materializer) affectedAssignmentsForExpiredMembers(expiredMembersOf map[accesslists.NormalizedSQN]expiredMembers) iter.Seq[MaterializedAssignmentKey] {
+	assignmentFilters := make(map[accesslists.NormalizedSQN]assignmentFilter)
 	for parentListName, knownExpiredMembers := range expiredMembersOf {
 		currFilter := assignmentFilters[parentListName]
 		currFilter.merge(assignmentFilter{
@@ -1615,7 +1777,7 @@ func (m *Materializer) affectedAssignmentsForExpiredMembers(expiredMembersOf map
 
 	return func(yield func(MaterializedAssignmentKey) bool) {
 		for key := range m.materializedAssignments {
-			if !assignmentFilters[key.List].match(key.User) {
+			if !assignmentFilters[key.listSQN()].match(key.User) {
 				continue
 			}
 			if !yield(key) {
@@ -1631,7 +1793,7 @@ type expiredMembers struct {
 }
 
 func (m *expiredMembers) insert(member *accesslist.AccessListMember) {
-	m.hasExpiredListMember = m.hasExpiredListMember || member.Spec.MembershipKind == accesslist.MembershipKindList
+	m.hasExpiredListMember = m.hasExpiredListMember || member.IsList()
 	if m.hasExpiredListMember {
 		// users set is unneeded if there is an expired list member.
 		m.users = nil
@@ -1681,7 +1843,7 @@ func (m *Materializer) repairMissedMembers(ctx context.Context) {
 	// Iterate all access lists to additively materialize assignments for all
 	// their members and owners.
 	repairedLists := 0
-	for list, err := range clientutils.Resources(ctx, m.aclReader.ListAccessLists) {
+	for list, err := range clientutils.Resources(ctx, listAccessLists(m.aclReader)) {
 		if err != nil {
 			m.logger.InfoContext(ctx, "Missed membership repair failed to read all access lists, scheduling another repair",
 				"error", err)

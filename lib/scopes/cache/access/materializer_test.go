@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -40,6 +41,7 @@ import (
 	cachepkg "github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/scopes/cache/assignments"
@@ -55,7 +57,7 @@ func TestMain(m *testing.M) {
 
 type materializerTestcase struct {
 	// An initial collection of access lists and members for the test case.
-	collection accesslists.Collection
+	collection accesslists.ScopedCollection
 	// Expected assignments after cache init (and materialization).
 	expectedAssignments []*scopedaccessv1.ScopedRoleAssignment
 	// Optional extra mutation steps the test may run.
@@ -70,6 +72,20 @@ type materializerTestcaseStep struct {
 type materializerTestcaseState struct {
 	aclService         *local.AccessListService
 	breakableACLReader *breakableAccessListReader
+}
+
+func scopedCollection(collection accesslists.Collection) accesslists.ScopedCollection {
+	scopedCollection := accesslists.ScopedCollection{
+		AccessListsByName:   make(map[accesslists.NormalizedSQN]*accesslist.AccessList, len(collection.AccessListsByName)),
+		MembersByAccessList: make(map[accesslists.NormalizedSQN][]*accesslist.AccessListMember, len(collection.MembersByAccessList)),
+	}
+	for name, accessList := range collection.AccessListsByName {
+		scopedCollection.AccessListsByName[accesslists.NormalizedSQN{Name: name}] = accessList
+	}
+	for name, members := range collection.MembersByAccessList {
+		scopedCollection.MembersByAccessList[accesslists.NormalizedSQN{Name: name}] = members
+	}
+	return scopedCollection
 }
 
 func runMaterializerTestcase(t *testing.T, tc materializerTestcase) {
@@ -93,7 +109,7 @@ func runMaterializerTestcase(t *testing.T, tc materializerTestcase) {
 	require.NoError(t, err)
 
 	// Insert the access lists and members into the backend.
-	require.NoError(t, aclService.InsertAccessListCollection(t.Context(), &tc.collection))
+	require.NoError(t, aclService.InsertScopedAccessListCollection(t.Context(), &tc.collection))
 
 	// Create the access lists cache.
 	aclCache, err := cachepkg.New(cachepkg.Config{
@@ -168,7 +184,7 @@ func runMaterializerTestcase(t *testing.T, tc materializerTestcase) {
 func TestMaterializerSimpleChain(t *testing.T) {
 	t.Parallel()
 	runMaterializerTestcase(t, materializerTestcase{
-		collection: accesslists.Collection{
+		collection: scopedCollection(accesslists.Collection{
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"grandparent": newAccessList(t, "grandparent", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa/bb/cc",
@@ -194,7 +210,7 @@ func TestMaterializerSimpleChain(t *testing.T) {
 					newAccessListMember(t, "base", "tester", accesslist.MembershipKindUser),
 				},
 			},
-		},
+		}),
 		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 			expectedScopedRoleAssignment("tester", "base", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 				Role:  "/::baserole",
@@ -212,10 +228,69 @@ func TestMaterializerSimpleChain(t *testing.T) {
 	})
 }
 
+func TestMaterializerScopedAccessListDirectMember(t *testing.T) {
+	t.Parallel()
+
+	listName := accesslists.NormalizedSQN{Scope: "/eng", Name: "granted"}
+	runMaterializerTestcase(t, materializerTestcase{
+		collection: accesslists.ScopedCollection{
+			AccessListsByName: map[accesslists.NormalizedSQN]*accesslist.AccessList{
+				listName: newScopedAccessList(t, listName, withMemberGrants([]accesslist.ScopedRoleGrant{{
+					Scope: "/eng/team",
+					Role:  "/::engrole",
+				}})),
+			},
+			MembersByAccessList: map[accesslists.NormalizedSQN][]*accesslist.AccessListMember{
+				listName: {
+					newScopedAccessListMember(t, listName, accesslists.NormalizedSQN{Name: "tester"}, accesslist.MembershipKindUser),
+				},
+			},
+		},
+		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+			expectedScopedScopedRoleAssignment("tester", listName, []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
+				Role:  "/::engrole",
+				Scope: "/eng/team",
+			}.Build()}),
+		},
+	})
+}
+
+func TestMaterializerScopedAccessListMember(t *testing.T) {
+	t.Parallel()
+
+	parentName := accesslists.NormalizedSQN{Scope: "/eng/team", Name: "parent"}
+	childName := accesslists.NormalizedSQN{Scope: "/eng", Name: "child"}
+	runMaterializerTestcase(t, materializerTestcase{
+		collection: accesslists.ScopedCollection{
+			AccessListsByName: map[accesslists.NormalizedSQN]*accesslist.AccessList{
+				parentName: newScopedAccessList(t, parentName, withMemberGrants([]accesslist.ScopedRoleGrant{{
+					Scope: "/eng/team",
+					Role:  "/::parentrole",
+				}})),
+				childName: newScopedAccessList(t, childName),
+			},
+			MembersByAccessList: map[accesslists.NormalizedSQN][]*accesslist.AccessListMember{
+				parentName: {
+					newScopedAccessListMember(t, parentName, childName, accesslist.MembershipKindScopedList),
+				},
+				childName: {
+					newScopedAccessListMember(t, childName, accesslists.NormalizedSQN{Name: "tester"}, accesslist.MembershipKindUser),
+				},
+			},
+		},
+		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+			expectedScopedScopedRoleAssignment("tester", parentName, []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
+				Role:  "/::parentrole",
+				Scope: "/eng/team",
+			}.Build()}),
+		},
+	})
+}
+
 func TestMaterializerDoubleListMembership(t *testing.T) {
 	t.Parallel()
 	runMaterializerTestcase(t, materializerTestcase{
-		collection: accesslists.Collection{
+		collection: scopedCollection(accesslists.Collection{
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"parent": newAccessList(t, "parent", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/parentscope",
@@ -239,7 +314,7 @@ func TestMaterializerDoubleListMembership(t *testing.T) {
 					newAccessListMember(t, "memberListB", "testerC", accesslist.MembershipKindUser),
 				},
 			},
-		},
+		}),
 		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 			// All users should be direct or nested members of the parent role,
 			// expect exactly one materialized assignment each.
@@ -266,7 +341,7 @@ func TestMaterializerDoubleListMembership(t *testing.T) {
 func TestMaterializerDoubleListParents(t *testing.T) {
 	t.Parallel()
 	runMaterializerTestcase(t, materializerTestcase{
-		collection: accesslists.Collection{
+		collection: scopedCollection(accesslists.Collection{
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"parentA": newAccessList(t, "parentA", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa",
@@ -289,7 +364,7 @@ func TestMaterializerDoubleListParents(t *testing.T) {
 					newAccessListMember(t, "child", "tester", accesslist.MembershipKindUser),
 				},
 			},
-		},
+		}),
 		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 			// User should be a nested member of both parents and get an assignment for each.
 			expectedScopedRoleAssignment("tester", "parentA", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
@@ -307,7 +382,7 @@ func TestMaterializerDoubleListParents(t *testing.T) {
 func TestMaterializerDirectOwner(t *testing.T) {
 	t.Parallel()
 	runMaterializerTestcase(t, materializerTestcase{
-		collection: accesslists.Collection{
+		collection: scopedCollection(accesslists.Collection{
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"testlist": newAccessList(t, "testlist", withOwnerGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa",
@@ -320,7 +395,7 @@ func TestMaterializerDirectOwner(t *testing.T) {
 			MembersByAccessList: map[string][]*accesslist.AccessListMember{
 				"testlist": {},
 			},
-		},
+		}),
 		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 			// The user is simply a direct owner of the access list and an
 			// assignment is expected.
@@ -336,7 +411,7 @@ func TestMaterializerUserMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		runMaterializerTestcase(t, materializerTestcase{
-			collection: accesslists.Collection{
+			collection: scopedCollection(accesslists.Collection{
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"granted": newAccessList(t, "granted",
 						withMemberGrants([]accesslist.ScopedRoleGrant{{
@@ -360,7 +435,7 @@ func TestMaterializerUserMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 					},
 					"child": {},
 				},
-			},
+			}),
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "/::ownerrole",
@@ -393,7 +468,7 @@ func TestMaterializerListMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		runMaterializerTestcase(t, materializerTestcase{
-			collection: accesslists.Collection{
+			collection: scopedCollection(accesslists.Collection{
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"granted": newAccessList(t, "granted",
 						withMemberGrants([]accesslist.ScopedRoleGrant{{
@@ -421,7 +496,7 @@ func TestMaterializerListMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 						newAccessListMember(t, "child", "tester", accesslist.MembershipKindUser),
 					},
 				},
-			},
+			}),
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "/::ownerrole",
@@ -454,7 +529,7 @@ func TestMaterializerAccessListPutPreservesExistingOwnerGrant(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		runMaterializerTestcase(t, materializerTestcase{
-			collection: accesslists.Collection{
+			collection: scopedCollection(accesslists.Collection{
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"granted": newAccessList(t, "granted",
 						withMemberGrants([]accesslist.ScopedRoleGrant{{
@@ -482,7 +557,7 @@ func TestMaterializerAccessListPutPreservesExistingOwnerGrant(t *testing.T) {
 						newAccessListMember(t, "child", "tester", accesslist.MembershipKindUser),
 					},
 				},
-			},
+			}),
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				// tests is initially ownly an owner of the granted list.
 				expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
@@ -517,7 +592,7 @@ func TestMaterializerOwnerRequirements(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		runMaterializerTestcase(t, materializerTestcase{
-			collection: accesslists.Collection{
+			collection: scopedCollection(accesslists.Collection{
 				AccessListsByName: map[string]*accesslist.AccessList{
 					// Ownership requirements in the owner list should not block
 					// _members_ of the owner list from receiving owner grants
@@ -537,7 +612,7 @@ func TestMaterializerOwnerRequirements(t *testing.T) {
 						newAccessListMember(t, "owners", "tester", accesslist.MembershipKindUser),
 					},
 				},
-			},
+			}),
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				// tester is a valid member of list "owners". All valid members of
 				// list "owners" are valid _owners_ of list "granted", so the
@@ -580,7 +655,7 @@ func TestMaterializerOwnerRequirements(t *testing.T) {
 func TestMaterializerOwnerChain(t *testing.T) {
 	t.Parallel()
 	runMaterializerTestcase(t, materializerTestcase{
-		collection: accesslists.Collection{
+		collection: scopedCollection(accesslists.Collection{
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"grandparent": newAccessList(t, "grandparent", withOwnerGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa/bb/cc",
@@ -617,7 +692,7 @@ func TestMaterializerOwnerChain(t *testing.T) {
 					newAccessListMember(t, "base", "basemember", accesslist.MembershipKindUser),
 				},
 			},
-		},
+		}),
 		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 			// baseowner is a direct owner of base list. Ownership is not inherited.
 			expectedScopedRoleAssignment("baseowner", "base", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
@@ -647,7 +722,7 @@ func TestMaterializerAccessListPutWithMembershipRequirements(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		runMaterializerTestcase(t, materializerTestcase{
-			collection: accesslists.Collection{
+			collection: scopedCollection(accesslists.Collection{
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"top": newAccessList(t, "top", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/aa",
@@ -663,7 +738,7 @@ func TestMaterializerAccessListPutWithMembershipRequirements(t *testing.T) {
 						newAccessListMember(t, "middle", "tester", accesslist.MembershipKindUser),
 					},
 				},
-			},
+			}),
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "/::toprole",
@@ -688,7 +763,7 @@ func TestMaterializerAccessListMemberKindUpdateInvalidatesPriorKind(t *testing.T
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		runMaterializerTestcase(t, materializerTestcase{
-			collection: accesslists.Collection{
+			collection: scopedCollection(accesslists.Collection{
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"parent": newAccessList(t, "parent", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/aa",
@@ -704,7 +779,7 @@ func TestMaterializerAccessListMemberKindUpdateInvalidatesPriorKind(t *testing.T
 						newAccessListMember(t, "child", "tester", accesslist.MembershipKindUser),
 					},
 				},
-			},
+			}),
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				// Initially tester is a member of list child which is a member
 				// of list parent, resulting in a materialized assignment for
@@ -782,7 +857,7 @@ func TestMaterializerDiamond(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		runMaterializerTestcase(t, materializerTestcase{
-			collection: accesslists.Collection{
+			collection: scopedCollection(accesslists.Collection{
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"top": newAccessList(t, "top", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/aa",
@@ -807,7 +882,7 @@ func TestMaterializerDiamond(t *testing.T) {
 						newAccessListMember(t, "bottom", "tester", accesslist.MembershipKindUser),
 					},
 				},
-			},
+			}),
 			// Initially the user is a valid member of the top list by 2 paths.
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
@@ -867,7 +942,7 @@ func TestMaterializerCascadingMemberExpiries(t *testing.T) {
 		testStart := time.Now()
 
 		runMaterializerTestcase(t, materializerTestcase{
-			collection: accesslists.Collection{
+			collection: scopedCollection(accesslists.Collection{
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"testlist": newAccessList(t, "testlist", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/test",
@@ -881,7 +956,7 @@ func TestMaterializerCascadingMemberExpiries(t *testing.T) {
 						newAccessListMember(t, "testlist", "charlie", accesslist.MembershipKindUser, withExpires(testStart.Add(3*time.Minute))),
 					},
 				},
-			},
+			}),
 			// Initially all users are valid members of testlist.
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("alice", "testlist", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
@@ -945,7 +1020,7 @@ func TestMaterializerRepairFailedReads(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		runMaterializerTestcase(t, materializerTestcase{
-			collection: accesslists.Collection{
+			collection: scopedCollection(accesslists.Collection{
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"parent": newAccessList(t, "parent", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/test/parent",
@@ -960,7 +1035,7 @@ func TestMaterializerRepairFailedReads(t *testing.T) {
 					"parent": {},
 					"child":  {},
 				},
-			},
+			}),
 			// Initially there are no members and therefore no assignments.
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{},
 			steps: []materializerTestcaseStep{
@@ -1052,7 +1127,7 @@ func TestMaterializerDiamondExpiry(t *testing.T) {
 		rightExpires := testStart.Add(3 * time.Hour)
 
 		runMaterializerTestcase(t, materializerTestcase{
-			collection: accesslists.Collection{
+			collection: scopedCollection(accesslists.Collection{
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"top": newAccessList(t, "top", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/aa",
@@ -1077,7 +1152,7 @@ func TestMaterializerDiamondExpiry(t *testing.T) {
 						newAccessListMember(t, "bottom", "tester", accesslist.MembershipKindUser),
 					},
 				},
-			},
+			}),
 			// Initially the user is a valid member of the top list by 2 paths.
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
@@ -1193,7 +1268,7 @@ func BenchmarkMaterializerInit(b *testing.B) {
 			t1 := time.Now()
 
 			// Insert the access lists and members into the backend.
-			require.NoError(b, aclService.InsertAccessListCollection(b.Context(), collection))
+			require.NoError(b, aclService.InsertScopedAccessListCollection(b.Context(), collection))
 
 			t2 := time.Now()
 
@@ -1254,8 +1329,9 @@ initializing acl cache: %v`, t1.Sub(t0), t2.Sub(t1), t3.Sub(t2))
 						continue
 					}
 					key := access.MaterializedAssignmentKey{
-						List: listName,
-						User: member.GetName(),
+						ListName:  listName.Name,
+						ListScope: listName.Scope,
+						User:      member.GetName(),
 					}
 					_, err := assignmentCache.GetScopedRoleAssignment(b.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 						Name:    key.AssignmentName(),
@@ -1269,8 +1345,8 @@ initializing acl cache: %v`, t1.Sub(t0), t2.Sub(t1), t3.Sub(t2))
 	}
 }
 
-func createBenchmarkCollection(b require.TestingT, listCount, membersPerList, nestingDepth int) *accesslists.Collection {
-	var collection accesslists.Collection
+func createBenchmarkCollection(b require.TestingT, listCount, membersPerList, nestingDepth int) *accesslists.ScopedCollection {
+	var collection accesslists.ScopedCollection
 
 	grants := []accesslist.ScopedRoleGrant{{
 		Role:  "/::testrole",
@@ -1369,6 +1445,23 @@ func newAccessList(t require.TestingT, name string, opts ...aclOption) *accessli
 	return list
 }
 
+func newScopedAccessList(t require.TestingT, name accesslists.NormalizedSQN, opts ...aclOption) *accesslist.AccessList {
+	list, err := accesslist.NewAccessListWithScope(header.Metadata{
+		Name: name.Name,
+	}, accesslist.Spec{
+		Title: name.String(),
+		Owners: []accesslist.Owner{{
+			Name:           "testowner",
+			MembershipKind: accesslist.MembershipKindUser,
+		}},
+	}, name.Scope)
+	require.NoError(t, err)
+	for _, opt := range opts {
+		opt(list)
+	}
+	return list
+}
+
 type memberOption func(*accesslist.AccessListMember)
 
 func withExpires(expires time.Time) memberOption {
@@ -1394,10 +1487,54 @@ func newAccessListMember(t require.TestingT, parent, member, membershipKind stri
 	return memberResource
 }
 
+func newScopedAccessListMember(t require.TestingT, parent, member accesslists.NormalizedSQN, membershipKind string, opts ...memberOption) *accesslist.AccessListMember {
+	memberResource, err := accesslist.NewAccessListMemberWithScope(header.Metadata{
+		Name: member.String(),
+	}, accesslist.AccessListMemberSpec{
+		AccessList:     parent.String(),
+		Name:           member.String(),
+		MembershipKind: membershipKind,
+		Joined:         time.Now(),
+		AddedBy:        "testowner",
+	}, parent.Scope)
+	require.NoError(t, err)
+	for _, opt := range opts {
+		opt(memberResource)
+	}
+	return memberResource
+}
+
+func expectedScopedScopedRoleAssignment(userName string, listName accesslists.NormalizedSQN, assignments []*scopedaccessv1.Assignment) *scopedaccessv1.ScopedRoleAssignment {
+	key := access.MaterializedAssignmentKey{
+		User:      userName,
+		ListName:  listName.Name,
+		ListScope: listName.Scope,
+	}
+	return scopedaccessv1.ScopedRoleAssignment_builder{
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindMaterialized,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: key.AssignmentName(),
+		}.Build(),
+		Scope: listName.Scope,
+		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			User:        userName,
+			Assignments: assignments,
+		}.Build(),
+		Status: scopedaccessv1.ScopedRoleAssignmentStatus_builder{
+			Origin: scopedaccessv1.ScopedRoleAssignmentStatus_Origin_builder{
+				CreatorKind: scopedaccess.CreatorKindAccessList,
+				CreatorName: listName.String(),
+			}.Build(),
+		}.Build(),
+	}.Build()
+}
+
 func expectedScopedRoleAssignment(userName, listName string, assignments []*scopedaccessv1.Assignment) *scopedaccessv1.ScopedRoleAssignment {
 	key := access.MaterializedAssignmentKey{
-		User: userName,
-		List: listName,
+		User:     userName,
+		ListName: listName,
 	}
 	return scopedaccessv1.ScopedRoleAssignment_builder{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
@@ -1438,37 +1575,30 @@ func (b *breakableAccessListReader) err() error {
 	return fmt.Errorf("access list reader is broken")
 }
 
-func (b *breakableAccessListReader) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+func (b *breakableAccessListReader) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
 	if b.broken.Load() {
 		return nil, "", b.err()
 	}
-	return b.AccessListReader.ListAccessLists(ctx, pageSize, pageToken)
+	return b.AccessListReader.ListAccessListsV2(ctx, req)
 }
 
-func (b *breakableAccessListReader) GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error) {
+func (b *breakableAccessListReader) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
 	if b.broken.Load() {
 		return nil, b.err()
 	}
-	return b.AccessListReader.GetAccessList(ctx, accessListName)
+	return b.AccessListReader.GetAccessListV2(ctx, req)
 }
 
-func (b *breakableAccessListReader) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+func (b *breakableAccessListReader) ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) ([]*accesslist.AccessListMember, string, error) {
 	if b.broken.Load() {
 		return nil, "", b.err()
 	}
-	return b.AccessListReader.ListAllAccessListMembers(ctx, pageSize, pageToken)
+	return b.AccessListReader.ListAccessListMembersV2(ctx, req)
 }
 
-func (b *breakableAccessListReader) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
-	if b.broken.Load() {
-		return nil, "", b.err()
-	}
-	return b.AccessListReader.ListAccessListMembers(ctx, accessListName, pageSize, pageToken)
-}
-
-func (b *breakableAccessListReader) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+func (b *breakableAccessListReader) GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error) {
 	if b.broken.Load() {
 		return nil, b.err()
 	}
-	return b.AccessListReader.GetAccessListMember(ctx, accessList, memberName)
+	return b.AccessListReader.GetAccessListMemberV2(ctx, req)
 }
