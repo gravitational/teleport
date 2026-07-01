@@ -725,10 +725,11 @@ Requests, and like `request`, can fall under `allow` or `deny`:
 
 |Role Field|Description|Further Information|
 |---|---|---|
-|`review_requests.roles`|Allows or denies the ability to review requests for particular roles.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.where`|Configures conditions in which a user with the role may review an Access Request|[`where` expressions](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.preview_as_roles`|Allows or denies the ability to list resources that a user with the requested role can access|[Inspecting requested resources](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.claims_to_roles`|Teleport roles that a user can or cannot review requests for based on their traits.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx)|
+|`review_requests.roles`|Allows or denies the ability to review requests for particular roles.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx#roles-that-a-reviewer-can-grant-access-to)|
+|`review_requests.where`|Configures conditions in which a user with the role may review an Access Request|[`where` expressions](../../identity-governance/access-requests/access-request-configuration.mdx#where-expressions)|
+|`review_requests.preview_as_roles`|Allows or denies the ability to list resources that a user with the requested role can access|[Inspecting requested resources](../../identity-governance/access-requests/access-request-configuration.mdx#inspecting-requested-resources)|
+|`review_requests.claims_to_roles`|Teleport roles that a user can or cannot review requests for based on their traits.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx#roles-that-a-reviewer-can-grant-access-to)|
+|`review_requests.submit_for_users`|Allows or denies the ability to submit reviews on behalf of other users. Ignores all other `review_requests` conditions if matched. Only to be used by Teleport Access Request plugins.|[Submitting reviews for other users](../../identity-governance/access-requests/access-request-configuration.mdx#submitting-for-other-users)|
 
 ### Client options
 
