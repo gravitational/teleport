@@ -381,7 +381,7 @@ func TestAgentStart(t *testing.T) {
 func TestAgentSmoothedRTT(t *testing.T) {
 	agent, client := testAgent(t, agentConfig{
 		staleConnTimeoutDisabled: true,
-		keepAlive:                1 * time.Nanosecond,
+		keepAlive:                5 * time.Millisecond,
 	})
 
 	ctx, cancel := context.WithCancel(t.Context())
