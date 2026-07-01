@@ -303,10 +303,6 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	fw.send(types.Event{Type: types.OpPut, Resource: &types.DatabaseServerV3{Kind: types.KindKubeServer}})
 	synctest.Wait()
 
-	// Invalid op types handled gracefully.
-	// fw.send(types.Event{Type: types.OpInvalid, Resource: newTestKubeServer(t, "new", "host2")})
-	// synctest.Wait()
-
 	fw.send(types.Event{Type: types.OpDelete, Resource: newTestKubeServer(t, "new", "host2")})
 	synctest.Wait()
 
