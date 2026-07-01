@@ -20,15 +20,22 @@ package dynamo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/applicationautoscaling"
 	autoscalingtypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -40,11 +47,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -52,6 +61,315 @@ import (
 func TestMain(m *testing.M) {
 	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
+}
+
+func newTestDynamoBackend(server *httptest.Server) *Backend {
+	return &Backend{
+		svc: dynamodb.New(dynamodb.Options{
+			Region:       "us-west-2",
+			Credentials:  credentials.NewStaticCredentialsProvider("access-key", "secret-key", ""),
+			BaseEndpoint: aws.String(server.URL),
+			HTTPClient:   server.Client(),
+		}),
+		clock:  clockwork.NewRealClock(),
+		logger: slog.Default(),
+		Config: Config{
+			TableName:   "table",
+			RetryPeriod: 10 * time.Second,
+		},
+	}
+}
+
+type listenerAddrOverride struct {
+	*bufconn.Listener
+}
+
+func (l listenerAddrOverride) Addr() net.Addr { return &utils.NetAddr{Addr: "example.com:80"} }
+
+func TestDeleteRangeRetriesUnprocessedItems(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		keys := []backend.Key{
+			backend.NewKey("testing", "fish"),
+			backend.NewKey("testing", "dumpling"),
+			backend.NewKey("testing", "color", "red"),
+		}
+
+		var batchWriteRequests [][]string
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Header.Get("X-Amz-Target") {
+			case "DynamoDB_20120810.Query":
+				items := make([]json.RawMessage, 0, len(keys))
+				for _, key := range keys {
+					item := map[string]types.AttributeValue{
+						hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
+						fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(key)},
+						"Value":     &types.AttributeValueMemberB{Value: []byte("value")},
+					}
+
+					rawItem, err := attributevalue.MarshalMapJSON(item)
+					require.NoError(t, err)
+					items = append(items, rawItem)
+				}
+
+				w.Header().Set("Content-Type", "application/x-amz-json-1.0")
+				require.NoError(t, json.NewEncoder(w).Encode(map[string][]json.RawMessage{"Items": items}))
+			case "DynamoDB_20120810.BatchWriteItem":
+				var body map[string]map[string][]json.RawMessage
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+
+				var requestedKeys []string
+				for _, requestedItems := range body["RequestItems"] {
+					for _, request := range requestedItems {
+						var raw map[string]json.RawMessage
+						require.NoError(t, json.Unmarshal(request, &raw))
+
+						if deleteRequest, ok := raw["DeleteRequest"]; ok {
+							var fields map[string]json.RawMessage
+							require.NoError(t, json.Unmarshal(deleteRequest, &fields))
+							key, err := attributevalue.UnmarshalMapJSON(fields["Key"])
+							require.NoError(t, err)
+
+							fullPath, ok := key[fullPathKey].(*types.AttributeValueMemberS)
+							require.True(t, ok)
+							requestedKeys = append(requestedKeys, fullPath.Value)
+						}
+					}
+				}
+
+				batchWriteRequests = append(batchWriteRequests, requestedKeys)
+
+				if len(batchWriteRequests) == 3 {
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/x-amz-json-1.0")
+				switch len(batchWriteRequests) {
+				case 1:
+					rawKey1, err := attributevalue.MarshalMapJSON(map[string]types.AttributeValue{
+						hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
+						fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(keys[1])},
+					})
+					require.NoError(t, err)
+
+					rawRequest1, err := json.Marshal(map[string]any{
+						"DeleteRequest": map[string]json.RawMessage{
+							"Key": rawKey1,
+						},
+					})
+					require.NoError(t, err)
+
+					rawKey2, err := attributevalue.MarshalMapJSON(map[string]types.AttributeValue{
+						hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
+						fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(keys[2])},
+					})
+					require.NoError(t, err)
+
+					rawRequest2, err := json.Marshal(map[string]any{
+						"DeleteRequest": map[string]json.RawMessage{
+							"Key": rawKey2,
+						},
+					})
+					require.NoError(t, err)
+
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+						"UnprocessedItems": map[string][]json.RawMessage{"table": {rawRequest1, rawRequest2}},
+					}))
+				case 2:
+					rawKey, err := attributevalue.MarshalMapJSON(map[string]types.AttributeValue{
+						hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
+						fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(keys[2])},
+					})
+					require.NoError(t, err)
+
+					rawRequest, err := json.Marshal(map[string]any{
+						"DeleteRequest": map[string]json.RawMessage{
+							"Key": rawKey,
+						},
+					})
+					require.NoError(t, err)
+
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+						"UnprocessedItems": map[string][]json.RawMessage{"table": {rawRequest}},
+					}))
+				}
+			default:
+				http.Error(w, "unexpected dynamodb operation", http.StatusBadRequest)
+			}
+		})
+
+		listener := bufconn.Listen(1024)
+		server := &httptest.Server{
+			Listener: listenerAddrOverride{Listener: listener},
+			Config:   &http.Server{Handler: handler},
+		}
+		server.StartTLS()
+		t.Cleanup(server.Close)
+
+		client := server.Client()
+		transport := client.Transport.(*http.Transport).Clone()
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return listener.DialContext(ctx)
+		}
+		client.Transport = transport
+
+		bk := newTestDynamoBackend(server)
+
+		err := bk.DeleteRange(t.Context(), backend.NewKey("foo"), backend.RangeEnd(backend.NewKey("zest")))
+		require.NoError(t, err)
+
+		expectedBatchWriteRequests := [][]string{
+			{prependPrefix(keys[0]), prependPrefix(keys[1]), prependPrefix(keys[2])},
+			{prependPrefix(keys[1]), prependPrefix(keys[2])},
+			{prependPrefix(keys[2])},
+		}
+		require.Equal(t, expectedBatchWriteRequests, batchWriteRequests)
+	})
+}
+
+func TestDeleteRangeReturnsErrorWhenUnprocessedItemsDoNotDecrease(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		key := backend.NewKey("testing", "test")
+		var batchWriteAttempts int
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Header.Get("X-Amz-Target") {
+			case "DynamoDB_20120810.Query":
+				item := map[string]types.AttributeValue{
+					hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
+					fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(key)},
+					"Value":     &types.AttributeValueMemberB{Value: []byte("value")},
+				}
+
+				rawItem, err := attributevalue.MarshalMapJSON(item)
+				require.NoError(t, err)
+
+				w.Header().Set("Content-Type", "application/x-amz-json-1.0")
+				require.NoError(t, json.NewEncoder(w).Encode(map[string][]json.RawMessage{"Items": {rawItem}}))
+			case "DynamoDB_20120810.BatchWriteItem":
+				batchWriteAttempts++
+				rawKey, err := attributevalue.MarshalMapJSON(map[string]types.AttributeValue{
+					hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
+					fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(key)},
+				})
+				require.NoError(t, err)
+
+				rawRequest, err := json.Marshal(map[string]any{
+					"DeleteRequest": map[string]json.RawMessage{
+						"Key": rawKey,
+					},
+				})
+				require.NoError(t, err)
+				w.Header().Set("Content-Type", "application/x-amz-json-1.0")
+				require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+					"UnprocessedItems": map[string][]json.RawMessage{"table": {rawRequest}},
+				}))
+			default:
+				http.Error(w, "unexpected dynamodb operation", http.StatusBadRequest)
+			}
+		})
+
+		listener := bufconn.Listen(1024)
+		server := &httptest.Server{
+			Listener: listenerAddrOverride{Listener: listener},
+			Config:   &http.Server{Handler: handler},
+		}
+		server.StartTLS()
+		t.Cleanup(server.Close)
+
+		client := server.Client()
+		transport := client.Transport.(*http.Transport).Clone()
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return listener.DialContext(ctx)
+		}
+		client.Transport = transport
+
+		bk := newTestDynamoBackend(server)
+
+		err := bk.DeleteRange(t.Context(), backend.NewKey("test"), backend.RangeEnd(backend.NewKey("zest")))
+		require.Error(t, err)
+		require.True(t, trace.IsLimitExceeded(err))
+		require.Equal(t, 1, batchWriteAttempts)
+	})
+}
+
+func TestDeleteRangeReturnsErrorWhenUnprocessedItemsIncrease(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		key := backend.NewKey("testing", "test")
+		extraKey := backend.NewKey("testing", "extra")
+		var batchWriteAttempts int
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Header.Get("X-Amz-Target") {
+			case "DynamoDB_20120810.Query":
+				item := map[string]types.AttributeValue{
+					hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
+					fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(key)},
+					"Value":     &types.AttributeValueMemberB{Value: []byte("value")},
+				}
+
+				rawItem, err := attributevalue.MarshalMapJSON(item)
+				require.NoError(t, err)
+
+				w.Header().Set("Content-Type", "application/x-amz-json-1.0")
+				require.NoError(t, json.NewEncoder(w).Encode(map[string][]json.RawMessage{"Items": {rawItem}}))
+			case "DynamoDB_20120810.BatchWriteItem":
+				batchWriteAttempts++
+
+				rawKey, err := attributevalue.MarshalMapJSON(map[string]types.AttributeValue{
+					hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
+					fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(key)},
+				})
+				require.NoError(t, err)
+
+				rawRequest, err := json.Marshal(map[string]any{
+					"DeleteRequest": map[string]json.RawMessage{
+						"Key": rawKey,
+					},
+				})
+				require.NoError(t, err)
+
+				rawExtraKey, err := attributevalue.MarshalMapJSON(map[string]types.AttributeValue{
+					hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
+					fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(extraKey)},
+				})
+				require.NoError(t, err)
+
+				rawExtraRequest, err := json.Marshal(map[string]any{
+					"DeleteRequest": map[string]json.RawMessage{
+						"Key": rawExtraKey,
+					},
+				})
+				require.NoError(t, err)
+
+				w.Header().Set("Content-Type", "application/x-amz-json-1.0")
+				require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+					"UnprocessedItems": map[string][]json.RawMessage{"table": {rawRequest, rawExtraRequest}},
+				}))
+			default:
+				http.Error(w, "unexpected dynamodb operation", http.StatusBadRequest)
+			}
+		})
+
+		listener := bufconn.Listen(1024)
+		server := &httptest.Server{
+			Listener: listenerAddrOverride{Listener: listener},
+			Config:   &http.Server{Handler: handler},
+		}
+		server.StartTLS()
+		t.Cleanup(server.Close)
+
+		client := server.Client()
+		transport := client.Transport.(*http.Transport).Clone()
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return listener.DialContext(ctx)
+		}
+		client.Transport = transport
+
+		bk := newTestDynamoBackend(server)
+
+		err := bk.DeleteRange(t.Context(), backend.NewKey("test"), backend.RangeEnd(backend.NewKey("zest")))
+		require.Error(t, err)
+		require.True(t, trace.IsLimitExceeded(err))
+		require.Equal(t, 1, batchWriteAttempts)
+	})
 }
 
 func ensureTestsEnabled(t *testing.T) {
@@ -73,7 +391,7 @@ func dynamoDBTestTable() string {
 func TestDynamoDB(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	dynamoCfg := map[string]interface{}{
+	dynamoCfg := map[string]any{
 		"table_name":         dynamoDBTestTable(),
 		"poll_stream_period": 300 * time.Millisecond,
 	}
@@ -244,7 +562,7 @@ func TestCreateTable(t *testing.T) {
 func TestContinuousBackups(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	b, err := New(t.Context(), map[string]interface{}{
+	b, err := New(t.Context(), map[string]any{
 		"table_name":         uuid.NewString() + "-test",
 		"continuous_backups": true,
 	})
@@ -252,7 +570,14 @@ func TestContinuousBackups(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		back := backoff.NewDecorr(500*time.Millisecond, 20*time.Second, clockwork.NewRealClock())
+		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+			Driver: retryutils.NewExponentialDriver(500 * time.Millisecond),
+			First:  500 * time.Millisecond,
+			Max:    20 * time.Second,
+			Jitter: retryutils.HalfJitter,
+		})
+		require.NoError(t, err)
+
 		for {
 			err := deleteTable(context.Background(), b.svc, b.Config.TableName)
 			if err == nil {
@@ -260,7 +585,7 @@ func TestContinuousBackups(t *testing.T) {
 			}
 			inUse := &types.ResourceInUseException{}
 			if errors.As(err, &inUse) {
-				back.Do(context.Background())
+				<-retry.After()
 			} else {
 				assert.FailNow(t, "error deleting table", err)
 			}
@@ -278,7 +603,7 @@ func TestAutoScaling(t *testing.T) {
 	ensureTestsEnabled(t)
 
 	// Create new backend with auto scaling enabled.
-	b, err := New(context.Background(), map[string]interface{}{
+	b, err := New(context.Background(), map[string]any{
 		"table_name":         uuid.NewString() + "-test",
 		"auto_scaling":       true,
 		"read_min_capacity":  10,
@@ -313,8 +638,8 @@ func TestAutoScaling(t *testing.T) {
 	// Check auto scaling values match.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := getAutoScaling(context.Background(), applicationautoscaling.NewFromConfig(awsConfig), b.Config.TableName)
-		assert.NoError(t, err)
-		assert.Equal(t, expected, resp)
+		require.NoError(t, err)
+		require.Equal(t, expected, resp)
 	}, 10*time.Second, 500*time.Millisecond)
 }
 
@@ -385,7 +710,7 @@ func getAutoScaling(ctx context.Context, svc *applicationautoscaling.Client, tab
 	if err != nil {
 		return nil, convertError(err)
 	}
-	for i := 0; i < len(policyResponse.ScalingPolicies); i++ {
+	for i := range policyResponse.ScalingPolicies {
 		policy := policyResponse.ScalingPolicies[i]
 		switch aws.ToString(policy.PolicyName) {
 		case fmt.Sprintf("%v-%v", tableName, readScalingPolicySuffix):
