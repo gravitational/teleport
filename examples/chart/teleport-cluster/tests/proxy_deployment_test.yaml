@@ -1,25 +1,39 @@
 suite: Proxy Deployment
 templates:
-  - proxy/deployment.yaml
-  - proxy/config.yaml
+  - proxy.yaml
 tests:
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: sets Deployment annotations when specified
-    template: proxy/deployment.yaml
     values:
       - ../.lint/annotations.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: metadata.annotations.kubernetes\.io/deployment
           value: test-annotation
       - equal:
           path: metadata.annotations.kubernetes\.io/deployment-different
           value: 3
-
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: sets Pod annotations when specified
-    template: proxy/deployment.yaml
     values:
       - ../.lint/annotations.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.metadata.annotations.kubernetes\.io/pod
           value: test-annotation
@@ -27,80 +41,138 @@ tests:
           path: spec.template.metadata.annotations.kubernetes\.io/pod-different
           value: 4
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not have more than one replica if no certificate is passed
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.replicas
           value: 1
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should have multiple replicas by default when a certificate is passed through a secret
-    template: proxy/deployment.yaml
-    set:
-      clusterName: helm-lint.example.com
-      tls:
-        existingSecretName: my-certs
-    asserts:
-      - equal:
-          path: spec.replicas
-          value: 2
-
-  - it: should have multiple replicas by default when certManager is configured
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       highAvailability:
-        certManager:
-          enabled: true
+        replicaCount: 0
+      tls:
+        existingSecretName: my-certs
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.replicas
           value: 2
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
+  - it: should have multiple replicas by default when certManager is configured
+    set:
+      clusterName: helm-lint.example.com
+      highAvailability:
+        replicaCount: 0
+        certManager:
+          enabled: true
+          issuerName: helm-lint
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 2 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should have multiple replicas when global replicaCount is set and a certificate is passed
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       highAvailability:
         replicaCount: 3
         certManager:
           enabled: true
+          issuerName: helm-lint
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 2 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 2
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.replicas
           value: 3
 
   - it: should have a single replica when proxy-specific replicaCount is set to 1 and a cert is passed
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     set:
       clusterName: helm-lint.example.com
       highAvailability:
         certManager:
           enabled: true
+          issuerName: helm-lint
       proxy:
         highAvailability:
           replicaCount: 1
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 2 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 2
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.replicas
           value: 1
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should have multiple replicas by default when an ingress is terminating TLS
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
+      service:
+        type: ClusterIP
+      highAvailability:
+        replicaCount: 0
       ingress:
         enabled: true
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.replicas
           value: 2
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set affinity when set in values
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       highAvailability:
@@ -114,17 +186,33 @@ tests:
                     operator: In
                     values:
                       - teleport
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - isNotNull:
           path: spec.template.spec.affinity
       - matchSnapshot:
           path: spec.template.spec.affinity
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
-    template: proxy/deployment.yaml
     values:
       - ../.lint/aws-ha-antiaffinity.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - isNotNull:
           path: spec.template.spec.affinity
       - isNotNull:
@@ -134,21 +222,37 @@ tests:
       - matchSnapshot:
           path: spec.template.spec.affinity
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set tolerations when set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/tolerations.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - isNotNull:
           path: spec.template.spec.tolerations
       - matchSnapshot:
           path: spec.template.spec.tolerations
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set resources when set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/resources.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.containers[0].resources.limits.cpu
           value: 2
@@ -164,11 +268,19 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set podSecurityContext when set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/pod-security-context.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.securityContext.fsGroup
           value: 99
@@ -185,19 +297,35 @@ tests:
           path: spec.template.spec.securityContext.runAsUser
           value: 99
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not set podSecurityContext when is empty object (default value)
-    template: proxy/deployment.yaml
     values:
       - ../.lint/pod-security-context-empty.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - isNull:
           path: spec.template.spec.securityContext
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set securityContext when set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/security-context.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
           value: false
@@ -219,19 +347,35 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not set securityContext when is empty object (default value)
-    template: proxy/deployment.yaml
     values:
       - ../.lint/security-context-empty.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - isNull:
           path: spec.template.spec.containers[0].securityContext
 
   - it: should set securityContext for initContainers when set in values
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     values:
       - ../.lint/security-context.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
           value: false
@@ -254,10 +398,18 @@ tests:
           path: spec.template.spec
 
   - it: should set resources for wait-auth-update initContainer when set in values
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     values:
       - ../.lint/resources.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.initContainers[0].resources.requests.cpu
           value: 0.1
@@ -274,43 +426,75 @@ tests:
           path: spec.template.spec
 
   - it: should not set securityContext for initContainers when is empty object (default value)
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     values:
       - ../.lint/security-context-empty.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - isNull:
           path: spec.template.spec.initContainers[0].securityContext
 
   # we can't use the dynamic chart version or appVersion as a variable in the tests,
   # so we override it manually and check that gets set instead
   # this saves us having to update the test every time we cut a new release
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should use enterprise image when enterprise is set in values
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       enterprise: true
       teleportVersionOverride: 12.2.1
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.containers[0].image
           value: public.ecr.aws/gravitational/teleport-ent-distroless:12.2.1
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should use OSS image when enterprise is not set in values
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
       teleportVersionOverride: 12.2.1
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.containers[0].image
           value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
 
   - it: should mount TLS certs when cert-manager is enabled
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     values:
       - ../.lint/gcp-ha-acme.yaml
       - ../.lint/initcontainers.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 2 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 2
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -336,11 +520,19 @@ tests:
             name: "teleport-tls"
             readOnly: true
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should mount ConfigMap containing Teleport config
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -355,11 +547,19 @@ tests:
               name: RELEASE-NAME-proxy
 
   - it: should mount extraVolumes and extraVolumeMounts on container and initContainers
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     values:
       - ../.lint/volumes.yaml
       - ../.lint/initcontainers.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -382,32 +582,56 @@ tests:
             secret:
               secretName: mySecret
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set imagePullPolicy when set in values
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       imagePullPolicy: Always
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: Always
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should have only one container when no `extraContainers` is set in values
-    template: proxy/deployment.yaml
     set:
       extraContainers: []
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - isNotNull:
           path: spec.template.spec.containers[0]
       - isNull:
           path: spec.template.spec.containers[1]
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should add one more container when `extraContainers` is set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/extra-containers.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.containers[1]
           value:
@@ -422,22 +646,38 @@ tests:
               privileged: true
               runAsNonRoot: false
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set environment when extraEnv set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/extra-env.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: SOME_ENVIRONMENT_VARIABLE
             value: "some-value"
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set imagePullSecrets when set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/imagepullsecrets.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.imagePullSecrets[0].name
           value: myRegistryKeySecretName
@@ -445,12 +685,20 @@ tests:
           path: spec.template.spec.imagePullSecrets
 
   - it: should provision initContainer correctly when set in values
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     values:
       - ../.lint/initcontainers.yaml
       - ../.lint/resources.yaml
       - ../.lint/extra-env.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.initContainers[1].args
           content: "echo test"
@@ -496,21 +744,37 @@ tests:
       - matchSnapshot:
           path: spec.template.spec.initContainers
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should add insecureSkipProxyTLSVerify to args when set in values
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       insecureSkipProxyTLSVerify: true
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].args
           content: "--insecure"
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should expose diag port
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -518,11 +782,19 @@ tests:
             containerPort: 3000
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should expose tls port
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -530,12 +802,20 @@ tests:
             containerPort: 3080
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should expose tls port when proxyListenerMode is multiplex
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -543,11 +823,19 @@ tests:
             containerPort: 3080
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not expose proxy peering port by default
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notContains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -555,12 +843,20 @@ tests:
             containerPort: 3021
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should expose proxy peering port when enterprise is true
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       enterprise: true
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -568,11 +864,19 @@ tests:
             containerPort: 3021
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should expose sshproxy port by default
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -580,12 +884,20 @@ tests:
             containerPort: 3023
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not expose sshproxy port when proxyListenerMode is multiplex
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notContains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -593,11 +905,19 @@ tests:
             containerPort: 3023
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should expose sshtun port by default
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -605,12 +925,20 @@ tests:
             containerPort: 3024
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not expose sshtun port when proxyListenerMode is multiplex
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notContains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -618,11 +946,19 @@ tests:
             containerPort: 3024
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should expose k8s port by default
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -630,12 +966,20 @@ tests:
             containerPort: 3026
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not expose k8s port when proxyListenerMode is multiplex
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notContains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -643,11 +987,19 @@ tests:
             containerPort: 3026
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should expose mysql port by default
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -655,12 +1007,20 @@ tests:
             containerPort: 3036
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not expose mysql port when proxyListenerMode is multiplex
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notContains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -668,12 +1028,20 @@ tests:
             containerPort: 3036
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should expose postgres port when separate postgres listener is enabled
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       separatePostgresListener: true
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -681,13 +1049,21 @@ tests:
             containerPort: 5432
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not expose postgres port when proxyListenerMode is multiplex and separate postgres listener is enabled
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
       separatePostgresListener: true
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notContains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -695,12 +1071,20 @@ tests:
             containerPort: 5432
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should expose mongo port when separate mongo listener is enabled
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       separateMongoListener: true
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -708,13 +1092,21 @@ tests:
             containerPort: 27017
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not expose mongo port when when proxyListenerMode is multiplex and separate mongo listener is enabled
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
       separateMongoListener: true
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notContains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -722,22 +1114,38 @@ tests:
             containerPort: 27017
             protocol: TCP
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set postStart command if set in values
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       postStart:
         command: ["/bin/echo", "test"]
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.containers[0].lifecycle.postStart.exec.command
           value: ["/bin/echo", "test"]
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should add and mount emptyDir for data
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint.example.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -749,20 +1157,36 @@ tests:
             name: data
             emptyDir: {}
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set priorityClassName when set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/priority-class-name.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.priorityClassName
           value: system-cluster-critical
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set probeTimeoutSeconds when set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/probe-timeout-seconds.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
           value: 5
@@ -770,11 +1194,19 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
           value: 5
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not mount TLS secrets when when highAvailability.certManager.enabled is false and tls.existingSecretName is not set
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint-test-cluster
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notContains:
           path: spec.template.spec.volumes
           content:
@@ -788,11 +1220,19 @@ tests:
             name: teleport-tls
             readOnly: true
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should mount cert-manager TLS secret when highAvailability.certManager.enabled is true
-    template: proxy/deployment.yaml
     values:
       - ../.lint/cert-manager.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 2 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 2
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.volumes
           content:
@@ -806,11 +1246,19 @@ tests:
             name: teleport-tls
             readOnly: true
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should mount tls.existingSecretName when set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/existing-tls-secret.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.volumes
           content:
@@ -824,11 +1272,19 @@ tests:
             name: teleport-tls
             readOnly: true
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should mount tls.existingCASecretName and set environment when set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.volumes
           content:
@@ -847,12 +1303,20 @@ tests:
             name: SSL_CERT_FILE
             value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should mount tls.existingCASecretName and set extra environment when set in values
-    template: proxy/deployment.yaml
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
       - ../.lint/extra-env.yaml
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.volumes
           content:
@@ -876,54 +1340,87 @@ tests:
             name: SOME_ENVIRONMENT_VARIABLE
             value: some-value
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set minReadySeconds when replicaCount > 1
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
       highAvailability:
         certManager:
           enabled: true
+          issuerName: helm-lint
         replicaCount: 3
         minReadySeconds: 60
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 2 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 2
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.minReadySeconds
           value: 60
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should not set minReadySeconds when replicaCount = 1
-    template: proxy/deployment.yaml
     set:
       chartMode: scratch
       highAvailability:
         minReadySeconds: 60
         replicaCount: 1
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.minReadySeconds
           value: null
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set nodeSelector when set in values
-    template: proxy/deployment.yaml
     set:
       chartMode: scratch
       clusterName: helm-lint.example.com
       nodeSelector:
         role: bastion
         environment: security
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - isNotNull:
           path: spec.template.spec.nodeSelector
       - matchSnapshot:
           path: spec.template.spec
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: mounts regular tokens on older Kubernetes versions
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
     capabilities:
       majorVersion: 1
       minorVersion: 18
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notEqual:
           path: spec.template.spec.automountServiceAccountToken
           value: false
@@ -952,14 +1449,22 @@ tests:
             name: proxy-serviceaccount-token
             readOnly: true
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: mounts tokens through projected volumes on newer Kubernetes versions
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
     capabilities:
       majorVersion: 1
       minorVersion: 21
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.automountServiceAccountToken
           value: false
@@ -989,7 +1494,7 @@ tests:
             readOnly: true
 
   - it: sets extraLabels on Deployment
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     values:
       - ../.lint/annotations.yaml
     set:
@@ -1001,7 +1506,15 @@ tests:
         extraLabels:
           deployment:
             baz: overridden
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: metadata.labels.foo
           value: bar
@@ -1010,7 +1523,7 @@ tests:
           value: overridden
 
   - it: sets extraLabels on Deployment Pods
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     values:
       - ../.lint/annotations.yaml
     set:
@@ -1022,7 +1535,15 @@ tests:
         extraLabels:
           pod:
             baz: overridden
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.metadata.labels.foo
           value: bar
@@ -1031,20 +1552,28 @@ tests:
           value: overridden
 
   - it: sets clusterDomain on Deployment Pods
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     values:
       - ../.lint/annotations.yaml
     set:
       global:
         clusterDomain: test.com
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - matchSnapshot: {}
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[3]
           pattern: ".svc.test.com$"
 
   - it: sets readinessProbe values on Deployment Pods
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     set:
       clusterName: helm-lint
       readinessProbe:
@@ -1056,7 +1585,15 @@ tests:
         # we test an auth-specific override
         readinessProbe:
           initialDelaySeconds: 13
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.periodSeconds
           value: 10
@@ -1070,11 +1607,19 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
           value: 13
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: sets topology spread constraints by default
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.topologySpreadConstraints
           value:
@@ -1095,28 +1640,44 @@ tests:
                   app.kubernetes.io/instance: RELEASE-NAME
                   app.kubernetes.io/name: teleport-cluster
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: removes topology spread constraints when disabled
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
       disableTopologySpreadConstraints: true
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - isEmpty:
           path: spec.template.spec.topologySpreadConstraints
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: removes topology spread constraints when running on antique kubernetes
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
     capabilities:
       majorVersion: 1
       minorVersion: 17
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - isEmpty:
           path: spec.template.spec.topologySpreadConstraints
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: uses custom topology spread constraints when set
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
       topologySpreadConstraints:
@@ -1130,7 +1691,15 @@ tests:
     capabilities:
       majorVersion: 1
       minorVersion: 18
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.template.spec.topologySpreadConstraints
           value:
@@ -1141,50 +1710,74 @@ tests:
                 matchLabels:
                   app: baz
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: sets GOMEMLIMIT by default (SI unit)
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
       resources:
         limits:
           memory: "10.5G"
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: "GOMEMLIMIT"
             value: "9450000000"
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: sets GOMEMLIMIT by default (IEC unit)
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
       resources:
         limits:
           memory: "10.5Gi"
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: "GOMEMLIMIT"
             value: "10146860237"
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: sets GOMEMLIMIT by default (scientific notation)
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
       resources:
         limits:
           memory: "10.5e9"
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: "GOMEMLIMIT"
             value: "9450000000"
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: honours existing GOMEMLIMIT
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
       resources:
@@ -1195,7 +1788,15 @@ tests:
           value: bar
         - name: GOMEMLIMIT
           value: "5GB"
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -1203,7 +1804,7 @@ tests:
             value: "5GB"
 
   - it: does not set GOMEMLIMIT if ratio is 0
-    template: proxy/deployment.yaml
+    template: proxy.yaml
     set:
       clusterName: helm-lint
       # we set an extra env so contrainers[0].env always exists
@@ -1217,15 +1818,23 @@ tests:
       # we nest under proxy to check if merge works properly
       proxy:
         goMemLimitRatio: 0
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: "GOMEMLIMIT"
             value: "9450000000"
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: does not set GOMEMLIMIT if resources are not set
-    template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
       # we set an extra env so contrainers[0].env always exists
@@ -1233,7 +1842,15 @@ tests:
       extraEnv:
         - name: FOO
           value: bar
+    # expected: Deployment/RELEASE-NAME-proxy
+    # 1 - Deployment/RELEASE-NAME-proxy
+    documentIndex: 1
     asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - notContains:
           path: spec.template.spec.containers[0].env
           content:
