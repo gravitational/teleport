@@ -40,7 +40,7 @@ struct EnrollDeviceView: View {
 		}
 		.padding()
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
-		.background(Color(.systemGroupedBackground))
+		.background(Color.Background.depth3)
 
 		// MARK: Navigation
 
@@ -61,7 +61,7 @@ extension EnrollDeviceView {
 			.font(.title2)
 			.fontWeight(.semibold)
 		Text("To finish enrolling this device, approve the request from your account settings on another device.")
-			.foregroundStyle(.secondary)
+			.foregroundStyle(Color.Foreground.slightlyMuted)
 	}
 
 	var requestNowButton: some View {
