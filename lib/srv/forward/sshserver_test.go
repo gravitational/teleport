@@ -41,7 +41,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -393,22 +392,6 @@ func TestServerConfigCheckDefaults(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	openSSHEICENode, err := types.NewEICENode(types.ServerSpecV2{
-		Addr:     "openssheice.example.com:22",
-		Hostname: "openssheice.example.com",
-		CloudMetadata: &types.CloudMetadata{
-			AWS: &types.AWSInfo{
-				AccountID:   "123456789012",
-				InstanceID:  "i-123456789012",
-				Region:      "us-east-1",
-				VPCID:       "vpc-abcd",
-				SubnetID:    "subnet-123",
-				Integration: "teleportdev",
-			},
-		},
-	}, nil)
-	require.NoError(t, err)
-
 	for _, tt := range []struct {
 		name           string
 		modifyCfg      func(c *ServerConfig)
@@ -455,12 +438,6 @@ func TestServerConfigCheckDefaults(t *testing.T) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, "agentless signer creator is required")
 			},
-		}, {
-			name: "OpenSSH EICE Node",
-			modifyCfg: func(c *ServerConfig) {
-				c.TargetServer = openSSHEICENode
-			},
-			errorAssertion: require.NoError,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -475,9 +452,6 @@ func TestServerConfigCheckDefaults(t *testing.T) {
 				Clock:                    clockwork.NewFakeClock(),
 				Emitter:                  &authclient.Client{},
 				LockWatcher:              &services.LockWatcher{},
-				EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-					return nil, nil
-				},
 			}
 
 			tt.modifyCfg(config)

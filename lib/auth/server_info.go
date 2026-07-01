@@ -129,9 +129,7 @@ func getServerInfoNames(node types.Server) []string {
 
 func setLabelsOnNodes(ctx context.Context, ap ServerInfoAccessPoint, nodes []types.Server) (failedUpdates int, err error) {
 	for _, node := range nodes {
-		// EICE Node labels can't be updated using the Inventory Control Stream because there's no reverse tunnel.
-		// Labels are updated by the DiscoveryService during 'Server.handleEC2Instances'.
-		// The same is valid for OpenSSH Nodes.
+		// OpenSSH Node labels can't be updated using the Inventory Control Stream because there's no reverse tunnel.
 		if node.IsOpenSSHNode() {
 			continue
 		}

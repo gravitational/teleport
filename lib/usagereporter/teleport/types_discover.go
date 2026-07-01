@@ -422,28 +422,6 @@ func (u *UIDiscoverEC2InstanceSelectionEvent) Anonymize(a utils.Anonymizer) *pre
 	}
 }
 
-// UIDiscoverDeployEICEEvent is emitted when the user deploys an EC2 Instance Connect Endpoint.
-type UIDiscoverDeployEICEEvent prehogv1a.UIDiscoverDeployEICEEvent
-
-func (u *UIDiscoverDeployEICEEvent) CheckAndSetDefaults() error {
-	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
-}
-
-func (u *UIDiscoverDeployEICEEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
-	return &prehogv1a.SubmitEventRequest{
-		Event: &prehogv1a.SubmitEventRequest_UiDiscoverDeployEice{
-			UiDiscoverDeployEice: &prehogv1a.UIDiscoverDeployEICEEvent{
-				Metadata: &prehogv1a.DiscoverMetadata{
-					Id:       u.Metadata.Id,
-					UserName: a.AnonymizeString(u.Metadata.UserName),
-				},
-				Resource: u.Resource,
-				Status:   u.Status,
-			},
-		},
-	}
-}
-
 // UIDiscoverCreateNodeEvent is emitted when the node is created in Teleport.
 type UIDiscoverCreateNodeEvent prehogv1a.UIDiscoverCreateNodeEvent
 

@@ -245,14 +245,6 @@ func TestEC2Watcher(t *testing.T) {
 			SSM:     &types.AWSSSM{},
 		},
 		{
-			Params:      &types.InstallerParams{},
-			Types:       []string{"EC2"},
-			Regions:     []string{"us-west-2"},
-			Tags:        map[string]utils.Strings{"with-eice": {"please"}},
-			Integration: "my-aws-integration",
-			SSM:         &types.AWSSSM{},
-		},
-		{
 			Params:  &types.InstallerParams{},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
@@ -300,16 +292,6 @@ func TestEC2Watcher(t *testing.T) {
 			Name: ec2types.InstanceStateNameRunning,
 		},
 	}
-	presentForEICE := ec2types.Instance{
-		InstanceId: aws.String("instance-present-3"),
-		Tags: []ec2types.Tag{{
-			Key:   aws.String("with-eice"),
-			Value: aws.String("please"),
-		}},
-		State: &ec2types.InstanceState{
-			Name: ec2types.InstanceStateNameRunning,
-		},
-	}
 	altAccountPresent := ec2types.Instance{
 		InstanceId: aws.String("alternate-instance"),
 		Tags: []ec2types.Tag{{
@@ -337,7 +319,6 @@ func TestEC2Watcher(t *testing.T) {
 			Instances: []ec2types.Instance{
 				present,
 				presentOther,
-				presentForEICE,
 				{
 					InstanceId: aws.String("instance-absent"),
 					Tags: []ec2types.Tag{{
@@ -445,12 +426,6 @@ func TestEC2Watcher(t *testing.T) {
 			Region:     "us-west-2",
 			Instances:  []EC2Instance{toEC2Instance(presentOther)},
 			Parameters: map[string]string{"token": "", "scriptName": ""},
-		},
-		{
-			Region:      "us-west-2",
-			Instances:   []EC2Instance{toEC2Instance(presentForEICE)},
-			Parameters:  map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
-			Integration: "my-aws-integration",
 		},
 		{
 			Region:        "us-west-2",
@@ -838,7 +813,6 @@ func TestMakeEvents(t *testing.T) {
 		{
 			name: "script mode with teleport agents, returns node resource type",
 			insts: &EC2Instances{
-				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				Instances: []EC2Instance{{
 					InstanceID: "i-123456789012",
 				}},
@@ -855,7 +829,6 @@ func TestMakeEvents(t *testing.T) {
 		{
 			name: "script mode with openssh config, returns node.openssh resource type",
 			insts: &EC2Instances{
-				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				Instances: []EC2Instance{{
 					InstanceID: "i-123456789012",
 				}},
@@ -864,22 +837,6 @@ func TestMakeEvents(t *testing.T) {
 			expected: map[string]*usageeventsv1.ResourceCreateEvent{
 				"aws/i-123456789012": {
 					ResourceType:   "node.openssh",
-					ResourceOrigin: "cloud",
-					CloudProvider:  "AWS",
-				},
-			},
-		},
-		{
-			name: "eice mode, returns node.openssh-eice resource type",
-			insts: &EC2Instances{
-				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
-				Instances: []EC2Instance{{
-					InstanceID: "i-123456789012",
-				}},
-			},
-			expected: map[string]*usageeventsv1.ResourceCreateEvent{
-				"aws/i-123456789012": {
-					ResourceType:   "node.openssh-eice",
 					ResourceOrigin: "cloud",
 					CloudProvider:  "AWS",
 				},

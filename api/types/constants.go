@@ -161,16 +161,6 @@ const (
 	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
 	SubKindOpenSSHNode = "openssh"
 
-	// SubKindOpenSSHEICENode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
-	// For each session an SSH Key is created and uploaded to the target host using a side-channel.
-	//
-	// For Amazon EC2 Instances, it uploads the key using:
-	// https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
-	// This Key is valid for 60 seconds.
-	//
-	// It uses the private key created above to SSH into the host.
-	SubKindOpenSSHEICENode = "openssh-ec2-ice"
-
 	// KindUnifiedResource is a meta Kind that is used for the unified resource search present on
 	// the webUI and Connect. It allows us to query and return multiple kinds at the same time
 	KindUnifiedResource = "unified_resource"
@@ -1085,8 +1075,6 @@ const (
 	DiscoveredResourceKubernetes = "k8s"
 	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
 	DiscoveredResourceAgentlessNode = "node.openssh"
-	// DiscoveredResourceEICENode identifies a discovered AWS EC2 Instance using the EICE access method.
-	DiscoveredResourceEICENode = "node.openssh-eice"
 	// DiscoveredResourceApp identifies a discovered Kubernetes App.
 	DiscoveredResourceApp = "app"
 

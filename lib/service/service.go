@@ -139,7 +139,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -5443,8 +5442,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LocalAuthAddresses:      utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 				IngressReporter:         ingressReporter,
 				PROXYSigner:             proxySigner,
-				EICEDialer:              awsoidc.DialInstance,
-				EICESigner:              awsoidc.GenerateAndUploadKey,
 			})
 		if err != nil {
 			return trace.Wrap(err)

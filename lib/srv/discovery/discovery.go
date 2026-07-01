@@ -78,7 +78,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
-	"github.com/gravitational/teleport/lib/utils/spreadwork"
 )
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
@@ -198,10 +197,6 @@ type Config struct {
 	// clock is passed to watchers to handle poll intervals.
 	// Mostly used in tests.
 	clock clockwork.Clock
-
-	// jitter is a function which applies random jitter to a duration.
-	// It is used to add Expiration times to Resources that don't support Heartbeats (eg EICE Nodes).
-	jitter retryutils.Jitter
 
 	// initAzureClients initializes an instance of Azure clients with particular options.
 	initAzureClients func(opts ...azure.ClientsOption) (azure.Clients, error)
@@ -387,8 +382,6 @@ kubernetes matchers are present.`)
 	}
 
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
-
-	c.jitter = retryutils.SeventhJitter
 
 	return nil
 }
@@ -1186,10 +1179,8 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// instances.Rotation is true whenever the instances received need
 	// to be rotated, we don't want to filter out existing OpenSSH nodes as
 	// they all need to have the command run on them
-	//
-	// EICE Nodes must never be filtered, so that we can extend their expiration and sync labels.
 	totalInstancesFound := len(instances.Instances)
-	if !instances.Rotation && instances.EnrollMode != types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
+	if !instances.Rotation {
 		if err := s.filterExistingEC2Nodes(instances); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1205,16 +1196,8 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
-	switch instances.EnrollMode {
-	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
-		s.heartbeatEICEInstance(instances)
-
-	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
-		if err := s.handleEC2RemoteInstallation(instances); err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		return trace.BadParameter("invalid enroll mode for ec2 instance: %q", instances.EnrollMode.String())
+	if err := s.handleEC2RemoteInstallation(instances); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
@@ -1222,86 +1205,6 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	}
 
 	return nil
-}
-
-// heartbeatEICEInstance heartbeats the list of EC2 instances as Teleport (EICE) Nodes.
-func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
-	awsInfo := &types.AWSInfo{
-		AccountID:   instances.AccountID,
-		Region:      instances.Region,
-		Integration: instances.Integration,
-	}
-
-	nodesToUpsert := make([]types.Server, 0, len(instances.Instances))
-	// Add EC2 Instances using EICE method
-	for _, ec2Instance := range instances.Instances {
-		eiceNode, err := common.NewAWSNodeFromEC2Instance(ec2Instance.OriginalInstance, awsInfo)
-		if err != nil {
-			s.Log.WarnContext(s.ctx, "Error converting to Teleport EICE Node", "error", err, "instance_id", ec2Instance.InstanceID)
-
-			s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
-				discoveryConfigName: instances.DiscoveryConfigName,
-				integration:         instances.Integration,
-			}, 1)
-			continue
-		}
-
-		existingNodes, err := s.nodeWatcher.CurrentResourcesWithFilter(s.ctx, func(s readonly.Server) bool {
-			return s.GetName() == eiceNode.GetName()
-		})
-		if err != nil && !trace.IsNotFound(err) {
-			s.Log.WarnContext(s.ctx, "Error finding the existing node", "node_name", eiceNode.GetName(), "error", err)
-			continue
-		}
-
-		var existingNode types.Server
-		switch len(existingNodes) {
-		case 0:
-		case 1:
-			existingNode = existingNodes[0]
-		default:
-			s.Log.WarnContext(s.ctx, "Found multiple matching nodes by name", "name", eiceNode.GetName())
-			continue
-		}
-
-		// EICE Node's Name are deterministic (based on the Account and Instance ID).
-		//
-		// To reduce load, nodes are skipped if
-		// - they didn't change and
-		// - their expiration is far away in the future (at least 2 Poll iterations before the Node expires)
-		//
-		// As an example, and using the default PollInterval (5 minutes),
-		// nodes that didn't change and have their expiration greater than now+15m will be skipped.
-		// This gives at least another two iterations of the DiscoveryService before the node is actually removed.
-		// Note: heartbeats set an expiration of 90 minutes.
-		if existingNode != nil &&
-			existingNode.Expiry().After(s.clock.Now().Add(3*s.PollInterval)) &&
-			services.CompareServers(existingNode, eiceNode) == services.OnlyTimestampsDifferent {
-
-			continue
-		}
-
-		eiceNodeExpiration := s.clock.Now().Add(s.jitter(serverExpirationDuration))
-		eiceNode.SetExpiry(eiceNodeExpiration)
-		nodesToUpsert = append(nodesToUpsert, eiceNode)
-	}
-
-	applyOverTimeConfig := spreadwork.ApplyOverTimeConfig{
-		MaxDuration: s.PollInterval,
-	}
-	err := spreadwork.ApplyOverTime(s.ctx, applyOverTimeConfig, nodesToUpsert, func(eiceNode types.Server) {
-		if _, err := s.AccessPoint.UpsertNode(s.ctx, eiceNode); err != nil {
-			instanceID := eiceNode.GetAWSInstanceID()
-			s.Log.WarnContext(s.ctx, "Error upserting EC2 instance", "instance_id", instanceID, "error", err)
-			s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
-				discoveryConfigName: instances.DiscoveryConfigName,
-				integration:         instances.Integration,
-			}, 1)
-		}
-	})
-	if err != nil {
-		s.Log.WarnContext(s.ctx, "Failed to upsert EC2 nodes", "error", err)
-	}
 }
 
 func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {

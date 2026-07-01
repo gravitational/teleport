@@ -211,13 +211,6 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withAdditionalColumns(serverColumns),
 			},
 		},
-		{
-			name: "ServerV2",
-			opts: []resourceSchemaOption{
-				withNameOverride("OpenSSHEICEServer"),
-				withAdditionalColumns(serverColumns),
-			},
-		},
 		{name: "TrustedClusterV2"},
 		{
 			name: "Bot",

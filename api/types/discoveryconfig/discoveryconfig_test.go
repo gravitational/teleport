@@ -104,7 +104,6 @@ func TestNewDiscoveryConfig(t *testing.T) {
 							ScriptName:      "default-installer",
 							InstallTeleport: true,
 							SSHDConfig:      "/etc/ssh/sshd_config",
-							EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 						},
 					}},
 					Azure: make([]types.AzureMatcher, 0),

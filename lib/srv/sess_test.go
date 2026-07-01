@@ -1585,30 +1585,6 @@ func TestSessionRecordingMode(t *testing.T) {
 			mode:          types.RecordAtProxySync,
 			expectedMode:  types.RecordAtProxySync,
 		},
-		{
-			name:          "ec2 node record at node",
-			serverSubKind: types.SubKindOpenSSHEICENode,
-			mode:          types.RecordAtNode,
-			expectedMode:  types.RecordAtProxy,
-		},
-		{
-			name:          "ec2 node record at proxy",
-			serverSubKind: types.SubKindOpenSSHEICENode,
-			mode:          types.RecordAtProxy,
-			expectedMode:  types.RecordAtProxy,
-		},
-		{
-			name:          "ec2 node record at node sync",
-			serverSubKind: types.SubKindOpenSSHEICENode,
-			mode:          types.RecordAtNodeSync,
-			expectedMode:  types.RecordAtProxySync,
-		},
-		{
-			name:          "ec2 node record at proxy sync",
-			serverSubKind: types.SubKindOpenSSHEICENode,
-			mode:          types.RecordAtProxySync,
-			expectedMode:  types.RecordAtProxySync,
-		},
 	}
 
 	for _, tt := range tests {

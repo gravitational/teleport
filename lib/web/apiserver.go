@@ -933,7 +933,6 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
-	h.POST("/webapi/sites/:site/nodes", h.WithClusterAuth(h.handleNodeCreate))
 
 	h.GET("/webapi/sites/:site/instances", h.WithClusterAuth(h.clusterUnifiedInstancesGet))
 

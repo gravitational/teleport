@@ -54,7 +54,6 @@ var supportedReconcilers = []ReconcilerFactory{
 	NewLoginRuleReconciler,
 	NewOIDCConnectorReconciler,
 	NewOktaImportRuleReconciler,
-	NewOpenSSHEICEServerV2Reconciler,
 	NewOpenSSHServerV2Reconciler,
 	NewProvisionTokenReconciler,
 	NewRetrievalModelV1Reconciler,

@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -183,13 +182,7 @@ type Server struct {
 
 	// targetServer is the host that the connection is being established for.
 	targetServer types.Server
-
-	eiceSigner EICESignerFunc
 }
-
-// EICESignerFunc is a function that is used to obatin an [ssh.Signer] for an EICE instance. The
-// [ssh.Signer] is required for clients to be able to connect to the instance.
-type EICESignerFunc = func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error)
 
 // ServerConfig is the configuration needed to create an instance of a Server.
 type ServerConfig struct {
@@ -259,10 +252,6 @@ type ServerConfig struct {
 
 	// TargetServer is the host that the connection is being established for.
 	TargetServer types.Server
-
-	// EICESigner is used to upload credentials and get a signer to use for the client connection
-	// to the EC2 instance.
-	EICESigner EICESignerFunc
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -288,8 +277,6 @@ func (s *ServerConfig) CheckDefaults() error {
 		if s.AgentlessSignerCreator == nil {
 			return trace.BadParameter("agentless signer creator is required for OpenSSH Nodes")
 		}
-	case types.SubKindOpenSSHEICENode:
-		// agentless signer is set once the forwarding server is started.
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -314,10 +301,6 @@ func (s *ServerConfig) CheckDefaults() error {
 	}
 	if s.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
-	}
-
-	if s.EICESigner == nil {
-		return trace.BadParameter("missing parameter EICESigner")
 	}
 
 	if s.TracerProvider == nil {
@@ -365,7 +348,6 @@ func New(c ServerConfig) (*Server, error) {
 		lockWatcher:            c.LockWatcher,
 		tracerProvider:         c.TracerProvider,
 		targetServer:           c.TargetServer,
-		eiceSigner:             c.EICESigner,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -687,34 +669,6 @@ func (s *Server) Serve() {
 				s.logger.ErrorContext(s.Context(), "Unable to create agentless signer for OpenSSH node", "error", err)
 				return
 			}
-			s.agentlessSigner = sshSigner
-		}
-
-		if s.targetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-			awsInfo := s.targetServer.GetAWSInfo()
-			if awsInfo == nil {
-				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", "missing aws cloud metadata")
-				return
-			}
-
-			token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
-			if err != nil {
-				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
-				return
-			}
-
-			integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
-			if err != nil {
-				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
-				return
-			}
-
-			sshSigner, err := s.eiceSigner(ctx, s.targetServer, integration, s.identityContext.Login, token, s.GetAccessPoint())
-			if err != nil {
-				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
-				return
-			}
-
 			s.agentlessSigner = sshSigner
 		}
 	}

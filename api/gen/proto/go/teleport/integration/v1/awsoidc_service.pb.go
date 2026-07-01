@@ -37,646 +37,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ListEICERequest is a request for a paginated list of AWS EC2 Instance Connect Endpoints.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type ListEICERequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Integration is the AWS OIDC Integration name.
-	// Required.
-	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
-	// Region is the AWS Region
-	// Required.
-	Region string `protobuf:"bytes,2,opt,name=region,proto3" json:"region,omitempty"`
-	// VPCIDs is used to filter for EICEs of those VPCs.
-	// Required.
-	VpcIds []string `protobuf:"bytes,3,rep,name=vpc_ids,json=vpcIds,proto3" json:"vpc_ids,omitempty"`
-	// NextToken is the token to be used to fetch the next page.
-	// If empty, the first page is fetched.
-	NextToken     string `protobuf:"bytes,4,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListEICERequest) Reset() {
-	*x = ListEICERequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListEICERequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListEICERequest) ProtoMessage() {}
-
-func (x *ListEICERequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *ListEICERequest) GetIntegration() string {
-	if x != nil {
-		return x.Integration
-	}
-	return ""
-}
-
-func (x *ListEICERequest) GetRegion() string {
-	if x != nil {
-		return x.Region
-	}
-	return ""
-}
-
-func (x *ListEICERequest) GetVpcIds() []string {
-	if x != nil {
-		return x.VpcIds
-	}
-	return nil
-}
-
-func (x *ListEICERequest) GetNextToken() string {
-	if x != nil {
-		return x.NextToken
-	}
-	return ""
-}
-
-func (x *ListEICERequest) SetIntegration(v string) {
-	x.Integration = v
-}
-
-func (x *ListEICERequest) SetRegion(v string) {
-	x.Region = v
-}
-
-func (x *ListEICERequest) SetVpcIds(v []string) {
-	x.VpcIds = v
-}
-
-func (x *ListEICERequest) SetNextToken(v string) {
-	x.NextToken = v
-}
-
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type ListEICERequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Integration is the AWS OIDC Integration name.
-	// Required.
-	Integration string
-	// Region is the AWS Region
-	// Required.
-	Region string
-	// VPCIDs is used to filter for EICEs of those VPCs.
-	// Required.
-	VpcIds []string
-	// NextToken is the token to be used to fetch the next page.
-	// If empty, the first page is fetched.
-	NextToken string
-}
-
-func (b0 ListEICERequest_builder) Build() *ListEICERequest {
-	m0 := &ListEICERequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Integration = b.Integration
-	x.Region = b.Region
-	x.VpcIds = b.VpcIds
-	x.NextToken = b.NextToken
-	return m0
-}
-
-// EC2InstanceConnectEndpoint is a representation of a Amazon VPC EC2 Instance Connect Endpoint.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type EC2InstanceConnectEndpoint struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Name is the endpoint name.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// State is the endpoint state.
-	// Known values:
-	// create-in-progress | create-complete | create-failed | delete-in-progress | delete-complete | delete-failed
-	State string `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
-	// StateMessage contains a message describing the state of the EICE.
-	StateMessage string `protobuf:"bytes,3,opt,name=state_message,json=stateMessage,proto3" json:"state_message,omitempty"`
-	// DashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
-	DashboardLink string `protobuf:"bytes,4,opt,name=dashboard_link,json=dashboardLink,proto3" json:"dashboard_link,omitempty"`
-	// SubnetID is the subnet used by the endpoint.
-	SubnetId string `protobuf:"bytes,5,opt,name=subnet_id,json=subnetId,proto3" json:"subnet_id,omitempty"`
-	// VPCID is the VPC ID where the Endpoint is created.
-	VpcId         string `protobuf:"bytes,6,opt,name=vpc_id,json=vpcId,proto3" json:"vpc_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *EC2InstanceConnectEndpoint) Reset() {
-	*x = EC2InstanceConnectEndpoint{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *EC2InstanceConnectEndpoint) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EC2InstanceConnectEndpoint) ProtoMessage() {}
-
-func (x *EC2InstanceConnectEndpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *EC2InstanceConnectEndpoint) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *EC2InstanceConnectEndpoint) GetState() string {
-	if x != nil {
-		return x.State
-	}
-	return ""
-}
-
-func (x *EC2InstanceConnectEndpoint) GetStateMessage() string {
-	if x != nil {
-		return x.StateMessage
-	}
-	return ""
-}
-
-func (x *EC2InstanceConnectEndpoint) GetDashboardLink() string {
-	if x != nil {
-		return x.DashboardLink
-	}
-	return ""
-}
-
-func (x *EC2InstanceConnectEndpoint) GetSubnetId() string {
-	if x != nil {
-		return x.SubnetId
-	}
-	return ""
-}
-
-func (x *EC2InstanceConnectEndpoint) GetVpcId() string {
-	if x != nil {
-		return x.VpcId
-	}
-	return ""
-}
-
-func (x *EC2InstanceConnectEndpoint) SetName(v string) {
-	x.Name = v
-}
-
-func (x *EC2InstanceConnectEndpoint) SetState(v string) {
-	x.State = v
-}
-
-func (x *EC2InstanceConnectEndpoint) SetStateMessage(v string) {
-	x.StateMessage = v
-}
-
-func (x *EC2InstanceConnectEndpoint) SetDashboardLink(v string) {
-	x.DashboardLink = v
-}
-
-func (x *EC2InstanceConnectEndpoint) SetSubnetId(v string) {
-	x.SubnetId = v
-}
-
-func (x *EC2InstanceConnectEndpoint) SetVpcId(v string) {
-	x.VpcId = v
-}
-
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type EC2InstanceConnectEndpoint_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Name is the endpoint name.
-	Name string
-	// State is the endpoint state.
-	// Known values:
-	// create-in-progress | create-complete | create-failed | delete-in-progress | delete-complete | delete-failed
-	State string
-	// StateMessage contains a message describing the state of the EICE.
-	StateMessage string
-	// DashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
-	DashboardLink string
-	// SubnetID is the subnet used by the endpoint.
-	SubnetId string
-	// VPCID is the VPC ID where the Endpoint is created.
-	VpcId string
-}
-
-func (b0 EC2InstanceConnectEndpoint_builder) Build() *EC2InstanceConnectEndpoint {
-	m0 := &EC2InstanceConnectEndpoint{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Name = b.Name
-	x.State = b.State
-	x.StateMessage = b.StateMessage
-	x.DashboardLink = b.DashboardLink
-	x.SubnetId = b.SubnetId
-	x.VpcId = b.VpcId
-	return m0
-}
-
-// ListEICEResponse contains a page of AWS EC2 Instance Connect Endpoints.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type ListEICEResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// EC2ICEs contains the page of EC2 Instance Connect Endpoints.
-	Ec2Ices []*EC2InstanceConnectEndpoint `protobuf:"bytes,1,rep,name=ec2ices,proto3" json:"ec2ices,omitempty"`
-	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
-	DashboardLink string `protobuf:"bytes,2,opt,name=dashboard_link,json=dashboardLink,proto3" json:"dashboard_link,omitempty"`
-	// NextToken is used for pagination.
-	// If non-empty, it can be used to request the next page.
-	NextToken     string `protobuf:"bytes,3,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListEICEResponse) Reset() {
-	*x = ListEICEResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListEICEResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListEICEResponse) ProtoMessage() {}
-
-func (x *ListEICEResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *ListEICEResponse) GetEc2Ices() []*EC2InstanceConnectEndpoint {
-	if x != nil {
-		return x.Ec2Ices
-	}
-	return nil
-}
-
-func (x *ListEICEResponse) GetDashboardLink() string {
-	if x != nil {
-		return x.DashboardLink
-	}
-	return ""
-}
-
-func (x *ListEICEResponse) GetNextToken() string {
-	if x != nil {
-		return x.NextToken
-	}
-	return ""
-}
-
-func (x *ListEICEResponse) SetEc2Ices(v []*EC2InstanceConnectEndpoint) {
-	x.Ec2Ices = v
-}
-
-func (x *ListEICEResponse) SetDashboardLink(v string) {
-	x.DashboardLink = v
-}
-
-func (x *ListEICEResponse) SetNextToken(v string) {
-	x.NextToken = v
-}
-
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type ListEICEResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// EC2ICEs contains the page of EC2 Instance Connect Endpoints.
-	Ec2Ices []*EC2InstanceConnectEndpoint
-	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
-	DashboardLink string
-	// NextToken is used for pagination.
-	// If non-empty, it can be used to request the next page.
-	NextToken string
-}
-
-func (b0 ListEICEResponse_builder) Build() *ListEICEResponse {
-	m0 := &ListEICEResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Ec2Ices = b.Ec2Ices
-	x.DashboardLink = b.DashboardLink
-	x.NextToken = b.NextToken
-	return m0
-}
-
-// CreateEICERequest contains the required fields to create an AWS EC2 Instance Connect Endpoint.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type CreateEICERequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Integration is the AWS OIDC Integration name.
-	// Required.
-	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
-	// Region is the AWS Region
-	// Required.
-	Region string `protobuf:"bytes,2,opt,name=region,proto3" json:"region,omitempty"`
-	// Endpoints is is a list of EC2 Instance Connect Endpoints to be created.
-	// Required.
-	Endpoints     []*EC2ICEndpoint `protobuf:"bytes,3,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CreateEICERequest) Reset() {
-	*x = CreateEICERequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateEICERequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateEICERequest) ProtoMessage() {}
-
-func (x *CreateEICERequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *CreateEICERequest) GetIntegration() string {
-	if x != nil {
-		return x.Integration
-	}
-	return ""
-}
-
-func (x *CreateEICERequest) GetRegion() string {
-	if x != nil {
-		return x.Region
-	}
-	return ""
-}
-
-func (x *CreateEICERequest) GetEndpoints() []*EC2ICEndpoint {
-	if x != nil {
-		return x.Endpoints
-	}
-	return nil
-}
-
-func (x *CreateEICERequest) SetIntegration(v string) {
-	x.Integration = v
-}
-
-func (x *CreateEICERequest) SetRegion(v string) {
-	x.Region = v
-}
-
-func (x *CreateEICERequest) SetEndpoints(v []*EC2ICEndpoint) {
-	x.Endpoints = v
-}
-
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type CreateEICERequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Integration is the AWS OIDC Integration name.
-	// Required.
-	Integration string
-	// Region is the AWS Region
-	// Required.
-	Region string
-	// Endpoints is is a list of EC2 Instance Connect Endpoints to be created.
-	// Required.
-	Endpoints []*EC2ICEndpoint
-}
-
-func (b0 CreateEICERequest_builder) Build() *CreateEICERequest {
-	m0 := &CreateEICERequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Integration = b.Integration
-	x.Region = b.Region
-	x.Endpoints = b.Endpoints
-	return m0
-}
-
-// EC2ICEndpoint contains the information for a single Endpoint to be created.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type EC2ICEndpoint struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Name is the endpoint name.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// SubnetID is the Subnet where the Endpoint will be created.
-	SubnetId string `protobuf:"bytes,2,opt,name=subnet_id,json=subnetId,proto3" json:"subnet_id,omitempty"`
-	// SecurityGroupIDs is a list of SecurityGroups to assign to the Endpoint.
-	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-	SecurityGroupIds []string `protobuf:"bytes,3,rep,name=security_group_ids,json=securityGroupIds,proto3" json:"security_group_ids,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *EC2ICEndpoint) Reset() {
-	*x = EC2ICEndpoint{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *EC2ICEndpoint) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EC2ICEndpoint) ProtoMessage() {}
-
-func (x *EC2ICEndpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *EC2ICEndpoint) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *EC2ICEndpoint) GetSubnetId() string {
-	if x != nil {
-		return x.SubnetId
-	}
-	return ""
-}
-
-func (x *EC2ICEndpoint) GetSecurityGroupIds() []string {
-	if x != nil {
-		return x.SecurityGroupIds
-	}
-	return nil
-}
-
-func (x *EC2ICEndpoint) SetName(v string) {
-	x.Name = v
-}
-
-func (x *EC2ICEndpoint) SetSubnetId(v string) {
-	x.SubnetId = v
-}
-
-func (x *EC2ICEndpoint) SetSecurityGroupIds(v []string) {
-	x.SecurityGroupIds = v
-}
-
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type EC2ICEndpoint_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Name is the endpoint name.
-	Name string
-	// SubnetID is the Subnet where the Endpoint will be created.
-	SubnetId string
-	// SecurityGroupIDs is a list of SecurityGroups to assign to the Endpoint.
-	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-	SecurityGroupIds []string
-}
-
-func (b0 EC2ICEndpoint_builder) Build() *EC2ICEndpoint {
-	m0 := &EC2ICEndpoint{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Name = b.Name
-	x.SubnetId = b.SubnetId
-	x.SecurityGroupIds = b.SecurityGroupIds
-	return m0
-}
-
-// CreateEICEResponse is a request to create a VPC Endpoint of EC2 Instance Connect Endpoint type.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type CreateEICEResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Name is the Endpoint ID.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// CreatedEndpoints contains the name of created endpoints and their Subnet.
-	CreatedEndpoints []*EC2ICEndpoint `protobuf:"bytes,2,rep,name=created_endpoints,json=createdEndpoints,proto3" json:"created_endpoints,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *CreateEICEResponse) Reset() {
-	*x = CreateEICEResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateEICEResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateEICEResponse) ProtoMessage() {}
-
-func (x *CreateEICEResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *CreateEICEResponse) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *CreateEICEResponse) GetCreatedEndpoints() []*EC2ICEndpoint {
-	if x != nil {
-		return x.CreatedEndpoints
-	}
-	return nil
-}
-
-func (x *CreateEICEResponse) SetName(v string) {
-	x.Name = v
-}
-
-func (x *CreateEICEResponse) SetCreatedEndpoints(v []*EC2ICEndpoint) {
-	x.CreatedEndpoints = v
-}
-
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
-type CreateEICEResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Name is the Endpoint ID.
-	Name string
-	// CreatedEndpoints contains the name of created endpoints and their Subnet.
-	CreatedEndpoints []*EC2ICEndpoint
-}
-
-func (b0 CreateEICEResponse_builder) Build() *CreateEICEResponse {
-	m0 := &CreateEICEResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Name = b.Name
-	x.CreatedEndpoints = b.CreatedEndpoints
-	return m0
-}
-
 // ListDatabasesRequest is a request for a paginated list of AWS Databases.
 type ListDatabasesRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -705,7 +65,7 @@ type ListDatabasesRequest struct {
 
 func (x *ListDatabasesRequest) Reset() {
 	*x = ListDatabasesRequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[6]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -717,7 +77,7 @@ func (x *ListDatabasesRequest) String() string {
 func (*ListDatabasesRequest) ProtoMessage() {}
 
 func (x *ListDatabasesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[6]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -845,7 +205,7 @@ type ListDatabasesResponse struct {
 
 func (x *ListDatabasesResponse) Reset() {
 	*x = ListDatabasesResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[7]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -857,7 +217,7 @@ func (x *ListDatabasesResponse) String() string {
 func (*ListDatabasesResponse) ProtoMessage() {}
 
 func (x *ListDatabasesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[7]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -930,7 +290,7 @@ type ListSecurityGroupsRequest struct {
 
 func (x *ListSecurityGroupsRequest) Reset() {
 	*x = ListSecurityGroupsRequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[8]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -942,7 +302,7 @@ func (x *ListSecurityGroupsRequest) String() string {
 func (*ListSecurityGroupsRequest) ProtoMessage() {}
 
 func (x *ListSecurityGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[8]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1038,7 +398,7 @@ type SecurityGroupRuleCIDR struct {
 
 func (x *SecurityGroupRuleCIDR) Reset() {
 	*x = SecurityGroupRuleCIDR{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[9]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1050,7 +410,7 @@ func (x *SecurityGroupRuleCIDR) String() string {
 func (*SecurityGroupRuleCIDR) ProtoMessage() {}
 
 func (x *SecurityGroupRuleCIDR) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[9]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1115,7 +475,7 @@ type SecurityGroupRuleGroupID struct {
 
 func (x *SecurityGroupRuleGroupID) Reset() {
 	*x = SecurityGroupRuleGroupID{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[10]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1127,7 +487,7 @@ func (x *SecurityGroupRuleGroupID) String() string {
 func (*SecurityGroupRuleGroupID) ProtoMessage() {}
 
 func (x *SecurityGroupRuleGroupID) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[10]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1202,7 +562,7 @@ type SecurityGroupRule struct {
 
 func (x *SecurityGroupRule) Reset() {
 	*x = SecurityGroupRule{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[11]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1214,7 +574,7 @@ func (x *SecurityGroupRule) String() string {
 func (*SecurityGroupRule) ProtoMessage() {}
 
 func (x *SecurityGroupRule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[11]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1332,7 +692,7 @@ type SecurityGroup struct {
 
 func (x *SecurityGroup) Reset() {
 	*x = SecurityGroup{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[12]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1344,7 +704,7 @@ func (x *SecurityGroup) String() string {
 func (*SecurityGroup) ProtoMessage() {}
 
 func (x *SecurityGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[12]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1453,7 +813,7 @@ type ListSecurityGroupsResponse struct {
 
 func (x *ListSecurityGroupsResponse) Reset() {
 	*x = ListSecurityGroupsResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[13]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1465,7 +825,7 @@ func (x *ListSecurityGroupsResponse) String() string {
 func (*ListSecurityGroupsResponse) ProtoMessage() {}
 
 func (x *ListSecurityGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[13]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1538,7 +898,7 @@ type ListSubnetsRequest struct {
 
 func (x *ListSubnetsRequest) Reset() {
 	*x = ListSubnetsRequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[14]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1550,7 +910,7 @@ func (x *ListSubnetsRequest) String() string {
 func (*ListSubnetsRequest) ProtoMessage() {}
 
 func (x *ListSubnetsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[14]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1648,7 +1008,7 @@ type Subnet struct {
 
 func (x *Subnet) Reset() {
 	*x = Subnet{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[15]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1660,7 +1020,7 @@ func (x *Subnet) String() string {
 func (*Subnet) ProtoMessage() {}
 
 func (x *Subnet) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[15]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1739,7 +1099,7 @@ type ListSubnetsResponse struct {
 
 func (x *ListSubnetsResponse) Reset() {
 	*x = ListSubnetsResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[16]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1751,7 +1111,7 @@ func (x *ListSubnetsResponse) String() string {
 func (*ListSubnetsResponse) ProtoMessage() {}
 
 func (x *ListSubnetsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[16]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1821,7 +1181,7 @@ type ListVPCsRequest struct {
 
 func (x *ListVPCsRequest) Reset() {
 	*x = ListVPCsRequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[17]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1833,7 +1193,7 @@ func (x *ListVPCsRequest) String() string {
 func (*ListVPCsRequest) ProtoMessage() {}
 
 func (x *ListVPCsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[17]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1914,7 +1274,7 @@ type VPC struct {
 
 func (x *VPC) Reset() {
 	*x = VPC{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[18]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1926,7 +1286,7 @@ func (x *VPC) String() string {
 func (*VPC) ProtoMessage() {}
 
 func (x *VPC) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[18]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1991,7 +1351,7 @@ type ListVPCsResponse struct {
 
 func (x *ListVPCsResponse) Reset() {
 	*x = ListVPCsResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[19]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2003,7 +1363,7 @@ func (x *ListVPCsResponse) String() string {
 func (*ListVPCsResponse) ProtoMessage() {}
 
 func (x *ListVPCsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[19]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2084,7 +1444,7 @@ type DeployDatabaseServiceRequest struct {
 
 func (x *DeployDatabaseServiceRequest) Reset() {
 	*x = DeployDatabaseServiceRequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[20]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2096,7 +1456,7 @@ func (x *DeployDatabaseServiceRequest) String() string {
 func (*DeployDatabaseServiceRequest) ProtoMessage() {}
 
 func (x *DeployDatabaseServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[20]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2233,7 +1593,7 @@ type DeployDatabaseServiceDeployment struct {
 
 func (x *DeployDatabaseServiceDeployment) Reset() {
 	*x = DeployDatabaseServiceDeployment{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[21]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2245,7 +1605,7 @@ func (x *DeployDatabaseServiceDeployment) String() string {
 func (*DeployDatabaseServiceDeployment) ProtoMessage() {}
 
 func (x *DeployDatabaseServiceDeployment) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[21]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2343,7 +1703,7 @@ type DeployDatabaseServiceResponse struct {
 
 func (x *DeployDatabaseServiceResponse) Reset() {
 	*x = DeployDatabaseServiceResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[22]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2355,7 +1715,7 @@ func (x *DeployDatabaseServiceResponse) String() string {
 func (*DeployDatabaseServiceResponse) ProtoMessage() {}
 
 func (x *DeployDatabaseServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[22]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2425,7 +1785,7 @@ type ListDeployedDatabaseServicesRequest struct {
 
 func (x *ListDeployedDatabaseServicesRequest) Reset() {
 	*x = ListDeployedDatabaseServicesRequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[23]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2437,7 +1797,7 @@ func (x *ListDeployedDatabaseServicesRequest) String() string {
 func (*ListDeployedDatabaseServicesRequest) ProtoMessage() {}
 
 func (x *ListDeployedDatabaseServicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[23]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2522,7 +1882,7 @@ type DeployedDatabaseService struct {
 
 func (x *DeployedDatabaseService) Reset() {
 	*x = DeployedDatabaseService{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[24]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2534,7 +1894,7 @@ func (x *DeployedDatabaseService) String() string {
 func (*DeployedDatabaseService) ProtoMessage() {}
 
 func (x *DeployedDatabaseService) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[24]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2627,7 +1987,7 @@ type ListDeployedDatabaseServicesResponse struct {
 
 func (x *ListDeployedDatabaseServicesResponse) Reset() {
 	*x = ListDeployedDatabaseServicesResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[25]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2639,7 +1999,7 @@ func (x *ListDeployedDatabaseServicesResponse) String() string {
 func (*ListDeployedDatabaseServicesResponse) ProtoMessage() {}
 
 func (x *ListDeployedDatabaseServicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[25]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2731,7 +2091,7 @@ type DeployServiceRequest struct {
 
 func (x *DeployServiceRequest) Reset() {
 	*x = DeployServiceRequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[26]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2743,7 +2103,7 @@ func (x *DeployServiceRequest) String() string {
 func (*DeployServiceRequest) ProtoMessage() {}
 
 func (x *DeployServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[26]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2922,7 +2282,7 @@ type DeployServiceResponse struct {
 
 func (x *DeployServiceResponse) Reset() {
 	*x = DeployServiceResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[27]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2934,7 +2294,7 @@ func (x *DeployServiceResponse) String() string {
 func (*DeployServiceResponse) ProtoMessage() {}
 
 func (x *DeployServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[27]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3038,7 +2398,7 @@ type EnrollEKSClustersRequest struct {
 
 func (x *EnrollEKSClustersRequest) Reset() {
 	*x = EnrollEKSClustersRequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[28]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3050,7 +2410,7 @@ func (x *EnrollEKSClustersRequest) String() string {
 func (*EnrollEKSClustersRequest) ProtoMessage() {}
 
 func (x *EnrollEKSClustersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[28]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3186,7 +2546,7 @@ type EnrollEKSClusterResult struct {
 
 func (x *EnrollEKSClusterResult) Reset() {
 	*x = EnrollEKSClusterResult{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[29]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3198,7 +2558,7 @@ func (x *EnrollEKSClusterResult) String() string {
 func (*EnrollEKSClusterResult) ProtoMessage() {}
 
 func (x *EnrollEKSClusterResult) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[29]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3296,7 +2656,7 @@ type EnrollEKSClustersResponse struct {
 
 func (x *EnrollEKSClustersResponse) Reset() {
 	*x = EnrollEKSClustersResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[30]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3308,7 +2668,7 @@ func (x *EnrollEKSClustersResponse) String() string {
 func (*EnrollEKSClustersResponse) ProtoMessage() {}
 
 func (x *EnrollEKSClustersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[30]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3365,7 +2725,7 @@ type ListEC2Request struct {
 
 func (x *ListEC2Request) Reset() {
 	*x = ListEC2Request{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[31]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3377,7 +2737,7 @@ func (x *ListEC2Request) String() string {
 func (*ListEC2Request) ProtoMessage() {}
 
 func (x *ListEC2Request) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[31]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3462,7 +2822,7 @@ type ListEC2Response struct {
 
 func (x *ListEC2Response) Reset() {
 	*x = ListEC2Response{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[32]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3474,7 +2834,7 @@ func (x *ListEC2Response) String() string {
 func (*ListEC2Response) ProtoMessage() {}
 
 func (x *ListEC2Response) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[32]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3545,7 +2905,7 @@ type ListEKSClustersRequest struct {
 
 func (x *ListEKSClustersRequest) Reset() {
 	*x = ListEKSClustersRequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[33]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3557,7 +2917,7 @@ func (x *ListEKSClustersRequest) String() string {
 func (*ListEKSClustersRequest) ProtoMessage() {}
 
 func (x *ListEKSClustersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[33]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3656,7 +3016,7 @@ type EKSCluster struct {
 
 func (x *EKSCluster) Reset() {
 	*x = EKSCluster{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[34]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3668,7 +3028,7 @@ func (x *EKSCluster) String() string {
 func (*EKSCluster) ProtoMessage() {}
 
 func (x *EKSCluster) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[34]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3823,7 +3183,7 @@ type ListEKSClustersResponse struct {
 
 func (x *ListEKSClustersResponse) Reset() {
 	*x = ListEKSClustersResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[35]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3835,7 +3195,7 @@ func (x *ListEKSClustersResponse) String() string {
 func (*ListEKSClustersResponse) ProtoMessage() {}
 
 func (x *ListEKSClustersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[35]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3903,7 +3263,7 @@ type PingRequest struct {
 
 func (x *PingRequest) Reset() {
 	*x = PingRequest{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[36]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3915,7 +3275,7 @@ func (x *PingRequest) String() string {
 func (*PingRequest) ProtoMessage() {}
 
 func (x *PingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[36]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3984,7 +3344,7 @@ type PingResponse struct {
 
 func (x *PingResponse) Reset() {
 	*x = PingResponse{}
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[37]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3996,7 +3356,7 @@ func (x *PingResponse) String() string {
 func (*PingResponse) ProtoMessage() {}
 
 func (x *PingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[37]
+	mi := &file_teleport_integration_v1_awsoidc_service_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4065,36 +3425,7 @@ var File_teleport_integration_v1_awsoidc_service_proto protoreflect.FileDescript
 
 const file_teleport_integration_v1_awsoidc_service_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/integration/v1/awsoidc_service.proto\x12\x17teleport.integration.v1\x1a!teleport/legacy/types/types.proto\"\x87\x01\n" +
-	"\x0fListEICERequest\x12 \n" +
-	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x16\n" +
-	"\x06region\x18\x02 \x01(\tR\x06region\x12\x17\n" +
-	"\avpc_ids\x18\x03 \x03(\tR\x06vpcIds\x12\x1d\n" +
-	"\n" +
-	"next_token\x18\x04 \x01(\tR\tnextToken:\x02\x18\x01\"\xca\x01\n" +
-	"\x1aEC2InstanceConnectEndpoint\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05state\x18\x02 \x01(\tR\x05state\x12#\n" +
-	"\rstate_message\x18\x03 \x01(\tR\fstateMessage\x12%\n" +
-	"\x0edashboard_link\x18\x04 \x01(\tR\rdashboardLink\x12\x1b\n" +
-	"\tsubnet_id\x18\x05 \x01(\tR\bsubnetId\x12\x15\n" +
-	"\x06vpc_id\x18\x06 \x01(\tR\x05vpcId:\x02\x18\x01\"\xab\x01\n" +
-	"\x10ListEICEResponse\x12M\n" +
-	"\aec2ices\x18\x01 \x03(\v23.teleport.integration.v1.EC2InstanceConnectEndpointR\aec2ices\x12%\n" +
-	"\x0edashboard_link\x18\x02 \x01(\tR\rdashboardLink\x12\x1d\n" +
-	"\n" +
-	"next_token\x18\x03 \x01(\tR\tnextToken:\x02\x18\x01\"\x97\x01\n" +
-	"\x11CreateEICERequest\x12 \n" +
-	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x16\n" +
-	"\x06region\x18\x02 \x01(\tR\x06region\x12D\n" +
-	"\tendpoints\x18\x03 \x03(\v2&.teleport.integration.v1.EC2ICEndpointR\tendpoints:\x02\x18\x01\"r\n" +
-	"\rEC2ICEndpoint\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
-	"\tsubnet_id\x18\x02 \x01(\tR\bsubnetId\x12,\n" +
-	"\x12security_group_ids\x18\x03 \x03(\tR\x10securityGroupIds:\x02\x18\x01\"\x81\x01\n" +
-	"\x12CreateEICEResponse\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12S\n" +
-	"\x11created_endpoints\x18\x02 \x03(\v2&.teleport.integration.v1.EC2ICEndpointR\x10createdEndpoints:\x02\x18\x01\"\xbb\x01\n" +
+	"-teleport/integration/v1/awsoidc_service.proto\x12\x17teleport.integration.v1\x1a!teleport/legacy/types/types.proto\"\xbb\x01\n" +
 	"\x14ListDatabasesRequest\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x16\n" +
 	"\x06region\x18\x02 \x01(\tR\x06region\x12\x19\n" +
@@ -4272,11 +3603,9 @@ const file_teleport_integration_v1_awsoidc_service_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x10\n" +
 	"\x03arn\x18\x02 \x01(\tR\x03arn\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\tR\x06userId2\xdd\v\n" +
-	"\x0eAWSOIDCService\x12d\n" +
-	"\bListEICE\x12(.teleport.integration.v1.ListEICERequest\x1a).teleport.integration.v1.ListEICEResponse\"\x03\x88\x02\x01\x12j\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId2\x8b\n" +
 	"\n" +
-	"CreateEICE\x12*.teleport.integration.v1.CreateEICERequest\x1a+.teleport.integration.v1.CreateEICEResponse\"\x03\x88\x02\x01\x12n\n" +
+	"\x0eAWSOIDCService\x12n\n" +
 	"\rListDatabases\x12-.teleport.integration.v1.ListDatabasesRequest\x1a..teleport.integration.v1.ListDatabasesResponse\x12}\n" +
 	"\x12ListSecurityGroups\x122.teleport.integration.v1.ListSecurityGroupsRequest\x1a3.teleport.integration.v1.ListSecurityGroupsResponse\x12h\n" +
 	"\vListSubnets\x12+.teleport.integration.v1.ListSubnetsRequest\x1a,.teleport.integration.v1.ListSubnetsResponse\x12_\n" +
@@ -4289,103 +3618,90 @@ const file_teleport_integration_v1_awsoidc_service_proto_rawDesc = "" +
 	"\x0fListEKSClusters\x12/.teleport.integration.v1.ListEKSClustersRequest\x1a0.teleport.integration.v1.ListEKSClustersResponse\x12S\n" +
 	"\x04Ping\x12$.teleport.integration.v1.PingRequest\x1a%.teleport.integration.v1.PingResponseBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1b\x06proto3"
 
-var file_teleport_integration_v1_awsoidc_service_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_teleport_integration_v1_awsoidc_service_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_teleport_integration_v1_awsoidc_service_proto_goTypes = []any{
-	(*ListEICERequest)(nil),                      // 0: teleport.integration.v1.ListEICERequest
-	(*EC2InstanceConnectEndpoint)(nil),           // 1: teleport.integration.v1.EC2InstanceConnectEndpoint
-	(*ListEICEResponse)(nil),                     // 2: teleport.integration.v1.ListEICEResponse
-	(*CreateEICERequest)(nil),                    // 3: teleport.integration.v1.CreateEICERequest
-	(*EC2ICEndpoint)(nil),                        // 4: teleport.integration.v1.EC2ICEndpoint
-	(*CreateEICEResponse)(nil),                   // 5: teleport.integration.v1.CreateEICEResponse
-	(*ListDatabasesRequest)(nil),                 // 6: teleport.integration.v1.ListDatabasesRequest
-	(*ListDatabasesResponse)(nil),                // 7: teleport.integration.v1.ListDatabasesResponse
-	(*ListSecurityGroupsRequest)(nil),            // 8: teleport.integration.v1.ListSecurityGroupsRequest
-	(*SecurityGroupRuleCIDR)(nil),                // 9: teleport.integration.v1.SecurityGroupRuleCIDR
-	(*SecurityGroupRuleGroupID)(nil),             // 10: teleport.integration.v1.SecurityGroupRuleGroupID
-	(*SecurityGroupRule)(nil),                    // 11: teleport.integration.v1.SecurityGroupRule
-	(*SecurityGroup)(nil),                        // 12: teleport.integration.v1.SecurityGroup
-	(*ListSecurityGroupsResponse)(nil),           // 13: teleport.integration.v1.ListSecurityGroupsResponse
-	(*ListSubnetsRequest)(nil),                   // 14: teleport.integration.v1.ListSubnetsRequest
-	(*Subnet)(nil),                               // 15: teleport.integration.v1.Subnet
-	(*ListSubnetsResponse)(nil),                  // 16: teleport.integration.v1.ListSubnetsResponse
-	(*ListVPCsRequest)(nil),                      // 17: teleport.integration.v1.ListVPCsRequest
-	(*VPC)(nil),                                  // 18: teleport.integration.v1.VPC
-	(*ListVPCsResponse)(nil),                     // 19: teleport.integration.v1.ListVPCsResponse
-	(*DeployDatabaseServiceRequest)(nil),         // 20: teleport.integration.v1.DeployDatabaseServiceRequest
-	(*DeployDatabaseServiceDeployment)(nil),      // 21: teleport.integration.v1.DeployDatabaseServiceDeployment
-	(*DeployDatabaseServiceResponse)(nil),        // 22: teleport.integration.v1.DeployDatabaseServiceResponse
-	(*ListDeployedDatabaseServicesRequest)(nil),  // 23: teleport.integration.v1.ListDeployedDatabaseServicesRequest
-	(*DeployedDatabaseService)(nil),              // 24: teleport.integration.v1.DeployedDatabaseService
-	(*ListDeployedDatabaseServicesResponse)(nil), // 25: teleport.integration.v1.ListDeployedDatabaseServicesResponse
-	(*DeployServiceRequest)(nil),                 // 26: teleport.integration.v1.DeployServiceRequest
-	(*DeployServiceResponse)(nil),                // 27: teleport.integration.v1.DeployServiceResponse
-	(*EnrollEKSClustersRequest)(nil),             // 28: teleport.integration.v1.EnrollEKSClustersRequest
-	(*EnrollEKSClusterResult)(nil),               // 29: teleport.integration.v1.EnrollEKSClusterResult
-	(*EnrollEKSClustersResponse)(nil),            // 30: teleport.integration.v1.EnrollEKSClustersResponse
-	(*ListEC2Request)(nil),                       // 31: teleport.integration.v1.ListEC2Request
-	(*ListEC2Response)(nil),                      // 32: teleport.integration.v1.ListEC2Response
-	(*ListEKSClustersRequest)(nil),               // 33: teleport.integration.v1.ListEKSClustersRequest
-	(*EKSCluster)(nil),                           // 34: teleport.integration.v1.EKSCluster
-	(*ListEKSClustersResponse)(nil),              // 35: teleport.integration.v1.ListEKSClustersResponse
-	(*PingRequest)(nil),                          // 36: teleport.integration.v1.PingRequest
-	(*PingResponse)(nil),                         // 37: teleport.integration.v1.PingResponse
-	nil,                                          // 38: teleport.integration.v1.EnrollEKSClustersRequest.ExtraLabelsEntry
-	nil,                                          // 39: teleport.integration.v1.EKSCluster.LabelsEntry
-	nil,                                          // 40: teleport.integration.v1.EKSCluster.JoinLabelsEntry
-	(*types.DatabaseV3)(nil),                     // 41: types.DatabaseV3
-	(*types.ServerV2)(nil),                       // 42: types.ServerV2
+	(*ListDatabasesRequest)(nil),                 // 0: teleport.integration.v1.ListDatabasesRequest
+	(*ListDatabasesResponse)(nil),                // 1: teleport.integration.v1.ListDatabasesResponse
+	(*ListSecurityGroupsRequest)(nil),            // 2: teleport.integration.v1.ListSecurityGroupsRequest
+	(*SecurityGroupRuleCIDR)(nil),                // 3: teleport.integration.v1.SecurityGroupRuleCIDR
+	(*SecurityGroupRuleGroupID)(nil),             // 4: teleport.integration.v1.SecurityGroupRuleGroupID
+	(*SecurityGroupRule)(nil),                    // 5: teleport.integration.v1.SecurityGroupRule
+	(*SecurityGroup)(nil),                        // 6: teleport.integration.v1.SecurityGroup
+	(*ListSecurityGroupsResponse)(nil),           // 7: teleport.integration.v1.ListSecurityGroupsResponse
+	(*ListSubnetsRequest)(nil),                   // 8: teleport.integration.v1.ListSubnetsRequest
+	(*Subnet)(nil),                               // 9: teleport.integration.v1.Subnet
+	(*ListSubnetsResponse)(nil),                  // 10: teleport.integration.v1.ListSubnetsResponse
+	(*ListVPCsRequest)(nil),                      // 11: teleport.integration.v1.ListVPCsRequest
+	(*VPC)(nil),                                  // 12: teleport.integration.v1.VPC
+	(*ListVPCsResponse)(nil),                     // 13: teleport.integration.v1.ListVPCsResponse
+	(*DeployDatabaseServiceRequest)(nil),         // 14: teleport.integration.v1.DeployDatabaseServiceRequest
+	(*DeployDatabaseServiceDeployment)(nil),      // 15: teleport.integration.v1.DeployDatabaseServiceDeployment
+	(*DeployDatabaseServiceResponse)(nil),        // 16: teleport.integration.v1.DeployDatabaseServiceResponse
+	(*ListDeployedDatabaseServicesRequest)(nil),  // 17: teleport.integration.v1.ListDeployedDatabaseServicesRequest
+	(*DeployedDatabaseService)(nil),              // 18: teleport.integration.v1.DeployedDatabaseService
+	(*ListDeployedDatabaseServicesResponse)(nil), // 19: teleport.integration.v1.ListDeployedDatabaseServicesResponse
+	(*DeployServiceRequest)(nil),                 // 20: teleport.integration.v1.DeployServiceRequest
+	(*DeployServiceResponse)(nil),                // 21: teleport.integration.v1.DeployServiceResponse
+	(*EnrollEKSClustersRequest)(nil),             // 22: teleport.integration.v1.EnrollEKSClustersRequest
+	(*EnrollEKSClusterResult)(nil),               // 23: teleport.integration.v1.EnrollEKSClusterResult
+	(*EnrollEKSClustersResponse)(nil),            // 24: teleport.integration.v1.EnrollEKSClustersResponse
+	(*ListEC2Request)(nil),                       // 25: teleport.integration.v1.ListEC2Request
+	(*ListEC2Response)(nil),                      // 26: teleport.integration.v1.ListEC2Response
+	(*ListEKSClustersRequest)(nil),               // 27: teleport.integration.v1.ListEKSClustersRequest
+	(*EKSCluster)(nil),                           // 28: teleport.integration.v1.EKSCluster
+	(*ListEKSClustersResponse)(nil),              // 29: teleport.integration.v1.ListEKSClustersResponse
+	(*PingRequest)(nil),                          // 30: teleport.integration.v1.PingRequest
+	(*PingResponse)(nil),                         // 31: teleport.integration.v1.PingResponse
+	nil,                                          // 32: teleport.integration.v1.EnrollEKSClustersRequest.ExtraLabelsEntry
+	nil,                                          // 33: teleport.integration.v1.EKSCluster.LabelsEntry
+	nil,                                          // 34: teleport.integration.v1.EKSCluster.JoinLabelsEntry
+	(*types.DatabaseV3)(nil),                     // 35: types.DatabaseV3
+	(*types.ServerV2)(nil),                       // 36: types.ServerV2
 }
 var file_teleport_integration_v1_awsoidc_service_proto_depIdxs = []int32{
-	1,  // 0: teleport.integration.v1.ListEICEResponse.ec2ices:type_name -> teleport.integration.v1.EC2InstanceConnectEndpoint
-	4,  // 1: teleport.integration.v1.CreateEICERequest.endpoints:type_name -> teleport.integration.v1.EC2ICEndpoint
-	4,  // 2: teleport.integration.v1.CreateEICEResponse.created_endpoints:type_name -> teleport.integration.v1.EC2ICEndpoint
-	41, // 3: teleport.integration.v1.ListDatabasesResponse.databases:type_name -> types.DatabaseV3
-	9,  // 4: teleport.integration.v1.SecurityGroupRule.cidrs:type_name -> teleport.integration.v1.SecurityGroupRuleCIDR
-	10, // 5: teleport.integration.v1.SecurityGroupRule.group_ids:type_name -> teleport.integration.v1.SecurityGroupRuleGroupID
-	11, // 6: teleport.integration.v1.SecurityGroup.inbound_rules:type_name -> teleport.integration.v1.SecurityGroupRule
-	11, // 7: teleport.integration.v1.SecurityGroup.outbound_rules:type_name -> teleport.integration.v1.SecurityGroupRule
-	12, // 8: teleport.integration.v1.ListSecurityGroupsResponse.security_groups:type_name -> teleport.integration.v1.SecurityGroup
-	15, // 9: teleport.integration.v1.ListSubnetsResponse.subnets:type_name -> teleport.integration.v1.Subnet
-	18, // 10: teleport.integration.v1.ListVPCsResponse.vpcs:type_name -> teleport.integration.v1.VPC
-	21, // 11: teleport.integration.v1.DeployDatabaseServiceRequest.deployments:type_name -> teleport.integration.v1.DeployDatabaseServiceDeployment
-	24, // 12: teleport.integration.v1.ListDeployedDatabaseServicesResponse.deployed_database_services:type_name -> teleport.integration.v1.DeployedDatabaseService
-	38, // 13: teleport.integration.v1.EnrollEKSClustersRequest.extra_labels:type_name -> teleport.integration.v1.EnrollEKSClustersRequest.ExtraLabelsEntry
-	29, // 14: teleport.integration.v1.EnrollEKSClustersResponse.results:type_name -> teleport.integration.v1.EnrollEKSClusterResult
-	42, // 15: teleport.integration.v1.ListEC2Response.servers:type_name -> types.ServerV2
-	39, // 16: teleport.integration.v1.EKSCluster.labels:type_name -> teleport.integration.v1.EKSCluster.LabelsEntry
-	40, // 17: teleport.integration.v1.EKSCluster.join_labels:type_name -> teleport.integration.v1.EKSCluster.JoinLabelsEntry
-	34, // 18: teleport.integration.v1.ListEKSClustersResponse.clusters:type_name -> teleport.integration.v1.EKSCluster
-	0,  // 19: teleport.integration.v1.AWSOIDCService.ListEICE:input_type -> teleport.integration.v1.ListEICERequest
-	3,  // 20: teleport.integration.v1.AWSOIDCService.CreateEICE:input_type -> teleport.integration.v1.CreateEICERequest
-	6,  // 21: teleport.integration.v1.AWSOIDCService.ListDatabases:input_type -> teleport.integration.v1.ListDatabasesRequest
-	8,  // 22: teleport.integration.v1.AWSOIDCService.ListSecurityGroups:input_type -> teleport.integration.v1.ListSecurityGroupsRequest
-	14, // 23: teleport.integration.v1.AWSOIDCService.ListSubnets:input_type -> teleport.integration.v1.ListSubnetsRequest
-	17, // 24: teleport.integration.v1.AWSOIDCService.ListVPCs:input_type -> teleport.integration.v1.ListVPCsRequest
-	20, // 25: teleport.integration.v1.AWSOIDCService.DeployDatabaseService:input_type -> teleport.integration.v1.DeployDatabaseServiceRequest
-	23, // 26: teleport.integration.v1.AWSOIDCService.ListDeployedDatabaseServices:input_type -> teleport.integration.v1.ListDeployedDatabaseServicesRequest
-	26, // 27: teleport.integration.v1.AWSOIDCService.DeployService:input_type -> teleport.integration.v1.DeployServiceRequest
-	28, // 28: teleport.integration.v1.AWSOIDCService.EnrollEKSClusters:input_type -> teleport.integration.v1.EnrollEKSClustersRequest
-	31, // 29: teleport.integration.v1.AWSOIDCService.ListEC2:input_type -> teleport.integration.v1.ListEC2Request
-	33, // 30: teleport.integration.v1.AWSOIDCService.ListEKSClusters:input_type -> teleport.integration.v1.ListEKSClustersRequest
-	36, // 31: teleport.integration.v1.AWSOIDCService.Ping:input_type -> teleport.integration.v1.PingRequest
-	2,  // 32: teleport.integration.v1.AWSOIDCService.ListEICE:output_type -> teleport.integration.v1.ListEICEResponse
-	5,  // 33: teleport.integration.v1.AWSOIDCService.CreateEICE:output_type -> teleport.integration.v1.CreateEICEResponse
-	7,  // 34: teleport.integration.v1.AWSOIDCService.ListDatabases:output_type -> teleport.integration.v1.ListDatabasesResponse
-	13, // 35: teleport.integration.v1.AWSOIDCService.ListSecurityGroups:output_type -> teleport.integration.v1.ListSecurityGroupsResponse
-	16, // 36: teleport.integration.v1.AWSOIDCService.ListSubnets:output_type -> teleport.integration.v1.ListSubnetsResponse
-	19, // 37: teleport.integration.v1.AWSOIDCService.ListVPCs:output_type -> teleport.integration.v1.ListVPCsResponse
-	22, // 38: teleport.integration.v1.AWSOIDCService.DeployDatabaseService:output_type -> teleport.integration.v1.DeployDatabaseServiceResponse
-	25, // 39: teleport.integration.v1.AWSOIDCService.ListDeployedDatabaseServices:output_type -> teleport.integration.v1.ListDeployedDatabaseServicesResponse
-	27, // 40: teleport.integration.v1.AWSOIDCService.DeployService:output_type -> teleport.integration.v1.DeployServiceResponse
-	30, // 41: teleport.integration.v1.AWSOIDCService.EnrollEKSClusters:output_type -> teleport.integration.v1.EnrollEKSClustersResponse
-	32, // 42: teleport.integration.v1.AWSOIDCService.ListEC2:output_type -> teleport.integration.v1.ListEC2Response
-	35, // 43: teleport.integration.v1.AWSOIDCService.ListEKSClusters:output_type -> teleport.integration.v1.ListEKSClustersResponse
-	37, // 44: teleport.integration.v1.AWSOIDCService.Ping:output_type -> teleport.integration.v1.PingResponse
-	32, // [32:45] is the sub-list for method output_type
-	19, // [19:32] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	35, // 0: teleport.integration.v1.ListDatabasesResponse.databases:type_name -> types.DatabaseV3
+	3,  // 1: teleport.integration.v1.SecurityGroupRule.cidrs:type_name -> teleport.integration.v1.SecurityGroupRuleCIDR
+	4,  // 2: teleport.integration.v1.SecurityGroupRule.group_ids:type_name -> teleport.integration.v1.SecurityGroupRuleGroupID
+	5,  // 3: teleport.integration.v1.SecurityGroup.inbound_rules:type_name -> teleport.integration.v1.SecurityGroupRule
+	5,  // 4: teleport.integration.v1.SecurityGroup.outbound_rules:type_name -> teleport.integration.v1.SecurityGroupRule
+	6,  // 5: teleport.integration.v1.ListSecurityGroupsResponse.security_groups:type_name -> teleport.integration.v1.SecurityGroup
+	9,  // 6: teleport.integration.v1.ListSubnetsResponse.subnets:type_name -> teleport.integration.v1.Subnet
+	12, // 7: teleport.integration.v1.ListVPCsResponse.vpcs:type_name -> teleport.integration.v1.VPC
+	15, // 8: teleport.integration.v1.DeployDatabaseServiceRequest.deployments:type_name -> teleport.integration.v1.DeployDatabaseServiceDeployment
+	18, // 9: teleport.integration.v1.ListDeployedDatabaseServicesResponse.deployed_database_services:type_name -> teleport.integration.v1.DeployedDatabaseService
+	32, // 10: teleport.integration.v1.EnrollEKSClustersRequest.extra_labels:type_name -> teleport.integration.v1.EnrollEKSClustersRequest.ExtraLabelsEntry
+	23, // 11: teleport.integration.v1.EnrollEKSClustersResponse.results:type_name -> teleport.integration.v1.EnrollEKSClusterResult
+	36, // 12: teleport.integration.v1.ListEC2Response.servers:type_name -> types.ServerV2
+	33, // 13: teleport.integration.v1.EKSCluster.labels:type_name -> teleport.integration.v1.EKSCluster.LabelsEntry
+	34, // 14: teleport.integration.v1.EKSCluster.join_labels:type_name -> teleport.integration.v1.EKSCluster.JoinLabelsEntry
+	28, // 15: teleport.integration.v1.ListEKSClustersResponse.clusters:type_name -> teleport.integration.v1.EKSCluster
+	0,  // 16: teleport.integration.v1.AWSOIDCService.ListDatabases:input_type -> teleport.integration.v1.ListDatabasesRequest
+	2,  // 17: teleport.integration.v1.AWSOIDCService.ListSecurityGroups:input_type -> teleport.integration.v1.ListSecurityGroupsRequest
+	8,  // 18: teleport.integration.v1.AWSOIDCService.ListSubnets:input_type -> teleport.integration.v1.ListSubnetsRequest
+	11, // 19: teleport.integration.v1.AWSOIDCService.ListVPCs:input_type -> teleport.integration.v1.ListVPCsRequest
+	14, // 20: teleport.integration.v1.AWSOIDCService.DeployDatabaseService:input_type -> teleport.integration.v1.DeployDatabaseServiceRequest
+	17, // 21: teleport.integration.v1.AWSOIDCService.ListDeployedDatabaseServices:input_type -> teleport.integration.v1.ListDeployedDatabaseServicesRequest
+	20, // 22: teleport.integration.v1.AWSOIDCService.DeployService:input_type -> teleport.integration.v1.DeployServiceRequest
+	22, // 23: teleport.integration.v1.AWSOIDCService.EnrollEKSClusters:input_type -> teleport.integration.v1.EnrollEKSClustersRequest
+	25, // 24: teleport.integration.v1.AWSOIDCService.ListEC2:input_type -> teleport.integration.v1.ListEC2Request
+	27, // 25: teleport.integration.v1.AWSOIDCService.ListEKSClusters:input_type -> teleport.integration.v1.ListEKSClustersRequest
+	30, // 26: teleport.integration.v1.AWSOIDCService.Ping:input_type -> teleport.integration.v1.PingRequest
+	1,  // 27: teleport.integration.v1.AWSOIDCService.ListDatabases:output_type -> teleport.integration.v1.ListDatabasesResponse
+	7,  // 28: teleport.integration.v1.AWSOIDCService.ListSecurityGroups:output_type -> teleport.integration.v1.ListSecurityGroupsResponse
+	10, // 29: teleport.integration.v1.AWSOIDCService.ListSubnets:output_type -> teleport.integration.v1.ListSubnetsResponse
+	13, // 30: teleport.integration.v1.AWSOIDCService.ListVPCs:output_type -> teleport.integration.v1.ListVPCsResponse
+	16, // 31: teleport.integration.v1.AWSOIDCService.DeployDatabaseService:output_type -> teleport.integration.v1.DeployDatabaseServiceResponse
+	19, // 32: teleport.integration.v1.AWSOIDCService.ListDeployedDatabaseServices:output_type -> teleport.integration.v1.ListDeployedDatabaseServicesResponse
+	21, // 33: teleport.integration.v1.AWSOIDCService.DeployService:output_type -> teleport.integration.v1.DeployServiceResponse
+	24, // 34: teleport.integration.v1.AWSOIDCService.EnrollEKSClusters:output_type -> teleport.integration.v1.EnrollEKSClustersResponse
+	26, // 35: teleport.integration.v1.AWSOIDCService.ListEC2:output_type -> teleport.integration.v1.ListEC2Response
+	29, // 36: teleport.integration.v1.AWSOIDCService.ListEKSClusters:output_type -> teleport.integration.v1.ListEKSClustersResponse
+	31, // 37: teleport.integration.v1.AWSOIDCService.Ping:output_type -> teleport.integration.v1.PingResponse
+	27, // [27:38] is the sub-list for method output_type
+	16, // [16:27] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_teleport_integration_v1_awsoidc_service_proto_init() }
@@ -4399,7 +3715,7 @@ func file_teleport_integration_v1_awsoidc_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_integration_v1_awsoidc_service_proto_rawDesc), len(file_teleport_integration_v1_awsoidc_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   41,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
