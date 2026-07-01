@@ -256,7 +256,8 @@ func initQueueDir(path string) (func() error, error) {
 			return unlock, nil
 		}
 
-		if !errors.Is(err, utils.ErrUnsuccessfulLockTry) && !trace.IsNotFound(err) {
+		isRetryableError := errors.Is(err, utils.ErrUnsuccessfulLockTry) || trace.IsNotFound(err)
+		if !isRetryableError {
 			return nil, trace.Wrap(err)
 		}
 
