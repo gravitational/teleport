@@ -124,9 +124,14 @@ func TestWrapWithDBusSession(t *testing.T) {
 		require.Equal(t, "/usr/bin/dbus-run-session -- /etc/X11/Xsession 'default'", cmd)
 	})
 	t.Run("falls back to dbus-launch", func(t *testing.T) {
-		cmd, ok := wrapWithDBusSession("startxfce4", found("dbus-launch"))
+		cmd, ok := wrapWithDBusSession("startxfce4", found("dbus-launch", "dbus-daemon"))
 		require.True(t, ok)
 		require.Equal(t, "/usr/bin/dbus-launch --exit-with-session startxfce4", cmd)
+	})
+	t.Run("no dbus-daemon", func(t *testing.T) {
+		cmd, ok := wrapWithDBusSession("startxfce4", found("dbus-launch"))
+		require.False(t, ok)
+		require.Equal(t, "startxfce4", cmd)
 	})
 	t.Run("no launcher available", func(t *testing.T) {
 		cmd, ok := wrapWithDBusSession("startxfce4", found())

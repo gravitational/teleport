@@ -143,8 +143,9 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	if wrapped, ok := wrapWithDBusSession(cmdd, exec.LookPath); ok {
 		cmdd = wrapped
 	} else {
-		cfg.Logger.WarnContext(ctx, "No D-Bus session launcher (dbus-run-session or dbus-launch) found; "+
-			"the session may fail to start without a D-Bus session bus. Install the 'dbus' or 'dbus-x11' package.")
+		cfg.Logger.WarnContext(ctx, "No D-Bus session launcher (dbus-run-session or dbus-launch and dbus-daemon) found; "+
+			"the session may fail to start without a D-Bus session bus. Install the 'dbus' or 'dbus-x11' package."+
+			"On OpenSUSE you also need 'dbus-1-daemon' package")
 	}
 
 	cmdmsg := &reexec.ExecCommand{
@@ -271,21 +272,29 @@ func resolveSessionCommand(execValue, wrapper string) (string, error) {
 // Each launcher runs the rest of the command line as the program to execute on
 // the new bus, so the trailing argument separator differs per tool.
 var dbusSessionLaunchers = []struct {
-	name string
-	args string
+	name         string
+	args         string
+	dependencies []string
 }{
 	{name: "dbus-run-session", args: "--"},
-	{name: "dbus-launch", args: "--exit-with-session"},
+	{name: "dbus-launch", args: "--exit-with-session", dependencies: []string{"dbus-daemon"}},
 }
 
 // wrapWithDBusSession prefixes cmd with the first available D-Bus session
 // launcher so the session runs on its own private session bus, isolated from
 // any other login session of the same user.
 func wrapWithDBusSession(cmd string, lookPath func(string) (string, error)) (string, bool) {
+MAIN:
 	for _, launcher := range dbusSessionLaunchers {
 		path, err := lookPath(launcher.name)
 		if err != nil {
 			continue
+		}
+		for _, name := range launcher.dependencies {
+			_, err := lookPath(name)
+			if err != nil {
+				continue MAIN
+			}
 		}
 		return path + " " + launcher.args + " " + cmd, true
 	}
