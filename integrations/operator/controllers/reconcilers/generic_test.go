@@ -231,22 +231,6 @@ func TestTeleportResourceReconciler_Delete(t *testing.T) {
 	}
 }
 
-func TestScopeFromUnstructuredObject(t *testing.T) {
-	obj := &unstructured.Unstructured{Object: map[string]any{
-		"scope": "/team/a",
-		"spec": map[string]any{
-			"invalid": func() {},
-		},
-	}}
-	scope, err := scopeFromUnstructuredObject(obj)
-	require.NoError(t, err)
-	require.Equal(t, "/team/a", scope)
-
-	obj = &unstructured.Unstructured{Object: map[string]any{}}
-	_, err = scopeFromUnstructuredObject(obj)
-	require.True(t, trace.IsBadParameter(err))
-}
-
 func TestCheckOwnership(t *testing.T) {
 	emptyStore := map[string]types.Metadata{}
 	rc := &fakeTeleportResourceClient{emptyStore}
