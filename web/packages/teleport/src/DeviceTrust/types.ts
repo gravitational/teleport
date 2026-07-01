@@ -56,6 +56,43 @@ export type DeviceSource = {
  */
 export type TrustedDeviceOSType = TrustedDevice['osType'];
 
+/**
+ * OsType mirrors the teleport.devicetrust.v1.OSType proto enum.
+ *
+ * The numeric values are what raw events carry over the wire (e.g. device audit events), as opposed
+ * to the resolved TrustedDevice['osType'] labels used elsewhere.
+ */
+export enum OsType {
+  Unspecified = 0,
+  Linux = 1,
+  MacOS = 2,
+  Windows = 3,
+  IOS = 4,
+  IPadOS = 5,
+}
+
+export function osTypeLabel(
+  osType: OsType
+): TrustedDevice['osType'] | undefined {
+  switch (osType) {
+    case OsType.Linux:
+      return 'Linux';
+    case OsType.MacOS:
+      return 'macOS';
+    case OsType.Windows:
+      return 'Windows';
+    case OsType.IOS:
+      return 'iOS';
+    case OsType.IPadOS:
+      return 'iPadOS';
+    case OsType.Unspecified:
+      return undefined;
+    default:
+      osType satisfies never;
+      return undefined;
+  }
+}
+
 export type TrustedDeviceResponse = {
   items: TrustedDevice[];
   startKey: string;
