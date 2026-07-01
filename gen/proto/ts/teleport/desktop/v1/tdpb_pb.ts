@@ -185,6 +185,10 @@ export interface ConnectionActivated {
      * @generated from protobuf field: uint32 screen_height = 4;
      */
     screenHeight: number;
+    /**
+     * @generated from protobuf field: uint32 share_id = 5;
+     */
+    shareId: number;
 }
 /**
  * Conveys the current state of keyboard buttons with persistent state.
@@ -1475,7 +1479,8 @@ class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
             { no: 1, name: "io_channel_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "user_channel_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 3, name: "screen_width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 4, name: "screen_height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 4, name: "screen_height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "share_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<ConnectionActivated>): ConnectionActivated {
@@ -1484,6 +1489,7 @@ class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
         message.userChannelId = 0;
         message.screenWidth = 0;
         message.screenHeight = 0;
+        message.shareId = 0;
         if (value !== undefined)
             reflectionMergePartial<ConnectionActivated>(this, message, value);
         return message;
@@ -1504,6 +1510,9 @@ class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
                     break;
                 case /* uint32 screen_height */ 4:
                     message.screenHeight = reader.uint32();
+                    break;
+                case /* uint32 share_id */ 5:
+                    message.shareId = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1529,6 +1538,9 @@ class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
         /* uint32 screen_height = 4; */
         if (message.screenHeight !== 0)
             writer.tag(4, WireType.Varint).uint32(message.screenHeight);
+        /* uint32 share_id = 5; */
+        if (message.shareId !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.shareId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
