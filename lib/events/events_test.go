@@ -154,6 +154,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	DeviceEnrollTokenCreateEvent:                   &apievents.DeviceEvent2{},
 	DeviceWebTokenCreateEvent:                      &apievents.DeviceEvent2{},
 	DeviceAuthenticateConfirmEvent:                 &apievents.DeviceEvent2{},
+	DeviceEnrollPairingRequestEvent:                &apievents.DeviceEvent2{},
 	LockCreatedEvent:                               &apievents.LockCreate{},
 	LockDeletedEvent:                               &apievents.LockDelete{},
 	RecoveryCodeGeneratedEvent:                     &apievents.RecoveryCodeGenerate{},
