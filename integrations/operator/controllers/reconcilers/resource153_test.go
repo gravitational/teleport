@@ -42,10 +42,10 @@ type fakeScopedRoleClient struct {
 	store map[ResourceKey]*accessv1.ScopedRole
 }
 
-func (f *fakeScopedRoleClient) Get(_ context.Context, name, scope string) (*accessv1.ScopedRole, error) {
-	role, ok := f.store[ResourceKey{Name: name, Scope: scope}]
+func (f *fakeScopedRoleClient) Get(_ context.Context, key ResourceKey) (*accessv1.ScopedRole, error) {
+	role, ok := f.store[key]
 	if !ok {
-		return nil, trace.NotFound("%q/%q not found", scope, name)
+		return nil, trace.NotFound("%q not found", key.String())
 	}
 	return role, nil
 }
@@ -53,7 +53,7 @@ func (f *fakeScopedRoleClient) Get(_ context.Context, name, scope string) (*acce
 func (f *fakeScopedRoleClient) Create(_ context.Context, role *accessv1.ScopedRole) error {
 	key := ResourceKey{Name: role.GetMetadata().GetName(), Scope: role.GetScope()}
 	if _, ok := f.store[key]; ok {
-		return trace.AlreadyExists("%q/%q already exists", key.Scope, key.Name)
+		return trace.AlreadyExists("%q already exists", key.String())
 	}
 	role.GetMetadata().SetRevision(uuid.New().String())
 	f.store[key] = role
@@ -64,7 +64,7 @@ func (f *fakeScopedRoleClient) Update(_ context.Context, role *accessv1.ScopedRo
 	key := ResourceKey{Name: role.GetMetadata().GetName(), Scope: role.GetScope()}
 	existing, ok := f.store[key]
 	if !ok {
-		return trace.NotFound("%q/%q not found", key.Scope, key.Name)
+		return trace.NotFound("%q not found", key.String())
 	}
 	if existing.GetMetadata().GetRevision() != role.GetMetadata().GetRevision() {
 		return trace.CompareFailed("revision mismatch")
@@ -74,10 +74,9 @@ func (f *fakeScopedRoleClient) Update(_ context.Context, role *accessv1.ScopedRo
 	return nil
 }
 
-func (f *fakeScopedRoleClient) Delete(_ context.Context, name, scope string) error {
-	key := ResourceKey{Name: name, Scope: scope}
+func (f *fakeScopedRoleClient) Delete(_ context.Context, key ResourceKey) error {
 	if _, ok := f.store[key]; !ok {
-		return trace.NotFound("%q/%q not found", scope, name)
+		return trace.NotFound("%q not found", key.String())
 	}
 	delete(f.store, key)
 	return nil

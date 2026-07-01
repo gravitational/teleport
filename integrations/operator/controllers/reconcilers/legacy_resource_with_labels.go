@@ -81,7 +81,7 @@ func NewTeleportResourceWithLabelsReconciler[T types.ResourceWithLabels, K Kuber
 
 	reconciler := &resourceReconciler[T, K]{
 		kubeClient:     kubeClient,
-		resourceClient: unscopedResourceClientAdapter[T]{client: resourceClient},
+		resourceClient: resourceClient,
 		gvk:            gvk,
 		adapter:        ResourceWithLabelsAdapter[T]{},
 		scoped:         config.Scoped,

@@ -88,7 +88,7 @@ func NewTeleportResource153Reconciler[T types.Resource153, K KubernetesCR[T]](
 	}
 	reconciler := &resourceReconciler[T, K]{
 		kubeClient:     client,
-		resourceClient: unscopedResourceClientAdapter[T]{client: resourceClient},
+		resourceClient: resourceClient,
 		gvk:            gvk,
 		adapter:        Resource153Adapter[T]{},
 		scoped:         config.Scoped,
@@ -102,7 +102,7 @@ func NewTeleportResource153Reconciler[T types.Resource153, K KubernetesCR[T]](
 // types.Resource153 resource.
 func NewTeleportScopedResource153Reconciler[T ScopedResource153, K KubernetesCR[T]](
 	client kclient.Client,
-	resourceClient scopedResourceClient[T],
+	resourceClient resourceClient[T],
 	config Config,
 ) (controllers.Reconciler, error) {
 	checkFeatures := controllers.AlwaysEnabled
@@ -122,10 +122,9 @@ func NewTeleportScopedResource153Reconciler[T ScopedResource153, K KubernetesCR[
 
 	reconciler := &resourceReconciler[T, K]{
 		kubeClient:      client,
-		resourceClient:  scopedResourceClientAdapter[T]{client: resourceClient},
+		resourceClient:  resourceClient,
 		gvk:             gvk,
 		adapter:         ScopedResource153Adapter[T]{},
-		scopeFromObject: scopeFromUnstructuredObject,
 		scoped:          config.Scoped,
 		teleportKind:    teleportKind,
 		checkFeatures:   checkFeatures,
