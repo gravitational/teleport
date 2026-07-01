@@ -863,9 +863,7 @@ func canonicalizeGrants(g *Grants) {
 		return strings.Compare(a.Role, b.Role)
 	})
 
-	g.ScopedRoles = slices.CompactFunc(g.ScopedRoles, func(a, b ScopedRoleGrant) bool {
-		return a.Role == b.Role && a.Scope == b.Scope
-	})
+	g.ScopedRoles = slices.Compact(g.ScopedRoles)
 }
 
 func canonicalizeRequires(r *Requires) {
