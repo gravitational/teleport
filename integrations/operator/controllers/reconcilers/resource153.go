@@ -99,7 +99,7 @@ func NewTeleportResource153Reconciler[T types.Resource153, K KubernetesCR[T]](
 }
 
 // NewTeleportScopedResource153Reconciler instantiates a resourceReconciler for a
-// types.Resource153 resource.
+// ScopedResource153 resource.
 func NewTeleportScopedResource153Reconciler[T ScopedResource153, K KubernetesCR[T]](
 	client kclient.Client,
 	resourceClient resourceClient[T],
@@ -121,13 +121,13 @@ func NewTeleportScopedResource153Reconciler[T ScopedResource153, K KubernetesCR[
 	}
 
 	reconciler := &resourceReconciler[T, K]{
-		kubeClient:      client,
-		resourceClient:  resourceClient,
-		gvk:             gvk,
-		adapter:         ScopedResource153Adapter[T]{},
-		scoped:          config.Scoped,
-		teleportKind:    teleportKind,
-		checkFeatures:   checkFeatures,
+		kubeClient:     client,
+		resourceClient: resourceClient,
+		gvk:            gvk,
+		adapter:        ScopedResource153Adapter[T]{},
+		scoped:         config.Scoped,
+		teleportKind:   teleportKind,
+		checkFeatures:  checkFeatures,
 	}
 	return reconciler, nil
 }
