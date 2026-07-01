@@ -5,7 +5,9 @@
 locals {
   azure_management_group_scope = (
     var.azure_management_group_id != null
-    ? "/providers/Microsoft.Management/managementGroups/${var.azure_management_group_id}"
+    ? (startswith(var.azure_management_group_id, "/providers/Microsoft.Management/managementGroups/")
+      ? var.azure_management_group_id
+      : "/providers/Microsoft.Management/managementGroups/${var.azure_management_group_id}")
     : null
   )
 
@@ -57,11 +59,11 @@ resource "azurerm_role_definition" "teleport_discovery" {
 
   lifecycle {
     precondition {
-      condition = !(
+      condition = (
         length([
           for s in var.azure_role_assignment_scopes :
           s if startswith(s, "/providers/Microsoft.Management/managementGroups/")
-        ]) > 1
+        ]) <= 1
       ) || var.azure_management_group_id != null
       error_message = "`azure_management_group_id` is required when `azure_role_assignment_scopes` contains more than one management group scope."
     }
