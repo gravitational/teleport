@@ -86,6 +86,9 @@ func runMaterializerTestcase(t *testing.T, tc materializerTestcase) {
 	aclService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: backend,
 		Modules: modulestest.EnterpriseModules(),
+		ScopesFeatures: scopes.Features{
+			Enabled: true,
+		},
 	})
 	require.NoError(t, err)
 

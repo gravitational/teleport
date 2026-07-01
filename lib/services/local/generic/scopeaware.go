@@ -333,6 +333,15 @@ func (s *ScopeAwareService[T]) ConditionalUpdateResource(ctx context.Context, re
 	return svc.ConditionalUpdateResource(ctx, resource)
 }
 
+// MakeBackendItem will check and make the backend item.
+func (s *ScopeAwareService[T]) MakeBackendItem(resource T) (backend.Item, error) {
+	svc, err := s.WithScopePrefix(resource.GetScope())
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+	return svc.MakeBackendItem(resource)
+}
+
 // WithScopePrefix returns the unscoped service when scope is empty, otherwise
 // returns the scoped service with the encoded scope appended to its backend prefix.
 func (s *ScopeAwareService[T]) WithScopePrefix(scope string) (*Service[T], error) {
