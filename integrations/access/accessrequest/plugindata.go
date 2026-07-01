@@ -19,7 +19,8 @@
 package accessrequest
 
 import (
-	"fmt"
+	"encoding/base64"
+	"encoding/json"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -36,10 +37,10 @@ type PluginData struct {
 // MessageData contains all the required information to identify and edit a message.
 type MessageData struct {
 	// ChannelID identifies a channel.
-	ChannelID string
+	ChannelID string `json:"channelId"`
 	// MessageID identifies a specific message in the channel.
 	// For example: on Discord this is an ID while on Slack this is a timestamp.
-	MessageID string
+	MessageID string `json:"messageId"`
 }
 
 type SentMessages []MessageData
@@ -47,40 +48,60 @@ type SentMessages []MessageData
 // DecodePluginData deserializes a string map to PluginData struct.
 func DecodePluginData(dataMap map[string]string) (PluginData, error) {
 	data := PluginData{}
+	var errors []error
 
-	var err error
-	data.AccessRequestData, err = plugindata.DecodeAccessRequestData(dataMap)
+	accessRequestData, err := plugindata.DecodeAccessRequestData(dataMap)
 	if err != nil {
-		return PluginData{}, trace.Wrap(err)
+		return data, trace.Wrap(err, "failed to decode access request data")
 	}
+	data.AccessRequestData = accessRequestData
 
+	// Backward compatibility for single-message data
 	if channelID, timestamp := dataMap["channel_id"], dataMap["timestamp"]; channelID != "" && timestamp != "" {
 		data.SentMessages = append(data.SentMessages, MessageData{ChannelID: channelID, MessageID: timestamp})
 	}
 
 	if str := dataMap["messages"]; str != "" {
 		for encodedMsg := range strings.SplitSeq(str, ",") {
-			if parts := strings.Split(encodedMsg, "/"); len(parts) == 2 {
-				data.SentMessages = append(data.SentMessages, MessageData{ChannelID: parts[0], MessageID: parts[1]})
+			var msg MessageData
+			decodedMsg, err := base64.StdEncoding.DecodeString(encodedMsg)
+			if err == nil {
+				err = json.Unmarshal(decodedMsg, &msg)
 			}
+			if err != nil {
+				// Backward compatibility
+				parts := strings.Split(encodedMsg, "/")
+				if len(parts) == 2 {
+					data.SentMessages = append(data.SentMessages, MessageData{ChannelID: parts[0], MessageID: parts[1]})
+				} else {
+					errors = append(errors, err)
+				}
+				continue
+			}
+			data.SentMessages = append(data.SentMessages, msg)
 		}
 	}
-	return data, nil
+	return data, trace.NewAggregate(errors...)
 }
 
 // EncodePluginData serializes a PluginData struct into a string map.
 func EncodePluginData(data PluginData) (map[string]string, error) {
 	result, err := plugindata.EncodeAccessRequestData(data.AccessRequestData)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to encode access request data")
 	}
 
+	var errors []error
 	var encodedMessages []string
 	for _, msg := range data.SentMessages {
-		// TODO(hugoShaka): switch to base64 encode to avoid having / and , characters that could lead to bad parsing
-		encodedMessages = append(encodedMessages, fmt.Sprintf("%s/%s", msg.ChannelID, msg.MessageID))
+		jsonMessage, err := json.Marshal(msg)
+		if err != nil {
+			errors = append(errors, err)
+		}
+		encodedMessage := base64.StdEncoding.EncodeToString(jsonMessage)
+		encodedMessages = append(encodedMessages, encodedMessage)
 	}
 	result["messages"] = strings.Join(encodedMessages, ",")
 
-	return result, nil
+	return result, trace.NewAggregate(errors...)
 }
