@@ -67,6 +67,16 @@ var (
 	stdinContent             = []byte("stdin_data")
 )
 
+var wildcardResource = []*accessv1.KubeResource{
+	accessv1.KubeResource_builder{
+		Kind:      "*",
+		Name:      "*",
+		Namespace: "*",
+		ApiGroup:  "*",
+		Verbs:     []string{"*"},
+	}.Build(),
+}
+
 func TestExecKubeService(t *testing.T) {
 	kubeMock, err := testingkubemock.NewKubeAPIMock()
 	require.NoError(t, err)
@@ -130,8 +140,9 @@ func TestExecKubeService(t *testing.T) {
 		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
 			Kube: accessv1.ScopedRoleKube_builder{
-				Users:  roleKubeUsers,
-				Groups: roleKubeGroups,
+				Users:     roleKubeUsers,
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource,
 				Labels: []*labelv1.Label{
 					labelv1.Label_builder{
 						Name:   types.Wildcard,
@@ -148,8 +159,9 @@ func TestExecKubeService(t *testing.T) {
 		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
 			Kube: accessv1.ScopedRoleKube_builder{
-				Users:  append(slices.Clone(roleKubeUsers), "admin"),
-				Groups: roleKubeGroups,
+				Users:     append(slices.Clone(roleKubeUsers), "admin"),
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource,
 				Labels: []*labelv1.Label{
 					labelv1.Label_builder{
 						Name:   types.Wildcard,
@@ -559,8 +571,9 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 					accessv1.ScopedRoleSpec_builder{
 						AssignableScopes: []string{scopedTestScope},
 						Kube: accessv1.ScopedRoleKube_builder{
-							Users:  roleKubeUsers,
-							Groups: roleKubeGroups,
+							Users:     roleKubeUsers,
+							Groups:    roleKubeGroups,
+							Resources: wildcardResource,
 							Labels: []*labelv1.Label{
 								labelv1.Label_builder{
 									Name:   types.Wildcard,
