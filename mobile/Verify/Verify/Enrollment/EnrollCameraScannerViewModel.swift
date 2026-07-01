@@ -14,12 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
+import AVFoundation
 import Observation
 import OSLog
 
 @Observable @MainActor
 final class EnrollCameraScannerViewModel {
 	private static let logger = Logger.forType(EnrollCameraScannerViewModel.self)
+
+	var cameraAuthorizationStatus: AVAuthorizationStatus = .notDetermined
+
 	weak var delegate: (any Delegate)? = nil
 
 	init(delegate: (any Delegate)? = nil) {
@@ -41,7 +45,7 @@ extension EnrollCameraScannerViewModel {
 // MARK: - Scanner Actions
 
 extension EnrollCameraScannerViewModel {
-	func didScan(_ payload: String) -> QRScannerDecision{
+	func didScan(_ payload: String) -> QRScannerDecision {
 		guard let enrollMobileDeviceDeepLink = validateScannedCode(payload) else {
 			return .continueScanning
 		}
@@ -75,5 +79,24 @@ extension EnrollCameraScannerViewModel {
 	/// so we vend this constant presentation ID to express that to SwiftUI.
 	var presentationID: String {
 		"EnrollCameraScannerViewModel"
+	}
+}
+
+// MARK: - Camera Authorization
+
+extension EnrollCameraScannerViewModel {
+	func requestCameraAccess() async {
+		cameraAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
+		switch cameraAuthorizationStatus {
+			case .notDetermined:
+				await AVCaptureDevice.requestAccess(for: .video)
+				cameraAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
+			case .restricted, .denied, .authorized:
+				break
+			@unknown default:
+				Self.logger.warning(
+					"Encountered unknown camera authorization status: \(self.cameraAuthorizationStatus.rawValue)",
+				)
+		}
 	}
 }
