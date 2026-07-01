@@ -394,6 +394,8 @@ export const VnetContextProvider: FC<
         !notificationsService.hasNotification(previousNotificationId);
       notificationsService.removeNotification(previousNotificationId);
 
+      // Once a user acknowledged or dismissed a VNet warning during a session, we don't want to
+      // notify them about it again unless they manually re-run diagnostics.
       if (
         hasActedOnPreviousNotification ||
         hasDismissedDiagnosticsAlertRef.current
