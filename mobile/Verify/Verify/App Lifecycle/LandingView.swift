@@ -40,6 +40,7 @@ struct LandingView: View {
 				.scrollBounceBehavior(.basedOnSize)
 			}
 			.padding(.horizontal)
+			.background(Color.Background.depth3)
 
 			// MARK: Navigation
 
@@ -72,7 +73,8 @@ extension LandingView {
 	private var titleBlock: some View {
 		VStack(spacing: .small) {
 			Text("Scan QR code")
-				.font(.title)
+				.font(.title2)
+				.fontWeight(.semibold)
 			Text("Enroll this device for your cluster by scanning the QR code in your web browser")
 				.font(.callout)
 				.multilineTextAlignment(.center)
@@ -120,7 +122,10 @@ extension LandingView {
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
 		.padding()
-		.background(RoundedRectangle(cornerRadius: .small).fill(.background).strokeBorder(.separator))
+		.background(
+			RoundedRectangle(cornerRadius: .small)
+				.fill(Color.Background.depth2),
+		)
 	}
 
 	private var rightArrow: Image {
