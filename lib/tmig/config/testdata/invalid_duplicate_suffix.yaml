@@ -1,0 +1,16 @@
+target:
+  proxy: scoped.example.com:443
+  identity: ./id
+migrations:
+  - source:
+      proxy: legacy-1.example.com:443
+      identity: ./id
+    ssh:
+      login: root
+    mappings:
+      - selector: { resource_group: team-a }
+        scope: /dgxc/team-a
+        install_suffix: same-suffix
+      - selector: { resource_group: team-b }
+        scope: /dgxc/team-b
+        install_suffix: same-suffix

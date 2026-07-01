@@ -1,0 +1,92 @@
+{
+  "run_id": "test-run-001",
+  "generated_at": "0001-01-01T00:00:00Z",
+  "source": {
+    "name": "legacy-1",
+    "cluster_id": "",
+    "proxy": "legacy-1.example.com:443",
+    "ca_fingerprint": "",
+    "user": "migrator@legacy-1",
+    "version": "17.3.1",
+    "scope_pinned": false
+  },
+  "target": {
+    "name": "scoped.example.com",
+    "cluster_id": "",
+    "proxy": "scoped.example.com:443",
+    "ca_fingerprint": "",
+    "user": "team-a",
+    "version": "17.3.1",
+    "scope_pinned": true
+  },
+  "scopes_enabled": true,
+  "scopable": {
+    "roles": {
+      "App": false,
+      "Db": false,
+      "Kube": true,
+      "Node": true
+    },
+    "methods": null,
+    "table_version": "",
+    "drift": null
+  },
+  "summary": {
+    "total": 5,
+    "by_verdict": {
+      "AUTO": 2,
+      "MANUAL": 1,
+      "PREREQ": 2
+    },
+    "orphans": 0,
+    "blocked": 1,
+    "ready_to_enroll": 3,
+    "attention": {
+      "automatic_hosts": 3,
+      "iac_actions": 1,
+      "iac_hosts_covered": 1,
+      "pipeline_actions": 0,
+      "pipeline_hosts_covered": 0,
+      "manual_hosts": 1
+    }
+  },
+  "mappings": null,
+  "hosts": [
+    {
+      "host_uuid": "",
+      "hostname": "h1",
+      "mapping": "",
+      "verdict": "AUTO",
+      "status": "SATISFIED",
+      "attention": "NONE",
+      "reason": "",
+      "join_method": "",
+      "services": null,
+      "stripped_services": null,
+      "marker_trust": "",
+      "config_diff": "",
+      "rewrite_mode": "",
+      "remediation_ref": ""
+    },
+    {
+      "host_uuid": "",
+      "hostname": "h2",
+      "mapping": "",
+      "verdict": "PREREQ",
+      "status": "BLOCKED",
+      "attention": "IAC_ONETIME",
+      "reason": "",
+      "join_method": "",
+      "services": null,
+      "stripped_services": null,
+      "marker_trust": "",
+      "config_diff": "",
+      "rewrite_mode": "",
+      "remediation_ref": "rem-1"
+    }
+  ],
+  "remediations": null,
+  "warnings": [
+    "test warning"
+  ]
+}

@@ -1,0 +1,12 @@
+target:
+  proxy: scoped.example.com:443
+  identity: ./id
+migrations:
+  - source:
+      proxy: legacy-1.example.com:443
+      identity: ./id
+    ssh:
+      login: root
+    mappings:
+      - scope: /dgxc/team-a
+        install_suffix: dgxc-team-a
