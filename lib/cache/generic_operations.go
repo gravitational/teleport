@@ -27,7 +27,7 @@ import (
 )
 
 // genericGetter is a helper to retrieve a single item from a cache collection.
-type genericGetter[T any, I comparable] struct {
+type genericGetter[T comparable, I comparable] struct {
 	// cache to performe the primary read from.
 	cache *Cache
 	// collection that contains the item.
@@ -65,7 +65,7 @@ func (g genericGetter[T, I]) get(ctx context.Context, identifier string) (T, err
 }
 
 // genericLister is a helper to retrieve a page of items from a cache collection.
-type genericLister[T any, I comparable] struct {
+type genericLister[T comparable, I comparable] struct {
 	// cache to performe the primary read from.
 	cache *Cache
 	// collection that contains the item.
