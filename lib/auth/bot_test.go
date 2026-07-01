@@ -1473,8 +1473,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 			JoinMethod: string(types.JoinMethodKubernetes),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
-			BotName:    "test-scoped",
-			BotScope:   "/test",
+			Bot:        scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 			Kubernetes: &joiningv1.Kubernetes{
 				Type: string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{
