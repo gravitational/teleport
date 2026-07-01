@@ -172,7 +172,8 @@ mechanism as discovered kube clusters.
 #### Features not in scope
 
 Similar to scoped SSH access, scoped kube access will not initially support
-remote Teleport clusters, moderated sessions, or session joining.
+remote Teleport clusters, moderated sessions, or session joining. Support for
+dynamic labels during cluster registration will also be explicitly removed.
 
 #### Supporting scopes
 
@@ -254,18 +255,91 @@ register discovered clusters until the discover service supports scopes.
 
 #### Dynamic Cluster Registration
 
-The kube agent can be configured to automatically register new `KubeCluster`
-resources that are created in the Teleport cluster. You provide a set of labels
-to match against and then create a watch for `KubeCluster` events. The agent
-will fetch any clusters it does not already know about and attempt to register
-them using their attached connection config.
+The Teleport Kubernetes Service supports dynamic cluster registration. It works
+by configuring label matchers used to watch for `KubeCluster` resources
+stored in the Teleport backend. Detected clusters are wrapped in a `KubeServer`
+which heartbeats for them. This means that a single `KubeCluster` can have
+heartbeats originating from multiple kube agents; all of which can potentially
+be routed through. These cluster resources are primarily created by the
+Teleport Discovery service, but can also be created manually using
+`tctl create`. In either case, because the Teleport Proxy will facilitate
+scope-aware routing based on which `KubeServer` resources exist, all of the
+existing machinery involved with dynamic cluster registration should support
+scopes by default, provided the existing resource APIs are properly restricted
+for scoped agents. This restriction not only maintains scope isolation out of
+principle but is required due to the fact that kube clusters may contain
+secrets that must be protected from scoping violations.
 
-The first iteration of scoped kube access will not support dynamic cluster
-registration and the watcher that powers it will be disabled for scoped agents.
-We will also generate an alternate set of rules for the `Kube` system role that
-will prevent accessing `KubeCluster`, `KubeServer`, or `KubeWaitingContainer`
-resources. This RFD will be amended to support dynamic cluster registration
-after the  initial implementation is complete.
+##### `KubeCluster` APIs
+The APIs we will need to update in order to support scopes are:
+
+- `CreateKubernetesCluster`: Needs to allow creating scoped clusters which is
+  explicitly denied currently. It also needs to enforce that the calling
+  identity is allowed to create kubernetes clusters in that scope.
+- `UpdateKubernetesCluster`: Same as above but for updates.
+- `DeleteKubernetesCluster`: Needs to verify that the calling identity is
+  allowed to delete the `KubeCluster` in the scope the cluster belongs to.
+- `GetKubernetesCluster`: Needs to verify that the calling identity is allowed
+  to read the `KubeCluster` in the scope the cluster belongs to.
+
+These changes are dependent on agent scope pins landing but should otherwise
+involve all of the same steps taken for other resource APIs converted to
+support scopes. Namely converting them to call scoped access checking
+`Decision()`s rather than the unscoped `CheckAccessToRules`. Dynamic cluster
+registration only requires `GetKubernetesCluster` to support agent scope pins,
+but the discovery service will likely require all of them. Since scoped access
+checks are expected to be largely the same whether the identity is a user or an
+agent, there are no special steps expected to be taken for these APIs. It is
+worth explicitly noting that updates to `KubeCluster` resources will not be
+allowed to modify the scope assignment. This is in-keeping with existing scoped
+resources and requires that a `KubeCluster` be deleted and re-created if a
+scope change is necessary. Due to this property, no special care needs to be
+taken to clean up watched kube clusters due to a scope change as the mandatory
+delete event will handle that for us.
+
+`KubeServer` resources are already managed by the inventory control stream and
+are not interacted with directly by scoped kube agents, only by the proxy.
+
+##### Watch APIs
+
+We also need to ensure that scoped kube agents only receive events for kube
+clusters they're allowed to read. In order to permit this, we'll need to adjust
+the `hasWatchPermissionForKindScoped` helper defined for `ServerWithRoles`
+which determines whether or not a watcher can even be created. It is currently
+special cased to allow creating watches for `KindCertAuthority` so we'll need
+to add `KindKubernetesCluster` to the allowed list and perform a `Decision`
+against the scope defined in the requested `Watch`.
+
+Once the watch can be created, we'll need to ensure that events are only
+propagated for accessible kube clusters. The details of creating scope-aware 
+watchers are described in [RFD-0229i](https://github.com/gravitational/rfd/blob/3d902cf61e3d79c43fa3e8f0a592fe00850db85f/rfd/0229i-scoped-watch-and-caching.md)
+and dynamic scoped kube cluster registration will implement against the
+strategy defined there.
+
+##### Scoping rules and routing
+
+We will initially only support registration of dynamic `KubeCluster` resources
+within the same scope assigned to the agent. The agent would begin forwarding
+much like in the unscoped case and any scoped identities with access to the
+kube cluster will be permitted to route through the agent. Because the
+`KubeCluster`, the `KubeServer` wrapping it, and the kube agent itself must
+share the same scope, there are no concerns about clients having unintended
+access that would break scope isolation rules. It should be safe to loosen this
+restriction and allow `KubeServer` resources to be registered in descendant
+scopes, but this is not currently proposed in order to reduce complexity.
+The biggest drawback of this approach is that an environment would need to
+deploy a separate kube service for each scope requiring dynamic registration.
+Starting with same-scope registration does not make future support for
+descendant scopes more difficult or complex.
+
+##### Dynamic labels
+
+As mentioned above, dynamic labels attached to `KubeCluster` resources will not
+be supported due to the inherent risk of RCE. This is a deliberate decision
+we are making for all dynamic registration of scoped resources. The agent will
+reject registration of a `KubeCluster` that defines dynamic labels and the APIs
+responsible for creating `KubeCluster` resources will enforce against assigning
+a `scope` and `dynamic_labels` at the same time.
 
 #### Failure states
 
