@@ -983,6 +983,23 @@ Arguments:
 |---|---|---|
 |version|*no default* (optional)|Client tools target version. Clients will be told to update to this version.|
 
+## tctl awsic ls
+
+List AWS Identity Center accounts and their permission sets.
+
+Usage:
+
+```code
+$ tctl awsic ls [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text`|Output format, 'text', 'json', or 'yaml'|
+|`-v`, `--[no-]verbose`|`false`|Verbose table output, shows permission set ARNs (one row per permission set)|
+
 ## tctl bots add
 
 Add a new bot to the cluster.
