@@ -266,12 +266,11 @@ func TestLocalInstaller_Install_MismatchedChecksumMetadata(t *testing.T) {
 	}
 
 	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false, false)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "downloaded checksum does not match artifact digest")
 	require.Equal(t, "/teleport-"+runtime.GOOS+"/"+runtime.GOARCH+"/"+version+"."+checksumType, shaPath)
 
-	sum, err := os.ReadFile(filepath.Join(installDir, version, checksumType))
-	require.NoError(t, err)
-	require.Equal(t, strings.Repeat("0", checksumHexLen), string(sum))
+	_, err = os.ReadFile(filepath.Join(installDir, version, checksumType))
+	require.Error(t, err)
 }
 
 func TestNewArtifactSignatureVerifier(t *testing.T) {

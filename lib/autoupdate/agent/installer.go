@@ -232,15 +232,14 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 		if err := li.verifyArtifactSignature(ctx, uri+"."+artifactSignatureType, pathSum); err != nil {
 			return trace.Wrap(err)
 		}
-		if _, err := f.Seek(0, io.SeekStart); err != nil {
-			return trace.Wrap(err, "failed to reset artifact after signature verification")
-		}
 	} else {
 		li.Log.WarnContext(ctx, "artifact signature verification is disabled. Falling back to checksum-only verification.", "version", rev)
-		if !bytes.Equal(newSum, pathSum) {
-			return trace.BadParameter("downloaded checksum does not match artifact digest")
-		}
 	}
+
+	if !bytes.Equal(newSum, pathSum) {
+		return trace.BadParameter("downloaded checksum does not match artifact digest")
+	}
+
 	// Get uncompressed size of the tgz
 	n, err := uncompressedSize(f)
 	if err != nil {
@@ -392,7 +391,16 @@ func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, url strin
 	if err != nil {
 		return trace.Wrap(err, "failed to download signature from %s", url)
 	}
-	if err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader(nil), sigopts.WithDigest(digest)); err != nil {
+	// WithDigest reuses the SHA-256 computed during download, so the verifier does
+	// not need the artifact bytes here. Use an empty reader as a safe placeholder
+	// rather than nil; upstream sigstore-go uses the same digest-only pattern:
+	// https://github.com/sigstore/sigstore-go/blob/v1.1.4/pkg/verify/signature.go#L398
+	//
+	// Sigstore documents an ECDSA malleability warning for WithDigest:
+	// https://github.com/sigstore/sigstore/blob/v1.10.5/pkg/signature/options/digest.go#L29
+	// Here the digest is computed locally from the downloaded artifact, not
+	// supplied by an untrusted source.
+	if err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte{}), sigopts.WithDigest(digest)); err != nil {
 		return trace.Wrap(err, "artifact signature verification failed")
 	}
 	return nil
