@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
@@ -158,7 +157,6 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 		})
 
 	cfg := ProxyKubeServerWatcherConfig{
-		Component:        teleport.ComponentProxy,
 		AccessPoint:      primary,
 		FallbackGetter:   fallback,
 		MaxRetryPeriod:   time.Second * 10,
@@ -267,7 +265,6 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	primary.On("NewWatcher", mock.Anything, mock.Anything).Return(fw, nil).WaitUntil(watcherReady).Once()
 
 	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
-		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
 		FallbackGetter: fallback,
 		PrimaryTimeout: time.Second,
@@ -345,7 +342,6 @@ func proxyKubeServerWatcherFetchAndInitializeStateAppliesQueuedEventsSynctest(t 
 		}, nil).WaitUntil(unblockFetch).Once()
 
 	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
-		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
 		FallbackGetter: fallback,
 		PrimaryTimeout: time.Second,
@@ -407,7 +403,6 @@ func testWatcherUnknownEventsHardFaultSynctest(t *testing.T) {
 	primary.On("NewWatcher", mock.Anything, mock.Anything).Return(fw, nil).WaitUntil(watcherReady).Once()
 
 	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
-		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
 		FallbackGetter: fallback,
 		PrimaryTimeout: time.Second,
@@ -463,7 +458,6 @@ func testProxyKubeServerWatcherRetryWatchAfterTimeoutSynctest(t *testing.T) {
 		Return([]types.KubeServer{}, nil).Twice()
 
 	w, _ := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
-		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
 		FallbackGetter: fallback,
 		PrimaryTimeout: 10 * time.Second,
@@ -520,7 +514,6 @@ func testProxyKubeServerWatcherRecoversAfterTimeoutSynctest(t *testing.T) {
 	)
 
 	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
-		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
 		FallbackGetter: fallback,
 		PrimaryTimeout: 20 * time.Millisecond,
@@ -562,7 +555,6 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 	)
 
 	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
-		Component:        teleport.ComponentProxy,
 		AccessPoint:      primary,
 		FallbackGetter:   fallback,
 		PrimaryTimeout:   time.Second,
@@ -746,7 +738,6 @@ func testProxyKubeServerWatcherDiscardsBadInitEventSynctest(t *testing.T) {
 	)
 
 	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
-		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
 		FallbackGetter: fallback,
 	})
@@ -792,7 +783,6 @@ func testProxyKubeServerWatcherRecoversFromFirstFetchFailSynctest(t *testing.T) 
 	)
 
 	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
-		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
 		FallbackGetter: fallback,
 	})

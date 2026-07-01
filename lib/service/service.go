@@ -6103,7 +6103,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// and feed them to the kube proxy server so it can route the requests to
 		// the correct kubernetes server.
 		kubeServerWatcher, err := kubewatcher.NewProxyKubeServerWatcher(process.ExitContext(), kubewatcher.ProxyKubeServerWatcherConfig{
-			Component:      component,
 			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 			AccessPoint:    accessPoint,
 			FallbackGetter: conn.Client, // use auth client as a fallback

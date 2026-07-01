@@ -34,6 +34,7 @@ import (
 )
 
 const eventBufferSize = 128
+const componentName = "kube_server_watcher"
 
 // KubernetesServerGetter defines interface for fetching kubernetes server resources.
 type KubernetesServerGetter interface {
@@ -49,9 +50,6 @@ type KubeServerWatcherGetter interface {
 // ProxyKubeServerWatcherConfig is the configuration struct for [ProxyKubeServerWatcher].
 type ProxyKubeServerWatcherConfig struct {
 	Logger *slog.Logger
-
-	// Component is a component used in logs.
-	Component string
 
 	// MaxRetryPeriod is the maximum retry duration for watcher backoff.
 	MaxRetryPeriod time.Duration
@@ -74,14 +72,6 @@ func (cfg *ProxyKubeServerWatcherConfig) CheckAndSetDefaults() error {
 	const defaultPrimaryTimeout = time.Minute
 	const defaultFallbackInterval = time.Minute
 
-	// Check component defensively to prevent creating this watcher for anything but the proxy.
-	switch cfg.Component {
-	case teleport.ComponentProxy,
-		teleport.ComponentKube,
-		teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube):
-	default:
-		return trace.BadParameter("unsupported component %q", cfg.Component)
-	}
 	if cfg.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
 	}
@@ -90,7 +80,7 @@ func (cfg *ProxyKubeServerWatcherConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(cfg.Component, "kube_server_watcher"))
+		cfg.Logger = slog.With(teleport.ComponentKey, componentName)
 	}
 	if cfg.MaxRetryPeriod <= 0 {
 		cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
@@ -249,8 +239,8 @@ func fillEventBuf(ctx context.Context, buf []types.Event, w types.Watcher, maxSi
 // createWatcherAndInit creates a new watcher and waits for the initial event to mark the watcher as initialized.
 func (w *ProxyKubeServerWatcher) createWatcherAndInit() (types.Watcher, error) {
 	watcher, err := w.AccessPoint.NewWatcher(w.ctx, types.Watch{
-		Name:            w.Component,
-		MetricComponent: w.Component,
+		Name:            componentName,
+		MetricComponent: componentName,
 		Kinds:           []types.WatchKind{{Kind: types.KindKubeServer}},
 	})
 	if err != nil {
