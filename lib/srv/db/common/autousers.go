@@ -111,6 +111,13 @@ func (a *UserProvisioner) Teardown(ctx context.Context, sessionCtx *Session) err
 		err = a.deactivate(ctx, sessionCtx)
 	case types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP:
 		err = a.delete(ctx, sessionCtx)
+	case types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_REASSIGN_AND_DROP:
+		dbProtocol := sessionCtx.Database.GetProtocol()
+		dbType := sessionCtx.Database.GetType()
+		if dbProtocol != defaults.ProtocolPostgres || dbType != types.DatabaseTypeSelfHosted {
+			a.Log.WarnContext(ctx, "best_effort_reassign_and_drop is supported only by self-hosted postgres. Falling back to best_effort_drop.", "database_protocol", dbProtocol, "database_type", dbType)
+		}
+		err = a.delete(ctx, sessionCtx)
 	}
 
 	return trace.Wrap(err)

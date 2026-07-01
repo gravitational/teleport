@@ -352,7 +352,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	// removal may yield errors, but we will still attempt to delete the user.
 	errRemove := trace.Wrap(e.removePermissions(ctx, sessionCtx))
 
-	conn, err := e.connectAsAdminDefaultDatabase(ctx, sessionCtx)
+	conn, err := e.connectAsAdminSessionDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
@@ -360,12 +360,19 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 
 	logger := e.Log.With("user", sessionCtx.DatabaseUser)
 	logger.InfoContext(ctx, "Deleting PostgreSQL user.")
+
 	err = withRetry(ctx, logger, func() error {
 		err := e.createProcedures(ctx, sessionCtx, conn, []string{deleteProcName, deactivateProcName})
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	objectInheritor := ""
+	if sessionCtx.AutoCreateUserMode == types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_REASSIGN_AND_DROP &&
+		sessionCtx.Database.GetType() == types.DatabaseTypeSelfHosted {
+		objectInheritor = teleportObjectInheritorRole
 	}
 
 	var state string
@@ -378,7 +385,8 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			return trace.Wrap(conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state))
+			row := conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser, objectInheritor)
+			return trace.Wrap(row.Scan(&state))
 		}
 	})
 	if err != nil {
@@ -407,7 +415,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 // into the returned error instead of doing this on state returned (like regular
 // PostgreSQL).
 func (e *Engine) deleteUserRedshift(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, state *string) error {
-	err := e.callProcedure(ctx, sessionCtx, conn, deleteProcName, sessionCtx.DatabaseUser)
+	err := e.callProcedure(ctx, sessionCtx, conn, deleteProcName, sessionCtx.DatabaseUser, "")
 	if err == nil {
 		*state = common.SQLStateUserDropped
 		return nil
@@ -596,6 +604,10 @@ const (
 	// teleportAutoUserRole is the name of a PostgreSQL role that all Teleport
 	// managed users will be a part of.
 	teleportAutoUserRole = "teleport-auto-user"
+	// teleportObjectInheritorRole is a PostgreSQL role that receives ownership of
+	// database resources when an auto-provisioned user's session ends and
+	// create_db_user_mode is best_effort_reassign_and_drop.
+	teleportObjectInheritorRole = "teleport-object-inheritor"
 )
 
 var (
@@ -615,7 +627,7 @@ var (
 	deleteProc string
 	// deleteProcCall contains the procedure name and arguments used to call
 	// the delete user procedure.
-	deleteProcCall = fmt.Sprintf(`%v($1)`, deleteProcName)
+	deleteProcCall = fmt.Sprintf(`%v($1, $2)`, deleteProcName)
 
 	//go:embed sql/redshift-activate-user.sql
 	redshiftActivateProc string
