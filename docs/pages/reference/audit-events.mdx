@@ -3633,6 +3633,58 @@ Example:
 }
 ```
 
+## device.enroll_pairing.request
+
+There are multiple events with the `device.enroll_pairing.request` type.
+
+### TV010I
+
+Device Enroll Pairing Requested
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV010I",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "device_id": "",
+    "os_type": 4
+  },
+  "ei": 0,
+  "event": "device.enroll_pairing.request",
+  "success": true,
+  "time": "2024-04-08T19:37:48.1Z",
+  "uid": "a7b3e9f1-4d5c-6a8b-9012-def345678901",
+  "user": "llama"
+}
+```
+
+### TV010W
+
+Device Enroll Pairing Request Failed
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV010W",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "device_id": "",
+    "os_type": 4
+  },
+  "ei": 0,
+  "error": "invalid pairing token",
+  "event": "device.enroll_pairing.request",
+  "success": false,
+  "time": "2024-04-08T19:38:48.1Z",
+  "uid": "a7b3e9f1-4d5c-6a8b-9012-def345678902"
+}
+```
+
 ## device.token.create
 
 Device Enroll Token Created
