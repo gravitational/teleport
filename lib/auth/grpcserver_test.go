@@ -5888,7 +5888,8 @@ func TestApplicationServerHeartbeatLowercase(t *testing.T) {
 
 	ctx := t.Context()
 	server := newTestTLSServer(t)
-	agent := authtest.TestBuiltin(types.RoleApp)
+	// The RoleApp identity's host ID must match the app server's HostID.
+	agent := authtest.TestServerID(types.RoleApp, "host-id")
 	client, err := server.NewClient(agent)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
