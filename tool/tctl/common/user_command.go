@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/gcp"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -77,6 +79,9 @@ type UserCommand struct {
 
 	// format is the output format, e.g. text, json, or yaml.
 	format string
+
+	// stdout allows switching the standard output source. Useful in tests.
+	stdout io.Writer
 
 	userAdd           *kingpin.CmdClause
 	userUpdate        *kingpin.CmdClause
@@ -160,6 +165,10 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.ChangePasswordTokenTTL)).DurationVar(&u.ttl)
 	u.userResetPassword.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
+
+	if u.stdout == nil {
+		u.stdout = os.Stdout
+	}
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
@@ -232,15 +241,22 @@ func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.UserToken) err
 	return nil
 }
 
+func (u *UserCommand) outputWriter() io.Writer {
+	if u.stdout != nil {
+		return u.stdout
+	}
+	return os.Stdout
+}
+
 // PrintResetPasswordToken prints ResetPasswordToken
 func (u *UserCommand) printResetPasswordToken(token types.UserToken, messageFormat string) (err error) {
 	switch strings.ToLower(u.format) {
 	case teleport.JSON:
-		err = printTokenAsJSON(token)
+		err = printTokenAsJSON(u.outputWriter(), token)
 	case teleport.YAML:
-		err = printTokenAsYAML(token)
+		err = printTokenAsYAML(u.outputWriter(), token)
 	case teleport.Text:
-		err = printTokenAsText(token, messageFormat)
+		err = printTokenAsText(u.outputWriter(), token, messageFormat)
 	default:
 		err = trace.BadParameter("unknown format %q", u.format)
 	}
@@ -332,7 +348,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 
 	if _, err := client.CreateUser(ctx, user); err != nil {
 		if trace.IsAlreadyExists(err) {
-			fmt.Printf(`NOTE: To update an existing local user:
+			fmt.Fprintf(u.outputWriter(), `NOTE: To update an existing local user:
 > tctl users update %v --set-roles %v # replace roles
 
 `, u.login, strings.Join(u.allowedRoles, ","))
@@ -367,28 +383,34 @@ func flattenSlice(slice []string) (retval []string) {
 	return retval
 }
 
-func printTokenAsJSON(token types.UserToken) error {
+func printTokenAsJSON(w io.Writer, token types.UserToken) error {
 	out, err := json.MarshalIndent(token, "", "  ")
 	if err != nil {
 		return trace.Wrap(err, "failed to marshal reset password token")
 	}
-	fmt.Print(string(out))
+	if _, err := fmt.Fprint(w, string(out)); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
-func printTokenAsYAML(token types.UserToken) error {
-	return trace.Wrap(utils.WriteYAML(os.Stdout, token), "failed to marshal reset password token")
+func printTokenAsYAML(w io.Writer, token types.UserToken) error {
+	return trace.Wrap(utils.WriteYAML(w, token), "failed to marshal reset password token")
 }
 
-func printTokenAsText(token types.UserToken, messageFormat string) error {
+func printTokenAsText(w io.Writer, token types.UserToken, messageFormat string) error {
 	url, err := url.Parse(token.GetURL())
 	if err != nil {
 		return trace.Wrap(err, "failed to parse reset password token url")
 	}
 
 	ttl := trimDurationZeroSuffix(token.Expiry().Sub(time.Now().UTC()))
-	fmt.Printf(messageFormat, token.GetUser(), ttl, url)
-	fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
+	if _, err := fmt.Fprintf(w, messageFormat, token.GetUser(), ttl, url); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := fmt.Fprintf(w, "NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -520,9 +542,9 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 	if _, err := client.UpsertUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("User %v has been updated:\n", user.GetName())
+	fmt.Fprintf(u.outputWriter(), "User %v has been updated:\n", user.GetName())
 	for field, values := range updateMessages {
-		fmt.Printf("\tNew %v: %v\n", field, strings.Join(values, ","))
+		fmt.Fprintf(u.outputWriter(), "\tNew %v: %v\n", field, strings.Join(values, ","))
 	}
 	return nil
 }
@@ -537,23 +559,25 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 	switch u.format {
 	case teleport.Text:
 		if len(users) == 0 {
-			fmt.Println("No users found")
+			fmt.Fprintln(u.outputWriter(), "No users found")
 			return nil
 		}
 		t := asciitable.MakeTable([]string{"User", "Roles"})
-		for _, u := range users {
+		for _, user := range users {
+			display := user.GetDisplay()
 			t.AddRow([]string{
-				u.GetName(), strings.Join(u.GetRoles(), ","),
+				toolcommon.FormatUserDisplay(display.Primary, display.Secondary, user.GetName()),
+				strings.Join(user.GetRoles(), ","),
 			})
 		}
-		fmt.Println(t.AsBuffer().String())
+		fmt.Fprintln(u.outputWriter(), t.AsBuffer().String())
 	case teleport.JSON:
-		err := utils.WriteJSONArray(os.Stdout, users)
+		err := utils.WriteJSONArray(u.outputWriter(), users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
 	case teleport.YAML:
-		err := utils.WriteYAML(os.Stdout, users)
+		err := utils.WriteYAML(u.outputWriter(), users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
@@ -570,7 +594,7 @@ func (u *UserCommand) Delete(ctx context.Context, client *authclient.Client) err
 		if err := client.DeleteUser(ctx, l); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("User %q has been deleted\n", l)
+		fmt.Fprintf(u.outputWriter(), "User %q has been deleted\n", l)
 	}
 	return nil
 }
