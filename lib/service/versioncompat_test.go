@@ -61,7 +61,7 @@ func TestCheckClientMeetsMinVersion(t *testing.T) {
 			minVersion:    "2.0.0-aa",
 			assertErr: func(t require.TestingT, err error, _ ...any) {
 				requireClientTooOld(t, err)
-				require.Contains(t, err.Error(), "minimum v2.0.0)")
+				require.Contains(t, err.Error(), "minimum version of v2.0.0.")
 			},
 		},
 		{
@@ -133,7 +133,7 @@ func TestCheckClientMeetsMaxVersion(t *testing.T) {
 			serverVersion: "2.0.0",
 			assertErr: func(t require.TestingT, err error, _ ...any) {
 				requireClientTooNew(t, err)
-				require.Contains(t, err.Error(), "supports clients on v2 or v1")
+				require.Contains(t, err.Error(), "supports instances on v2 or v1")
 			},
 		},
 		{

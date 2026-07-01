@@ -37,7 +37,7 @@ type clientTooOldError struct {
 }
 
 func (e *clientTooOldError) Error() string {
-	return fmt.Sprintf("this client is older than the minimum supported version required by the cluster and will not be able to connect until it is upgraded (client v%s, minimum v%s). To connect anyway pass the --skip-version-check flag.", e.ClientVersion, e.MinVersion)
+	return fmt.Sprintf("Teleport instance is too old. This instance is running v%s. The server requires a minimum version of v%s. To connect anyway pass the --skip-version-check flag.", e.ClientVersion, e.MinVersion)
 }
 
 // clientTooNewError indicates this client is a newer major version than the cluster.
@@ -47,7 +47,7 @@ type clientTooNewError struct {
 }
 
 func (e *clientTooNewError) Error() string {
-	return fmt.Sprintf("this client is running v%d, but the cluster is running v%d and only supports clients on v%d or v%d. To connect anyway pass the --skip-version-check flag.", e.LocalMajorVersion, e.ClusterMajorVersion, e.ClusterMajorVersion, e.ClusterMajorVersion-1)
+	return fmt.Sprintf("Teleport instance is too new. This instance is running v%d. The server is running v%d and only supports instances on v%d or v%d. To connect anyway pass the --skip-version-check flag.", e.LocalMajorVersion, e.ClusterMajorVersion, e.ClusterMajorVersion, e.ClusterMajorVersion-1)
 }
 
 // isVersionIncompatible reports whether err indicates this client's version is
@@ -76,17 +76,17 @@ func (process *TeleportProcess) enforceVersionPolicy(ctx context.Context, info j
 				"error", err,
 				"min_client_version", info.MinClientVersion,
 				"server_version", info.ServerVersion,
-				"client_version", teleport.Version,
+				"instance_version", teleport.Version,
 			)
 			continue
 		}
 		if process.Config.SkipVersionCheck {
 			process.logger.WarnContext(ctx,
-				"Client version is incompatible with the cluster, continuing anyway because --skip-version-check flag was provided.",
+				"Instance version is incompatible with the cluster, continuing anyway because --skip-version-check flag was provided.",
 				"error", err,
 				"min_client_version", info.MinClientVersion,
 				"server_version", info.ServerVersion,
-				"client_version", teleport.Version,
+				"instance_version", teleport.Version,
 			)
 			continue
 		}
