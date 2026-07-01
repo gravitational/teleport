@@ -131,7 +131,16 @@ func ResolveFQDN(
 	// Try and match FQDN to public address of application within cluster.
 	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(fqdn))
 	if err == nil && len(servers) > 0 {
-		return pickAppServer(servers, canAccess), localClusterName, nil
+		srv := pickAppServer(servers, canAccess)
+		// A scoped app is addressed as <hash>.<proxy> and its hashed subdomain matches regardless of the
+		// suffix, so confirm the FQDN actually sits under a configured proxy DNS name before trusting a
+		// scoped match, otherwise "<hash>.somewebsite.com" resolves.
+		if srv.GetApp().GetScope() != "" {
+			if proxyPublicAddr := utils.FindMatchingProxyDNS(fqdn, proxyDNSNames); !strings.HasSuffix(fqdn, proxyPublicAddr) {
+				return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
+			}
+		}
+		return srv, localClusterName, nil
 	}
 
 	proxyPublicAddr := utils.FindMatchingProxyDNS(fqdn, proxyDNSNames)
