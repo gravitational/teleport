@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -423,8 +422,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// Ensure watcher has the correct list of clusters.
 	require.Eventually(t, func() bool {
-		kubeServers, err := kubeServersWatcher.CurrentResourcesWithFilter(ctx, func(readonly.KubeServer) bool { return true })
-		return err == nil && len(kubeServers) == len(cfg.Clusters)
+		return kubeServersWatcher.ResourceCount() == len(cfg.Clusters)
 	}, 3*time.Second, time.Millisecond*100)
 
 	return testCtx

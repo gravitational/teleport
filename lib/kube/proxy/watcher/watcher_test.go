@@ -189,6 +189,7 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, srvs, 1)
 	require.Equal(t, "foo", srvs[0].GetName())
+	require.Equal(t, 1, w.ResourceCount())
 
 	time.Sleep(cfg.FallbackInterval + time.Second)
 
@@ -291,6 +292,7 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	resources, err = w.CurrentResourcesWithFilter(ctx, noopFilter)
 	require.NoError(t, err)
 	require.Len(t, resources, 2)
+	require.Equal(t, 2, w.ResourceCount())
 
 	// Test that incorrect resource kinds are ignored.
 	fw.send(types.Event{Type: types.OpPut, Resource: &types.DatabaseServerV3{Kind: "oops"}})
@@ -307,6 +309,7 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
 	require.Equal(t, "initial", resources[0].GetName())
+	require.Equal(t, 1, w.ResourceCount())
 
 	primary.AssertExpectations(t)
 	fallback.AssertExpectations(t)

@@ -551,3 +551,10 @@ func (w *ProxyKubeServerWatcher) CurrentResourcesWithFilter(ctx context.Context,
 
 	return out, nil
 }
+
+// ResourceCount returns the number of resources currently known to the watcher. It does not trigger a stale reread, only returns the number of known items.
+func (w *ProxyKubeServerWatcher) ResourceCount() int {
+	w.rw.RLock()
+	defer w.rw.RUnlock()
+	return len(w.current)
+}
