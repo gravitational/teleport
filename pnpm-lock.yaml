@@ -429,6 +429,9 @@ importers:
       babel-plugin-transform-vite-meta-env:
         specifier: ^1.0.3
         version: 1.0.3
+      babel-plugin-transform-vite-meta-hot:
+        specifier: ^1.0.0
+        version: 1.0.0
       jest-websocket-mock:
         specifier: ^2.5.0
         version: 2.5.0
@@ -4768,6 +4771,9 @@ packages:
 
   babel-plugin-transform-vite-meta-env@1.0.3:
     resolution: {integrity: sha512-eyfuDEXrMu667TQpmctHeTlJrZA6jXYHyEJFjcM0yEa60LS/LXlOg2PBbMb8DVS+V9CnTj/j9itdlDVMcY2zEg==}
+
+  babel-plugin-transform-vite-meta-hot@1.0.0:
+    resolution: {integrity: sha512-qF7T46bDG5UPPOfy4MFgQJyd3mZvm1sGOR2gZ4lIHy6DEcxAVTIt39/adAn89il44CvwestshuEybKPMR+L/Tg==}
 
   babel-preset-current-node-syntax@1.2.0:
     resolution: {integrity: sha512-E/VlAEzRrsLEb2+dv8yp3bo4scof3l9nR4lrld+Iy5NyVqgVYUJnDAmunkhPMisRI32Qc4iRiz425d8vM++2fg==}
@@ -13048,6 +13054,11 @@ snapshots:
       tslib: 2.8.1
 
   babel-plugin-transform-vite-meta-env@1.0.3:
+    dependencies:
+      '@babel/runtime': 7.29.7
+      '@types/babel__core': 7.20.5
+
+  babel-plugin-transform-vite-meta-hot@1.0.0:
     dependencies:
       '@babel/runtime': 7.29.7
       '@types/babel__core': 7.20.5
