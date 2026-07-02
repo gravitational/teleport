@@ -160,6 +160,13 @@ func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) e
 // See https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
 const maxPartsPerUpload = 10000
 
+// AbortUpload aborts a multipart upload, cleaning up any parts that
+// were uploaded. This prevents the periodic completer from finalizing
+// a truncated recording after part failures.
+func (h *Handler) AbortUpload(ctx context.Context, upload events.StreamUpload) error {
+	return h.abortUpload(ctx, upload)
+}
+
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
 	if len(parts) == 0 {
