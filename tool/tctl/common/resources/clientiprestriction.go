@@ -37,11 +37,11 @@ func getClientIPRestriction(ctx context.Context, client *authclient.Client, ref 
 	if err := checkClientIPRestrictionName(ref); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cir, err := client.ClientIPRestrictionClient().GetClientIPRestriction(ctx, &clientiprestrictionv1.GetClientIPRestrictionRequest{})
+	resp, err := client.ClientIPRestrictionClient().GetClientIPRestriction(ctx, &clientiprestrictionv1.GetClientIPRestrictionRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &clientIPRestrictionCollection{cir}, nil
+	return &clientIPRestrictionCollection{resp.GetClientIpRestriction()}, nil
 }
 
 // checkClientIPRestrictionName ensures a requested resource name, if any,
