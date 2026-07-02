@@ -5,6 +5,7 @@ process.env.TZ = 'UTC';
 const esModules = [
   'strip-ansi',
   'ansi-regex',
+  'cookie-es',
   'd3-color',
   'd3-scale',
   'd3-interpolate',
