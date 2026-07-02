@@ -68,6 +68,17 @@ type JoinState struct {
 	// if recovery limits are enforced and the remaining attempts are below some
 	// threshold.
 	RecoveryMode string `json:"recovery_mode"`
+
+	// BotScope is the scope of the bot this join state was issued for, if the
+	// bot is scoped. Bots are namespaced by scope, so the JWT subject (the
+	// bare bot name) alone does not uniquely identify a bot; this claim
+	// qualifies it. Empty for unscoped bots and for non-bot agents.
+	//
+	// TODO(strideynet): discuss with timothyb89 whether the JWT subject
+	// should instead carry the bot's scope-qualified name
+	// (`<scope>::<name>`), which may be more semantic than qualifying the
+	// bare-name subject with a separate scope claim.
+	BotScope string `json:"bot_scope,omitempty"`
 }
 
 // JoinStateParams contains parameters for issuing and verifying join state
@@ -89,9 +100,9 @@ func (p *JoinStateParams) GetSubject() (string, error) {
 	botName, _ := p.Token.GetBot()
 	switch {
 	case botName != "":
-		// TODO(strideynet): the bare bot name is only a unique identifier
-		// while bots are globally namespaced. Revisit the subject for scoped
-		// bots once bot users are namespaced by scope.
+		// Bots are namespaced by scope, so the bare bot name alone does not
+		// uniquely identify a bot; the bot's scope is carried and verified
+		// separately via the BotScope claim.
 		return botName, nil
 	case p.HostID != "":
 		return p.HostID, nil
@@ -121,6 +132,7 @@ func IssueJoinState(signer crypto.Signer, params *JoinStateParams) (string, erro
 		return "", trace.Wrap(err)
 	}
 
+	_, botScope := params.Token.GetBot()
 	state := &JoinState{
 		Claims: &jwt.Claims{
 			// We'll reuse the challengeNotBeforeOffset here; the value is sane
@@ -140,6 +152,7 @@ func IssueJoinState(signer crypto.Signer, params *JoinStateParams) (string, erro
 		RecoverySequence: status.RecoveryCount,
 		RecoveryLimit:    spec.Recovery.Limit,
 		RecoveryMode:     spec.Recovery.Mode,
+		BotScope:         botScope,
 	}
 
 	// Derive the key ID for inclusion in the header.
@@ -209,6 +222,9 @@ func verifyJoinStateInner(key crypto.PublicKey, parsed *jwt.JSONWebToken, params
 	}
 	if document.HostID != params.Token.GetBoundKeypairStatus().BoundHostID {
 		errors = append(errors, trace.AccessDenied("host mismatch"))
+	}
+	if _, botScope := params.Token.GetBot(); document.BotScope != botScope {
+		errors = append(errors, trace.AccessDenied("bot scope mismatch"))
 	}
 
 	if len(errors) > 0 {

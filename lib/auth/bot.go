@@ -313,6 +313,11 @@ func shouldEnforceGenerationCounter(renewable bool, joinMethod string) bool {
 // updateBotInstance updates the bot instance associated with the context
 // identity, if any. If the optional `templateAuthRecord` is provided, various
 // metadata fields will be copied into the newly generated auth record.
+//
+// TODO(strideynet): the BotInstance store is keyed on the bare bot name and is
+// not yet scope-namespaced, so instances of same-named bots in different
+// scopes share a store prefix. Once the store is scope-namespaced, the
+// Get/Create/Patch calls in this function must key on the scoped identifier.
 func (a *Server) updateBotInstance(
 	ctx context.Context, req *cert.Request,
 	username, botName, botInstanceID string,
@@ -632,6 +637,10 @@ func (a *Server) generateInitialBotCerts(
 
 		initialAuth.SetGeneration(1)
 
+		// TODO(strideynet): the BotInstance store is keyed on the bare bot
+		// name and is not yet scope-namespaced. Once the store is
+		// scope-namespaced, this must create the instance under the scoped
+		// identifier.
 		bi := newBotInstance(machineidv1pb.BotInstanceSpec_builder{
 			BotName:            botName,
 			InstanceId:         uuid.String(),

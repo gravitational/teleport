@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	libboundkeypair "github.com/gravitational/teleport/lib/auth/join/boundkeypair"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -1932,6 +1931,23 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 
 	createScopedBot(t, srv, adminClient)
 
+	// Also create an *unscoped* bot with the same name as the scoped bot. Bots
+	// are namespaced by scope, so the two coexist; the join below must select
+	// the scoped bot's user, not this one.
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "test-scoped",
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
+				Roles: []string{"example"},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
 	scopedToken := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
@@ -1981,6 +1997,14 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	firstInstance, generation := testExtractBotParamsFromCerts(t, joinResult.Certs)
 	require.Equal(t, uint64(1), generation)
 
+	// The issued identity must be backed by the scoped bot's user, not the
+	// same-named unscoped bot's.
+	parsedCert, err := tlsca.ParseCertificatePEM(joinResult.Certs.TLS)
+	require.NoError(t, err)
+	certIdentity, err := tlsca.FromSubject(parsedCert.Subject, parsedCert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, "bot-++test+test-scoped", certIdentity.Username)
+
 	// The BotInstance should have the scope set.
 	botInstance, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
 		BotName:    "test-scoped",
@@ -2011,7 +2035,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 				BotInstanceID: firstInstance,
 				TokenName:     scopedToken.GetMetadata().GetName(),
 				Method:        scopedToken.GetSpec().GetJoinMethod(),
-				UserName:      machineidv1.BotResourceName(sqn.Name),
+				UserName:      "bot-++test+test-scoped",
 				BotName:       sqn.Name,
 				Scope:         sqn.Scope,
 			},
