@@ -764,7 +764,7 @@ func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
 // prepareRemoteSession prepares the remote session with env vars provided by the forwarding server or client.
 func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *tracessh.Session, scx *ServerContext) {
 	envs := map[string]string{
-		teleport.SSHTeleportUser:        scx.Identity.TeleportUser,
+		teleport.SSHTeleportUser:        scx.Identity.UnmappedIdentity.Username,
 		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
 		teleport.SSHTeleportClusterName: scx.ClusterName,
 		teleport.SSHSessionID:           scx.SessionID(),

@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type startTestCase struct {
@@ -418,6 +419,25 @@ func successSameUserJoinTestCase(t *testing.T) joinTestCase {
 	}
 }
 
+func failCrossClusterUsernameCollisionJoinTestCase(t *testing.T) joinTestCase {
+	hostRole, err := types.NewRole("host", types.RoleSpecV6{})
+	require.NoError(t, err)
+	participantRole, err := types.NewRole("participant", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	return joinTestCase{
+		name:         "failCrossClusterUsernameCollision",
+		host:         hostRole,
+		sessionKinds: []types.SessionKind{types.SSHSessionKind},
+		participant: SessionAccessContext{
+			Username: "john",
+			Roles:    []types.Role{participantRole},
+		},
+		owner:    services.UsernameForRemoteCluster("john", "root.example.com"),
+		expected: []bool{false},
+	}
+}
+
 func failRoleJoinTestCase(t *testing.T) joinTestCase {
 	hostRole, err := types.NewRole("host", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -523,6 +543,7 @@ func TestSessionAccessJoin(t *testing.T) {
 		successJoinTestCase(t),
 		successGlobJoinTestCase(t),
 		successSameUserJoinTestCase(t),
+		failCrossClusterUsernameCollisionJoinTestCase(t),
 		failRoleJoinTestCase(t),
 		failKindJoinTestCase(t),
 		failJoinRoleNameInSubstringTestCase(t),

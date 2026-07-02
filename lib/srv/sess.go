@@ -1252,27 +1252,13 @@ func (s *session) emitSessionEndEvent() {
 	}
 
 	for _, p := range s.participants {
-		username := services.UsernameForCluster(
-			services.UsernameForClusterConfig{
-				User:              p.user,
-				OriginClusterName: p.originCluster,
-				LocalClusterName:  ctx.ClusterName,
-			},
-		)
-		sessionEndEvent.Participants = append(sessionEndEvent.Participants, username)
+		sessionEndEvent.Participants = append(sessionEndEvent.Participants, p.user)
 	}
 
 	// If there are 0 participants, this is an exec session.
 	// Use the user from the session context.
 	if len(s.participants) == 0 {
-		username := services.UsernameForCluster(
-			services.UsernameForClusterConfig{
-				User:              s.scx.Identity.TeleportUser,
-				OriginClusterName: s.scx.Identity.OriginClusterName,
-				LocalClusterName:  ctx.ClusterName,
-			},
-		)
-		sessionEndEvent.Participants = []string{username}
+		sessionEndEvent.Participants = []string{s.scx.Identity.TeleportUser}
 	}
 
 	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionEndEvent)
@@ -2044,8 +2030,7 @@ func (s *session) checkIfStartUnderLock() (bool, moderation.PolicyOptions, error
 	var participants []moderation.SessionAccessContext
 
 	for _, party := range s.parties {
-		if party.ctx.Identity.TeleportUser == s.initiator.user &&
-			party.ctx.Identity.OriginClusterName == s.initiator.cluster {
+		if party.ctx.Identity.TeleportUser == s.initiator.user && party.ctx.Identity.OriginClusterName == s.initiator.cluster {
 			continue
 		}
 
@@ -2326,7 +2311,7 @@ func (p *party) closeUnderSessionLock() error {
 // trackSession creates a new session tracker for the ssh session.
 // While ctx is open, the session tracker's expiration will be extended
 // on an interval until the session tracker is closed.
-func (s *session) trackSession(ctx context.Context, teleportUser string, policySet []*types.SessionTrackerPolicySet, p *party, sessType sessionType) error {
+func (s *session) trackSession(ctx context.Context, hostUser string, policySet []*types.SessionTrackerPolicySet, p *party, sessType sessionType) error {
 	s.logger.DebugContext(ctx, "Tracking participant.", "party", p)
 	var initialCommand []string
 	if execRequest, err := s.scx.GetExecRequest(); err == nil {
@@ -2340,7 +2325,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		Address:      s.scx.srv.ID(),
 		ClusterName:  s.scx.ClusterName,
 		Login:        s.login,
-		HostUser:     teleportUser,
+		HostUser:     hostUser,
 		HostPolicies: policySet,
 		Created:      s.registry.clock.Now().UTC(),
 		Participants: []types.Participant{
