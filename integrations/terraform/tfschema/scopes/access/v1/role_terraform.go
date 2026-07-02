@@ -2026,6 +2026,12 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 
 // CopyScopedRoleToTerraform copies contents of the source Terraform object into a target struct
 func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRole, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyScopedRoleToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyScopedRoleToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRole, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -2054,7 +2060,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -2080,7 +2088,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -2106,7 +2116,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -2159,7 +2171,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -2185,7 +2199,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -2211,7 +2227,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -2257,18 +2275,24 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -2295,7 +2319,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.Scope)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["scope"] = v
 		}
 	}
@@ -2351,7 +2377,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 								{
 									t := o.ElemType
 									if len(obj.AssignableScopes) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AssignableScopes))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AssignableScopes))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.AssignableScopes {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2371,12 +2399,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["assignable_scopes"] = c
 							}
 						}
@@ -2430,7 +2462,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 											v.Null = false
 											v.Value = string(obj.ClientIdleTimeout)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["client_idle_timeout"] = v
 										}
 									}
@@ -2483,12 +2517,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 															v.Null = false
 															v.Value = string(obj.Mode)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["mode"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["session_recording"] = v
 											}
 										}
@@ -2518,7 +2556,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												v.Null = false
 												v.Value = bool(*obj.DisconnectExpiredCert)
 											}
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["disconnect_expired_cert"] = v
 										}
 									}
@@ -2571,18 +2611,24 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 															v.Null = false
 															v.Value = string(obj.Mode)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["mode"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["lock"] = v
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["defaults"] = v
 							}
 						}
@@ -2612,7 +2658,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Rules) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Rules))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Rules))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Rules {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -2658,7 +2706,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 														{
 															t := o.ElemType
 															if len(obj.Resources) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Resources))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Resources))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Resources {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2678,12 +2728,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["resources"] = c
 													}
 												}
@@ -2713,7 +2767,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 														{
 															t := o.ElemType
 															if len(obj.Verbs) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Verbs))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Verbs))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Verbs {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2733,23 +2789,31 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["verbs"] = c
 													}
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["rules"] = c
 							}
 						}
@@ -2806,7 +2870,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													t := o.ElemType
 													if len(obj.Logins) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Logins))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Logins))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Logins {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2826,12 +2892,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["logins"] = c
 											}
 										}
@@ -2861,7 +2931,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Labels) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Labels {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -2904,7 +2976,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Name)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["name"] = v
 																}
 															}
@@ -2933,7 +3007,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2953,23 +3029,31 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["labels"] = c
 											}
 										}
@@ -2996,7 +3080,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 											v.Null = false
 											v.Value = string(obj.ClientIdleTimeout)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["client_idle_timeout"] = v
 										}
 									}
@@ -3025,7 +3111,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												v.Null = false
 												v.Value = bool(*obj.PermitX11Forwarding)
 											}
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["permit_x11_forwarding"] = v
 										}
 									}
@@ -3054,7 +3142,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												v.Null = false
 												v.Value = bool(*obj.ForwardAgent)
 											}
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["forward_agent"] = v
 										}
 									}
@@ -3137,12 +3227,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																				v.Null = false
 																				v.Value = bool(*obj.Enabled)
 																			}
-																			v.Unknown = false
+																			if !preserveUnknown {
+																				v.Unknown = false
+																			}
 																			tf.Attrs["enabled"] = v
 																		}
 																	}
 																}
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																tf.Attrs["local"] = v
 															}
 														}
@@ -3199,18 +3293,24 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																				v.Null = false
 																				v.Value = bool(*obj.Enabled)
 																			}
-																			v.Unknown = false
+																			if !preserveUnknown {
+																				v.Unknown = false
+																			}
 																			tf.Attrs["enabled"] = v
 																		}
 																	}
 																}
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																tf.Attrs["remote"] = v
 															}
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["port_forwarding"] = v
 											}
 										}
@@ -3264,7 +3364,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 															v.Null = false
 															v.Value = string(obj.Mode)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["mode"] = v
 														}
 													}
@@ -3293,7 +3395,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																{
 																	t := o.ElemType
 																	if len(obj.Groups) != len(c.Elems) {
-																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
+																		newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
+																		copy(newElems, c.Elems)
+																		c.Elems = newElems
 																	}
 																	for k, a := range obj.Groups {
 																		v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -3313,12 +3417,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																		v.Null = false
 																		v.Value = string(a)
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		c.Elems[k] = v
 																	}
 																}
 																c.Null = false
-																c.Unknown = false
+																if !preserveUnknown {
+																	c.Unknown = false
+																}
 																tf.Attrs["groups"] = c
 															}
 														}
@@ -3345,12 +3453,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 															v.Null = false
 															v.Value = string(obj.Shell)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["shell"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["host_user_creation"] = v
 											}
 										}
@@ -3380,7 +3492,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												v.Null = false
 												v.Value = int64(*obj.MaxSessions)
 											}
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["max_sessions"] = v
 										}
 									}
@@ -3409,7 +3523,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													t := o.ElemType
 													if len(obj.HostSudoers) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.HostSudoers))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.HostSudoers))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.HostSudoers {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -3429,12 +3545,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["host_sudoers"] = c
 											}
 										}
@@ -3464,7 +3584,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												v.Null = false
 												v.Value = bool(*obj.FileCopy)
 											}
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["file_copy"] = v
 										}
 									}
@@ -3520,7 +3642,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																v.Null = false
 																v.Value = bool(*obj.Command)
 															}
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["command"] = v
 														}
 													}
@@ -3549,7 +3673,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																v.Null = false
 																v.Value = bool(*obj.Network)
 															}
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["network"] = v
 														}
 													}
@@ -3578,12 +3704,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																v.Null = false
 																v.Value = bool(*obj.Disk)
 															}
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["disk"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["enhanced_recording"] = v
 											}
 										}
@@ -3637,12 +3767,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 															v.Null = false
 															v.Value = string(obj.Mode)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["mode"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["session_recording"] = v
 											}
 										}
@@ -3672,7 +3806,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												v.Null = false
 												v.Value = bool(*obj.DisconnectExpiredCert)
 											}
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["disconnect_expired_cert"] = v
 										}
 									}
@@ -3725,18 +3861,24 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 															v.Null = false
 															v.Value = string(obj.Mode)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["mode"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["lock"] = v
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["ssh"] = v
 							}
 						}
@@ -3793,7 +3935,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Labels) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Labels {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -3836,7 +3980,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Name)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["name"] = v
 																}
 															}
@@ -3865,7 +4011,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -3885,23 +4033,31 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["labels"] = c
 											}
 										}
@@ -3931,7 +4087,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													t := o.ElemType
 													if len(obj.Groups) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Groups {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -3951,12 +4109,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["groups"] = c
 											}
 										}
@@ -3986,7 +4148,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													t := o.ElemType
 													if len(obj.Users) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Users))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Users))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Users {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -4006,12 +4170,16 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["users"] = c
 											}
 										}
@@ -4237,7 +4405,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 											v.Null = false
 											v.Value = string(obj.ClientIdleTimeout)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["client_idle_timeout"] = v
 										}
 									}
@@ -4266,7 +4436,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												v.Null = false
 												v.Value = bool(*obj.DisconnectExpiredCert)
 											}
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["disconnect_expired_cert"] = v
 										}
 									}
@@ -4319,18 +4491,24 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 															v.Null = false
 															v.Value = string(obj.Mode)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["mode"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["lock"] = v
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["kube"] = v
 							}
 						}
@@ -4387,7 +4565,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Labels) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Labels {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -4430,7 +4610,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Name)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["name"] = v
 																}
 															}
@@ -4459,7 +4641,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -4479,29 +4663,39 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["labels"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["workload_identity"] = v
 							}
 						}
@@ -4694,7 +4888,9 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
