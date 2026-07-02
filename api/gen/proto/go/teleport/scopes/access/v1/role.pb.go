@@ -961,6 +961,8 @@ type ScopedRoleKube struct {
 	Groups []string `protobuf:"bytes,2,rep,name=groups,proto3" json:"groups,omitempty"`
 	// An optional list of impersonatable kubernetes users this role allows.
 	Users []string `protobuf:"bytes,3,rep,name=users,proto3" json:"users,omitempty"`
+	// The kubernetes resources this role grants access to.
+	Resources []*KubeResource `protobuf:"bytes,4,rep,name=resources,proto3" json:"resources,omitempty"`
 	// Overrides the defaults block idle timeout specifically for kube sessions.
 	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
 	// (or global default) applies.
@@ -1019,6 +1021,13 @@ func (x *ScopedRoleKube) GetUsers() []string {
 	return nil
 }
 
+func (x *ScopedRoleKube) GetResources() []*KubeResource {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
 func (x *ScopedRoleKube) GetClientIdleTimeout() string {
 	if x != nil {
 		return x.ClientIdleTimeout
@@ -1050,6 +1059,10 @@ func (x *ScopedRoleKube) SetGroups(v []string) {
 
 func (x *ScopedRoleKube) SetUsers(v []string) {
 	x.Users = v
+}
+
+func (x *ScopedRoleKube) SetResources(v []*KubeResource) {
+	x.Resources = v
 }
 
 func (x *ScopedRoleKube) SetClientIdleTimeout(v string) {
@@ -1095,6 +1108,8 @@ type ScopedRoleKube_builder struct {
 	Groups []string
 	// An optional list of impersonatable kubernetes users this role allows.
 	Users []string
+	// The kubernetes resources this role grants access to.
+	Resources []*KubeResource
 	// Overrides the defaults block idle timeout specifically for kube sessions.
 	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
 	// (or global default) applies.
@@ -1112,6 +1127,7 @@ func (b0 ScopedRoleKube_builder) Build() *ScopedRoleKube {
 	x.Labels = b.Labels
 	x.Groups = b.Groups
 	x.Users = b.Users
+	x.Resources = b.Resources
 	x.ClientIdleTimeout = b.ClientIdleTimeout
 	x.DisconnectExpiredCert = b.DisconnectExpiredCert
 	x.Lock = b.Lock
@@ -1843,6 +1859,130 @@ func (b0 Lock_builder) Build() *Lock {
 	return m0
 }
 
+// The kube resource identifier.
+type KubeResource struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The kube resource type.
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// The kube resource namespace. It supports wildcards.
+	Namespace string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	// The kube resource name. It supports wildcards.
+	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	// The allowed kube verbs for interacting with the kube resource.
+	Verbs []string `protobuf:"bytes,4,rep,name=verbs,proto3" json:"verbs,omitempty"`
+	// The kube API group of the kube resource. It supports wildcards.
+	ApiGroup      string `protobuf:"bytes,5,opt,name=api_group,json=apiGroup,proto3" json:"api_group,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KubeResource) Reset() {
+	*x = KubeResource{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KubeResource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KubeResource) ProtoMessage() {}
+
+func (x *KubeResource) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *KubeResource) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *KubeResource) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *KubeResource) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *KubeResource) GetVerbs() []string {
+	if x != nil {
+		return x.Verbs
+	}
+	return nil
+}
+
+func (x *KubeResource) GetApiGroup() string {
+	if x != nil {
+		return x.ApiGroup
+	}
+	return ""
+}
+
+func (x *KubeResource) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *KubeResource) SetNamespace(v string) {
+	x.Namespace = v
+}
+
+func (x *KubeResource) SetName(v string) {
+	x.Name = v
+}
+
+func (x *KubeResource) SetVerbs(v []string) {
+	x.Verbs = v
+}
+
+func (x *KubeResource) SetApiGroup(v string) {
+	x.ApiGroup = v
+}
+
+type KubeResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kube resource type.
+	Kind string
+	// The kube resource namespace. It supports wildcards.
+	Namespace string
+	// The kube resource name. It supports wildcards.
+	Name string
+	// The allowed kube verbs for interacting with the kube resource.
+	Verbs []string
+	// The kube API group of the kube resource. It supports wildcards.
+	ApiGroup string
+}
+
+func (b0 KubeResource_builder) Build() *KubeResource {
+	m0 := &KubeResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.Namespace = b.Namespace
+	x.Name = b.Name
+	x.Verbs = b.Verbs
+	x.ApiGroup = b.ApiGroup
+	return m0
+}
+
 var File_teleport_scopes_access_v1_role_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
@@ -1890,15 +2030,16 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\r_max_sessionsB\f\n" +
 	"\n" +
 	"_file_copyB\x1a\n" +
-	"\x18_disconnect_expired_cert\"\xbf\x02\n" +
+	"\x18_disconnect_expired_cert\"\xf5\x02\n" +
 	"\x0eScopedRoleKube\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12\x16\n" +
 	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
-	"\x05users\x18\x03 \x03(\tR\x05users\x12.\n" +
+	"\x05users\x18\x03 \x03(\tR\x05users\x12E\n" +
+	"\tresources\x18\x04 \x03(\v2'.teleport.scopes.access.v1.KubeResourceR\tresources\x12.\n" +
 	"\x13client_idle_timeout\x18\x05 \x01(\tR\x11clientIdleTimeout\x12;\n" +
 	"\x17disconnect_expired_cert\x18\x06 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
 	"\x04lock\x18\a \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
-	"\x18_disconnect_expired_certJ\x04\b\x04\x10\x05R\tresources\"N\n" +
+	"\x18_disconnect_expired_cert\"N\n" +
 	"\x1aScopedRoleWorkloadIdentity\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\"@\n" +
 	"\n" +
@@ -1932,9 +2073,15 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x10SessionRecording\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\"\x1a\n" +
 	"\x04Lock\x12\x12\n" +
-	"\x04mode\x18\x01 \x01(\tR\x04modeBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
+	"\x04mode\x18\x01 \x01(\tR\x04mode\"\x87\x01\n" +
+	"\fKubeResource\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1c\n" +
+	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x14\n" +
+	"\x05verbs\x18\x04 \x03(\tR\x05verbs\x12\x1b\n" +
+	"\tapi_group\x18\x05 \x01(\tR\bapiGroupBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),                 // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),             // 1: teleport.scopes.access.v1.ScopedRoleSpec
@@ -1950,11 +2097,12 @@ var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*EnhancedRecording)(nil),          // 11: teleport.scopes.access.v1.EnhancedRecording
 	(*SessionRecording)(nil),           // 12: teleport.scopes.access.v1.SessionRecording
 	(*Lock)(nil),                       // 13: teleport.scopes.access.v1.Lock
-	(*v1.Metadata)(nil),                // 14: teleport.header.v1.Metadata
-	(*v11.Label)(nil),                  // 15: teleport.label.v1.Label
+	(*KubeResource)(nil),               // 14: teleport.scopes.access.v1.KubeResource
+	(*v1.Metadata)(nil),                // 15: teleport.header.v1.Metadata
+	(*v11.Label)(nil),                  // 16: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	14, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	15, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2,  // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
 	6,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
@@ -1963,22 +2111,23 @@ var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
 	5,  // 6: teleport.scopes.access.v1.ScopedRoleSpec.workload_identity:type_name -> teleport.scopes.access.v1.ScopedRoleWorkloadIdentity
 	12, // 7: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
 	13, // 8: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
-	15, // 9: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	16, // 9: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
 	7,  // 10: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
 	10, // 11: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
 	11, // 12: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
 	12, // 13: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
 	13, // 14: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
-	15, // 15: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
-	13, // 16: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
-	15, // 17: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity.labels:type_name -> teleport.label.v1.Label
-	8,  // 18: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
-	9,  // 19: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
-	20, // [20:20] is the sub-list for method output_type
-	20, // [20:20] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	16, // 15: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
+	14, // 16: teleport.scopes.access.v1.ScopedRoleKube.resources:type_name -> teleport.scopes.access.v1.KubeResource
+	13, // 17: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
+	16, // 18: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity.labels:type_name -> teleport.label.v1.Label
+	8,  // 19: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
+	9,  // 20: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -1998,7 +2147,7 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
