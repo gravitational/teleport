@@ -38,6 +38,7 @@ import (
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
@@ -45,10 +46,15 @@ import (
 )
 
 type mockEC2Client struct {
-	output *ec2.DescribeInstancesOutput
+	output        *ec2.DescribeInstancesOutput
+	responseError error
 }
 
 func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.DescribeInstancesInput, opts ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
+	if m.responseError != nil {
+		return nil, m.responseError
+	}
+
 	var output ec2.DescribeInstancesOutput
 	for _, res := range m.output.Reservations {
 		var instances []ec2types.Instance
@@ -82,6 +88,7 @@ type mockOrganizationsClient struct {
 	organizationID string
 	rootOUID       string
 	ouItems        map[string]ouItem
+	responseError  error
 }
 
 type ouItem struct {
@@ -91,6 +98,9 @@ type ouItem struct {
 }
 
 func (m *mockOrganizationsClient) ListChildren(ctx context.Context, input *organizations.ListChildrenInput, opts ...func(*organizations.Options)) (*organizations.ListChildrenOutput, error) {
+	if m.responseError != nil {
+		return nil, m.responseError
+	}
 	if input.ChildType != organizationtypes.ChildTypeOrganizationalUnit {
 		return nil, trace.NotImplemented("unexpected call to organizations.ListChildren, with ChildType != OU")
 	}
@@ -113,6 +123,9 @@ func (m *mockOrganizationsClient) ListChildren(ctx context.Context, input *organ
 }
 
 func (m *mockOrganizationsClient) ListRoots(ctx context.Context, input *organizations.ListRootsInput, opts ...func(*organizations.Options)) (*organizations.ListRootsOutput, error) {
+	if m.responseError != nil {
+		return nil, m.responseError
+	}
 	rootARN := fmt.Sprintf("arn:aws:organizations::0000000000:root/%s/%s", m.organizationID, m.rootOUID)
 	return &organizations.ListRootsOutput{
 		Roots: []organizationtypes.Root{
@@ -125,6 +138,9 @@ func (m *mockOrganizationsClient) ListRoots(ctx context.Context, input *organiza
 }
 
 func (m *mockOrganizationsClient) ListAccountsForParent(ctx context.Context, input *organizations.ListAccountsForParentInput, opts ...func(*organizations.Options)) (*organizations.ListAccountsForParentOutput, error) {
+	if m.responseError != nil {
+		return nil, m.responseError
+	}
 	ouItem, ok := m.ouItems[*input.ParentId]
 	if !ok {
 		return nil, trace.NotFound("OU %s does not exist", *input.ParentId)
@@ -430,7 +446,7 @@ func TestEC2Watcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
+	watcher := NewWatcher[*EC2DiscoveryResult](t.Context(), logtest.NewLogger())
 	watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 	go watcher.Run()
@@ -472,18 +488,21 @@ func TestEC2Watcher(t *testing.T) {
 		},
 	}
 
-	for _, instances := range expectedInstances {
+	var gotInstances []*EC2Instances
+	for len(gotInstances) < len(expectedInstances) {
 		select {
 		case result := <-watcher.InstancesC:
-			require.Equal(t, instances, result)
+			require.NotNil(t, result)
+			gotInstances = append(gotInstances, result.Instances...)
 		case <-t.Context().Done():
 			require.Fail(t, "context canceled")
 		}
 	}
+	require.ElementsMatch(t, expectedInstances, gotInstances)
 
 	select {
-	case inst := <-watcher.InstancesC:
-		require.Fail(t, "unexpected instance: %v", inst)
+	case result := <-watcher.InstancesC:
+		require.Fail(t, "unexpected result: %v", result)
 	default:
 	}
 }
@@ -558,7 +577,7 @@ func TestEC2WatcherMergesReservationInstances(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
+		watcher := NewWatcher[*EC2DiscoveryResult](t.Context(), logtest.NewLogger())
 		watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 		go watcher.Run()
@@ -572,7 +591,9 @@ func TestEC2WatcherMergesReservationInstances(t *testing.T) {
 
 		select {
 		case result := <-watcher.InstancesC:
-			require.Equal(t, expectedInstances, result)
+			require.NotNil(t, result)
+			require.Len(t, result.Instances, 1)
+			require.Equal(t, expectedInstances, result.Instances[0])
 		case <-t.Context().Done():
 			require.Fail(t, "context canceled")
 		}
@@ -605,8 +626,12 @@ func TestEC2WatcherMergesReservationInstances(t *testing.T) {
 		var gotInstances []*EC2Instances
 
 		synctest.Test(t, func(t *testing.T) {
-			watcher := NewWatcher(t.Context(), logtest.NewLogger(), WithPerInstanceHookFn(func(groups []*EC2Instances) {
-				gotInstances = append(gotInstances, groups...)
+			watcher := NewWatcher(t.Context(), logtest.NewLogger(), WithPerInstanceHookFn(func(results []*EC2DiscoveryResult) {
+				for _, result := range results {
+					if result != nil {
+						gotInstances = append(gotInstances, result.Instances...)
+					}
+				}
 			}))
 			watcher.SetFetchers(noDiscoveryConfig, fetchers)
 			go watcher.Run()
@@ -630,6 +655,227 @@ func TestEC2WatcherMergesReservationInstances(t *testing.T) {
 
 		require.ElementsMatch(t, expectedInstances, gotInstances)
 	})
+}
+
+func TestEC2WatcherOrganizationAccessDeniedReturnsPermissionError(t *testing.T) {
+	t.Parallel()
+
+	const (
+		discoveryConfigName = "dc-org"
+		integrationName     = "aws-integration"
+		organizationID      = "o-abcdefghij"
+		roleARN             = "arn:aws:iam::123456789012:role/OrganizationReader"
+	)
+
+	matchers := []types.AWSMatcher{
+		{
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+			},
+			Types:       []string{"ec2"},
+			Regions:     []string{"us-west-2"},
+			Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+			Integration: integrationName,
+			SSM:         &types.AWSSSM{},
+			AssumeRole: &types.AssumeRole{
+				RoleARN:  roleARN,
+				RoleName: "OrganizationReader",
+			},
+			Organization: &types.AWSOrganizationMatcher{
+				OrganizationID: organizationID,
+				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+					Include: []string{types.Wildcard},
+				},
+			},
+		},
+	}
+
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers: matchers,
+		PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+			return "proxy.example.com:3080", nil
+		},
+		EC2ClientGetter: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			return nil, errors.New("EC2 client getter must not be called when org listing fails")
+		},
+		AWSOrganizationsGetter: func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+			return &mockOrganizationsClient{
+				responseError: trace.AccessDenied("organizations denied"),
+			}, nil
+		},
+		DiscoveryConfigName: discoveryConfigName,
+	})
+	require.NoError(t, err)
+	require.Len(t, fetchers, 1)
+
+	results, err := fetchers[0].GetInstances(t.Context(), false)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+
+	result := results[0]
+	require.Empty(t, result.Instances)
+	require.Len(t, result.PermissionErrors, 1)
+
+	permErr := result.PermissionErrors[0]
+	require.Equal(t, integrationName, permErr.Integration)
+	require.Equal(t, usertasks.AutoDiscoverEC2IssuePermOrgDenied, permErr.IssueType)
+	require.Equal(t, discoveryConfigName, permErr.DiscoveryConfigName)
+	require.Equal(t, "123456789012", permErr.AccountID)
+	require.Empty(t, permErr.Region)
+	require.True(t, trace.IsAccessDenied(permErr.Err))
+}
+
+func TestEC2WatcherListRegionsAccessDeniedReturnsPermissionError(t *testing.T) {
+	t.Parallel()
+
+	const (
+		discoveryConfigName = "dc-regions"
+		integrationName     = "aws-integration"
+		roleARN             = "arn:aws:iam::123456789012:role/Discovery"
+	)
+
+	matchers := []types.AWSMatcher{
+		{
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+			},
+			Types:       []string{"ec2"},
+			Regions:     []string{types.Wildcard},
+			Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+			Integration: integrationName,
+			SSM:         &types.AWSSSM{},
+			AssumeRole: &types.AssumeRole{
+				RoleARN: roleARN,
+			},
+		},
+	}
+
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers: matchers,
+		PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+			return "proxy.example.com:3080", nil
+		},
+		EC2ClientGetter: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			return nil, errors.New("EC2 client getter must not be called when region listing fails")
+		},
+		RegionsListerGetter: func(ctx context.Context, opts ...awsconfig.OptionsFn) (account.ListRegionsAPIClient, error) {
+			return &mockAWSAccountClient{
+				responseError: trace.AccessDenied("account regions denied"),
+			}, nil
+		},
+		DiscoveryConfigName: discoveryConfigName,
+	})
+	require.NoError(t, err)
+	require.Len(t, fetchers, 1)
+
+	results, err := fetchers[0].GetInstances(t.Context(), false)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+
+	result := results[0]
+	require.Empty(t, result.Instances)
+	require.Len(t, result.PermissionErrors, 1)
+
+	permErr := result.PermissionErrors[0]
+	require.Equal(t, integrationName, permErr.Integration)
+	require.Equal(t, usertasks.AutoDiscoverEC2IssuePermAccountDenied, permErr.IssueType)
+	require.Equal(t, discoveryConfigName, permErr.DiscoveryConfigName)
+	require.Equal(t, "123456789012", permErr.AccountID)
+	require.Empty(t, permErr.Region)
+	require.True(t, trace.IsAccessDenied(permErr.Err))
+}
+
+func TestEC2WatcherDescribeInstancesAccessDeniedReturnsPermissionErrorAndPartialResults(t *testing.T) {
+	t.Parallel()
+
+	const (
+		discoveryConfigName = "dc-describe"
+		integrationName     = "aws-integration"
+		roleARN             = "arn:aws:iam::123456789012:role/Discovery"
+	)
+
+	matchers := []types.AWSMatcher{
+		{
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+			},
+			Types:       []string{"ec2"},
+			Regions:     []string{"us-west-2", "us-east-1"},
+			Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+			Integration: integrationName,
+			SSM:         &types.AWSSSM{},
+			AssumeRole: &types.AssumeRole{
+				RoleARN: roleARN,
+			},
+		},
+	}
+
+	discoveredInstance := ec2types.Instance{
+		InstanceId: aws.String("instance-present"),
+		Tags: []ec2types.Tag{
+			{
+				Key:   aws.String("teleport"),
+				Value: aws.String("yes"),
+			},
+		},
+		State: &ec2types.InstanceState{
+			Name: ec2types.InstanceStateNameRunning,
+		},
+	}
+
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers: matchers,
+		PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+			return "proxy.example.com:3080", nil
+		},
+		EC2ClientGetter: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			if region == "us-west-2" {
+				return &mockEC2Client{
+					responseError: trace.AccessDenied("describe instances denied"),
+				}, nil
+			}
+			return &mockEC2Client{
+				output: &ec2.DescribeInstancesOutput{
+					Reservations: []ec2types.Reservation{
+						{
+							OwnerId:   aws.String("123456789012"),
+							Instances: []ec2types.Instance{discoveredInstance},
+						},
+					},
+				},
+			}, nil
+		},
+		DiscoveryConfigName: discoveryConfigName,
+	})
+	require.NoError(t, err)
+	require.Len(t, fetchers, 1)
+
+	results, err := fetchers[0].GetInstances(t.Context(), false)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+
+	result := results[0]
+	require.Len(t, result.PermissionErrors, 1)
+
+	permErr := result.PermissionErrors[0]
+	require.Equal(t, integrationName, permErr.Integration)
+	require.Equal(t, usertasks.AutoDiscoverEC2IssuePermAccountDenied, permErr.IssueType)
+	require.Equal(t, discoveryConfigName, permErr.DiscoveryConfigName)
+	require.Equal(t, "123456789012", permErr.AccountID)
+	require.Equal(t, "us-west-2", permErr.Region)
+	require.True(t, trace.IsAccessDenied(permErr.Err))
+
+	require.Len(t, result.Instances, 1)
+	require.Equal(t, &EC2Instances{
+		AccountID:           "123456789012",
+		Region:              "us-east-1",
+		DocumentName:        "",
+		Instances:           []EC2Instance{toEC2Instance(discoveredInstance)},
+		Parameters:          map[string]string{"token": "", "scriptName": ""},
+		Integration:         integrationName,
+		AssumeRoleARN:       roleARN,
+		DiscoveryConfigName: discoveryConfigName,
+	}, result.Instances[0])
 }
 
 func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
@@ -744,7 +990,7 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
+	watcher := NewWatcher[*EC2DiscoveryResult](t.Context(), logtest.NewLogger())
 	watcher.SetFetchers("", fetchers)
 
 	go watcher.Run()
@@ -764,19 +1010,20 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 		},
 	}
 
-	for _, instances := range expectedInstances {
-		select {
-		case result := <-watcher.InstancesC:
-			require.NotNil(t, result)
-			require.Equal(t, instances, *result)
-		case <-t.Context().Done():
-			require.Fail(t, "context canceled")
+	select {
+	case result := <-watcher.InstancesC:
+		require.NotNil(t, result)
+		require.Len(t, result.Instances, len(expectedInstances))
+		for i, instances := range expectedInstances {
+			require.Equal(t, instances, *result.Instances[i])
 		}
+	case <-t.Context().Done():
+		require.Fail(t, "context canceled")
 	}
 
 	select {
-	case inst := <-watcher.InstancesC:
-		require.Fail(t, "unexpected instance: %v", inst)
+	case result := <-watcher.InstancesC:
+		require.Fail(t, "unexpected result: %v", result)
 	default:
 	}
 }

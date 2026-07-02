@@ -339,6 +339,158 @@ func newTaskUpdater(t *testing.T, existingTasks ...*usertasksv1.UserTask) (*task
 	return manager, ap
 }
 
+func TestAWSEC2Tasks_AddFailedEnrollment(t *testing.T) {
+	t.Parallel()
+
+	permissionKey := awsEC2TaskKey{
+		integration: "my-int",
+		issueType:   usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		accountID:   "123456789012",
+		region:      "us-east-1",
+	}
+	installKey := awsEC2TaskKey{
+		integration: "my-int",
+		issueType:   usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+		accountID:   "123456789012",
+		region:      "us-east-1",
+	}
+
+	tests := []struct {
+		name     string
+		mutate   func(tasks *awsEC2Tasks)
+		expected map[awsEC2TaskKey]*usertasksv1.DiscoverEC2
+		queued   map[awsEC2TaskKey]struct{}
+	}{
+		{
+			name: "empty integration is ignored",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedPermissionEnrollment(awsEC2TaskKey{
+					issueType: usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+					accountID: "123456789012",
+					region:    "us-east-1",
+				})
+			},
+		},
+		{
+			name: "non permission issue with nil instance is ignored",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(installKey, nil)
+			},
+		},
+		{
+			name: "permission issue with nil instance is queued",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedPermissionEnrollment(permissionKey)
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				permissionKey: usertasksv1.DiscoverEC2_builder{
+					AccountId: permissionKey.accountID,
+					Region:    permissionKey.region,
+					Instances: map[string]*usertasksv1.DiscoverEC2Instance{},
+				}.Build(),
+			},
+			queued: map[awsEC2TaskKey]struct{}{
+				permissionKey: {},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tasks := &awsEC2Tasks{}
+			tt.mutate(tasks)
+			require.Empty(t, cmp.Diff(tt.expected, tasks.instancesIssues, protocmp.Transform()))
+			require.Equal(t, tt.queued, tasks.issuesSyncQueue)
+		})
+	}
+}
+
+func TestMergeUpsertDiscoverEC2Task(t *testing.T) {
+	t.Parallel()
+
+	permissionKey := awsEC2TaskKey{
+		integration: "my-int",
+		issueType:   usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		accountID:   "123456789012",
+		region:      "us-east-1",
+	}
+	installKey := awsEC2TaskKey{
+		integration: "my-int",
+		issueType:   usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+		accountID:   "123456789012",
+		region:      "us-east-1",
+	}
+
+	emptyEC2Data := func(key awsEC2TaskKey) *usertasksv1.DiscoverEC2 {
+		return usertasksv1.DiscoverEC2_builder{
+			AccountId:       key.accountID,
+			Region:          key.region,
+			SsmDocument:     key.ssmDocument,
+			InstallerScript: key.installerScript,
+			Instances:       map[string]*usertasksv1.DiscoverEC2Instance{},
+		}.Build()
+	}
+	existingPermissionTaskWithInstance := func(t *testing.T) *usertasksv1.UserTask {
+		task, err := usertasks.NewDiscoverEC2UserTask(
+			usertasksv1.UserTaskSpec_builder{
+				Integration: permissionKey.integration,
+				TaskType:    usertasks.TaskTypeDiscoverEC2,
+				IssueType:   permissionKey.issueType,
+				State:       usertasks.TaskStateOpen,
+				DiscoverEc2: usertasksv1.DiscoverEC2_builder{
+					AccountId: permissionKey.accountID,
+					Region:    permissionKey.region,
+					Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+						"i-stale": usertasksv1.DiscoverEC2Instance_builder{
+							InstanceId:      "i-stale",
+							DiscoveryConfig: "dc-01",
+							DiscoveryGroup:  "other-group",
+							SyncTime:        timestamppb.Now(),
+						}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		)
+		require.NoError(t, err)
+		return task
+	}
+
+	t.Run("permission issue with empty instances is upserted", func(t *testing.T) {
+		s, ap := newTaskUpdater(t)
+
+		require.NoError(t, s.mergeUpsertDiscoverEC2Task(permissionKey, emptyEC2Data(permissionKey)))
+
+		require.Len(t, ap.tasks, 1)
+		taskName := usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+			Integration: permissionKey.integration,
+			IssueType:   permissionKey.issueType,
+			AccountID:   permissionKey.accountID,
+			Region:      permissionKey.region,
+		})
+		upsertedTask, err := ap.GetUserTask(s.ctx, taskName)
+		require.NoError(t, err)
+		require.Empty(t, upsertedTask.GetSpec().GetDiscoverEc2().GetInstances())
+	})
+
+	t.Run("non permission issue with empty instances is skipped", func(t *testing.T) {
+		s, ap := newTaskUpdater(t)
+
+		require.NoError(t, s.mergeUpsertDiscoverEC2Task(installKey, emptyEC2Data(installKey)))
+		require.Empty(t, ap.tasks)
+	})
+
+	t.Run("permission issue does not merge stale instance data", func(t *testing.T) {
+		existingTask := existingPermissionTaskWithInstance(t)
+		s, ap := newTaskUpdater(t, existingTask)
+
+		require.NoError(t, s.mergeUpsertDiscoverEC2Task(permissionKey, emptyEC2Data(permissionKey)))
+
+		upsertedTask, err := ap.GetUserTask(s.ctx, existingTask.GetMetadata().GetName())
+		require.NoError(t, err)
+		require.Empty(t, upsertedTask.GetSpec().GetDiscoverEc2().GetInstances())
+	})
+}
+
 func TestAzureVMTasks_AddFailedEnrollment(t *testing.T) {
 	t.Parallel()
 

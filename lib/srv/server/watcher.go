@@ -107,9 +107,9 @@ func WithClock[Instances InstanceGroup](clock clockwork.Clock) Option[Instances]
 }
 
 // WithMissedRotation sets the missed rotation channel.
-// Specialized for EC2Instances since this functionality is specific to EC2 servers.
-func WithMissedRotation(missedRotation <-chan []types.Server) Option[*EC2Instances] {
-	return func(w *Watcher[*EC2Instances]) {
+// Specialized for EC2DiscoveryResult since this functionality is specific to EC2 servers.
+func WithMissedRotation(missedRotation <-chan []types.Server) Option[*EC2DiscoveryResult] {
+	return func(w *Watcher[*EC2DiscoveryResult]) {
 		w.missedRotation = missedRotation
 	}
 }
