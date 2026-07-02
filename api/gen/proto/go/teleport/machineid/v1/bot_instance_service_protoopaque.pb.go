@@ -707,6 +707,7 @@ type ListBotInstancesV2Request_Filters struct {
 	xxx_hidden_BotName    string                 `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3"`
 	xxx_hidden_SearchTerm string                 `protobuf:"bytes,2,opt,name=search_term,json=searchTerm,proto3"`
 	xxx_hidden_Query      string                 `protobuf:"bytes,3,opt,name=query,proto3"`
+	xxx_hidden_BotScope   string                 `protobuf:"bytes,4,opt,name=bot_scope,json=botScope,proto3"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -757,6 +758,13 @@ func (x *ListBotInstancesV2Request_Filters) GetQuery() string {
 	return ""
 }
 
+func (x *ListBotInstancesV2Request_Filters) GetBotScope() string {
+	if x != nil {
+		return x.xxx_hidden_BotScope
+	}
+	return ""
+}
+
 func (x *ListBotInstancesV2Request_Filters) SetBotName(v string) {
 	x.xxx_hidden_BotName = v
 }
@@ -767,6 +775,10 @@ func (x *ListBotInstancesV2Request_Filters) SetSearchTerm(v string) {
 
 func (x *ListBotInstancesV2Request_Filters) SetQuery(v string) {
 	x.xxx_hidden_Query = v
+}
+
+func (x *ListBotInstancesV2Request_Filters) SetBotScope(v string) {
+	x.xxx_hidden_BotScope = v
 }
 
 type ListBotInstancesV2Request_Filters_builder struct {
@@ -780,6 +792,12 @@ type ListBotInstancesV2Request_Filters_builder struct {
 	SearchTerm string
 	// A Teleport predicate language query used to filter the results.
 	Query string
+	// The scope of the bot to list BotInstances for. Combined with bot_name
+	// to uniquely identify a scoped bot. If bot_name or bot_scope is
+	// non-empty, only BotInstances whose bot's scope matches bot_scope
+	// exactly will be listed (an empty bot_scope with a non-empty bot_name
+	// selects instances of the unscoped bot with that name).
+	BotScope string
 }
 
 func (b0 ListBotInstancesV2Request_Filters_builder) Build() *ListBotInstancesV2Request_Filters {
@@ -789,6 +807,7 @@ func (b0 ListBotInstancesV2Request_Filters_builder) Build() *ListBotInstancesV2R
 	x.xxx_hidden_BotName = b.BotName
 	x.xxx_hidden_SearchTerm = b.SearchTerm
 	x.xxx_hidden_Query = b.Query
+	x.xxx_hidden_BotScope = b.BotScope
 	return m0
 }
 
@@ -808,7 +827,7 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12,\n" +
 	"\x12filter_search_term\x18\x04 \x01(\tR\x10filterSearchTerm\x12!\n" +
-	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\xc2\x02\n" +
+	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\xdf\x02\n" +
 	"\x19ListBotInstancesV2Request\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -816,12 +835,13 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
 	"sort_field\x18\x03 \x01(\tR\tsortField\x12\x1b\n" +
 	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12P\n" +
-	"\x06filter\x18\x05 \x01(\v28.teleport.machineid.v1.ListBotInstancesV2Request.FiltersR\x06filter\x1a[\n" +
+	"\x06filter\x18\x05 \x01(\v28.teleport.machineid.v1.ListBotInstancesV2Request.FiltersR\x06filter\x1ax\n" +
 	"\aFilters\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vsearch_term\x18\x02 \x01(\tR\n" +
 	"searchTerm\x12\x14\n" +
-	"\x05query\x18\x03 \x01(\tR\x05query\"\x8b\x01\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1b\n" +
+	"\tbot_scope\x18\x04 \x01(\tR\bbotScope\"\x8b\x01\n" +
 	"\x18ListBotInstancesResponse\x12G\n" +
 	"\rbot_instances\x18\x01 \x03(\v2\".teleport.machineid.v1.BotInstanceR\fbotInstances\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"s\n" +
