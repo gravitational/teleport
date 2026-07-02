@@ -57,8 +57,8 @@ const (
 	// principal ARN into.
 	teleportKubernetesGroup = "teleport:kube-service:eks"
 	// eksClusterAdminPolicy is the EKS access policy granting cluster-admin. It is
-	// associated to the bootstrap ARN only temporarily, to create the Teleport role
-	// and binding, then revoked.
+	// associated to the bootstrap ARN to create the Teleport role and binding, and
+	// is removed together with the access entry when this code created the entry.
 	// https://docs.aws.amazon.com/eks/latest/userguide/access-policies.html
 	eksClusterAdminPolicy = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
 	provisionConcurrency  = 10
@@ -72,7 +72,6 @@ var eksDiscoveryPermissions = []string{
 	"eks:DeleteAccessEntry",
 	"eks:DescribeAccessEntry",
 	"eks:DescribeCluster",
-	"eks:DisassociateAccessPolicy",
 	"eks:ListClusters",
 	"eks:TagResource",
 	"eks:UpdateAccessEntry",
@@ -367,14 +366,10 @@ func (s *eksAccessSetup) temporarilyGainAdminAccessAndCreateRole(ctx context.Con
 		return trace.Wrap(err)
 	}
 
-	// rsp is nil when CreateAccessEntry hit the AlreadyExists error
-	createdEntry := rsp != nil
-	// associatedPolicy records whether this call added the admin policy, so the
-	// deferred revocation leaves a pre-existing association untouched.
-	associatedPolicy := false
-	defer func() {
-		if createdEntry {
-			// Deleting the entry also removes its admin policy association.
+	// rsp is nil when CreateAccessEntry hit the AlreadyExists error. The entry is
+	// deleted only when this call created it.
+	if rsp != nil {
+		defer func() {
 			if _, err := convertAWSError(
 				s.eks.DeleteAccessEntry(
 					ctx,
@@ -388,26 +383,8 @@ func (s *eksAccessSetup) temporarilyGainAdminAccessAndCreateRole(ctx context.Con
 					"cluster", aws.ToString(cluster.Name),
 				)
 			}
-			return
-		}
-		if !associatedPolicy {
-			return
-		}
-		if _, err := convertAWSError(
-			s.eks.DisassociateAccessPolicy(
-				ctx,
-				&eks.DisassociateAccessPolicyInput{
-					ClusterName:  cluster.Name,
-					PolicyArn:    aws.String(eksClusterAdminPolicy),
-					PrincipalArn: aws.String(s.bootstrapARN),
-				}),
-		); err != nil {
-			s.logger.WarnContext(ctx, "Failed to disassociate temporary admin policy from EKS cluster",
-				"error", err,
-				"cluster", aws.ToString(cluster.Name),
-			)
-		}
-	}()
+		}()
+	}
 
 	_, err = convertAWSError(
 		s.eks.AssociateAccessPolicy(ctx, &eks.AssociateAccessPolicyInput{
@@ -423,8 +400,6 @@ func (s *eksAccessSetup) temporarilyGainAdminAccessAndCreateRole(ctx context.Con
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return trace.Wrap(err, "unable to associate EKS Access Policy to cluster %q", aws.ToString(cluster.Name))
 	}
-	// A nil error means the policy was not already present, so this call added it.
-	associatedPolicy = err == nil
 
 	timeout := time.NewTimer(60 * time.Second)
 	defer timeout.Stop()

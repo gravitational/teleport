@@ -110,10 +110,9 @@ func TestEKSAccessSkipsWithoutBootstrap(t *testing.T) {
 	require.Zero(t, eksClient.associateAccessPolicyCalls)
 }
 
-// TestEKSAccessRevokesAdminGrant verifies the temporary cluster-admin grant this code adds
-// is always revoked, while a pre-existing grant is left intact: a created entry is deleted, an entry
-// whose admin policy this call associated is disassociated, and a pre-existing policy is untouched.
-func TestEKSAccessRevokesAdminGrant(t *testing.T) {
+// TestEKSAccessDeletesTemporaryEntry verifies the access entry created for the
+// bootstrap ARN is deleted afterwards, while a pre-existing entry is left intact.
+func TestEKSAccessDeletesTemporaryEntry(t *testing.T) {
 	cluster := &ekstypes.Cluster{Name: aws.String("test-cluster")}
 
 	t.Run("created entry is deleted", func(t *testing.T) {
@@ -123,15 +122,13 @@ func TestEKSAccessRevokesAdminGrant(t *testing.T) {
 			bootstrapARN: "arn:aws:iam::123456789012:role/bootstrap",
 			logger:       logtest.NewLogger(),
 		}
-		// No STS presign client is set, so RBAC setup fails; the assertions below
-		// check the deferred revocation still ran.
+		// Ensure the deferred deletion runs after RBAC setup fails.
 		err := setup.temporarilyGainAdminAccessAndCreateRole(context.Background(), cluster)
 		require.Error(t, err)
 		require.Equal(t, 1, client.deleteAccessEntryCalls)
-		require.Zero(t, client.disassociateAccessPolicyCalls)
 	})
 
-	t.Run("pre-existing entry only loses the admin policy this call associated", func(t *testing.T) {
+	t.Run("pre-existing entry is left intact", func(t *testing.T) {
 		client := &mockEKSAccessAPI{createAlreadyExists: true}
 		setup := &eksAccessSetup{
 			eks:          client,
@@ -141,20 +138,6 @@ func TestEKSAccessRevokesAdminGrant(t *testing.T) {
 		err := setup.temporarilyGainAdminAccessAndCreateRole(context.Background(), cluster)
 		require.Error(t, err)
 		require.Zero(t, client.deleteAccessEntryCalls)
-		require.Equal(t, 1, client.disassociateAccessPolicyCalls)
-	})
-
-	t.Run("pre-existing entry with pre-existing admin policy is left intact", func(t *testing.T) {
-		client := &mockEKSAccessAPI{createAlreadyExists: true, associateAlreadyExists: true}
-		setup := &eksAccessSetup{
-			eks:          client,
-			bootstrapARN: "arn:aws:iam::123456789012:role/bootstrap",
-			logger:       logtest.NewLogger(),
-		}
-		err := setup.temporarilyGainAdminAccessAndCreateRole(context.Background(), cluster)
-		require.Error(t, err)
-		require.Zero(t, client.deleteAccessEntryCalls)
-		require.Zero(t, client.disassociateAccessPolicyCalls)
 	})
 }
 
@@ -293,16 +276,14 @@ func (a *fakeSTSPresignAPI) PresignGetCallerIdentity(context.Context, *sts.GetCa
 	return &v4.PresignedHTTPRequest{URL: a.url}, nil
 }
 
-// mockEKSAccessAPI records the access-entry revocation calls made while gaining
+// mockEKSAccessAPI records the access-entry deletions made while gaining
 // temporary admin access.
 type mockEKSAccessAPI struct {
 	EKSClient
 
-	createAlreadyExists    bool
-	associateAlreadyExists bool
+	createAlreadyExists bool
 
-	deleteAccessEntryCalls        int
-	disassociateAccessPolicyCalls int
+	deleteAccessEntryCalls int
 }
 
 func (m *mockEKSAccessAPI) CreateAccessEntry(_ context.Context, _ *eks.CreateAccessEntryInput, _ ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
@@ -313,18 +294,10 @@ func (m *mockEKSAccessAPI) CreateAccessEntry(_ context.Context, _ *eks.CreateAcc
 }
 
 func (m *mockEKSAccessAPI) AssociateAccessPolicy(_ context.Context, _ *eks.AssociateAccessPolicyInput, _ ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error) {
-	if m.associateAlreadyExists {
-		return nil, awsResponseError(http.StatusConflict, "ResourceInUseException")
-	}
 	return &eks.AssociateAccessPolicyOutput{}, nil
 }
 
 func (m *mockEKSAccessAPI) DeleteAccessEntry(_ context.Context, _ *eks.DeleteAccessEntryInput, _ ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error) {
 	m.deleteAccessEntryCalls++
 	return &eks.DeleteAccessEntryOutput{}, nil
-}
-
-func (m *mockEKSAccessAPI) DisassociateAccessPolicy(_ context.Context, _ *eks.DisassociateAccessPolicyInput, _ ...func(*eks.Options)) (*eks.DisassociateAccessPolicyOutput, error) {
-	m.disassociateAccessPolicyCalls++
-	return &eks.DisassociateAccessPolicyOutput{}, nil
 }

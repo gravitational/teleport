@@ -58,7 +58,6 @@ type EKSClient interface {
 	eks.ListClustersAPIClient
 
 	AssociateAccessPolicy(ctx context.Context, params *eks.AssociateAccessPolicyInput, optFns ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
-	DisassociateAccessPolicy(ctx context.Context, params *eks.DisassociateAccessPolicyInput, optFns ...func(*eks.Options)) (*eks.DisassociateAccessPolicyOutput, error)
 	CreateAccessEntry(ctx context.Context, params *eks.CreateAccessEntryInput, optFns ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
 	DeleteAccessEntry(ctx context.Context, params *eks.DeleteAccessEntryInput, optFns ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
 	DescribeAccessEntry(ctx context.Context, params *eks.DescribeAccessEntryInput, optFns ...func(*eks.Options)) (*eks.DescribeAccessEntryOutput, error)
