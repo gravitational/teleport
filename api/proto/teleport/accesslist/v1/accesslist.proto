@@ -35,6 +35,9 @@ message AccessList {
 
   // status contains dynamically calculated fields.
   AccessListStatus status = 3;
+
+  // scope is the scope of the Access List.
+  string scope = 4;
 }
 
 // AccessListSpec is the specification for an Access List.
@@ -80,7 +83,10 @@ message AccessListSpec {
 
 // AccessListOwner is an owner of an Access List.
 message AccessListOwner {
-  // name is the username of the owner.
+  // name is the name of the owner, depending on MembershipKind:
+  // MEMBERSHIP_KIND_USER: the username of the owner.
+  // MEMBERSHIP_KIND_LIST: the name of the owner Access List.
+  // MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner Access List.
   string name = 1;
 
   // description is the plaintext description of the owner and why they are an
@@ -92,7 +98,7 @@ message AccessListOwner {
   IneligibleStatus ineligible_status = 3;
 
   // membership_kind describes the type of membership, either
-  // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+  // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
   MembershipKind membership_kind = 4;
 }
 
@@ -174,9 +180,9 @@ message AccessListGrants {
 
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
 message ScopedRoleGrant {
-  // role is the name of the scoped role to be granted.
+  // role is scope-qualified name of the scoped role to be granted.
   string role = 1;
-  // scope is the scope the role will be assigned at. It must be an assignable
+  // scope is the scope the role will be granted at. It must be an assignable
   // scope of the role.
   string scope = 2;
 }
@@ -188,6 +194,10 @@ message Member {
 
   // spec is the specification for the Access List member.
   MemberSpec spec = 2;
+
+  // scope is the scope of the Access List member, it must be equal to the
+  // scope of the parent Access List.
+  string scope = 3;
 }
 
 // MemberSpec is the specification for an Access List member.
@@ -198,7 +208,10 @@ message MemberSpec {
   // associated Access List
   string access_list = 1;
 
-  // name is the name of the member of the Access List.
+  // name is the name of the member of the Access List, depending on MembershipKind:
+  // MEMBERSHIP_KIND_USER: the username of the member.
+  // MEMBERSHIP_KIND_LIST: the name of the member Access List.
+  // MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the member scope Access List.
   string name = 2;
 
   // joined is when the user joined the Access List.
@@ -218,7 +231,7 @@ message MemberSpec {
   IneligibleStatus ineligible_status = 7;
 
   // membership_kind describes the type of membership, either
-  // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+  // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
   MembershipKind membership_kind = 9;
 }
 
@@ -231,6 +244,8 @@ enum MembershipKind {
   MEMBERSHIP_KIND_USER = 1;
   // MEMBERSHIP_KIND_LIST represents list members that are nested Access Lists
   MEMBERSHIP_KIND_LIST = 2;
+  // MEMBERSHIP_KIND_SCOPED_LIST represents list members that are nested scoped Access Lists
+  MEMBERSHIP_KIND_SCOPED_LIST = 3;
 }
 
 // IneligibleStatus describes how the user is ineligible.
@@ -258,11 +273,17 @@ message Review {
 
   // spec is the specification for the Access List review.
   ReviewSpec spec = 2;
+
+  // scope is the scope of the Access List review. It must be equal to the
+  // scope of the reviewed Access List.
+  string scope = 3;
 }
 
 // ReviewSpec is the specification for an Access List review.
 message ReviewSpec {
   // access_list is the name of the Access List that this review is for.
+  // If the review is scoped, this is the scope-qualified name of the reviewed
+  // scoped Access List.
   string access_list = 1;
 
   // reviewers are the users who performed the review.
@@ -298,10 +319,14 @@ message ReviewChanges {
   // review_day_of_month_changed is populated if the review day of month has
   // changed.
   ReviewDayOfMonth review_day_of_month_changed = 5;
+
+  // scoped_removed_members contains the scope-qualified names of members that
+  // were removed as part of this review.
+  repeated string scoped_removed_members = 6;
 }
 
-// AccessListUserAssignmentType describes the type of membership anr/or ownership
-// a user has in an access list.
+// AccessListUserAssignmentType describes the type of membership and/or ownership
+// a user has in an Access List.
 enum AccessListUserAssignmentType {
   // ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED means the user is not an explicit nor an inherited member or owner
   ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED = 0;
@@ -311,19 +336,19 @@ enum AccessListUserAssignmentType {
   ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED = 2;
 }
 
-// CurrentUserAssignments describes the current user's ownership and membership status in the access list.
+// CurrentUserAssignments describes the current user's ownership and membership status in the Access List.
 message CurrentUserAssignments {
-  // ownership_type represents the current user's ownership type (explicit, inherited, or none) in the access list.
+  // ownership_type represents the current user's ownership type (explicit, inherited, or none) in the Access List.
   AccessListUserAssignmentType ownership_type = 1;
-  // membership_type represents the current user's membership type (explicit, inherited, or none) in the access list.
+  // membership_type represents the current user's membership type (explicit, inherited, or none) in the Access List.
   AccessListUserAssignmentType membership_type = 2;
 }
 
-// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
+// UserAssignments describes the requested user's ownership and membership assignment types in the Access List.
 message UserAssignments {
-  // ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the access list.
+  // ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the Access List.
   AccessListUserAssignmentType ownership_type = 1;
-  // membership_type represents the requested user's membership type (explicit, inherited, or none) in the access list.
+  // membership_type represents the requested user's membership type (explicit, inherited, or none) in the Access List.
   AccessListUserAssignmentType membership_type = 2;
 }
 
@@ -337,8 +362,14 @@ message AccessListStatus {
   repeated string owner_of = 3;
   // member_of describes Access Lists where this Access List is an explicit member.
   repeated string member_of = 4;
-  // current_user_assignments describes the current user's ownership and membership status in the access list.
+  // current_user_assignments describes the current user's ownership and membership status in the Access List.
   CurrentUserAssignments current_user_assignments = 5;
-  // user_assignments describes the requested user's ownership and membership assignment types in the access list.
+  // user_assignments describes the requested user's ownership and membership assignment types in the Access List.
   UserAssignments user_assignments = 6;
+  // scoped_owner_of describes scoped Access Lists where this Access List is an explicit owner.
+  // Each item is the scope-qualified name of the owned scoped Access List.
+  repeated string scoped_owner_of = 7;
+  // scoped_member_of describes scoped Access Lists where this Access List is an explicit member.
+  // Each item is the scope-qualified name of the parent scoped Access List.
+  repeated string scoped_member_of = 8;
 }
