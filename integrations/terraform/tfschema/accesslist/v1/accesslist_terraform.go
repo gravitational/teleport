@@ -121,19 +121,17 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"audit": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"next_audit_date": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Computed:      true,
-							Description:   "next_audit_date is when the next audit date should be done by.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-						}),
 						"notifications": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"start": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								Description: "start specifies when to start notifying users that the next audit date is coming up.",
-								Optional:    true,
+								Computed:      true,
+								Description:   "start specifies when to start notifying users that the next audit date is coming up.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							})}),
-							Description: "notifications is the configuration for notifying users.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "notifications is the configuration for notifying users.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"recurrence": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -152,12 +150,16 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 							}),
-							Description: "recurrence is the recurrence definition",
-							Optional:    true,
+							Computed:      true,
+							Description:   "recurrence is the recurrence definition",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
-					Description: "audit describes the frequency that this Access List must be audited.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "audit describes the frequency that this Access List must be audited.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"description": {
 					Computed:      true,
@@ -220,8 +222,10 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
-					Description: "grants describes the access granted by membership to this Access List.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "grants describes the access granted by membership to this Access List.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"membership_requires": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -255,8 +259,10 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
-					Description: "membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"owner_grants": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -312,8 +318,10 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
-					Description: "owner_grants describes the access granted by owners to this Access List.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "owner_grants describes the access granted by owners to this Access List.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"owners": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -374,15 +382,15 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
-					Description: "ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.",
-					Optional:    true,
-				},
-				"title": {
 					Computed:      true,
-					Description:   "title is a plaintext short description of the Access List.",
+					Description:   "ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"title": {
+					Description: "title is a plaintext short description of the Access List.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"type": {
 					Computed:      true,
@@ -823,13 +831,6 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 									tf := v
 									obj.Audit = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.AccessListAudit{}
 									obj := obj.Audit
-									{
-										a, ok := tf.Attrs["next_audit_date"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"AccessList.spec.audit.next_audit_date"})
-										}
-										CopyFromTimestamp(diags, a, &obj.NextAuditDate)
-									}
 									{
 										a, ok := tf.Attrs["recurrence"]
 										if !ok {
@@ -2096,15 +2097,6 @@ func CopyAccessListToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 									v.Null = false
 									obj := obj.Audit
 									tf := &v
-									{
-										t, ok := tf.AttrTypes["next_audit_date"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AccessList.spec.audit.next_audit_date"})
-										} else {
-											v := CopyToTimestamp(diags, obj.NextAuditDate, t, tf.Attrs["next_audit_date"])
-											tf.Attrs["next_audit_date"] = v
-										}
-									}
 									{
 										a, ok := tf.AttrTypes["recurrence"]
 										if !ok {
