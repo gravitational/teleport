@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -34,52 +35,61 @@ import (
 )
 
 // TestBotInstanceCache tests that CRUD operations on bot instances resources are
-// replicated from the backend to the cache.
+// replicated from the backend to the cache. Instances of scoped bots live in a
+// scope-namespaced backend range, so create/update/delete events for them must
+// round-trip through the cache's event watcher just like unscoped instances.
 func TestBotInstanceCache(t *testing.T) {
 	t.Parallel()
 
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
+	for _, botScope := range []string{"", "/scopes/test"} {
+		t.Run(fmt.Sprintf("scope=%q", botScope), func(t *testing.T) {
+			t.Parallel()
 
-	testResources153(t, p, testFuncs[*machineidv1.BotInstance]{
-		newResource: func(key string) (*machineidv1.BotInstance, error) {
-			return machineidv1.BotInstance_builder{
-				Kind:     types.KindBotInstance,
-				Version:  types.V1,
-				Metadata: &headerv1.Metadata{},
-				Spec: machineidv1.BotInstanceSpec_builder{
-					BotName:    "bot-1",
-					InstanceId: key,
-				}.Build(),
-				Status: &machineidv1.BotInstanceStatus{},
-			}.Build(), nil
-		},
-		cacheGet: func(ctx context.Context, key string) (*machineidv1.BotInstance, error) {
-			return p.cache.GetBotInstance(ctx, "bot-1", key)
-		},
-		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
-			return p.cache.ListBotInstances(ctx, pageSize, pageToken, nil)
-		},
-		create: func(ctx context.Context, resource *machineidv1.BotInstance) error {
-			_, err := p.botInstanceService.CreateBotInstance(ctx, resource)
-			return err
-		},
-		list: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
-			return p.botInstanceService.ListBotInstances(ctx, pageSize, pageToken, nil)
-		},
-		update: func(ctx context.Context, bi *machineidv1.BotInstance) error {
-			_, err := p.botInstanceService.PatchBotInstance(ctx, "", "bot-1", bi.GetMetadata().GetName(), func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-				return bi, nil
+			p := newTestPack(t, ForAuth)
+			t.Cleanup(p.Close)
+
+			testResources153(t, p, testFuncs[*machineidv1.BotInstance]{
+				newResource: func(key string) (*machineidv1.BotInstance, error) {
+					return machineidv1.BotInstance_builder{
+						Kind:     types.KindBotInstance,
+						Version:  types.V1,
+						Scope:    botScope,
+						Metadata: &headerv1.Metadata{},
+						Spec: machineidv1.BotInstanceSpec_builder{
+							BotName:    "bot-1",
+							InstanceId: key,
+						}.Build(),
+						Status: &machineidv1.BotInstanceStatus{},
+					}.Build(), nil
+				},
+				cacheGet: func(ctx context.Context, key string) (*machineidv1.BotInstance, error) {
+					return p.cache.GetBotInstance(ctx, botScope, "bot-1", key)
+				},
+				cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
+					return p.cache.ListBotInstances(ctx, pageSize, pageToken, nil)
+				},
+				create: func(ctx context.Context, resource *machineidv1.BotInstance) error {
+					_, err := p.botInstanceService.CreateBotInstance(ctx, resource)
+					return err
+				},
+				list: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
+					return p.botInstanceService.ListBotInstances(ctx, pageSize, pageToken, nil)
+				},
+				update: func(ctx context.Context, bi *machineidv1.BotInstance) error {
+					_, err := p.botInstanceService.PatchBotInstance(ctx, botScope, "bot-1", bi.GetMetadata().GetName(), func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+						return bi, nil
+					})
+					return err
+				},
+				delete: func(ctx context.Context, key string) error {
+					return p.botInstanceService.DeleteBotInstance(ctx, botScope, "bot-1", key)
+				},
+				deleteAll: func(ctx context.Context) error {
+					return p.botInstanceService.DeleteAllBotInstances(ctx)
+				},
 			})
-			return err
-		},
-		delete: func(ctx context.Context, key string) error {
-			return p.botInstanceService.DeleteBotInstance(ctx, "", "bot-1", key)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.botInstanceService.DeleteAllBotInstances(ctx)
-		},
-	})
+		})
+	}
 }
 
 // TestBotInstanceCachePaging tests that items from the cache are paginated.
@@ -126,7 +136,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	// page size smaller than total items
 	results, nextPageToken, err = p.cache.ListBotInstances(ctx, 3, "", nil)
 	require.NoError(t, err)
-	require.Equal(t, "bot-1/instance-4", nextPageToken)
+	require.Equal(t, "+/bot-1/instance-4", nextPageToken)
 	require.Len(t, results, 3)
 	require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
 	require.Equal(t, "instance-2", results[1].GetMetadata().GetName())
@@ -179,6 +189,88 @@ func TestBotInstanceCacheBotFilter(t *testing.T) {
 
 	for _, b := range results {
 		require.Equal(t, "bot-1", b.GetSpec().GetBotName())
+	}
+}
+
+// TestBotInstanceCacheScopeFilter tests that cache items are filtered by bot
+// scope. A bot is identified by (scope, name), so a bot-name filter without a
+// scope must match only the unscoped bot of that name, and vice versa; only
+// the unfiltered listing spans all scopes.
+func TestBotInstanceCacheScopeFilter(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	instances := []struct {
+		botScope string
+		botName  string
+		count    int
+	}{
+		{botScope: "", botName: "bot-x", count: 2},
+		{botScope: "/foo", botName: "bot-x", count: 3},
+		{botScope: "/foo", botName: "bot-y", count: 1},
+		{botScope: "/bar", botName: "bot-x", count: 1},
+	}
+	total := 0
+	for _, group := range instances {
+		for range group.count {
+			_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
+				Kind:     types.KindBotInstance,
+				Version:  types.V1,
+				Scope:    group.botScope,
+				Metadata: &headerv1.Metadata{},
+				Spec: machineidv1.BotInstanceSpec_builder{
+					BotName:    group.botName,
+					InstanceId: uuid.New().String(),
+				}.Build(),
+				Status: &machineidv1.BotInstanceStatus{},
+			}.Build())
+			require.NoError(t, err)
+			total++
+		}
+	}
+
+	// Let the cache catch up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, total)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Bot name without scope matches only the unscoped bot of that name.
+	results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		FilterBotName: "bot-x",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	for _, b := range results {
+		require.Equal(t, "bot-x", b.GetSpec().GetBotName())
+		require.Empty(t, b.GetScope())
+	}
+
+	// Bot name and scope matches the scoped bot.
+	results, _, err = p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		FilterBotName:  "bot-x",
+		FilterBotScope: "/foo",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+	for _, b := range results {
+		require.Equal(t, "bot-x", b.GetSpec().GetBotName())
+		require.Equal(t, "/foo", b.GetScope())
+	}
+
+	// Scope without bot name matches every bot in the scope.
+	results, _, err = p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		FilterBotScope: "/foo",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 4)
+	for _, b := range results {
+		require.Equal(t, "/foo", b.GetScope())
 	}
 }
 

@@ -655,14 +655,6 @@ func (ic *InventoryCache) populateInstances(ctx context.Context, limiter *rate.L
 }
 
 // populateBotInstances reads bot instances from the bot instance service with rate limiting.
-//
-// TODO(strideynet): SCOPED BOT INSTANCES ARE STALE IN THIS CACHE.
-// Instances of scoped bots live in a scope-namespaced backend range
-// (scoped/bot_instance/...) that this cache's event watcher does not see:
-// they are loaded by the unified list below, but receive no update/delete
-// events until the watcher resets, so scoped instances served from this
-// cache may be arbitrarily stale. Fix once scope-aware cache/watch support
-// lands.
 func (ic *InventoryCache) populateBotInstances(ctx context.Context, limiter *rate.Limiter) error {
 	var pageToken string
 

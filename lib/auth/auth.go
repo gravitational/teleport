@@ -71,7 +71,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -1087,18 +1086,6 @@ func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organ
 // Implements ReadAccessPoint
 func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	return r.IdentityInternal.WebSessions().Get(ctx, req)
-}
-
-// GetBotInstance returns the specified BotInstance resource. It adapts the
-// scope-aware backend service to the cache-shaped read interface
-// (authclient.Cache), used when auth reads directly from the backend.
-//
-// TODO(strideynet): this read carries no bot scope, so it can only address
-// the unscoped key range: instances of scoped bots (stored in the
-// scope-namespaced range) are not readable through it. Fix alongside
-// scope-aware cache/watch support.
-func (r *Services) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1pb.BotInstance, error) {
-	return r.BotInstance.GetBotInstance(ctx, "", botName, instanceID)
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.

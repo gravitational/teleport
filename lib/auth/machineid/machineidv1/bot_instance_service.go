@@ -58,8 +58,10 @@ const (
 
 // BotInstancesCache is the subset of the cached resources that the Service queries.
 type BotInstancesCache interface {
-	// GetBotInstance returns the specified BotInstance resource.
-	GetBotInstance(ctx context.Context, botName, instanceID string) (*pb.BotInstance, error)
+	// GetBotInstance returns the specified BotInstance resource. A bot is
+	// identified by (botScope, botName); botScope is empty for instances of
+	// unscoped bots.
+	GetBotInstance(ctx context.Context, botScope, botName, instanceID string) (*pb.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
 	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*pb.BotInstance, string, error)
@@ -182,18 +184,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 		return nil, trace.Wrap(err)
 	}
 
-	// Scoped instances live in a scope-namespaced backend range that the cache
-	// watch does not yet see, so cache-backed reads of scoped instances may be
-	// stale or missing. Requests declaring a bot scope are served from the
-	// backend instead.
-	// TODO(strideynet): serve scoped reads from the cache once scope-aware
-	// cache/watch support lands.
-	var res *pb.BotInstance
-	if req.GetBotScope() != "" {
-		res, err = b.backend.GetBotInstance(ctx, req.GetBotScope(), req.GetBotName(), req.GetInstanceId())
-	} else {
-		res, err = b.cache.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
-	}
+	res, err := b.cache.GetBotInstance(ctx, req.GetBotScope(), req.GetBotName(), req.GetInstanceId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
