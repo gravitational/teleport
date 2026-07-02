@@ -175,6 +175,32 @@ func TestGetTokens(t *testing.T) {
 			},
 		},
 		{
+			name: "system tokens are shown but marked as system resources",
+			tokenData: []tokenData{
+				{
+					name: "beam-system-token",
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{types.RoleNode},
+					},
+					labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+					},
+					expiry: expiry,
+				},
+			},
+			expected: []ui.JoinToken{
+				{
+					ID:               "beam-system-token",
+					SafeName:         "************token",
+					Expiry:           expiry,
+					Roles:            types.SystemRoles{types.RoleNode},
+					IsSystemResource: true,
+					Method:           "token",
+				},
+				staticUIToken,
+			},
+		},
+		{
 			name: "all tokens",
 			tokenData: []tokenData{
 				{

@@ -91,7 +91,7 @@ export const JoinTokens = () => {
   );
 
   function getRowStyle(row: JoinToken): React.CSSProperties {
-    if (row.isCloudSystem) {
+    if (row.isCloudSystem || row.isSystemResource) {
       return {
         background: theme.colors.interactive.tonal.neutral[0],
         color: theme.colors.text.muted,
@@ -474,7 +474,7 @@ const ActionCell = ({
       </Cell>
     );
   }
-  if (token.isCloudSystem) {
+  if (token.isCloudSystem || token.isSystemResource) {
     buttonProps.disabled = true;
   }
 
@@ -487,10 +487,14 @@ const ActionCell = ({
 
   return (
     <Cell align="right">
-      {token.isCloudSystem ? (
+      {token.isCloudSystem || token.isSystemResource ? (
         <HoverTooltip
           placement="top-end"
-          tipContent="This token is managed by Teleport Cloud."
+          tipContent={
+            token.isCloudSystem
+              ? 'This token is managed by Teleport Cloud.'
+              : 'This token is system-managed and cannot be edited.'
+          }
         >
           {Button}
         </HoverTooltip>
