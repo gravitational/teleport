@@ -422,6 +422,9 @@ type Server struct {
 	kubeFetchers []common.Fetcher
 	// kubeAppsFetchers holds all kubernetes fetchers for apps.
 	kubeAppsFetchers []common.Fetcher
+	// eksAccessManager provisions EKS access entries and the AWS discovery Status
+	// for discovered EKS clusters.
+	eksAccessManager *fetchers.EKSAccessManager
 	// databaseFetchers holds all database fetchers.
 	databaseFetchers []common.Fetcher
 
@@ -509,6 +512,11 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	s.databaseFetchers = databaseFetchers
+
+	s.eksAccessManager, err = fetchers.NewEKSAccessManager(s.AWSFetchersClients, s.Log)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if err := s.initAWSWatchers(cfg.Matchers.AWS); err != nil {
 		return nil, trace.Wrap(err)
