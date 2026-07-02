@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@babel/core": "^7.29.7",
-    "@babel/preset-env": "^7.29.7",
+    "@babel/preset-env": "^8.0.2",
     "@babel/preset-react": "^7.29.7",
     "@babel/preset-typescript": "^7.29.7",
     "@gravitational/swc-plugin-jsx-marker": "https://github.com/gravitational/design-system/releases/download/@gravitational/swc-plugin-jsx-marker@0.1.0/swc-plugin-jsx-marker.tgz",
