@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
 // AppGetter defines interface for fetching application resources.
@@ -123,6 +124,16 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 	if app.GetTLS() != nil {
 		if err := validateAppTLS(app); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+
+	if region := app.GetAWSRegion(); region != "" {
+		if !awsregion.IsKnownRegion(region) {
+			return trace.BadParameter(
+				"Application %q is configured with an unknown AWS region (%q)",
+				app.GetName(),
+				region,
+			)
 		}
 	}
 
