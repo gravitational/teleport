@@ -9262,7 +9262,9 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 				)
 
 				sid := session.NewID()
-				tracker, err := s.CreateSessionTracker(ctx, &types.SessionTrackerV1{
+				// CreateSessionTracker is now only on ScopedServerWithRoles (the scoped port
+				// supports both scoped and unscoped callers).
+				tracker, err := s.ScopedServerWithRoles().CreateSessionTracker(ctx, &types.SessionTrackerV1{
 					ResourceHeader: types.ResourceHeader{
 						Metadata: types.Metadata{
 							Name: sid.String(),
