@@ -3,7 +3,7 @@
 This file tells an AI agent **how to apply** Teleport's documentation
 conventions when reviewing a docs PR. It deliberately does not restate the
 conventions themselves: those live in
-[`../contributing/documentation-style-guide.md`](../contributing/documentation-style-guide.md),
+[`./contributing/documentation-style-guide.md`](./contributing/documentation-style-guide.md),
 the single source of truth shared by human contributors and agents. When a
 question isn't answered there, consistency within the page wins — do not flag
 it.
