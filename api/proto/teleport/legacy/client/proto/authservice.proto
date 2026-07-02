@@ -2987,6 +2987,16 @@ message ListAccessRequestsRequest {
   // If the previous response had NextKey set then this should be
   // set to its value. Should be empty on the first request.
   string StartKey = 5;
+
+  // IncludeUserDisplays requests read-time display values for users referenced
+  // by the returned access requests.
+  bool IncludeUserDisplays = 6;
+}
+
+// UserDisplay holds read-time display values derived from a user resource.
+message UserDisplay {
+  string Primary = 1;
+  string Secondary = 2;
 }
 
 // ListAccessRequestsResponse is a page of access requests.
@@ -2996,6 +3006,10 @@ message ListAccessRequestsResponse {
 
   // NextKey will serve as the StartKey for the next page of requests.
   string NextKey = 2;
+
+  // UserDisplays maps usernames referenced by this page's requests
+  // (requester, review authors, suggested reviewers) to display values.
+  map<string, UserDisplay> UserDisplays = 3;
 }
 
 // AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
