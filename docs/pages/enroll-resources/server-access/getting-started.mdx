@@ -151,10 +151,13 @@ configuration:
 ### Access the Web UI
 
 Run the following command to create a local user that can access the Teleport
-Web UI:
+Web UI and SSH into Teleport-protected servers. Replace 
+<Var name="root,ubuntu,ec2-user" /> with a comma-separated list of logins you
+know to exist on your target server, since this command grants the user
+permissions to SSH into Teleport-protected servers as those logins:
 
 ```code
-$ tctl users add myuser --roles=editor,access --logins=root,ubuntu,ec2-user
+$ tctl users add myuser --roles=editor,access --logins=<Var name="root,ubuntu,ec2-user" />
 ```
 
 This will generate an initial login link where you can create a password and set
