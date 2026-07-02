@@ -251,6 +251,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 			SortField:        req.GetSortField(),
 			SortDesc:         req.GetSortDesc(),
 			FilterBotName:    req.GetFilter().GetBotName(),
+			FilterBotScope:   req.GetFilter().GetBotScope(),
 			FilterSearchTerm: req.GetFilter().GetSearchTerm(),
 			FilterQuery:      req.GetFilter().GetQuery(),
 			FilterFn: func(botInstance *pb.BotInstance) bool {

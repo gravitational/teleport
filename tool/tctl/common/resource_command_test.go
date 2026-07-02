@@ -38,12 +38,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -1013,6 +1015,150 @@ func TestScopedAndUnscopedNodeResource(t *testing.T) {
 			case <-time.After(100 * time.Millisecond):
 			}
 		}
+	})
+}
+
+// TestScopedAndUnscopedBotInstanceResource exercises tctl get on bot instances,
+// which are double-registered as both a scoped and unscoped resource handler to
+// support a mix of scope-qualified and classic interactions. An instance of a
+// scoped bot is addressed as <scope>::<bot name>/<instance id>; a bare
+// <scope>::<bot name> lists the scoped bot's instances.
+func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{DataDir: t.TempDir()},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	// Bot instances are created server-side on join and have no create RPC, so
+	// seed them directly through the auth server's backend service.
+	makeInstance := func(scope, botName string) *machineidv1pb.BotInstance {
+		instance, err := auth.GetAuthServer().CreateBotInstance(ctx, machineidv1pb.BotInstance_builder{
+			Scope: scope,
+			Spec: machineidv1pb.BotInstanceSpec_builder{
+				BotName:    botName,
+				InstanceId: uuid.NewString(),
+			}.Build(),
+			Status: machineidv1pb.BotInstanceStatus_builder{
+				InitialHeartbeat: machineidv1pb.BotInstanceStatusHeartbeat_builder{
+					RecordedAt: timestamppb.New(time.Now()),
+					IsStartup:  true,
+					Hostname:   "test-hostname",
+				}.Build(),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		return instance
+	}
+
+	classicInstance := makeInstance("", "classic-bot")
+	stagingInstance0 := makeInstance("/staging", "staging-bot")
+	stagingInstance1 := makeInstance("/staging", "staging-bot")
+	// Same bot name in a different scope, to prove reads are scope-strict.
+	prodInstance := makeInstance("/prod", "staging-bot")
+
+	// Poll until all instances appear via the list (cache propagation).
+	// runResourceCommand needs a *testing.T, so poll manually rather than via
+	// require.EventuallyWithT.
+	allInstances := []*machineidv1pb.BotInstance{classicInstance, stagingInstance0, stagingInstance1, prodInstance}
+	timeout := time.After(30 * time.Second)
+	for {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBotInstance, "--format=json"})
+		if err == nil {
+			propagated := 0
+			for _, instance := range allInstances {
+				if strings.Contains(buf.String(), instance.GetSpec().GetInstanceId()) {
+					propagated++
+				}
+			}
+			if propagated == len(allInstances) {
+				break
+			}
+		}
+		select {
+		case <-timeout:
+			require.FailNow(t, "timed out waiting for bot instances to appear in list")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Run("list all shows scope-qualified bot name for instances of scoped bots", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBotInstance, "--format=text"})
+		require.NoError(t, err)
+		out := buf.String()
+		require.Contains(t, out, "/staging::staging-bot")
+		require.Contains(t, out, "/prod::staging-bot")
+		require.Contains(t, out, "classic-bot")
+	})
+
+	t.Run("single-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{
+			"get",
+			fmt.Sprintf("%s/classic-bot/%s", types.KindBotInstance, classicInstance.GetSpec().GetInstanceId()),
+			"--format=json",
+		})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), classicInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("scope-qualified get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{
+			"get", types.KindBotInstance,
+			fmt.Sprintf("/staging::staging-bot/%s", stagingInstance0.GetSpec().GetInstanceId()),
+			"--format=json",
+		})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), stagingInstance0.GetSpec().GetInstanceId())
+	})
+
+	t.Run("scope-qualified get with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{
+			"get", types.KindBotInstance,
+			fmt.Sprintf("/prod::staging-bot/%s", stagingInstance0.GetSpec().GetInstanceId()),
+			"--format=json",
+		})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch, got: %v", err)
+	})
+
+	t.Run("scope-qualified list by bot", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBotInstance, "/staging::staging-bot", "--format=json"})
+		require.NoError(t, err)
+		out := buf.String()
+		require.Contains(t, out, stagingInstance0.GetSpec().GetInstanceId())
+		require.Contains(t, out, stagingInstance1.GetSpec().GetInstanceId())
+		require.NotContains(t, out, prodInstance.GetSpec().GetInstanceId())
+		require.NotContains(t, out, classicInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("unscoped list by bot excludes scoped bots of the same name", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBotInstance + "/staging-bot", "--format=json"})
+		require.NoError(t, err)
+		out := buf.String()
+		require.NotContains(t, out, stagingInstance0.GetSpec().GetInstanceId())
+		require.NotContains(t, out, stagingInstance1.GetSpec().GetInstanceId())
+		require.NotContains(t, out, prodInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("sub-kind with SQN is rejected with a hint", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{
+			"get", types.KindBotInstance + "/staging-bot",
+			fmt.Sprintf("/staging::%s", stagingInstance0.GetSpec().GetInstanceId()),
+			"--format=json",
+		})
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+		require.ErrorContains(t, err, "<scope>::<bot_name>/<instance_id>")
 	})
 }
 
@@ -3403,6 +3549,36 @@ func TestParseScopedRef(t *testing.T) {
 			ref:  "scoped_token",
 			id:   "/test::test-token:YzZlYzdlYTg1YTZjZTEwZjVjYjAxMTc3Mjc2NTk3NGY",
 			want: ScopedRef{Kind: "scoped_token", Scope: "/test", Name: "test-token"},
+		},
+		{
+			name: "bot instance SQN with two-part name",
+			ref:  "bot_instance",
+			id:   "/staging::my-bot/5e376b8d-3931-4c32-a1b6-e2adc8a95d68",
+			want: ScopedRef{Kind: "bot_instance", Scope: "/staging", Name: "my-bot/5e376b8d-3931-4c32-a1b6-e2adc8a95d68"},
+		},
+		{
+			name: "bot instance SQN with bare bot name",
+			ref:  "bot_instance",
+			id:   "/staging::my-bot",
+			want: ScopedRef{Kind: "bot_instance", Scope: "/staging", Name: "my-bot"},
+		},
+		{
+			name:    "bot instance SQN with extra slash in name",
+			ref:     "bot_instance",
+			id:      "/staging::my-bot/5e376b8d-3931-4c32-a1b6-e2adc8a95d68/extra",
+			wantErr: true,
+		},
+		{
+			name:    "bot instance SQN with invalid bot name",
+			ref:     "bot_instance",
+			id:      "/staging::My-Bot/5e376b8d-3931-4c32-a1b6-e2adc8a95d68",
+			wantErr: true,
+		},
+		{
+			name:    "slash in SQN name is rejected for other kinds",
+			ref:     "scoped_role",
+			id:      "/staging::myrole/extra",
+			wantErr: true,
 		},
 	}
 
