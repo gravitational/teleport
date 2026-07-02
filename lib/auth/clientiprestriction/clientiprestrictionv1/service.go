@@ -39,22 +39,22 @@ func NewService() *Service {
 }
 
 // GetClientIPRestriction returns the ClientIPRestriction singleton.
-func (s *Service) GetClientIPRestriction(_ context.Context, _ *clientiprestrictionv1pb.GetClientIPRestrictionRequest) (*clientiprestrictionv1pb.ClientIPRestriction, error) {
+func (s *Service) GetClientIPRestriction(_ context.Context, _ *clientiprestrictionv1pb.GetClientIPRestrictionRequest) (*clientiprestrictionv1pb.GetClientIPRestrictionResponse, error) {
 	return nil, requireCloud()
 }
 
 // CreateClientIPRestriction creates a new ClientIPRestriction.
-func (s *Service) CreateClientIPRestriction(_ context.Context, _ *clientiprestrictionv1pb.CreateClientIPRestrictionRequest) (*clientiprestrictionv1pb.ClientIPRestriction, error) {
+func (s *Service) CreateClientIPRestriction(_ context.Context, _ *clientiprestrictionv1pb.CreateClientIPRestrictionRequest) (*clientiprestrictionv1pb.CreateClientIPRestrictionResponse, error) {
 	return nil, requireCloud()
 }
 
 // UpdateClientIPRestriction updates an existing ClientIPRestriction.
-func (s *Service) UpdateClientIPRestriction(_ context.Context, _ *clientiprestrictionv1pb.UpdateClientIPRestrictionRequest) (*clientiprestrictionv1pb.ClientIPRestriction, error) {
+func (s *Service) UpdateClientIPRestriction(_ context.Context, _ *clientiprestrictionv1pb.UpdateClientIPRestrictionRequest) (*clientiprestrictionv1pb.UpdateClientIPRestrictionResponse, error) {
 	return nil, requireCloud()
 }
 
 // UpsertClientIPRestriction creates or replaces the ClientIPRestriction singleton.
-func (s *Service) UpsertClientIPRestriction(_ context.Context, _ *clientiprestrictionv1pb.UpsertClientIPRestrictionRequest) (*clientiprestrictionv1pb.ClientIPRestriction, error) {
+func (s *Service) UpsertClientIPRestriction(_ context.Context, _ *clientiprestrictionv1pb.UpsertClientIPRestrictionRequest) (*clientiprestrictionv1pb.UpsertClientIPRestrictionResponse, error) {
 	return nil, requireCloud()
 }
 

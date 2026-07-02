@@ -47,14 +47,14 @@ const (
 // ClientIPRestrictionService provides an API to manage the singleton ClientIPRestriction.
 type ClientIPRestrictionServiceClient interface {
 	// GetClientIPRestriction returns the ClientIPRestriction singleton.
-	GetClientIPRestriction(ctx context.Context, in *GetClientIPRestrictionRequest, opts ...grpc.CallOption) (*ClientIPRestriction, error)
+	GetClientIPRestriction(ctx context.Context, in *GetClientIPRestrictionRequest, opts ...grpc.CallOption) (*GetClientIPRestrictionResponse, error)
 	// CreateClientIPRestriction creates a new ClientIPRestriction. Fails if one already exists.
-	CreateClientIPRestriction(ctx context.Context, in *CreateClientIPRestrictionRequest, opts ...grpc.CallOption) (*ClientIPRestriction, error)
+	CreateClientIPRestriction(ctx context.Context, in *CreateClientIPRestrictionRequest, opts ...grpc.CallOption) (*CreateClientIPRestrictionResponse, error)
 	// UpdateClientIPRestriction updates an existing ClientIPRestriction using revision-based
 	// optimistic concurrency. Fails if no ClientIPRestriction exists or the revision does not match.
-	UpdateClientIPRestriction(ctx context.Context, in *UpdateClientIPRestrictionRequest, opts ...grpc.CallOption) (*ClientIPRestriction, error)
+	UpdateClientIPRestriction(ctx context.Context, in *UpdateClientIPRestrictionRequest, opts ...grpc.CallOption) (*UpdateClientIPRestrictionResponse, error)
 	// UpsertClientIPRestriction creates or replaces the ClientIPRestriction singleton.
-	UpsertClientIPRestriction(ctx context.Context, in *UpsertClientIPRestrictionRequest, opts ...grpc.CallOption) (*ClientIPRestriction, error)
+	UpsertClientIPRestriction(ctx context.Context, in *UpsertClientIPRestrictionRequest, opts ...grpc.CallOption) (*UpsertClientIPRestrictionResponse, error)
 	// DeleteClientIPRestriction deletes the ClientIPRestriction singleton.
 	DeleteClientIPRestriction(ctx context.Context, in *DeleteClientIPRestrictionRequest, opts ...grpc.CallOption) (*DeleteClientIPRestrictionResponse, error)
 }
@@ -67,9 +67,9 @@ func NewClientIPRestrictionServiceClient(cc grpc.ClientConnInterface) ClientIPRe
 	return &clientIPRestrictionServiceClient{cc}
 }
 
-func (c *clientIPRestrictionServiceClient) GetClientIPRestriction(ctx context.Context, in *GetClientIPRestrictionRequest, opts ...grpc.CallOption) (*ClientIPRestriction, error) {
+func (c *clientIPRestrictionServiceClient) GetClientIPRestriction(ctx context.Context, in *GetClientIPRestrictionRequest, opts ...grpc.CallOption) (*GetClientIPRestrictionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClientIPRestriction)
+	out := new(GetClientIPRestrictionResponse)
 	err := c.cc.Invoke(ctx, ClientIPRestrictionService_GetClientIPRestriction_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -77,9 +77,9 @@ func (c *clientIPRestrictionServiceClient) GetClientIPRestriction(ctx context.Co
 	return out, nil
 }
 
-func (c *clientIPRestrictionServiceClient) CreateClientIPRestriction(ctx context.Context, in *CreateClientIPRestrictionRequest, opts ...grpc.CallOption) (*ClientIPRestriction, error) {
+func (c *clientIPRestrictionServiceClient) CreateClientIPRestriction(ctx context.Context, in *CreateClientIPRestrictionRequest, opts ...grpc.CallOption) (*CreateClientIPRestrictionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClientIPRestriction)
+	out := new(CreateClientIPRestrictionResponse)
 	err := c.cc.Invoke(ctx, ClientIPRestrictionService_CreateClientIPRestriction_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -87,9 +87,9 @@ func (c *clientIPRestrictionServiceClient) CreateClientIPRestriction(ctx context
 	return out, nil
 }
 
-func (c *clientIPRestrictionServiceClient) UpdateClientIPRestriction(ctx context.Context, in *UpdateClientIPRestrictionRequest, opts ...grpc.CallOption) (*ClientIPRestriction, error) {
+func (c *clientIPRestrictionServiceClient) UpdateClientIPRestriction(ctx context.Context, in *UpdateClientIPRestrictionRequest, opts ...grpc.CallOption) (*UpdateClientIPRestrictionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClientIPRestriction)
+	out := new(UpdateClientIPRestrictionResponse)
 	err := c.cc.Invoke(ctx, ClientIPRestrictionService_UpdateClientIPRestriction_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -97,9 +97,9 @@ func (c *clientIPRestrictionServiceClient) UpdateClientIPRestriction(ctx context
 	return out, nil
 }
 
-func (c *clientIPRestrictionServiceClient) UpsertClientIPRestriction(ctx context.Context, in *UpsertClientIPRestrictionRequest, opts ...grpc.CallOption) (*ClientIPRestriction, error) {
+func (c *clientIPRestrictionServiceClient) UpsertClientIPRestriction(ctx context.Context, in *UpsertClientIPRestrictionRequest, opts ...grpc.CallOption) (*UpsertClientIPRestrictionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClientIPRestriction)
+	out := new(UpsertClientIPRestrictionResponse)
 	err := c.cc.Invoke(ctx, ClientIPRestrictionService_UpsertClientIPRestriction_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -124,14 +124,14 @@ func (c *clientIPRestrictionServiceClient) DeleteClientIPRestriction(ctx context
 // ClientIPRestrictionService provides an API to manage the singleton ClientIPRestriction.
 type ClientIPRestrictionServiceServer interface {
 	// GetClientIPRestriction returns the ClientIPRestriction singleton.
-	GetClientIPRestriction(context.Context, *GetClientIPRestrictionRequest) (*ClientIPRestriction, error)
+	GetClientIPRestriction(context.Context, *GetClientIPRestrictionRequest) (*GetClientIPRestrictionResponse, error)
 	// CreateClientIPRestriction creates a new ClientIPRestriction. Fails if one already exists.
-	CreateClientIPRestriction(context.Context, *CreateClientIPRestrictionRequest) (*ClientIPRestriction, error)
+	CreateClientIPRestriction(context.Context, *CreateClientIPRestrictionRequest) (*CreateClientIPRestrictionResponse, error)
 	// UpdateClientIPRestriction updates an existing ClientIPRestriction using revision-based
 	// optimistic concurrency. Fails if no ClientIPRestriction exists or the revision does not match.
-	UpdateClientIPRestriction(context.Context, *UpdateClientIPRestrictionRequest) (*ClientIPRestriction, error)
+	UpdateClientIPRestriction(context.Context, *UpdateClientIPRestrictionRequest) (*UpdateClientIPRestrictionResponse, error)
 	// UpsertClientIPRestriction creates or replaces the ClientIPRestriction singleton.
-	UpsertClientIPRestriction(context.Context, *UpsertClientIPRestrictionRequest) (*ClientIPRestriction, error)
+	UpsertClientIPRestriction(context.Context, *UpsertClientIPRestrictionRequest) (*UpsertClientIPRestrictionResponse, error)
 	// DeleteClientIPRestriction deletes the ClientIPRestriction singleton.
 	DeleteClientIPRestriction(context.Context, *DeleteClientIPRestrictionRequest) (*DeleteClientIPRestrictionResponse, error)
 	mustEmbedUnimplementedClientIPRestrictionServiceServer()
@@ -144,16 +144,16 @@ type ClientIPRestrictionServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedClientIPRestrictionServiceServer struct{}
 
-func (UnimplementedClientIPRestrictionServiceServer) GetClientIPRestriction(context.Context, *GetClientIPRestrictionRequest) (*ClientIPRestriction, error) {
+func (UnimplementedClientIPRestrictionServiceServer) GetClientIPRestriction(context.Context, *GetClientIPRestrictionRequest) (*GetClientIPRestrictionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetClientIPRestriction not implemented")
 }
-func (UnimplementedClientIPRestrictionServiceServer) CreateClientIPRestriction(context.Context, *CreateClientIPRestrictionRequest) (*ClientIPRestriction, error) {
+func (UnimplementedClientIPRestrictionServiceServer) CreateClientIPRestriction(context.Context, *CreateClientIPRestrictionRequest) (*CreateClientIPRestrictionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateClientIPRestriction not implemented")
 }
-func (UnimplementedClientIPRestrictionServiceServer) UpdateClientIPRestriction(context.Context, *UpdateClientIPRestrictionRequest) (*ClientIPRestriction, error) {
+func (UnimplementedClientIPRestrictionServiceServer) UpdateClientIPRestriction(context.Context, *UpdateClientIPRestrictionRequest) (*UpdateClientIPRestrictionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateClientIPRestriction not implemented")
 }
-func (UnimplementedClientIPRestrictionServiceServer) UpsertClientIPRestriction(context.Context, *UpsertClientIPRestrictionRequest) (*ClientIPRestriction, error) {
+func (UnimplementedClientIPRestrictionServiceServer) UpsertClientIPRestriction(context.Context, *UpsertClientIPRestrictionRequest) (*UpsertClientIPRestrictionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertClientIPRestriction not implemented")
 }
 func (UnimplementedClientIPRestrictionServiceServer) DeleteClientIPRestriction(context.Context, *DeleteClientIPRestrictionRequest) (*DeleteClientIPRestrictionResponse, error) {

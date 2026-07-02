@@ -120,6 +120,11 @@ func init() {
 		// TODO(zmb3): remove this after sspi-rs logging is cleaned up
 		rustLogLevel += ",sspi=warn"
 
+		// IronRDP instruments hot-path decode functions (e.g. RemoteFX process_frame) at INFO.
+		// With no tracing subscriber installed, tracing's `log` feature bridges those span
+		// records to env_logger as noisy non-JSON lines, so drop the span-lifecycle target.
+		rustLogLevel += ",tracing::span=off"
+
 		os.Setenv("RUST_LOG", rustLogLevel)
 	}
 
@@ -1079,7 +1084,7 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			ScreenHeight:  uint32(screenHeight),
 		},
 		ClipboardEnabled:               true,
-		DirectoryRemoveSupported:       true,
+		DirectoryRemoveSupported:       false,
 		HidpiSupported:                 true,
 		MultidirectorySharingSupported: true,
 	}); err != nil {

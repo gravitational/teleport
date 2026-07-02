@@ -102,6 +102,14 @@ type GitlabParams struct {
 	EnvVarName string
 }
 
+// VersionInfo contains version information advertised by a cluster during join.
+type VersionInfo struct {
+	// ServerVersion is the Teleport version advertised by the cluster.
+	ServerVersion string
+	// MinClientVersion is the minimum client version advertised by the cluster.
+	MinClientVersion string
+}
+
 // RegisterParams specifies parameters
 // for first time register operation with auth server
 type RegisterParams struct {
@@ -201,9 +209,10 @@ type RegisterParams struct {
 	// Log is the logger to use for emitting log messages.
 	// If not specified, this defaults to the global logger.
 	Log *slog.Logger
-	// SkipVersionCheck bypasses the client-side minimum version check performed
-	// when joining via a proxy.
-	SkipVersionCheck bool
+	// OnVersionCallback, if non-nil, is invoked during a join after fetching
+	// version information from the cluster. Returning a non-nil error aborts
+	// the join; returning nil allows it to proceed.
+	OnVersionCallback func(ctx context.Context, info VersionInfo) error
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
