@@ -471,23 +471,11 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 		}
 		preserveAccessListFields(existingAccessList, accessList)
 
-		listMembers, err := membersService.getResources(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Before #65122, reconcileMembers could store members under the
-		// correct backend prefix but with a stale Spec.AccessList value.
-		// The backend key (prefix) is authoritative for list membership;
-		// normalize in memory so the validation passes. The stale value
-		// will be corrected on the next write through a validated path.
-		for _, member := range listMembers {
-			if member.Spec.AccessList != accessList.GetName() {
-				member.Spec.AccessList = accessList.GetName()
-			}
-		}
-
-		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, listMembers, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
+		// Existing members are deliberately not re-validated here. This operation
+		// can't add/modify member edges so re-validating stored members can only
+		// turn pre-existing backend inconsistency, e.g., a stale Spec.AccessList,
+		// into permanent failure to update the access list itself.
+		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, nil, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
 		}
 

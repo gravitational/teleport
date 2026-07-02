@@ -3485,8 +3485,8 @@ func TestAccessListService_EnsureNestedAccessListStatuses(t *testing.T) {
 // TestUpsertAccessListToleratesStaleSpecAccessList verifies that UpsertAccessList
 // succeeds even when existing members have a stale Spec.AccessList. Before
 // #65122, reconcileMembers could write members under the correct backend prefix
-// without normalizing Spec.AccessList. After #65122 added cross-membership
-// validation, these legacy members block all access list updates.
+// without normalizing Spec.AccessList. UpsertAccessList must not re-validate
+// stored members, otherwise these legacy members block all access list updates.
 func TestUpsertAccessListToleratesStaleSpecAccessList(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
@@ -3528,7 +3528,7 @@ func TestUpsertAccessListToleratesStaleSpecAccessList(t *testing.T) {
 // deletion works for members with a stale Spec.AccessList, since
 // DeleteAccessListMember resolves members by backend key prefix.
 func TestDeleteMemberWithStaleSpecAccessList(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{Context: ctx, Clock: clock})
@@ -3580,7 +3580,7 @@ func (fn testAccessListGetterFunc) GetAccessList(ctx context.Context, name strin
 
 func requireStatusOwnerOf(t *testing.T, service testAccessListGetter, accessListName string, ownerOf []string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	accessList, err := service.GetAccessList(ctx, accessListName)
 	require.NoError(t, err)
 	require.ElementsMatch(t, ownerOf, accessList.Status.OwnerOf)
