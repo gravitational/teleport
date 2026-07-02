@@ -78,13 +78,13 @@ jobs:
       # workflow status under this workflow: we have to treat each versioned
       # invocation of `rebuild-teleport-oci-distroless.yml` as a separate,
       # top-level workflow run.
-      - name: Trigger builds
+      - name: Trigger Teleport rebuilds
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAGS: ${{ steps.select.outputs.tags }}
         run: |
           for tag in ${TAGS}; do
-            echo "Triggering rebuild of images for $teleport_release_tag"
+            echo "Triggering rebuild of teleport images for $teleport_release_tag"
 
             # Select teleport-private repo if version starts with "private-"
             repo="teleport"
@@ -93,14 +93,102 @@ jobs:
               repo="teleport-private"
             fi
 
-            # note the `|| true` here. There will be occasions where there
-            # are no versions ready for rebuilding, or old revisions may be
-            # missing the workflow to invoke. We don't want to stop *all*
-            # the rebuilds because one failed.
             gh workflow run rebuild-teleport-oci-distroless.yml \
               --repo "$GITHUB_REPOSITORY" \
               --ref "$teleport_release_tag" \
               --raw-field oss-teleport-repo="gravitational/$repo" \
               --raw-field teleport-release-tag="$teleport_release_tag" \
-              --raw-field environment=prod/oci-rebuild || true
+              --raw-field environment=prod/oci-rebuild
+          done
+      - name: Trigger Operator rebuilds
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAGS: ${{ steps.select.outputs.tags }}
+        run: |
+          for tag in ${TAGS}; do
+            echo "Triggering rebuild of Operator images for $teleport_release_tag"
+
+            # Select teleport-private repo if version starts with "private-"
+            repo="teleport"
+            teleport_release_tag="${tag#private-}"
+            if [[ "${teleport_release_tag}" != "${tag}" ]]; then
+              repo="teleport-private"
+            fi
+
+            gh workflow run rebuild-operator-oci-distroless.yml \
+              --repo "$GITHUB_REPOSITORY" \
+              --ref "$teleport_release_tag" \
+              --raw-field oss-teleport-repo="gravitational/$repo" \
+              --raw-field teleport-release-tag="$teleport_release_tag" \
+              --raw-field environment=prod/oci-rebuild
+          done
+
+      - name: Trigger Plugins rebuilds
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAGS: ${{ steps.select.outputs.tags }}
+        run: |
+          for tag in ${TAGS}; do
+            echo "Triggering rebuild of Plugin images for $teleport_release_tag"
+
+            # Select teleport-private repo if version starts with "private-"
+            repo="teleport"
+            teleport_release_tag="${tag#private-}"
+            if [[ "${teleport_release_tag}" != "${tag}" ]]; then
+              repo="teleport-private"
+            fi
+
+            gh workflow run rebuild-plugins-oci-distroless.yml \
+              --repo "$GITHUB_REPOSITORY" \
+              --ref "$teleport_release_tag" \
+              --raw-field oss-teleport-repo="gravitational/$repo" \
+              --raw-field teleport-release-tag="$teleport_release_tag" \
+              --raw-field environment=prod/oci-rebuild
+          done
+
+
+      - name: Trigger tbot rebuilds
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAGS: ${{ steps.select.outputs.tags }}
+        run: |
+          for tag in ${TAGS}; do
+            echo "Triggering rebuild of tbot images for $teleport_release_tag"
+
+            # Select teleport-private repo if version starts with "private-"
+            repo="teleport"
+            teleport_release_tag="${tag#private-}"
+            if [[ "${teleport_release_tag}" != "${tag}" ]]; then
+              repo="teleport-private"
+            fi
+
+            gh workflow run rebuild-tbot-oci-distroless.yml \
+              --repo "$GITHUB_REPOSITORY" \
+              --ref "$teleport_release_tag" \
+              --raw-field oss-teleport-repo="gravitational/$repo" \
+              --raw-field teleport-release-tag="$teleport_release_tag" \
+              --raw-field environment=prod/oci-rebuild
+          done
+
+      - name: Trigger kube-agent-updater rebuilds
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAGS: ${{ steps.select.outputs.tags }}
+        run: |
+          for tag in ${TAGS}; do
+            echo "Triggering rebuild of kube-agent-updater images for $teleport_release_tag"
+
+            # Select teleport-private repo if version starts with "private-"
+            repo="teleport"
+            teleport_release_tag="${tag#private-}"
+            if [[ "${teleport_release_tag}" != "${tag}" ]]; then
+              repo="teleport-private"
+            fi
+
+            gh workflow run rebuild-kube-agent-updater-oci-distroless.yml \
+              --repo "$GITHUB_REPOSITORY" \
+              --ref "$teleport_release_tag" \
+              --raw-field oss-teleport-repo="gravitational/$repo" \
+              --raw-field teleport-release-tag="$teleport_release_tag" \
+              --raw-field environment=prod/oci-rebuild
           done
