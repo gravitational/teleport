@@ -420,7 +420,7 @@ func (b0 EnrollPairingStatus_builder) Build() *EnrollPairingStatus {
 	return m0
 }
 
-// EnrollPairingDevice is client-submitted description of the device. It is
+// EnrollPairingDevice is a client-submitted description of the device. It is
 // presented to the user in the Web UI before they approve enroll pairing.
 // os_type and serial_number are also used to gate retries of
 // CreatePairedDeviceEnrollToken.
