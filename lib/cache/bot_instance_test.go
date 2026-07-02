@@ -136,7 +136,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	// page size smaller than total items
 	results, nextPageToken, err = p.cache.ListBotInstances(ctx, 3, "", nil)
 	require.NoError(t, err)
-	require.Equal(t, "+/bot-1/instance-4", nextPageToken)
+	require.Equal(t, "bot-1/instance-4", nextPageToken)
 	require.Len(t, results, 3)
 	require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
 	require.Equal(t, "instance-2", results[1].GetMetadata().GetName())
@@ -149,6 +149,89 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	require.Len(t, results, 2)
 	require.Equal(t, "instance-4", results[0].GetMetadata().GetName())
 	require.Equal(t, "instance-5", results[1].GetMetadata().GetName())
+}
+
+// TestBotInstanceCacheBackendTokenParity verifies that the cache lister and
+// the backend lister agree on the ordering of the unified scoped+unscoped
+// listing and mint interchangeable page tokens. genericLister falls back to
+// the backend lister with the caller's token verbatim when the cache is
+// unhealthy, so a token minted by one side must resume correctly against the
+// other.
+func TestBotInstanceCacheBackendTokenParity(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	instances := []struct {
+		botScope string
+		botName  string
+	}{
+		{botScope: "", botName: "bot-a"},
+		{botScope: "", botName: "bot-b"},
+		{botScope: "/bar", botName: "bot-c"},
+		{botScope: "/foo", botName: "bot-d"},
+	}
+	for _, i := range instances {
+		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
+			Kind:     types.KindBotInstance,
+			Version:  types.V1,
+			Scope:    i.botScope,
+			Metadata: &headerv1.Metadata{},
+			Spec: machineidv1.BotInstanceSpec_builder{
+				BotName:    i.botName,
+				InstanceId: uuid.New().String(),
+			}.Build(),
+			Status: &machineidv1.BotInstanceStatus{},
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	// Let the cache catch up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, len(instances))
+	}, 10*time.Second, 100*time.Millisecond)
+
+	names := func(instances []*machineidv1.BotInstance) []string {
+		out := make([]string, 0, len(instances))
+		for _, b := range instances {
+			out = append(out, b.GetSpec().GetBotName())
+		}
+		return out
+	}
+
+	// Both listings order unscoped instances first, then scoped grouped by
+	// scope.
+	wantOrder := []string{"bot-a", "bot-b", "bot-c", "bot-d"}
+	fromCache, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, wantOrder, names(fromCache))
+	fromBackend, _, err := p.botInstanceService.ListBotInstances(ctx, 0, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, wantOrder, names(fromBackend))
+
+	// Page tokens are interchangeable whether the next item is unscoped
+	// (pageSize 1) or scoped (pageSize 3).
+	for _, pageSize := range []int{1, 3} {
+		cachePage, cacheToken, err := p.cache.ListBotInstances(ctx, pageSize, "", nil)
+		require.NoError(t, err)
+		require.Equal(t, wantOrder[:pageSize], names(cachePage))
+		backendPage, backendToken, err := p.botInstanceService.ListBotInstances(ctx, pageSize, "", nil)
+		require.NoError(t, err)
+		require.Equal(t, wantOrder[:pageSize], names(backendPage))
+		require.Equal(t, backendToken, cacheToken)
+
+		rest, _, err := p.botInstanceService.ListBotInstances(ctx, 0, cacheToken, nil)
+		require.NoError(t, err)
+		require.Equal(t, wantOrder[pageSize:], names(rest))
+		rest, _, err = p.cache.ListBotInstances(ctx, 0, backendToken, nil)
+		require.NoError(t, err)
+		require.Equal(t, wantOrder[pageSize:], names(rest))
+	}
 }
 
 // TestBotInstanceCacheBotFilter tests that cache items are filtered by bot name.

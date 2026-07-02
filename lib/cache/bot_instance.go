@@ -185,21 +185,15 @@ func keyForBotInstanceNameIndex(botInstance *machineidv1.BotInstance) string {
 }
 
 // makeBotInstanceNameIndexKey builds the primary index key for a bot
-// instance: <encoded scope>/<bot name>/<instance id>. The scope leads,
-// mirroring the backend's scope-namespaced key layout: a lookup with the
-// wrong scope misses structurally, and each scope's instances form a
-// contiguous, bot-name-ordered block. Note that scoped blocks sort before
-// the unscoped ("+") block here; the index order is cache-internal (page
-// tokens cannot be resumed against the backend lister).
+// instance.
 func makeBotInstanceNameIndexKey(botScope, botName, instanceID string) string {
-	encodedScope, err := scopes.EncodeForKey(botScope)
+	cursor, err := scopes.MakeResourceCursor(botScope, botName+"/"+instanceID)
 	if err != nil {
-		// An invalid scope cannot be encoded at lookup time either; falling
-		// back to the raw scope keeps put/delete key derivation consistent
-		// for such a resource rather than corrupting the store.
-		encodedScope = botScope
+		// TODO(strideynet): Discuss, Nic, Forrest - determine the least
+		// horrible course of action :')
+		panic(fmt.Sprintf("ARGHHHH %s", err.Error()))
 	}
-	return encodedScope + "/" + botName + "/" + instanceID
+	return cursor
 }
 
 func keyForBotInstanceActiveAtIndex(botInstance *machineidv1.BotInstance) string {
