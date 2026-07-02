@@ -1193,19 +1193,6 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 			continue
 		}
 
-		// TODO(cthach): Fix root cause in resource filtering and delete this.
-		if challenge.GetSpec().GetTargetCluster() != s.GetName() {
-			log.ErrorContext(
-				ctx,
-				"Skipping sync of ValidatedMFAChallenge to leaf cluster because it is not for this cluster (this is a bug)",
-				"challenge_name", challenge.GetMetadata().GetName(),
-				"target_cluster", challenge.GetSpec().GetTargetCluster(),
-				"this_cluster", s.GetName(),
-			)
-
-			continue
-		}
-
 		rpcCtx, cancel := context.WithTimeout(ctx, replicateValidatedMFAChallengeTimeout)
 
 		if _, err := s.leafClient.MFAServiceClientV2().ReplicateValidatedMFAChallenge(
