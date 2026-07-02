@@ -37,6 +37,7 @@ struct EventStackView<ID: Hashable>: View {
 				row(for: event)
 			}
 		}
+		.frame(maxWidth: .infinity, alignment: .leading)
 	}
 
 	private func row(for event: Event) -> some View {

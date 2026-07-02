@@ -23,7 +23,7 @@ import Observation
 final class EventStackViewModel<ID: Hashable> {
 	private(set) var events: IdentifiedArrayOf<Event> = []
 
-	init(events: IdentifiedArrayOf<Event>) {
+	init(events: IdentifiedArrayOf<Event> = []) {
 		self.events = events
 	}
 }
@@ -55,7 +55,7 @@ extension EventStackViewModel {
 		events.append(Event(id: id, status: status, message: message))
 	}
 
-	func updateEvent(id: ID, status: Status? = nil, message: String? = nil) {
+	func updateEvent(id: ID, message: String? = nil, status: Status? = nil) {
 		guard var event = events[id: id] else { return }
 		if let status {
 			event.status = status
@@ -65,16 +65,8 @@ extension EventStackViewModel {
 		}
 		events[id: id] = event
 	}
-}
 
-extension EventStackViewModel where ID == UUID {
-	/// Creates a new event with a generated UUID, and returns the generated UUID.
-	func addNewEvent(message: String, status: Status = .loading) -> UUID {
-		@Dependency(\.uuid)
-		var uuid
-
-		let newUUID = uuid()
-		addEvent(id: newUUID, message: message, status: status)
-		return newUUID
+	func clearAllEvents() {
+		events = []
 	}
 }
