@@ -20,6 +20,7 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
@@ -29,16 +30,20 @@ import (
 )
 
 func (a *ServerWithRoles) addAccessRequestUserDisplays(ctx context.Context, req *proto.ListAccessRequestsRequest, rsp *proto.ListAccessRequestsResponse, err error) (*proto.ListAccessRequestsResponse, error) {
-	if err != nil {
-		return nil, trace.Wrap(err)
+	return addAccessRequestUserDisplaysToResponse(ctx, req, rsp, err, a.authServer, a.authServer.logger)
+}
+
+func addAccessRequestUserDisplaysToResponse(ctx context.Context, req *proto.ListAccessRequestsRequest, rsp *proto.ListAccessRequestsResponse, listErr error, getter services.UserGetter, logger *slog.Logger) (*proto.ListAccessRequestsResponse, error) {
+	if listErr != nil {
+		return nil, trace.Wrap(listErr)
 	}
 	if !req.GetIncludeUserDisplays() || len(rsp.AccessRequests) == 0 {
 		return rsp, nil
 	}
 
-	displays, err := resolveAccessRequestUserDisplays(ctx, a.authServer, rsp.AccessRequests)
+	displays, err := resolveAccessRequestUserDisplays(ctx, getter, rsp.AccessRequests)
 	if err != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to resolve user displays for access request page", "error", err)
+		logger.WarnContext(ctx, "Failed to resolve user displays for access request page", "error", err)
 		return rsp, nil
 	}
 	rsp.UserDisplays = displays

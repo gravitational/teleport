@@ -20,6 +20,8 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -83,11 +85,42 @@ func TestResolveAccessRequestUserDisplays(t *testing.T) {
 	require.NotContains(t, got, missingUser)
 }
 
+func TestAddAccessRequestUserDisplaysToResponseKeepsResponseOnResolveError(t *testing.T) {
+	t.Parallel()
+
+	const requester = "display-requester"
+
+	req := mustAccessRequestV3(t, requester)
+	listRsp := &proto.ListAccessRequestsResponse{
+		AccessRequests: []*types.AccessRequestV3{req},
+	}
+
+	got, err := addAccessRequestUserDisplaysToResponse(
+		context.Background(),
+		&proto.ListAccessRequestsRequest{IncludeUserDisplays: true},
+		listRsp,
+		nil,
+		&userDisplayGetter{
+			failFor: map[string]error{
+				requester: errors.New("backend unavailable"),
+			},
+		},
+		slog.New(slog.DiscardHandler),
+	)
+	require.NoError(t, err)
+	require.Same(t, listRsp, got)
+	require.Empty(t, got.UserDisplays)
+}
+
 type userDisplayGetter struct {
-	users map[string]types.User
+	users   map[string]types.User
+	failFor map[string]error
 }
 
 func (g *userDisplayGetter) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	if err, ok := g.failFor[name]; ok {
+		return nil, err
+	}
 	if user, ok := g.users[name]; ok {
 		return user, nil
 	}
