@@ -28,6 +28,10 @@ message GetBotInstanceRequest {
   string bot_name = 1;
   // The unique identifier of the bot instance to retrieve.
   string instance_id = 2;
+  // The scope of the bot associated with the instance. Combined with bot_name
+  // to uniquely identify a scoped bot. Leave empty if the associated bot is
+  // unscoped.
+  string bot_scope = 3;
 }
 
 // Request for ListBotInstances.
@@ -98,6 +102,10 @@ message DeleteBotInstanceRequest {
   string bot_name = 1;
   // The unique identifier of the bot instance to delete.
   string instance_id = 2;
+  // The scope of the bot associated with the instance. Combined with bot_name
+  // to uniquely identify a scoped bot. Leave empty if the associated bot is
+  // unscoped.
+  string bot_scope = 3;
 }
 
 // The request for SubmitHeartbeat.
