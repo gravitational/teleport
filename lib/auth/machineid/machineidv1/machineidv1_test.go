@@ -3237,6 +3237,7 @@ func TestBotInstanceService_DeleteBotInstance(t *testing.T) {
 			_, err = client.BotInstanceServiceClient().DeleteBotInstance(ctx, machineidv1pb.DeleteBotInstanceRequest_builder{
 				BotName:    tt.instance.GetSpec().GetBotName(),
 				InstanceId: tt.instance.GetSpec().GetInstanceId(),
+				BotScope:   tt.instance.GetScope(),
 			}.Build())
 			tt.assertError(t, err)
 		})
@@ -3361,6 +3362,7 @@ func TestBotInstanceService_GetBotInstance(t *testing.T) {
 			got, err := client.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
 				BotName:    tt.instance.GetSpec().GetBotName(),
 				InstanceId: tt.instance.GetSpec().GetInstanceId(),
+				BotScope:   tt.instance.GetScope(),
 			}.Build())
 			tt.assertError(t, err)
 			if err == nil {
@@ -3643,10 +3645,13 @@ func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
 		}.Build())
 		require.NoError(t, err)
 
-		got, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
-			BotName:    botName,
-			InstanceId: instanceID,
-		}.Build())
+		// Verify via the backend rather than the read RPC: scoped instances
+		// live in a scope-namespaced backend range that the cache watch does
+		// not yet see, so an instance created after cache init is not visible
+		// to cache-backed reads.
+		// TODO(strideynet): read back via the GetBotInstance RPC once
+		// scope-aware cache/watch support lands.
+		got, err := srv.Auth().BotInstance.GetBotInstance(ctx, "/scopes/test", botName, instanceID)
 		require.NoError(t, err)
 		require.NotNil(t, got.GetStatus().GetInitialHeartbeat())
 		require.Equal(t, "scoped-host", got.GetStatus().GetInitialHeartbeat().GetHostname())

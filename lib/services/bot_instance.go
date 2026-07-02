@@ -36,25 +36,34 @@ import (
 const BotUserPrefix = "bot-"
 
 // BotInstance is an interface for the BotInstance service.
+//
+// Bot instances belong to a bot, and bots are identified by their scope and
+// name: instances of scoped bots are stored in a scope-namespaced key range,
+// separate from instances of unscoped bots. Methods addressing an individual
+// instance take the owning bot's scope, which must be empty if the bot is
+// unscoped.
 type BotInstance interface {
-	// CreateBotInstance
+	// CreateBotInstance creates a new bot instance. It is stored in the key
+	// range determined by the scope set on the instance itself.
 	CreateBotInstance(ctx context.Context, botInstance *machineidv1.BotInstance) (*machineidv1.BotInstance, error)
 
-	// GetBotInstance
-	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
+	// GetBotInstance returns the bot instance owned by the bot identified by
+	// (botScope, botName) with the given instance ID.
+	GetBotInstance(ctx context.Context, botScope, botName, instanceID string) (*machineidv1.BotInstance, error)
 
 	// ListBotInstances
 	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *ListBotInstancesRequestOptions) ([]*machineidv1.BotInstance, string, error)
 
-	// DeleteBotInstance
-	DeleteBotInstance(ctx context.Context, botName, instanceID string) error
+	// DeleteBotInstance deletes the bot instance owned by the bot identified
+	// by (botScope, botName) with the given instance ID.
+	DeleteBotInstance(ctx context.Context, botScope, botName, instanceID string) error
 
-	// PatchBotInstance fetches an existing bot instance by bot name and ID,
-	// then calls `updateFn` to apply any changes before persisting the
-	// resource.
+	// PatchBotInstance fetches an existing bot instance by bot scope, bot name
+	// and instance ID, then calls `updateFn` to apply any changes before
+	// persisting the resource.
 	PatchBotInstance(
 		ctx context.Context,
-		botName, instanceID string,
+		botScope, botName, instanceID string,
 		updateFn func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error),
 	) (*machineidv1.BotInstance, error)
 }
@@ -159,6 +168,11 @@ type ListBotInstancesRequestOptions struct {
 	// The name of the Bot to list BotInstances for. If empty, all BotInstances
 	// will be listed.
 	FilterBotName string
+	// The scope of the Bot to list BotInstances for. Combined with
+	// FilterBotName to identify a scoped bot; leave empty if the bot is
+	// unscoped. If set without FilterBotName, all BotInstances in the scope
+	// will be listed.
+	FilterBotScope string
 	// A search term used to filter the results. If non-empty, it's used to
 	// match against supported fields.
 	FilterSearchTerm string
@@ -187,6 +201,13 @@ func (o *ListBotInstancesRequestOptions) GetFilterBotName() string {
 		return ""
 	}
 	return o.FilterBotName
+}
+
+func (o *ListBotInstancesRequestOptions) GetFilterBotScope() string {
+	if o == nil {
+		return ""
+	}
+	return o.FilterBotScope
 }
 
 func (o *ListBotInstancesRequestOptions) GetFilterSearchTerm() string {

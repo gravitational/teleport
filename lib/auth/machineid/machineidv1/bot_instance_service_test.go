@@ -461,7 +461,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			backend := newBotInstanceBackend(t)
 			service, err := NewBotInstanceService(BotInstanceServiceConfig{
 				Backend: backend,
-				Cache:   backend,
+				Cache:   backendAsCache{backend},
 				Authorizer: &fakeScopedAuthorizer{
 					ctx: authz.ScopedContextFromUnscopedContext(&authz.Context{
 						Identity: identityGetterFn(func() tlsca.Identity {
@@ -473,9 +473,14 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			// A scoped bot's instances are stored namespaced by the scope the
+			// identity is pinned to.
+			botScope := tt.identity.ScopePin.GetScope()
+
 			if tt.createBotInstance {
 				bi := newBotInstance(botName)
 				bi.GetSpec().SetInstanceId(botInstanceID)
+				bi.SetScope(botScope)
 				_, err := backend.CreateBotInstance(ctx, bi)
 				require.NoError(t, err)
 			}
@@ -483,7 +488,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			_, err = service.SubmitHeartbeat(ctx, tt.req)
 			tt.assertErr(t, err)
 			if tt.createBotInstance {
-				bi, err := backend.GetBotInstance(ctx, botName, botInstanceID)
+				bi, err := backend.GetBotInstance(ctx, botScope, botName, botInstanceID)
 				require.NoError(t, err)
 				if tt.wantHeartbeat {
 					assert.Empty(
@@ -527,7 +532,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	backend := newBotInstanceBackend(t)
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Backend: backend,
-		Cache:   backend,
+		Cache:   backendAsCache{backend},
 		Authorizer: &fakeScopedAuthorizer{
 			ctx: authz.ScopedContextFromUnscopedContext(&authz.Context{
 				Identity: identityGetterFn(func() tlsca.Identity {
@@ -557,7 +562,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	bi, err = backend.GetBotInstance(ctx, botName, botInstanceID)
+	bi, err = backend.GetBotInstance(ctx, "", botName, botInstanceID)
 	require.NoError(t, err)
 	assert.Len(t, bi.GetStatus().GetLatestHeartbeats(), heartbeatHistoryLimit)
 	assert.Equal(t, "0", bi.GetStatus().GetInitialHeartbeat().GetHostname())
@@ -710,6 +715,17 @@ func listInstances(t *testing.T, ctx context.Context, service *BotInstanceServic
 	return resources
 }
 
+// backendAsCache adapts the backend BotInstance service to the cache-shaped
+// BotInstancesCache interface. As with the real cache fallback, its reads
+// carry no bot scope and so address the unscoped key range only.
+type backendAsCache struct {
+	*local.BotInstanceService
+}
+
+func (b backendAsCache) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error) {
+	return b.BotInstanceService.GetBotInstance(ctx, "", botName, instanceID)
+}
+
 // newBotInstanceBackend creates a new local backend for BotInstance CRUD
 // operations.
 func newBotInstanceBackend(t *testing.T) *local.BotInstanceService {
@@ -745,7 +761,7 @@ func newBotInstanceService(
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Authorizer: authorizer,
 		Backend:    backendService,
-		Cache:      backendService,
+		Cache:      backendAsCache{backendService},
 	})
 	require.NoError(t, err)
 

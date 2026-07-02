@@ -68,13 +68,13 @@ func TestBotInstanceCache(t *testing.T) {
 			return p.botInstanceService.ListBotInstances(ctx, pageSize, pageToken, nil)
 		},
 		update: func(ctx context.Context, bi *machineidv1.BotInstance) error {
-			_, err := p.botInstanceService.PatchBotInstance(ctx, "bot-1", bi.GetMetadata().GetName(), func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+			_, err := p.botInstanceService.PatchBotInstance(ctx, "", "bot-1", bi.GetMetadata().GetName(), func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
 				return bi, nil
 			})
 			return err
 		},
 		delete: func(ctx context.Context, key string) error {
-			return p.botInstanceService.DeleteBotInstance(ctx, "bot-1", key)
+			return p.botInstanceService.DeleteBotInstance(ctx, "", "bot-1", key)
 		},
 		deleteAll: func(ctx context.Context) error {
 			return p.botInstanceService.DeleteAllBotInstances(ctx)

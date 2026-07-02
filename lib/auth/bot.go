@@ -329,7 +329,7 @@ func (a *Server) updateBotInstance(
 	var instanceGeneration int32
 	instanceNotFound := false
 	if botInstanceID != "" {
-		existingInstance, err := a.BotInstance.GetBotInstance(ctx, botName, botInstanceID)
+		existingInstance, err := a.BotInstance.GetBotInstance(ctx, scope, botName, botInstanceID)
 		if trace.IsNotFound(err) {
 			instanceNotFound = true
 		} else if err != nil {
@@ -489,7 +489,7 @@ func (a *Server) updateBotInstance(
 		}
 	}
 
-	_, err := a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+	_, err := a.BotInstance.PatchBotInstance(ctx, scope, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
 		if !bi.HasStatus() {
 			bi.SetStatus(&machineidv1pb.BotInstanceStatus{})
 		}

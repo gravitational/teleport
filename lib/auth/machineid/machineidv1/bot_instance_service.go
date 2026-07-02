@@ -129,7 +129,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	instance, err := b.backend.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
+	instance, err := b.backend.GetBotInstance(ctx, req.GetBotScope(), req.GetBotName(), req.GetInstanceId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -158,7 +158,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	}
 
 	if err := b.backend.DeleteBotInstance(
-		ctx, instance.GetSpec().GetBotName(), instance.GetSpec().GetInstanceId(),
+		ctx, instance.GetScope(), instance.GetSpec().GetBotName(), instance.GetSpec().GetInstanceId(),
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -182,7 +182,18 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := b.cache.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
+	// Scoped instances live in a scope-namespaced backend range that the cache
+	// watch does not yet see, so cache-backed reads of scoped instances may be
+	// stale or missing. Requests declaring a bot scope are served from the
+	// backend instead.
+	// TODO(strideynet): serve scoped reads from the cache once scope-aware
+	// cache/watch support lands.
+	var res *pb.BotInstance
+	if req.GetBotScope() != "" {
+		res, err = b.backend.GetBotInstance(ctx, req.GetBotScope(), req.GetBotName(), req.GetInstanceId())
+	} else {
+		res, err = b.cache.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -322,6 +333,13 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		}
 	}
 
+	// A scoped bot's identity is pinned to the bot's scope, and its instances
+	// are stored namespaced by that scope.
+	var botScope string
+	if ident.ScopePin != nil {
+		botScope = ident.ScopePin.GetScope()
+	}
+
 	b.logger.DebugContext(
 		ctx,
 		"Received bot instance heartbeat",
@@ -329,7 +347,7 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		"bot_instance", botInstanceID,
 		"heartbeat", logutils.StringerAttr(req.GetHeartbeat()),
 	)
-	_, err = b.backend.PatchBotInstance(ctx, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
+	_, err = b.backend.PatchBotInstance(ctx, botScope, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
 		if !instance.HasStatus() {
 			instance.SetStatus(&pb.BotInstanceStatus{})
 		}
