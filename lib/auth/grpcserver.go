@@ -307,6 +307,7 @@ var connectedResourceGauges = map[string]prometheus.Gauge{
 	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
 	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
 	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+	constants.KeepAliveLinuxDesktop:          connectedResources.WithLabelValues(constants.KeepAliveLinuxDesktop),
 	teleport.ComponentRelay:                  connectedResources.WithLabelValues(teleport.ComponentRelay),
 }
 
@@ -786,6 +787,10 @@ func validateCertUsage(req *authpb.UserCertsRequest) error {
 		if err := validateAccessGraphcertificateReq(req); err != nil {
 			return trace.Wrap(err)
 		}
+	case authpb.UserCertsRequest_LinuxDesktop:
+		if req.RouteToLinuxDesktop.LinuxDesktop == "" {
+			return trace.BadParameter("missing LinuxDesktop field in a linux-desktop-only UserCertsRequest")
+		}
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
@@ -888,10 +893,11 @@ func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRol
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
-	types.RoleApp:      constants.KeepAliveApp,
-	types.RoleDatabase: constants.KeepAliveDatabase,
-	types.RoleKube:     constants.KeepAliveKube,
-	types.RoleNode:     constants.KeepAliveNode,
+	types.RoleApp:          constants.KeepAliveApp,
+	types.RoleDatabase:     constants.KeepAliveDatabase,
+	types.RoleKube:         constants.KeepAliveKube,
+	types.RoleNode:         constants.KeepAliveNode,
+	types.RoleLinuxDesktop: constants.KeepAliveLinuxDesktop,
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
@@ -2965,7 +2971,7 @@ func userSingleUseCertsGenerate(ctx context.Context, srv *ScopedServerWithRoles,
 	switch req.Usage {
 	case authpb.UserCertsRequest_SSH:
 		resp.SSH = certs.SSH
-	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App, authpb.UserCertsRequest_AccessGraphAPI:
+	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_LinuxDesktop, authpb.UserCertsRequest_App, authpb.UserCertsRequest_AccessGraphAPI:
 		resp.TLS = certs.TLS
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)

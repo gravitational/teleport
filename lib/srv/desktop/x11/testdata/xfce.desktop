@@ -1,0 +1,4 @@
+[Desktop Entry]
+Version=1.0
+Name=Xfce Session
+Exec=startxfce4

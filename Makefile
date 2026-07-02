@@ -1917,7 +1917,18 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: ensure-llvm-macos rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+
+.PHONY: ensure-llvm-macos
+ifeq ("$(OS)-$(ARCH)","darwin-arm64")
+ensure-llvm-macos:
+	@if ! command llvm-as --version >/dev/null 2>&1; then \
+		echo "llvm is required, please run 'brew install llvm'"; \
+		exit 1; \
+	fi
+else
+ensure-llvm-macos:
+endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
