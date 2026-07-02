@@ -23,9 +23,19 @@ final class LandingViewModel {
 	enum Destination {
 		case deviceEnrollment(EnrollDeviceViewModel)
 		case deepLinkParsingAlert(errorMessage: String)
+		case cameraScanner(EnrollCameraScannerViewModel)
 	}
 
 	var destination: Destination? = nil
+	var sensoryFeedbackTrigger = false
+}
+
+// MARK: - User Actions
+
+extension LandingViewModel {
+	func userTappedOnScanQRCode() {
+		destination = .cameraScanner(EnrollCameraScannerViewModel(delegate: self))
+	}
 }
 
 // MARK: - Programmatic Navigation
@@ -45,5 +55,17 @@ extension LandingViewModel {
 extension LandingViewModel: EnrollDeviceViewModel.Delegate {
 	func enrollDeviceViewModelDidCancelOperation(_ viewModel: EnrollDeviceViewModel) {
 		destination = nil
+	}
+}
+
+// MARK: - EnrollCameraScannerViewModel.Delegate
+
+extension LandingViewModel: EnrollCameraScannerViewModel.Delegate {
+	func enrollCameraScannerViewModel(
+		_ viewModel: EnrollCameraScannerViewModel,
+		didReceiveEnrollMobileDeviceDeepLink deepLink: EnrollMobileDeviceDeepLink,
+	) {
+		sensoryFeedbackTrigger.toggle()
+		destination = .deviceEnrollment(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
 	}
 }
