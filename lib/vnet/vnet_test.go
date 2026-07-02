@@ -93,31 +93,31 @@ type testPackConfig struct {
 	allowAppHTTPSTunnel bool
 }
 
-func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
+func newTestPack(tb testing.TB, ctx context.Context, cfg testPackConfig) *testPack {
 	if cfg.homePath == "" {
-		cfg.homePath = t.TempDir()
+		cfg.homePath = tb.TempDir()
 	}
 
 	hostNetwork, err := NewFakeHostNetwork()
-	require.NoError(t, err)
-	t.Cleanup(hostNetwork.Close)
+	require.NoError(tb, err)
+	tb.Cleanup(hostNetwork.Close)
 
 	vnetIPv6Prefix, err := newIPv6Prefix()
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, dns.DNSServerSuffix)
 
 	// In reality the VNet networking stack runs in a separate process from the
 	// client application and communicates over gRPC. For the test, everything
 	// runs in a single process, but we still set up the gRPC service and only
 	// interface with fakeClientApp via the gRPC client.
-	clt := runTestClientApplicationService(t, ctx, cfg)
+	clt := runTestClientApplicationService(tb, ctx, cfg)
 	appProvider := newAppProvider(clt)
 	sshProvider, err := newSSHProvider(ctx, sshProviderConfig{
 		clt:                clt,
 		clock:              cfg.clock,
 		overrideNodeDialer: cfg.fakeClientApp.dialSSHNode,
 	})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:                      clt,
 		appProvider:              appProvider,
@@ -136,17 +136,17 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 		tcpHandlerResolver:       tcpHandlerResolver,
 		upstreamNameserverSource: noUpstreamNameservers{},
 	})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	tunIPv6, err := tunIPv6ForPrefix(vnetIPv6Prefix.String())
-	require.NoError(t, err)
-	require.NoError(t, hostNetwork.Configure(ctx, &EmbeddedVNetHostConfig{
+	require.NoError(tb, err)
+	require.NoError(tb, hostNetwork.Configure(ctx, &EmbeddedVNetHostConfig{
 		DeviceIPv6: tunIPv6,
 		CIDRRanges: []string{tunIPv6 + "/64"},
 		DNSAddrs:   []string{dnsIPv6.String()},
 	}))
 
-	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, tb, &testutils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
 			err := ns.run(ctx)
@@ -204,10 +204,10 @@ func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Con
 // runTestClientApplicationService runs the gRPC service that's normally used to
 // expose the client application and Teleport client methods to the VNet
 // admin/networking process over gRPC. It returns a client of the gRPC service.
-func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg testPackConfig) *clientApplicationServiceClient {
+func runTestClientApplicationService(tb testing.TB, ctx context.Context, cfg testPackConfig) *clientApplicationServiceClient {
 	clusterConfigCache := NewClusterConfigCache(cfg.clock)
 	leafClusterCache, err := newLeafClusterCache(cfg.clock)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
 		clientApplication:   cfg.fakeClientApp,
 		clusterConfigCache:  clusterConfigCache,
@@ -221,12 +221,12 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg test
 		homePath:          cfg.homePath,
 		clock:             cfg.clock,
 	})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	ipcCredentials, err := newIPCCredentials()
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	serverTLSConfig, err := ipcCredentials.server.serverTLSConfig()
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	grpcServer := grpc.NewServer(
 		grpc.Creds(grpccredentials.NewTLS(serverTLSConfig)),
@@ -236,8 +236,8 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg test
 	vnetv1.RegisterClientApplicationServiceServer(grpcServer, clientApplicationService)
 
 	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
+	require.NoError(tb, err)
+	testutils.RunTestBackgroundTask(ctx, tb, &testutils.TestBackgroundTask{
 		Name: "user process gRPC server",
 		Task: func(ctx context.Context) error {
 			return trace.Wrap(grpcServer.Serve(listener), "serving VNet user process gRPC service")
@@ -250,14 +250,14 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg test
 
 	// Write the service credentials to and from disk as that's what really
 	// happens outside of tests.
-	credDir := t.TempDir()
-	require.NoError(t, ipcCredentials.client.write(credDir, 0400), "writing service credentials to disk")
+	credDir := tb.TempDir()
+	require.NoError(tb, ipcCredentials.client.write(credDir, 0400), "writing service credentials to disk")
 	clientCreds, err := readCredentials(credDir)
-	require.NoError(t, err, "reading service credentials from disk")
+	require.NoError(tb, err, "reading service credentials from disk")
 
 	clt, err := newClientApplicationServiceClient(ctx, clientCreds, listener.Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() { clt.close() })
+	require.NoError(tb, err)
+	tb.Cleanup(func() { clt.close() })
 	return clt
 }
 
@@ -347,21 +347,21 @@ type fakeClientAppConfig struct {
 // This is what ultimately defines the environment for the test. VNet should be
 // able to run with any implementation of [ClientApplication] and little to no
 // other configuration.
-func newFakeClientApp(ctx context.Context, t *testing.T, cfg *fakeClientAppConfig) *fakeClientApp {
+func newFakeClientApp(ctx context.Context, tb testing.TB, cfg *fakeClientAppConfig) *fakeClientApp {
 	teleportHostCAKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	teleportHostCA, err := ssh.NewSignerFromSigner(teleportHostCAKey)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	teleportUserCAKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	teleportUserCA, err := ssh.NewSignerFromSigner(teleportUserCAKey)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	forwardedAgents := &forwardedAgents{}
 
-	tlsCA := newSelfSignedCA(t)
-	dialOpts := mustStartFakeWebProxy(ctx, t, fakeWebProxyConfig{
+	tlsCA := newSelfSignedCA(tb)
+	dialOpts := mustStartFakeWebProxy(ctx, tb, fakeWebProxyConfig{
 		tlsCA:           tlsCA,
 		hostCA:          teleportHostCA,
 		userCA:          teleportUserCA,
@@ -2110,9 +2110,9 @@ func TestPriority(t *testing.T) {
 	})
 }
 
-func newSelfSignedCA(t *testing.T) tls.Certificate {
+func newSelfSignedCA(tb testing.TB) tls.Certificate {
 	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
@@ -2127,7 +2127,7 @@ func newSelfSignedCA(t *testing.T) tls.Certificate {
 		MaxPathLenZero:        true,
 	}
 	certBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, signer.Public(), signer)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return tls.Certificate{
 		Certificate: [][]byte{certBytes},
@@ -2206,14 +2206,14 @@ type fakeWebProxyConfig struct {
 
 func mustStartFakeWebProxy(
 	ctx context.Context,
-	t *testing.T,
+	tb testing.TB,
 	cfg fakeWebProxyConfig,
 ) *vnetv1.DialOptions {
-	t.Helper()
+	tb.Helper()
 
 	roots := x509.NewCertPool()
 	caX509, err := x509.ParseCertificate(cfg.tlsCA.Certificate[0])
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	roots.AddCert(caX509)
 
 	const proxyCN = "testproxy"
@@ -2225,7 +2225,7 @@ func mustStartFakeWebProxy(
 		cfg.suite,
 		cryptosuites.HostIdentity,
 	)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	proxyTLSConfig := &tls.Config{
 		Certificates: []tls.Certificate{proxyCert},
@@ -2315,9 +2315,9 @@ func mustStartFakeWebProxy(
 	}
 
 	listener, err := tls.Listen("tcp", "localhost:0", proxyTLSConfig)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
-	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, tb, &testutils.TestBackgroundTask{
 		Name: "web proxy",
 		Task: func(ctx context.Context) error {
 			for {
@@ -2335,11 +2335,11 @@ func mustStartFakeWebProxy(
 					// the main test goroutine. The test will fail if the conn is not handled.
 					tlsConn, ok := conn.(*tls.Conn)
 					if !ok {
-						t.Log("client conn is not TLS")
+						tb.Log("client conn is not TLS")
 						return
 					}
 					if err := tlsConn.Handshake(); err != nil {
-						t.Log("error completing tls handshake")
+						tb.Log("error completing tls handshake")
 						return
 					}
 					protocol := tlsConn.ConnectionState().NegotiatedProtocol
@@ -2350,7 +2350,7 @@ func mustStartFakeWebProxy(
 					}
 					clientCerts := tlsConn.ConnectionState().PeerCertificates
 					if len(clientCerts) == 0 {
-						t.Log("client has no certs")
+						tb.Log("client has no certs")
 						return
 					}
 					// Manually checking the cert expiry compared to the time of the fake clock, since the TLS
@@ -2359,11 +2359,11 @@ func mustStartFakeWebProxy(
 					// cert NotBefore is always at/before the real current time, so the TLS library is
 					// satisfied.
 					if cfg.clock.Now().After(clientCerts[0].NotAfter) {
-						t.Logf("client cert is expired: currentTime=%s expiry=%s", cfg.clock.Now(), clientCerts[0].NotAfter)
+						tb.Logf("client cert is expired: currentTime=%s expiry=%s", cfg.clock.Now(), clientCerts[0].NotAfter)
 						return
 					}
 					if err := handler(conn); err != nil {
-						t.Logf("error in protocol handler: %v", err)
+						tb.Logf("error in protocol handler: %v", err)
 					}
 				}()
 			}
@@ -2377,7 +2377,7 @@ func mustStartFakeWebProxy(
 	})
 
 	caPEM, err := tlsca.MarshalCertificatePEM(caX509)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	dialOpts := vnetv1.DialOptions_builder{
 		WebProxyAddr:          listener.Addr().String(),
 		RootClusterCaCertPool: caPEM,
