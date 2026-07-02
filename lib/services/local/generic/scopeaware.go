@@ -110,6 +110,10 @@ func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*S
 		}, nil
 	}
 
+	if cfg.ScopedBackendPrefix.Compare(cfg.UnscopedBackendPrefix) == 0 {
+		return nil, trace.BadParameter("scoped and unscoped backend services cannot have the same prefix")
+	}
+
 	unscopedService, err := NewService(&ServiceConfig[T]{
 		Backend:                     cfg.Backend,
 		ResourceKind:                cfg.ResourceKind,

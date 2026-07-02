@@ -78,6 +78,18 @@ func TestApplicationServersCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	scopedAppA, err := types.NewAppV3(types.Metadata{Name: "a"},
+		types.AppSpecV3{URI: "http://localhost:8080"}, "/testing")
+
+	scopedServerA, err := types.NewAppServerV3(types.Metadata{
+		Name: appA.GetName(),
+	}, types.AppServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New().String(),
+		App:      scopedAppA,
+	})
+	require.NoError(t, err)
+
 	// Make another app and an app server.
 	appB, err := types.NewAppV3(types.Metadata{Name: "b"},
 		types.AppSpecV3{URI: "http://localhost:8081"})
@@ -88,6 +100,18 @@ func TestApplicationServersCRUD(t *testing.T) {
 		Hostname: "localhost",
 		HostID:   uuid.New().String(),
 		App:      appB,
+	})
+	require.NoError(t, err)
+
+	scopedAppB, err := types.NewAppV3(types.Metadata{Name: "b"},
+		types.AppSpecV3{URI: "http://localhost:8081"}, "/testing")
+
+	scopedServerB, err := types.NewAppServerV3(types.Metadata{
+		Name: appA.GetName(),
+	}, types.AppServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New().String(),
+		App:      scopedAppB,
 	})
 	require.NoError(t, err)
 
@@ -104,13 +128,29 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{}, lease)
 
-	// Make sure all app servers are registered.
-	out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
+	lease, err = presence.UpsertApplicationServer(ctx, scopedServerA)
 	require.NoError(t, err)
-	servers := types.AppServers(out)
-	require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
-	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Equal(t, &types.KeepAlive{}, lease)
+	lease, err = presence.UpsertApplicationServer(ctx, scopedServerB)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+
+	// Make sure all app servers are registered.
+	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []types.AppServer{serverA, serverB, scopedServerA, scopedServerB}, out)
+
+	serverA.SetProxyIDs([]string{"fake1", "fake2"})
+	updatedAppServerA, err := presence.UnconditionalUpdateApplicationServer(ctx, serverA)
+	require.NoError(t, err)
+
+	scopedServerB.SetProxyIDs([]string{"fake1", "fake2"})
+	updatedAppServerB, err := presence.UnconditionalUpdateApplicationServer(ctx, scopedServerB)
+	require.NoError(t, err)
+
+	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []types.AppServer{updatedAppServerA, serverB, scopedServerA, updatedAppServerB}, out)
 
 	// Delete an app server.
 	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
@@ -119,8 +159,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	// Expect only one to return.
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.ElementsMatch(t, []types.AppServer{serverB, scopedServerA, scopedServerB}, out)
 
 	// Upsert server with TTL.
 	serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
@@ -394,6 +433,110 @@ func mustCreateKubernetesServer(t *testing.T, clusterName string) types.KubeServ
 	server, err := types.NewKubernetesServerV3FromCluster(cluster, "localhost", uuid.New().String())
 	require.NoError(t, err)
 	return server
+}
+
+func TestKubernetesServersCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
+
+	presence := NewPresenceService(backend)
+
+	// Make a cluster and kube server.
+	clusterA, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "a",
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	serverA, err := types.NewKubernetesServerV3FromCluster(clusterA, "localhost", uuid.New().String())
+	require.NoError(t, err)
+
+	// Make another cluster and kube server.
+	clusterB, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "b",
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	serverB, err := types.NewKubernetesServerV3FromCluster(clusterB, "localhost", uuid.New().String())
+	require.NoError(t, err)
+
+	scopedClusterA, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "a",
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	scopedServerA, err := types.NewKubernetesServerV3FromCluster(scopedClusterA, "localhost", uuid.New().String())
+	require.NoError(t, err)
+
+	// Make another cluster and kube server.
+	scopedClusterB, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "b",
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	scopedServerB, err := types.NewKubernetesServerV3FromCluster(scopedClusterB, "localhost", uuid.New().String())
+	require.NoError(t, err)
+
+	// No kube servers should be registered initially
+	out, err := presence.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Create kube servers.
+	lease, err := presence.UpsertKubernetesServer(ctx, serverA)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+	lease, err = presence.UpsertKubernetesServer(ctx, serverB)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+
+	lease, err = presence.UpsertKubernetesServer(ctx, scopedServerA)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+	lease, err = presence.UpsertKubernetesServer(ctx, scopedServerB)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+
+	// Make sure all kube servers are registered.
+	out, err = presence.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []types.KubeServer{serverA, serverB, scopedServerA, scopedServerB}, out)
+
+	// Delete a kube server.
+	err = presence.DeleteKubernetesServer(ctx, serverA.GetHostID(), serverA.GetName())
+	require.NoError(t, err)
+
+	// Expect only one to return.
+	out, err = presence.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []types.KubeServer{serverB, scopedServerA, scopedServerB}, out)
+
+	// Upsert server with TTL.
+	serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
+	lease, err = presence.UpsertKubernetesServer(ctx, serverA)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{
+		Type:      types.KeepAlive_KUBERNETES,
+		Namespace: serverA.GetNamespace(),
+		Name:      serverA.GetName(),
+		HostID:    serverA.GetHostID(),
+		Expires:   serverA.Expiry(),
+	}, lease)
+
+	// Delete all kube servers.
+	err = presence.DeleteAllKubernetesServers(ctx)
+	require.NoError(t, err)
+
+	// Expect no servers to return.
+	out, err = presence.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 func TestRangeKubernetesServersWithName(t *testing.T) {
@@ -1304,7 +1447,7 @@ func TestFakePaginateWithScopes(t *testing.T) {
 				Revision: strconv.Itoa(i),
 			},
 			types.KubernetesClusterSpecV3{},
-			types.KubeClusterWithScope(makeScope(i)),
+			makeScope(i),
 		)
 		require.NoError(t, err)
 		return kubeCluster
