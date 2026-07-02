@@ -87,6 +87,7 @@ import (
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
+	foov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -5574,6 +5575,14 @@ func (c *Client) VnetConfigClient() *vnetconfig.Client {
 // (as per the default gRPC behavior).
 func (c *Client) CrownJewelServiceClient() *crownjewelapi.Client {
 	return crownjewelapi.NewClient(crownjewelv1.NewCrownJewelServiceClient(c.conn))
+}
+
+// FooClient returns a Foo client.
+// Clients connecting to older Teleport versions, still get a Foo client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) FooClient() foov1.FooServiceClient {
+	return foov1.NewFooServiceClient(c.conn)
 }
 
 // UserLoginStateClient returns a user login state client.

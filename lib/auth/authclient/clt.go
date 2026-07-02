@@ -48,6 +48,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	foov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
@@ -677,6 +678,11 @@ func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdat
 // CrownJewelsClient returns a client for managing Crown Jewel resources.
 func (c *Client) CrownJewelsClient() services.CrownJewels {
 	return c.APIClient.CrownJewelServiceClient()
+}
+
+// FooClient returns a client for managing Foo resources.
+func (c *Client) FooClient() foov1.FooServiceClient {
+	return c.APIClient.FooClient()
 }
 
 // StaticHostUserClient returns a client for managing static host user resources.
@@ -1878,6 +1884,9 @@ type ClientI interface {
 
 	// CrownJewelServiceClient returns a Crown Jewel service client.
 	CrownJewelServiceClient() *crownjewel.Client
+
+	// FooClient returns a Foo service client.
+	FooClient() foov1.FooServiceClient
 
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,

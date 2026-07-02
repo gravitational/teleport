@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	foov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -58,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/foos"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -357,6 +359,98 @@ func TestDatabaseServiceResource(t *testing.T) {
 		require.Contains(t, outputString, "env=[prod]")
 		require.Contains(t, outputString, randomDBServiceName)
 	})
+}
+
+func TestFooResourceCommand(t *testing.T) {
+	t.Parallel()
+
+	const fooYAML = `kind: foo
+version: v1
+metadata:
+  name: foo-1
+  labels:
+    env: test
+scope: /security
+spec:
+  value: value-1
+`
+	const unscopedFooYAML = `kind: foo
+version: v1
+metadata:
+  name: foo-1
+scope: ""
+spec:
+  value: unscoped-value
+`
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "false",
+			},
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+
+	process := makeAndRunTestAuthServer(t,
+		withFileConfig(fileConfig),
+		withFileDescriptors(dynAddr.Descriptors),
+		withScopesFeatures(scopes.Features{Enabled: true}),
+	)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	fooYAMLPath := filepath.Join(t.TempDir(), "foo.yaml")
+	require.NoError(t, os.WriteFile(fooYAMLPath, []byte(fooYAML), 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", fooYAMLPath})
+	require.NoError(t, err)
+	unscopedFooYAMLPath := filepath.Join(t.TempDir(), "unscoped-foo.yaml")
+	require.NoError(t, os.WriteFile(unscopedFooYAMLPath, []byte(unscopedFooYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", unscopedFooYAMLPath})
+	require.NoError(t, err)
+
+	buff, err := runResourceCommand(t, clt, []string{"get", foos.Kind, "/security::foo-1", "--format=json"})
+	require.NoError(t, err)
+	got := mustDecodeFooResources(t, buff.Bytes())
+	require.Len(t, got, 1)
+	require.Equal(t, "foo-1", got[0].GetMetadata().GetName())
+	require.Equal(t, "/security", got[0].GetScope())
+	require.Equal(t, "value-1", got[0].GetSpec().GetValue())
+
+	buff, err = runResourceCommand(t, clt, []string{"get", foos.Kind, "foo-1", "--format=json"})
+	require.NoError(t, err)
+	got = mustDecodeFooResources(t, buff.Bytes())
+	require.Len(t, got, 1)
+	require.Equal(t, "foo-1", got[0].GetMetadata().GetName())
+	require.Empty(t, got[0].GetScope())
+	require.Equal(t, "unscoped-value", got[0].GetSpec().GetValue())
+
+	buff, err = runResourceCommand(t, clt, []string{"get", foos.Kind, "--format=json"})
+	require.NoError(t, err)
+	got = mustDecodeFooResources(t, buff.Bytes())
+	require.Len(t, got, 2)
+
+	_, err = runResourceCommand(t, clt, []string{"rm", foos.Kind, "/security::foo-1"})
+	require.NoError(t, err)
+
+	_, err = runResourceCommand(t, clt, []string{"get", foos.Kind, "/security::foo-1", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound after delete, got %v", err)
+
+	_, err = runResourceCommand(t, clt, []string{"rm", foos.Kind, "foo-1"})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", foos.Kind, "foo-1", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound after delete, got %v", err)
 }
 
 func TestScopedRoleAndAssignmentResource(t *testing.T) {
@@ -849,6 +943,13 @@ spec:
 	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "/other-scope::gcp-test-token", "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch, got: %v", err)
 	require.ErrorContains(t, err, "tctl get scoped_token /::gcp-test-token")
+}
+
+func mustDecodeFooResources(t *testing.T, raw []byte) []*foov1.Foo {
+	t.Helper()
+	foos, err := services.UnmarshalProtoResourceArray[*foov1.Foo](raw, services.DisallowUnknown())
+	require.NoError(t, err)
+	return foos
 }
 
 // TestScopedAndUnscopedNodeResource exercises tctl get/rm on nodes which are double
