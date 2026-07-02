@@ -64,6 +64,13 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 				// Index on a combination of most recent heartbeat hostname and instance name
 				botInstanceHostnameIndex: keyForBotInstanceHostnameIndex,
 			}),
+		// TODO(strideynet): SCOPED BOT INSTANCES ARE STALE IN THIS CACHE.
+		// Instances of scoped bots live in a scope-namespaced backend range
+		// (scoped/bot_instance/...) that this collection's event watcher does
+		// not see: they are loaded by the unified list in the fetcher below,
+		// but receive no update/delete events until the watcher resets, so
+		// reads of scoped instances served from this cache may be arbitrarily
+		// stale. Fix once scope-aware cache/watch support lands.
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx,
 				func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
@@ -86,7 +93,11 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 		collection: c.collections.botInstances,
 		index:      botInstanceNameIndex,
 		upstreamGet: func(ctx context.Context, _ string) (*machineidv1.BotInstance, error) {
-			return c.Config.BotInstanceService.GetBotInstance(ctx, botName, instanceID)
+			// TODO(strideynet): this fallback read carries no bot scope, so it
+			// can only address the unscoped range: scoped bots' instances are
+			// not readable through it (see the staleness TODO in
+			// newBotInstanceCollection).
+			return c.Config.BotInstanceService.GetBotInstance(ctx, "", botName, instanceID)
 		},
 	}
 
