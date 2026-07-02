@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -364,6 +365,65 @@ func (c *Client) serveSessionRequests(ctx context.Context, in <-chan *ssh.Reques
 	}()
 
 	return unhandledReqs
+}
+
+// HandleChannelOpen starts a goroutine to handle any incoming [ssh.NewChannel] requests matching
+// the provided type using the provided handler. If the type already is being handled,
+// an error is returned. Any error returned by the handler is recorded on the channel's trace span.
+//
+// This should be called before NewSession to ensure new channels of this type are
+// not rejected before the handler is registered.
+func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, handleFn func(ctx context.Context, ch ssh.NewChannel) error) error {
+	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
+	ch := c.Client.HandleChannelOpen(channelType)
+	if ch == nil {
+		return trace.AlreadyExists("ssh request type %q is already being handled by this session client", channelType)
+	}
+
+	go func() {
+		for newCh := range ch {
+			chanCtx, newCh := ContextFromNewChannel(newCh, c.opts...)
+			parentCtx := ctx
+			// OpenSSH servers can open channels without propagating trace
+			// context, so preserve the local handler context in that case.
+			if remoteSpanCtx := oteltrace.SpanContextFromContext(chanCtx); remoteSpanCtx.IsValid() {
+				parentCtx = oteltrace.ContextWithRemoteSpanContext(ctx, remoteSpanCtx)
+			}
+			handlerCtx, span := tracer.Start(
+				parentCtx,
+				"ssh.HandleChannelOpen/"+channelType,
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(
+					append(
+						peerAttr(c.Conn.RemoteAddr()),
+						semconv.RPCServiceKey.String("ssh.Client"),
+						semconv.RPCMethodKey.String("OpenChannel"),
+						semconv.RPCSystemKey.String("ssh"),
+					)...,
+				),
+			)
+
+			go func() {
+				err := handleFn(handlerCtx, newCh)
+				if err != nil {
+					slog.DebugContext(ctx, "error handling ssh channel open", "channel_type", channelType, "err", err)
+				}
+				tracing.EndSpan(span, err)
+			}()
+		}
+	}()
+	return nil
+}
+
+// HandleChannelOpenNoTrace returns a channel on which NewChannel requests
+// for the given type are sent. If the type already is being handled,
+// nil is returned. The channel is closed when the connection is closed.
+//
+// This method uses the base [ssh.Client] and thus does not create traces for
+// channels opened by this method. Traces should be created manually in the handling
+// of new channels, or HandleChannelOpen should be used.
+func (c *Client) HandleChannelOpenNoTrace(channelType string) <-chan ssh.NewChannel {
+	return c.Client.HandleChannelOpen(channelType)
 }
 
 // clientWrapper wraps the ssh.Conn for individual ssh.Client
