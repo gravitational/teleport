@@ -1,0 +1,59 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.foo.v1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1;foov1";
+
+// Foo is a generic resource.
+message Foo {
+  // kind is the resource kind.
+  string kind = 1;
+
+  // sub_kind is the resource sub-kind.
+  string sub_kind = 2;
+
+  // version is the resource version.
+  string version = 3;
+
+  // metadata contains the resource metadata.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // scope is the scope of the foo resource.
+  string scope = 5;
+
+  // spec is the foo specification.
+  FooSpec spec = 6;
+
+  // status is the foo status.
+  FooStatus status = 7;
+}
+
+// FooSpec is a foo scecification.
+message FooSpec {
+  // value is the value of the foo.
+  string value = 1;
+}
+
+// FooStatus is a foo status.
+message FooStatus {
+  // last_update is the last time the foo was written.
+  // Just an example of a status field, not a recommendation.
+  google.protobuf.Timestamp last_update = 1;
+}
