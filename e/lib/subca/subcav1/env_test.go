@@ -22,6 +22,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -43,8 +44,10 @@ import (
 
 // EnvParams hold creation parameters for [Env].
 type EnvParams struct {
-	StorageParams subcaenv.EnvParams
-	Authorizer    authz.Authorizer
+	StorageEnv      *subcaenv.Env // Optional. Created using StorageParams if nil.
+	StorageParams   subcaenv.EnvParams
+	KeystoreManager KeystoreManager
+	Authorizer      authz.Authorizer
 }
 
 // Env is a gRPC test environment for subcav1.
@@ -59,8 +62,13 @@ type Env struct {
 func NewEnv(t *testing.T, p EnvParams) *Env {
 	t.Helper()
 
+	storageEnv := p.StorageEnv
+	if storageEnv == nil {
+		storageEnv = subcaenv.New(t, p.StorageParams)
+	}
+
 	env := &Env{
-		Env: subcaenv.New(t, p.StorageParams),
+		Env: storageEnv,
 	}
 
 	// ClusterConfigurationService and cluster name.
@@ -71,19 +79,25 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 		ClusterID:   "40bf199c-b468-4294-97ed-06ed085d6c25", // "Random".
 	})
 	require.NoError(t, err, "NewClusterName()")
-	require.NoError(t,
-		ccs.SetClusterName(cn),
-		"SetClusterName()",
-	)
+	switch err := ccs.SetClusterName(cn); {
+	case trace.IsAlreadyExists(err):
+		// OK, multi-Auth test setup.
+	default:
+		require.NoError(t, err, "SetClusterName()")
+	}
 
-	km, err := keystore.NewManager(t.Context(),
-		&servicecfg.KeystoreConfig{},
-		&keystore.Options{
-			ClusterName:          cn,
-			AuthPreferenceGetter: ccs,
-			Clock:                env.Clock,
-		})
-	require.NoError(t, err, "keystore.NewManager()")
+	km := p.KeystoreManager
+	if km == nil {
+		var err error
+		km, err = keystore.NewManager(t.Context(),
+			&servicecfg.KeystoreConfig{},
+			&keystore.Options{
+				ClusterName:          cn,
+				AuthPreferenceGetter: ccs,
+				Clock:                env.Clock,
+			})
+		require.NoError(t, err, "keystore.NewManager()")
+	}
 
 	env.MockEmitter = &eventstest.MockRecorderEmitter{}
 
@@ -100,6 +114,8 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 		CachedSubCA:             env.SubCA,
 		SubCA:                   env.SubCA,
 		Trust:                   env.Trust,
+		WatcherContext:          t.Context(), // Stop watchers on test end.
+		WatcherSource:           local.NewEventsService(env.Backend),
 		KeystoreManager:         km,
 		Authorizer:              authorizer,
 		Emitter:                 env.MockEmitter,

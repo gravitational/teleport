@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
+	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -100,6 +101,12 @@ type KeystoreManager interface {
 	TLSSigner(ctx context.Context, keypair *types.TLSKeyPair) (crypto.Signer, error)
 }
 
+// WatcherSource is a source of watchers, typically a lib/cache.Cache instance
+// in production.
+type WatcherSource interface {
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+}
+
 // ServiceParams holds creation parameters for [Service].
 type ServiceParams struct {
 	Clock  clockwork.Clock
@@ -120,6 +127,13 @@ type ServiceParams struct {
 	// Used by CSR generation and write RPCs.
 	Trust services.AuthorityGetter
 
+	// WatcherContext is the context used to stop the background watchers created
+	// by Service.
+	WatcherContext context.Context
+	// WatcherSource is a source of watchers.
+	// Used to listen and react to CA override changes.
+	WatcherSource WatcherSource
+
 	// KeystoreManager is the interface to the Auth TLS private keys.
 	// Used on CRL and CSR signing.
 	KeystoreManager KeystoreManager
@@ -139,6 +153,8 @@ type Service struct {
 	cachedSubCA             CachedSubCAStorage
 	subCA                   SubCAStorage
 	trust                   services.AuthorityGetter
+
+	watcherSource WatcherSource
 
 	keystoreManager KeystoreManager
 
@@ -161,6 +177,10 @@ func New(p ServiceParams) (*Service, error) {
 		return nil, trace.BadParameter("param SubCA required")
 	case p.Trust == nil:
 		return nil, trace.BadParameter("param Trust required")
+	case p.WatcherContext == nil:
+		return nil, trace.BadParameter("param WatcherContext required")
+	case p.WatcherSource == nil:
+		return nil, trace.BadParameter("param WatcherSource required")
 	case p.KeystoreManager == nil:
 		return nil, trace.BadParameter("param KeystoreManager required")
 	case p.Authorizer == nil:
@@ -169,17 +189,22 @@ func New(p ServiceParams) (*Service, error) {
 		return nil, trace.BadParameter("param Emitter required")
 	}
 
-	return &Service{
+	logger := p.Logger.With(teleport.ComponentKey, "subca.service")
+
+	s := &Service{
 		clock:                   p.Clock,
-		logger:                  p.Logger,
+		logger:                  logger,
 		cachedClusterNameGetter: p.CachedClusterNameGetter,
 		cachedSubCA:             p.CachedSubCA,
 		subCA:                   p.SubCA,
 		trust:                   p.Trust,
+		watcherSource:           p.WatcherSource,
 		keystoreManager:         p.KeystoreManager,
 		authorizer:              p.Authorizer,
 		emitter:                 p.Emitter,
-	}, nil
+	}
+	go s.runCAOverrideWatcher(p.WatcherContext)
+	return s, nil
 }
 
 func (s *Service) CreateCSR(

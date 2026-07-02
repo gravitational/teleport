@@ -605,7 +605,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		p.authServer.AuthServer.SetSigstorePolicyEvaluator(eval)
 	}
 
-	if err := registerSubCAService(gRPCServer, p.authServer); err != nil {
+	if err := registerSubCAService(ctx, gRPCServer, p.authServer); err != nil {
 		return trace.Wrap(err, "register Sub CA service")
 	}
 
@@ -1062,6 +1062,7 @@ func (p *Plugin) registerResourceUsageService(server *auth.GRPCServer, cfg resou
 }
 
 func registerSubCAService(
+	processContext context.Context,
 	server grpc.ServiceRegistrar,
 	authGRPC *auth.GRPCServer,
 ) error {
@@ -1073,6 +1074,8 @@ func registerSubCAService(
 		CachedSubCA:             authServer.Cache,
 		SubCA:                   authServer.Services,
 		Trust:                   authServer.Services,
+		WatcherContext:          processContext,
+		WatcherSource:           authServer.Cache,
 		KeystoreManager:         authServer.GetKeyStore(),
 		Authorizer:              authGRPC.Authorizer,
 		Emitter:                 authGRPC.Emitter,
