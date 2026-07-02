@@ -862,6 +862,7 @@ func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
 	// instead of filtering the point delete here to only delete if the item is
 	// not expired we unconditionally delete the item, and we return the correct
 	// error by checking if the item that was just deleted was expired
+	now := b.clock.Now().Truncate(time.Second)
 	out, err := b.svc.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: aws.String(b.TableName),
 		Key:       keyToAttributeValueMap(key),
@@ -882,7 +883,7 @@ func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
 	if err := attributevalue.UnmarshalMap(out.Attributes, &r); err != nil {
 		return trace.Wrap(err, "checking expiry")
 	}
-	if r.Expires != nil && time.Time(*r.Expires).Before(b.clock.Now().Truncate(time.Second)) {
+	if r.Expires != nil && time.Time(*r.Expires).Before(now) {
 		return trace.NotFound("%+q is not found", key.String())
 	}
 
@@ -1198,6 +1199,7 @@ func (b *Backend) getKey(ctx context.Context, key backend.Key) (*record, error) 
 
 		ConsistentRead: aws.Bool(true),
 	}
+	now := b.clock.Now().Truncate(time.Second)
 	out, err := b.svc.GetItem(ctx, input)
 	if err != nil {
 		// we deliberately use a "generic" trace error here, since we don't want
@@ -1214,7 +1216,7 @@ func (b *Backend) getKey(ctx context.Context, key backend.Key) (*record, error) 
 	// item expiry is stored as integer seconds since the unix epoch and so are
 	// the time filters in queries, so we replicate the same behavior here by
 	// comparing the expiry against the current clock truncated to the second
-	if r.Expires != nil && b.clock.Now().Truncate(time.Second).After(time.Unix(*r.Expires, 0)) {
+	if r.Expires != nil && time.Unix(*r.Expires, 0).Before(now) {
 		return nil, trace.NotFound("%+q is not found", key.String())
 	}
 	return &r, nil
