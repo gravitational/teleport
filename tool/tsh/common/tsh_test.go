@@ -1464,6 +1464,8 @@ func approveAllAccessRequests(ctx context.Context, approver accessApprover) erro
 func TestSSHOnMultipleNodes(t *testing.T) {
 	t.Parallel()
 
+	t.Log("Poke to trigger Flaky Test Detector in CI. Revert before merging!")
+
 	ctx := t.Context()
 
 	origin := func(cluster string) string {
