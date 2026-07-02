@@ -425,11 +425,6 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 
 // CreateSessionTracker creates a tracker resource for an active session.
 func (a *ScopedServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
-		if err := unscoped.localServerAction(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 	if _, isServer := getLocalServerID(a.scopedContext.Identity); !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
@@ -672,11 +667,6 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (a *ScopedServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
-		if err := unscoped.localServerAction(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	if _, isServer := getLocalServerID(a.scopedContext.Identity); !isServer {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
@@ -6671,17 +6661,11 @@ func (a *ServerWithRoles) canDeleteWebSession(username string) error {
 
 // GenerateAppToken creates a JWT token with application access.
 func (a *ScopedServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
-	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
-		if err := unscoped.authorizeAction(types.KindJWT, types.VerbCreate); err != nil {
-			return "", trace.Wrap(err)
-		}
-	} else {
-		ruleCtx := a.scopedContext.RuleContext()
-		if err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, types.VerbCreate)
-		}); err != nil {
-			return "", trace.Wrap(err)
-		}
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, types.VerbCreate)
+	}); err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	// TODO(williamo/scopes): bind req.Scope to the generated token.

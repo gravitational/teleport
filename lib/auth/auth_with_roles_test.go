@@ -5546,6 +5546,15 @@ func TestScopedServerWithRolesSessionTrackers(t *testing.T) {
 			server:    scopedTestServerWithUserIdentity(srv),
 			expectErr: true,
 		},
+		{
+			name:   "unscoped server identity is allowed",
+			server: newScopedTestServerWithUnscopedServer(t, srv, "unscoped-app-server", types.RoleApp),
+		},
+		{
+			name:      "unscoped non-server identity is denied",
+			server:    newScopedTestServerWithUnscopedUser(t, srv, "unscoped-user", nil),
+			expectErr: true,
+		},
 	}
 
 	for i, tc := range cases {
@@ -8914,6 +8923,18 @@ func newScopePinnedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hos
 	t.Cleanup(func() { authWithRole.Close() })
 
 	return authWithRole
+}
+
+func newScopedTestServerWithUnscopedServer(t *testing.T, srv *authtest.AuthServer, serverID string, role types.SystemRole) *auth.ScopedServerWithRoles {
+	t.Helper()
+	ctx := t.Context()
+
+	authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestServerID(role, serverID).I))
+	require.NoError(t, err)
+
+	scoped := auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx).ScopedServerWithRoles()
+	t.Cleanup(func() { scoped.Close() })
+	return scoped
 }
 
 func newScopedTestServerWithUnscopedUser(t *testing.T, srv *authtest.AuthServer, username string, allowRules []types.Rule) *auth.ScopedServerWithRoles {
