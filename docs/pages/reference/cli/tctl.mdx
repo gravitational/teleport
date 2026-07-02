@@ -2163,6 +2163,7 @@ Flags:
 |`--resource-kind`|*no default*|Filter by Teleport resource type (node, kube_cluster, db).|
 |`--resource-name`|*no default*|Filter by resource name.|
 |`--resume-token`|*no default*|Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).|
+|`--review-reason`|*no default* (any of (repeatable): `access_request_resource_mismatch`, `classifier_matched`, `command_analysis_failed`, `failed_to_fetch_access_request`, `output_not_fully_captured`, `too_large`, `any`)|Filter to sessions that have at least one of the given review reasons. Use 'any' to match any flagged session. Can be specified multiple times.|
 |`--role`|*no default*|Filter by role held during the session. Can be specified multiple times.|
 |`--search-mode`|`hybrid` (one of: `hybrid`, `keyword`, `embeddings`)|Search strategy to use when search queries are provided.|
 |`--server-addr`|*no default*|Filter SSH sessions by server address.|
