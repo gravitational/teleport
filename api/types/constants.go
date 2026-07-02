@@ -716,6 +716,10 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// MetaNameClientIPRestriction is the exact name of the singleton resource holding
+	// the cluster's client IP restriction allowlist.
+	MetaNameClientIPRestriction = "client-ip-restriction"
+
 	// MetaNameRetrievalModel is the name of the singleton resource holding
 	// the default retrieval model configuration.
 	MetaNameRetrievalModel = "retrieval-model"
