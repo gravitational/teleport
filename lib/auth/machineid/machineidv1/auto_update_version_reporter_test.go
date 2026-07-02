@@ -100,7 +100,7 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 		Clock:      clock,
 		Logger:     logtest.NewLogger(),
 		Store:      autoUpdateService,
-		Cache:      backendCacheAdapter{botInstanceService},
+		Cache:      botInstanceService,
 		Semaphores: &testSemaphores{},
 		HostUUID:   uuid.NewString(),
 	})
@@ -214,18 +214,6 @@ func TestEmitInstancesMetric(t *testing.T) {
 		})
 	}
 
-}
-
-// backendCacheAdapter adapts the backend BotInstance service to the
-// cache-shaped machineidv1.BotInstancesCache interface. As with the real
-// cache fallback, its reads carry no bot scope and so address the unscoped
-// key range only.
-type backendCacheAdapter struct {
-	*local.BotInstanceService
-}
-
-func (b backendCacheAdapter) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1pb.BotInstance, error) {
-	return b.BotInstanceService.GetBotInstance(ctx, "", botName, instanceID)
 }
 
 type testSemaphores struct{ types.Semaphores }

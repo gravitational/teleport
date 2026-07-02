@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -64,13 +65,6 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 				// Index on a combination of most recent heartbeat hostname and instance name
 				botInstanceHostnameIndex: keyForBotInstanceHostnameIndex,
 			}),
-		// TODO(strideynet): SCOPED BOT INSTANCES ARE STALE IN THIS CACHE.
-		// Instances of scoped bots live in a scope-namespaced backend range
-		// (scoped/bot_instance/...) that this collection's event watcher does
-		// not see: they are loaded by the unified list in the fetcher below,
-		// but receive no update/delete events until the watcher resets, so
-		// reads of scoped instances served from this cache may be arbitrarily
-		// stale. Fix once scope-aware cache/watch support lands.
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx,
 				func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
@@ -83,8 +77,10 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 	}, nil
 }
 
-// GetBotInstance returns the specified BotInstance resource.
-func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error) {
+// GetBotInstance returns the specified BotInstance resource. A bot is
+// identified by (botScope, botName): a lookup with the wrong scope misses,
+// just as it would against the backend's scope-namespaced key ranges.
+func (c *Cache) GetBotInstance(ctx context.Context, botScope, botName, instanceID string) (*machineidv1.BotInstance, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetBotInstance")
 	defer span.End()
 
@@ -93,15 +89,11 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 		collection: c.collections.botInstances,
 		index:      botInstanceNameIndex,
 		upstreamGet: func(ctx context.Context, _ string) (*machineidv1.BotInstance, error) {
-			// TODO(strideynet): this fallback read carries no bot scope, so it
-			// can only address the unscoped range: scoped bots' instances are
-			// not readable through it (see the staleness TODO in
-			// newBotInstanceCollection).
-			return c.Config.BotInstanceService.GetBotInstance(ctx, "", botName, instanceID)
+			return c.Config.BotInstanceService.GetBotInstance(ctx, botScope, botName, instanceID)
 		},
 	}
 
-	out, err := getter.get(ctx, makeBotInstanceNameIndexKey(botName, instanceID))
+	out, err := getter.get(ctx, makeBotInstanceNameIndexKey(botScope, botName, instanceID))
 	return out, trace.Wrap(err)
 }
 
@@ -155,6 +147,16 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 			return c.Config.BotInstanceService.ListBotInstances(ctx, limit, start, options)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
+			// A bot is identified by (scope, name), so any by-bot or by-scope
+			// filter constrains the scope: name without scope means the
+			// unscoped bot. Only the unfiltered listing spans all scopes.
+			// This mirrors the backend's range routing in
+			// local.BotInstanceService.ListBotInstances.
+			if options.GetFilterBotName() != "" || options.GetFilterBotScope() != "" {
+				if b.GetScope() != options.GetFilterBotScope() {
+					return false
+				}
+			}
 			if !services.MatchBotInstance(b, options.GetFilterBotName(), options.GetFilterSearchTerm(), exp) {
 				return false
 			}
@@ -176,13 +178,28 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 
 func keyForBotInstanceNameIndex(botInstance *machineidv1.BotInstance) string {
 	return makeBotInstanceNameIndexKey(
+		botInstance.GetScope(),
 		botInstance.GetSpec().GetBotName(),
 		botInstance.GetMetadata().GetName(),
 	)
 }
 
-func makeBotInstanceNameIndexKey(botName string, instanceID string) string {
-	return botName + "/" + instanceID
+// makeBotInstanceNameIndexKey builds the primary index key for a bot
+// instance: <encoded scope>/<bot name>/<instance id>. The scope leads,
+// mirroring the backend's scope-namespaced key layout: a lookup with the
+// wrong scope misses structurally, and each scope's instances form a
+// contiguous, bot-name-ordered block. Note that scoped blocks sort before
+// the unscoped ("+") block here; the index order is cache-internal (page
+// tokens cannot be resumed against the backend lister).
+func makeBotInstanceNameIndexKey(botScope, botName, instanceID string) string {
+	encodedScope, err := scopes.EncodeForKey(botScope)
+	if err != nil {
+		// An invalid scope cannot be encoded at lookup time either; falling
+		// back to the raw scope keeps put/delete key derivation consistent
+		// for such a resource rather than corrupting the store.
+		encodedScope = botScope
+	}
+	return encodedScope + "/" + botName + "/" + instanceID
 }
 
 func keyForBotInstanceActiveAtIndex(botInstance *machineidv1.BotInstance) string {

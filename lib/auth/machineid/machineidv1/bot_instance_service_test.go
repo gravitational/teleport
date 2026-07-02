@@ -461,7 +461,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			backend := newBotInstanceBackend(t)
 			service, err := NewBotInstanceService(BotInstanceServiceConfig{
 				Backend: backend,
-				Cache:   backendAsCache{backend},
+				Cache:   backend,
 				Authorizer: &fakeScopedAuthorizer{
 					ctx: authz.ScopedContextFromUnscopedContext(&authz.Context{
 						Identity: identityGetterFn(func() tlsca.Identity {
@@ -532,7 +532,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	backend := newBotInstanceBackend(t)
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Backend: backend,
-		Cache:   backendAsCache{backend},
+		Cache:   backend,
 		Authorizer: &fakeScopedAuthorizer{
 			ctx: authz.ScopedContextFromUnscopedContext(&authz.Context{
 				Identity: identityGetterFn(func() tlsca.Identity {
@@ -715,17 +715,6 @@ func listInstances(t *testing.T, ctx context.Context, service *BotInstanceServic
 	return resources
 }
 
-// backendAsCache adapts the backend BotInstance service to the cache-shaped
-// BotInstancesCache interface. As with the real cache fallback, its reads
-// carry no bot scope and so address the unscoped key range only.
-type backendAsCache struct {
-	*local.BotInstanceService
-}
-
-func (b backendAsCache) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error) {
-	return b.BotInstanceService.GetBotInstance(ctx, "", botName, instanceID)
-}
-
 // newBotInstanceBackend creates a new local backend for BotInstance CRUD
 // operations.
 func newBotInstanceBackend(t *testing.T) *local.BotInstanceService {
@@ -761,7 +750,7 @@ func newBotInstanceService(
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Authorizer: authorizer,
 		Backend:    backendService,
-		Cache:      backendAsCache{backendService},
+		Cache:      backendService,
 	})
 	require.NoError(t, err)
 

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -3047,7 +3048,10 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 
 func newBotInstanceParser() *botInstanceParser {
 	return &botInstanceParser{
-		baseParser: newBaseParser(backend.NewKey(botInstancePrefix)),
+		baseParser: newBaseParser(
+			backend.NewKey(botInstancePrefix),
+			backend.NewKey(scopedPrefix, botInstancePrefix),
+		),
 	}
 }
 
@@ -3058,20 +3062,36 @@ type botInstanceParser struct {
 func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		// Unscoped instances are stored at
+		// bot_instance/<bot name>/<instance id>, scoped instances at
+		// scoped/bot_instance/<encoded scope>/<bot name>/<instance id>. The
+		// scope must be carried on the delete event: consumers (e.g. the
+		// cache) key their stores by (scope, bot name, instance id).
 		parts := event.Item.Key.Components()
-		if len(parts) != 3 {
+		var scope, botName, instanceID string
+		switch {
+		case len(parts) == 3 && parts[0] == botInstancePrefix:
+			botName, instanceID = parts[1], parts[2]
+		case len(parts) == 5 && parts[0] == scopedPrefix:
+			decoded, err := scopes.DecodeFromKey(parts[2])
+			if err != nil {
+				return nil, trace.Wrap(err, "malformed scope in key for %s event: %s", types.KindBotInstance, event.Item.Key)
+			}
+			scope, botName, instanceID = decoded, parts[3], parts[4]
+		default:
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindBotInstance, event.Item.Key)
 		}
 
 		botInstance := machineidv1.BotInstance_builder{
 			Kind:    types.KindBotInstance,
 			Version: types.V1,
+			Scope:   scope,
 			Spec: machineidv1.BotInstanceSpec_builder{
-				BotName:    parts[1],
-				InstanceId: parts[2],
+				BotName:    botName,
+				InstanceId: instanceID,
 			}.Build(),
 			Metadata: headerv1.Metadata_builder{
-				Name: parts[2],
+				Name: instanceID,
 			}.Build(),
 		}.Build()
 
