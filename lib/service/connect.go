@@ -140,7 +140,7 @@ func (i invalidVersionErr) Error() string {
 
 func isVersionCompatibilityError(err error) bool {
 	return errors.As(err, &invalidVersionErr{}) ||
-		joinclient.IsVersionIncompatible(err)
+		isVersionIncompatible(err)
 }
 
 func (process *TeleportProcess) assertSystemRoles(rolesToAssert []types.SystemRole) (assertionID string, err error) {
@@ -824,7 +824,7 @@ func (process *TeleportProcess) makeJoinParams(
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		FIPS:                 process.Config.FIPS,
 		Insecure:             process.Config.InsecureMode,
-		SkipVersionCheck:     process.Config.SkipVersionCheck,
+		OnVersionCallback:    process.enforceVersionPolicy,
 	}
 	if joinParams.JoinMethod == types.JoinMethodAzure {
 		joinParams.AzureParams = joinclient.AzureParams{
