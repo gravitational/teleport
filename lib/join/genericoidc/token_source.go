@@ -33,7 +33,7 @@ type envGetter func(key string) string
 
 type commandRunner func(ctx context.Context, command ...string) ([]byte, error)
 
-// IDTokenSource allows a Env0 OIDC token to be fetched whilst within a job
+// IDTokenSource allows a generic OIDC token to be fetched whilst within a job
 // execution.
 type IDTokenSource struct {
 	getEnv     envGetter
@@ -65,6 +65,9 @@ func (its *IDTokenSource) GetIDTokenFromCommand(ctx context.Context, timeout tim
 	defer cancel()
 
 	bytes, err := its.runCommand(timeoutCtx, command...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 
 	// Do some minimal validation. We'd otherwise like to check that this is a
 	// parseable JWT, but doing so isn't worth including JWT libraries in client
@@ -73,7 +76,7 @@ func (its *IDTokenSource) GetIDTokenFromCommand(ctx context.Context, timeout tim
 		return "", trace.BadParameter("generic_oidc: retrieved token with invalid content")
 	}
 
-	return strings.TrimSpace(string(bytes)), err
+	return strings.TrimSpace(string(bytes)), nil
 }
 
 func DefaultCommandRunner(ctx context.Context, command ...string) ([]byte, error) {
@@ -105,7 +108,7 @@ func DefaultCommandRunner(ctx context.Context, command ...string) ([]byte, error
 // tag.
 func NewIDTokenSource(getEnv envGetter, runCommand commandRunner) *IDTokenSource {
 	return &IDTokenSource{
-		getEnv,
-		runCommand,
+		getEnv:     getEnv,
+		runCommand: runCommand,
 	}
 }
