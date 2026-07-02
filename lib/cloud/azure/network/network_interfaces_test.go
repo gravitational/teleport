@@ -19,6 +19,7 @@
 package network
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -118,10 +119,7 @@ func TestInterfacesClientLiveList(t *testing.T) {
 
 	nicClient := NewInterfacesClient(queryClient)
 
-	rg := os.Getenv("AZURE_RESOURCE_GROUP")
-	if rg == "" {
-		rg = types.Wildcard
-	}
+	rg := cmp.Or(os.Getenv("AZURE_RESOURCE_GROUP"), types.Wildcard)
 	nicsByVM, err := nicClient.List(ctx, os.Getenv("AZURE_SUBSCRIPTION_ID"), rg)
 	require.NoError(t, err)
 	require.NotNil(t, nicsByVM)
