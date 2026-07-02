@@ -88,7 +88,7 @@ service SubCAService {
   // value of CertificateOverride.disabled. See it for reference.
   rpc UpsertCertAuthorityOverride(UpsertCertAuthorityOverrideRequest) returns (UpsertCertAuthorityOverrideResponse);
 
-  // AddCertificateOverride adds a single CertiticateOverride to a
+  // AddCertificateOverride adds a single CertificateOverride to a
   // CertAuthorityOverride resource.
   //
   // The CertAuthorityOverride resource may be created as a consequence of this
@@ -98,14 +98,14 @@ service SubCAService {
   // value of CertificateOverride.disabled. See it for reference.
   rpc AddCertificateOverride(AddCertificateOverrideRequest) returns (AddCertificateOverrideResponse);
 
-  // UpdateCertificateOverride updates a single CertiticateOverride in a
+  // UpdateCertificateOverride updates a single CertificateOverride in a
   // CertAuthorityOverride resource.
   //
   // Disabling an active override is disallowed. See
   // UpdateCertificateOverrideRequest.force_immediate_disable.
   rpc UpdateCertificateOverride(UpdateCertificateOverrideRequest) returns (UpdateCertificateOverrideResponse);
 
-  // RemoveCertificateOverride removes a single CertiticateOverride inside a
+  // RemoveCertificateOverride removes a single CertificateOverride inside a
   // CertAuthorityOverride resource.
   //
   // If the last CertificateOverride of a CertAuthorityOverride is removed as a
