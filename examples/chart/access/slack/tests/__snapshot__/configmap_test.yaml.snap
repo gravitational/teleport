@@ -27,8 +27,8 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-slack
-        app.kubernetes.io/version: 19.0.0-prealpha.2
-        helm.sh/chart: teleport-plugin-slack-19.0.0-prealpha.2
+        app.kubernetes.io/version: 19.0.0-dev.gus-test-workflow-dispatch.1
+        helm.sh/chart: teleport-plugin-slack-19.0.0-dev.gus-test-workflow-dispatch.1
       name: RELEASE-NAME-teleport-plugin-slack
 should match the snapshot (review.enabled is true):
   1: |
@@ -62,6 +62,6 @@ should match the snapshot (review.enabled is true):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-slack
-        app.kubernetes.io/version: 19.0.0-prealpha.2
-        helm.sh/chart: teleport-plugin-slack-19.0.0-prealpha.2
+        app.kubernetes.io/version: 19.0.0-dev.gus-test-workflow-dispatch.1
+        helm.sh/chart: teleport-plugin-slack-19.0.0-dev.gus-test-workflow-dispatch.1
       name: RELEASE-NAME-teleport-plugin-slack
