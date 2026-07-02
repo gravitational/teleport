@@ -15,39 +15,59 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import Core
+import Dependencies
 import Observation
+import SwiftNavigation
 
 @Observable
 @MainActor
 class EnrollDeviceViewModel {
-	var attempt: LoadingState<String> = .idle
+	// swiftformat:sort
+	@CasePathable
+	enum Destination {
+		case loadingSheet
+	}
+
+	var destination: Destination? = nil
+	var loadingState: LoadingState<String> = .idle
 	private let deepLink: EnrollMobileDeviceDeepLink
-	private let enrollClient: EnrollClient
+
+	@ObservationIgnored
+	@Dependency(\.enrollClient)
+	private var enrollClient: EnrollClient
 
 	weak var delegate: (any Delegate)? = nil
 
 	init(
 		deepLink: EnrollMobileDeviceDeepLink,
-		enrollClient: EnrollClient = .liveValue,
 		delegate: (any Delegate)? = nil,
 	) {
 		self.deepLink = deepLink
-		self.enrollClient = enrollClient
 		self.delegate = delegate
 	}
 
 	func requestEnrollToken() async {
-		attempt = .loading
+		loadingState = .loading
+		destination = .loadingSheet
 		let defaultHTTPSPort = 443
 		do {
-			let token = try await enrollClient.requestEnrollmentToken(
-				hostName: deepLink.hostname,
-				port: deepLink.port ?? defaultHTTPSPort,
-				pairingToken: deepLink.enrollPairingToken,
-			)
-			attempt = .success(token)
+			/*
+			 TODO: Implement the call to requestEnrollmentToken
+			 Right now, the backend doesn't have all the behavior we need to test enrollment token request end-to-end
+			 so we just simulate the behavior for now with a small delay.
+
+			 let token = try await enrollClient.requestEnrollmentToken(
+			 	hostName: deepLink.hostname,
+			 	port: deepLink.port ?? defaultHTTPSPort,
+			 	pairingToken: deepLink.enrollPairingToken,
+			 )
+			  */
+
+			try await Task.sleep(for: .seconds(1))
+			loadingState = .success("fake-token-\(defaultHTTPSPort)")
+			destination = nil
 		} catch {
-			attempt = .failure(error)
+			loadingState = .failure(error)
 		}
 	}
 }
