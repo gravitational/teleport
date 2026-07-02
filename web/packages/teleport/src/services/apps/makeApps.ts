@@ -30,24 +30,31 @@ function getLaunchUrl({
   clusterId,
   publicAddr,
   useAnyProxyPublicAddr,
+  name,
 }: {
   fqdn: string;
   clusterId: string;
   useAnyProxyPublicAddr: boolean;
   publicAddr: string;
+  name: string;
 }) {
+  let route = '';
   if (useAnyProxyPublicAddr) {
     if (!fqdn) {
       return '';
     }
-    return cfg.getAppLauncherRoute({ fqdn });
+    route = cfg.getAppLauncherRoute({ fqdn });
+  } else if (publicAddr && clusterId && fqdn) {
+    route = cfg.getAppLauncherRoute({ fqdn, publicAddr, clusterId });
   }
 
-  if (publicAddr && clusterId && fqdn) {
-    return cfg.getAppLauncherRoute({ fqdn, publicAddr, clusterId });
+  // Inlcude the app name so the launcher can disambiguate apps that share a
+  // public address.
+  if (route && name) {
+    route += `?app_name=${encodeURIComponent(name)}`;
   }
 
-  return '';
+  return route;
 }
 
 export default function makeApp(json: any): App {
@@ -77,6 +84,7 @@ export default function makeApp(json: any): App {
     clusterId,
     publicAddr,
     useAnyProxyPublicAddr,
+    name,
   });
   const id = `${clusterId}-${name}-${publicAddr || uri}`;
   const labels = json.labels || [];

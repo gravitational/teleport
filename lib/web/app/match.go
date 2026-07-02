@@ -115,7 +115,7 @@ func ResolveFQDN(
 	// Try and match FQDN to public address of application within cluster.
 	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(fqdn))
 	if err == nil && len(servers) > 0 {
-		return pickAppServer(servers, canAccess), localClusterName, nil
+		return PickAppServer(servers, canAccess), localClusterName, nil
 	}
 
 	proxyPublicAddr := utils.FindMatchingProxyDNS(fqdn, proxyDNSNames)
@@ -133,19 +133,19 @@ func ResolveFQDN(
 	for _, clusterClient := range clusterClients {
 		servers, err = MatchUnshuffled(ctx, clusterClient, MatchName(appName))
 		if err == nil && len(servers) > 0 {
-			return pickAppServer(servers, canAccess), clusterClient.GetName(), nil
+			return PickAppServer(servers, canAccess), clusterClient.GetName(), nil
 		}
 	}
 
 	return nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
 }
 
-// pickAppServer chooses one app server from a set of matches. When canAccess is
+// PickAppServer chooses one app server from a set of matches. When canAccess is
 // provided it prefers servers the user is allowed to access.
 //
 // If no apps are accessible or canAccess is nil it falls back to a random match,
 // leaving the final access decision to the app_service.
-func pickAppServer(servers []types.AppServer, canAccess func(types.Application) bool) types.AppServer {
+func PickAppServer(servers []types.AppServer, canAccess func(types.Application) bool) types.AppServer {
 	if canAccess != nil {
 		accessible := make([]types.AppServer, 0, len(servers))
 		for _, s := range servers {
