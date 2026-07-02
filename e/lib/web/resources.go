@@ -39,7 +39,7 @@ func (p *Plugin) getAuthConnectorsHandle(w http.ResponseWriter, r *http.Request,
 }
 
 func getAuthConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	githubConns, err := clt.GetGithubConnectors(ctx, true)
+	githubConns, err := clt.GetGithubConnectors(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -48,7 +48,7 @@ func getAuthConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Resour
 		return nil, trace.Wrap(err)
 	}
 
-	samlConns, err := clt.GetSAMLConnectors(ctx, true)
+	samlConns, err := clt.GetSAMLConnectors(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,7 +57,7 @@ func getAuthConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Resour
 		return nil, trace.Wrap(err)
 	}
 
-	oidcConns, err := clt.GetOIDCConnectors(ctx, true)
+	oidcConns, err := clt.GetOIDCConnectors(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

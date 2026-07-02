@@ -1,33 +1,17 @@
 import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
-import auth from 'teleport/services/auth/auth';
 import ResourceService, {
-  DefaultAuthConnector,
   KindAuthConnectors,
   makeResource,
-  makeResourceList,
   Resource,
 } from 'teleport/services/resources';
 
 class ResourceServiceE extends ResourceService {
-  // TODO(rudream): Look into combining this method with the one from the OSS ResourceService and adding support for generics.
-  async fetchAuthConnectors(signal?: AbortSignal): Promise<{
-    defaultConnector: DefaultAuthConnector;
-    connectors: Resource<KindAuthConnectors>[];
-  }> {
-    // MFA reuse needs to be allowed in case we need to fallback to another default connector
-    const challengeResponse =
-      await auth.getMfaChallengeResponseForAdminAction(true);
-
-    return api
-      .get(cfg.getAuthConnectorsListUrl(), signal, challengeResponse)
-      .then(res => ({
-        defaultConnector: {
-          name: res.defaultConnectorName,
-          type: res.defaultConnectorType,
-        },
-        connectors: makeResourceList<KindAuthConnectors>(res.connectors),
-      }));
+  fetchAuthConnectors(signal?: AbortSignal) {
+    return this.fetchAuthConnectorsList<KindAuthConnectors>(
+      cfg.getAuthConnectorsListUrl(),
+      signal
+    );
   }
 
   fetchSamlConnector(name: string) {
@@ -67,11 +51,11 @@ class ResourceServiceE extends ResourceService {
   }
 
   deleteSamlConnector(name: string) {
-    return api.delete(cfg.getSamlConnectorsUrl(name));
+    return this.deleteAuthConnector(cfg.getSamlConnectorsUrl(name));
   }
 
   deleteOidcConnector(name: string) {
-    return api.delete(cfg.getOidcConnectorsUrl(name));
+    return this.deleteAuthConnector(cfg.getOidcConnectorsUrl(name));
   }
 
   fetchConnector(kind: KindAuthConnectors, name: string) {
