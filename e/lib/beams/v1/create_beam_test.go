@@ -126,7 +126,13 @@ func TestCreateBeam(t *testing.T) {
 	token, err := pack.token.GetToken(t.Context(), beam.GetStatus().GetJoinTokenName())
 	require.NoError(t, err)
 	require.Equal(t, beam.GetStatus().GetJoinTokenName(), token.GetName())
-	require.Equal(t, expectedLabels, token.GetMetadata().Labels)
+	require.Equal(t, map[string]string{
+		types.BeamIDLabel:                  beam.GetMetadata().GetName(),
+		types.BeamOwnerLabel:               expectedLabels[types.BeamOwnerLabel],
+		types.BeamAliasLabel:               expectedLabels[types.BeamAliasLabel],
+		types.TeleportInternalResourceType: types.SystemResource,
+	}, token.GetMetadata().Labels)
+	require.True(t, types.IsSystemResource(token), "beam join token must be a system resource")
 	require.Equal(t, computeReq.GetTbot().GetRegistrationSecret(), token.GetBoundKeypairStatus().RegistrationSecret)
 
 	botResourceName := services.BotResourceName(beam.GetStatus().GetBotName())
@@ -136,10 +142,12 @@ func TestCreateBeam(t *testing.T) {
 	require.Equal(t, []string{
 		beam.GetMetadata().GetName(),
 	}, user.GetTraits()["teleport.internal/beams/id"])
+	require.True(t, types.IsSystemResource(user), "beam bot user must be a system resource")
 
 	role, err := pack.role.GetRole(t.Context(), botResourceName)
 	require.NoError(t, err)
 	require.Equal(t, botResourceName, role.GetName())
+	require.True(t, types.IsSystemResource(role), "beam bot role must be a system resource")
 
 	workloadIdentity, err := pack.workloadIdentity.GetWorkloadIdentity(t.Context(), beam.GetStatus().GetWorkloadIdentityName())
 	require.NoError(t, err)

@@ -163,7 +163,7 @@ func (s *BeamsService) publishBeamApp(beam *beamsv1.Beam) (types.Application, er
 		return nil, trace.BadParameter("unsupported protocol: %s", protocol)
 	}
 
-	labels := beamResourceLabels(beam)
+	labels := beamResourceLabels(beam, false)
 
 	// This label matches the selector in the beams app service config.
 	//

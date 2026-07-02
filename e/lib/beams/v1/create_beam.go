@@ -214,7 +214,7 @@ func (s *BeamsService) createBeam(ctx context.Context, user string, req *beamsv1
 			ComputeStatus: beamsv1.ComputeStatus_COMPUTE_STATUS_PROVISION_PENDING,
 		}.Build(),
 	}.Build()
-	beam.GetMetadata().SetLabels(beamResourceLabels(beam))
+	beam.GetMetadata().SetLabels(beamResourceLabels(beam, false))
 
 	// Create bot user and role.
 	bot, botUser, botRole, err := beamBotUserAndRole(beam)
@@ -316,7 +316,7 @@ func beamBotUserAndRole(beam *beamsv1.Beam) (*machineidv1pb.Bot, types.User, typ
 		Version: types.V1,
 		Metadata: headerv1.Metadata_builder{
 			Name:    beamResourceName(beam),
-			Labels:  beamResourceLabels(beam),
+			Labels:  beamResourceLabels(beam, true),
 			Expires: proto.CloneOf(beam.GetSpec().GetExpires()),
 		}.Build(),
 		Spec: machineidv1pb.BotSpec_builder{
@@ -337,6 +337,10 @@ func beamBotUserAndRole(beam *beamsv1.Beam) (*machineidv1pb.Bot, types.User, typ
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
+	// The role is built from scratch and doesn't inherit the system-resource label from the bot
+	// so we need to mark it explicitly here.
+	role.GetMetadata().Labels[types.TeleportInternalResourceType] = types.SystemResource
+
 	return bot, user, role, nil
 }
 
@@ -347,11 +351,11 @@ func beamJoinTokenAndSecret(beam *beamsv1.Beam) (types.ProvisionToken, string, e
 	}
 
 	expires := beam.GetSpec().GetExpires().AsTime()
-	return &types.ProvisionTokenV2{
+	token := &types.ProvisionTokenV2{
 		Metadata: types.Metadata{
 			Name:    beamResourceName(beam),
 			Expires: &expires,
-			Labels:  beamResourceLabels(beam),
+			Labels:  beamResourceLabels(beam, true),
 		},
 		Spec: types.ProvisionTokenSpecV2{
 			Roles:      []types.SystemRole{types.RoleBot},
@@ -369,7 +373,9 @@ func beamJoinTokenAndSecret(beam *beamsv1.Beam) (types.ProvisionToken, string, e
 				RegistrationSecret: secret,
 			},
 		},
-	}, secret, nil
+	}
+
+	return token, secret, nil
 }
 
 func beamWorkloadIdentity(beam *beamsv1.Beam) (*workloadidentityv1.WorkloadIdentity, error) {
@@ -378,7 +384,7 @@ func beamWorkloadIdentity(beam *beamsv1.Beam) (*workloadidentityv1.WorkloadIdent
 		Version: types.V1,
 		Metadata: headerv1.Metadata_builder{
 			Name:    beamResourceName(beam),
-			Labels:  beamResourceLabels(beam),
+			Labels:  beamResourceLabels(beam, false),
 			Expires: proto.CloneOf(beam.GetSpec().GetExpires()),
 		}.Build(),
 		Spec: workloadidentityv1.WorkloadIdentitySpec_builder{
@@ -400,7 +406,7 @@ func beamDelegationSession(beam *beamsv1.Beam) (*delegationv1.DelegationSession,
 		Version: types.V1,
 		Metadata: headerv1.Metadata_builder{
 			Name:    uuid.NewString(),
-			Labels:  beamResourceLabels(beam),
+			Labels:  beamResourceLabels(beam, false),
 			Expires: proto.CloneOf(beam.GetSpec().GetExpires()),
 		}.Build(),
 		Spec: delegationv1.DelegationSessionSpec_builder{
@@ -418,12 +424,16 @@ func beamDelegationSession(beam *beamsv1.Beam) (*delegationv1.DelegationSession,
 	}.Build(), nil
 }
 
-func beamResourceLabels(beam *beamsv1.Beam) map[string]string {
-	return map[string]string{
+func beamResourceLabels(beam *beamsv1.Beam, isSystemResource bool) map[string]string {
+	labels := map[string]string{
 		types.BeamIDLabel:    beam.GetMetadata().GetName(),
 		types.BeamOwnerLabel: beam.GetStatus().GetUser(),
 		types.BeamAliasLabel: beam.GetStatus().GetAlias(),
 	}
+	if isSystemResource {
+		labels[types.TeleportInternalResourceType] = types.SystemResource
+	}
+	return labels
 }
 
 func beamResourceName(beam *beamsv1.Beam) string {
