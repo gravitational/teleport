@@ -109,6 +109,18 @@ func TestSanitize(t *testing.T) {
 			inKey:  NewKey("xyz"),
 			assert: require.NoError,
 		},
+		{
+			inKey:  NewKey("\x00"),
+			assert: require.Error,
+		},
+		{
+			inKey:  NewKey("\x00\x00"),
+			assert: require.Error,
+		},
+		{
+			inKey:  NewKey("test\x00key"),
+			assert: require.Error,
+		},
 	}
 
 	for _, tt := range tests {
