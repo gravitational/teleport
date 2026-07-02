@@ -9230,9 +9230,15 @@ func TestGenerateHostCertsScoped(t *testing.T) {
 
 func TestUpsertNode(t *testing.T) {
 	t.Parallel()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	authsrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	t.Cleanup(func() { require.NoError(t, authsrv.Close()) })
 
 	const nodeName = "test1"
 	const otherID = "test2"
@@ -9255,44 +9261,91 @@ func TestUpsertNode(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		callerScope string
-		nodeName    string
-		nodeScope   string
-		shouldErr   bool
+		name      string
+		server    *auth.ScopedServerWithRoles
+		nodeName  string
+		nodeScope string
+		shouldErr bool
 	}{
 		{
-			name:        "unscoped - bypasses node ID check",
-			callerScope: "",
-			nodeName:    otherID,
-			nodeScope:   "",
+			name:     "unscoped node - own node allowed",
+			server:   newScopedTestServerForHost(t, authsrv, nodeName, "", types.RoleNode).ScopedServerWithRoles(),
+			nodeName: nodeName,
 		},
 		{
-			name:        "scoped - matching ID and scope allowed",
-			callerScope: "/staging",
-			nodeName:    nodeName,
-			nodeScope:   "/staging",
+			// Node agents may only upsert their own node resource, scoped or not.
+			name:      "unscoped node - mismatched ID denied",
+			server:    newScopedTestServerForHost(t, authsrv, nodeName, "", types.RoleNode).ScopedServerWithRoles(),
+			nodeName:  otherID,
+			shouldErr: true,
 		},
 		{
-			name:        "scoped - matching ID but mismatched scope denied",
-			callerScope: "/staging",
-			nodeName:    nodeName,
-			nodeScope:   "/prod",
-			shouldErr:   true,
+			name:      "agent scope - matching ID and scope allowed",
+			server:    newScopedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode).ScopedServerWithRoles(),
+			nodeName:  nodeName,
+			nodeScope: "/staging",
 		},
 		{
-			name:        "scoped - matching scope but mismatched ID denied",
-			callerScope: "/staging",
-			nodeName:    otherID,
-			nodeScope:   "/staging",
-			shouldErr:   true,
+			name:      "agent scope - mismatched scope denied",
+			server:    newScopedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode).ScopedServerWithRoles(),
+			nodeName:  nodeName,
+			nodeScope: "/prod",
+			shouldErr: true,
+		},
+		{
+			name:      "agent scope - mismatched ID denied",
+			server:    newScopedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode).ScopedServerWithRoles(),
+			nodeName:  otherID,
+			nodeScope: "/staging",
+			shouldErr: true,
+		},
+		{
+			name:      "agent pin - matching ID and scope allowed",
+			server:    newScopePinnedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode),
+			nodeName:  nodeName,
+			nodeScope: "/staging",
+		},
+		{
+			name:      "agent pin - node scope orthogonal to pinned scope denied",
+			server:    newScopePinnedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode),
+			nodeName:  nodeName,
+			nodeScope: "/prod",
+			shouldErr: true,
+		},
+		{
+			name:      "agent pin - mismatched ID denied",
+			server:    newScopePinnedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode),
+			nodeName:  otherID,
+			nodeScope: "/staging",
+			shouldErr: true,
+		},
+		{
+			name: "unscoped user with node rules allowed",
+			server: newScopedTestServerWithUnscopedUser(t, authsrv, "node-admin",
+				[]types.Rule{types.NewRule(types.KindNode, []string{types.VerbCreate, types.VerbUpdate})}),
+			nodeName: otherID,
+		},
+		{
+			name:      "unscoped user without node rules denied",
+			server:    newScopedTestServerWithUnscopedUser(t, authsrv, "plain-user", nil),
+			nodeName:  otherID,
+			shouldErr: true,
+		},
+		{
+			// Scoped roles cannot be created with node write permissions, so a scoped
+			// user never holds node:create/update and Decision should fail. Change this in the future
+			// if we ever let scoped users permissions for nodes.
+			name:      "scoped user denied",
+			server:    newScopePinnedTestServerWithScopedUser(t, authsrv, "scoped-user", "/staging", nil),
+			nodeName:  otherID,
+			nodeScope: "/staging",
+			shouldErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := newScopedTestServerForHost(t, as, nodeName, tt.callerScope, types.RoleNode)
-			_, err := srv.UpsertNode(t.Context(), makeNode(t, tt.nodeName, tt.nodeScope))
+			_, err := tt.server.UpsertNode(t.Context(), makeNode(t, tt.nodeName, tt.nodeScope))
 			if tt.shouldErr {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))

@@ -2898,7 +2898,9 @@ func TestParseSubsystemRequest(t *testing.T) {
 		require.NoError(t, reverseTunnelServer.Start())
 		t.Cleanup(func() { _ = reverseTunnelServer.Close() })
 
-		nodeClient, _ := newNodeClient(t, f.testSrv)
+		nodeClient, nodeID := newNodeClient(t, f.testSrv)
+
+		agentlessSrv.Metadata.Name = nodeID // overwrite the nodeID
 
 		_, err = nodeClient.UpsertNode(ctx, &agentlessSrv)
 		require.NoError(t, err)
