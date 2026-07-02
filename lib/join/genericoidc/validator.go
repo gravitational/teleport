@@ -412,7 +412,7 @@ func evaluateAllowAnyRules(spec *types.ProvisionTokenSpecV2GenericOIDC, claims *
 	return trace.AccessDenied("claims matched no allow_any rules")
 }
 
-// newOIDCTokenValidator constructs an IDTokenValidator.
+// newIDTokenValidatorWithClock constructs an IDTokenValidator.
 func newIDTokenValidatorWithClock(clock clockwork.Clock) (*IDTokenValidator, error) {
 	validator, err := oidc.NewCachingTokenValidator[*IDTokenClaims, GenericOIDCKey](clock)
 	if err != nil {

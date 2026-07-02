@@ -100,7 +100,7 @@ func TestEvaluateExpression(t *testing.T) {
 			expression: `claims.foo.bar == "acme-corp"`,
 			expect:     false,
 			expectError: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "field not found: foo")
+				require.ErrorContains(t, err, "field not found: foo.bar")
 			},
 		},
 		{
