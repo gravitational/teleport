@@ -76,21 +76,24 @@ message GetScopedRoleResponse {
 
 // ListScopedRolesRequest is the request to list scoped roles.
 message ListScopedRolesRequest {
+  reserved 3, 4;
+  reserved "resource_scope", "assignable_scope";
+
   // PageSize is the maximum number of results to return.
   int32 page_size = 1;
 
   // PageToken is the pagination cursor used to start from where a previous request left off.
   string page_token = 2;
 
-  // ResourceScope filters roles by their resource scope if specified.
-  teleport.scopes.v1.Filter resource_scope = 3;
-
-  // AssignableScope filters roles by their assignable scope if specified.
-  teleport.scopes.v1.Filter assignable_scope = 4;
-
   // NameFilter filters roles by their name using a case-insensitive substring
   // match if specified.
   string name_filter = 5;
+
+  // ScopeFilter is the primary scope filter. Filtering is performed against the scope of the
+  // resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+  // a scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`) should
+  // specify mode ALL.
+  teleport.scopes.v1.Filter scope_filter = 6;
 }
 
 // ListScopedRolesResponse is the response to list scoped roles.
@@ -166,18 +169,14 @@ message GetScopedRoleAssignmentResponse {
 
 // ListScopedRoleAssignmentsRequest is the request to list scoped role assignments.
 message ListScopedRoleAssignmentsRequest {
+  reserved 3, 4;
+  reserved "resource_scope", "assigned_scope";
+
   // PageSize is the maximum number of results to return.
   int32 page_size = 1;
 
   // PageToken is the pagination cursor used to start from where a previous request left off.
   string page_token = 2;
-
-  // ResourceScope filters assignments by their resource scope if specified.
-  teleport.scopes.v1.Filter resource_scope = 3;
-
-  // AssignedScope filters assignments by the scopes they assign to if specified (note: matches assignment
-  // resources with 1 or more maching scopes, not all scopes within the assignment will necessarily match).
-  teleport.scopes.v1.Filter assigned_scope = 4;
 
   // User optionally limits the list to assignments for a specific user.
   string user = 5;
@@ -190,6 +189,17 @@ message ListScopedRoleAssignmentsRequest {
   // is specifically used to support users discovering where they have been granted privileges across scopes,
   // and is not intended for general use.
   bool all_caller_assignments = 7;
+
+  // ScopeFilter is the primary scope filter. Filtering is performed against the scope of the
+  // resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+  // a scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`) should
+  // specify mode ALL.
+  teleport.scopes.v1.Filter scope_filter = 8;
+
+  // AssignedScopeFilter filters assignments by the scopes they assign to if specified (note: matches
+  // assignment resources with 1 or more matching scopes, not all scopes within the assignment will
+  // necessarily match).
+  teleport.scopes.v1.Filter assigned_scope_filter = 9;
 }
 
 // ListScopedRoleAssignmentsResponse is the response to list scoped role assignments.
