@@ -21,6 +21,7 @@ package reversetunnel
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -60,6 +61,48 @@ func TestAgentStoreRace(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestAgentStoreDuplicateAgents(t *testing.T) {
+	store := newAgentStore()
+	agent := &testStoreAgent{proxyID: "proxy-1"}
+
+	store.add(agent)
+	store.add(agent)
+
+	require.Equal(t, 1, store.len())
+	require.Equal(t, []string{"proxy-1"}, store.proxyIDs())
+
+	require.True(t, store.remove(agent))
+	require.False(t, store.remove(agent))
+	require.Zero(t, store.len())
+
+	waitDone := make(chan struct{})
+	go func() {
+		store.wait()
+		close(waitDone)
+	}()
+
+	select {
+	case <-waitDone:
+	case <-time.After(time.Second):
+		t.Fatal("agent store did not drain")
+	}
+}
+
+func TestAgentStoreProxyIDsNewestFirst(t *testing.T) {
+	oldest := &testStoreAgent{proxyID: "proxy-1"}
+	newest := &testStoreAgent{proxyID: "proxy-2"}
+	middle := &testStoreAgent{proxyID: "proxy-3"}
+	store := &agentStore{
+		agents: map[Agent]agentStoreMeta{
+			oldest: {addedAt: time.Unix(1, 0)},
+			newest: {addedAt: time.Unix(3, 0)},
+			middle: {addedAt: time.Unix(2, 0)},
+		},
+	}
+
+	require.Equal(t, []string{"proxy-2", "proxy-3", "proxy-1"}, store.proxyIDsByJoinTime())
 }
 
 func TestAgentStoreGetByProxyID(t *testing.T) {
