@@ -142,6 +142,11 @@ type payload struct {
 	// not specify one in the resource config. The user-provided sub_kind (on
 	// the resource or in state) takes precedence; this is only a fallback.
 	DefaultSubKind string
+	// Scoped indicates that the resource exists in a scope and must be
+	// identified by the (name, scope) pair. As a result the get and delete
+	// methods will include the scope parameter and the SQN will be used as
+	// the Terraform ID to avoid collisions.
+	Scoped bool
 }
 
 // statePoll configures polling for state changes when creating or updating resources.
