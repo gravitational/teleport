@@ -19,6 +19,7 @@
 package desktop
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -295,9 +296,27 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 	}
 
 	// apply any custom labels per the discovery configuration
+	const maxAttributeLabelLen = 512
 	for _, attr := range cfg.LabelAttributes {
-		if v := entry.GetAttributeValue(attr); v != "" {
-			labels[types.DiscoveryLabelLDAPPrefix+attr] = v
+		values := entry.GetAttributeValues(attr)
+		values = slices.DeleteFunc(values, func(v string) bool { return strings.TrimSpace(v) == "" })
+		if len(values) == 0 {
+			continue
+		}
+
+		// Take only the first value when not in join mode.
+		if cfg.LabelAttributeMode != servicecfg.LabelAttributeModeJoin && len(values) > 1 {
+			values = values[:1]
+		}
+
+		// Sort the attributes so the Teleport label is consistent even if AD
+		// returns them in a different order.
+		slices.Sort(values)
+
+		// At this point we can do an unconditional join, because
+		// strings.Join is a no-op on a single-element slice.
+		if value := strings.Join(values, cmp.Or(cfg.LabelAttributeJoinSeparator, "|")); len(value) > 0 && len(value) <= maxAttributeLabelLen {
+			labels[types.DiscoveryLabelLDAPPrefix+attr] = value
 		}
 	}
 }
