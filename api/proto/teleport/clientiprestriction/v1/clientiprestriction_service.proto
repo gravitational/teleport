@@ -23,17 +23,17 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // ClientIPRestrictionService provides an API to manage the singleton ClientIPRestriction.
 service ClientIPRestrictionService {
   // GetClientIPRestriction returns the ClientIPRestriction singleton.
-  rpc GetClientIPRestriction(GetClientIPRestrictionRequest) returns (ClientIPRestriction);
+  rpc GetClientIPRestriction(GetClientIPRestrictionRequest) returns (GetClientIPRestrictionResponse);
 
   // CreateClientIPRestriction creates a new ClientIPRestriction. Fails if one already exists.
-  rpc CreateClientIPRestriction(CreateClientIPRestrictionRequest) returns (ClientIPRestriction);
+  rpc CreateClientIPRestriction(CreateClientIPRestrictionRequest) returns (CreateClientIPRestrictionResponse);
 
   // UpdateClientIPRestriction updates an existing ClientIPRestriction using revision-based
   // optimistic concurrency. Fails if no ClientIPRestriction exists or the revision does not match.
-  rpc UpdateClientIPRestriction(UpdateClientIPRestrictionRequest) returns (ClientIPRestriction);
+  rpc UpdateClientIPRestriction(UpdateClientIPRestrictionRequest) returns (UpdateClientIPRestrictionResponse);
 
   // UpsertClientIPRestriction creates or replaces the ClientIPRestriction singleton.
-  rpc UpsertClientIPRestriction(UpsertClientIPRestrictionRequest) returns (ClientIPRestriction);
+  rpc UpsertClientIPRestriction(UpsertClientIPRestrictionRequest) returns (UpsertClientIPRestrictionResponse);
 
   // DeleteClientIPRestriction deletes the ClientIPRestriction singleton.
   rpc DeleteClientIPRestriction(DeleteClientIPRestrictionRequest) returns (DeleteClientIPRestrictionResponse);
@@ -45,9 +45,21 @@ message GetClientIPRestrictionRequest {
   string name = 1;
 }
 
+// Response for GetClientIPRestriction.
+message GetClientIPRestrictionResponse {
+  // The ClientIPRestriction singleton.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
 // Request for CreateClientIPRestriction.
 message CreateClientIPRestrictionRequest {
   // The ClientIPRestriction resource to create.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
+// Response for CreateClientIPRestriction.
+message CreateClientIPRestrictionResponse {
+  // The created ClientIPRestriction.
   ClientIPRestriction client_ip_restriction = 1;
 }
 
@@ -58,9 +70,21 @@ message UpdateClientIPRestrictionRequest {
   ClientIPRestriction client_ip_restriction = 1;
 }
 
+// Response for UpdateClientIPRestriction.
+message UpdateClientIPRestrictionResponse {
+  // The updated ClientIPRestriction.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
 // Request for UpsertClientIPRestriction.
 message UpsertClientIPRestrictionRequest {
   // The ClientIPRestriction resource to create or replace.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
+// Response for UpsertClientIPRestriction.
+message UpsertClientIPRestrictionResponse {
+  // The upserted ClientIPRestriction.
   ClientIPRestriction client_ip_restriction = 1;
 }
 

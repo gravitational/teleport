@@ -6274,8 +6274,11 @@ func (c *Client) ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestr
 // GetClientIPRestriction returns the ClientIPRestriction singleton. The name is
 // resolved server-side, so no name needs to be provided.
 func (c *Client) GetClientIPRestriction(ctx context.Context) (*clientiprestrictionv1.ClientIPRestriction, error) {
-	cir, err := c.ClientIPRestrictionClient().GetClientIPRestriction(ctx, &clientiprestrictionv1.GetClientIPRestrictionRequest{})
-	return cir, trace.Wrap(err)
+	resp, err := c.ClientIPRestrictionClient().GetClientIPRestriction(ctx, &clientiprestrictionv1.GetClientIPRestrictionRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
 }
 
 // CreateClientIPRestriction creates the ClientIPRestriction singleton. It fails if
@@ -6283,16 +6286,22 @@ func (c *Client) GetClientIPRestriction(ctx context.Context) (*clientiprestricti
 func (c *Client) CreateClientIPRestriction(ctx context.Context, cir *clientiprestrictionv1.ClientIPRestriction) (*clientiprestrictionv1.ClientIPRestriction, error) {
 	req := &clientiprestrictionv1.CreateClientIPRestrictionRequest{}
 	req.SetClientIpRestriction(cir)
-	created, err := c.ClientIPRestrictionClient().CreateClientIPRestriction(ctx, req)
-	return created, trace.Wrap(err)
+	resp, err := c.ClientIPRestrictionClient().CreateClientIPRestriction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
 }
 
 // UpsertClientIPRestriction creates or replaces the ClientIPRestriction singleton.
 func (c *Client) UpsertClientIPRestriction(ctx context.Context, cir *clientiprestrictionv1.ClientIPRestriction) (*clientiprestrictionv1.ClientIPRestriction, error) {
 	req := &clientiprestrictionv1.UpsertClientIPRestrictionRequest{}
 	req.SetClientIpRestriction(cir)
-	upserted, err := c.ClientIPRestrictionClient().UpsertClientIPRestriction(ctx, req)
-	return upserted, trace.Wrap(err)
+	resp, err := c.ClientIPRestrictionClient().UpsertClientIPRestriction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
 }
 
 // DeleteClientIPRestriction deletes the ClientIPRestriction singleton. The name is

@@ -95,6 +95,76 @@ func (b0 GetClientIPRestrictionRequest_builder) Build() *GetClientIPRestrictionR
 	return m0
 }
 
+// Response for GetClientIPRestriction.
+type GetClientIPRestrictionResponse struct {
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ClientIpRestriction *ClientIPRestriction   `protobuf:"bytes,1,opt,name=client_ip_restriction,json=clientIpRestriction,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
+}
+
+func (x *GetClientIPRestrictionResponse) Reset() {
+	*x = GetClientIPRestrictionResponse{}
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetClientIPRestrictionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetClientIPRestrictionResponse) ProtoMessage() {}
+
+func (x *GetClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetClientIPRestrictionResponse) GetClientIpRestriction() *ClientIPRestriction {
+	if x != nil {
+		return x.xxx_hidden_ClientIpRestriction
+	}
+	return nil
+}
+
+func (x *GetClientIPRestrictionResponse) SetClientIpRestriction(v *ClientIPRestriction) {
+	x.xxx_hidden_ClientIpRestriction = v
+}
+
+func (x *GetClientIPRestrictionResponse) HasClientIpRestriction() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_ClientIpRestriction != nil
+}
+
+func (x *GetClientIPRestrictionResponse) ClearClientIpRestriction() {
+	x.xxx_hidden_ClientIpRestriction = nil
+}
+
+type GetClientIPRestrictionResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The ClientIPRestriction singleton.
+	ClientIpRestriction *ClientIPRestriction
+}
+
+func (b0 GetClientIPRestrictionResponse_builder) Build() *GetClientIPRestrictionResponse {
+	m0 := &GetClientIPRestrictionResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_ClientIpRestriction = b.ClientIpRestriction
+	return m0
+}
+
 // Request for CreateClientIPRestriction.
 type CreateClientIPRestrictionRequest struct {
 	state                          protoimpl.MessageState `protogen:"opaque.v1"`
@@ -105,7 +175,7 @@ type CreateClientIPRestrictionRequest struct {
 
 func (x *CreateClientIPRestrictionRequest) Reset() {
 	*x = CreateClientIPRestrictionRequest{}
-	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[1]
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -117,7 +187,7 @@ func (x *CreateClientIPRestrictionRequest) String() string {
 func (*CreateClientIPRestrictionRequest) ProtoMessage() {}
 
 func (x *CreateClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[1]
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -165,6 +235,76 @@ func (b0 CreateClientIPRestrictionRequest_builder) Build() *CreateClientIPRestri
 	return m0
 }
 
+// Response for CreateClientIPRestriction.
+type CreateClientIPRestrictionResponse struct {
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ClientIpRestriction *ClientIPRestriction   `protobuf:"bytes,1,opt,name=client_ip_restriction,json=clientIpRestriction,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
+}
+
+func (x *CreateClientIPRestrictionResponse) Reset() {
+	*x = CreateClientIPRestrictionResponse{}
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateClientIPRestrictionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateClientIPRestrictionResponse) ProtoMessage() {}
+
+func (x *CreateClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CreateClientIPRestrictionResponse) GetClientIpRestriction() *ClientIPRestriction {
+	if x != nil {
+		return x.xxx_hidden_ClientIpRestriction
+	}
+	return nil
+}
+
+func (x *CreateClientIPRestrictionResponse) SetClientIpRestriction(v *ClientIPRestriction) {
+	x.xxx_hidden_ClientIpRestriction = v
+}
+
+func (x *CreateClientIPRestrictionResponse) HasClientIpRestriction() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_ClientIpRestriction != nil
+}
+
+func (x *CreateClientIPRestrictionResponse) ClearClientIpRestriction() {
+	x.xxx_hidden_ClientIpRestriction = nil
+}
+
+type CreateClientIPRestrictionResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The created ClientIPRestriction.
+	ClientIpRestriction *ClientIPRestriction
+}
+
+func (b0 CreateClientIPRestrictionResponse_builder) Build() *CreateClientIPRestrictionResponse {
+	m0 := &CreateClientIPRestrictionResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_ClientIpRestriction = b.ClientIpRestriction
+	return m0
+}
+
 // Request for UpdateClientIPRestriction.
 type UpdateClientIPRestrictionRequest struct {
 	state                          protoimpl.MessageState `protogen:"opaque.v1"`
@@ -175,7 +315,7 @@ type UpdateClientIPRestrictionRequest struct {
 
 func (x *UpdateClientIPRestrictionRequest) Reset() {
 	*x = UpdateClientIPRestrictionRequest{}
-	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[2]
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -187,7 +327,7 @@ func (x *UpdateClientIPRestrictionRequest) String() string {
 func (*UpdateClientIPRestrictionRequest) ProtoMessage() {}
 
 func (x *UpdateClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[2]
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,6 +376,76 @@ func (b0 UpdateClientIPRestrictionRequest_builder) Build() *UpdateClientIPRestri
 	return m0
 }
 
+// Response for UpdateClientIPRestriction.
+type UpdateClientIPRestrictionResponse struct {
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ClientIpRestriction *ClientIPRestriction   `protobuf:"bytes,1,opt,name=client_ip_restriction,json=clientIpRestriction,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
+}
+
+func (x *UpdateClientIPRestrictionResponse) Reset() {
+	*x = UpdateClientIPRestrictionResponse{}
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateClientIPRestrictionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateClientIPRestrictionResponse) ProtoMessage() {}
+
+func (x *UpdateClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpdateClientIPRestrictionResponse) GetClientIpRestriction() *ClientIPRestriction {
+	if x != nil {
+		return x.xxx_hidden_ClientIpRestriction
+	}
+	return nil
+}
+
+func (x *UpdateClientIPRestrictionResponse) SetClientIpRestriction(v *ClientIPRestriction) {
+	x.xxx_hidden_ClientIpRestriction = v
+}
+
+func (x *UpdateClientIPRestrictionResponse) HasClientIpRestriction() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_ClientIpRestriction != nil
+}
+
+func (x *UpdateClientIPRestrictionResponse) ClearClientIpRestriction() {
+	x.xxx_hidden_ClientIpRestriction = nil
+}
+
+type UpdateClientIPRestrictionResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The updated ClientIPRestriction.
+	ClientIpRestriction *ClientIPRestriction
+}
+
+func (b0 UpdateClientIPRestrictionResponse_builder) Build() *UpdateClientIPRestrictionResponse {
+	m0 := &UpdateClientIPRestrictionResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_ClientIpRestriction = b.ClientIpRestriction
+	return m0
+}
+
 // Request for UpsertClientIPRestriction.
 type UpsertClientIPRestrictionRequest struct {
 	state                          protoimpl.MessageState `protogen:"opaque.v1"`
@@ -246,7 +456,7 @@ type UpsertClientIPRestrictionRequest struct {
 
 func (x *UpsertClientIPRestrictionRequest) Reset() {
 	*x = UpsertClientIPRestrictionRequest{}
-	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[3]
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -258,7 +468,7 @@ func (x *UpsertClientIPRestrictionRequest) String() string {
 func (*UpsertClientIPRestrictionRequest) ProtoMessage() {}
 
 func (x *UpsertClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[3]
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -306,6 +516,76 @@ func (b0 UpsertClientIPRestrictionRequest_builder) Build() *UpsertClientIPRestri
 	return m0
 }
 
+// Response for UpsertClientIPRestriction.
+type UpsertClientIPRestrictionResponse struct {
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ClientIpRestriction *ClientIPRestriction   `protobuf:"bytes,1,opt,name=client_ip_restriction,json=clientIpRestriction,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
+}
+
+func (x *UpsertClientIPRestrictionResponse) Reset() {
+	*x = UpsertClientIPRestrictionResponse{}
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertClientIPRestrictionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertClientIPRestrictionResponse) ProtoMessage() {}
+
+func (x *UpsertClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertClientIPRestrictionResponse) GetClientIpRestriction() *ClientIPRestriction {
+	if x != nil {
+		return x.xxx_hidden_ClientIpRestriction
+	}
+	return nil
+}
+
+func (x *UpsertClientIPRestrictionResponse) SetClientIpRestriction(v *ClientIPRestriction) {
+	x.xxx_hidden_ClientIpRestriction = v
+}
+
+func (x *UpsertClientIPRestrictionResponse) HasClientIpRestriction() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_ClientIpRestriction != nil
+}
+
+func (x *UpsertClientIPRestrictionResponse) ClearClientIpRestriction() {
+	x.xxx_hidden_ClientIpRestriction = nil
+}
+
+type UpsertClientIPRestrictionResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The upserted ClientIPRestriction.
+	ClientIpRestriction *ClientIPRestriction
+}
+
+func (b0 UpsertClientIPRestrictionResponse_builder) Build() *UpsertClientIPRestrictionResponse {
+	m0 := &UpsertClientIPRestrictionResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_ClientIpRestriction = b.ClientIpRestriction
+	return m0
+}
+
 // Request for DeleteClientIPRestriction.
 // The name field, if set, must equal MetaNameClientIPRestriction.
 type DeleteClientIPRestrictionRequest struct {
@@ -317,7 +597,7 @@ type DeleteClientIPRestrictionRequest struct {
 
 func (x *DeleteClientIPRestrictionRequest) Reset() {
 	*x = DeleteClientIPRestrictionRequest{}
-	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[4]
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -329,7 +609,7 @@ func (x *DeleteClientIPRestrictionRequest) String() string {
 func (*DeleteClientIPRestrictionRequest) ProtoMessage() {}
 
 func (x *DeleteClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[4]
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -374,7 +654,7 @@ type DeleteClientIPRestrictionResponse struct {
 
 func (x *DeleteClientIPRestrictionResponse) Reset() {
 	*x = DeleteClientIPRestrictionResponse{}
-	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[5]
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -386,7 +666,7 @@ func (x *DeleteClientIPRestrictionResponse) String() string {
 func (*DeleteClientIPRestrictionResponse) ProtoMessage() {}
 
 func (x *DeleteClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[5]
+	mi := &file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -415,52 +695,68 @@ const file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_raw
 	"\n" +
 	"Ateleport/clientiprestriction/v1/clientiprestriction_service.proto\x12\x1fteleport.clientiprestriction.v1\x1a9teleport/clientiprestriction/v1/clientiprestriction.proto\"3\n" +
 	"\x1dGetClientIPRestrictionRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\x8c\x01\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x8a\x01\n" +
+	"\x1eGetClientIPRestrictionResponse\x12h\n" +
+	"\x15client_ip_restriction\x18\x01 \x01(\v24.teleport.clientiprestriction.v1.ClientIPRestrictionR\x13clientIpRestriction\"\x8c\x01\n" +
 	" CreateClientIPRestrictionRequest\x12h\n" +
+	"\x15client_ip_restriction\x18\x01 \x01(\v24.teleport.clientiprestriction.v1.ClientIPRestrictionR\x13clientIpRestriction\"\x8d\x01\n" +
+	"!CreateClientIPRestrictionResponse\x12h\n" +
 	"\x15client_ip_restriction\x18\x01 \x01(\v24.teleport.clientiprestriction.v1.ClientIPRestrictionR\x13clientIpRestriction\"\x8c\x01\n" +
 	" UpdateClientIPRestrictionRequest\x12h\n" +
+	"\x15client_ip_restriction\x18\x01 \x01(\v24.teleport.clientiprestriction.v1.ClientIPRestrictionR\x13clientIpRestriction\"\x8d\x01\n" +
+	"!UpdateClientIPRestrictionResponse\x12h\n" +
 	"\x15client_ip_restriction\x18\x01 \x01(\v24.teleport.clientiprestriction.v1.ClientIPRestrictionR\x13clientIpRestriction\"\x8c\x01\n" +
 	" UpsertClientIPRestrictionRequest\x12h\n" +
+	"\x15client_ip_restriction\x18\x01 \x01(\v24.teleport.clientiprestriction.v1.ClientIPRestrictionR\x13clientIpRestriction\"\x8d\x01\n" +
+	"!UpsertClientIPRestrictionResponse\x12h\n" +
 	"\x15client_ip_restriction\x18\x01 \x01(\v24.teleport.clientiprestriction.v1.ClientIPRestrictionR\x13clientIpRestriction\"6\n" +
 	" DeleteClientIPRestrictionRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"#\n" +
-	"!DeleteClientIPRestrictionResponse2\x97\x06\n" +
-	"\x1aClientIPRestrictionService\x12\x8e\x01\n" +
-	"\x16GetClientIPRestriction\x12>.teleport.clientiprestriction.v1.GetClientIPRestrictionRequest\x1a4.teleport.clientiprestriction.v1.ClientIPRestriction\x12\x94\x01\n" +
-	"\x19CreateClientIPRestriction\x12A.teleport.clientiprestriction.v1.CreateClientIPRestrictionRequest\x1a4.teleport.clientiprestriction.v1.ClientIPRestriction\x12\x94\x01\n" +
-	"\x19UpdateClientIPRestriction\x12A.teleport.clientiprestriction.v1.UpdateClientIPRestrictionRequest\x1a4.teleport.clientiprestriction.v1.ClientIPRestriction\x12\x94\x01\n" +
-	"\x19UpsertClientIPRestriction\x12A.teleport.clientiprestriction.v1.UpsertClientIPRestrictionRequest\x1a4.teleport.clientiprestriction.v1.ClientIPRestriction\x12\xa2\x01\n" +
+	"!DeleteClientIPRestrictionResponse2\xcc\x06\n" +
+	"\x1aClientIPRestrictionService\x12\x99\x01\n" +
+	"\x16GetClientIPRestriction\x12>.teleport.clientiprestriction.v1.GetClientIPRestrictionRequest\x1a?.teleport.clientiprestriction.v1.GetClientIPRestrictionResponse\x12\xa2\x01\n" +
+	"\x19CreateClientIPRestriction\x12A.teleport.clientiprestriction.v1.CreateClientIPRestrictionRequest\x1aB.teleport.clientiprestriction.v1.CreateClientIPRestrictionResponse\x12\xa2\x01\n" +
+	"\x19UpdateClientIPRestriction\x12A.teleport.clientiprestriction.v1.UpdateClientIPRestrictionRequest\x1aB.teleport.clientiprestriction.v1.UpdateClientIPRestrictionResponse\x12\xa2\x01\n" +
+	"\x19UpsertClientIPRestriction\x12A.teleport.clientiprestriction.v1.UpsertClientIPRestrictionRequest\x1aB.teleport.clientiprestriction.v1.UpsertClientIPRestrictionResponse\x12\xa2\x01\n" +
 	"\x19DeleteClientIPRestriction\x12A.teleport.clientiprestriction.v1.DeleteClientIPRestrictionRequest\x1aB.teleport.clientiprestriction.v1.DeleteClientIPRestrictionResponseBjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1;clientiprestrictionv1b\x06proto3"
 
-var file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_goTypes = []any{
 	(*GetClientIPRestrictionRequest)(nil),     // 0: teleport.clientiprestriction.v1.GetClientIPRestrictionRequest
-	(*CreateClientIPRestrictionRequest)(nil),  // 1: teleport.clientiprestriction.v1.CreateClientIPRestrictionRequest
-	(*UpdateClientIPRestrictionRequest)(nil),  // 2: teleport.clientiprestriction.v1.UpdateClientIPRestrictionRequest
-	(*UpsertClientIPRestrictionRequest)(nil),  // 3: teleport.clientiprestriction.v1.UpsertClientIPRestrictionRequest
-	(*DeleteClientIPRestrictionRequest)(nil),  // 4: teleport.clientiprestriction.v1.DeleteClientIPRestrictionRequest
-	(*DeleteClientIPRestrictionResponse)(nil), // 5: teleport.clientiprestriction.v1.DeleteClientIPRestrictionResponse
-	(*ClientIPRestriction)(nil),               // 6: teleport.clientiprestriction.v1.ClientIPRestriction
+	(*GetClientIPRestrictionResponse)(nil),    // 1: teleport.clientiprestriction.v1.GetClientIPRestrictionResponse
+	(*CreateClientIPRestrictionRequest)(nil),  // 2: teleport.clientiprestriction.v1.CreateClientIPRestrictionRequest
+	(*CreateClientIPRestrictionResponse)(nil), // 3: teleport.clientiprestriction.v1.CreateClientIPRestrictionResponse
+	(*UpdateClientIPRestrictionRequest)(nil),  // 4: teleport.clientiprestriction.v1.UpdateClientIPRestrictionRequest
+	(*UpdateClientIPRestrictionResponse)(nil), // 5: teleport.clientiprestriction.v1.UpdateClientIPRestrictionResponse
+	(*UpsertClientIPRestrictionRequest)(nil),  // 6: teleport.clientiprestriction.v1.UpsertClientIPRestrictionRequest
+	(*UpsertClientIPRestrictionResponse)(nil), // 7: teleport.clientiprestriction.v1.UpsertClientIPRestrictionResponse
+	(*DeleteClientIPRestrictionRequest)(nil),  // 8: teleport.clientiprestriction.v1.DeleteClientIPRestrictionRequest
+	(*DeleteClientIPRestrictionResponse)(nil), // 9: teleport.clientiprestriction.v1.DeleteClientIPRestrictionResponse
+	(*ClientIPRestriction)(nil),               // 10: teleport.clientiprestriction.v1.ClientIPRestriction
 }
 var file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_depIdxs = []int32{
-	6, // 0: teleport.clientiprestriction.v1.CreateClientIPRestrictionRequest.client_ip_restriction:type_name -> teleport.clientiprestriction.v1.ClientIPRestriction
-	6, // 1: teleport.clientiprestriction.v1.UpdateClientIPRestrictionRequest.client_ip_restriction:type_name -> teleport.clientiprestriction.v1.ClientIPRestriction
-	6, // 2: teleport.clientiprestriction.v1.UpsertClientIPRestrictionRequest.client_ip_restriction:type_name -> teleport.clientiprestriction.v1.ClientIPRestriction
-	0, // 3: teleport.clientiprestriction.v1.ClientIPRestrictionService.GetClientIPRestriction:input_type -> teleport.clientiprestriction.v1.GetClientIPRestrictionRequest
-	1, // 4: teleport.clientiprestriction.v1.ClientIPRestrictionService.CreateClientIPRestriction:input_type -> teleport.clientiprestriction.v1.CreateClientIPRestrictionRequest
-	2, // 5: teleport.clientiprestriction.v1.ClientIPRestrictionService.UpdateClientIPRestriction:input_type -> teleport.clientiprestriction.v1.UpdateClientIPRestrictionRequest
-	3, // 6: teleport.clientiprestriction.v1.ClientIPRestrictionService.UpsertClientIPRestriction:input_type -> teleport.clientiprestriction.v1.UpsertClientIPRestrictionRequest
-	4, // 7: teleport.clientiprestriction.v1.ClientIPRestrictionService.DeleteClientIPRestriction:input_type -> teleport.clientiprestriction.v1.DeleteClientIPRestrictionRequest
-	6, // 8: teleport.clientiprestriction.v1.ClientIPRestrictionService.GetClientIPRestriction:output_type -> teleport.clientiprestriction.v1.ClientIPRestriction
-	6, // 9: teleport.clientiprestriction.v1.ClientIPRestrictionService.CreateClientIPRestriction:output_type -> teleport.clientiprestriction.v1.ClientIPRestriction
-	6, // 10: teleport.clientiprestriction.v1.ClientIPRestrictionService.UpdateClientIPRestriction:output_type -> teleport.clientiprestriction.v1.ClientIPRestriction
-	6, // 11: teleport.clientiprestriction.v1.ClientIPRestrictionService.UpsertClientIPRestriction:output_type -> teleport.clientiprestriction.v1.ClientIPRestriction
-	5, // 12: teleport.clientiprestriction.v1.ClientIPRestrictionService.DeleteClientIPRestriction:output_type -> teleport.clientiprestriction.v1.DeleteClientIPRestrictionResponse
-	8, // [8:13] is the sub-list for method output_type
-	3, // [3:8] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	10, // 0: teleport.clientiprestriction.v1.GetClientIPRestrictionResponse.client_ip_restriction:type_name -> teleport.clientiprestriction.v1.ClientIPRestriction
+	10, // 1: teleport.clientiprestriction.v1.CreateClientIPRestrictionRequest.client_ip_restriction:type_name -> teleport.clientiprestriction.v1.ClientIPRestriction
+	10, // 2: teleport.clientiprestriction.v1.CreateClientIPRestrictionResponse.client_ip_restriction:type_name -> teleport.clientiprestriction.v1.ClientIPRestriction
+	10, // 3: teleport.clientiprestriction.v1.UpdateClientIPRestrictionRequest.client_ip_restriction:type_name -> teleport.clientiprestriction.v1.ClientIPRestriction
+	10, // 4: teleport.clientiprestriction.v1.UpdateClientIPRestrictionResponse.client_ip_restriction:type_name -> teleport.clientiprestriction.v1.ClientIPRestriction
+	10, // 5: teleport.clientiprestriction.v1.UpsertClientIPRestrictionRequest.client_ip_restriction:type_name -> teleport.clientiprestriction.v1.ClientIPRestriction
+	10, // 6: teleport.clientiprestriction.v1.UpsertClientIPRestrictionResponse.client_ip_restriction:type_name -> teleport.clientiprestriction.v1.ClientIPRestriction
+	0,  // 7: teleport.clientiprestriction.v1.ClientIPRestrictionService.GetClientIPRestriction:input_type -> teleport.clientiprestriction.v1.GetClientIPRestrictionRequest
+	2,  // 8: teleport.clientiprestriction.v1.ClientIPRestrictionService.CreateClientIPRestriction:input_type -> teleport.clientiprestriction.v1.CreateClientIPRestrictionRequest
+	4,  // 9: teleport.clientiprestriction.v1.ClientIPRestrictionService.UpdateClientIPRestriction:input_type -> teleport.clientiprestriction.v1.UpdateClientIPRestrictionRequest
+	6,  // 10: teleport.clientiprestriction.v1.ClientIPRestrictionService.UpsertClientIPRestriction:input_type -> teleport.clientiprestriction.v1.UpsertClientIPRestrictionRequest
+	8,  // 11: teleport.clientiprestriction.v1.ClientIPRestrictionService.DeleteClientIPRestriction:input_type -> teleport.clientiprestriction.v1.DeleteClientIPRestrictionRequest
+	1,  // 12: teleport.clientiprestriction.v1.ClientIPRestrictionService.GetClientIPRestriction:output_type -> teleport.clientiprestriction.v1.GetClientIPRestrictionResponse
+	3,  // 13: teleport.clientiprestriction.v1.ClientIPRestrictionService.CreateClientIPRestriction:output_type -> teleport.clientiprestriction.v1.CreateClientIPRestrictionResponse
+	5,  // 14: teleport.clientiprestriction.v1.ClientIPRestrictionService.UpdateClientIPRestriction:output_type -> teleport.clientiprestriction.v1.UpdateClientIPRestrictionResponse
+	7,  // 15: teleport.clientiprestriction.v1.ClientIPRestrictionService.UpsertClientIPRestriction:output_type -> teleport.clientiprestriction.v1.UpsertClientIPRestrictionResponse
+	9,  // 16: teleport.clientiprestriction.v1.ClientIPRestrictionService.DeleteClientIPRestriction:output_type -> teleport.clientiprestriction.v1.DeleteClientIPRestrictionResponse
+	12, // [12:17] is the sub-list for method output_type
+	7,  // [7:12] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_init() }
@@ -475,7 +771,7 @@ func file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_init
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_rawDesc), len(file_teleport_clientiprestriction_v1_clientiprestriction_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
