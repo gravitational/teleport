@@ -15,7 +15,10 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package access
 
-import "github.com/gravitational/teleport/api/types"
+import (
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/foos"
+)
 
 // isAllowedScopedVerb returns true if the given verb is allowed for the given scoped resource kind. Scoped roles are not sane
 // for use with all resource kind/verb combinations, so we restrict the allowed combinations here.
@@ -45,6 +48,9 @@ func isAllowedScopedRule(kind string, verb string) bool {
 		// access lists can be read/written, and do not contain a concept of a secret.
 		// permissions for access list members are conferred by permissions for
 		// access list themselves, and/or list ownership.
+		return isReadWriteNoSecrets(verb)
+	case foos.Kind:
+		// foos can be read/written, and do not contain a concept of a secret.
 		return isReadWriteNoSecrets(verb)
 	default:
 		return false
