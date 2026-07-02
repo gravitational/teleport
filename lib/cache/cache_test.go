@@ -91,8 +91,13 @@ import (
 const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
+	enableRLockCheck()
 	utils.InitLoggerForTests()
-	os.Exit(m.Run())
+	code := m.Run()
+	if code == 0 {
+		finalRLockCheck()
+	}
+	os.Exit(code)
 }
 
 // TestNodesDontCacheHighVolumeResources verifies that resources classified as "high volume" aren't
