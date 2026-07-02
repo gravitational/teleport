@@ -61,6 +61,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -5617,6 +5618,24 @@ func TestScopedServerWithRolesGenerateAppToken(t *testing.T) {
 			reqScope:  "/other",
 			expectErr: true,
 		},
+		{
+			name:      "unscoped user without jwt access is denied",
+			server:    newScopedTestServerWithUnscopedUser(t, srv, "plain-user", nil),
+			expectErr: true,
+		},
+		{
+			name: "unscoped user with jwt access is allowed",
+			server: newScopedTestServerWithUnscopedUser(t, srv, "jwt-user",
+				[]types.Rule{types.NewRule(types.KindJWT, []string{types.VerbCreate})}),
+		},
+		{
+			// A scoped user is currently not allowed to be created with create permissions on jwt tokens.
+			// We pass in a rules here just to check that the decision api will reject the user properly
+			name:      "scoped user is denied",
+			server:    newScopePinnedTestServerWithScopedUser(t, srv, "scoped-user", scope, []*scopedaccessv1.ScopedRule{}),
+			reqScope:  scope,
+			expectErr: true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -8894,6 +8913,80 @@ func newScopePinnedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hos
 
 	t.Cleanup(func() { authWithRole.Close() })
 
+	return authWithRole
+}
+
+func newScopedTestServerWithUnscopedUser(t *testing.T, srv *authtest.AuthServer, username string, allowRules []types.Rule) *auth.ScopedServerWithRoles {
+	t.Helper()
+	ctx := t.Context()
+
+	user, role, err := authtest.CreateUserAndRole(srv.AuthServer, username, nil, allowRules)
+	require.NoError(t, err)
+
+	authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), []string{role.GetName()}).I))
+	require.NoError(t, err)
+
+	scoped := auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx).ScopedServerWithRoles()
+	t.Cleanup(func() { scoped.Close() })
+	return scoped
+}
+
+func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServer, username, scope string, rules []*scopedaccessv1.ScopedRule) *auth.ScopedServerWithRoles {
+	t.Helper()
+	ctx := t.Context()
+
+	_, err := authtest.CreateUser(ctx, srv.AuthServer, username)
+	require.NoError(t, err)
+
+	scopedAccess := srv.AuthServer.ScopedAccess()
+	roleName := username + "-role"
+	_, err = scopedAccess.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:     scopedaccess.KindScopedRole,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: roleName}.Build(),
+			Scope:    scope,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				Rules:            rules,
+				AssignableScopes: []string{scope},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	_, err = scopedAccess.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:     scopedaccess.KindScopedRoleAssignment,
+			SubKind:  scopedaccess.SubKindDynamic,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: uuid.NewString()}.Build(),
+			Scope:    scope,
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				User: username,
+				Assignments: []*scopedaccessv1.Assignment{
+					scopedaccessv1.Assignment_builder{Role: roleName, Scope: scope}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	pin := scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: scope}.Build()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		err := srv.AuthServer.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, username, pin)
+		assert.NoError(c, err)
+		assert.NotNil(c, pin.GetAssignmentTree())
+	}, 10*time.Second, 100*time.Millisecond)
+
+	identity := authz.LocalUser{
+		Username: username,
+		Identity: tlsca.Identity{Username: username, ScopePin: pin},
+	}
+	scopedCtx, err := srv.ScopedAuthorizer.AuthorizeScoped(authz.ContextWithUser(ctx, identity))
+	require.NoError(t, err)
+
+	authWithRole := auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, scopedCtx)
+	t.Cleanup(func() { authWithRole.Close() })
 	return authWithRole
 }
 
