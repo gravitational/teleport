@@ -790,7 +790,7 @@ func Main() {
 	case "scp":
 		cmdLine = append([]string{"scp"}, cmdLineOrig...)
 	case "git-remote-teleport":
-		cmdLine = append([]string{"git", "http-remote"}, cmdLineOrig...)
+		cmdLine = append([]string{"git", "remote-http"}, cmdLineOrig...)
 	default:
 		cmdLine = cmdLineOrig
 	}

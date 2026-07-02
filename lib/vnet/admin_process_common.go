@@ -36,6 +36,7 @@ func newNetworkStackConfig(ctx context.Context, tun TUNDevice, clt *clientApplic
 		clt:         clt,
 		appProvider: newAppProvider(clt),
 		dbProvider:  newDBProvider(clt),
+		gitProvider: newGitProvider(clt),
 		sshProvider: sshProvider,
 		clock:       clock,
 		parentCtx:   ctx,

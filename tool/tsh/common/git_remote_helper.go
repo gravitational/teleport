@@ -50,7 +50,7 @@ type gitHTTPRemoteCommand struct {
 
 func newGitHTTPRemoteCommand(parent *kingpin.CmdClause) *gitHTTPRemoteCommand {
 	cmd := &gitHTTPRemoteCommand{
-		CmdClause: parent.Command("http-remote", "Git HTTP remote helper for teleport:// URLs (internal).").Hidden(),
+		CmdClause: parent.Command("remote-http", "Git HTTP remote helper for teleport:// URLs (internal).").Hidden(),
 	}
 	cmd.Arg("git-cmd", "Git command (remote name).").Required().StringVar(&cmd.gitCmd)
 	cmd.Arg("url", "Remote URL.").Required().StringVar(&cmd.remoteURL)
@@ -73,7 +73,9 @@ func (c *gitHTTPRemoteCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxy, err := startGitProxy(cf, tc, gitServer.GetName())
+	proxy, err := startGitProxy(cf, tc, gitProxyConfig{
+		gitServerName: gitServer.GetName(),
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

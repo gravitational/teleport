@@ -75,6 +75,14 @@ service ClientApplicationService {
   // OnNewDBConnection gets called whenever a new database connection is about to
   // be established through VNet for observability.
   rpc OnNewDBConnection(OnNewDBConnectionRequest) returns (OnNewDBConnectionResponse);
+  // ReissueGitCert issues a new git cert.
+  rpc ReissueGitCert(ReissueGitCertRequest) returns (ReissueGitCertResponse);
+  // SignForGit issues a signature with the private key associated with an x509
+  // certificate previously issued for a requested git server.
+  rpc SignForGit(SignForGitRequest) returns (SignForGitResponse);
+  // OnNewGitConnection gets called whenever a new git connection is about to
+  // be established through VNet for observability.
+  rpc OnNewGitConnection(OnNewGitConnectionRequest) returns (OnNewGitConnectionResponse);
 }
 
 // AuthenticateProcessRequest is a request for AuthenticateProcess.
@@ -142,6 +150,10 @@ message ResolveFQDNResponse {
     // MatchedHTTPSTunnelApp will be set when the query matched an app that
     // should be tunneled via the HTTPS-in-mTLS ALPN protocol.
     MatchedHTTPSTunnelApp matched_https_tunnel_app = 5;
+    // MatchedGitServer will be set when the query matched a git server
+    // resource. VNet will proxy TCP connections through ALPN with the git
+    // cert to the Teleport proxy.
+    MatchedGitServer matched_git_server = 6;
   }
 }
 
@@ -526,3 +538,77 @@ message OnNewDBConnectionRequest {
 
 // OnNewDBConnectionResponse is a response for OnNewDBConnection.
 message OnNewDBConnectionResponse {}
+
+// MatchedGitServer holds info about a git server that matched a query.
+message MatchedGitServer {
+  // GitServerInfo holds all necessary info for making connections to the
+  // resolved git server.
+  GitServerInfo git_server_info = 1;
+}
+
+// GitServerInfo holds all necessary info for making connections to VNet git
+// servers.
+message GitServerInfo {
+  // GitServerKey uniquely identifies a git server.
+  GitServerKey git_server_key = 1;
+  // Cluster is the name of the cluster in which the git server is found.
+  string cluster = 2;
+  // Ipv4CidrRange is the CIDR range from which an IPv4 address should be
+  // assigned to the git server.
+  string ipv4_cidr_range = 3;
+  // DialOptions holds options that should be used when dialing the root cluster
+  // of the git server.
+  DialOptions dial_options = 4;
+}
+
+// GitServerKey uniquely identifies a git server in a specific profile and
+// cluster.
+message GitServerKey {
+  // Profile is the profile in which the git server is found.
+  string profile = 1;
+  // LeafCluster is the leaf cluster in which the git server is found. If
+  // empty, the git server is in the root cluster for the profile.
+  string leaf_cluster = 2;
+  // Name is the name of the git server resource.
+  string name = 3;
+}
+
+// ReissueGitCertRequest is a request for ReissueGitCert.
+message ReissueGitCertRequest {
+  // GitServerInfo contains info about the git server, every
+  // ReissueGitCertRequest must include a git_server_info as returned from
+  // ResolveFQDN.
+  GitServerInfo git_server_info = 1;
+}
+
+// ReissueGitCertResponse is a response for ReissueGitCert.
+message ReissueGitCertResponse {
+  // Cert is the issued git certificate in x509 DER format.
+  bytes cert = 1;
+}
+
+// SignForGitRequest is a request to sign data with a private key that the
+// server has cached for the git_server_key. The git_server_key must match a
+// previous successful call to ReissueGitCert.
+message SignForGitRequest {
+  // GitServerKey uniquely identifies a git server, it must match the key of a
+  // git server from a previous successful call to ReissueGitCert.
+  GitServerKey git_server_key = 1;
+  // Sign holds signature request details.
+  SignRequest sign = 2;
+}
+
+// SignForGitResponse is a response for SignForGit.
+message SignForGitResponse {
+  // Signature is the signature.
+  bytes signature = 1;
+}
+
+// OnNewGitConnectionRequest is a request for OnNewGitConnection.
+message OnNewGitConnectionRequest {
+  // GitServerKey identifies the git server the connection is being made for.
+  GitServerKey git_server_key = 1;
+}
+
+// OnNewGitConnectionResponse is a response for OnNewGitConnection.
+message OnNewGitConnectionResponse {}

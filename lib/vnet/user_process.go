@@ -80,6 +80,13 @@ type ClientApplication interface {
 	// The connection won't be established until OnNewDBConnection returns. Returning an error prevents
 	// the connection from being made.
 	OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error
+
+	// ReissueGitCert issues a new cert for the target git server.
+	ReissueGitCert(ctx context.Context, gitInfo *vnetv1.GitServerInfo) (tls.Certificate, error)
+
+	// OnNewGitConnection gets called whenever a new git connection is about to be established
+	// through VNet.
+	OnNewGitConnection(ctx context.Context, gitKey *vnetv1.GitServerKey) error
 }
 
 // ClusterClient is an interface defining the subset of [client.ClusterClient]
@@ -119,6 +126,10 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 	if allowAppHTTPSTunnel {
 		log.InfoContext(ctx, "App HTTPS tunnel is enabled")
 	}
+	allowGitAccess, _ := apiutils.ParseBool(os.Getenv("TELEPORT_UNSTABLE_VNET_GIT"))
+	if allowGitAccess {
+		log.InfoContext(ctx, "Git access via VNet is enabled")
+	}
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
 		clientApplication:  clientApplication,
 		clusterConfigCache: clusterConfigCache,
@@ -128,6 +139,7 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 		// for tsh/Connect to validate locally.
 		allowDatabaseAccess: false,
 		allowAppHTTPSTunnel: allowAppHTTPSTunnel,
+		allowGitAccess:      allowGitAccess,
 	})
 	unifiedClusterConfigProvider := NewUnifiedClusterConfigProvider(&UnifiedClusterConfigProviderConfig{
 		clientApplication:  clientApplication,

@@ -486,6 +486,17 @@ func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1
 	return nil
 }
 
+// ReissueGitCert is part of the [vnet.ClientApplication] interface but is not
+// supported in Teleport Connect.
+func (p *clientApplication) ReissueGitCert(ctx context.Context, gitInfo *vnetv1.GitServerInfo) (tls.Certificate, error) {
+	return tls.Certificate{}, trace.NotImplemented("VNet git access is not supported in Teleport Connect")
+}
+
+// OnNewGitConnection is part of the [vnet.ClientApplication] interface.
+func (p *clientApplication) OnNewGitConnection(ctx context.Context, gitKey *vnetv1.GitServerKey) error {
+	return nil
+}
+
 // UserTLSCert returns the user TLS certificate for the given profile.
 func (p *clientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
 	// We don't have easy access to the user TLS cert from here, the only way

@@ -31,7 +31,7 @@ const gitRemoteHelperBinary = "git-remote-teleport"
 // ensureGitRemoteHelper ensures that git-remote-teleport.cmd exists in the
 // same directory as the tsh binary. Git on Windows looks for
 // git-remote-<scheme>.cmd when handling custom URL schemes. The .cmd wrapper
-// delegates to "tsh git http-remote".
+// delegates to "tsh git remote-http".
 func ensureGitRemoteHelper(cf *CLIConf) {
 	tshPath, err := os.Executable()
 	if err != nil {
@@ -51,9 +51,9 @@ func ensureGitRemoteHelper(cf *CLIConf) {
 		return
 	}
 
-	// The .cmd wrapper passes all arguments through to tsh git http-remote.
+	// The .cmd wrapper passes all arguments through to tsh git remote-http.
 	// %* forwards all arguments from the .cmd invocation.
-	content := fmt.Sprintf("@\"%s\" git http-remote %%*\r\n", tshPath)
+	content := fmt.Sprintf("@\"%s\" git remote-http %%*\r\n", tshPath)
 
 	if err := os.WriteFile(helperPath, []byte(content), 0755); err != nil {
 		fmt.Fprintf(cf.Stderr(), "Note: could not create %s.cmd automatically.\n", gitRemoteHelperBinary)

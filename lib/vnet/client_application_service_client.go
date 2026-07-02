@@ -293,6 +293,31 @@ func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, 
 	return trace.Wrap(err, "calling OnNewDBConnection rpc")
 }
 
+func (c *clientApplicationServiceClient) ReissueGitCert(ctx context.Context, gitInfo *vnetv1.GitServerInfo) ([]byte, error) {
+	resp, err := c.clt.ReissueGitCert(ctx, &vnetv1.ReissueGitCertRequest{
+		GitServerInfo: gitInfo,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling ReissueGitCert rpc")
+	}
+	return resp.GetCert(), nil
+}
+
+func (c *clientApplicationServiceClient) SignForGit(ctx context.Context, req *vnetv1.SignForGitRequest) ([]byte, error) {
+	resp, err := c.clt.SignForGit(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "calling SignForGit rpc")
+	}
+	return resp.GetSignature(), nil
+}
+
+func (c *clientApplicationServiceClient) OnNewGitConnection(ctx context.Context, gitKey *vnetv1.GitServerKey) error {
+	_, err := c.clt.OnNewGitConnection(ctx, &vnetv1.OnNewGitConnectionRequest{
+		GitServerKey: gitKey,
+	})
+	return trace.Wrap(err, "calling OnNewGitConnection rpc")
+}
+
 // newRPCCertSigner creates an [rpcSigner] from a DER-encoded certificate and a
 // function that sends sign requests over gRPC. It parses the x509 certificate
 // to extract the public key. This is the shared implementation used by both

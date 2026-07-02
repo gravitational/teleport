@@ -568,6 +568,14 @@ func (p *fakeClientApp) OnNewDBConnection(_ context.Context, _ *vnetv1.DatabaseK
 	return nil
 }
 
+func (p *fakeClientApp) ReissueGitCert(_ context.Context, _ *vnetv1.GitServerInfo) (tls.Certificate, error) {
+	return tls.Certificate{}, trace.NotImplemented("not implemented in test fake")
+}
+
+func (p *fakeClientApp) OnNewGitConnection(_ context.Context, _ *vnetv1.GitServerKey) error {
+	return nil
+}
+
 func (p *fakeClientApp) dialSSHNode(
 	ctx context.Context,
 	target dialTarget,

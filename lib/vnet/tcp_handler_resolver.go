@@ -42,6 +42,7 @@ type tcpHandlerResolverConfig struct {
 	clt                      *clientApplicationServiceClient
 	appProvider              *appProvider
 	dbProvider               *dbProvider
+	gitProvider              *gitProvider
 	sshProvider              *sshProvider
 	clock                    clockwork.Clock
 	alwaysTrustRootClusterCA bool
@@ -104,6 +105,19 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 			tcpHandler: newDBHandler(&dbHandlerConfig{
 				dbInfo:                   dbInfo,
 				dbProvider:               r.cfg.dbProvider,
+				clock:                    r.cfg.clock,
+				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
+				parentCtx:                r.cfg.parentCtx,
+			}),
+		}, nil
+	}
+	if matchedGit := resp.GetMatchedGitServer(); matchedGit != nil {
+		gitInfo := matchedGit.GetGitServerInfo()
+		return &tcpHandlerSpec{
+			ipv4CIDRRange: gitInfo.GetIpv4CidrRange(),
+			tcpHandler: newGitHandler(&gitHandlerConfig{
+				gitInfo:                  gitInfo,
+				gitProvider:              r.cfg.gitProvider,
 				clock:                    r.cfg.clock,
 				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
 				parentCtx:                r.cfg.parentCtx,

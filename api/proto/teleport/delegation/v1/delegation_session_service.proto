@@ -65,6 +65,9 @@ message GenerateCertsRequest {
 
     // Route to the application the certificates will be used to access.
     RouteToApp route_to_app = 7;
+
+    // Route to the git server the certificates will be used to access.
+    RouteToGit route_to_git = 8;
   }
 }
 
@@ -117,6 +120,12 @@ message RouteToApp {
 
   // GCP service account to assume.
   string gcp_service_account = 8;
+}
+
+// RouteToGit contains git server access routing information.
+message RouteToGit {
+  // Git server name.
+  string git_server_name = 1;
 }
 
 // GenerateCertsResponse are the results of calling GenerateCerts.

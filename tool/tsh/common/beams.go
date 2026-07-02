@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -29,9 +30,15 @@ import (
 	"github.com/gravitational/trace"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func isBeamsEnvironment() bool {
+	v, _ := apiutils.ParseBool(os.Getenv("TELEPORT_BEAMS_RUNTIME"))
+	return v
+}
 
 type beamsCommands struct {
 	ls        *beamsLSCommand

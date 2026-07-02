@@ -53,6 +53,9 @@ const (
 	ClientApplicationService_ReissueDBCert_FullMethodName             = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueDBCert"
 	ClientApplicationService_SignForDB_FullMethodName                 = "/teleport.lib.vnet.v1.ClientApplicationService/SignForDB"
 	ClientApplicationService_OnNewDBConnection_FullMethodName         = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewDBConnection"
+	ClientApplicationService_ReissueGitCert_FullMethodName            = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueGitCert"
+	ClientApplicationService_SignForGit_FullMethodName                = "/teleport.lib.vnet.v1.ClientApplicationService/SignForGit"
+	ClientApplicationService_OnNewGitConnection_FullMethodName        = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewGitConnection"
 )
 
 // ClientApplicationServiceClient is the client API for ClientApplicationService service.
@@ -112,6 +115,14 @@ type ClientApplicationServiceClient interface {
 	// OnNewDBConnection gets called whenever a new database connection is about to
 	// be established through VNet for observability.
 	OnNewDBConnection(ctx context.Context, in *OnNewDBConnectionRequest, opts ...grpc.CallOption) (*OnNewDBConnectionResponse, error)
+	// ReissueGitCert issues a new git cert.
+	ReissueGitCert(ctx context.Context, in *ReissueGitCertRequest, opts ...grpc.CallOption) (*ReissueGitCertResponse, error)
+	// SignForGit issues a signature with the private key associated with an x509
+	// certificate previously issued for a requested git server.
+	SignForGit(ctx context.Context, in *SignForGitRequest, opts ...grpc.CallOption) (*SignForGitResponse, error)
+	// OnNewGitConnection gets called whenever a new git connection is about to
+	// be established through VNet for observability.
+	OnNewGitConnection(ctx context.Context, in *OnNewGitConnectionRequest, opts ...grpc.CallOption) (*OnNewGitConnectionResponse, error)
 }
 
 type clientApplicationServiceClient struct {
@@ -302,6 +313,36 @@ func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, 
 	return out, nil
 }
 
+func (c *clientApplicationServiceClient) ReissueGitCert(ctx context.Context, in *ReissueGitCertRequest, opts ...grpc.CallOption) (*ReissueGitCertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReissueGitCertResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_ReissueGitCert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) SignForGit(ctx context.Context, in *SignForGitRequest, opts ...grpc.CallOption) (*SignForGitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SignForGitResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_SignForGit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) OnNewGitConnection(ctx context.Context, in *OnNewGitConnectionRequest, opts ...grpc.CallOption) (*OnNewGitConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OnNewGitConnectionResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_OnNewGitConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClientApplicationServiceServer is the server API for ClientApplicationService service.
 // All implementations must embed UnimplementedClientApplicationServiceServer
 // for forward compatibility.
@@ -359,6 +400,14 @@ type ClientApplicationServiceServer interface {
 	// OnNewDBConnection gets called whenever a new database connection is about to
 	// be established through VNet for observability.
 	OnNewDBConnection(context.Context, *OnNewDBConnectionRequest) (*OnNewDBConnectionResponse, error)
+	// ReissueGitCert issues a new git cert.
+	ReissueGitCert(context.Context, *ReissueGitCertRequest) (*ReissueGitCertResponse, error)
+	// SignForGit issues a signature with the private key associated with an x509
+	// certificate previously issued for a requested git server.
+	SignForGit(context.Context, *SignForGitRequest) (*SignForGitResponse, error)
+	// OnNewGitConnection gets called whenever a new git connection is about to
+	// be established through VNet for observability.
+	OnNewGitConnection(context.Context, *OnNewGitConnectionRequest) (*OnNewGitConnectionResponse, error)
 	mustEmbedUnimplementedClientApplicationServiceServer()
 }
 
@@ -422,6 +471,15 @@ func (UnimplementedClientApplicationServiceServer) SignForDB(context.Context, *S
 }
 func (UnimplementedClientApplicationServiceServer) OnNewDBConnection(context.Context, *OnNewDBConnectionRequest) (*OnNewDBConnectionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method OnNewDBConnection not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) ReissueGitCert(context.Context, *ReissueGitCertRequest) (*ReissueGitCertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReissueGitCert not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) SignForGit(context.Context, *SignForGitRequest) (*SignForGitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignForGit not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) OnNewGitConnection(context.Context, *OnNewGitConnectionRequest) (*OnNewGitConnectionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method OnNewGitConnection not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) mustEmbedUnimplementedClientApplicationServiceServer() {
 }
@@ -769,6 +827,60 @@ func _ClientApplicationService_OnNewDBConnection_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClientApplicationService_ReissueGitCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReissueGitCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).ReissueGitCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_ReissueGitCert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).ReissueGitCert(ctx, req.(*ReissueGitCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_SignForGit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignForGitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).SignForGit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_SignForGit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).SignForGit(ctx, req.(*SignForGitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_OnNewGitConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OnNewGitConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).OnNewGitConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_OnNewGitConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).OnNewGitConnection(ctx, req.(*OnNewGitConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClientApplicationService_ServiceDesc is the grpc.ServiceDesc for ClientApplicationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -847,6 +959,18 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "OnNewDBConnection",
 			Handler:    _ClientApplicationService_OnNewDBConnection_Handler,
+		},
+		{
+			MethodName: "ReissueGitCert",
+			Handler:    _ClientApplicationService_ReissueGitCert_Handler,
+		},
+		{
+			MethodName: "SignForGit",
+			Handler:    _ClientApplicationService_SignForGit_Handler,
+		},
+		{
+			MethodName: "OnNewGitConnection",
+			Handler:    _ClientApplicationService_OnNewGitConnection_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -73,6 +73,12 @@ type clientApplicationService struct {
 	// dbSignerCache caches the crypto.Signer for each certificate issued by
 	// ReissueDBCert so that SignForDB can later use that signer.
 	dbSignerCache map[dbKey]crypto.Signer
+
+	// gitSignerMu protects gitSignerCache.
+	gitSignerMu sync.RWMutex
+	// gitSignerCache caches the crypto.Signer for each certificate issued by
+	// ReissueGitCert so that SignForGit can later use that signer.
+	gitSignerCache map[gitKey]crypto.Signer
 }
 
 type clientApplicationServiceConfig struct {
@@ -96,6 +102,7 @@ func newClientApplicationService(cfg *clientApplicationServiceConfig) (*clientAp
 		networkStackInfo: make(chan *vnetv1.NetworkStackInfo, 1),
 		appSignerCache:   make(map[appKey]crypto.Signer),
 		dbSignerCache:    make(map[dbKey]crypto.Signer),
+		gitSignerCache:   make(map[gitKey]crypto.Signer),
 		sshSigners:       sshSigners,
 	}, nil
 }
@@ -605,4 +612,64 @@ func (s *clientApplicationService) OnNewDBConnection(ctx context.Context, req *v
 		return nil, trace.Wrap(err)
 	}
 	return &vnetv1.OnNewDBConnectionResponse{}, nil
+}
+
+type gitKey struct {
+	profile, leafCluster, name string
+}
+
+func newGitKey(protoKey *vnetv1.GitServerKey) gitKey {
+	return gitKey{
+		profile:     protoKey.GetProfile(),
+		leafCluster: protoKey.GetLeafCluster(),
+		name:        protoKey.GetName(),
+	}
+}
+
+func (s *clientApplicationService) setSignerForGit(gitKey *vnetv1.GitServerKey, signer crypto.Signer) {
+	s.gitSignerMu.Lock()
+	defer s.gitSignerMu.Unlock()
+	s.gitSignerCache[newGitKey(gitKey)] = signer
+}
+
+func (s *clientApplicationService) getSignerForGit(gitKey *vnetv1.GitServerKey) (crypto.Signer, bool) {
+	s.gitSignerMu.RLock()
+	defer s.gitSignerMu.RUnlock()
+	signer, ok := s.gitSignerCache[newGitKey(gitKey)]
+	return signer, ok
+}
+
+func (s *clientApplicationService) ReissueGitCert(ctx context.Context, req *vnetv1.ReissueGitCertRequest) (*vnetv1.ReissueGitCertResponse, error) {
+	gitInfo := req.GetGitServerInfo()
+	gitKey := gitInfo.GetGitServerKey()
+	cert, err := s.cfg.clientApplication.ReissueGitCert(ctx, gitInfo)
+	if err != nil {
+		return nil, trace.Wrap(err, "reissuing git cert for %s", gitKey.GetName())
+	}
+	s.setSignerForGit(gitKey, cert.PrivateKey.(crypto.Signer))
+	return &vnetv1.ReissueGitCertResponse{
+		Cert: cert.Certificate[0],
+	}, nil
+}
+
+func (s *clientApplicationService) SignForGit(ctx context.Context, req *vnetv1.SignForGitRequest) (*vnetv1.SignForGitResponse, error) {
+	gitKey := req.GetGitServerKey()
+	signer, ok := s.getSignerForGit(gitKey)
+	if !ok {
+		return nil, trace.BadParameter("no signer for git server %v", gitKey)
+	}
+	signature, err := sign(signer, req.GetSign())
+	if err != nil {
+		return nil, trace.Wrap(err, "signing for git server %v", gitKey)
+	}
+	return &vnetv1.SignForGitResponse{
+		Signature: signature,
+	}, nil
+}
+
+func (s *clientApplicationService) OnNewGitConnection(ctx context.Context, req *vnetv1.OnNewGitConnectionRequest) (*vnetv1.OnNewGitConnectionResponse, error) {
+	if err := s.cfg.clientApplication.OnNewGitConnection(ctx, req.GetGitServerKey()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &vnetv1.OnNewGitConnectionResponse{}, nil
 }

@@ -521,6 +521,7 @@ type ResolveFQDNResponse struct {
 	//	*ResolveFQDNResponse_MatchedCluster
 	//	*ResolveFQDNResponse_MatchedDatabase
 	//	*ResolveFQDNResponse_MatchedHttpsTunnelApp
+	//	*ResolveFQDNResponse_MatchedGitServer
 	Match         isResolveFQDNResponse_Match `protobuf_oneof:"match"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -608,6 +609,15 @@ func (x *ResolveFQDNResponse) GetMatchedHttpsTunnelApp() *MatchedHTTPSTunnelApp 
 	return nil
 }
 
+func (x *ResolveFQDNResponse) GetMatchedGitServer() *MatchedGitServer {
+	if x != nil {
+		if x, ok := x.Match.(*ResolveFQDNResponse_MatchedGitServer); ok {
+			return x.MatchedGitServer
+		}
+	}
+	return nil
+}
+
 type isResolveFQDNResponse_Match interface {
 	isResolveFQDNResponse_Match()
 }
@@ -644,6 +654,13 @@ type ResolveFQDNResponse_MatchedHttpsTunnelApp struct {
 	MatchedHttpsTunnelApp *MatchedHTTPSTunnelApp `protobuf:"bytes,5,opt,name=matched_https_tunnel_app,json=matchedHttpsTunnelApp,proto3,oneof"`
 }
 
+type ResolveFQDNResponse_MatchedGitServer struct {
+	// MatchedGitServer will be set when the query matched a git server
+	// resource. VNet will proxy TCP connections through ALPN with the git
+	// cert to the Teleport proxy.
+	MatchedGitServer *MatchedGitServer `protobuf:"bytes,6,opt,name=matched_git_server,json=matchedGitServer,proto3,oneof"`
+}
+
 func (*ResolveFQDNResponse_MatchedTcpApp) isResolveFQDNResponse_Match() {}
 
 func (*ResolveFQDNResponse_MatchedWebApp) isResolveFQDNResponse_Match() {}
@@ -653,6 +670,8 @@ func (*ResolveFQDNResponse_MatchedCluster) isResolveFQDNResponse_Match() {}
 func (*ResolveFQDNResponse_MatchedDatabase) isResolveFQDNResponse_Match() {}
 
 func (*ResolveFQDNResponse_MatchedHttpsTunnelApp) isResolveFQDNResponse_Match() {}
+
+func (*ResolveFQDNResponse_MatchedGitServer) isResolveFQDNResponse_Match() {}
 
 // MatchedTCPApp holds info about a TCP app that matched a query.
 type MatchedTCPApp struct {
@@ -2858,6 +2877,476 @@ func (*OnNewDBConnectionResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{48}
 }
 
+// MatchedGitServer holds info about a git server that matched a query.
+type MatchedGitServer struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// GitServerInfo holds all necessary info for making connections to the
+	// resolved git server.
+	GitServerInfo *GitServerInfo `protobuf:"bytes,1,opt,name=git_server_info,json=gitServerInfo,proto3" json:"git_server_info,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchedGitServer) Reset() {
+	*x = MatchedGitServer{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchedGitServer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchedGitServer) ProtoMessage() {}
+
+func (x *MatchedGitServer) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchedGitServer.ProtoReflect.Descriptor instead.
+func (*MatchedGitServer) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *MatchedGitServer) GetGitServerInfo() *GitServerInfo {
+	if x != nil {
+		return x.GitServerInfo
+	}
+	return nil
+}
+
+// GitServerInfo holds all necessary info for making connections to VNet git
+// servers.
+type GitServerInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// GitServerKey uniquely identifies a git server.
+	GitServerKey *GitServerKey `protobuf:"bytes,1,opt,name=git_server_key,json=gitServerKey,proto3" json:"git_server_key,omitempty"`
+	// Cluster is the name of the cluster in which the git server is found.
+	Cluster string `protobuf:"bytes,2,opt,name=cluster,proto3" json:"cluster,omitempty"`
+	// Ipv4CidrRange is the CIDR range from which an IPv4 address should be
+	// assigned to the git server.
+	Ipv4CidrRange string `protobuf:"bytes,3,opt,name=ipv4_cidr_range,json=ipv4CidrRange,proto3" json:"ipv4_cidr_range,omitempty"`
+	// DialOptions holds options that should be used when dialing the root cluster
+	// of the git server.
+	DialOptions   *DialOptions `protobuf:"bytes,4,opt,name=dial_options,json=dialOptions,proto3" json:"dial_options,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GitServerInfo) Reset() {
+	*x = GitServerInfo{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GitServerInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GitServerInfo) ProtoMessage() {}
+
+func (x *GitServerInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GitServerInfo.ProtoReflect.Descriptor instead.
+func (*GitServerInfo) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *GitServerInfo) GetGitServerKey() *GitServerKey {
+	if x != nil {
+		return x.GitServerKey
+	}
+	return nil
+}
+
+func (x *GitServerInfo) GetCluster() string {
+	if x != nil {
+		return x.Cluster
+	}
+	return ""
+}
+
+func (x *GitServerInfo) GetIpv4CidrRange() string {
+	if x != nil {
+		return x.Ipv4CidrRange
+	}
+	return ""
+}
+
+func (x *GitServerInfo) GetDialOptions() *DialOptions {
+	if x != nil {
+		return x.DialOptions
+	}
+	return nil
+}
+
+// GitServerKey uniquely identifies a git server in a specific profile and
+// cluster.
+type GitServerKey struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Profile is the profile in which the git server is found.
+	Profile string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	// LeafCluster is the leaf cluster in which the git server is found. If
+	// empty, the git server is in the root cluster for the profile.
+	LeafCluster string `protobuf:"bytes,2,opt,name=leaf_cluster,json=leafCluster,proto3" json:"leaf_cluster,omitempty"`
+	// Name is the name of the git server resource.
+	Name          string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GitServerKey) Reset() {
+	*x = GitServerKey{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GitServerKey) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GitServerKey) ProtoMessage() {}
+
+func (x *GitServerKey) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GitServerKey.ProtoReflect.Descriptor instead.
+func (*GitServerKey) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *GitServerKey) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *GitServerKey) GetLeafCluster() string {
+	if x != nil {
+		return x.LeafCluster
+	}
+	return ""
+}
+
+func (x *GitServerKey) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// ReissueGitCertRequest is a request for ReissueGitCert.
+type ReissueGitCertRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// GitServerInfo contains info about the git server, every
+	// ReissueGitCertRequest must include a git_server_info as returned from
+	// ResolveFQDN.
+	GitServerInfo *GitServerInfo `protobuf:"bytes,1,opt,name=git_server_info,json=gitServerInfo,proto3" json:"git_server_info,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReissueGitCertRequest) Reset() {
+	*x = ReissueGitCertRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReissueGitCertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReissueGitCertRequest) ProtoMessage() {}
+
+func (x *ReissueGitCertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReissueGitCertRequest.ProtoReflect.Descriptor instead.
+func (*ReissueGitCertRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *ReissueGitCertRequest) GetGitServerInfo() *GitServerInfo {
+	if x != nil {
+		return x.GitServerInfo
+	}
+	return nil
+}
+
+// ReissueGitCertResponse is a response for ReissueGitCert.
+type ReissueGitCertResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Cert is the issued git certificate in x509 DER format.
+	Cert          []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReissueGitCertResponse) Reset() {
+	*x = ReissueGitCertResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReissueGitCertResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReissueGitCertResponse) ProtoMessage() {}
+
+func (x *ReissueGitCertResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReissueGitCertResponse.ProtoReflect.Descriptor instead.
+func (*ReissueGitCertResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *ReissueGitCertResponse) GetCert() []byte {
+	if x != nil {
+		return x.Cert
+	}
+	return nil
+}
+
+// SignForGitRequest is a request to sign data with a private key that the
+// server has cached for the git_server_key. The git_server_key must match a
+// previous successful call to ReissueGitCert.
+type SignForGitRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// GitServerKey uniquely identifies a git server, it must match the key of a
+	// git server from a previous successful call to ReissueGitCert.
+	GitServerKey *GitServerKey `protobuf:"bytes,1,opt,name=git_server_key,json=gitServerKey,proto3" json:"git_server_key,omitempty"`
+	// Sign holds signature request details.
+	Sign          *SignRequest `protobuf:"bytes,2,opt,name=sign,proto3" json:"sign,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignForGitRequest) Reset() {
+	*x = SignForGitRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignForGitRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignForGitRequest) ProtoMessage() {}
+
+func (x *SignForGitRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignForGitRequest.ProtoReflect.Descriptor instead.
+func (*SignForGitRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *SignForGitRequest) GetGitServerKey() *GitServerKey {
+	if x != nil {
+		return x.GitServerKey
+	}
+	return nil
+}
+
+func (x *SignForGitRequest) GetSign() *SignRequest {
+	if x != nil {
+		return x.Sign
+	}
+	return nil
+}
+
+// SignForGitResponse is a response for SignForGit.
+type SignForGitResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Signature is the signature.
+	Signature     []byte `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignForGitResponse) Reset() {
+	*x = SignForGitResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignForGitResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignForGitResponse) ProtoMessage() {}
+
+func (x *SignForGitResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignForGitResponse.ProtoReflect.Descriptor instead.
+func (*SignForGitResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *SignForGitResponse) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+// OnNewGitConnectionRequest is a request for OnNewGitConnection.
+type OnNewGitConnectionRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// GitServerKey identifies the git server the connection is being made for.
+	GitServerKey  *GitServerKey `protobuf:"bytes,1,opt,name=git_server_key,json=gitServerKey,proto3" json:"git_server_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OnNewGitConnectionRequest) Reset() {
+	*x = OnNewGitConnectionRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OnNewGitConnectionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OnNewGitConnectionRequest) ProtoMessage() {}
+
+func (x *OnNewGitConnectionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OnNewGitConnectionRequest.ProtoReflect.Descriptor instead.
+func (*OnNewGitConnectionRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *OnNewGitConnectionRequest) GetGitServerKey() *GitServerKey {
+	if x != nil {
+		return x.GitServerKey
+	}
+	return nil
+}
+
+// OnNewGitConnectionResponse is a response for OnNewGitConnection.
+type OnNewGitConnectionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OnNewGitConnectionResponse) Reset() {
+	*x = OnNewGitConnectionResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OnNewGitConnectionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OnNewGitConnectionResponse) ProtoMessage() {}
+
+func (x *OnNewGitConnectionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OnNewGitConnectionResponse.ProtoReflect.Descriptor instead.
+func (*OnNewGitConnectionResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{57}
+}
+
 var File_teleport_lib_vnet_v1_client_application_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
@@ -2878,13 +3367,14 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\vPingRequest\"\x0e\n" +
 	"\fPingResponse\"(\n" +
 	"\x12ResolveFQDNRequest\x12\x12\n" +
-	"\x04fqdn\x18\x01 \x01(\tR\x04fqdn\"\xc9\x03\n" +
+	"\x04fqdn\x18\x01 \x01(\tR\x04fqdn\"\xa1\x04\n" +
 	"\x13ResolveFQDNResponse\x12M\n" +
 	"\x0fmatched_tcp_app\x18\x01 \x01(\v2#.teleport.lib.vnet.v1.MatchedTCPAppH\x00R\rmatchedTcpApp\x12M\n" +
 	"\x0fmatched_web_app\x18\x02 \x01(\v2#.teleport.lib.vnet.v1.MatchedWebAppH\x00R\rmatchedWebApp\x12O\n" +
 	"\x0fmatched_cluster\x18\x03 \x01(\v2$.teleport.lib.vnet.v1.MatchedClusterH\x00R\x0ematchedCluster\x12R\n" +
 	"\x10matched_database\x18\x04 \x01(\v2%.teleport.lib.vnet.v1.MatchedDatabaseH\x00R\x0fmatchedDatabase\x12f\n" +
-	"\x18matched_https_tunnel_app\x18\x05 \x01(\v2+.teleport.lib.vnet.v1.MatchedHTTPSTunnelAppH\x00R\x15matchedHttpsTunnelAppB\a\n" +
+	"\x18matched_https_tunnel_app\x18\x05 \x01(\v2+.teleport.lib.vnet.v1.MatchedHTTPSTunnelAppH\x00R\x15matchedHttpsTunnelApp\x12V\n" +
+	"\x12matched_git_server\x18\x06 \x01(\v2&.teleport.lib.vnet.v1.MatchedGitServerH\x00R\x10matchedGitServerB\a\n" +
 	"\x05match\"I\n" +
 	"\rMatchedTCPApp\x128\n" +
 	"\bapp_info\x18\x01 \x01(\v2\x1d.teleport.lib.vnet.v1.AppInfoR\aappInfo\"\x0f\n" +
@@ -3007,7 +3497,30 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\tsignature\x18\x01 \x01(\fR\tsignature\"`\n" +
 	"\x18OnNewDBConnectionRequest\x12D\n" +
 	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\"\x1b\n" +
-	"\x19OnNewDBConnectionResponse*<\n" +
+	"\x19OnNewDBConnectionResponse\"_\n" +
+	"\x10MatchedGitServer\x12K\n" +
+	"\x0fgit_server_info\x18\x01 \x01(\v2#.teleport.lib.vnet.v1.GitServerInfoR\rgitServerInfo\"\xe1\x01\n" +
+	"\rGitServerInfo\x12H\n" +
+	"\x0egit_server_key\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.GitServerKeyR\fgitServerKey\x12\x18\n" +
+	"\acluster\x18\x02 \x01(\tR\acluster\x12&\n" +
+	"\x0fipv4_cidr_range\x18\x03 \x01(\tR\ripv4CidrRange\x12D\n" +
+	"\fdial_options\x18\x04 \x01(\v2!.teleport.lib.vnet.v1.DialOptionsR\vdialOptions\"_\n" +
+	"\fGitServerKey\x12\x18\n" +
+	"\aprofile\x18\x01 \x01(\tR\aprofile\x12!\n" +
+	"\fleaf_cluster\x18\x02 \x01(\tR\vleafCluster\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\"d\n" +
+	"\x15ReissueGitCertRequest\x12K\n" +
+	"\x0fgit_server_info\x18\x01 \x01(\v2#.teleport.lib.vnet.v1.GitServerInfoR\rgitServerInfo\",\n" +
+	"\x16ReissueGitCertResponse\x12\x12\n" +
+	"\x04cert\x18\x01 \x01(\fR\x04cert\"\x94\x01\n" +
+	"\x11SignForGitRequest\x12H\n" +
+	"\x0egit_server_key\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.GitServerKeyR\fgitServerKey\x125\n" +
+	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\"2\n" +
+	"\x12SignForGitResponse\x12\x1c\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"e\n" +
+	"\x19OnNewGitConnectionRequest\x12H\n" +
+	"\x0egit_server_key\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.GitServerKeyR\fgitServerKey\"\x1c\n" +
+	"\x1aOnNewGitConnectionResponse*<\n" +
 	"\x04Hash\x12\x14\n" +
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tHASH_NONE\x10\x01\x12\x0f\n" +
@@ -3015,7 +3528,7 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x1eSessionSSHConfigCredentialMode\x122\n" +
 	".SESSION_SSH_CONFIG_CREDENTIAL_MODE_UNSPECIFIED\x10\x00\x12/\n" +
 	"+SESSION_SSH_CONFIG_CREDENTIAL_MODE_MFA_CERT\x10\x01\x12-\n" +
-	")SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT\x10\x022\x92\x10\n" +
+	")SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT\x10\x022\xd9\x12\n" +
 	"\x18ClientApplicationService\x12z\n" +
 	"\x13AuthenticateProcess\x120.teleport.lib.vnet.v1.AuthenticateProcessRequest\x1a1.teleport.lib.vnet.v1.AuthenticateProcessResponse\x12\x83\x01\n" +
 	"\x16ReportNetworkStackInfo\x123.teleport.lib.vnet.v1.ReportNetworkStackInfoRequest\x1a4.teleport.lib.vnet.v1.ReportNetworkStackInfoResponse\x12M\n" +
@@ -3035,7 +3548,11 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x19PerformSessionMFACeremony\x126.teleport.lib.vnet.v1.PerformSessionMFACeremonyRequest\x1a7.teleport.lib.vnet.v1.PerformSessionMFACeremonyResponse\x12h\n" +
 	"\rReissueDBCert\x12*.teleport.lib.vnet.v1.ReissueDBCertRequest\x1a+.teleport.lib.vnet.v1.ReissueDBCertResponse\x12\\\n" +
 	"\tSignForDB\x12&.teleport.lib.vnet.v1.SignForDBRequest\x1a'.teleport.lib.vnet.v1.SignForDBResponse\x12t\n" +
-	"\x11OnNewDBConnection\x12..teleport.lib.vnet.v1.OnNewDBConnectionRequest\x1a/.teleport.lib.vnet.v1.OnNewDBConnectionResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
+	"\x11OnNewDBConnection\x12..teleport.lib.vnet.v1.OnNewDBConnectionRequest\x1a/.teleport.lib.vnet.v1.OnNewDBConnectionResponse\x12k\n" +
+	"\x0eReissueGitCert\x12+.teleport.lib.vnet.v1.ReissueGitCertRequest\x1a,.teleport.lib.vnet.v1.ReissueGitCertResponse\x12_\n" +
+	"\n" +
+	"SignForGit\x12'.teleport.lib.vnet.v1.SignForGitRequest\x1a(.teleport.lib.vnet.v1.SignForGitResponse\x12w\n" +
+	"\x12OnNewGitConnection\x12/.teleport.lib.vnet.v1.OnNewGitConnectionRequest\x1a0.teleport.lib.vnet.v1.OnNewGitConnectionResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
 
 var (
 	file_teleport_lib_vnet_v1_client_application_service_proto_rawDescOnce sync.Once
@@ -3050,7 +3567,7 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP() []
 }
 
 var file_teleport_lib_vnet_v1_client_application_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
+var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
 var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(Hash)(0),                                 // 0: teleport.lib.vnet.v1.Hash
 	(SessionSSHConfigCredentialMode)(0),       // 1: teleport.lib.vnet.v1.SessionSSHConfigCredentialMode
@@ -3103,7 +3620,16 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(*SignForDBResponse)(nil),                 // 48: teleport.lib.vnet.v1.SignForDBResponse
 	(*OnNewDBConnectionRequest)(nil),          // 49: teleport.lib.vnet.v1.OnNewDBConnectionRequest
 	(*OnNewDBConnectionResponse)(nil),         // 50: teleport.lib.vnet.v1.OnNewDBConnectionResponse
-	(*types.AppV3)(nil),                       // 51: types.AppV3
+	(*MatchedGitServer)(nil),                  // 51: teleport.lib.vnet.v1.MatchedGitServer
+	(*GitServerInfo)(nil),                     // 52: teleport.lib.vnet.v1.GitServerInfo
+	(*GitServerKey)(nil),                      // 53: teleport.lib.vnet.v1.GitServerKey
+	(*ReissueGitCertRequest)(nil),             // 54: teleport.lib.vnet.v1.ReissueGitCertRequest
+	(*ReissueGitCertResponse)(nil),            // 55: teleport.lib.vnet.v1.ReissueGitCertResponse
+	(*SignForGitRequest)(nil),                 // 56: teleport.lib.vnet.v1.SignForGitRequest
+	(*SignForGitResponse)(nil),                // 57: teleport.lib.vnet.v1.SignForGitResponse
+	(*OnNewGitConnectionRequest)(nil),         // 58: teleport.lib.vnet.v1.OnNewGitConnectionRequest
+	(*OnNewGitConnectionResponse)(nil),        // 59: teleport.lib.vnet.v1.OnNewGitConnectionResponse
+	(*types.AppV3)(nil),                       // 60: types.AppV3
 }
 var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32{
 	5,  // 0: teleport.lib.vnet.v1.ReportNetworkStackInfoRequest.network_stack_info:type_name -> teleport.lib.vnet.v1.NetworkStackInfo
@@ -3112,70 +3638,84 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32
 	14, // 3: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_cluster:type_name -> teleport.lib.vnet.v1.MatchedCluster
 	42, // 4: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_database:type_name -> teleport.lib.vnet.v1.MatchedDatabase
 	13, // 5: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_https_tunnel_app:type_name -> teleport.lib.vnet.v1.MatchedHTTPSTunnelApp
-	15, // 6: teleport.lib.vnet.v1.MatchedTCPApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	15, // 7: teleport.lib.vnet.v1.MatchedHTTPSTunnelApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	16, // 8: teleport.lib.vnet.v1.AppInfo.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	51, // 9: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
-	17, // 10: teleport.lib.vnet.v1.AppInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
-	15, // 11: teleport.lib.vnet.v1.ReissueAppCertRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	16, // 12: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	21, // 13: teleport.lib.vnet.v1.SignForAppRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
-	0,  // 14: teleport.lib.vnet.v1.SignRequest.hash:type_name -> teleport.lib.vnet.v1.Hash
-	16, // 15: teleport.lib.vnet.v1.OnNewAppConnectionRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	15, // 16: teleport.lib.vnet.v1.OnInvalidLocalPortRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	29, // 17: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse.target_os_configuration:type_name -> teleport.lib.vnet.v1.TargetOSConfiguration
-	17, // 18: teleport.lib.vnet.v1.UserTLSCertResponse.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
-	21, // 19: teleport.lib.vnet.v1.SignForUserTLSRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
-	1,  // 20: teleport.lib.vnet.v1.SessionSSHConfigRequest.credential_mode:type_name -> teleport.lib.vnet.v1.SessionSSHConfigCredentialMode
-	21, // 21: teleport.lib.vnet.v1.SignForSSHSessionRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
-	43, // 22: teleport.lib.vnet.v1.MatchedDatabase.database_info:type_name -> teleport.lib.vnet.v1.DatabaseInfo
-	44, // 23: teleport.lib.vnet.v1.DatabaseInfo.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
-	17, // 24: teleport.lib.vnet.v1.DatabaseInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
-	43, // 25: teleport.lib.vnet.v1.ReissueDBCertRequest.database_info:type_name -> teleport.lib.vnet.v1.DatabaseInfo
-	44, // 26: teleport.lib.vnet.v1.SignForDBRequest.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
-	21, // 27: teleport.lib.vnet.v1.SignForDBRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
-	44, // 28: teleport.lib.vnet.v1.OnNewDBConnectionRequest.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
-	2,  // 29: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:input_type -> teleport.lib.vnet.v1.AuthenticateProcessRequest
-	4,  // 30: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:input_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
-	7,  // 31: teleport.lib.vnet.v1.ClientApplicationService.Ping:input_type -> teleport.lib.vnet.v1.PingRequest
-	9,  // 32: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:input_type -> teleport.lib.vnet.v1.ResolveFQDNRequest
-	18, // 33: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
-	20, // 34: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
-	23, // 35: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:input_type -> teleport.lib.vnet.v1.OnNewAppConnectionRequest
-	25, // 36: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
-	27, // 37: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
-	30, // 38: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:input_type -> teleport.lib.vnet.v1.UserTLSCertRequest
-	32, // 39: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:input_type -> teleport.lib.vnet.v1.SignForUserTLSRequest
-	34, // 40: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:input_type -> teleport.lib.vnet.v1.SessionSSHConfigRequest
-	36, // 41: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:input_type -> teleport.lib.vnet.v1.SignForSSHSessionRequest
-	38, // 42: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:input_type -> teleport.lib.vnet.v1.ExchangeSSHKeysRequest
-	40, // 43: teleport.lib.vnet.v1.ClientApplicationService.PerformSessionMFACeremony:input_type -> teleport.lib.vnet.v1.PerformSessionMFACeremonyRequest
-	45, // 44: teleport.lib.vnet.v1.ClientApplicationService.ReissueDBCert:input_type -> teleport.lib.vnet.v1.ReissueDBCertRequest
-	47, // 45: teleport.lib.vnet.v1.ClientApplicationService.SignForDB:input_type -> teleport.lib.vnet.v1.SignForDBRequest
-	49, // 46: teleport.lib.vnet.v1.ClientApplicationService.OnNewDBConnection:input_type -> teleport.lib.vnet.v1.OnNewDBConnectionRequest
-	3,  // 47: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
-	6,  // 48: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
-	8,  // 49: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
-	10, // 50: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
-	19, // 51: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
-	22, // 52: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
-	24, // 53: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:output_type -> teleport.lib.vnet.v1.OnNewAppConnectionResponse
-	26, // 54: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
-	28, // 55: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
-	31, // 56: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse
-	33, // 57: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:output_type -> teleport.lib.vnet.v1.SignForUserTLSResponse
-	35, // 58: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:output_type -> teleport.lib.vnet.v1.SessionSSHConfigResponse
-	37, // 59: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:output_type -> teleport.lib.vnet.v1.SignForSSHSessionResponse
-	39, // 60: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:output_type -> teleport.lib.vnet.v1.ExchangeSSHKeysResponse
-	41, // 61: teleport.lib.vnet.v1.ClientApplicationService.PerformSessionMFACeremony:output_type -> teleport.lib.vnet.v1.PerformSessionMFACeremonyResponse
-	46, // 62: teleport.lib.vnet.v1.ClientApplicationService.ReissueDBCert:output_type -> teleport.lib.vnet.v1.ReissueDBCertResponse
-	48, // 63: teleport.lib.vnet.v1.ClientApplicationService.SignForDB:output_type -> teleport.lib.vnet.v1.SignForDBResponse
-	50, // 64: teleport.lib.vnet.v1.ClientApplicationService.OnNewDBConnection:output_type -> teleport.lib.vnet.v1.OnNewDBConnectionResponse
-	47, // [47:65] is the sub-list for method output_type
-	29, // [29:47] is the sub-list for method input_type
-	29, // [29:29] is the sub-list for extension type_name
-	29, // [29:29] is the sub-list for extension extendee
-	0,  // [0:29] is the sub-list for field type_name
+	51, // 6: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_git_server:type_name -> teleport.lib.vnet.v1.MatchedGitServer
+	15, // 7: teleport.lib.vnet.v1.MatchedTCPApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	15, // 8: teleport.lib.vnet.v1.MatchedHTTPSTunnelApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	16, // 9: teleport.lib.vnet.v1.AppInfo.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	60, // 10: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
+	17, // 11: teleport.lib.vnet.v1.AppInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	15, // 12: teleport.lib.vnet.v1.ReissueAppCertRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	16, // 13: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	21, // 14: teleport.lib.vnet.v1.SignForAppRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	0,  // 15: teleport.lib.vnet.v1.SignRequest.hash:type_name -> teleport.lib.vnet.v1.Hash
+	16, // 16: teleport.lib.vnet.v1.OnNewAppConnectionRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	15, // 17: teleport.lib.vnet.v1.OnInvalidLocalPortRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	29, // 18: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse.target_os_configuration:type_name -> teleport.lib.vnet.v1.TargetOSConfiguration
+	17, // 19: teleport.lib.vnet.v1.UserTLSCertResponse.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	21, // 20: teleport.lib.vnet.v1.SignForUserTLSRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	1,  // 21: teleport.lib.vnet.v1.SessionSSHConfigRequest.credential_mode:type_name -> teleport.lib.vnet.v1.SessionSSHConfigCredentialMode
+	21, // 22: teleport.lib.vnet.v1.SignForSSHSessionRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	43, // 23: teleport.lib.vnet.v1.MatchedDatabase.database_info:type_name -> teleport.lib.vnet.v1.DatabaseInfo
+	44, // 24: teleport.lib.vnet.v1.DatabaseInfo.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
+	17, // 25: teleport.lib.vnet.v1.DatabaseInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	43, // 26: teleport.lib.vnet.v1.ReissueDBCertRequest.database_info:type_name -> teleport.lib.vnet.v1.DatabaseInfo
+	44, // 27: teleport.lib.vnet.v1.SignForDBRequest.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
+	21, // 28: teleport.lib.vnet.v1.SignForDBRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	44, // 29: teleport.lib.vnet.v1.OnNewDBConnectionRequest.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
+	52, // 30: teleport.lib.vnet.v1.MatchedGitServer.git_server_info:type_name -> teleport.lib.vnet.v1.GitServerInfo
+	53, // 31: teleport.lib.vnet.v1.GitServerInfo.git_server_key:type_name -> teleport.lib.vnet.v1.GitServerKey
+	17, // 32: teleport.lib.vnet.v1.GitServerInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	52, // 33: teleport.lib.vnet.v1.ReissueGitCertRequest.git_server_info:type_name -> teleport.lib.vnet.v1.GitServerInfo
+	53, // 34: teleport.lib.vnet.v1.SignForGitRequest.git_server_key:type_name -> teleport.lib.vnet.v1.GitServerKey
+	21, // 35: teleport.lib.vnet.v1.SignForGitRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	53, // 36: teleport.lib.vnet.v1.OnNewGitConnectionRequest.git_server_key:type_name -> teleport.lib.vnet.v1.GitServerKey
+	2,  // 37: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:input_type -> teleport.lib.vnet.v1.AuthenticateProcessRequest
+	4,  // 38: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:input_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
+	7,  // 39: teleport.lib.vnet.v1.ClientApplicationService.Ping:input_type -> teleport.lib.vnet.v1.PingRequest
+	9,  // 40: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:input_type -> teleport.lib.vnet.v1.ResolveFQDNRequest
+	18, // 41: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
+	20, // 42: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
+	23, // 43: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:input_type -> teleport.lib.vnet.v1.OnNewAppConnectionRequest
+	25, // 44: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
+	27, // 45: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
+	30, // 46: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:input_type -> teleport.lib.vnet.v1.UserTLSCertRequest
+	32, // 47: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:input_type -> teleport.lib.vnet.v1.SignForUserTLSRequest
+	34, // 48: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:input_type -> teleport.lib.vnet.v1.SessionSSHConfigRequest
+	36, // 49: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:input_type -> teleport.lib.vnet.v1.SignForSSHSessionRequest
+	38, // 50: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:input_type -> teleport.lib.vnet.v1.ExchangeSSHKeysRequest
+	40, // 51: teleport.lib.vnet.v1.ClientApplicationService.PerformSessionMFACeremony:input_type -> teleport.lib.vnet.v1.PerformSessionMFACeremonyRequest
+	45, // 52: teleport.lib.vnet.v1.ClientApplicationService.ReissueDBCert:input_type -> teleport.lib.vnet.v1.ReissueDBCertRequest
+	47, // 53: teleport.lib.vnet.v1.ClientApplicationService.SignForDB:input_type -> teleport.lib.vnet.v1.SignForDBRequest
+	49, // 54: teleport.lib.vnet.v1.ClientApplicationService.OnNewDBConnection:input_type -> teleport.lib.vnet.v1.OnNewDBConnectionRequest
+	54, // 55: teleport.lib.vnet.v1.ClientApplicationService.ReissueGitCert:input_type -> teleport.lib.vnet.v1.ReissueGitCertRequest
+	56, // 56: teleport.lib.vnet.v1.ClientApplicationService.SignForGit:input_type -> teleport.lib.vnet.v1.SignForGitRequest
+	58, // 57: teleport.lib.vnet.v1.ClientApplicationService.OnNewGitConnection:input_type -> teleport.lib.vnet.v1.OnNewGitConnectionRequest
+	3,  // 58: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
+	6,  // 59: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
+	8,  // 60: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
+	10, // 61: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
+	19, // 62: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
+	22, // 63: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
+	24, // 64: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:output_type -> teleport.lib.vnet.v1.OnNewAppConnectionResponse
+	26, // 65: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
+	28, // 66: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
+	31, // 67: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse
+	33, // 68: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:output_type -> teleport.lib.vnet.v1.SignForUserTLSResponse
+	35, // 69: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:output_type -> teleport.lib.vnet.v1.SessionSSHConfigResponse
+	37, // 70: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:output_type -> teleport.lib.vnet.v1.SignForSSHSessionResponse
+	39, // 71: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:output_type -> teleport.lib.vnet.v1.ExchangeSSHKeysResponse
+	41, // 72: teleport.lib.vnet.v1.ClientApplicationService.PerformSessionMFACeremony:output_type -> teleport.lib.vnet.v1.PerformSessionMFACeremonyResponse
+	46, // 73: teleport.lib.vnet.v1.ClientApplicationService.ReissueDBCert:output_type -> teleport.lib.vnet.v1.ReissueDBCertResponse
+	48, // 74: teleport.lib.vnet.v1.ClientApplicationService.SignForDB:output_type -> teleport.lib.vnet.v1.SignForDBResponse
+	50, // 75: teleport.lib.vnet.v1.ClientApplicationService.OnNewDBConnection:output_type -> teleport.lib.vnet.v1.OnNewDBConnectionResponse
+	55, // 76: teleport.lib.vnet.v1.ClientApplicationService.ReissueGitCert:output_type -> teleport.lib.vnet.v1.ReissueGitCertResponse
+	57, // 77: teleport.lib.vnet.v1.ClientApplicationService.SignForGit:output_type -> teleport.lib.vnet.v1.SignForGitResponse
+	59, // 78: teleport.lib.vnet.v1.ClientApplicationService.OnNewGitConnection:output_type -> teleport.lib.vnet.v1.OnNewGitConnectionResponse
+	58, // [58:79] is the sub-list for method output_type
+	37, // [37:58] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_vnet_v1_client_application_service_proto_init() }
@@ -3189,6 +3729,7 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_init() {
 		(*ResolveFQDNResponse_MatchedCluster)(nil),
 		(*ResolveFQDNResponse_MatchedDatabase)(nil),
 		(*ResolveFQDNResponse_MatchedHttpsTunnelApp)(nil),
+		(*ResolveFQDNResponse_MatchedGitServer)(nil),
 	}
 	file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[19].OneofWrappers = []any{}
 	type x struct{}
@@ -3197,7 +3738,7 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc), len(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   49,
+			NumMessages:   58,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
