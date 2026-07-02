@@ -1330,50 +1330,8 @@ func TestDBSCRefresh(t *testing.T) {
 	challenge, err := strconv.Unquote(challengeValue)
 	require.NoError(t, err)
 
-	refreshAudience := (&url.URL{
-		Scheme: p.serverURL.Scheme,
-		Host:   p.serverURL.Host,
-		Path:   dbscRefreshPath,
-	}).String()
-	registrationAudience := (&url.URL{
-		Scheme: p.serverURL.Scheme,
-		Host:   p.serverURL.Host,
-		Path:   dbscRegistrationPath,
-	}).String()
-
-	registrationProofJWT, err := makeDBSCProofJWT(deviceKey, dbscProofJWTParams{
-		challenge: challenge,
-		audience:  registrationAudience,
-	})
-	require.NoError(t, err)
-	headers[secureSessionResponseHeader] = registrationProofJWT
-	status, _, _ = p.makeRequestWithHeaders(t, http.MethodPost, dbscRefreshPath, nil, nil, headers)
-	require.Equal(t, http.StatusBadRequest, status)
-
-	wrongAudienceProofJWT, err := makeDBSCProofJWT(deviceKey, dbscProofJWTParams{
-		challenge: challenge,
-		audience:  registrationAudience,
-		sessionID: session.GetName(),
-	})
-	require.NoError(t, err)
-	headers[secureSessionResponseHeader] = wrongAudienceProofJWT
-	status, _, _ = p.makeRequestWithHeaders(t, http.MethodPost, dbscRefreshPath, nil, nil, headers)
-	require.Equal(t, http.StatusBadRequest, status)
-
-	wrongSubjectProofJWT, err := makeDBSCProofJWT(deviceKey, dbscProofJWTParams{
-		challenge: challenge,
-		audience:  refreshAudience,
-		sessionID: "other-session",
-	})
-	require.NoError(t, err)
-	headers[secureSessionResponseHeader] = wrongSubjectProofJWT
-	status, _, _ = p.makeRequestWithHeaders(t, http.MethodPost, dbscRefreshPath, nil, nil, headers)
-	require.Equal(t, http.StatusBadRequest, status)
-
 	proofJWT, err := makeDBSCProofJWT(deviceKey, dbscProofJWTParams{
 		challenge: challenge,
-		audience:  refreshAudience,
-		sessionID: session.GetName(),
 	})
 	require.NoError(t, err)
 
@@ -1426,18 +1384,11 @@ func TestDBSCRegistration(t *testing.T) {
 	}
 	p := setup(t, fakeClock, authClient, nil)
 
-	registrationAudience := (&url.URL{
-		Scheme: p.serverURL.Scheme,
-		Host:   p.serverURL.Host,
-		Path:   dbscRegistrationPath,
-	}).String()
-
 	challenge, err := authClient.SignDBSCChallenge(t.Context(), session.GetName())
 	require.NoError(t, err)
 
 	proofJWT, err := makeDBSCProofJWT(deviceKey, dbscProofJWTParams{
 		challenge: challenge,
-		audience:  registrationAudience,
 		sessionID: session.GetName(),
 	})
 	require.NoError(t, err)
@@ -1496,7 +1447,6 @@ func TestDBSCRegistration(t *testing.T) {
 
 type dbscProofJWTParams struct {
 	challenge string
-	audience  string
 	sessionID string
 }
 
@@ -1515,9 +1465,8 @@ func makeDBSCProofJWT(deviceKey crypto.Signer, params dbscProofJWTParams) (strin
 		Key jose.JSONWebKey `json:"key"`
 	}{
 		Claims: josejwt.Claims{
-			Audience: josejwt.Audience{params.audience},
-			ID:       params.challenge,
-			Subject:  params.sessionID,
+			ID:      params.challenge,
+			Subject: params.sessionID,
 		},
 		Key: jwk.Public(),
 	}).CompactSerialize()

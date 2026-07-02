@@ -21,8 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -52,6 +50,14 @@ const (
 	// dbscRefreshPath is the DBSC refresh endpoint.
 	dbscRefreshPath = "/x-teleport-dbsc/refresh"
 )
+
+// IsDBSCRequest reports whether the request targets one of the DBSC endpoints.
+// DBSC refresh requests intentionally do not carry app cookies, so callers must
+// not rely on cookie presence to route them to the app handler.
+func IsDBSCRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost &&
+		(r.URL.Path == dbscRegistrationPath || r.URL.Path == dbscRefreshPath)
+}
 
 // dbscSessionConfig is the JSON response returned after successful DBSC registration.
 type dbscSessionConfig struct {
@@ -154,7 +160,7 @@ func (h *Handler) handleDBSCRefresh(w http.ResponseWriter, r *http.Request, p ht
 		return nil
 	}
 
-	if err := h.verifyDBSCRefreshResponse(ctx, responseJWT, sessionID, dbscRequestURL(r), storedPublicKey); err != nil {
+	if err := h.verifyDBSCRefreshResponse(ctx, responseJWT, sessionID, storedPublicKey); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -195,7 +201,7 @@ func (h *Handler) writeDBSCSessionConfig(w http.ResponseWriter, sessionID string
 }
 
 // verifyDBSCRefreshResponse verifies the browser's DBSC refresh JWT using the stored public key.
-func (h *Handler) verifyDBSCRefreshResponse(ctx context.Context, rawJWT string, sessionID string, audience string, storedPublicKey []byte) error {
+func (h *Handler) verifyDBSCRefreshResponse(ctx context.Context, rawJWT string, sessionID string, storedPublicKey []byte) error {
 	var jwk jose.JSONWebKey
 	if err := json.Unmarshal(storedPublicKey, &jwk); err != nil {
 		return trace.Wrap(err, "parsing stored DBSC public key")
@@ -208,40 +214,13 @@ func (h *Handler) verifyDBSCRefreshResponse(ctx context.Context, rawJWT string, 
 	if claims.ID == "" {
 		return trace.BadParameter("missing jti claim (challenge) in DBSC refresh")
 	}
-	if len(claims.Audience) == 0 {
-		return trace.BadParameter("missing aud claim in DBSC refresh")
-	}
-	if claims.Subject == "" {
-		return trace.BadParameter("missing sub claim in DBSC refresh")
-	}
-	if claims.Subject != sessionID {
-		return trace.BadParameter("invalid sub claim %q in DBSC refresh", claims.Subject)
-	}
-	validAudience := slices.Contains(claims.Audience, audience)
-	if !validAudience {
-		return trace.BadParameter("invalid aud claim %q in DBSC refresh", []string(claims.Audience))
-	}
 
+	// The DBSC proof is bound to the app session by the signed challenge in jti.
 	if err := h.verifyDBSCChallenge(ctx, claims.ID, sessionID); err != nil {
 		return trace.Wrap(err, "verifying DBSC challenge")
 	}
 
 	return nil
-}
-
-func dbscRequestURL(r *http.Request) string {
-	host := r.Host
-	if host == "" {
-		host = r.URL.Host
-	}
-
-	return (&url.URL{
-		Scheme:   "https",
-		Host:     host,
-		Path:     r.URL.Path,
-		RawPath:  r.URL.RawPath,
-		RawQuery: r.URL.RawQuery,
-	}).String()
 }
 
 // verifyDBSCChallenge verifies that the challenge was signed by this cluster.
