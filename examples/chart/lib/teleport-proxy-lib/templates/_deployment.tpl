@@ -289,6 +289,12 @@ spec:
           sources:
             - serviceAccountToken:
                 path: token
+{{- if $proxy.serviceAccountTokenAudience }}
+                audience: {{ $proxy.serviceAccountTokenAudience | quote }}
+{{- end }}
+{{- if $proxy.serviceAccountTokenExpirationSeconds }}
+                expirationSeconds: {{ $proxy.serviceAccountTokenExpirationSeconds }}
+{{- end }}
             - configMap:
                 items:
                 - key: ca.crt

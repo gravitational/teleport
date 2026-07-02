@@ -1,0 +1,197 @@
+suite: Pre-Deploy Config Test Hooks
+templates:
+  - proxy.yaml
+tests:
+  - it: Is executed as a pre-install and pre-upgrade hook
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: teleport-proxy
+    asserts:
+      - isKind:
+          of: ConfigMap
+        documentIndex: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+        documentIndex: 2
+      - equal:
+          path: metadata.annotations.helm\.sh/hook
+          value: pre-install,pre-upgrade
+        documentIndex: 2
+      - isKind:
+          of: Job
+        documentIndex: 3
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+        documentIndex: 3
+      - equal:
+          path: metadata.annotations.helm\.sh/hook
+          value: pre-install,pre-upgrade
+        documentIndex: 3
+      - isKind:
+          of: ServiceAccount
+        documentIndex: 4
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-hook
+        documentIndex: 4
+      - equal:
+          path: metadata.annotations.helm\.sh/hook
+          value: pre-install,pre-upgrade
+        documentIndex: 4
+  - it: should set extraLabels on proxy predeploy job when set in values
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: teleport-proxy
+      extraLabels:
+        job:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          job:
+            baz: overridden
+    documentIndex: 3
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
+
+  - it: should set extraLabels.jobPod on proxy predeploy job when set in values
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: teleport-proxy
+      extraLabels:
+        jobPod:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          jobPod:
+            baz: overridden
+    documentIndex: 3
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
+          value: overridden
+
+  - it: should set extraLabels on proxy predeploy config when set in values
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: teleport-proxy
+      extraLabels:
+        config:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          config:
+            baz: overridden
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
+
+  - it: should use default serviceAccount name suffixed with -hook for proxy predeploy job SA when not set in values and we're creating SAs
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: teleport-proxy
+    documentIndex: 3
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-hook
+
+  - it: should use serviceAccount.name suffixed with -hook for proxy predeploy job SA when set in values and we're creating SAs
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: teleport-proxy
+      serviceAccount:
+        name: helm-test-sa
+    documentIndex: 3
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: helm-test-sa-hook
+
+  - it: should use serviceAccount.name for proxy predeploy job SA when set in values and we're not creating SAs
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: teleport-proxy
+      serviceAccount:
+        name: helm-test-sa
+        create: false
+    documentIndex: 3
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: helm-test-sa

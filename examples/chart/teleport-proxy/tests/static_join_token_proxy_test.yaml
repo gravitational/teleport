@@ -1,0 +1,81 @@
+suite: Static Join Token Proxy
+templates:
+- proxy.yaml
+tests:
+
+- it: Doesn't set join token to projected secret when method isn't 'token'
+  set:
+    auth_server: my-server
+    clusterName: my-cluster
+    join_params:
+      method: kubernetes
+      token_name: my-token  
+  documentIndex: 2
+  asserts:
+  - isKind:
+      of: ConfigMap
+  - matchRegex:
+      path: data.teleport\.yaml
+      pattern: "token_name: /etc/teleport-secrets/auth-token"
+    not: true
+
+- it: Mounts projected secret volume when method is 'token'
+  values:
+  - ../.lint/static-join-token.yaml
+  documentIndex: 1
+  asserts:
+  - isKind:
+      of: Deployment
+  - equal:
+      path: spec.template.spec.volumes[3].name
+      value: "auth-token"
+  - equal:
+      path: spec.template.spec.containers[0].volumeMounts[3].name
+      value: "auth-token"
+
+- it: Sets join token to projected secret when method is 'token'
+  values:
+  - ../.lint/static-join-token.yaml
+  documentIndex: 2
+  asserts:
+  - isKind:
+      of: ConfigMap
+  - matchRegex:
+      path: data.teleport\.yaml
+      pattern: "token_name: /etc/teleport-secrets/auth-token"
+
+- it: Renders with an existing join token secret when create is false
+  set:
+    auth_server: my-server
+    clusterName: my-cluster
+    join_params:
+      method: token
+      token_name: ""
+    joinTokenSecret:
+      create: false
+      name: my-token-secret
+  documentIndex: 1
+  asserts:
+  - isKind:
+      of: Deployment
+  - equal:
+      path: spec.template.spec.volumes[3].secret.secretName
+      value: "my-token-secret"
+
+- it: Uses the projected secret path when an existing join token secret is provided
+  set:
+    auth_server: my-server
+    clusterName: my-cluster
+    join_params:
+      method: token
+      token_name: ""
+    joinTokenSecret:
+      create: false
+      name: my-token-secret
+  documentIndex: 2
+  asserts:
+  - isKind:
+      of: ConfigMap
+  - matchRegex:
+      path: data.teleport\.yaml
+      pattern: "token_name: /etc/teleport-secrets/auth-token"
