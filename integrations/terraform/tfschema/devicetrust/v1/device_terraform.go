@@ -380,6 +380,12 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 
 // CopyDeviceV1ToTerraform copies contents of the source Terraform object into a target struct
 func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_types.DeviceV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyDeviceV1ToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyDeviceV1ToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyDeviceV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.DeviceV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -408,7 +414,9 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -434,7 +442,9 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -485,7 +495,9 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -531,18 +543,24 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -596,7 +614,9 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 
 							v.Null = false
 							v.Value = string(obj.OsType)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["os_type"] = v
 						}
 					}
@@ -622,7 +642,9 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 
 							v.Null = false
 							v.Value = string(obj.AssetTag)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["asset_tag"] = v
 						}
 					}
@@ -648,7 +670,9 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 
 							v.Null = false
 							v.Value = string(obj.EnrollStatus)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["enroll_status"] = v
 						}
 					}
@@ -701,7 +725,9 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 
 											v.Null = false
 											v.Value = string(obj.Name)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["name"] = v
 										}
 									}
@@ -727,12 +753,16 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 
 											v.Null = false
 											v.Value = string(obj.Origin)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["origin"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["source"] = v
 							}
 						}
@@ -759,12 +789,16 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 
 							v.Null = false
 							v.Value = string(obj.Owner)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["owner"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
