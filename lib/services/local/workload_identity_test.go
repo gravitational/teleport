@@ -396,11 +396,11 @@ func TestWorkloadIdentityParser(t *testing.T) {
 		resource, err := parser.parse(event)
 		require.NoError(t, err)
 		// A scoped delete event carries only the backend key; the parser recovers
-		// the resource cursor and smuggles it through the header name so the
-		// cache can evict the scope-keyed entry.
-		wantCursor, err := scopes.MakeResourceCursor(scope, name)
-		require.NoError(t, err)
-		require.Equal(t, wantCursor, resource.GetMetadata().Name)
+		// the (scope, name) and carries the scope through the header Namespace
+		// (ResourceHeader has no scope field) so the cache can rebuild a
+		// scope-keyed entry to evict.
+		require.Equal(t, name, resource.GetMetadata().Name)
+		require.Equal(t, scope, resource.GetMetadata().Namespace)
 	})
 	t.Run("put", func(t *testing.T) {
 		event := backend.Event{

@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -181,34 +180,33 @@ func (b *WorkloadIdentityService) AppendDeleteWorkloadIdentityActions(
 	}), nil
 }
 
-// workloadIdentityDeleteCursor recovers the resource cursor of a deleted
+// workloadIdentityScopeName recovers the scope and name of a deleted
 // WorkloadIdentity from its backend key. It handles both the unscoped key range
 // (<workload_identity>/<name>) and the scope-namespaced range
-// (<scoped>/<workload_identity>/<encoded-scope>/<name>).
-func workloadIdentityDeleteCursor(key backend.Key) (string, error) {
+// (<scoped>/<workload_identity>/<encoded-scope>/<name>). An unscoped identity
+// has an empty scope.
+// TODO(strideynet): Does nick have a helper/pattern for this elsewhere??? this
+// code makes me sad:(
+func workloadIdentityScopeName(key backend.Key) (string, string, error) {
 	scopedKeyPrefix := backend.ExactKey(scopedPrefix, workloadIdentityPrefix)
 	if key.HasPrefix(scopedKeyPrefix) {
 		components := key.TrimPrefix(scopedKeyPrefix).Components()
 		if len(components) != 2 {
-			return "", trace.NotFound("failed parsing %v", key.String())
+			return "", "", trace.NotFound("failed parsing %v", key.String())
 		}
 		scope, err := scopes.DecodeFromKey(components[0])
 		if err != nil {
-			return "", trace.Wrap(err)
+			return "", "", trace.Wrap(err)
 		}
-		cursor, err := scopes.MakeResourceCursor(scope, components[1])
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return cursor, nil
+		return scope, components[1], nil
 	}
 
 	name := strings.TrimPrefix(key.TrimPrefix(backend.NewKey(workloadIdentityPrefix)).String(), backend.SeparatorString)
 	if name == "" {
-		return "", trace.NotFound("failed parsing %v", key.String())
+		return "", "", trace.NotFound("failed parsing %v", key.String())
 	}
-	// An unscoped resource cursor is just the name.
-	return name, nil
+	// Unscoped identities have an empty scope.
+	return "", name, nil
 }
 
 func newWorkloadIdentityParser() *workloadIdentityParser {
@@ -227,7 +225,7 @@ type workloadIdentityParser struct {
 func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		cursor, err := workloadIdentityDeleteCursor(event.Item.Key)
+		scope, name, err := workloadIdentityScopeName(event.Item.Key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -236,18 +234,16 @@ func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, err
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				// The cache keys WorkloadIdentities by their resource cursor. A
-				// delete event only carries the backend key, so we recover the
-				// cursor from it and smuggle it through the (scopeless) header
-				// name: the cursor index key function returns the name verbatim
-				// when the scope is empty, so a header carrying the cursor in its
-				// name produces the same index key as the stored entry.
+				Name: name,
+				// A delete event only carries the backend key, and a
+				// ResourceHeader has no scope field, so the scope recovered from
+				// the key is smuggled through Namespace. headerTransform restores
+				// it onto the rebuilt WorkloadIdentity so the cache keys the entry
+				// under the same scope-aware cursor it was stored under.
 				//
-				// TODO(strideynet): temporary bridge until scope-aware caching is
-				// implemented properly. It deliberately avoids changing the delete
-				// event encoding (ResourceHeader has no scope field).
-				Name:      cursor,
-				Namespace: apidefaults.Namespace,
+				// TODO(strideynet): bridge until the delete event/ResourceHeader
+				// carries scope as a first-class field.
+				Namespace: scope,
 			},
 		}, nil
 	case types.OpPut:

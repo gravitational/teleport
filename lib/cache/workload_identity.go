@@ -73,6 +73,11 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
 				}.Build(),
+				// Delete events smuggle the scope through the header's Namespace
+				// (ResourceHeader has no scope field); restore it so the store
+				// keys this entry under the same scope-aware cursor it was stored
+				// under.
+				Scope: hdr.Metadata.Namespace,
 			}.Build()
 		},
 		watch: w,
