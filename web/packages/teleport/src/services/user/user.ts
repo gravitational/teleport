@@ -71,6 +71,23 @@ const service = {
     return api.get(cfg.getUsersUrl(), signal).then(makeUsers);
   },
 
+  /**
+   * fetchAllUsers fetches all users page by page until there are no more.
+   */
+  async fetchAllUsers(signal?: AbortSignal): Promise<User[]> {
+    const allUsers: User[] = [];
+    let startKey = '';
+    do {
+      const page = await this.fetchUsersV2(
+        { limit: 200, startKey },
+        signal
+      );
+      allUsers.push(...page.items);
+      startKey = page.startKey;
+    } while (startKey);
+    return allUsers;
+  },
+
   async fetchUsersV2(
     params?: UrlListUsersParams,
     signal?: AbortSignal
