@@ -15,18 +15,7 @@ export type BeamPublish = {
   protocol: Protocol;
 };
 
-export type Beam = {
-  name: string;
-  alias: string;
-  user: string;
-  expires: string;
-  node_id: string;
-  app_name: string;
-  egress_mode: EgressMode | '';
-  allowed_domains: string[];
-  publish?: BeamPublish;
-  compute_status: ComputeStatus;
-};
+export type { Beam, BeamsListResponse } from './validation';
 
 export type BeamsSortField = 'name' | 'alias' | 'user' | 'expires';
 
@@ -38,11 +27,6 @@ export type BeamsListParams = {
   users?: string[];
   sortField?: BeamsSortField;
   sortDir?: BeamsSortDir;
-};
-
-export type BeamsListResponse = {
-  items: Beam[];
-  next_page_token: string;
 };
 
 export type CreateBeamRequest = {

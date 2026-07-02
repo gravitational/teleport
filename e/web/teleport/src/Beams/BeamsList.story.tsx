@@ -1,18 +1,27 @@
 import { Meta, StoryObj } from '@storybook/react-vite';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/react-query';
 import { Route, Routes } from 'react-router';
 
 import cfg from 'e-teleport/config';
 import {
+  BeamsProviders,
+  defaultBeams,
   listBeamsError,
   listBeamsForever,
   listBeamsSuccess,
 } from 'e-teleport/test/helpers/beams';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 
 import { BeamsList } from './BeamsList';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
 
 const meta = {
   title: 'TeleportE/Beams/List',
@@ -27,6 +36,26 @@ type Story = StoryObj<typeof meta>;
 export default meta;
 
 export const Happy: Story = {
+  parameters: {
+    msw: {
+      handlers: [listBeamsSuccess()],
+    },
+  },
+};
+
+const ownedBeams = defaultBeams.map(b => ({ ...b, user: 'llama' }));
+
+export const WithFullAccess: Story = {
+  args: { hasChangePermission: true },
+  parameters: {
+    msw: {
+      handlers: [listBeamsSuccess({ items: ownedBeams, next_page_token: '' })],
+    },
+  },
+};
+
+export const AdminViewingOthers: Story = {
+  args: { hasChangePermission: true, showMyBeamsOnly: false },
   parameters: {
     msw: {
       handlers: [listBeamsSuccess()],
@@ -100,40 +129,41 @@ export const Loading: Story = {
   },
 };
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: false,
-    },
-  },
-});
+function Wrapper(props?: {
+  hasListPermission?: boolean;
+  hasChangePermission?: boolean;
+  showMyBeamsOnly?: boolean;
+}) {
+  const {
+    hasListPermission = true,
+    hasChangePermission = false,
+    showMyBeamsOnly = true,
+  } = props ?? {};
 
-function Wrapper(props?: { hasListPermission?: boolean }) {
-  const { hasListPermission = true } = props ?? {};
-
-  const customAcl = makeAcl({
+  const acl = makeAcl({
     beam: {
       ...defaultAccess,
       list: hasListPermission,
       read: hasListPermission,
+      create: hasChangePermission,
+      edit: hasChangePermission,
+      remove: hasChangePermission,
     },
   });
 
-  const ctx = createTeleportContext({
-    customAcl,
-  });
+  const initialUrl = showMyBeamsOnly
+    ? cfg.routes.beamsList
+    : `${cfg.routes.beamsList}?own=false`;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TeleportProviderBasic
-        teleportCtx={ctx}
-        initialEntries={[cfg.routes.beamsList]}
-      >
-        <Routes>
-          <Route path={cfg.routes.beamsList} element={<BeamsList />} />
-        </Routes>
-      </TeleportProviderBasic>
-    </QueryClientProvider>
+    <BeamsProviders
+      acl={acl}
+      queryClient={queryClient}
+      initialEntries={[initialUrl]}
+    >
+      <Routes>
+        <Route path={cfg.routes.beamsList} element={<BeamsList />} />
+      </Routes>
+    </BeamsProviders>
   );
 }
