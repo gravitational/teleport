@@ -576,6 +576,128 @@ func TestScopeAwareServiceWrapper_MakeBackendItem(t *testing.T) {
 	}
 }
 
+func TestScopeAwareServiceWrapper_WithScopePrefix(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty scope routes to the unscoped range", func(t *testing.T) {
+		t.Parallel()
+		svc := newScopeAwareWrapperForTest(t)
+		ctx := t.Context()
+
+		qn := scopes.QualifiedName{Name: "foo"}
+		_, err := svc.CreateResource(ctx, newScopedTestResource153(qn))
+		require.NoError(t, err)
+
+		routed, err := svc.WithScopePrefix("")
+		require.NoError(t, err)
+		require.Equal(t,
+			backend.NewKey(testUnscopedPrefix, "foo").String(),
+			routed.BackendKey("foo").String(),
+		)
+
+		got, err := routed.GetResource(ctx, "foo")
+		require.NoError(t, err)
+		requireResourceBody(t, qn, got)
+	})
+
+	t.Run("scope routes to its scoped range", func(t *testing.T) {
+		t.Parallel()
+		svc := newScopeAwareWrapperForTest(t)
+		ctx := t.Context()
+
+		qn := scopes.QualifiedName{Scope: "/security", Name: "foo"}
+		_, err := svc.CreateResource(ctx, newScopedTestResource153(qn))
+		require.NoError(t, err)
+
+		routed, err := svc.WithScopePrefix("/security")
+		require.NoError(t, err)
+		encodedScope, err := scopes.EncodeForKey("/security")
+		require.NoError(t, err)
+		require.Equal(t,
+			backend.NewKey(testScopedTopPrefix, testUnscopedPrefix, encodedScope, "foo").String(),
+			routed.BackendKey("foo").String(),
+		)
+
+		got, err := routed.GetResource(ctx, "foo")
+		require.NoError(t, err)
+		requireResourceBody(t, qn, got)
+
+		// A different scope's routed wrapper does not see it.
+		other, err := svc.WithScopePrefix("/other")
+		require.NoError(t, err)
+		_, err = other.GetResource(ctx, "foo")
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	})
+
+	t.Run("sub-prefix keys dependent resources under the scope", func(t *testing.T) {
+		t.Parallel()
+		svc := newScopeAwareWrapperForTest(t)
+		ctx := t.Context()
+
+		qn := scopes.QualifiedName{Scope: "/security", Name: "child"}
+		routed, err := svc.WithScopePrefix(qn.Scope)
+		require.NoError(t, err)
+		sub := routed.WithPrefix("parent")
+
+		_, err = sub.CreateResource(ctx, newScopedTestResource153(qn))
+		require.NoError(t, err)
+
+		encodedScope, err := scopes.EncodeForKey(qn.Scope)
+		require.NoError(t, err)
+		require.Equal(t,
+			backend.NewKey(testScopedTopPrefix, testUnscopedPrefix, encodedScope, "parent", "child").String(),
+			sub.BackendKey("child").String(),
+		)
+
+		got, err := sub.GetResource(ctx, "child")
+		require.NoError(t, err)
+		requireResourceBody(t, qn, got)
+
+		// The resource is not addressable at the scope's top level...
+		_, err = svc.GetResource(ctx, qn)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+
+		// ...but the unified list still ranges over it.
+		page, next, err := svc.ListResources(ctx, 100, "")
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Equal(t, []scopes.QualifiedName{qn}, names(page))
+	})
+
+	t.Run("invalid scope errors", func(t *testing.T) {
+		t.Parallel()
+		svc := newScopeAwareWrapperForTest(t)
+		_, err := svc.WithScopePrefix("/not valid")
+		require.Error(t, err)
+	})
+
+	t.Run("scoped-only rejects the empty scope", func(t *testing.T) {
+		t.Parallel()
+		memBackend, err := memory.New(memory.Config{
+			Context: t.Context(),
+			Clock:   clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+		svc, err := NewScopeAwareServiceWrapper(ScopeAwareServiceWrapperConfig[*scopedTestResource153]{
+			ScopedOnly:          true,
+			Backend:             memBackend,
+			ResourceKind:        "scoped_generic_resource",
+			ScopedBackendPrefix: backend.NewKey(testScopedTopPrefix, testUnscopedPrefix),
+			PageLimit:           200,
+			MarshalFunc:         marshalScopedResource153,
+			UnmarshalFunc:       unmarshalScopedResource153,
+		})
+		require.NoError(t, err)
+
+		_, err = svc.WithScopePrefix("")
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+
+		routed, err := svc.WithScopePrefix("/security")
+		require.NoError(t, err)
+		require.NotNil(t, routed)
+	})
+}
+
 func TestScopeAwareServiceWrapper_BackendKey(t *testing.T) {
 	t.Parallel()
 	svc := newScopeAwareWrapperForTest(t)

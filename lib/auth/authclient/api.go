@@ -1560,8 +1560,10 @@ type Cache interface {
 	// ListRelayServers returns a paginated list of relay server heartbeats.
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 
-	// GetBotInstance returns the specified BotInstance resource.
-	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
+	// GetBotInstance returns the specified BotInstance resource. A bot is
+	// identified by (botScope, botName); botScope is empty for instances of
+	// unscoped bots.
+	GetBotInstance(ctx context.Context, botScope, botName, instanceID string) (*machineidv1.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
 	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*machineidv1.BotInstance, string, error)

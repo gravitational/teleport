@@ -58,8 +58,10 @@ const (
 
 // BotInstancesCache is the subset of the cached resources that the Service queries.
 type BotInstancesCache interface {
-	// GetBotInstance returns the specified BotInstance resource.
-	GetBotInstance(ctx context.Context, botName, instanceID string) (*pb.BotInstance, error)
+	// GetBotInstance returns the specified BotInstance resource. A bot is
+	// identified by (botScope, botName); botScope is empty for instances of
+	// unscoped bots.
+	GetBotInstance(ctx context.Context, botScope, botName, instanceID string) (*pb.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
 	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*pb.BotInstance, string, error)
@@ -129,7 +131,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	instance, err := b.backend.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
+	instance, err := b.backend.GetBotInstance(ctx, req.GetBotScope(), req.GetBotName(), req.GetInstanceId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -158,7 +160,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	}
 
 	if err := b.backend.DeleteBotInstance(
-		ctx, instance.GetSpec().GetBotName(), instance.GetSpec().GetInstanceId(),
+		ctx, instance.GetScope(), instance.GetSpec().GetBotName(), instance.GetSpec().GetInstanceId(),
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -182,7 +184,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := b.cache.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
+	res, err := b.cache.GetBotInstance(ctx, req.GetBotScope(), req.GetBotName(), req.GetInstanceId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -249,6 +251,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 			SortField:        req.GetSortField(),
 			SortDesc:         req.GetSortDesc(),
 			FilterBotName:    req.GetFilter().GetBotName(),
+			FilterBotScope:   req.GetFilter().GetBotScope(),
 			FilterSearchTerm: req.GetFilter().GetSearchTerm(),
 			FilterQuery:      req.GetFilter().GetQuery(),
 			FilterFn: func(botInstance *pb.BotInstance) bool {
@@ -322,6 +325,13 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		}
 	}
 
+	// A scoped bot's identity is pinned to the bot's scope, and its instances
+	// are stored namespaced by that scope.
+	var botScope string
+	if ident.ScopePin != nil {
+		botScope = ident.ScopePin.GetScope()
+	}
+
 	b.logger.DebugContext(
 		ctx,
 		"Received bot instance heartbeat",
@@ -329,7 +339,7 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		"bot_instance", botInstanceID,
 		"heartbeat", logutils.StringerAttr(req.GetHeartbeat()),
 	)
-	_, err = b.backend.PatchBotInstance(ctx, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
+	_, err = b.backend.PatchBotInstance(ctx, botScope, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
 		if !instance.HasStatus() {
 			instance.SetStatus(&pb.BotInstanceStatus{})
 		}

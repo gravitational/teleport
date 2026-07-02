@@ -3237,6 +3237,7 @@ func TestBotInstanceService_DeleteBotInstance(t *testing.T) {
 			_, err = client.BotInstanceServiceClient().DeleteBotInstance(ctx, machineidv1pb.DeleteBotInstanceRequest_builder{
 				BotName:    tt.instance.GetSpec().GetBotName(),
 				InstanceId: tt.instance.GetSpec().GetInstanceId(),
+				BotScope:   tt.instance.GetScope(),
 			}.Build())
 			tt.assertError(t, err)
 		})
@@ -3361,6 +3362,7 @@ func TestBotInstanceService_GetBotInstance(t *testing.T) {
 			got, err := client.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
 				BotName:    tt.instance.GetSpec().GetBotName(),
 				InstanceId: tt.instance.GetSpec().GetInstanceId(),
+				BotScope:   tt.instance.GetScope(),
 			}.Build())
 			tt.assertError(t, err)
 			if err == nil {
@@ -3643,13 +3645,14 @@ func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
 		}.Build())
 		require.NoError(t, err)
 
-		got, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
-			BotName:    botName,
-			InstanceId: instanceID,
-		}.Build())
-		require.NoError(t, err)
-		require.NotNil(t, got.GetStatus().GetInitialHeartbeat())
-		require.Equal(t, "scoped-host", got.GetStatus().GetInitialHeartbeat().GetHostname())
+		// The heartbeat lands in the backend and replicates to cache-backed
+		// reads through the scoped event watch, so allow for propagation.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			got, err := srv.Auth().Cache.GetBotInstance(ctx, "/scopes/test", botName, instanceID)
+			require.NoError(t, err)
+			require.NotNil(t, got.GetStatus().GetInitialHeartbeat())
+			require.Equal(t, "scoped-host", got.GetStatus().GetInitialHeartbeat().GetHostname())
+		}, 5*time.Second, 100*time.Millisecond)
 	})
 }
 

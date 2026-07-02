@@ -473,9 +473,14 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			// A scoped bot's instances are stored namespaced by the scope the
+			// identity is pinned to.
+			botScope := tt.identity.ScopePin.GetScope()
+
 			if tt.createBotInstance {
 				bi := newBotInstance(botName)
 				bi.GetSpec().SetInstanceId(botInstanceID)
+				bi.SetScope(botScope)
 				_, err := backend.CreateBotInstance(ctx, bi)
 				require.NoError(t, err)
 			}
@@ -483,7 +488,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			_, err = service.SubmitHeartbeat(ctx, tt.req)
 			tt.assertErr(t, err)
 			if tt.createBotInstance {
-				bi, err := backend.GetBotInstance(ctx, botName, botInstanceID)
+				bi, err := backend.GetBotInstance(ctx, botScope, botName, botInstanceID)
 				require.NoError(t, err)
 				if tt.wantHeartbeat {
 					assert.Empty(
@@ -557,7 +562,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	bi, err = backend.GetBotInstance(ctx, botName, botInstanceID)
+	bi, err = backend.GetBotInstance(ctx, "", botName, botInstanceID)
 	require.NoError(t, err)
 	assert.Len(t, bi.GetStatus().GetLatestHeartbeats(), heartbeatHistoryLimit)
 	assert.Equal(t, "0", bi.GetStatus().GetInitialHeartbeat().GetHostname())
