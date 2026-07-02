@@ -15,27 +15,15 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Foundation
+import IdentifiedCollections
 import SwiftUI
 
 /// A general-purpose view for showing a sequence of events on a timeline with associated icons.
 struct EventStackView<ID: Hashable>: View {
-	/// A single devent to be displayed inside an EventStackView.
-	struct Event: Identifiable {
-		var id: ID
-		var status: Status
-		var message: String
-	}
+	typealias Event = EventStackViewModel<ID>.Event
+	typealias Status = EventStackViewModel<ID>.Status
 
-	// swiftformat:sort
-	/// The status of a particular event, which will determine its icon and UI treatment.
-	enum Status {
-		case failure
-		case loading
-		case success
-		case warning
-	}
-
-	let events: [Event]
+	let viewModel: EventStackViewModel<ID>
 
 	@ScaledMetric
 	private var minimumBarHeight: CGFloat = .medium
@@ -45,7 +33,7 @@ struct EventStackView<ID: Hashable>: View {
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: .xxsmall) {
-			ForEach(events) { event in
+			ForEach(viewModel.events) { event in
 				row(for: event)
 			}
 		}
@@ -55,7 +43,7 @@ struct EventStackView<ID: Hashable>: View {
 		HStack(alignment: .firstTextBaseline) {
 			VStack(alignment: .center) {
 				icon(for: event.status)
-				if event.id != events.last?.id {
+				if event.id != viewModel.events.last?.id {
 					Capsule()
 						.fill(Color.Foreground.muted)
 						.frame(maxWidth: barWidth, minHeight: minimumBarHeight)
@@ -117,18 +105,20 @@ struct EventStackView<ID: Hashable>: View {
 
 #Preview {
 	ScrollView {
-		EventStackView(events: [
-			.init(id: 1, status: .success, message: "You threw a Pokéball..."),
-			.init(id: 2, status: .failure, message: "Oh no! The Pokémon broke free!"),
-			.init(id: 3, status: .success, message: "You threw another Pokéball..."),
-			.init(
-				id: 4,
-				status: .warning,
-				message: "Shoot! It was so close, too! Some really really long text that will wrap even in small font sizes.",
-			),
-			.init(id: 5, status: .success, message: "You threw yet another Pokéball..."),
-			.init(id: 6, status: .loading, message: "*wobble*"),
-		])
+		EventStackView(
+			viewModel: EventStackViewModel(events: [
+				.init(id: 1, status: .success, message: "You threw a Pokéball..."),
+				.init(id: 2, status: .failure, message: "Oh no! The Pokémon broke free!"),
+				.init(id: 3, status: .success, message: "You threw another Pokéball..."),
+				.init(
+					id: 4,
+					status: .warning,
+					message: "Shoot! It was so close, too! Some really really long text that will wrap even in small font sizes.",
+				),
+				.init(id: 5, status: .success, message: "You threw yet another Pokéball..."),
+				.init(id: 6, status: .loading, message: "*wobble*"),
+			]),
+		)
 		.padding(.horizontal)
 	}
 }
