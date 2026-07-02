@@ -685,6 +685,12 @@ func CopyDatabaseObjectImportRuleFromTerraform(_ context.Context, tf github_com_
 
 // CopyDatabaseObjectImportRuleToTerraform copies contents of the source Terraform object into a target struct
 func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_dbobjectimportrule_v1.DatabaseObjectImportRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyDatabaseObjectImportRuleToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyDatabaseObjectImportRuleToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyDatabaseObjectImportRuleToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_dbobjectimportrule_v1.DatabaseObjectImportRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -713,7 +719,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -739,7 +747,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -765,7 +775,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -818,7 +830,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -844,7 +858,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -890,12 +906,16 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -910,7 +930,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -964,7 +986,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 							v.Null = false
 							v.Value = int64(obj.Priority)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["priority"] = v
 						}
 					}
@@ -993,7 +1017,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.DatabaseLabels) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DatabaseLabels))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DatabaseLabels))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.DatabaseLabels {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -1036,7 +1062,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 													v.Null = false
 													v.Value = string(obj.Name)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["name"] = v
 												}
 											}
@@ -1065,7 +1093,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 														{
 															t := o.ElemType
 															if len(obj.Values) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Values {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1085,23 +1115,31 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["values"] = c
 													}
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["database_labels"] = c
 							}
 						}
@@ -1131,7 +1169,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Mappings) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Mappings))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Mappings))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Mappings {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -1204,7 +1244,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																		{
 																			t := o.ElemType
 																			if len(obj.TableNames) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.TableNames))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.TableNames))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.TableNames {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1224,12 +1266,16 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["table_names"] = c
 																	}
 																}
@@ -1259,7 +1305,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																		{
 																			t := o.ElemType
 																			if len(obj.ViewNames) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ViewNames))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ViewNames))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.ViewNames {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1279,12 +1327,16 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["view_names"] = c
 																	}
 																}
@@ -1314,7 +1366,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																		{
 																			t := o.ElemType
 																			if len(obj.ProcedureNames) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProcedureNames))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProcedureNames))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.ProcedureNames {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1334,18 +1388,24 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["procedure_names"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														tf.Attrs["match"] = v
 													}
 												}
@@ -1402,7 +1462,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																		{
 																			t := o.ElemType
 																			if len(obj.DatabaseNames) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DatabaseNames))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DatabaseNames))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.DatabaseNames {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1422,12 +1484,16 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["database_names"] = c
 																	}
 																}
@@ -1457,7 +1523,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																		{
 																			t := o.ElemType
 																			if len(obj.SchemaNames) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.SchemaNames))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.SchemaNames))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.SchemaNames {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1477,18 +1545,24 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["schema_names"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														tf.Attrs["scope"] = v
 													}
 												}
@@ -1535,29 +1609,39 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["add_labels"] = c
 													}
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["mappings"] = c
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
