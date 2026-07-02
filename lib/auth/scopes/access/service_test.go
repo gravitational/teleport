@@ -120,6 +120,94 @@ func newServerForIdentity(t *testing.T, bk *backendPack, accessInfo *services.Ac
 	return srv
 }
 
+// newServerForAgent builds a server whose scoped context is a scoped agent.
+func newServerForAgent(t *testing.T, bk *backendPack, pin *scopesv1.Pin) *Server {
+	t.Helper()
+
+	roleSet, err := services.RoleSetFromSpec("test-agent-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{types.NewRule(types.Wildcard, services.RW())},
+		},
+	})
+	require.NoError(t, err)
+
+	roleName := pin.GetSystemRoles().GetPrimary()
+	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, testClusterName, roleSet)
+	checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(pin, map[string]*services.ScopedAccessChecker{
+		roleName: services.NewScopedAccessCheckerForSystemRole(roleName, checker),
+	})
+	require.NoError(t, err)
+
+	authorizer := &fakeSplitAuthorizer{
+		ctx: &authz.ScopedContext{
+			User:           &types.UserV2{Metadata: types.Metadata{Name: "agent"}},
+			Identity:       authz.ScopedBuiltinRole{ScopePin: pin},
+			CheckerContext: checkerCtx,
+		},
+	}
+
+	srv, err := New(Config{
+		ScopedAuthorizer: authorizer,
+		Reader:           bk.cache,
+		Writer:           bk.service,
+		BackendReader:    bk.service,
+		ScopesFeatures:   scopes.Features{Enabled: true},
+	})
+	require.NoError(t, err)
+
+	return srv
+}
+
+// TestGetScopedRoleAgentReadsAncestorScope verifies that a scoped agent can read a
+// scoped role at an ancestor of its pinned scope.
+func TestGetScopedRoleAgentReadsAncestorScope(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	bk := newBackendPack(t)
+	defer bk.Close()
+
+	// A role at /staging, an ancestor of the agent's pin (/staging/west).
+	_, err := bk.service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:     scopedaccess.KindScopedRole,
+			Metadata: headerv1.Metadata_builder{Name: "staging-admin"}.Build(),
+			Scope:    "/staging",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/staging"},
+				Rules: []*scopedaccessv1.ScopedRule{
+					scopedaccessv1.ScopedRule_builder{
+						Resources: []string{scopedaccess.KindScopedRole},
+						Verbs:     []string{types.VerbReadNoSecrets},
+					}.Build(),
+				},
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	waitForRoleCondition(t, bk.cache, func(roles []*scopedaccessv1.ScopedRole) bool {
+		return len(roles) == 1
+	})
+
+	// Agent pinned to /staging/west — a descendant of the role's /staging scope.
+	srv := newServerForAgent(t, bk, scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: "/staging/west",
+		SystemRoles: scopesv1.SystemRoles_builder{
+			Primary: string(types.RoleApp),
+		}.Build(),
+	}.Build())
+
+	rrsp, err := srv.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name: "staging-admin",
+	}.Build())
+	require.NoError(t, err)
+	require.Equal(t, "staging-admin", rrsp.GetRole().GetMetadata().GetName())
+	require.Equal(t, "/staging", rrsp.GetRole().GetScope())
+}
+
 type backendPack struct {
 	backend        backend.Backend
 	service        *local.ScopedAccessService

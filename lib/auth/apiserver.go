@@ -601,7 +601,7 @@ func (*APIServer) getNamespace(_ *ServerWithRoles, _ http.ResponseWriter, _ *htt
 }
 
 func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cn, err := auth.GetClusterName(r.Context())
+	cn, err := auth.ScopedServerWithRoles().GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
