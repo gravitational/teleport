@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -403,6 +404,29 @@ func (a *ScopedServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 		}
 	}
 	return false
+}
+
+// ErrNoAgentIdentity means that the expected agent identity was not present in the authorization context.
+var ErrNoAgentIdentity = &trace.AccessDeniedError{
+	Message: "this request can only be executed by a teleport agent identity that owns the given resource",
+}
+
+// agentResourceAction authorizes an agent identity to perform actions on its own resources.
+// If the authorization context is not for an agent identity with the expected system role,
+// [ErrNoAgentIdentity] is returned.
+func (a *ServerWithRoles) agentResourceAction(ctx context.Context, hostID string, systemRoles ...types.SystemRole) error {
+	if !a.hasBuiltinRole(systemRoles...) {
+		return ErrNoAgentIdentity
+	}
+	hostRole, ok := a.context.Identity.(authz.BuiltinRole)
+	if !ok {
+		return ErrNoAgentIdentity
+	}
+	authorizedHostID := hostRole.GetServerID()
+	if hostID != authorizedHostID {
+		return trace.AccessDenied("host ID %q does not match agent identity ID %q", hostID, authorizedHostID)
+	}
+	return nil
 }
 
 // HasRemoteBuiltinRole checks if the identity is a remote builtin role with the
@@ -1136,11 +1160,8 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 		}
 	}
 
-	if a.hasBuiltinRole(types.RoleNode) {
-		callerID, _ := getLocalServerID(a.scopedContext.Identity)
-		if s.GetName() != callerID {
-			return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
-		}
+	if err := a.agentResourceAction(ctx, s.GetName(), types.RoleNode); err != nil && !errors.Is(err, ErrNoAgentIdentity) {
+		return nil, trace.Wrap(err)
 	}
 
 	return a.authServer.UpsertNode(ctx, s)
@@ -1148,87 +1169,40 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 
 // KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
-	clusterName, err := a.GetDomainName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	serverName, err := ExtractHostID(a.context.User.GetName(), clusterName)
-	if err != nil {
-		return trace.AccessDenied("access denied")
-	}
-
 	switch handle.GetType() {
 	case constants.KeepAliveNode:
-		if serverName != handle.Name {
-			return trace.AccessDenied("access denied")
-		}
-		if !a.hasBuiltinRole(types.RoleNode) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindNode, types.VerbUpdate); err != nil {
+		if err := a.agentResourceAction(ctx, handle.Name, types.RoleNode); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveApp:
 		if handle.HostID != "" {
-			if serverName != handle.HostID {
-				return trace.AccessDenied("access denied")
+			if err := a.agentResourceAction(ctx, handle.HostID, types.RoleApp, types.RoleOkta); err != nil {
+				return trace.Wrap(err)
 			}
 		} else { // DELETE IN 9.0. Legacy app server is heartbeating back.
-			if serverName != handle.Name {
-				return trace.AccessDenied("access denied")
+			if err := a.agentResourceAction(ctx, handle.Name, types.RoleApp, types.RoleOkta); err != nil {
+				return trace.Wrap(err)
 			}
-		}
-		if !a.hasBuiltinRole(types.RoleApp) && !a.hasBuiltinRole(types.RoleOkta) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindAppServer, types.VerbUpdate); err != nil {
-			return trace.Wrap(err)
 		}
 	case constants.KeepAliveDatabase:
 		// There can be multiple database servers per host so they send their
 		// host ID in a separate field because unlike SSH nodes the resource
 		// name cannot be the host ID.
-		if serverName != handle.HostID {
-			return trace.AccessDenied("access denied")
-		}
-		if !a.hasBuiltinRole(types.RoleDatabase) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindDatabaseServer, types.VerbUpdate); err != nil {
+		if err := a.agentResourceAction(ctx, handle.HostID, types.RoleDatabase); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveWindowsDesktopService:
-		if serverName != handle.Name {
-			return trace.AccessDenied("access denied")
-		}
-		if !a.hasBuiltinRole(types.RoleWindowsDesktop) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindWindowsDesktopService, types.VerbUpdate); err != nil {
+		if err := a.agentResourceAction(ctx, handle.Name, types.RoleWindowsDesktop); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveKube:
-		if handle.HostID == "" {
-			return trace.BadParameter("hostID is required for kubernetes keep alive")
-		} else if serverName != handle.HostID {
-			return trace.AccessDenied("access denied")
-		}
 		// Legacy kube proxy can heartbeat kube servers from the proxy itself so
 		// we need to check if the host has the Kube or Proxy role.
-		if !a.hasBuiltinRole(types.RoleKube, types.RoleProxy) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindKubeServer, types.VerbUpdate); err != nil {
+		if err := a.agentResourceAction(ctx, handle.HostID, types.RoleKube, types.RoleProxy); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveDatabaseService:
-		if serverName != handle.Name {
-			return trace.AccessDenied("access denied")
-		}
-		if !a.hasBuiltinRole(types.RoleDatabase) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindDatabaseService, types.VerbUpdate); err != nil {
+		if err := a.agentResourceAction(ctx, handle.Name, types.RoleDatabase); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
