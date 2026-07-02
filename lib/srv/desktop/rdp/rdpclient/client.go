@@ -180,13 +180,13 @@ type Client struct {
 // based on the client protocol.
 func PrepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
 	// Read Hello either from tdpb or tdp.
-	if clientProtocol == tdpb.ProtocolName {
+	if clientProtocol == tdpb.ProtocolNameV1_1 || clientProtocol == tdpb.ProtocolName {
 		hello, err := readClientHello(conn, logger)
 		return conn, hello, trace.Wrap(err)
 	}
 	hello, err := readLegacyHandshake(conn, logger)
 	// Translate to legacy tdp
-	return tdp.NewReadWriteInterceptor(conn, tdpb.TranslateToModern, tdpb.TranslateToLegacy), hello, trace.Wrap(err)
+	return tdp.NewReadWriteInterceptor(conn, tdpb.TranslateToTDPB, tdpb.TranslateToTDP), hello, trace.Wrap(err)
 }
 
 // New creates and connects a new Client based on cfg.
@@ -207,10 +207,6 @@ func New(conn tdp.MessageReadWriteCloser, hello *tdpb.ClientHello, cfg Config) (
 
 	c.username = hello.Username
 	c.keyboardLayout = hello.KeyboardLayout
-
-	if err := cfg.AuthorizeFn(hello.Username); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetWidth(), hello.ScreenSpec.GetHeight()))
 }

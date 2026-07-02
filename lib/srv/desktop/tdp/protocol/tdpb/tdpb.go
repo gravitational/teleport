@@ -33,8 +33,11 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
-// ProtocolName is the identifier for the TDPB protocol.
+// ProtocolName is the identifier for the TDPB protocol version 1.0.
 const ProtocolName = "teleport-tdpb-1.0"
+
+// ProtocolNameV1_1 is the identifier for the TDPB protocol version 1.1, which adds in-band MFA support.
+const ProtocolNameV1_1 = "teleport-tdpb-1.1"
 
 // ErrUnknownMessage is returned when an unknown message is decoded.
 var ErrUnknownMessage = errors.New("decoded unknown TDPB message")
@@ -545,7 +548,49 @@ func messageFromEnvelope(e *tdpbv1.Envelope) validatableMessage {
 		return (*Ping)(e.GetPing())
 	case tdpbv1.Envelope_SharedDirectoryRemove_case:
 		return (*SharedDirectoryRemove)(e.GetSharedDirectoryRemove())
+	case tdpbv1.Envelope_AuthPrompt_case:
+		return (*AuthPrompt)(e.GetAuthPrompt())
+	case tdpbv1.Envelope_MfaPromptResponse_case:
+		return (*MFAPromptResponse)(e.GetMfaPromptResponse())
+	case tdpbv1.Envelope_SessionEstablishing_case:
+		return (*SessionEstablishing)(e.GetSessionEstablishing())
 	default:
 		return nil
 	}
 }
+
+// AuthPrompt carries an MFA prompt to the client.
+type AuthPrompt tdpbv1.AuthPrompt
+
+// Encode encodes an AuthPrompt message.
+func (a *AuthPrompt) Encode() ([]byte, error) {
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		AuthPrompt: proto.ValueOrDefault((*tdpbv1.AuthPrompt)(a)),
+	}.Build())
+}
+
+func (*AuthPrompt) validate() error { return nil }
+
+// MFAPromptResponse carries the client's MFA response.
+type MFAPromptResponse tdpbv1.MFAPromptResponse
+
+// Encode encodes an MFAPromptResponse message.
+func (r *MFAPromptResponse) Encode() ([]byte, error) {
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		MfaPromptResponse: proto.ValueOrDefault((*tdpbv1.MFAPromptResponse)(r)),
+	}.Build())
+}
+
+func (*MFAPromptResponse) validate() error { return nil }
+
+// SessionEstablishing signals that MFA is complete and the session backend is being established.
+type SessionEstablishing tdpbv1.SessionEstablishing
+
+// Encode encodes a SessionEstablishing message.
+func (s *SessionEstablishing) Encode() ([]byte, error) {
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SessionEstablishing: proto.ValueOrDefault((*tdpbv1.SessionEstablishing)(s)),
+	}.Build())
+}
+
+func (*SessionEstablishing) validate() error { return nil }
