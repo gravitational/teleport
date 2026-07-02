@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -2657,7 +2658,7 @@ func TestInitWithWorkloadIdentityResources(t *testing.T) {
 			auth, err := auth.Init(ctx, cfg)
 			require.NoError(t, err)
 
-			workloadIdentity, err := auth.GetWorkloadIdentity(ctx, "example-workload-identity")
+			workloadIdentity, err := auth.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "example-workload-identity"})
 			require.NoError(t, err)
 			require.Equal(t, "/svc/example", workloadIdentity.GetSpec().GetSpiffe().GetId())
 		})
