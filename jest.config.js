@@ -17,6 +17,7 @@ const esModules = [
   'internmap',
   '@nivo/bar',
   'react-error-boundary',
+  'react-router',
   'until-async',
   '@exodus/bytes',
   'rettime',
