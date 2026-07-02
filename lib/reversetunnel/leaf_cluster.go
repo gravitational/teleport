@@ -1193,16 +1193,14 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 			continue
 		}
 
+		// TODO(cthach): Fix root cause in resource filtering and delete this.
 		if challenge.GetSpec().GetTargetCluster() != s.GetName() {
-			// This should never happen since the resource should have been filtered out by the resource filter.
-			// If it does, it's a bug in the filter!
-
 			log.ErrorContext(
 				ctx,
 				"Skipping sync of ValidatedMFAChallenge to leaf cluster because it is not for this cluster (this is a bug)",
 				"challenge_name", challenge.GetMetadata().GetName(),
 				"target_cluster", challenge.GetSpec().GetTargetCluster(),
-				"this_cluster", s.srv.ClusterName,
+				"this_cluster", s.GetName(),
 			)
 
 			continue
