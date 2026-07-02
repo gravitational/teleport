@@ -305,11 +305,10 @@ func WorkloadIdentityKey(sortField WorkloadIdentitySortField) (func(*workloadide
 func workloadIdentityCursor(wi *workloadidentityv1pb.WorkloadIdentity) string {
 	cursor, err := scopes.MakeResourceCursor(wi.GetScope(), wi.GetMetadata().GetName())
 	if err != nil {
-		// Unreachable for identities that have passed ValidateWorkloadIdentity,
-		// which strong-validates the scope and so guarantees it is encodable.
-		// Fall back to a key that still cannot collide with another identity
-		// rather than silently dropping the scope.
-		return scopes.ResourceCursorPrefix + wi.GetScope() + "/" + wi.GetMetadata().GetName()
+		// TODO(strideynet): Define sane behaviour with Forrest/Nic or find
+		// resource cursor mechanism which is infallible. Ensure pattern is
+		// applied to Bots and Bot Instances too :')
+		panic(err)
 	}
 	return cursor
 }
