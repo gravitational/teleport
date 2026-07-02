@@ -384,6 +384,12 @@ func CopyVnetConfigFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 
 // CopyVnetConfigToTerraform copies contents of the source Terraform object into a target struct
 func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_vnet_v1.VnetConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyVnetConfigToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyVnetConfigToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyVnetConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_vnet_v1.VnetConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -412,7 +418,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -438,7 +446,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -464,7 +474,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -517,7 +529,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -543,7 +557,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -569,7 +585,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -615,12 +633,16 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -635,7 +657,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -689,7 +713,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Ipv4CidrRange)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["ipv4_cidr_range"] = v
 						}
 					}
@@ -718,7 +744,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.CustomDnsZones) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.CustomDnsZones))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.CustomDnsZones))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.CustomDnsZones {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -761,23 +789,31 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 													v.Null = false
 													v.Value = string(obj.Suffix)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["suffix"] = v
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["custom_dns_zones"] = c
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}

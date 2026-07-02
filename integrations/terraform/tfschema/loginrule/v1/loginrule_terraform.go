@@ -354,6 +354,12 @@ func CopyLoginRuleFromTerraform(_ context.Context, tf github_com_hashicorp_terra
 
 // CopyLoginRuleToTerraform copies contents of the source Terraform object into a target struct
 func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_loginrule_v1.LoginRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyLoginRuleToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyLoginRuleToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyLoginRuleToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_loginrule_v1.LoginRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -409,7 +415,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -435,7 +443,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -461,7 +471,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -507,12 +519,16 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -542,12 +558,16 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 								v.Null = false
 								v.Value = time.Time(*obj.Expires)
 							}
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["expires"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -574,7 +594,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -600,7 +622,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 
 			v.Null = false
 			v.Value = int64(obj.Priority)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["priority"] = v
 		}
 	}
@@ -672,7 +696,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 										{
 											t := o.ElemType
 											if len(obj.Values) != len(c.Elems) {
-												c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+												newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+												copy(newElems, c.Elems)
+												c.Elems = newElems
 											}
 											for k, a := range obj.Values {
 												v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -692,23 +718,31 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 
 												v.Null = false
 												v.Value = string(a)
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												c.Elems[k] = v
 											}
 										}
 										c.Null = false
-										c.Unknown = false
+										if !preserveUnknown {
+											c.Unknown = false
+										}
 										tf.Attrs["values"] = c
 									}
 								}
 							}
 						}
-						v.Unknown = false
+						if !preserveUnknown {
+							v.Unknown = false
+						}
 						c.Elems[k] = v
 					}
 				}
 				c.Null = false
-				c.Unknown = false
+				if !preserveUnknown {
+					c.Unknown = false
+				}
 				tf.Attrs["traits_map"] = c
 			}
 		}
@@ -735,7 +769,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 
 			v.Null = false
 			v.Value = string(obj.TraitsExpression)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["traits_expression"] = v
 		}
 	}

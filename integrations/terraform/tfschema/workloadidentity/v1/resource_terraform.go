@@ -944,6 +944,12 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 
 // CopyWorkloadIdentityToTerraform copies contents of the source Terraform object into a target struct
 func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentity, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyWorkloadIdentityToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyWorkloadIdentityToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyWorkloadIdentityToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentity, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -972,7 +978,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -998,7 +1006,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -1024,7 +1034,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -1077,7 +1089,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -1103,7 +1117,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -1129,7 +1145,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -1175,12 +1193,16 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -1195,7 +1217,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -1279,7 +1303,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Allow {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -1325,7 +1351,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																		{
 																			o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 																			if len(obj.Conditions) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Conditions))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Conditions))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Conditions {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -1368,7 +1396,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 																							v.Null = false
 																							v.Value = string(obj.Attribute)
-																							v.Unknown = false
+																							if !preserveUnknown {
+																								v.Unknown = false
+																							}
 																							tf.Attrs["attribute"] = v
 																						}
 																					}
@@ -1425,12 +1455,16 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 																											v.Null = false
 																											v.Value = string(obj.Value)
-																											v.Unknown = false
+																											if !preserveUnknown {
+																												v.Unknown = false
+																											}
 																											tf.Attrs["value"] = v
 																										}
 																									}
 																								}
-																								v.Unknown = false
+																								if !preserveUnknown {
+																									v.Unknown = false
+																								}
 																								tf.Attrs["eq"] = v
 																							}
 																						}
@@ -1488,12 +1522,16 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 																											v.Null = false
 																											v.Value = string(obj.Value)
-																											v.Unknown = false
+																											if !preserveUnknown {
+																												v.Unknown = false
+																											}
 																											tf.Attrs["value"] = v
 																										}
 																									}
 																								}
-																								v.Unknown = false
+																								if !preserveUnknown {
+																									v.Unknown = false
+																								}
 																								tf.Attrs["not_eq"] = v
 																							}
 																						}
@@ -1554,7 +1592,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																												{
 																													t := o.ElemType
 																													if len(obj.Values) != len(c.Elems) {
-																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																														copy(newElems, c.Elems)
+																														c.Elems = newElems
 																													}
 																													for k, a := range obj.Values {
 																														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1574,18 +1614,24 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 																														v.Null = false
 																														v.Value = string(a)
-																														v.Unknown = false
+																														if !preserveUnknown {
+																															v.Unknown = false
+																														}
 																														c.Elems[k] = v
 																													}
 																												}
 																												c.Null = false
-																												c.Unknown = false
+																												if !preserveUnknown {
+																													c.Unknown = false
+																												}
 																												tf.Attrs["values"] = c
 																											}
 																										}
 																									}
 																								}
-																								v.Unknown = false
+																								if !preserveUnknown {
+																									v.Unknown = false
+																								}
 																								tf.Attrs["in"] = v
 																							}
 																						}
@@ -1646,7 +1692,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																												{
 																													t := o.ElemType
 																													if len(obj.Values) != len(c.Elems) {
-																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																														copy(newElems, c.Elems)
+																														c.Elems = newElems
 																													}
 																													for k, a := range obj.Values {
 																														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1666,29 +1714,39 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 																														v.Null = false
 																														v.Value = string(a)
-																														v.Unknown = false
+																														if !preserveUnknown {
+																															v.Unknown = false
+																														}
 																														c.Elems[k] = v
 																													}
 																												}
 																												c.Null = false
-																												c.Unknown = false
+																												if !preserveUnknown {
+																													c.Unknown = false
+																												}
 																												tf.Attrs["values"] = c
 																											}
 																										}
 																									}
 																								}
-																								v.Unknown = false
+																								if !preserveUnknown {
+																									v.Unknown = false
+																								}
 																								tf.Attrs["not_in"] = v
 																							}
 																						}
 																					}
 																				}
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["conditions"] = c
 																	}
 																}
@@ -1715,23 +1773,31 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 																	v.Null = false
 																	v.Value = string(obj.Expression)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["expression"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["allow"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["rules"] = v
 							}
 						}
@@ -1785,7 +1851,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 											v.Null = false
 											v.Value = string(obj.Id)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["id"] = v
 										}
 									}
@@ -1811,7 +1879,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 											v.Null = false
 											v.Value = string(obj.Hint)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["hint"] = v
 										}
 									}
@@ -1867,7 +1937,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																{
 																	t := o.ElemType
 																	if len(obj.DnsSans) != len(c.Elems) {
-																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DnsSans))
+																		newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DnsSans))
+																		copy(newElems, c.Elems)
+																		c.Elems = newElems
 																	}
 																	for k, a := range obj.DnsSans {
 																		v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1887,12 +1959,16 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 																		v.Null = false
 																		v.Value = string(a)
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		c.Elems[k] = v
 																	}
 																}
 																c.Null = false
-																c.Unknown = false
+																if !preserveUnknown {
+																	c.Unknown = false
+																}
 																tf.Attrs["dns_sans"] = c
 															}
 														}
@@ -1946,7 +2022,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 																			v.Null = false
 																			v.Value = string(obj.CommonName)
-																			v.Unknown = false
+																			if !preserveUnknown {
+																				v.Unknown = false
+																			}
 																			tf.Attrs["common_name"] = v
 																		}
 																	}
@@ -1972,7 +2050,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 																			v.Null = false
 																			v.Value = string(obj.Organization)
-																			v.Unknown = false
+																			if !preserveUnknown {
+																				v.Unknown = false
+																			}
 																			tf.Attrs["organization"] = v
 																		}
 																	}
@@ -1998,12 +2078,16 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 																			v.Null = false
 																			v.Value = string(obj.OrganizationalUnit)
-																			v.Unknown = false
+																			if !preserveUnknown {
+																				v.Unknown = false
+																			}
 																			tf.Attrs["organizational_unit"] = v
 																		}
 																	}
 																}
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																tf.Attrs["subject_template"] = v
 															}
 														}
@@ -2018,7 +2102,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["x509"] = v
 											}
 										}
@@ -2060,19 +2146,25 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["jwt"] = v
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["spiffe"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -2099,7 +2191,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 
 			v.Null = false
 			v.Value = string(obj.Scope)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["scope"] = v
 		}
 	}

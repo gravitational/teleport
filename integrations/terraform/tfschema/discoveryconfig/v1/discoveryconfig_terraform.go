@@ -2924,6 +2924,12 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 
 // CopyDiscoveryConfigToTerraform copies contents of the source Terraform object into a target struct
 func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_discoveryconfig_v1.DiscoveryConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyDiscoveryConfigToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyDiscoveryConfigToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_discoveryconfig_v1.DiscoveryConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -2979,7 +2985,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Kind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["kind"] = v
 						}
 					}
@@ -3005,7 +3013,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.SubKind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["sub_kind"] = v
 						}
 					}
@@ -3031,7 +3041,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Version)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["version"] = v
 						}
 					}
@@ -3084,7 +3096,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 											v.Null = false
 											v.Value = string(obj.Name)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["name"] = v
 										}
 									}
@@ -3110,7 +3124,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 											v.Null = false
 											v.Value = string(obj.Namespace)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["namespace"] = v
 										}
 									}
@@ -3136,7 +3152,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 											v.Null = false
 											v.Value = string(obj.Description)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["description"] = v
 										}
 									}
@@ -3182,12 +3200,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["labels"] = c
 											}
 										}
@@ -3202,13 +3224,17 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["metadata"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["header"] = v
 			}
 		}
@@ -3262,7 +3288,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.DiscoveryGroup)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["discovery_group"] = v
 						}
 					}
@@ -3291,7 +3319,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Aws) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Aws))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Aws))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Aws {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -3337,7 +3367,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.Types) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Types {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -3357,12 +3389,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["types"] = c
 													}
 												}
@@ -3392,7 +3428,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.Regions) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Regions {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -3412,12 +3450,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["regions"] = c
 													}
 												}
@@ -3471,7 +3513,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.RoleARN)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["role_arn"] = v
 																}
 															}
@@ -3497,7 +3541,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.ExternalID)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["external_id"] = v
 																}
 															}
@@ -3523,12 +3569,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.RoleName)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["role_name"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														tf.Attrs["assume_role"] = v
 													}
 												}
@@ -3591,7 +3641,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.JoinMethod)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["join_method"] = v
 																}
 															}
@@ -3617,7 +3669,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.JoinToken)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["join_token"] = v
 																}
 															}
@@ -3643,7 +3697,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.ScriptName)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["script_name"] = v
 																}
 															}
@@ -3669,7 +3725,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = bool(obj.InstallTeleport)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["install_teleport"] = v
 																}
 															}
@@ -3695,7 +3753,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.SSHDConfig)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["sshd_config"] = v
 																}
 															}
@@ -3721,7 +3781,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.PublicProxyAddr)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["proxy_addr"] = v
 																}
 															}
@@ -3774,12 +3836,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.ClientID)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["client_id"] = v
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		tf.Attrs["azure"] = v
 																	}
 																}
@@ -3806,7 +3872,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = int64(obj.EnrollMode)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["enroll_mode"] = v
 																}
 															}
@@ -3832,7 +3900,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.Suffix)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["suffix"] = v
 																}
 															}
@@ -3858,7 +3928,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.UpdateGroup)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["update_group"] = v
 																}
 															}
@@ -3911,7 +3983,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.HTTPProxy)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["http_proxy"] = v
 																				}
 																			}
@@ -3937,7 +4011,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.HTTPSProxy)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["https_proxy"] = v
 																				}
 																			}
@@ -3963,18 +4039,24 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.NoProxy)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["no_proxy"] = v
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		tf.Attrs["http_proxy_settings"] = v
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														tf.Attrs["install"] = v
 													}
 												}
@@ -4028,12 +4110,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.DocumentName)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["document_name"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														tf.Attrs["ssm"] = v
 													}
 												}
@@ -4060,7 +4146,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 													v.Null = false
 													v.Value = string(obj.Integration)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["integration"] = v
 												}
 											}
@@ -4086,7 +4174,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 													v.Null = false
 													v.Value = bool(obj.KubeAppDiscovery)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["kube_app_discovery"] = v
 												}
 											}
@@ -4112,7 +4202,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 													v.Null = false
 													v.Value = string(obj.SetupAccessForARN)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["setup_access_for_arn"] = v
 												}
 											}
@@ -4165,7 +4257,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.OrganizationID)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["organization_id"] = v
 																}
 															}
@@ -4221,7 +4315,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																						{
 																							t := o.ElemType
 																							if len(obj.Include) != len(c.Elems) {
-																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Include))
+																								newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Include))
+																								copy(newElems, c.Elems)
+																								c.Elems = newElems
 																							}
 																							for k, a := range obj.Include {
 																								v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -4241,12 +4337,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																								v.Null = false
 																								v.Value = string(a)
-																								v.Unknown = false
+																								if !preserveUnknown {
+																									v.Unknown = false
+																								}
 																								c.Elems[k] = v
 																							}
 																						}
 																						c.Null = false
-																						c.Unknown = false
+																						if !preserveUnknown {
+																							c.Unknown = false
+																						}
 																						tf.Attrs["include"] = c
 																					}
 																				}
@@ -4276,7 +4376,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																						{
 																							t := o.ElemType
 																							if len(obj.Exclude) != len(c.Elems) {
-																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Exclude))
+																								newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Exclude))
+																								copy(newElems, c.Elems)
+																								c.Elems = newElems
 																							}
 																							for k, a := range obj.Exclude {
 																								v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -4296,35 +4398,47 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																								v.Null = false
 																								v.Value = string(a)
-																								v.Unknown = false
+																								if !preserveUnknown {
+																									v.Unknown = false
+																								}
 																								c.Elems[k] = v
 																							}
 																						}
 																						c.Null = false
-																						c.Unknown = false
+																						if !preserveUnknown {
+																							c.Unknown = false
+																						}
 																						tf.Attrs["exclude"] = c
 																					}
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		tf.Attrs["organizational_units"] = v
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														tf.Attrs["organization"] = v
 													}
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["aws"] = c
 							}
 						}
@@ -4354,7 +4468,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Azure) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Azure))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Azure))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Azure {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -4400,7 +4516,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.Subscriptions) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subscriptions))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subscriptions))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Subscriptions {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -4420,12 +4538,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["subscriptions"] = c
 													}
 												}
@@ -4455,7 +4577,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.ResourceGroups) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ResourceGroups))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ResourceGroups))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.ResourceGroups {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -4475,12 +4599,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["resource_groups"] = c
 													}
 												}
@@ -4510,7 +4638,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.Types) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Types {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -4530,12 +4660,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["types"] = c
 													}
 												}
@@ -4565,7 +4699,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.Regions) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Regions {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -4585,12 +4721,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["regions"] = c
 													}
 												}
@@ -4653,7 +4793,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.JoinMethod)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["join_method"] = v
 																}
 															}
@@ -4679,7 +4821,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.JoinToken)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["join_token"] = v
 																}
 															}
@@ -4705,7 +4849,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.ScriptName)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["script_name"] = v
 																}
 															}
@@ -4731,7 +4877,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = bool(obj.InstallTeleport)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["install_teleport"] = v
 																}
 															}
@@ -4757,7 +4905,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.SSHDConfig)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["sshd_config"] = v
 																}
 															}
@@ -4783,7 +4933,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.PublicProxyAddr)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["proxy_addr"] = v
 																}
 															}
@@ -4836,12 +4988,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.ClientID)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["client_id"] = v
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		tf.Attrs["azure"] = v
 																	}
 																}
@@ -4868,7 +5024,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = int64(obj.EnrollMode)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["enroll_mode"] = v
 																}
 															}
@@ -4894,7 +5052,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.Suffix)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["suffix"] = v
 																}
 															}
@@ -4920,7 +5080,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.UpdateGroup)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["update_group"] = v
 																}
 															}
@@ -4973,7 +5135,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.HTTPProxy)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["http_proxy"] = v
 																				}
 																			}
@@ -4999,7 +5163,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.HTTPSProxy)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["https_proxy"] = v
 																				}
 																			}
@@ -5025,18 +5191,24 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.NoProxy)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["no_proxy"] = v
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		tf.Attrs["http_proxy_settings"] = v
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														tf.Attrs["install_params"] = v
 													}
 												}
@@ -5063,17 +5235,23 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 													v.Null = false
 													v.Value = string(obj.Integration)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["integration"] = v
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["azure"] = c
 							}
 						}
@@ -5103,7 +5281,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Gcp) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Gcp))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Gcp))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Gcp {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -5149,7 +5329,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.Types) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Types {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -5169,12 +5351,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["types"] = c
 													}
 												}
@@ -5204,7 +5390,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.Locations) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Locations))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Locations))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Locations {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -5224,12 +5412,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["locations"] = c
 													}
 												}
@@ -5268,7 +5460,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.ProjectIDs) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProjectIDs))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProjectIDs))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.ProjectIDs {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -5288,12 +5482,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["project_ids"] = c
 													}
 												}
@@ -5323,7 +5521,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.ServiceAccounts) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ServiceAccounts))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ServiceAccounts))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.ServiceAccounts {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -5343,12 +5543,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["service_accounts"] = c
 													}
 												}
@@ -5402,7 +5606,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.JoinMethod)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["join_method"] = v
 																}
 															}
@@ -5428,7 +5634,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.JoinToken)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["join_token"] = v
 																}
 															}
@@ -5454,7 +5662,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.ScriptName)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["script_name"] = v
 																}
 															}
@@ -5480,7 +5690,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = bool(obj.InstallTeleport)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["install_teleport"] = v
 																}
 															}
@@ -5506,7 +5718,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.SSHDConfig)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["sshd_config"] = v
 																}
 															}
@@ -5532,7 +5746,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.PublicProxyAddr)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["proxy_addr"] = v
 																}
 															}
@@ -5585,12 +5801,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.ClientID)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["client_id"] = v
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		tf.Attrs["azure"] = v
 																	}
 																}
@@ -5617,7 +5837,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = int64(obj.EnrollMode)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["enroll_mode"] = v
 																}
 															}
@@ -5643,7 +5865,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.Suffix)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["suffix"] = v
 																}
 															}
@@ -5669,7 +5893,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.UpdateGroup)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["update_group"] = v
 																}
 															}
@@ -5722,7 +5948,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.HTTPProxy)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["http_proxy"] = v
 																				}
 																			}
@@ -5748,7 +5976,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.HTTPSProxy)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["https_proxy"] = v
 																				}
 																			}
@@ -5774,18 +6004,24 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.NoProxy)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["no_proxy"] = v
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		tf.Attrs["http_proxy_settings"] = v
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														tf.Attrs["install_params"] = v
 													}
 												}
@@ -5800,12 +6036,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["gcp"] = c
 							}
 						}
@@ -5835,7 +6075,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Kube) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kube))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kube))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Kube {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -5881,7 +6123,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.Types) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Types {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -5901,12 +6145,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["types"] = c
 													}
 												}
@@ -5936,7 +6184,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 														{
 															t := o.ElemType
 															if len(obj.Namespaces) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Namespaces))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Namespaces))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Namespaces {
 																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -5956,12 +6206,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
 														}
 														c.Null = false
-														c.Unknown = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["namespaces"] = c
 													}
 												}
@@ -5976,12 +6230,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["kube"] = c
 							}
 						}
@@ -6038,7 +6296,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.AWS) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AWS))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AWS))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.AWS {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -6084,7 +6344,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																		{
 																			t := o.ElemType
 																			if len(obj.Regions) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Regions {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -6104,12 +6366,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["regions"] = c
 																	}
 																}
@@ -6163,7 +6429,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.RoleARN)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["role_arn"] = v
 																				}
 																			}
@@ -6189,7 +6457,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.ExternalID)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["external_id"] = v
 																				}
 																			}
@@ -6215,12 +6485,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.RoleName)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["role_name"] = v
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		tf.Attrs["assume_role"] = v
 																	}
 																}
@@ -6247,7 +6521,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.Integration)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["integration"] = v
 																}
 															}
@@ -6300,7 +6576,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.Region)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["region"] = v
 																				}
 																			}
@@ -6326,12 +6604,16 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																					v.Null = false
 																					v.Value = string(obj.SQSQueue)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["sqs_queue"] = v
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		tf.Attrs["cloud_trail_logs"] = v
 																	}
 																}
@@ -6373,18 +6655,24 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		tf.Attrs["eks_audit_logs"] = v
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["aws"] = c
 											}
 										}
@@ -6411,7 +6699,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 											v.Null = false
 											v.Value = time.Duration(obj.PollInterval)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["poll_interval"] = v
 										}
 									}
@@ -6440,7 +6730,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Azure) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Azure))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Azure))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Azure {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -6483,7 +6775,9 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.SubscriptionID)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["subscription_id"] = v
 																}
 															}
@@ -6509,29 +6803,39 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 
 																	v.Null = false
 																	v.Value = string(obj.Integration)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["integration"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["azure"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["access_graph"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}

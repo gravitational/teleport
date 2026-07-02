@@ -950,6 +950,12 @@ func CopyInferenceModelFromTerraform(_ context.Context, tf github_com_hashicorp_
 
 // CopyInferenceModelToTerraform copies contents of the source Terraform object into a target struct
 func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferenceModel, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyInferenceModelToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyInferenceModelToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyInferenceModelToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferenceModel, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -978,7 +984,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -1004,7 +1012,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -1030,7 +1040,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -1083,7 +1095,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -1109,7 +1123,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -1135,7 +1151,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -1181,12 +1199,16 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -1201,7 +1223,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -1286,7 +1310,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.OpenaiModelId)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["openai_model_id"] = v
 										}
 									}
@@ -1312,7 +1338,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.ApiKeySecretRef)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["api_key_secret_ref"] = v
 										}
 									}
@@ -1338,12 +1366,16 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.BaseUrl)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["base_url"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["openai"] = v
 							}
 						}
@@ -1401,7 +1433,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.Region)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["region"] = v
 										}
 									}
@@ -1427,7 +1461,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.BedrockModelId)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["bedrock_model_id"] = v
 										}
 									}
@@ -1453,12 +1489,16 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.Integration)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["integration"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["bedrock"] = v
 							}
 						}
@@ -1485,12 +1525,16 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 							v.Null = false
 							v.Value = int64(obj.MaxSessionLengthBytes)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["max_session_length_bytes"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -1695,6 +1739,12 @@ func CopyInferenceSecretFromTerraform(_ context.Context, tf github_com_hashicorp
 
 // CopyInferenceSecretToTerraform copies contents of the source Terraform object into a target struct
 func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferenceSecret, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyInferenceSecretToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyInferenceSecretToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyInferenceSecretToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferenceSecret, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -1723,7 +1773,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -1749,7 +1801,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -1775,7 +1829,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -1828,7 +1884,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -1854,7 +1912,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -1880,7 +1940,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -1926,12 +1988,16 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -1946,7 +2012,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -2000,12 +2068,16 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Value)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["value"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -2254,6 +2326,12 @@ func CopyInferencePolicyFromTerraform(_ context.Context, tf github_com_hashicorp
 
 // CopyInferencePolicyToTerraform copies contents of the source Terraform object into a target struct
 func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferencePolicy, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyInferencePolicyToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyInferencePolicyToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyInferencePolicyToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferencePolicy, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -2282,7 +2360,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -2308,7 +2388,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -2334,7 +2416,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -2387,7 +2471,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -2413,7 +2499,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -2439,7 +2527,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -2485,12 +2575,16 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -2505,7 +2599,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -2562,7 +2658,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 								{
 									t := o.ElemType
 									if len(obj.Kinds) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kinds))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kinds))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Kinds {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2582,12 +2680,16 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["kinds"] = c
 							}
 						}
@@ -2614,7 +2716,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Model)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["model"] = v
 						}
 					}
@@ -2640,12 +2744,16 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 
 							v.Null = false
 							v.Value = string(obj.Filter)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["filter"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -2933,6 +3041,12 @@ func CopyClassifierFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 
 // CopyClassifierToTerraform copies contents of the source Terraform object into a target struct
 func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.Classifier, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyClassifierToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyClassifierToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyClassifierToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.Classifier, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -2961,7 +3075,9 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -2987,7 +3103,9 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -3013,7 +3131,9 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -3066,7 +3186,9 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -3092,7 +3214,9 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -3118,7 +3242,9 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -3164,12 +3290,16 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -3184,7 +3314,9 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -3241,7 +3373,9 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 								{
 									t := o.ElemType
 									if len(obj.Kinds) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kinds))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kinds))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Kinds {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -3261,12 +3395,16 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["kinds"] = c
 							}
 						}
@@ -3293,7 +3431,9 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Filter)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["filter"] = v
 						}
 					}
@@ -3319,7 +3459,9 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Criteria)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["criteria"] = v
 						}
 					}
@@ -3378,13 +3520,17 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["actions"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -3711,6 +3857,12 @@ func CopyRetrievalModelFromTerraform(_ context.Context, tf github_com_hashicorp_
 
 // CopyRetrievalModelToTerraform copies contents of the source Terraform object into a target struct
 func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.RetrievalModel, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyRetrievalModelToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyRetrievalModelToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyRetrievalModelToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.RetrievalModel, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -3739,7 +3891,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -3765,7 +3919,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -3791,7 +3947,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -3844,7 +4002,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -3870,7 +4030,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -3916,12 +4078,16 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -3936,7 +4102,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -4021,7 +4189,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.OpenaiModelId)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["openai_model_id"] = v
 										}
 									}
@@ -4047,7 +4217,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.ApiKeySecretRef)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["api_key_secret_ref"] = v
 										}
 									}
@@ -4073,12 +4245,16 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.BaseUrl)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["base_url"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["openai"] = v
 							}
 						}
@@ -4136,7 +4312,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.Region)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["region"] = v
 										}
 									}
@@ -4162,7 +4340,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.BedrockModelId)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["bedrock_model_id"] = v
 										}
 									}
@@ -4188,12 +4368,16 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 											v.Null = false
 											v.Value = string(obj.Integration)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["integration"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["bedrock"] = v
 							}
 						}
@@ -4220,12 +4404,16 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 
 							v.Null = false
 							v.Value = string(obj.InferenceModelName)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["inference_model_name"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}

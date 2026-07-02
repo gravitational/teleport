@@ -655,6 +655,12 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 
 // CopyHealthCheckConfigToTerraform copies contents of the source Terraform object into a target struct
 func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_healthcheckconfig_v1.HealthCheckConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyHealthCheckConfigToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyHealthCheckConfigToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyHealthCheckConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_healthcheckconfig_v1.HealthCheckConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -683,7 +689,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -709,7 +717,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -735,7 +745,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -788,7 +800,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -814,7 +828,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -840,7 +856,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -886,12 +904,16 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -906,7 +928,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -990,7 +1014,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.DbLabels) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DbLabels))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DbLabels))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.DbLabels {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -1033,7 +1059,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 																	v.Null = false
 																	v.Value = string(obj.Name)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["name"] = v
 																}
 															}
@@ -1062,7 +1090,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1082,23 +1112,31 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["db_labels"] = c
 											}
 										}
@@ -1125,7 +1163,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 											v.Null = false
 											v.Value = string(obj.DbLabelsExpression)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["db_labels_expression"] = v
 										}
 									}
@@ -1154,7 +1194,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.KubernetesLabels) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesLabels))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesLabels))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.KubernetesLabels {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -1197,7 +1239,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 																	v.Null = false
 																	v.Value = string(obj.Name)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["name"] = v
 																}
 															}
@@ -1226,7 +1270,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1246,23 +1292,31 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["kubernetes_labels"] = c
 											}
 										}
@@ -1289,7 +1343,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 											v.Null = false
 											v.Value = string(obj.KubernetesLabelsExpression)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["kubernetes_labels_expression"] = v
 										}
 									}
@@ -1315,12 +1371,16 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 											v.Null = false
 											v.Value = bool(obj.Disabled)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["disabled"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["match"] = v
 							}
 						}
@@ -1365,7 +1425,9 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 							v.Null = false
 							v.Value = int64(obj.HealthyThreshold)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["healthy_threshold"] = v
 						}
 					}
@@ -1391,12 +1453,16 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 
 							v.Null = false
 							v.Value = int64(obj.UnhealthyThreshold)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["unhealthy_threshold"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}

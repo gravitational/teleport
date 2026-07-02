@@ -712,6 +712,12 @@ func CopyAutoUpdateConfigFromTerraform(_ context.Context, tf github_com_hashicor
 
 // CopyAutoUpdateConfigToTerraform copies contents of the source Terraform object into a target struct
 func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyAutoUpdateConfigToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -740,7 +746,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -766,7 +774,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -792,7 +802,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -845,7 +857,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -871,7 +885,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -917,12 +933,16 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -937,7 +957,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -1018,12 +1040,16 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 											v.Null = false
 											v.Value = string(obj.Mode)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["mode"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["tools"] = v
 							}
 						}
@@ -1077,7 +1103,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 											v.Null = false
 											v.Value = string(obj.Mode)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["mode"] = v
 										}
 									}
@@ -1103,7 +1131,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 											v.Null = false
 											v.Value = string(obj.Strategy)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["strategy"] = v
 										}
 									}
@@ -1168,7 +1198,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 																{
 																	o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 																	if len(obj.Regular) != len(c.Elems) {
-																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regular))
+																		newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regular))
+																		copy(newElems, c.Elems)
+																		c.Elems = newElems
 																	}
 																	for k, a := range obj.Regular {
 																		v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -1211,7 +1243,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 																					v.Null = false
 																					v.Value = string(obj.Name)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["name"] = v
 																				}
 																			}
@@ -1240,7 +1274,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 																						{
 																							t := o.ElemType
 																							if len(obj.Days) != len(c.Elems) {
-																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Days))
+																								newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Days))
+																								copy(newElems, c.Elems)
+																								c.Elems = newElems
 																							}
 																							for k, a := range obj.Days {
 																								v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -1260,12 +1296,16 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 																								v.Null = false
 																								v.Value = string(a)
-																								v.Unknown = false
+																								if !preserveUnknown {
+																									v.Unknown = false
+																								}
 																								c.Elems[k] = v
 																							}
 																						}
 																						c.Null = false
-																						c.Unknown = false
+																						if !preserveUnknown {
+																							c.Unknown = false
+																						}
 																						tf.Attrs["days"] = c
 																					}
 																				}
@@ -1292,7 +1332,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 																					v.Null = false
 																					v.Value = int64(obj.StartHour)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["start_hour"] = v
 																				}
 																			}
@@ -1318,7 +1360,9 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 																					v.Null = false
 																					v.Value = int64(obj.WaitHours)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["wait_hours"] = v
 																				}
 																			}
@@ -1344,35 +1388,47 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 
 																					v.Null = false
 																					v.Value = int64(obj.CanaryCount)
-																					v.Unknown = false
+																					if !preserveUnknown {
+																						v.Unknown = false
+																					}
 																					tf.Attrs["canary_count"] = v
 																				}
 																			}
 																		}
-																		v.Unknown = false
+																		if !preserveUnknown {
+																			v.Unknown = false
+																		}
 																		c.Elems[k] = v
 																	}
 																}
 																c.Null = false
-																c.Unknown = false
+																if !preserveUnknown {
+																	c.Unknown = false
+																}
 																tf.Attrs["regular"] = c
 															}
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["schedules"] = v
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["agents"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -1664,6 +1720,12 @@ func CopyAutoUpdateVersionFromTerraform(_ context.Context, tf github_com_hashico
 
 // CopyAutoUpdateVersionToTerraform copies contents of the source Terraform object into a target struct
 func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateVersion, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyAutoUpdateVersionToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateVersion, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -1692,7 +1754,9 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -1718,7 +1782,9 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -1744,7 +1810,9 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -1797,7 +1865,9 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -1823,7 +1893,9 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -1869,12 +1941,16 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -1889,7 +1965,9 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -1970,12 +2048,16 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 											v.Null = false
 											v.Value = string(obj.TargetVersion)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["target_version"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["tools"] = v
 							}
 						}
@@ -2029,7 +2111,9 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 											v.Null = false
 											v.Value = string(obj.StartVersion)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["start_version"] = v
 										}
 									}
@@ -2055,7 +2139,9 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 											v.Null = false
 											v.Value = string(obj.TargetVersion)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["target_version"] = v
 										}
 									}
@@ -2081,7 +2167,9 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 											v.Null = false
 											v.Value = string(obj.Schedule)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["schedule"] = v
 										}
 									}
@@ -2107,18 +2195,24 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 
 											v.Null = false
 											v.Value = string(obj.Mode)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["mode"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["agents"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
