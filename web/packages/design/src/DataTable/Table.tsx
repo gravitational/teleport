@@ -85,7 +85,9 @@ export default function Table<T>(props: TableProps<T>) {
           dir={dir}
         />
       ) : (
-        <th style={{ cursor: 'default' }}>{headerText}</th>
+        <th style={{ cursor: 'default' }}>
+          {column.renderHeader ? column.renderHeader() : headerText}
+        </th>
       );
 
       return (

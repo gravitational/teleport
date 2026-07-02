@@ -161,6 +161,58 @@ export const Checkbox = () => (
       <CheckboxInput size="small" defaultChecked={true} /> Uncontrolled
       checkbox, checked
     </label>
+
+    <Table border={1}>
+      <tr>
+        <th colSpan={2}>Indeterminate</th>
+        <th>Large</th>
+        <th>Small</th>
+      </tr>
+      <tr>
+        <th rowSpan={3}>Enabled</th>
+        <th>Default</th>
+        <td>
+          <CheckboxInput indeterminate />
+          <CheckboxInput indeterminate checked />
+        </td>
+        <td>
+          <CheckboxInput size="small" indeterminate />
+          <CheckboxInput size="small" indeterminate checked />
+        </td>
+      </tr>
+      <tr className="teleport-checkbox__force-hover">
+        <th>Hover</th>
+        <td>
+          <CheckboxInput indeterminate />
+          <CheckboxInput indeterminate checked />
+        </td>
+        <td>
+          <CheckboxInput size="small" indeterminate />
+          <CheckboxInput size="small" indeterminate checked />
+        </td>
+      </tr>
+      <tr className="teleport-checkbox__force-active">
+        <th>Active</th>
+        <td>
+          <CheckboxInput indeterminate />
+          <CheckboxInput indeterminate checked />
+        </td>
+        <td>
+          <CheckboxInput size="small" indeterminate />
+          <CheckboxInput size="small" indeterminate checked />
+        </td>
+      </tr>
+      <tr>
+        <th>Disabled</th>
+        <th>Default</th>
+        <td>
+          <CheckboxInput indeterminate disabled />
+        </td>
+        <td>
+          <CheckboxInput size="small" indeterminate disabled />
+        </td>
+      </tr>
+    </Table>
   </Flex>
 );
 
