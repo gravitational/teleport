@@ -37,6 +37,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -68,6 +69,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 		signatureValue  string
 		signatureStatus int
 		flags           autoupdate.InstallFlags
+		baseURL         string
 		force           bool
 		insecure        bool
 		alreadyPresent  bool
@@ -80,6 +82,11 @@ func TestLocalInstaller_Install(t *testing.T) {
 		{
 			name:          "not present insecure checksum only",
 			insecure:      true,
+			checksumValue: testSum,
+		},
+		{
+			name:          "not present internal development CDN checksum only",
+			baseURL:       stagingCDNBaseURL,
 			checksumValue: testSum,
 		},
 		{
@@ -180,9 +187,30 @@ func TestLocalInstaller_Install(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 
+			httpClient := server.Client()
+			baseURL := server.URL
+			if tt.baseURL != "" {
+				baseURL = tt.baseURL
+			}
+			if isStagingCDN(baseURL) {
+				serverURL, err := url.Parse(server.URL)
+				require.NoError(t, err)
+				baseTransport := http.DefaultTransport.(*http.Transport).Clone()
+				httpClient = &http.Client{
+					Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+						clone := r.Clone(r.Context())
+						clone.URL = new(url.URL)
+						*clone.URL = *r.URL
+						clone.URL.Scheme = serverURL.Scheme
+						clone.URL.Host = serverURL.Host
+						return baseTransport.RoundTrip(clone)
+					}),
+				}
+			}
+
 			installer := &LocalInstaller{
 				InstallDir:                dir,
-				HTTP:                      http.DefaultClient,
+				HTTP:                      httpClient,
 				Log:                       slog.Default(),
 				ReservedFreeTmpDisk:       tt.reservedTmp,
 				ReservedFreeInstallDisk:   tt.reservedInstall,
@@ -190,7 +218,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 				ArtifactSignatureVerifier: verifier,
 			}
 			ctx := context.Background()
-			err = installer.Install(ctx, NewRevision(version, tt.flags), server.URL, tt.force, tt.insecure)
+			err = installer.Install(ctx, NewRevision(version, tt.flags), baseURL, tt.force, tt.insecure)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -208,7 +236,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 
 			require.Equal(t, expectedPath, dlPath)
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
-			if tt.insecure {
+			if tt.insecure || isStagingCDN(baseURL) {
 				require.Empty(t, sigPath)
 			} else {
 				require.Equal(t, expectedPath+"."+artifactSignatureType, sigPath)
@@ -351,6 +379,12 @@ func testArtifactSignatureVerifier(t *testing.T, payload []byte) (signature.Veri
 	require.NoError(t, err)
 
 	return verifier, base64.StdEncoding.EncodeToString(sig)
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
 }
 
 func TestLocalInstaller_Link(t *testing.T) {

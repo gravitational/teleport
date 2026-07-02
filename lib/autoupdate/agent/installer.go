@@ -33,6 +33,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -60,6 +61,9 @@ const (
 	artifactSignatureType = "sig"
 	// maxArtifactSignatureSize is the maximum allowed size of a detached artifact signature.
 	maxArtifactSignatureSize = 4_096 // 4 KB, ECDSA P256 signatures are ~96 bytes
+	// stagingCDNBaseURL is the staging CDN used for tenant dev-build workflows.
+	// Signature verification is skipped for this CDN since artifacts are not prod-signed.
+	stagingCDNBaseURL = "https://cdn.cloud.gravitational.io"
 )
 
 const (
@@ -228,12 +232,12 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 		_ = f.Close() // safe to close file multiple times
 	})
 
-	if !insecureSkipSignatureVerify {
-		if err := li.verifyArtifactSignature(ctx, uri+"."+artifactSignatureType, pathSum); err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		li.Log.WarnContext(ctx, "artifact signature verification is disabled. Falling back to checksum-only verification.", "version", rev)
+	if isStagingCDN(baseURL) {
+		li.Log.WarnContext(ctx, "Artifact signature verification skipped: staging CDN in use.", "version", rev)
+	} else if insecureSkipSignatureVerify {
+		li.Log.WarnContext(ctx, "Artifact signature verification is disabled. Falling back to checksum-only verification.", "version", rev)
+	} else if err := li.verifyArtifactSignature(ctx, uri+"."+artifactSignatureType, pathSum); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if !bytes.Equal(newSum, pathSum) {
@@ -320,6 +324,10 @@ func (li *LocalInstaller) getChecksum(ctx context.Context, url string) ([]byte, 
 		return nil, trace.Wrap(err)
 	}
 	return sum, nil
+}
+
+func isStagingCDN(baseURL string) bool {
+	return strings.TrimRight(baseURL, "/") == stagingCDNBaseURL
 }
 
 func newArtifactSignatureVerifier() (signature.Verifier, error) {
