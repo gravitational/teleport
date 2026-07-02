@@ -22,7 +22,7 @@ import { events } from 'teleport/Audit/fixtures';
 
 import { formatters } from '../makeEvent';
 import {
-  createReferencePage,
+  createReferencePages,
   eventsWithoutExamples,
   fixtureTypeMismatches,
   removeUnknowns,
@@ -30,42 +30,17 @@ import {
 
 const fixturePath = 'web/packages/teleport/src/Audit/fixtures/index.ts';
 const formatterPath = 'web/packages/teleport/src/services/audit/makeEvent.ts';
-const introParagraph = `{/*cSpell:disable*/}
-
-{/* Formatted event examples sometimes include different capitalization than
-what we standardize on in the docs*/}
-{/* vale messaging.capitalization = NO */}
-
-Teleport components emit audit events to record activity within the cluster. 
-
-Audit event payloads have an \`event\` field that describes the event, which is
-often an operation performed against a dynamic resource (e.g.,
-\`access_list.create\` for the creation of an Access List) or some other user
-behavior, such as a local user login (\`user.login\`). The \`code\` field
-includes a string with pattern \`[A-Z0-9]{6}\` that is unique to an audit event,
-such as \`TAP03I\` for the creation of an application resource.
-
-In some cases, an audit event describes both a success state and a failure
-state, while the \`event\` field is the same for both states. In this case, the
-\`code\` field differs between states. For example, \`access_list.create\`
-describes both successful and failed Access List creations, while the success
-event has code \`TAL001I\` and the failure has code \`TAL001E\`. For other
-events, like \`db.session.query.failed\` and \`db.session.query\`, the event
-type describes only the success or failure state.
-
-You can set up Teleport to export audit events to third-party services for
-storage, visualization, and analysis. For more information, read [Exporting
-Teleport Audit Events](
-../zero-trust-access/export-audit-events/export-audit-events.mdx).`;
 
 if (process.argv.length !== 3) {
   console.error(
-    'The argument of the script must be the path of the audit event reference page.'
+    'The argument of the script must be the index of the audit event reference pages.'
   );
   process.exit(1);
 }
 
-console.log('Writing an audit event reference page to ', process.argv[2]);
+const auditEventsDir = process.argv[2].split('/').slice(0, -1).join('/');
+
+console.log('Writing audit event reference pages to ', auditEventsDir);
 
 const noExampleEvents = eventsWithoutExamples(events, formatters);
 noExampleEvents.forEach(e => {
@@ -84,10 +59,11 @@ if (mismatches.length > 0) {
   process.exit(1);
 }
 
-fs.writeFileSync(
-  process.argv[2],
-  createReferencePage(
-    removeUnknowns(events, formatters).concat(noExampleEvents),
-    introParagraph
-  )
+const referencePages = createReferencePages(
+  removeUnknowns(events, formatters).concat(noExampleEvents),
 );
+
+referencePages.forEach((page) => {
+  const filePath = `${auditEventsDir}/${page.type}.mdx`;
+  fs.writeFileSync(filePath, page.content);
+});

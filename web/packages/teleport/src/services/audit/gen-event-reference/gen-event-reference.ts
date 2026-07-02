@@ -161,19 +161,22 @@ export interface ReferencePageEventData {
   };
 }
 
-// createReferencePage takes an array of JSON documents that define an audit
-// event test fixture and returns a string that contains the text of an audit
-// event reference guide.
-//
-// introParagraph contains the text of the introductory paragraph to include in
-// the guide.
+// getEventType returns the type of an audit event, which is defined as the 
+// first part of the event name, before the first period. If there is no 
+// period in the event name, the entire event name is returned.
+const getEventType = (event: ReferencePageEventData): string => {
+  return event.raw.event.split('.')[0] || event.raw.event;
+};
+
+// createReferencePages takes an array of JSON documents that define an audit
+// event test fixture and returns an array that contains the name and content of 
+// an audit event reference guide.
 //
 // See web/packages/teleport/src/Audit/fixtures/index.ts for the structure of an
 // audit event test fixture.
-export function createReferencePage(
+export function createReferencePages(
   jsonEvents: ReferencePageEventData[],
-  introParagraph: string
-): string {
+): { type: string; content: string }[] {
   const codeSet = new Set();
   let result = jsonEvents;
   result.sort((a, b) => {
@@ -183,13 +186,19 @@ export function createReferencePage(
       return 1;
     }
   });
-  const events = new Map<string, ReferencePageEventData[]>();
+  const eventTypes = new Map<string, Map<string, ReferencePageEventData[]>>();
   result.forEach(e => {
     if (codeSet.has(e.code)) {
       return;
     }
-    const codeData = events.get(e.raw.event);
+    const eventType = getEventType(e);
+    const events = eventTypes.get(eventType);
     codeSet.add(e.code);
+    if (!events) {
+      eventTypes.set(eventType, new Map([[e.raw.event, [e]]]));
+      return;
+    }
+    const codeData = events.get(e.raw.event);
     if (!codeData) {
       events.set(e.raw.event, [e]);
       return;
@@ -197,22 +206,32 @@ export function createReferencePage(
     codeData.push(e);
   });
 
-  return events.keys().reduce(
-    (accum, current) => {
-      const codes = events.get(current);
-      if (codes.length == 1) {
-        return accum + '\n' + createEventSection(codes[0]);
-      }
-      return accum + '\n' + createMultipleEventsSection(codes);
-    },
-    `---
-title: "Audit Event Reference"
-description: "Provides a comprehensive list of Teleport audit events and their fields."
+  return Array.from(eventTypes.keys()).map((eventType) => {
+    const events = eventTypes.get(eventType);
+    return {
+      type: eventType,
+      content: events.keys().reduce(
+        (accum, current) => {
+          const codes = events.get(current);
+          if (codes.length == 1) {
+            return accum + '\n' + createEventSection(codes[0]);
+          }
+          return accum + '\n' + createMultipleEventsSection(codes);
+        },
+        `---
+title: ${eventType} Audit Events
+description: "Provides a list of ${eventType} Teleport audit events."
 ---
 {/* Generated file. Do not edit. */}
 {/* To regenerate, run \`make audit-event-reference\` */}
 
-${introParagraph}
-`
-  );
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+`,
+      ),
+    };
+  });
 }
