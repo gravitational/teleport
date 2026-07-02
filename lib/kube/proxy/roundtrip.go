@@ -258,7 +258,14 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 func (s *SpdyRoundTripper) NewConnection(resp *http.Response) (httpstream.Connection, error) {
 	connectionHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderConnection))
 	upgradeHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderUpgrade))
-	if (resp.StatusCode != http.StatusSwitchingProtocols) || !strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) || !strings.Contains(upgradeHeader, strings.ToLower(streamspdy.HeaderSpdy31)) {
+	if (resp.StatusCode != http.StatusSwitchingProtocols) ||
+		!strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) ||
+		!strings.Contains(upgradeHeader, strings.ToLower(streamspdy.HeaderSpdy31)) {
+		// The upgrade was rejected. Close the conn so that we don't leak an
+		// io.Copy goroutine.
+		if s.conn != nil {
+			_ = s.conn.Close()
+		}
 		return nil, trace.Wrap(extractKubeAPIStatusFromReq(resp))
 	}
 
