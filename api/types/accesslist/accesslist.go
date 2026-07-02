@@ -781,6 +781,10 @@ func WithIgnoreOktaUserManagedFields() EqualAccessListsOption {
 // The following fields are canonicalized: Grants (roles/traits/scopedRoles),
 // OwnerGrants (roles/traits/scopedRoles), MembershipRequires (roles/traits),
 // and OwnershipRequires (roles/traits).
+//
+// Note: This option reorders and de-duplicates the listed slice fields. As with
+// [WithIgnoreEphemeralFields], the input Access Lists are cloned (unless
+// [WithSkipClone] is also used) to avoid modifying the originals.
 func WithCanonicalFields() EqualAccessListsOption {
 	return func(c *equalAccessListsConfig) {
 		c.canonicalizeFn = canonicalizeAccessList
@@ -851,10 +855,7 @@ func canonicalizeGrants(g *Grants) {
 	slices.Sort(g.Roles)
 	g.Roles = slices.Compact(g.Roles)
 
-	for key, av := range g.Traits {
-		slices.Sort(av)
-		g.Traits[key] = slices.Compact(av)
-	}
+	trait.Merge(g.Traits, nil)
 
 	slices.SortFunc(g.ScopedRoles, func(a, b ScopedRoleGrant) int {
 		if a.Role == b.Role {
@@ -874,8 +875,5 @@ func canonicalizeRequires(r *Requires) {
 	slices.Sort(r.Roles)
 	r.Roles = slices.Compact(r.Roles)
 
-	for key, av := range r.Traits {
-		slices.Sort(av)
-		r.Traits[key] = slices.Compact(av)
-	}
+	trait.Merge(r.Traits, nil)
 }
