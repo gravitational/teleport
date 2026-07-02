@@ -57,6 +57,10 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("g
 // - https://datatracker.ietf.org/doc/html/rfc8725#section-2.1
 // This list isn't passed directly to jose, instead we compute the intersection
 // of this set and the set of algorithms specified in the static_jwks keys.
+// Additionally, note that all of these algorithms are technically allowable for
+// verification in FIPS builds, however some may be rejected by BoringCrypto
+// (especially EdDSA) or may qualify as allowed but legacy verification
+// (RS* /PS* < 2048).
 var acceptableStaticJWKSAlgs = map[jose.SignatureAlgorithm]struct{}{
 	jose.RS256: {},
 	jose.RS384: {},
