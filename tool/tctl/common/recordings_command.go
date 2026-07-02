@@ -637,6 +637,7 @@ var reviewReasonNames = map[string]summarizerv1pb.NeedsReviewReason{
 	"failed_to_fetch_access_request":   summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST,
 	"output_not_fully_captured":        summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED,
 	"too_large":                        summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+	"classifier_matched":               summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED,
 }
 
 // reviewReasonFlagOptions returns the valid --review-reason values in
