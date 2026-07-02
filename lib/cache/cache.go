@@ -287,6 +287,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindHealthCheckConfig},
 		{Kind: types.KindAppAuthConfig},
+		{Kind: types.KindPlugin, LoadSecrets: false},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
