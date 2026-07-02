@@ -130,6 +130,14 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 			"report", h.cswshAction.report, "block", h.cswshAction.block)
 	}
 
+	closeSession := func(ctx context.Context, key, value any) {
+		session, ok := value.(*session)
+		if !ok {
+			return
+		}
+		session.Close()
+	}
+
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
 	h.cache, err = utils.NewFnCache(utils.FnCacheConfig{
@@ -138,6 +146,8 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		Context:         ctx,
 		CleanupInterval: time.Second,
 		ReloadOnErr:     true,
+		OnExpiry:        closeSession,
+		OnRemove:        closeSession,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
