@@ -125,6 +125,10 @@ func (r *RemoteFS) ReadDir(path string) ([]os.FileInfo, error) {
 		return nil, err
 	}
 	for i := range fileInfos {
+		if err := sftputils.CheckFileInfoName(fileInfos[i]); err != nil {
+			return nil, err
+		}
+
 		// If the file is a valid symlink, return the info of the linked file.
 		if fileInfos[i].Mode()&os.ModeSymlink != 0 {
 			resolvedInfo, err := r.Stat(portablepath.Join(path, fileInfos[i].Name()))
@@ -135,6 +139,18 @@ func (r *RemoteFS) ReadDir(path string) ([]os.FileInfo, error) {
 	}
 
 	return fileInfos, nil
+}
+
+func (r *RemoteFS) Stat(path string) (os.FileInfo, error) {
+	fi, err := r.Client.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := sftputils.CheckFileInfoName(fi); err != nil {
+		return nil, err
+	}
+
+	return fi, nil
 }
 
 func (r *RemoteFS) Open(path string) (sftputils.File, error) {
