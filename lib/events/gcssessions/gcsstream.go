@@ -41,7 +41,7 @@ import (
 )
 
 // CreateUpload creates a multipart upload
-func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID, _ ...events.CreateUploadOption) (*events.StreamUpload, error) {
 	upload := events.StreamUpload{
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
@@ -317,10 +317,13 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 }
 
 // GetUploadMetadata gets the metadata for session upload
-func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
+func (h *Handler) GetUploadMetadata(s session.ID, uploadID string) events.UploadMetadata {
 	return events.UploadMetadata{
-		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.recordingPath(s), string(s)),
-		SessionID: s,
+		URL: fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.recordingPath(s), string(s)),
+		StreamUpload: events.StreamUpload{
+			ID:        uploadID,
+			SessionID: s,
+		},
 	}
 }
 

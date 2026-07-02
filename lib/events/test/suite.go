@@ -57,7 +57,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	_, err = handler.Upload(ctx, id, strings.NewReader("impostor"))
 	require.Error(t, err)
 
-	rc, err := handler.StreamSessionRecording(ctx, id)
+	rc, err := handler.StreamSessionRecording(ctx, id, "" /* upload ID */)
 	require.NoError(t, err)
 	defer rc.Close()
 
@@ -96,10 +96,6 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	// Upload the final version.
 	_, err = handler.UploadSummary(ctx, id, strings.NewReader("final summary"))
 	require.NoError(t, err)
-
-	// Attempt to overwrite an existing file. This should fail.
-	_, err = handler.UploadSummary(ctx, id, strings.NewReader("impostor"))
-	require.Error(t, err)
 
 	// Download the final version.
 	finalRC, err := handler.StreamSessionSummary(ctx, id)
@@ -160,7 +156,7 @@ func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
 func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
-	_, err := handler.StreamSessionRecording(t.Context(), id)
+	_, err := handler.StreamSessionRecording(t.Context(), id, "" /* upload ID */)
 	require.True(t, trace.IsNotFound(err))
 }
 

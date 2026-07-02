@@ -211,7 +211,7 @@ type fakeUploader struct {
 	events.MultipartUploader
 }
 
-func (f fakeUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+func (f fakeUploader) CreateUpload(ctx context.Context, sessionID session.ID, _ ...events.CreateUploadOption) (*events.StreamUpload, error) {
 	return &events.StreamUpload{ID: uuid.NewString(), SessionID: sessionID}, nil
 }
 
@@ -404,7 +404,8 @@ func TestCompleteUploadRecoversMissingSessionEnd(t *testing.T) {
 		},
 	}
 
-	auditLog := &eventstest.MockRecorderEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
+	auditLog := &eventstest.MockAuditLog{Emitter: emitter}
 	streamer := eventstest.NewFakeStreamer(sessionEvents, 0)
 
 	slog := logtest.NewLogger()
@@ -442,7 +443,7 @@ func TestCompleteUploadRecoversMissingSessionEnd(t *testing.T) {
 	require.NoError(t, err)
 
 	// The recovered session end event must have been emitted to the audit log.
-	emitted := auditLog.Events()
+	emitted := emitter.Events()
 	require.Len(t, emitted, 1)
 	sessionEnd, ok := emitted[0].(*apievents.SessionEnd)
 	require.True(t, ok, "expected *apievents.SessionEnd, got %T", emitted[0])
