@@ -610,9 +610,7 @@ func emitBoundKeypairRecoveryEvent(
 		}
 	}
 
-	// TODO(strideynet): When bots become scope namespaced, ensure this call
-	// site reflects scopedness.
-	botName, _ := token.GetBot()
+	botName, botScope := token.GetBot()
 	if err := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairRecovery{
 		Metadata: apievents.Metadata{
 			Type: events.BoundKeypairRecovery,
@@ -624,6 +622,7 @@ func emitBoundKeypairRecoveryEvent(
 		},
 		TokenName:     token.GetName(),
 		BotName:       botName,
+		BotScope:      botScope,
 		PublicKey:     boundPublicKey,
 		RecoveryCount: recoveryCount,
 		RecoveryMode:  token.GetBoundKeypair().Recovery.Mode,
@@ -653,9 +652,7 @@ func emitBoundKeypairRotationEvent(
 		}
 	}
 
-	// TODO(strideynet): When bots become scope namespaced, ensure this call
-	// site reflects scopedness.
-	botName, _ := token.GetBot()
+	botName, botScope := token.GetBot()
 	if err := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairRotation{
 		Metadata: apievents.Metadata{
 			Type: events.BoundKeypairRotation,
@@ -667,6 +664,7 @@ func emitBoundKeypairRotationEvent(
 		},
 		TokenName:         token.GetName(),
 		BotName:           botName,
+		BotScope:          botScope,
 		PreviousPublicKey: prevPublicKey,
 		NewPublicKey:      newPublicKey,
 	}); err != nil {
@@ -682,9 +680,7 @@ func tryLockTokenInvalidJoinState(
 ) {
 	log := params.Logger.With("join_token", token.GetName(), "validation_error", validationError)
 
-	// TODO(strideynet): When bots become scope namespaced, ensure this call
-	// site reflects scopedness.
-	botName, _ := token.GetBot()
+	botName, botScope := token.GetBot()
 	if auditErr := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairJoinStateVerificationFailed{
 		Metadata: apievents.Metadata{
 			Type: events.BoundKeypairJoinStateVerificationFailed,
@@ -699,6 +695,7 @@ func tryLockTokenInvalidJoinState(
 		},
 		TokenName: token.GetName(),
 		BotName:   botName,
+		BotScope:  botScope,
 	}); auditErr != nil {
 		log.WarnContext(ctx, "Failed to emit failed join state verification event", "error", auditErr)
 	}
