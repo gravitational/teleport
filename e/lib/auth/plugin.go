@@ -675,7 +675,7 @@ func (p *Plugin) registerBeamsService(ctx context.Context, grpcServer *grpc.Serv
 		WorkloadIdentityWriter:  p.authServer.AuthServer,
 		ComputeServiceClient:    client,
 		Authorizer:              p.authServer.Authorizer,
-		UsageReporter:           p.authServer.AuthServer.UsageReporter,
+		UsageReporter:           p.authServer.AuthServer,
 		Region:                  auditCfg.Region(),
 		Logger:                  logger.With(teleport.ComponentKey, "beams-service"),
 	})
@@ -690,7 +690,7 @@ func (p *Plugin) registerBeamsService(ctx context.Context, grpcServer *grpc.Serv
 		BeamService:   srv,
 		Semaphores:    p.authServer.AuthServer,
 		HostID:        p.authServer.AuthServer.ServerID,
-		UsageReporter: p.authServer.AuthServer.UsageReporter,
+		UsageReporter: p.authServer.AuthServer,
 		Logger:        logger.With(teleport.ComponentTeleport, "beams-garbage-collector"),
 	})
 	if err != nil {
