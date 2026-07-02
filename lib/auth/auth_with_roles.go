@@ -4638,6 +4638,10 @@ func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withS
 		if err := a.authConnectorAction(types.KindOIDC, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetOIDCConnector(ctx, id, withSecrets)
 }
@@ -4651,6 +4655,10 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindOIDC, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4668,6 +4676,10 @@ func (a *ServerWithRoles) ListOIDCConnectors(ctx context.Context, limit int, sta
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindOIDC, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
@@ -4823,6 +4835,10 @@ func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withS
 		if err := a.authConnectorAction(types.KindSAML, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetSAMLConnectorWithValidationOptions(ctx, id, withSecrets, opts...)
 }
@@ -4836,6 +4852,10 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindSAML, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4853,6 +4873,10 @@ func (a *ServerWithRoles) ListSAMLConnectorsWithOptions(ctx context.Context, lim
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindSAML, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
@@ -5057,6 +5081,10 @@ func (a *ServerWithRoles) GetGithubConnector(ctx context.Context, id string, wit
 		if err := a.authConnectorAction(types.KindGithub, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetGithubConnector(ctx, id, withSecrets)
 }
@@ -5070,6 +5098,10 @@ func (a *ServerWithRoles) GetGithubConnectors(ctx context.Context, withSecrets b
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindGithub, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -5087,6 +5119,10 @@ func (a *ServerWithRoles) ListGithubConnectors(ctx context.Context, limit int, s
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindGithub, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
