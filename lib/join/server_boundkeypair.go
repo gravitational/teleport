@@ -215,8 +215,8 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		i.SafeTokenName = provisionToken.GetSafeName()
 		i.TokenJoinMethod = string(provisionToken.GetJoinMethod())
 		i.TokenExpires = provisionToken.Expiry()
-		// TODO(strideynet): When bots become scope namespaced, ensure this
-		// call site reflects scopedness.
+		// The legacy join service does not support scoped tokens, so the bot
+		// scope here is always empty.
 		i.BotName, _ = provisionToken.GetBot()
 	})
 	if provisionToken.GetJoinMethod() != types.JoinMethodBoundKeypair {

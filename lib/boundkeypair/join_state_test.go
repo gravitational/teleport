@@ -26,8 +26,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 type mockCA struct {
@@ -102,6 +106,43 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 		}
 
 		return params
+	}
+
+	// makeScopedParams builds params around a scoped token referencing the
+	// bot (scope, botName). Unlike makeParams, mutating the returned params'
+	// token status is not supported: the scoped token wrapper converts its
+	// status on every accessor call.
+	makeScopedParams := func(scope, botName string) *JoinStateParams {
+		scopedToken, err := joining.NewToken(joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Version: types.V1,
+			Scope:   scope,
+			Metadata: headerv1.Metadata_builder{
+				Name: "example-token",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				Roles:      []string{string(types.RoleBot)},
+				UsageMode:  joining.TokenUsageModeBot,
+				Bot:        scopes.QualifiedName{Scope: scope, Name: botName}.String(),
+				BoundKeypair: joiningv1.BoundKeypairSpec_builder{
+					Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
+						InitialPublicKey: "abcd",
+					}.Build(),
+					Recovery: joiningv1.BoundKeypairSpec_RecoverySpec_builder{
+						Mode:  string(RecoveryModeStandard),
+						Limit: 1,
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+
+		return &JoinStateParams{
+			Clock:       clock,
+			ClusterName: "example.com",
+			Token:       scopedToken,
+		}
 	}
 
 	withRecovery := func(count, limit uint32) func(*JoinStateParams) {
@@ -217,6 +258,28 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			verifyParams: makeParams(withRecovery(0, 1)),
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "invalid subject claim")
+			},
+		},
+		{
+			name:         "scoped bot success",
+			issue:        makeIssuer(activeSigner, makeScopedParams("/foo", "test")),
+			verifyParams: makeScopedParams("/foo", "test"),
+			assertError:  require.NoError,
+		},
+		{
+			name:         "bot scope must match",
+			issue:        makeIssuer(activeSigner, makeScopedParams("/foo", "test")),
+			verifyParams: makeScopedParams("/bar", "test"),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "bot scope mismatch")
+			},
+		},
+		{
+			name:         "join state without bot scope rejected for scoped bot",
+			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1))),
+			verifyParams: makeScopedParams("/foo", "test"),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "bot scope mismatch")
 			},
 		},
 		{
