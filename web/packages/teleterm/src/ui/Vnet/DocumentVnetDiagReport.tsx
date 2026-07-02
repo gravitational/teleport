@@ -39,6 +39,7 @@ import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
 import {
+  reportOneOfIsDNSReport,
   reportOneOfIsRouteConflictReport,
   reportOneOfIsSSHConfigurationReport,
 } from 'teleterm/helpers';
@@ -304,6 +305,10 @@ const reportOneofDisplayDetails: Record<
     errorTitle: 'inspect SSH configuration',
     Component: CheckReportSSHConfiguration,
   },
+  dnsReport: {
+    errorTitle: 'inspect DNS configuration',
+    Component: CheckReportDNS,
+  },
 };
 
 /**
@@ -467,12 +472,182 @@ function CheckReportSSHConfiguration({
   );
 }
 
+/**
+ * CheckReportDNS displays per-family reachability and the per-zone, per-record-type outcomes.
+ */
+function CheckReportDNS({
+  checkReport: { report },
+}: {
+  checkReport: diag.CheckReport;
+}) {
+  if (!reportOneOfIsDNSReport(report)) {
+    return null;
+  }
+  const { ipv4Reachability, ipv6Reachability, zoneResults } = report.dnsReport;
+
+  // Show only zones that have at least one problem. A null aRecord
+  // or aaaaRecord means that record type wasn't queried because no
+  // expected IP was captured from the reachability step, so not a problem.
+  const okStatus = diag.DNSZoneStatus.DNS_ZONE_STATUS_OK;
+  const problemRows = zoneResults.filter(
+    zr =>
+      (zr.aRecord && zr.aRecord.status !== okStatus) ||
+      (zr.aaaaRecord && zr.aaaaRecord.status !== okStatus)
+  );
+
+  const allUnreachable =
+    (ipv4Reachability || ipv6Reachability) &&
+    (!ipv4Reachability || !ipv4Reachability.reachable) &&
+    (!ipv6Reachability || !ipv6Reachability.reachable);
+
+  return (
+    <Stack>
+      <ReachabilityRow family="IPv4" reach={ipv4Reachability} />
+      <ReachabilityRow family="IPv6" reach={ipv6Reachability} />
+
+      {allUnreachable && (
+        <P2 m={0}>
+          VNet's DNS is not responding. This might be caused by network routes
+          set up by another program that capture traffic meant for VNet.
+        </P2>
+      )}
+
+      {problemRows.length > 0 && (
+        <>
+          <Stack>
+            <P1>
+              <Warning />{' '}
+              {problemRows.length === 1
+                ? `1 of ${zoneResults.length} DNS zones is not fully routed through VNet.`
+                : `${problemRows.length} of ${zoneResults.length} DNS zones are not fully routed through VNet.`}
+            </P1>
+            <P2 m={0}>
+              The OS resolver is not sending some queries for the zones below to
+              VNet.
+            </P2>
+          </Stack>
+          <Table
+            emptyText=""
+            data={problemRows}
+            // Drop the record-type column if no row in the table has a result for it.
+            columns={[
+              { key: 'zone' as const, headerText: 'Zone' },
+              ...(problemRows.some(zr => zr.aRecord)
+                ? [
+                    {
+                      key: 'aRecord' as const,
+                      headerText: 'A',
+                      render: (zr: diag.DNSZoneResult) => (
+                        <RecordResultCell rr={zr.aRecord} />
+                      ),
+                    },
+                  ]
+                : []),
+              ...(problemRows.some(zr => zr.aaaaRecord)
+                ? [
+                    {
+                      key: 'aaaaRecord' as const,
+                      headerText: 'AAAA',
+                      render: (zr: diag.DNSZoneResult) => (
+                        <RecordResultCell rr={zr.aaaaRecord} />
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+            row={{ getStyle: () => ({ fontFamily: 'monospace' }) }}
+          />
+        </>
+      )}
+    </Stack>
+  );
+}
+
+function ReachabilityRow({
+  family,
+  reach,
+}: {
+  family: 'IPv4' | 'IPv6';
+  reach: diag.VNetDNSReachability | undefined;
+}) {
+  // Unset reachability means VNet doesn't serve DNS on this family. Skip the row.
+  if (!reach) {
+    return null;
+  }
+  if (!reach.reachable) {
+    return (
+      <Stack gap={1}>
+        <P1 m={0}>
+          <Warning /> VNet {family} DNS unreachable on{' '}
+          <code>{reach.address}</code>. The error:
+        </P1>
+        <ErrorPre>{reach.error}</ErrorPre>
+      </Stack>
+    );
+  }
+  const responded =
+    reach.respondedA && reach.respondedAaaa
+      ? 'A, AAAA'
+      : reach.respondedA
+        ? 'A only'
+        : reach.respondedAaaa
+          ? 'AAAA only'
+          : 'nothing';
+  return (
+    <P1 m={0}>
+      <Success /> VNet {family} DNS reachable on <code>{reach.address}</code>{' '}
+      (responds to {responded})
+    </P1>
+  );
+}
+
+function RecordResultCell({ rr }: { rr: diag.RecordResult | undefined }) {
+  // No expected IP was captured for this record type, the cell is left empty.
+  if (!rr) {
+    return <TextCell data="" />;
+  }
+  return (
+    <Cell>
+      <DnsZoneStatusLabel status={rr.status} />
+      {rr.observedIp ? ` (${rr.observedIp})` : null}
+    </Cell>
+  );
+}
+
+function DnsZoneStatusLabel({ status }: { status: diag.DNSZoneStatus }) {
+  switch (status) {
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_OK:
+      return <Success />;
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED:
+      return <>Hijacked</>;
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_NOT_REGISTERED:
+      return <>Not registered</>;
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_TIMEOUT:
+      return <>Timeout</>;
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_RESOLVER_ERROR:
+      return <>Resolver error</>;
+    default:
+      return <>Unknown ({status})</>;
+  }
+}
+
 const Summary = styled.summary`
   cursor: pointer;
 `;
 
 const Pre = styled.pre`
   white-space: pre-wrap;
+`;
+
+const ErrorPre = styled(Pre)`
+  margin: 0;
+  align-self: stretch;
+  line-height: 1.6;
+  tab-size: 4;
+  padding: ${props => props.theme.space[2]}px;
+  background-color: ${props => props.theme.colors.levels.sunken};
+  border-radius: ${props => props.theme.radii[2]}px;
+  font-size: ${props => props.theme.fontSizes[1]}px;
 `;
 
 const Warning = styled(WarningIcon).attrs({
