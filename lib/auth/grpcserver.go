@@ -6310,14 +6310,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	scopedjoiningv1.RegisterScopedJoiningServiceServer(server, scopedJoining)
 
-	fooStorageService, err := local.NewFooService(cfg.AuthServer.bk)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating foo service")
-	}
 	fooService := foo.NewService(&foo.Config{
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
-		Reader:           fooStorageService,
-		Writer:           fooStorageService,
+		Reader:           cfg.AuthServer.Cache,
+		Writer:           cfg.AuthServer.FooService,
 	})
 	foov1.RegisterFooServiceServer(server, fooService)
 

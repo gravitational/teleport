@@ -29,6 +29,7 @@ import (
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	foov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/lib/foos"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -161,6 +163,7 @@ type collections struct {
 	classifiers                        *collection[*summarizerv1.Classifier, classifierIndex]
 	retrievalModels                    *collection[*summarizerv1.RetrievalModel, retrievalModelIndex]
 	certAuthorityOverrides             *collection[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]
+	foos                               *collection[*foov1.Foo, fooIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -871,6 +874,13 @@ func setupCollections(c Config) (*collections, error) {
 			}
 			out.certAuthorityOverrides = collect
 			out.byKind[resourceKind] = out.certAuthorityOverrides
+		case foos.Kind:
+			collect, err := newFooCollection(c.FooUpstream, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.foos = collect
+			out.byKind[resourceKind] = out.foos
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

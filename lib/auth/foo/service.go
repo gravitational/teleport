@@ -22,12 +22,13 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/defaults"
 	foov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/foos"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 type Reader interface {
@@ -176,37 +177,31 @@ func (s *Service) ListFoos(ctx context.Context, req *foov1.ListFoosRequest) (*fo
 	// list method scope filters must use identity-based defaults per RFD 0229i
 	req.SetScopeFilter(authzContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
 
-	limit := int(req.GetPageSize())
-	if limit <= 0 || limit > defaults.DefaultChunkSize {
-		limit = defaults.DefaultChunkSize
+	stream := stream.FilterMap(
+		s.cfg.Reader.RangeFoos(ctx, req, req.GetPageToken(), ""),
+		func(foo *foov1.Foo) (*foov1.Foo, bool) {
+			// Skip foos the caller is not authorized to see
+			ruleCtx := authzContext.RuleContext()
+			ruleCtx.Resource153 = foo
+			if err := authzContext.CheckerContext.Decision(ctx, foo.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				return checker.CheckAccessToRules(&ruleCtx, foos.Kind, types.VerbReadNoSecrets, types.VerbList)
+			}); err != nil {
+				return nil, false
+			}
+			return foo, true
+		},
+	)
+	page, nextPageToken, err := generic.CollectPageAndCursor(
+		stream,
+		int(req.GetPageSize()),
+		foos.MakeCursor,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	var out []*foov1.Foo
-	for foo, err := range s.cfg.Reader.RangeFoos(ctx, req, req.GetPageToken(), "") {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Skip foos the caller is not authorized to see
-		ruleCtx := authzContext.RuleContext()
-		ruleCtx.Resource153 = foo
-		if err := authzContext.CheckerContext.Decision(ctx, foo.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, foos.Kind, types.VerbReadNoSecrets, types.VerbList)
-		}); err != nil {
-			continue
-		}
-
-		if len(out) == limit {
-			return foov1.ListFoosResponse_builder{
-				Foos:          out,
-				NextPageToken: foos.MakeCursor(foo),
-			}.Build(), nil
-		}
-		out = append(out, foo)
-	}
-
 	return foov1.ListFoosResponse_builder{
-		Foos: out,
+		Foos:          page,
+		NextPageToken: nextPageToken,
 	}.Build(), nil
 }
 

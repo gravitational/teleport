@@ -50,6 +50,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	foov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -86,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/foos"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -188,6 +190,7 @@ type testPack struct {
 	appAuthConfigs          *local.AppAuthConfigService
 	summarizer              *local.SummarizerService
 	subCA                   *local.SubCAService
+	foos                    *local.FooService
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -567,6 +570,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.foos, err = local.NewFooService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -636,6 +644,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
+		FooUpstream:             p.foos,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -912,6 +921,7 @@ func TestCompletenessInit(t *testing.T) {
 			StaticScopedToken:       p.clusterConfigS,
 			Summarizer:              p.summarizer,
 			SubCAService:            p.subCA,
+			FooUpstream:             p.foos,
 		}))
 		require.NoError(t, err)
 
@@ -1007,6 +1017,7 @@ func TestCompletenessReset(t *testing.T) {
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
+		FooUpstream:             p.foos,
 	}))
 	require.NoError(t, err)
 
@@ -1178,6 +1189,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
+		FooUpstream:             p.foos,
 	}))
 	require.NoError(t, err)
 
@@ -1284,6 +1296,7 @@ func initStrategy(t *testing.T) {
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
+		FooUpstream:             p.foos,
 	}))
 	require.NoError(t, err)
 
@@ -2039,6 +2052,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindRetrievalModel:                    types.Resource153ToLegacy(new(summaryv1.RetrievalModel)),
 		types.KindCertAuthorityOverride:             types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{}),
 		types.KindValidatedMFAChallenge:             types.Resource153ToLegacy(new(mfav2.ValidatedMFAChallenge)),
+		foos.Kind:                                   types.Resource153ToLegacy(newFoo("foo", "", "value")),
 	}
 
 	for name, cfg := range cases {
@@ -2132,6 +2146,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*beamsv1.BeamsConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*foov1.Foo]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*foov1.Foo]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

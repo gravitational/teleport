@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/foos"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -229,6 +230,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindClassifier},
 		{Kind: types.KindRetrievalModel},
 		{Kind: types.KindValidatedMFAChallenge},
+		{Kind: foos.Kind},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -853,6 +855,8 @@ type Config struct {
 	Summarizer services.Summarizer
 	// SubCAService reads CertAuthorityOverride resources.
 	SubCAService services.SubCAServiceGetter
+	// FooUpstream reads foos.
+	FooUpstream services.FooUpstream
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

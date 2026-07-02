@@ -232,6 +232,9 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	})
 	require.NoError(t, err)
 
+	fooService, err := local.NewFooService(bkWrapper)
+	require.NoError(t, err)
+
 	c, err := cache.New(setupConfig(cache.Config{
 		Context:                 ctx,
 		Events:                  eventsS,
@@ -288,6 +291,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		EventsC:                 eventsC,
 		Summarizer:              summaries,
 		SubCAService:            subCA,
+		FooUpstream:             fooService,
 	}))
 	require.NoError(t, err)
 

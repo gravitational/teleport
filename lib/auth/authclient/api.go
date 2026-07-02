@@ -1601,6 +1601,9 @@ type Cache interface {
 
 	// SubCAServiceGetter reads CertAuthorityOverride resources.
 	services.SubCAServiceGetter
+
+	// FooReader reads foo resources.
+	services.FooReader
 }
 
 type NodeWrapper struct {

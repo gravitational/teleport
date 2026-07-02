@@ -3215,6 +3215,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AppAuthConfig = services.AppAuthConfig
 	cfg.Summarizer = services.Summarizer
 	cfg.SubCAService = services.SubCAService
+	cfg.FooUpstream = services.FooService
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3266,6 +3267,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.HealthCheckConfig = client
 	cfg.AppAuthConfig = client
 	cfg.SubCAService = client
+	cfg.FooUpstream = services.NewFooClientAdapter(client.FooClient())
 
 	return accesspoint.NewCache(cfg)
 }

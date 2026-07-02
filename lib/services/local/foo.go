@@ -31,6 +31,14 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
+func fooUnscopedWatchPrefix() backend.Key {
+	return backend.ExactKey("foo")
+}
+
+func fooScopedWatchPrefix() backend.Key {
+	return backend.ExactKey("scoped", "foo")
+}
+
 // FooService is a storage service for Foos.
 type FooService struct {
 	service *generic.ScopeAwareServiceWrapper[*foov1.Foo]

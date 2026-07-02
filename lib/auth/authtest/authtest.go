@@ -658,6 +658,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 		Summarizer:              p.AuthServer.Services.Summarizer,
 		SubCAService:            p.AuthServer.Services.SubCAService,
+		FooUpstream:             p.AuthServer.Services.FooService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
