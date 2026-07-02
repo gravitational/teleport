@@ -3298,7 +3298,7 @@ func splitRoles(roles string) []string {
 func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Determine if JoinParams is set to something beyond its zero value using
 	// a go-derive generated helper.
-	joinParamsSet := fc.JoinParams.IsEqual(&JoinParams{})
+	joinParamsSet := !fc.JoinParams.IsEqual(&JoinParams{})
 
 	if fc.AuthToken != "" {
 		if joinParamsSet {
