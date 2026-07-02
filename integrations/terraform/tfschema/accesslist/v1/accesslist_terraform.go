@@ -1583,6 +1583,12 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 
 // CopyAccessListToTerraform copies contents of the source Terraform object into a target struct
 func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.AccessList, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyAccessListToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyAccessListToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyAccessListToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.AccessList, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -1638,7 +1644,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Kind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["kind"] = v
 						}
 					}
@@ -1664,7 +1672,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.SubKind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["sub_kind"] = v
 						}
 					}
@@ -1690,7 +1700,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Version)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["version"] = v
 						}
 					}
@@ -1743,7 +1755,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 											v.Null = false
 											v.Value = string(obj.Name)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["name"] = v
 										}
 									}
@@ -1769,7 +1783,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 											v.Null = false
 											v.Value = string(obj.Namespace)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["namespace"] = v
 										}
 									}
@@ -1795,7 +1811,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 											v.Null = false
 											v.Value = string(obj.Description)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["description"] = v
 										}
 									}
@@ -1841,12 +1859,16 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["labels"] = c
 											}
 										}
@@ -1861,13 +1883,17 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["metadata"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["header"] = v
 			}
 		}
@@ -1921,7 +1947,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -1950,7 +1978,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Owners) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Owners))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Owners))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Owners {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -1993,7 +2023,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 													v.Null = false
 													v.Value = string(obj.Name)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["name"] = v
 												}
 											}
@@ -2019,7 +2051,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 													v.Null = false
 													v.Value = string(obj.Description)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["description"] = v
 												}
 											}
@@ -2045,17 +2079,23 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 													v.Null = false
 													v.Value = int64(obj.MembershipKind)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["membership_kind"] = v
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["owners"] = c
 							}
 						}
@@ -2145,7 +2185,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 															v.Null = false
 															v.Value = int64(obj.Frequency)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["frequency"] = v
 														}
 													}
@@ -2171,12 +2213,16 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 															v.Null = false
 															v.Value = int64(obj.DayOfMonth)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["day_of_month"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["recurrence"] = v
 											}
 										}
@@ -2218,13 +2264,17 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["notifications"] = v
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["audit"] = v
 							}
 						}
@@ -2281,7 +2331,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													t := o.ElemType
 													if len(obj.Roles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Roles {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2301,12 +2353,16 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["roles"] = c
 											}
 										}
@@ -2336,7 +2392,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Traits) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Traits {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -2379,7 +2437,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Key)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["key"] = v
 																}
 															}
@@ -2408,7 +2468,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2428,29 +2490,39 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["traits"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["membership_requires"] = v
 							}
 						}
@@ -2507,7 +2579,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													t := o.ElemType
 													if len(obj.Roles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Roles {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2527,12 +2601,16 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["roles"] = c
 											}
 										}
@@ -2562,7 +2640,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Traits) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Traits {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -2605,7 +2685,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Key)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["key"] = v
 																}
 															}
@@ -2634,7 +2716,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2654,29 +2738,39 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["traits"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["ownership_requires"] = v
 							}
 						}
@@ -2733,7 +2827,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													t := o.ElemType
 													if len(obj.Roles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Roles {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2753,12 +2849,16 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["roles"] = c
 											}
 										}
@@ -2788,7 +2888,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Traits) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Traits {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -2831,7 +2933,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Key)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["key"] = v
 																}
 															}
@@ -2860,7 +2964,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -2880,23 +2986,31 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["traits"] = c
 											}
 										}
@@ -2926,7 +3040,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.ScopedRoles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.ScopedRoles {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -2969,7 +3085,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Role)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["role"] = v
 																}
 															}
@@ -2995,23 +3113,31 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Scope)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["scope"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["scoped_roles"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["grants"] = v
 							}
 						}
@@ -3038,7 +3164,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Title)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["title"] = v
 						}
 					}
@@ -3094,7 +3222,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													t := o.ElemType
 													if len(obj.Roles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Roles {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -3114,12 +3244,16 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["roles"] = c
 											}
 										}
@@ -3149,7 +3283,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Traits) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Traits {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -3192,7 +3328,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Key)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["key"] = v
 																}
 															}
@@ -3221,7 +3359,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
 																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -3241,23 +3381,31 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
 																		}
 																		c.Null = false
-																		c.Unknown = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["traits"] = c
 											}
 										}
@@ -3287,7 +3435,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.ScopedRoles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.ScopedRoles {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -3330,7 +3480,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Role)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["role"] = v
 																}
 															}
@@ -3356,23 +3508,31 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 																	v.Null = false
 																	v.Value = string(obj.Scope)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["scope"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["scoped_roles"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["owner_grants"] = v
 							}
 						}
@@ -3399,12 +3559,16 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 							v.Null = false
 							v.Value = string(obj.Type)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["type"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -3431,7 +3595,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 
 			v.Null = false
 			v.Value = string(obj.Scope)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["scope"] = v
 		}
 	}
@@ -3752,6 +3918,12 @@ func CopyMemberFromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 
 // CopyMemberToTerraform copies contents of the source Terraform object into a target struct
 func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.Member, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyMemberToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyMemberToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyMemberToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.Member, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -3807,7 +3979,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 							v.Null = false
 							v.Value = string(obj.Kind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["kind"] = v
 						}
 					}
@@ -3833,7 +4007,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 							v.Null = false
 							v.Value = string(obj.SubKind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["sub_kind"] = v
 						}
 					}
@@ -3859,7 +4035,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 							v.Null = false
 							v.Value = string(obj.Version)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["version"] = v
 						}
 					}
@@ -3912,7 +4090,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 											v.Null = false
 											v.Value = string(obj.Name)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["name"] = v
 										}
 									}
@@ -3938,7 +4118,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 											v.Null = false
 											v.Value = string(obj.Namespace)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["namespace"] = v
 										}
 									}
@@ -3964,7 +4146,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 											v.Null = false
 											v.Value = string(obj.Description)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["description"] = v
 										}
 									}
@@ -4010,12 +4194,16 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["labels"] = c
 											}
 										}
@@ -4030,13 +4218,17 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["metadata"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["header"] = v
 			}
 		}
@@ -4090,7 +4282,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 							v.Null = false
 							v.Value = string(obj.AccessList)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["access_list"] = v
 						}
 					}
@@ -4116,7 +4310,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -4160,7 +4356,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 							v.Null = false
 							v.Value = string(obj.Reason)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["reason"] = v
 						}
 					}
@@ -4186,7 +4384,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 							v.Null = false
 							v.Value = string(obj.AddedBy)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["added_by"] = v
 						}
 					}
@@ -4212,12 +4412,16 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 							v.Null = false
 							v.Value = int64(obj.MembershipKind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["membership_kind"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -4244,7 +4448,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 
 			v.Null = false
 			v.Value = string(obj.Scope)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["scope"] = v
 		}
 	}

@@ -333,6 +333,12 @@ func CopyClientIPRestrictionFromTerraform(_ context.Context, tf github_com_hashi
 
 // CopyClientIPRestrictionToTerraform copies contents of the source Terraform object into a target struct
 func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_clientiprestriction_v1.ClientIPRestriction, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyClientIPRestrictionToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyClientIPRestrictionToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyClientIPRestrictionToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_clientiprestriction_v1.ClientIPRestriction, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -361,7 +367,9 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 
 			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -387,7 +395,9 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 
 			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -413,7 +423,9 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 
 			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -466,7 +478,9 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 
 							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -492,7 +506,9 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 
 							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -518,7 +534,9 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 
 							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -564,12 +582,16 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -584,7 +606,9 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -641,7 +665,9 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 								{
 									t := o.ElemType
 									if len(obj.AllowedCidrs) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedCidrs))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowedCidrs))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.AllowedCidrs {
 										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
@@ -661,18 +687,24 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 
 										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
 								}
 								c.Null = false
-								c.Unknown = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["allowed_cidrs"] = c
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
