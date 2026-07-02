@@ -415,9 +415,7 @@ func TestDynamoDB(t *testing.T) {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		clock := clockwork.NewFakeClockAt(time.Now())
-		uut.clock = clock
-		return uut, clock, nil
+		return uut, test.BlockingFakeClock{Clock: clockwork.NewRealClock()}, nil
 	}
 
 	test.RunBackendComplianceSuite(t, newBackend)
