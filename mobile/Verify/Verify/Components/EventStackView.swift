@@ -17,7 +17,9 @@
 import Foundation
 import SwiftUI
 
+/// A general-purpose view for showing a sequence of events on a timeline with associated icons.
 struct EventStackView<ID: Hashable>: View {
+	/// A single devent to be displayed inside an EventStackView.
 	struct Event: Identifiable {
 		var id: ID
 		var status: Status
@@ -25,6 +27,7 @@ struct EventStackView<ID: Hashable>: View {
 	}
 
 	// swiftformat:sort
+	/// The status of a particular event, which will determine its icon and UI treatment.
 	enum Status {
 		case failure
 		case loading
@@ -35,42 +38,38 @@ struct EventStackView<ID: Hashable>: View {
 	let events: [Event]
 
 	@ScaledMetric
-	private var barHeight: CGFloat = 14 // hardcode the point size of SwiftUI's body font
+	private var minimumBarHeight: CGFloat = .medium
 
-	@ScaledMetric
-	private var leadingPadding: CGFloat = .small
+	@ScaledMetric(relativeTo: .body)
+	private var barWidth: CGFloat = .xxsmall
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: .xxsmall) {
 			ForEach(events) { event in
-				Label {
-					if event.status == .loading {
-						Text(event.message)
-							.foregroundStyle(Color.Foreground.slightlyMuted)
-							.phaseAnimator([1.0, 0.5]) { content, opacity in
-								content.opacity(opacity)
-							} animation: { _ in
-								.linear(duration: 0.8)
-							}
-					} else {
-						Text(event.message)
-							.foregroundStyle(Color.Foreground.slightlyMuted)
-					}
-				} icon: {
-					icon(for: event.status)
-				}
-				if event.id != events.last?.id {
-					Label {
-						Text("")
-					} icon: {
-						Capsule()
-							.fill(Color.Foreground.muted)
-							.frame(maxWidth: .xxsmall, maxHeight: barHeight)
-							.padding(.leading, leadingPadding)
-					}
-				}
+				row(for: event)
 			}
 		}
+	}
+
+	private func row(for event: Event) -> some View {
+		HStack(alignment: .firstTextBaseline) {
+			VStack(alignment: .center) {
+				icon(for: event.status)
+				if event.id != events.last?.id {
+					Capsule()
+						.fill(Color.Foreground.muted)
+						.frame(maxWidth: barWidth, minHeight: minimumBarHeight)
+				}
+			}
+			label(for: event)
+				.padding(.bottom, .small)
+		}
+		/*
+		 Distilling the accessibilty representation down to just a message does lose _some_ information by not
+		 including the semantics of the icon, but this UI is general purpose enough that including semantic
+		 infomation about the icon may not always be appropriate.
+		 */
+		.accessibilityLabel(event.message)
 	}
 
 	@ViewBuilder
@@ -98,15 +97,38 @@ struct EventStackView<ID: Hashable>: View {
 			image.foregroundStyle(color)
 		}
 	}
+
+	private func label(for event: Event) -> some View {
+		Group {
+			if event.status == .loading {
+				Text(event.message)
+					.phaseAnimator([1.0, 0.5]) { content, opacity in
+						content.opacity(opacity)
+					} animation: { _ in
+						.linear(duration: 0.8)
+					}
+			} else {
+				Text(event.message)
+			}
+		}
+		.foregroundStyle(Color.Foreground.slightlyMuted)
+	}
 }
 
 #Preview {
-	EventStackView(events: [
-		.init(id: 1, status: .success, message: "You threw a Pokéball..."),
-		.init(id: 2, status: .failure, message: "Oh no! The Pokémon broke free!"),
-		.init(id: 3, status: .success, message: "You threw another Pokéball..."),
-		.init(id: 4, status: .warning, message: "Shoot! It was so close, too!"),
-		.init(id: 5, status: .success, message: "You threw yet another Pokéball..."),
-		.init(id: 6, status: .loading, message: "*wobble*"),
-	])
+	ScrollView {
+		EventStackView(events: [
+			.init(id: 1, status: .success, message: "You threw a Pokéball..."),
+			.init(id: 2, status: .failure, message: "Oh no! The Pokémon broke free!"),
+			.init(id: 3, status: .success, message: "You threw another Pokéball..."),
+			.init(
+				id: 4,
+				status: .warning,
+				message: "Shoot! It was so close, too! Some really really long text that will wrap even in small font sizes.",
+			),
+			.init(id: 5, status: .success, message: "You threw yet another Pokéball..."),
+			.init(id: 6, status: .loading, message: "*wobble*"),
+		])
+		.padding(.horizontal)
+	}
 }
