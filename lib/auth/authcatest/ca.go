@@ -77,7 +77,8 @@ func NewCAWithConfig(config CAConfig) (*types.CertAuthorityV2, error) {
 		types.OktaCA,
 		types.AWSRACA,
 		types.BoundKeypairCA,
-		types.WindowsCA:
+		types.WindowsCA,
+		types.AppClientCA:
 		// OK, known CA type.
 	default:
 		return nil, trace.BadParameter("cannot generate new key set for unknown CA type %q", config.Type)
@@ -161,7 +162,8 @@ func NewCAWithConfig(config CAConfig) (*types.CertAuthorityV2, error) {
 		types.SAMLIDPCA,
 		types.SPIFFECA,
 		types.AWSRACA,
-		types.WindowsCA:
+		types.WindowsCA,
+		types.AppClientCA:
 		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
 			Signer: key.Signer,
 			Entity: pkix.Name{

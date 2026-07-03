@@ -66,6 +66,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -76,9 +77,11 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
@@ -1403,7 +1406,7 @@ func TestBotJoiningURI(t *testing.T) {
 // TestScopedBotSSH tests that a scoped bot can produce an identity output
 // with scope pins, and that the identity can be used to SSH to a scoped node.
 func TestScopedBotSSH(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
 	log := logtest.NewLogger()
@@ -1422,6 +1425,7 @@ func TestScopedBotSSH(t *testing.T) {
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
 		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1467,10 +1471,10 @@ func TestScopedBotSSH(t *testing.T) {
 	// Start a second Teleport process as an SSH-only node, joining with the
 	// scoped token so the node gets scope "/test-scope".
 	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	nodeCfg.Hostname = nodeHostname
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(nodeTokenResp.Token.Metadata.Name)
-	nodeCfg.SetTokenSecret(nodeTokenResp.Token.Status.Secret)
+	nodeCfg.SetToken(jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret()))
 	nodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
@@ -1529,6 +1533,7 @@ func TestScopedBotSSH(t *testing.T) {
 
 	t.Run("identity certificates have scope pins", func(t *testing.T) {
 		expectedPin := &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				scopeName: {scopeName: {scopedRoleName}},
@@ -1617,8 +1622,35 @@ func TestScopedBotSSH(t *testing.T) {
 		require.NoError(t, tc.AddKeyRing(keyRing))
 		require.NoError(t, tc.AddTrustedCA(ctx, hostCA))
 
+		startTime := time.Now()
+
 		require.NoError(t, tc.SSH(ctx, []string{"echo hello"}))
 		require.Equal(t, "hello\n", stdout.String())
+
+		auditEvents := helpers.WaitForAuditEventTypeWithBackoff(
+			t,
+			process.GetAuthServer(),
+			startTime,
+			events.SessionStartEvent,
+		)
+
+		require.Len(t, auditEvents, 1)
+		auditEvent := auditEvents[0]
+
+		require.IsType(t, &apievents.SessionStart{}, auditEvent)
+		sessionStart := auditEvent.(*apievents.SessionStart)
+
+		assert.Equal(t, botName, sessionStart.BotName)
+
+		expectedScopePin := apievents.ScopePin{
+			Scope: scopeName,
+			Assignments: map[string]*apievents.ScopePinnedAssignments{
+				scopeName: {
+					Roles: []string{scopedRoleName},
+				},
+			},
+		}
+		assert.Equal(t, &expectedScopePin, sessionStart.ScopePin)
 	})
 }
 
@@ -1711,8 +1743,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 	// with the scoped kube token.
 	kubeNodeCfg := servicecfg.MakeDefaultConfig()
 	kubeNodeCfg.DataDir = t.TempDir()
-	kubeNodeCfg.SetToken(kubeTokenResp.Token.Metadata.Name)
-	kubeNodeCfg.SetTokenSecret(kubeTokenResp.Token.Status.Secret)
+	kubeNodeCfg.SetToken(kubeTokenResp.Token.Metadata.Name + ":" + kubeTokenResp.Token.Status.Secret)
 	kubeNodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	kubeNodeCfg.Auth.Enabled = false
 	kubeNodeCfg.Proxy.Enabled = false
@@ -1878,8 +1909,7 @@ func createScopedBot(
 				Roles:      []string{types.RoleBot.String()},
 				JoinMethod: string(types.JoinMethodBoundKeypair),
 				UsageMode:  jointoken.TokenUsageModeBot,
-				BotName:    botName,
-				BotScope:   scopeName,
+				Bot:        scopes.QualifiedName{Name: botName, Scope: scopeName}.String(),
 				BoundKeypair: &joiningv1.BoundKeypairSpec{
 					Onboarding: &joiningv1.BoundKeypairSpec_OnboardingSpec{
 						InitialPublicKey: botPublicKey,
@@ -1909,8 +1939,7 @@ func createScopedBot(
 			Metadata: &headerv1.Metadata{Name: uuid.NewString()},
 			Scope:    scopeName,
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  botName,
-				BotScope: scopeName,
+				Bot: scopes.QualifiedName{Name: botName, Scope: scopeName}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{Role: scopedRoleName, Scope: scopeName},
 				},

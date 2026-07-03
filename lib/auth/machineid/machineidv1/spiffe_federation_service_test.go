@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -34,10 +35,13 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // TestSPIFFEFederationService_CreateSPIFFEFederation is an integration test
@@ -574,4 +578,101 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSPIFFEFederationService_ScopedIdentity verifies that a scope-pinned
+// identity can read SPIFFE federations via GetSPIFFEFederation and
+// ListSPIFFEFederations. SPIFFE federations are cluster-global config readable
+// by all identities (via the default implicit role), so an empty scoped role is
+// sufficient.
+func TestSPIFFEFederationService_ScopedIdentity(t *testing.T) {
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
+	ctx := t.Context()
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = adminClient.Close()
+	})
+
+	// Create a scoped role with an empty allow block (no explicit rules). Reads
+	// of cluster-global SPIFFE federations are granted via the default implicit
+	// role, so no extra permissions are required.
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	scopedRole, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "spiffe-federation-reader",
+			}.Build(),
+			Scope: "/scopes",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/scopes/granted"},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
+	require.NoError(t, err)
+
+	sraResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: uuid.NewString(),
+			}.Build(),
+			Scope: "/scopes",
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				User: scopedUser.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					scopedaccessv1.Assignment_builder{Role: scopedRole.GetRole().GetMetadata().GetName(), Scope: "/scopes/granted"}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	waitForSRACache(t, srv, sraResp)
+
+	name := "example.com"
+	resource, err := srv.Auth().Services.SPIFFEFederations.CreateSPIFFEFederation(
+		ctx, machineidv1pb.SPIFFEFederation_builder{
+			Kind:    types.KindSPIFFEFederation,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: name,
+			}.Build(),
+			Spec: machineidv1pb.SPIFFEFederationSpec_builder{
+				BundleSource: machineidv1pb.SPIFFEFederationBundleSource_builder{
+					HttpsWeb: machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb_builder{
+						BundleEndpointUrl: "https://example.com/bundle.json",
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	)
+	require.NoError(t, err)
+
+	scopedClient, err := srv.NewClient(authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"))
+	require.NoError(t, err)
+	defer scopedClient.Close()
+
+	t.Run("GetSPIFFEFederation", func(t *testing.T) {
+		got, err := scopedClient.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, machineidv1pb.GetSPIFFEFederationRequest_builder{
+			Name: name,
+		}.Build())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(resource, got, protocmp.Transform()))
+	})
+
+	t.Run("ListSPIFFEFederations", func(t *testing.T) {
+		resp, err := scopedClient.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, machineidv1pb.ListSPIFFEFederationsRequest_builder{}.Build())
+		require.NoError(t, err)
+		require.True(t, slices.ContainsFunc(resp.GetSpiffeFederations(), func(federation *machineidv1pb.SPIFFEFederation) bool {
+			return proto.Equal(resource, federation)
+		}))
+	})
 }

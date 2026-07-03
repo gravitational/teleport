@@ -30,40 +30,17 @@ We continue to support the following major versions of Teleport:
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                  |
-|---------|-----------------------|
-| 18.9.0  | Week of June 15, 2026 |
-| 18.10.0 | Week of June 29, 2026 |
-| 19.0.0  | August 2026           |
-
-### 18.9.0
-
-#### Device Bound Session Credentials for App Access
-
-Application access session cookies will be compatible with Google's [Device
-Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials),
-adding a layer of protection against session hijacking and cookie theft.
-
-#### High-DPI support for Windows desktop sessions
-
-Remote desktop sessions will support high-DPI mode, improving the clarity and
-quality of the display rendering on supported displays.
-
-#### Sub-CA
-
-Teleport will support operating as a sub-CA of an external root for the Windows
-Desktop and Database Client CAs. Subsequent releases will extend support for
-other CAs.
+| Version | Date                       |
+|---------|----------------------------|
+| 18.10.0 | Week of July 6, 2026       |
+| 18.11.0 | Week of August 3, 2026     |
+| 19.0.0  | Week of September 14, 2026 |
 
 ### 18.10.0
 
-#### Linux Desktop Access
-
-Teleport will support remote desktop sessions to Linux hosts.
-
 #### Directory sharing enhancements for Windows desktop access
 
-Teleport will support sharing multiple directories in a single RDP session.  In
+Teleport will support sharing multiple directories in a single RDP session. In
 addition, users will be able to unmount shared directories without terminating
 the session.
 
@@ -72,16 +49,56 @@ the session.
 Identity Security will support AI summarization for Windows desktop access
 session recordings.
 
+### 18.11.0
+
+#### Audit Log Reliability Improvements
+
+Teleport will improve audit log stability and durability in the face of failure
+scenarios like control plane, networking issues and agent restarts.
+
+#### Agentic UX for Access Configuration
+
+Teleport will provide a custom agent skill for configuring access to connected
+resources using access lists.
+
+#### Linux Desktop Access
+
+Teleport will support remote desktop sessions to Linux hosts.
+
+_Delayed from Teleport 18.10.0._
+
+#### Generic OIDC Join Method
+
+Teleport will include a new generic OIDC join method for bots and agents.
+Generic OIDC joining is offered as a fallback for spec-compliant OIDC providers
+that lack a dedicated Teleport join method.
+
+### 19.0.0
+
+#### Amazon Aurora DSQL Cluster State Backend
+
+Teleport will support using Amazon Aurora DSQL as a backend for cluster state.
+
+#### Improved Principal Selection for Access Requests
+
+Teleport will improve access requests experience by allowing users to pick specific
+principals for SSH nodes, Kubernetes clusters, databases and Windows desktop to better
+support scenarios like just-in-time access elevation requests.
+
+#### In-band Per-Session MFA for SSH and Desktops
+
+Added in-band MFA for SSH and Desktop sessions, moving MFA checks into session establishment 
+so challenges are bound to the specific session. This removes per-session MFA SSH certificates 
+and reduces MFA bypass risk.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of       | Description                                                    |
-|---------------|----------------------------------------------------------------|
-| June 15, 2026 | Teleport 18.8.3 will begin rollout on Cloud.                   |
-| June 22, 2026 | Teleport 18.8.3 agents will begin rollout to eligible tenants. |
-| June 29, 2026 | Teleport 18.9.0 will begin rollout on Cloud.                   |
-| July 06, 2026 | Teleport 18.9.0 agents will begin rollout to eligible tenants. |
+| Week of       | Description                                                     |
+|---------------|-----------------------------------------------------------------|
+| July 13, 2026 | Teleport 18.10.0 will begin rollout on Cloud.                   |
+| July 20, 2026 | Teleport 18.10.0 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

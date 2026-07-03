@@ -1,20 +1,16 @@
-/*
- * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 syntax = "proto3";
 
@@ -36,9 +32,11 @@ message ClientHello {
 message ServerHello {
   ConnectionActivated activation_spec = 1;
   bool clipboard_enabled = 2;
+  bool directory_remove_supported = 3;
   // Field number 5 matches master. v18 doesn't use fields 3 and 4
   // (directory_remove_supported and sessions on master).
   bool hidpi_supported = 5;
+  bool multidirectory_sharing_supported = 6;
 }
 
 // Defines the boundaries that PNG frame will update.
@@ -175,6 +173,11 @@ message SharedDirectoryAnnounce {
   string name = 2;
 }
 
+// Sent by client to remove a previously announced shared directory.
+message SharedDirectoryRemove {
+  uint32 directory_id = 1;
+}
+
 // Sent by server to acknowledge a new shared directory.
 message SharedDirectoryAcknowledge {
   uint32 directory_id = 1;
@@ -254,6 +257,7 @@ message SharedDirectoryResponse {
   // Common fields used for all response types.
   uint32 completion_id = 1;
   uint32 error_code = 2;
+  uint32 directory_id = 11;
 
   // Info response.
   message Info {
@@ -348,5 +352,6 @@ message Envelope {
     SharedDirectoryResponse shared_directory_response = 18;
     LatencyStats latency_stats = 19;
     Ping ping = 20;
+    SharedDirectoryRemove shared_directory_remove = 21;
   }
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -58,7 +59,7 @@ func (m *mockAzureDevopsTokenValidator) Validate(
 }
 
 func TestJoinAzureDevops(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	const (
 		validIDToken          = "test.fake.jwt"
 		validOrgID            = "0000-0000-0000-1337"
@@ -94,7 +95,8 @@ func TestJoinAzureDevops(t *testing.T) {
 	ctx := t.Context()
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)

@@ -242,7 +242,7 @@ func TestOracleTokenValidation(t *testing.T) {
 func TestRegisterUsingOracleMethod(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 	a := p.a
 

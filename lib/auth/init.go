@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -436,9 +437,6 @@ type InitConfig struct {
 	// ScopedTokenService is a service that manages scoped join token resources.
 	ScopedTokenService services.ScopedTokenService
 
-	// WorkloadClusterService is the service that manages WorkloadClusters.
-	WorkloadClusterService services.WorkloadClusterService
-
 	// Beams is the service for reading and writing beams.
 	Beams services.Beams
 
@@ -460,6 +458,9 @@ type InitConfig struct {
 	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
 	RemoteClusterRefreshBuckets int
+
+	// ScopesFeatures dictate which scoped components are enabled.
+	ScopesFeatures scopes.Features
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -538,7 +539,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.ApplyOnStartupResources) > 0 {
 		asrv.logger.InfoContext(ctx, "Applying resources (apply-on-startup)", "resource_count", len(cfg.ApplyOnStartupResources))
 
-		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources); err != nil {
+		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources, cfg.ScopesFeatures); err != nil {
 			return trace.Wrap(err, "applying resources failed")
 		}
 	}
@@ -1596,7 +1597,8 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 				types.SAMLIDPCA,
 				types.SPIFFECA,
 				types.AWSRACA,
-				types.WindowsCA:
+				types.WindowsCA,
+				types.AppClientCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner,
 				types.OIDCIdPCA,
@@ -1793,7 +1795,7 @@ var ResourceApplyPriority = map[string]int{
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
 // This means consistency is checked. This function support applying resources
 // with dependencies (like a user referring to a role).
-func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
+func applyResources(ctx context.Context, service *Services, resources []types.Resource, scopesFeatures scopes.Features) error {
 	var err error
 	slices.SortFunc(resources, func(a, b types.Resource) int {
 		priorityA := ResourceApplyPriority[a.GetKind()]
@@ -1826,7 +1828,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.AuthPreference:
 			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
 		case types.Resource153UnwrapperT[*machineidv1pb.Bot]:
-			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system")
+			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system", scopesFeatures)
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:

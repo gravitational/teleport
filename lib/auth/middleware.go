@@ -45,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -736,7 +737,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 		// the local auth server can not trust remote servers
 		// to issue certificates with system roles (e.g. Admin),
 		// to get unrestricted access to the local cluster
-		systemRole := findPrimarySystemRole(identity.Groups)
+		systemRole := getPrimarySystemRole(identity.Groups)
 		if systemRole != nil {
 			return authz.RemoteBuiltinRole{
 				Role:        *systemRole,
@@ -745,12 +746,17 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 				Identity:    *identity,
 			}, nil
 		}
+
+		if identity.ScopePin != nil {
+			return nil, trace.AccessDenied("access denied: scoped identities cannot interact with remote clusters")
+		}
+
 		return newRemoteUserFromIdentity(*identity, certClusterName), nil
 	}
 	// code below expects user or service from local cluster, to distinguish between
 	// interactive users and services (e.g. proxies), the code below
 	// checks for presence of system roles issued in certificate identity
-	systemRole := findPrimarySystemRole(identity.Groups)
+	systemRole := getPrimarySystemRole(identity.Groups)
 	// in case if the system role is present, assume this is a service
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
@@ -762,12 +768,32 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 			Identity:              *identity,
 		}, nil
 	}
+
+	if identity.ScopePin != nil {
+		switch identity.ScopePin.GetKind() {
+		case scopesv1.PinKind_PIN_KIND_AGENT:
+			return authz.ScopedBuiltinRole{
+				ScopePin:    identity.ScopePin,
+				ServerFQDN:  identity.Username,
+				ClusterName: a.ClusterName,
+				Identity:    *identity,
+			}, nil
+		case scopesv1.PinKind_PIN_KIND_USER:
+			// valid user scope pin, fall through to LocalUser
+		default:
+			return nil, trace.AccessDenied("access denied: identity has scope pin with unrecognized kind %v", identity.ScopePin.GetKind())
+		}
+	}
+
 	// otherwise assume that is a local role, no need to pass the roles
 	// as it will be fetched from the local database
 	return newLocalUserFromIdentity(*identity), nil
 }
 
-func findPrimarySystemRole(roles []string) *types.SystemRole {
+// getPrimarySystemRole finds the primary role in the given list and validates that it
+// is a system role. This was renamed from findPrimarySystemRole which was updated and
+// moved to ./client_tls_config_generator.go upstream
+func getPrimarySystemRole(roles []string) *types.SystemRole {
 	for _, role := range roles {
 		systemRole := types.SystemRole(role)
 		err := systemRole.Check()
@@ -907,7 +933,7 @@ func (a *Middleware) extractIdentityFromImpersonationHeader(proxyCluster string,
 	}
 
 	switch {
-	case findPrimarySystemRole(impersonatedIdentity.Groups) != nil:
+	case getPrimarySystemRole(impersonatedIdentity.Groups) != nil:
 		// make sure that this user does not have system role
 		// since system roles are not allowed to be impersonated.
 		return nil, trace.AccessDenied("can not impersonate a system role")

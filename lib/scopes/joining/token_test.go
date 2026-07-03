@@ -18,6 +18,7 @@ package joining_test
 
 import (
 	"cmp"
+	"encoding/base64"
 	"fmt"
 	"maps"
 	"testing"
@@ -30,6 +31,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -71,8 +73,7 @@ func TestValidateScopedToken(t *testing.T) {
 		},
 		Spec: &joiningv1.ScopedTokenSpec{
 			Roles:      []string{types.RoleBot.String()},
-			BotScope:   "/aa/bb",
-			BotName:    "test-bot",
+			Bot:        "/aa/bb::test-bot",
 			JoinMethod: string(types.JoinMethodBoundKeypair),
 			UsageMode:  joining.TokenUsageModeBot,
 		},
@@ -957,18 +958,11 @@ func TestValidateScopedToken(t *testing.T) {
 			},
 		},
 		{
-			name: "non-bot token with bot_scope",
+			name: "non-bot token with bot",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.BotScope = "/aa/bb"
+				tok.Spec.Bot = "/aa/bb::foo"
 			},
-			expectedStrongErr: "bot_scope cannot be set",
-		},
-		{
-			name: "non-bot token with bot_name",
-			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.BotName = "foo"
-			},
-			expectedStrongErr: "bot_name cannot be set",
+			expectedStrongErr: "bot cannot be set for a non-bot token",
 		},
 		{
 			name: "non-bot token with bot usage mode",
@@ -982,31 +976,31 @@ func TestValidateScopedToken(t *testing.T) {
 			baseToken: baseBotToken,
 		},
 		{
-			name:      "bot token without a bot_name",
+			name:      "bot token without a bot",
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.BotName = ""
+				tok.Spec.Bot = ""
 			},
-			expectedStrongErr: "expected non-empty bot_name",
-			expectedWeakErr:   "expected non-empty bot_name",
+			expectedStrongErr: "expected non-empty bot",
+			expectedWeakErr:   "expected non-empty bot",
 		},
 		{
-			name:      "bot token without a bot_scope",
+			name:      "bot token with bot missing scope qualification",
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.BotScope = ""
+				tok.Spec.Bot = "test-bot"
 			},
-			expectedStrongErr: "expected non-empty bot_scope",
-			expectedWeakErr:   "expected non-empty bot_scope",
+			expectedStrongErr: "validating scoped token bot",
+			expectedWeakErr:   "validating scoped token bot",
 		},
 		{
 			name:      "bot token with an invalid bot scope",
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.BotScope = "aa/bb}"
+				tok.Spec.Bot = "aa/bb}::test-bot"
 			},
-			expectedStrongErr: "validating scoped token bot_scope",
-			expectedWeakErr:   "validating scoped token bot_scope",
+			expectedStrongErr: "validating scoped token bot",
+			expectedWeakErr:   "validating scoped token bot",
 		},
 		{
 			name:      "bot token with invalid usage mode",
@@ -1029,9 +1023,9 @@ func TestValidateScopedToken(t *testing.T) {
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Scope = "/aa/bb"
-				tok.Spec.BotScope = "/aa/cc"
+				tok.Spec.Bot = "/aa/cc::test-bot"
 			},
-			expectedStrongErr: "scoped token bot_scope must be a descendant of",
+			expectedStrongErr: "scoped token bot scope must be a descendant of",
 		},
 		{
 			name:      "bot token with assigned_scope",
@@ -1049,6 +1043,14 @@ func TestValidateScopedToken(t *testing.T) {
 				tok.Status.Secret = "abc123"
 			},
 			expectedStrongErr: "scoped bot tokens do not support the `token` join method",
+		},
+		{
+			name:      "tokens with semicolons are prevented",
+			baseToken: baseToken,
+			modFn: func(st *joiningv1.ScopedToken) {
+				st.GetMetadata().SetName("testing:testing")
+			},
+			expectedStrongErr: "scoped token names cannot contain colons",
 		},
 	}
 
@@ -1130,8 +1132,7 @@ func TestNewTokenGetBot(t *testing.T) {
 			}.Build(),
 			Spec: joiningv1.ScopedTokenSpec_builder{
 				Roles:      []string{types.RoleBot.String()},
-				BotScope:   "/aa/bb",
-				BotName:    "test-bot",
+				Bot:        "/aa/bb::test-bot",
 				JoinMethod: string(types.JoinMethodBoundKeypair),
 				UsageMode:  joining.TokenUsageModeBot,
 			}.Build(),
@@ -1173,39 +1174,38 @@ func TestNewTokenGetBot(t *testing.T) {
 			token: newNonBotToken(),
 		},
 		{
-			// Stray bot fields on a non-bot token are rejected by strong
+			// A stray bot field on a non-bot token is rejected by strong
 			// validation at write time but tolerated when wrapping, matching
 			// weak validation; the bot reference is empty.
-			name:  "non-bot token with stray bot fields",
+			name:  "non-bot token with stray bot field",
 			token: newNonBotToken(),
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.GetSpec().SetBotName("test-bot")
-				tok.GetSpec().SetBotScope("/aa/bb")
+				tok.GetSpec().SetBot("/aa/bb::test-bot")
 			},
 		},
 		{
-			name:  "bot token without bot_name",
+			name:  "bot token without bot",
 			token: newBotToken(),
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.GetSpec().SetBotName("")
+				tok.GetSpec().SetBot("")
 			},
-			expectedErr: "expected non-empty bot_name",
+			expectedErr: "expected non-empty bot",
 		},
 		{
-			name:  "bot token without bot_scope",
+			name:  "bot token with bot missing scope qualification",
 			token: newBotToken(),
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.GetSpec().SetBotScope("")
+				tok.GetSpec().SetBot("test-bot")
 			},
-			expectedErr: "expected non-empty bot_scope",
+			expectedErr: "validating scoped token bot",
 		},
 		{
-			name:  "bot token with malformed bot_scope",
+			name:  "bot token with malformed bot scope",
 			token: newBotToken(),
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.GetSpec().SetBotScope("aa/bb}")
+				tok.GetSpec().SetBot("aa/bb}::test-bot")
 			},
-			expectedErr: "validating scoped token bot_scope",
+			expectedErr: "validating scoped token bot",
 		},
 	}
 
@@ -1467,9 +1467,7 @@ func TestValidateTokenUpdate(t *testing.T) {
 }
 
 func TestValidateTokenForUse(t *testing.T) {
-	// TODO (eriktate): remove env var manipulation in this test once we've
-	// backported the [scopes.Features] work from #67073
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	token := &joiningv1.ScopedToken{
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{
@@ -1482,13 +1480,14 @@ func TestValidateTokenForUse(t *testing.T) {
 			Secret: "secret",
 		},
 	}
+	features := scopes.Features{Enabled: true}
 	// we want to ensure that token validation before use is always the strongest
 	// available, so we confirm that the test token passes weak validation and then
 	// assert that StrongValidateToken and ValidateTokenForUse fail with the same error
 	assert.NoError(t, joining.WeakValidateToken(token))
 	strongValidateErr := joining.StrongValidateToken(token)
 	assert.Error(t, strongValidateErr)
-	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token))
+	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token, features))
 
 	// fix token so StrongValidate succeeds
 	token.Kind = types.KindScopedToken
@@ -1498,27 +1497,41 @@ func TestValidateTokenForUse(t *testing.T) {
 	}
 
 	// validation should succeed for node role if scopes are enabled
-	require.NoError(t, joining.ValidateTokenForUse(token))
+	require.NoError(t, joining.ValidateTokenForUse(token, features))
 
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "no")
+	features.Enabled = false
 	// validation should fail if scopes are disabled
-	require.ErrorContains(t, joining.ValidateTokenForUse(token), "scoping features are not enabled")
+	require.ErrorContains(t, joining.ValidateTokenForUse(token, features), "scoping features are not enabled")
 
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	features.Enabled = true
 	// validation should fail for kube role if agent pinning is disabled
 	token.Spec.Roles = append(token.Spec.Roles, string(types.RoleKube))
-	require.ErrorContains(t, joining.ValidateTokenForUse(token), "scoped token cannot be used to join [Node, Kube] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
+	require.ErrorContains(t, joining.ValidateTokenForUse(token, features), "scoped token cannot be used to join [Node, Kube] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
 
-	t.Setenv("TELEPORT_UNSTABLE_AGENT_SCOPE_PIN", "yes")
+	features.AgentPinEnabled = true
 	// validation should succeed for kube role if agent pinning is enabled
-	require.NoError(t, joining.ValidateTokenForUse(token))
+	require.NoError(t, joining.ValidateTokenForUse(token, features))
 
 	// validation should succeed for bot role even if agent scope pins are disabled
-	token.Spec.BotName = "bot-name"
-	token.Spec.BotScope = token.Spec.AssignedScope
-	token.Spec.AssignedScope = ""
+	token.Spec.Bot = token.Spec.AssignedScope + "::bot-name"
+	token.Spec.AssignedScope = "" // we expect this to be empty for bot tokens
 	token.Spec.JoinMethod = string(types.JoinMethodBoundKeypair)
 	token.Spec.UsageMode = string(joining.TokenUsageModeBot)
 	token.Spec.Roles = []string{string(types.RoleBot)}
-	require.NoError(t, joining.ValidateTokenForUse(token))
+	require.NoError(t, joining.ValidateTokenForUse(token, features))
+}
+
+func TestScopedTokenEncoding(t *testing.T) {
+	encoded := joining.EncodeScopedToken("TESTING", "SECRETSHERE")
+	require.Equal(t, "TESTING:"+base64.RawURLEncoding.EncodeToString([]byte("SECRETSHERE")), encoded)
+
+	name, secret, ok := joining.DecodeScopedToken(encoded)
+	assert.True(t, ok)
+	assert.Equal(t, "TESTING", name)
+	assert.Equal(t, "SECRETSHERE", secret)
+
+	name, secret, ok = joining.DecodeScopedToken("TESTING")
+	assert.False(t, ok)
+	assert.Equal(t, "TESTING", name)
+	assert.Empty(t, secret)
 }

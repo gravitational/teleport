@@ -1,0 +1,107 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.summarizer.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
+
+// AccessRequestConsistency represents whether session activity was consistent with the stated access request reason.
+enum AccessRequestConsistency {
+  // ACCESS_REQUEST_CONSISTENCY_UNSPECIFIED indicates that consistency was not assessed.
+  ACCESS_REQUEST_CONSISTENCY_UNSPECIFIED = 0;
+  // ACCESS_REQUEST_CONSISTENCY_CONSISTENT indicates that session activity was consistent with the stated access request reason.
+  ACCESS_REQUEST_CONSISTENCY_CONSISTENT = 1;
+  // ACCESS_REQUEST_CONSISTENCY_PARTIALLY_CONSISTENT indicates that session activity was partially consistent with the stated access request reason.
+  ACCESS_REQUEST_CONSISTENCY_PARTIALLY_CONSISTENT = 2;
+  // ACCESS_REQUEST_CONSISTENCY_INCONSISTENT indicates that session activity was inconsistent with the stated access request reason.
+  ACCESS_REQUEST_CONSISTENCY_INCONSISTENT = 3;
+}
+
+// AccessRequestSnapshot represents a snapshot of an access request associated with a session, if any. It contains
+// relevant information about the access request that can be used for assessing the session and its consistency with the
+// access request reason.
+message AccessRequestSnapshot {
+  // ID is the unique identifier of the access request.
+  string id = 1;
+  // Reason is the reason provided by the user when creating the access request.
+  string reason = 2;
+  // CreatedAt is when the access request was created.
+  google.protobuf.Timestamp created_at = 3;
+  // Expires is when the access request expires.
+  google.protobuf.Timestamp expires = 4;
+  // Roles is the list of roles that were requested.
+  repeated string roles = 5;
+  // Reviews is the full review history of the access request.
+  repeated AccessRequestReviewSnapshot reviews = 6;
+  // User is the user who created the access request.
+  string user = 7;
+  // RequestedResourceIDs is the set of resources access was requested for (for resource-based requests).
+  repeated RequestedResourceID requested_resource_ids = 8;
+}
+
+// RequestedResourceID identifies a specific resource that was requested in an access request.
+message RequestedResourceID {
+  // ClusterName is the name of the cluster the resource is in.
+  string cluster_name = 1;
+  // Kind is the resource kind.
+  string kind = 2;
+  // Name is the name of the specific resource.
+  string name = 3;
+  // SubResourceName is the sub-resource name, if any (e.g. "<kube_namespace>/<kube_pod>").
+  string sub_resource_name = 4;
+}
+
+// AccessRequestState represents the state of an access request for escalated privilege.
+enum AccessRequestState {
+  // AccessRequestStateUnspecified variant is used when the state of the request cannot be determined.
+  ACCESS_REQUEST_STATE_UNSPECIFIED = 0;
+  // AccessRequestStateNone variant exists to allow RequestState to be explicitly omitted
+  // in certain circumstances (e.g. in an AccessRequestFilter).
+  ACCESS_REQUEST_STATE_NONE = 1;
+  // AccessRequestStatePending variant is the default for newly created requests.
+  ACCESS_REQUEST_STATE_PENDING = 2;
+  // AccessRequestStateApproved variant indicates that a request has been accepted by
+  // an administrating party.
+  ACCESS_REQUEST_STATE_APPROVED = 3;
+  // AccessRequestStateDenied variant indicates that a request has been rejected by
+  // an administrating party.
+  ACCESS_REQUEST_STATE_DENIED = 4;
+  // AccessRequestStatePromoted variant indicates that a request has been promoted to
+  // an access list.
+  ACCESS_REQUEST_STATE_PROMOTED = 5;
+}
+
+// AccessRequestReviewSnapshot represents a snapshot of a single review of an access request, containing information
+// about the reviewer, their decision, and their reasoning.
+message AccessRequestReviewSnapshot {
+  // Author is the teleport username of the reviewer.
+  string author = 1;
+  // ProposedState is the proposed state (must be APPROVED or DENIED).
+  AccessRequestState proposed_state = 2;
+  // Reason is the reviewer's reason.
+  string reason = 3;
+  // CreatedAt is when the review was submitted.
+  google.protobuf.Timestamp created_at = 4;
+}
+
+// StoredAccessRequestSnapshots is a storage wrapper for serializing a list of
+// access request snapshots associated with a session.
+message StoredAccessRequestSnapshots {
+  // Snapshots is the list of access request snapshots.
+  repeated AccessRequestSnapshot snapshots = 1;
+}

@@ -572,7 +572,7 @@ func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *fileTransferRe
 		RequestID:       req.ID,
 		Requester:       req.Requester,
 		Location:        req.Location,
-		Filename:        req.Filename,
+		Filename:        req.filename,
 		Download:        req.Download,
 		Approvers:       make([]string, 0),
 	}
@@ -1883,6 +1883,8 @@ func (s *session) checkPresence(ctx context.Context) error {
 
 type fileTransferRequestWithApprovers struct {
 	reexecsftp.FileTransferRequest
+	// filename is the name of the file to be uploaded
+	filename string
 	// approvers is a list of participants of moderator or peer type that have approved the request
 	approvers map[string]*party
 }
@@ -1936,16 +1938,16 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 			ID:        uuid.New().String(),
 			Requester: params.Requester,
 			Location:  params.Location,
-			Filename:  params.Filename,
 			Download:  params.Download,
 		},
+		filename:  params.Filename,
 		approvers: make(map[string]*party),
 	}
 
 	if params.Download {
 		s.BroadcastMessage("User %s would like to download: %s", params.Requester, params.Location)
 	} else {
-		s.BroadcastMessage("User %s would like to upload %s to: %s", params.Requester, params.Filename, params.Location)
+		s.BroadcastMessage("User %s would like to upload to: %s", params.Requester, params.Location)
 	}
 	err := s.registry.notifyFileTransferRequestUnderLock(s.fileTransferReq, FileTransferUpdate, scx)
 

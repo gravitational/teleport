@@ -81,7 +81,7 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 	}
 	defer session.sessionAuditor.flush(s.cfg.ParentContext)
 
-	transport, err := s.makeStreamableHTTPTransport(session)
+	transport, err := s.makeStreamableHTTPTransport(ctx, session)
 	if err != nil {
 		return trace.Wrap(err, "setting up streamable http transport")
 	}
@@ -113,14 +113,14 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 	return trace.Wrap(s.serveHTTPConn(ctx, sessionCtx.ClientConn, reverseProxy))
 }
 
-func (s *Server) makeStreamableHTTPTransport(session *sessionHandler) (http.RoundTripper, error) {
+func (s *Server) makeStreamableHTTPTransport(ctx context.Context, session *sessionHandler) (http.RoundTripper, error) {
 	targetURI, err := url.Parse(session.App.GetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	targetURI.Scheme = strings.TrimPrefix(targetURI.Scheme, "mcp+")
 
-	targetTransport, err := s.makeBasicHTTPTransport(session.App)
+	targetTransport, err := s.makeBasicHTTPTransport(ctx, session.App)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

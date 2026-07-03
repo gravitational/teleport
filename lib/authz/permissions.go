@@ -38,12 +38,14 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -94,6 +96,8 @@ type AuthorizerOpts struct {
 	MFAAuthenticator    MFAAuthenticator
 	LockWatcher         *services.LockWatcher
 	Logger              *slog.Logger
+	// ScopesFeatures dictates which scoped authorization components are enabled.
+	ScopesFeatures scopes.Features
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -146,6 +150,7 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
+		scopesFeatures:          opts.ScopesFeatures,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
 		disableRoleDeviceMode:   opts.DeviceAuthorization.DisableRoleMode,
 	}, nil
@@ -240,6 +245,8 @@ type authorizer struct {
 	mfaAuthenticator    MFAAuthenticator
 	lockWatcher         *services.LockWatcher
 	logger              *slog.Logger
+	// scopesFeatures dictates whether scoped authorization is enabled.
+	scopesFeatures scopes.Features
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -438,6 +445,10 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 
 	if user, ok := userI.(LocalUser); ok && user.Identity.ScopePin != nil {
+		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
+	}
+
+	if _, ok := userI.(ScopedBuiltinRole); ok {
 		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
 	}
 
@@ -1879,6 +1890,40 @@ func (r BuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
 
+// ScopedBuiltinRole is the role of a scoped Teleport service — one whose access is constrained to a specific
+// scope via a scope pin. It is intentionally a distinct type from [BuiltinRole] so that code paths
+// handling builtin roles must explicitly opt into supporting scoped agents.
+type ScopedBuiltinRole struct {
+	// ScopePin is the agent scope pin, encoding the target scope and the agent's system roles.
+	ScopePin *scopesv1.Pin
+
+	// ServerFQDN is the host FQDN of the agent, of the form <host-uuid>.<cluster-name>.
+	ServerFQDN string
+
+	// ClusterName is the name of the local cluster.
+	ClusterName string
+
+	// Identity is source x509 used to build this role.
+	Identity tlsca.Identity
+}
+
+// GetServerID extracts the server UUID from the agent's ServerFQDN.
+func (r ScopedBuiltinRole) GetServerID() string {
+	return strings.TrimSuffix(r.ServerFQDN, "."+r.ClusterName)
+}
+
+// GetIdentity returns the client identity.
+func (r ScopedBuiltinRole) GetIdentity() tlsca.Identity {
+	return r.Identity
+}
+
+// IsServer returns true if the primary role is either RoleInstance, or one of
+// the local service roles (e.g. node).
+func (r ScopedBuiltinRole) IsServer() bool {
+	role := types.SystemRole(r.ScopePin.GetSystemRoles().GetPrimary())
+	return role == types.RoleInstance || role.IsLocalService()
+}
+
 // RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)
 // Teleport service.
 type RemoteBuiltinRole struct {
@@ -2077,12 +2122,7 @@ func IsLocalOrRemoteUser(authContext Context) bool {
 
 // IsLocalOrRemoteService checks if the identity is either a local or remote service.
 func IsLocalOrRemoteService(authContext Context) bool {
-	switch authContext.UnmappedIdentity.(type) {
-	case BuiltinRole, RemoteBuiltinRole:
-		return true
-	default:
-		return false
-	}
+	return isLocalOrRemoteService(authContext.UnmappedIdentity)
 }
 
 // IsCurrentUser checks if the identity is a local user matching the given username
@@ -2094,6 +2134,30 @@ func IsCurrentUser(authContext Context, username string) bool {
 func ScopedIsCurrentUser(scopedContext *ScopedContext, username string) bool {
 	_, isLocal := scopedContext.Identity.(LocalUser)
 	return isLocal && scopedContext.User.GetName() == username
+}
+
+// ScopedIsLocalOrRemoteService checks if the scoped identity is either a local or
+// remote service, for scoped or unscoped agents alike. This is the
+// scoped aware counterpart to [IsLocalOrRemoteService].
+// RemoteBuiltinRoles continue to be only available for unscoped identities.
+func ScopedIsLocalOrRemoteService(scopedContext *ScopedContext) bool {
+	if scopedContext == nil {
+		return false
+	}
+
+	if scopedContext.unscopedContext != nil {
+		return isLocalOrRemoteService(scopedContext.unscopedContext.UnmappedIdentity)
+	}
+	return isLocalOrRemoteService(scopedContext.Identity)
+}
+
+func isLocalOrRemoteService(identity IdentityGetter) bool {
+	switch identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole, ScopedBuiltinRole:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsRemoteUser checks if the identity is a remote user.

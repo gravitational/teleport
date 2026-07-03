@@ -39,6 +39,8 @@ export function DesktopSessionControls({
   const iconColor = (active: boolean) =>
     active ? theme.colors.text.main : theme.colors.text.muted;
 
+  const isSharingDirectory = controls.sharedDirectories.length > 0;
+
   return (
     <Inset>
       <Box mx={2}>
@@ -50,14 +52,14 @@ export function DesktopSessionControls({
       <HoverTooltip
         tipContent={directorySharingTooltip(
           controls.canShareDirectory,
-          controls.isSharingDirectory
+          isSharingDirectory
         )}
         placement="top"
       >
         <FolderShared
           size="small"
           padding="8px"
-          color={iconColor(controls.isSharingDirectory)}
+          color={iconColor(isSharingDirectory)}
         />
       </HoverTooltip>
       <HoverTooltip
@@ -88,10 +90,8 @@ export function DesktopSessionControls({
         openUpward
       />
       <ActionMenu
-        showShareDirectory={
-          controls.canShareDirectory && !controls.isSharingDirectory
-        }
-        onShareDirectory={controls.onShareDirectory}
+        showShareDirectory={controls.canShareDirectory && !isSharingDirectory}
+        onShareDirectory={controls.onAddSharedDirectory}
         onCtrlAltDel={controls.onCtrlAltDel}
         onDisconnect={controls.onDisconnect}
         openUpward

@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
@@ -942,10 +943,9 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 // TestBasicSSHScopedLogin verifies the basic expected behavior of a scoped login attempt using password-only
 // auth and a rudimentary set of scoped roles.
 func TestBasicSSHScopedLogin(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
+	t.Parallel()
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
+	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	authServer := testServer.Auth()
 
 	adminClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleAdmin))
@@ -1098,6 +1098,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 
 	// verify that the expected scope pin is applied to ssh and tls certificates
 	expectedPin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/aa/bb",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 			"/aa":       {"/aa": {"role-a"}},

@@ -47,6 +47,7 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 	fullIdentity := &decisionpb.TLSIdentity{
 		Username: "user",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"role1", "role2"}},

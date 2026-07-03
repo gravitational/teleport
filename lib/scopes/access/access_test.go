@@ -1047,8 +1047,7 @@ func TestValidateAsssignment(t *testing.T) {
 				},
 				Scope: "/",
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-					BotName:  "mybot",
-					BotScope: "/foo/bar",
+					Bot: "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						{
 							Role:  "test",
@@ -1062,98 +1061,95 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "bot_name and user both set",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			name: "bot and user both set",
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-					User:     "alice",
-					BotName:  "mybot",
-					BotScope: "/foo/bar",
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+					User: "alice",
+					Bot:  "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
 						},
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
-			name: "bot_name without bot_scope",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			name: "bot missing scope qualification",
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-					BotName: "mybot",
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+					Bot: "mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
 						},
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
-			name: "bot_scope without bot_name",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			name: "bot with empty name component",
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-					User:     "alice",
-					BotScope: "/foo/bar",
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+					Bot: "/foo/bar::",
 					Assignments: []*scopedaccessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
 						},
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
-			name: "invalid bot_scope",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			name: "invalid bot scope",
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-					BotName:  "mybot",
-					BotScope: "not-a-scope",
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+					Bot: "not-a-scope::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
 						},
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
@@ -1166,9 +1162,8 @@ func TestValidateAsssignment(t *testing.T) {
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-					BotName:  "mybot",
-					BotScope: "/foo/bar",
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+					Bot: "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						// Valid
 						{
@@ -1181,7 +1176,7 @@ func TestValidateAsssignment(t *testing.T) {
 							Scope: "/foo/baz",
 						},
 					},
-				},
+				}.Build(),
 				Version: types.V1,
 			},
 			strongOk: false,
