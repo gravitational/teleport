@@ -297,7 +297,7 @@ func WorkloadIdentityKey(sortField WorkloadIdentitySortField) (func(*workloadide
 func workloadIdentityCursor(wi *workloadidentityv1pb.WorkloadIdentity) string {
 	cursor, err := scopes.MakeResourceCursor(wi.GetScope(), wi.GetMetadata().GetName())
 	if err != nil {
-		// TODO(strideynet): Define sane behaviour with Forrest/Nic or find
+		// TODO(strideynet): Define sane behavior with Forrest/Nic or find
 		// resource cursor mechanism which is infallible. Ensure pattern is
 		// applied to Bots and Bot Instances too :')
 		panic(err)
