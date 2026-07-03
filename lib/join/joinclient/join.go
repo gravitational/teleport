@@ -395,17 +395,17 @@ func joinWithMethod(
 		}
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodGenericOIDC:
-		params := joinParams.GenericOIDCParams
-		if err := params.Validate(); err != nil {
-			return nil, trace.Wrap(err, "validating generic_oidc params")
-		}
-
-		timeout := params.Timeout
-		if timeout == 0 {
-			timeout = time.Minute
-		}
-
 		if joinParams.IDToken == "" {
+			params := joinParams.GenericOIDCParams
+			if err := params.Validate(); err != nil {
+				return nil, trace.Wrap(err, "validating generic_oidc params")
+			}
+
+			timeout := params.Timeout
+			if timeout == 0 {
+				timeout = time.Minute
+			}
+
 			source := genericoidc.NewIDTokenSource(os.Getenv, genericoidc.DefaultCommandRunner)
 			if params.EnvVarName != "" {
 				joinParams.IDToken, err = source.GetIDTokenFromEnvironment(params.EnvVarName)
