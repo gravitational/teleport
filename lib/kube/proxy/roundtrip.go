@@ -207,6 +207,7 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	// request headers. This is necessary to forward the original user's impersonation
 	// when multiple kubernetes_users are available.
 	copyImpersonationHeaders(header, s.originalHeaders)
+	copyInBandMFAHeaders(header, s.originalHeaders)
 	header.Set(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
 	header.Set(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
 	if err := setupImpersonationHeaders(s.sess, header); err != nil {

@@ -230,6 +230,24 @@ func (f *Forwarder) accessWouldBeGrantedWithMFA(ctx context.Context, actx *authC
 	return err == nil
 }
 
+// copyInBandMFAHeaders copies the in-band MFA negotiation headers from the original
+// inbound request to an upgrade request rebuilt by a streaming executor
+// (exec/attach/port-forward), which does not carry the original request headers. The
+// fingerprint header was sanitized when the inbound request was authenticated, so
+// copying it preserves the trust established there.
+func copyInBandMFAHeaders(dst, src http.Header) {
+	for _, h := range []string{
+		common.KubeInBandMFACapabilityHeader,
+		common.KubeInBandMFASessionFingerprintHeader,
+		common.KubeInBandMFAChallengeResponseHeader,
+	} {
+		dst.Del(h)
+		if v := src.Get(h); v != "" {
+			dst.Set(h, v)
+		}
+	}
+}
+
 // writeInBandMFAChallenge writes the distinguishable 401 challenge response consumed by
 // the kube local proxy. kubectl never sees it: the local proxy intercepts the challenge,
 // runs the MFA ceremony, and retries the request.

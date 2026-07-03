@@ -445,6 +445,28 @@ func TestAuthorizeInBandMFA(t *testing.T) {
 	}
 }
 
+func TestCopyInBandMFAHeaders(t *testing.T) {
+	t.Parallel()
+
+	src := http.Header{}
+	src.Set(common.KubeInBandMFACapabilityHeader, common.KubeInBandMFACapabilityMFAv2)
+	src.Set(common.KubeInBandMFASessionFingerprintHeader, "fingerprint")
+	src.Set(common.KubeInBandMFAChallengeResponseHeader, "challenge-1")
+
+	dst := http.Header{}
+	dst.Set(common.KubeInBandMFASessionFingerprintHeader, "stale-value")
+	copyInBandMFAHeaders(dst, src)
+	require.Equal(t, common.KubeInBandMFACapabilityMFAv2, dst.Get(common.KubeInBandMFACapabilityHeader))
+	require.Equal(t, "fingerprint", dst.Get(common.KubeInBandMFASessionFingerprintHeader))
+	require.Equal(t, "challenge-1", dst.Get(common.KubeInBandMFAChallengeResponseHeader))
+
+	// Headers absent from the source are removed from the destination, not left stale.
+	dst2 := http.Header{}
+	dst2.Set(common.KubeInBandMFACapabilityHeader, common.KubeInBandMFACapabilityMFAv2)
+	copyInBandMFAHeaders(dst2, http.Header{})
+	require.Empty(t, dst2.Get(common.KubeInBandMFACapabilityHeader))
+}
+
 func TestFormatStatusResponseErrorInBandChallenge(t *testing.T) {
 	t.Parallel()
 
