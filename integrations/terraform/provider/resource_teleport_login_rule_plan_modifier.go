@@ -51,7 +51,8 @@ func (r resourceTeleportLoginRule) ModifyPlan(ctx context.Context, req tfsdk.Mod
 		return
 	}
 
-	resp.Diagnostics.Append(schemav1.CopyLoginRuleToTerraform(ctx, loginRule, &config)...)
+	preserveUnknown := true
+	resp.Diagnostics.Append(schemav1.CopyLoginRuleToTerraformPreserveUnknown(ctx, loginRule, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
