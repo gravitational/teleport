@@ -180,12 +180,12 @@ func (s *EnrollPairingService) GetEnrollPairingByToken(ctx context.Context, toke
 
 	item, err := s.backend.Get(ctx, enrollPairingByTokenKey(token))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "read by index")
 	}
 
 	pairing, err := s.service.GetResource(ctx, string(item.Value))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "read enroll pairing")
 	}
 
 	// Verify that the index and the pairing have the same token, in case the
