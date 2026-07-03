@@ -39,8 +39,7 @@ import (
 // consumers to access the resource in a similar way.
 type WorkloadIdentities interface {
 	// GetWorkloadIdentity gets a WorkloadIdentity by its scope-qualified name.
-	// An empty scope reads from the unscoped key range (classic behavior); a
-	// non-empty scope reads from the scope-namespaced range.
+	// An empty scope addresses an unscoped WorkloadIdentity.
 	GetWorkloadIdentity(
 		ctx context.Context, name scopes.QualifiedName,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
@@ -57,7 +56,7 @@ type WorkloadIdentities interface {
 		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
 	// DeleteWorkloadIdentity deletes a WorkloadIdentity by its scope-qualified
-	// name. An empty scope deletes from the unscoped key range.
+	// name.
 	DeleteWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) error
 	// UpdateWorkloadIdentity updates a specific WorkloadIdentity. The resource must
 	// already exist, and, condition update semantics are used - e.g the submitted
@@ -293,15 +292,9 @@ func WorkloadIdentityKey(sortField WorkloadIdentitySortField) (func(*workloadide
 }
 
 // workloadIdentityCursor returns the canonical resource cursor for a
-// WorkloadIdentity. It is used both as the WorkloadIdentity's in-memory cache
-// index key and as its pagination cursor, so it must be stable and unique per
-// resource.
-//
-// Unscoped identities key on their bare name, preserving historical name-only
-// cursors. Scoped identities key on their scope-qualified cursor so they do not
-// collide with unscoped identities (or identities of the same name in other
-// scopes) and sort after all unscoped identities, mirroring the ordering of the
-// scope-aware backend key ranges.
+// WorkloadIdentity, used both as its in-memory cache index key and as its
+// pagination cursor, so it must be stable and unique per resource. See
+// scopes.MakeResourceCursor for the cursor format and ordering properties.
 func workloadIdentityCursor(wi *workloadidentityv1pb.WorkloadIdentity) string {
 	cursor, err := scopes.MakeResourceCursor(wi.GetScope(), wi.GetMetadata().GetName())
 	if err != nil {

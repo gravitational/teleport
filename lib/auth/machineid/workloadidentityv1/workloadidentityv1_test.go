@@ -2598,7 +2598,7 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	require.NoError(t, err)
 
 	// Scoped readers pinned to two scopes. Scoped workload identities are seeded
-	// inside the scoped subtests below so the unscoped count assertions stay valid.
+	// inside the scoped subtest below so the unscoped count assertions stay valid.
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = adminClient.Close() })
@@ -2720,7 +2720,7 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 		}
 	})
 
-	t.Run("scoped granted user lists only its own scope", func(t *testing.T) {
+	t.Run("scoped users list only their own scope", func(t *testing.T) {
 		for _, name := range []string{"gl-granted-1", "gl-granted-2"} {
 			_, err := srv.Auth().CreateWorkloadIdentity(ctx, scopedWorkloadIdentity(name, grantedScope, grantedScope+"/_/"+name))
 			require.NoError(t, err)
@@ -2751,26 +2751,20 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 		}.Build())
 		require.NoError(t, err)
 		require.Empty(t, res.GetWorkloadIdentities())
-	})
 
-	t.Run("scoped other user lists only its own scope", func(t *testing.T) {
-		_, err := srv.Auth().CreateWorkloadIdentity(ctx, scopedWorkloadIdentity("ol-other-1", otherScope, otherScope+"/_/ol-other-1"))
-		require.NoError(t, err)
-		_, err = srv.Auth().CreateWorkloadIdentity(ctx, scopedWorkloadIdentity("ol-granted-1", grantedScope, grantedScope+"/_/ol-granted-1"))
-		require.NoError(t, err)
-
-		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(otherClient.GetConnection())
-		res, err := client.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+		// The other scope's user sees the mirror image over the same fixtures.
+		client = workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(otherClient.GetConnection())
+		res, err = client.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
 			PageSize: 100,
 		}.Build())
 		require.NoError(t, err)
-		names := map[string]struct{}{}
+		names = map[string]struct{}{}
 		for _, wi := range res.GetWorkloadIdentities() {
 			names[wi.GetMetadata().GetName()] = struct{}{}
 			require.Equal(t, otherScope, wi.GetScope())
 		}
-		require.Contains(t, names, "ol-other-1")
-		require.NotContains(t, names, "ol-granted-1")
+		require.Contains(t, names, "gl-other-1")
+		require.NotContains(t, names, "gl-granted-1")
 	})
 }
 

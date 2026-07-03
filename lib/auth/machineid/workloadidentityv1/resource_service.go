@@ -40,18 +40,15 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-// workloadIdentityReader is the read interface used to serve reads (satisfied
-// by the cache). Reads are scope-qualified; an empty scope addresses an
-// unscoped WorkloadIdentity.
+// workloadIdentityReader is the interface used to serve reads, satisfied by
+// the cache.
 type workloadIdentityReader interface {
 	GetWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) (*workloadidentityv1pb.WorkloadIdentity, error)
 	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 }
 
 // workloadIdentityReadWriter is the interface used to mutate the authoritative
-// backend, which namespaces resources by scope. Writes that address an existing
-// resource are scope-qualified; create/update/upsert read the scope from the
-// resource itself.
+// backend, which namespaces resources by scope.
 type workloadIdentityReadWriter interface {
 	CreateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 	UpdateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
@@ -227,7 +224,6 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 				types.VerbList,
 			)
 		}); err != nil {
-			// Ignore resources the user cannot access.
 			return nil, false
 		}
 		return wi, true

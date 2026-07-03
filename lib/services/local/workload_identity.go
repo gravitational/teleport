@@ -53,8 +53,7 @@ func NewWorkloadIdentityService(b backend.Backend) (*WorkloadIdentityService, er
 			Backend:      b,
 			ResourceKind: types.KindWorkloadIdentity,
 			// Unscoped resources keep their historical key range so existing
-			// WorkloadIdentities are unaffected; scoped resources are namespaced
-			// by scope under a separate range.
+			// WorkloadIdentities are unaffected.
 			UnscopedBackendPrefix: backend.NewKey(workloadIdentityPrefix),
 			ScopedBackendPrefix:   backend.NewKey(scopedPrefix, workloadIdentityPrefix),
 			MarshalFunc:           services.MarshalWorkloadIdentity,
@@ -78,8 +77,6 @@ func (b *WorkloadIdentityService) CreateWorkloadIdentity(
 }
 
 // GetWorkloadIdentity retrieves a WorkloadIdentity by its scope-qualified name.
-// An empty scope reads from the unscoped key range, else from the
-// scope-namespaced range.
 func (b *WorkloadIdentityService) GetWorkloadIdentity(
 	ctx context.Context, name scopes.QualifiedName,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
@@ -107,7 +104,7 @@ func (b *WorkloadIdentityService) RangeWorkloadIdentities(
 }
 
 // DeleteWorkloadIdentity deletes a specific WorkloadIdentity given a
-// scope-qualified name. An empty scope deletes from the unscoped key range.
+// scope-qualified name.
 func (b *WorkloadIdentityService) DeleteWorkloadIdentity(
 	ctx context.Context, name scopes.QualifiedName,
 ) error {
@@ -206,7 +203,6 @@ func workloadIdentityScopeName(key backend.Key) (string, string, error) {
 	if name == "" {
 		return "", "", trace.NotFound("failed parsing %v", key.String())
 	}
-	// Unscoped identities have an empty scope.
 	return "", name, nil
 }
 
