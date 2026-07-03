@@ -19,7 +19,6 @@ package local
 import (
 	"context"
 	"iter"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -178,39 +177,52 @@ func (b *WorkloadIdentityService) AppendDeleteWorkloadIdentityActions(
 	}), nil
 }
 
-// workloadIdentityScopeName recovers the scope and name of a deleted
-// WorkloadIdentity from its backend key. It handles both the unscoped key range
-// (<workload_identity>/<name>) and the scope-namespaced range
-// (<scoped>/<workload_identity>/<encoded-scope>/<name>). An unscoped identity
-// has an empty scope.
-// TODO(strideynet): Does nick have a helper/pattern for this elsewhere??? this
-// code makes me sad:(
-func workloadIdentityScopeName(key backend.Key) (string, string, error) {
-	scopedKeyPrefix := backend.ExactKey(scopedPrefix, workloadIdentityPrefix)
-	if key.HasPrefix(scopedKeyPrefix) {
-		components := key.TrimPrefix(scopedKeyPrefix).Components()
-		if len(components) != 2 {
-			return "", "", trace.NotFound("failed parsing %v", key.String())
-		}
-		scope, err := scopes.DecodeFromKey(components[0])
-		if err != nil {
-			return "", "", trace.Wrap(err)
-		}
-		return scope, components[1], nil
-	}
+func workloadIdentityUnscopedWatchPrefix() backend.Key {
+	return backend.ExactKey(workloadIdentityPrefix)
+}
 
-	name := strings.TrimPrefix(key.TrimPrefix(backend.NewKey(workloadIdentityPrefix)).String(), backend.SeparatorString)
-	if name == "" {
-		return "", "", trace.NotFound("failed parsing %v", key.String())
+func workloadIdentityScopedWatchPrefix() backend.Key {
+	return backend.ExactKey(scopedPrefix, workloadIdentityPrefix)
+}
+
+// workloadIdentityNameFromKey recovers the scope-qualified name of a deleted
+// WorkloadIdentity from its backend key. It handles both the unscoped key
+// range (<workload_identity>/<name>) and the scope-namespaced range
+// (<scoped>/<workload_identity>/<encoded-scope>/<name>).
+func workloadIdentityNameFromKey(key backend.Key) (scopes.QualifiedName, error) {
+	switch {
+	case key.HasPrefix(workloadIdentityScopedWatchPrefix()):
+		components := key.TrimPrefix(workloadIdentityScopedWatchPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		encodedScope, name := components[0], components[1]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  name,
+		}, nil
+	case key.HasPrefix(workloadIdentityUnscopedWatchPrefix()):
+		components := key.TrimPrefix(workloadIdentityUnscopedWatchPrefix()).Components()
+		if len(components) != 1 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		return scopes.QualifiedName{
+			Name: components[0],
+		}, nil
+	default:
+		return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
 	}
-	return "", name, nil
 }
 
 func newWorkloadIdentityParser() *workloadIdentityParser {
 	return &workloadIdentityParser{
 		baseParser: newBaseParser(
-			backend.ExactKey(workloadIdentityPrefix),
-			backend.ExactKey(scopedPrefix, workloadIdentityPrefix),
+			workloadIdentityUnscopedWatchPrefix(),
+			workloadIdentityScopedWatchPrefix(),
 		),
 	}
 }
@@ -222,12 +234,12 @@ type workloadIdentityParser struct {
 func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		scope, name, err := workloadIdentityScopeName(event.Item.Key)
+		name, err := workloadIdentityNameFromKey(event.Item.Key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if scope != "" {
+		if name.Scope != "" {
 			// For scoped wids, we need to leverage a "skeleton" rather than the
 			// ResourceHeader which has no place for the scope.
 			// At some later date, we'll migrate to using the skeleton rather
@@ -236,9 +248,9 @@ func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, err
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
 				Metadata: headerv1.Metadata_builder{
-					Name: name,
+					Name: name.Name,
 				}.Build(),
-				Scope: scope,
+				Scope: name.Scope,
 			}.Build()), nil
 		}
 
@@ -248,7 +260,7 @@ func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, err
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name: name,
+				Name: name.Name,
 			},
 		}, nil
 	case types.OpPut:
