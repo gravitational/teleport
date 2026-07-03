@@ -252,9 +252,7 @@ func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 	ctx context.Context,
 	client *authclient.Client,
 ) error {
-	// A scope-qualified name ("<scope>::<name>") deletes a scoped workload
-	// identity; a bare name deletes an unscoped one. The scope (if any) travels
-	// in the request and the server authorizes against it directly.
+	// Provided name may be unscoped or an SQN
 	name := c.workloadIdentityName
 	var scope string
 	if strings.Contains(name, scopes.QualifiedNameSeparator) {
