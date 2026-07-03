@@ -201,7 +201,8 @@ func (a *Server) upsertMFASession(ctx context.Context, params upsertMFASessionPa
 
 	if params.sip != nil {
 		data.Payload = &mfatypes.SessionIdentifyingPayload{
-			SSHSessionID: params.sip.GetSshSessionId(),
+			SSHSessionID:              params.sip.GetSshSessionId(),
+			KubeClientCertFingerprint: params.sip.GetKubeClientCertFingerprint(),
 		}
 	}
 

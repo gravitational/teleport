@@ -29,5 +29,6 @@ type ChallengeExtensions struct {
 
 // SessionIdentifyingPayload is a json struct for [mfav1.SessionIdentifyingPayload].
 type SessionIdentifyingPayload struct {
-	SSHSessionID []byte `json:"ssh_session_id,omitempty"`
+	SSHSessionID              []byte `json:"ssh_session_id,omitempty"`
+	KubeClientCertFingerprint []byte `json:"kube_client_cert_fingerprint,omitempty"`
 }

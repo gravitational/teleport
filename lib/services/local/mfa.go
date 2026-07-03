@@ -211,8 +211,9 @@ func checkValidatedMFAChallenge(chal *mfav2.ValidatedMFAChallenge) error {
 		return trace.BadParameter("spec must be set")
 	case chal.GetSpec().GetPayload() == nil:
 		return trace.BadParameter("payload must be set")
-	case len(chal.GetSpec().GetPayload().GetSshSessionId()) == 0:
-		return trace.BadParameter("ssh_session_id must be set")
+	case len(chal.GetSpec().GetPayload().GetSshSessionId()) == 0 &&
+		len(chal.GetSpec().GetPayload().GetKubeClientCertFingerprint()) == 0:
+		return trace.BadParameter("a payload value must be set")
 	case chal.GetSpec().GetSourceCluster() == "":
 		return trace.BadParameter("source_cluster must be set")
 	case chal.GetSpec().GetTargetCluster() == "":

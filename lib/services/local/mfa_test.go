@@ -183,7 +183,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: trace.BadParameter("payload must be set"),
 		},
 		{
-			name:          "empty ssh_session_id",
+			name:          "empty payload value",
 			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav2.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
@@ -192,7 +192,19 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 				c.GetSpec().SetPayload(payload)
 				return c
 			}(),
-			wantErr: trace.BadParameter("ssh_session_id must be set"),
+			wantErr: trace.BadParameter("a payload value must be set"),
+		},
+		{
+			name:          "kube client cert fingerprint payload accepted",
+			targetCluster: &defaultTargetCluster,
+			chal: func() *mfav2.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.GetMetadata().SetName("kube-challenge")
+				payload := &mfav2.SessionIdentifyingPayload{}
+				payload.SetKubeClientCertFingerprint([]byte("kube-cert-fingerprint"))
+				c.GetSpec().SetPayload(payload)
+				return c
+			}(),
 		},
 		{
 			name:          "missing source_cluster",

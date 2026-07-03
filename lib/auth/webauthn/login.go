@@ -210,7 +210,8 @@ func (f *loginFlow) begin(ctx context.Context, params BeginParams) (*wantypes.Cr
 	// Attach SIP if provided.
 	if params.SessionIdentifyingPayload != nil {
 		sd.Payload = &mfatypes.SessionIdentifyingPayload{
-			SSHSessionID: params.SessionIdentifyingPayload.GetSshSessionId(),
+			SSHSessionID:              params.SessionIdentifyingPayload.GetSshSessionId(),
+			KubeClientCertFingerprint: params.SessionIdentifyingPayload.GetKubeClientCertFingerprint(),
 		}
 	}
 

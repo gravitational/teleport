@@ -397,8 +397,11 @@ func (s *Service) ValidateSessionChallenge(
 				Name: mfaResp.GetName(),
 			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+				// At most one of the payload fields is set; the builder skips nil members,
+				// so the populated variant lands in the oneof.
 				Payload: mfav2.SessionIdentifyingPayload_builder{
-					SshSessionId: details.Payload.SSHSessionID,
+					SshSessionId:              details.Payload.SSHSessionID,
+					KubeClientCertFingerprint: details.Payload.KubeClientCertFingerprint,
 				}.Build(),
 				SourceCluster: details.SourceCluster,
 				TargetCluster: details.TargetCluster,
@@ -561,9 +564,10 @@ func (s *Service) VerifyValidatedMFAChallenge(
 	}
 
 	// Ensure the payload in the request matches the stored challenge payload for the same type.
-	reqSshSessionId := req.GetPayload().GetSshSessionId()
-	storedSshSessionId := chal.GetSpec().GetPayload().GetSshSessionId()
-	if !bytes.Equal(reqSshSessionId, storedSshSessionId) {
+	reqPayload, storedPayload := req.GetPayload(), chal.GetSpec().GetPayload()
+	if reqPayload.WhichPayload() != storedPayload.WhichPayload() ||
+		!bytes.Equal(reqPayload.GetSshSessionId(), storedPayload.GetSshSessionId()) ||
+		!bytes.Equal(reqPayload.GetKubeClientCertFingerprint(), storedPayload.GetKubeClientCertFingerprint()) {
 		return nil, trace.AccessDenied("request payload does not match validated challenge payload")
 	}
 
@@ -857,8 +861,17 @@ func checkPayload(sip *mfav2.SessionIdentifyingPayload) error {
 		return trace.BadParameter("missing SessionIdentifyingPayload in request")
 	}
 
-	if len(sip.GetSshSessionId()) == 0 {
-		return trace.BadParameter("empty SshSessionId in payload")
+	switch sip.WhichPayload() {
+	case mfav2.SessionIdentifyingPayload_SshSessionId_case:
+		if len(sip.GetSshSessionId()) == 0 {
+			return trace.BadParameter("empty SshSessionId in payload")
+		}
+	case mfav2.SessionIdentifyingPayload_KubeClientCertFingerprint_case:
+		if len(sip.GetKubeClientCertFingerprint()) == 0 {
+			return trace.BadParameter("empty KubeClientCertFingerprint in payload")
+		}
+	default:
+		return trace.BadParameter("missing payload value in SessionIdentifyingPayload")
 	}
 
 	return nil
