@@ -228,6 +228,7 @@ export function createReferencePages(
     };
   });
 
+  // Create a list of themed pages based on the config.json file. Each page will contain the segments that belong to that theme.
   const themePages = config.themes.map((theme: { id: string; name: string; segments: string[]; introduction?: string }) => {
     return {
       id: theme.id,
@@ -253,12 +254,15 @@ ${theme.introduction ? `\n${theme.introduction}\n` : ''}
     };
   });
 
-  themePages.push({
-    id: "miscellaneous",
-    content: segments.filter(segment => !config.themes.some(theme => theme.segments.indexOf(segment.type) !== -1)).reduce(
-      (accum, current) => {
-        return accum + '\n' + current.content;
-      },
+  // Add a miscellaneous page for any segments that do have not been added under a theme.
+  const segmentsNotInThemes = segments.some(segment => !config.themes.some(theme => theme.segments.indexOf(segment.type) !== -1))
+  if (segmentsNotInThemes) {
+    themePages.push({
+      id: "miscellaneous",
+      content: segments.filter(segment => !config.themes.some(theme => theme.segments.indexOf(segment.type) !== -1)).reduce(
+        (accum, current) => {
+          return accum + '\n' + current.content;
+        },
       `---
 title: Miscellaneous Audit Events
 description: "Provides a list of miscellaneous audit events."
@@ -272,8 +276,8 @@ description: "Provides a list of miscellaneous audit events."
 what we standardize on in the docs*/}
 {/* vale messaging.capitalization = NO */}
 `,
-    ),
-  });
-
+      ),
+    });
+  }
   return themePages;
 }
