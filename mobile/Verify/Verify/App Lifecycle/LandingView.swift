@@ -30,6 +30,8 @@ struct LandingView: View {
 					.frame(maxWidth: .infinity, maxHeight: 44, alignment: .leading)
 				ScrollView {
 					VStack(spacing: .large) {
+						Icon(systemName: "viewfinder")
+							.padding(.top, .xlarge)
 						titleBlock
 						instructionSteps
 						scanQRCodeButton
@@ -41,12 +43,12 @@ struct LandingView: View {
 
 			// MARK: Navigation
 
-			.navigationDestination(
-				item: $viewModel.destination.deviceEnrollment,
-				destination: { deviceEnrollmentViewModel in
-					EnrollDeviceView(viewModel: deviceEnrollmentViewModel)
-				},
-			)
+			.navigationDestination(item: $viewModel.destination.enrollDevice) { deviceEnrollmentViewModel in
+				EnrollDeviceView(viewModel: deviceEnrollmentViewModel)
+			}
+			.sheet(item: $viewModel.destination.cameraScanner, id: \.presentationID) { enrollCameraScannerViewModel in
+				EnrollCameraScannerView(viewModel: enrollCameraScannerViewModel)
+			}
 			.alert(
 				item: $viewModel.destination.deepLinkParsingAlert,
 				title: { errorMessage in
@@ -56,6 +58,10 @@ struct LandingView: View {
 					Button("OK") {}
 				},
 			)
+
+			// MARK: Haptics
+
+			.sensoryFeedback(.success, trigger: viewModel.sensoryFeedbackTrigger)
 		}
 	}
 }
@@ -67,7 +73,6 @@ extension LandingView {
 		VStack(spacing: .small) {
 			Text("Scan QR code")
 				.font(.title)
-				.padding(.top, .xlarge)
 			Text("Enroll this device for your cluster by scanning the QR code in your web browser")
 				.font(.callout)
 				.multilineTextAlignment(.center)
@@ -97,13 +102,13 @@ extension LandingView {
 
 	private var scanQRCodeButton: some View {
 		Button {
-			print("scanning has not been built yet")
+			viewModel.userTappedOnScanQRCode()
 		} label: {
 			Text("Scan QR Code")
-				.padding(.vertical, .xsmall)
 				.frame(maxWidth: .infinity)
 		}
-		.buttonStyle(.borderedProminent)
+		.buttonStyle(.primary)
+		.controlSize(.large)
 	}
 
 	private func instructionStep(stepNumber: UInt, @ViewBuilder label: () -> some View) -> some View {

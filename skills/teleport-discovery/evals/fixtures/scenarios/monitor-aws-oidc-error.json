@@ -1,0 +1,31 @@
+{
+  "tsh": {
+    "profile_url": "https://acme.teleport.sh:443",
+    "cluster": "acme.teleport.sh",
+    "username": "eval"
+  },
+  "tctl": {
+    "cluster": "acme.teleport.sh",
+    "version": "18.8.0",
+    "discovery_config": {
+      "kind": "discovery_config",
+      "version": "v1",
+      "metadata": { "name": "discovery-eval" },
+      "spec": {
+        "discovery_group": "cloud-discovery-group",
+        "aws": [
+          { "types": ["ec2"], "regions": ["us-west-2"], "tags": { "env": ["dev"] }, "integration": "discovery" }
+        ]
+      },
+      "status": {
+        "state": "DISCOVERY_CONFIG_STATE_ERROR",
+        "errorMessage": "operation error STS: AssumeRoleWithWebIdentity, https response error StatusCode: 403, api error AccessDenied: Not authorized to perform sts:AssumeRoleWithWebIdentity: the audience or thumbprint of the OIDC provider for acme.teleport.sh does not match",
+        "integrationDiscoveredResources": {}
+      }
+    },
+    "user_tasks": [],
+    "discovery_nodes": [],
+    "tokens": [{ "name": "discovery-aws-iam-abc", "type": "iam,node", "expiry": "never" }],
+    "inventory_discovery": [{ "id": "discovery-svc-1" }]
+  }
+}

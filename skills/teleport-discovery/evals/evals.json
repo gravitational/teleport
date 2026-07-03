@@ -1,128 +1,323 @@
 {
   "skill_name": "teleport-discovery",
-  "execution": {
-    "mode": "sequential",
-    "teardown_after_each": true,
-    "timeout_seconds": 300
-  },
   "evals": [
     {
       "id": 1,
-      "prompt": "I want to set up Teleport discovery for my cluster. tsh is at evals/files/mock-tsh, tctl is at evals/files/mock-tctl.",
-      "context": {},
-      "expected_output": "Skill checks prerequisites, then asks which cloud provider to configure (Azure or AWS). Does not run any cloud-provider CLI or write any files.",
-      "files": [
-        "evals/files/mock-tctl",
-        "evals/files/mock-tsh"
-      ],
-      "expectations": [
-        "Ran tsh status to check authentication",
-        "Ran tctl status to check cluster connection",
-        "Did not run any az or aws commands",
-        "Did not write any files",
-        "Asked the user which cloud provider they want to configure (Azure or AWS)",
-        "Did not proceed past the provider selection without user input"
+      "eval_name": "aws-write-ec2-basic",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "cloud-aws",
+      "copy_fixture": null,
+      "prompt": "We run Teleport Cloud, our tenant is acme.teleport.sh. I want our EC2 instances in us-west-2 tagged env=dev to enroll automatically. Write the discovery Terraform into a new directory here. The plan is approved, but do not run terraform init, plan, or apply. I'll apply it myself.",
+      "assertions": [
+        "Wrote Terraform versions.tf and main.tf files in a new directory under outputs.",
+        "terraform validate passes for the directory.",
+        "main.tf module source is exactly terraform.releases.teleport.dev/teleport/discovery/aws.",
+        "The module block label is aws_discovery.",
+        "teleport_proxy_public_addr is exactly acme.teleport.sh:443 with no https:// scheme.",
+        "teleport_discovery_group_name is exactly cloud-discovery-group.",
+        "Exactly one matcher: types [\"ec2\"], regions [\"us-west-2\"], tags {env: [\"dev\"]}. No EKS matcher.",
+        "The teleport provider version constraint in versions.tf is >= 18.8.0, < 19.0.0. An open-ended >= 18.8.0 fails because it permits future majors, and a major-only pin such as ~> 18.0 fails because it permits versions below the 18.8.0 discovery-module minimum.",
+        "The module block pins version ~> 18.0, matching the cluster major.",
+        "The teleport provider source in versions.tf is terraform.releases.teleport.dev/gravitational/teleport.",
+        "create_aws_iam_openid_connect_provider is NOT set to false. The fixture account 111111111111 has no OIDC provider for acme.teleport.sh, so the module must create one.",
+        "main.tf defines outputs named exactly integration_name, discovery_config_name, oidc_provider_arn, and discovery_role_arn. The same module values exported under other names fail.",
+        "The agent ran no terraform. outputs/ contains no agent-created .terraform directory, .tfstate, or .terraform.lock.hcl."
       ]
     },
     {
       "id": 2,
-      "prompt": "Set up Azure VM Discovery for my Teleport cluster. tsh is at evals/files/mock-tsh-unauth, tctl is at evals/files/mock-tctl.",
-      "context": {},
-      "expected_output": "Skill stops immediately with a clear message about not being logged in and how to fix it.",
-      "files": [
-        "evals/files/mock-tctl",
-        "evals/files/mock-tsh-unauth"
-      ],
-      "expectations": [
-        "Attempted to run tsh status",
-        "Stopped without writing any files",
-        "[outcome] Reported that the user is not logged in to Teleport",
-        "[outcome] Provided guidance on how to authenticate (e.g. tsh login --proxy=...)",
-        "Did not run any tctl or az commands at any point during the session",
-        "Told the user to run the skill again after logging in"
+      "eval_name": "aws-write-ec2-eks-mixed",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "cloud-aws",
+      "copy_fixture": null,
+      "prompt": "Set up AWS auto-discovery on our Teleport Cloud tenant acme.teleport.sh. EC2 instances in every region tagged team=core, and EKS clusters in us-west-2 tagged env=staging. Turn on app discovery for the EKS clusters. The plan is approved. Write the Terraform into a new directory but don't apply anything.",
+      "assertions": [
+        "Wrote Terraform into a new directory under outputs/ with versions.tf and main.tf.",
+        "terraform validate passes for the directory.",
+        "main.tf module source is exactly terraform.releases.teleport.dev/teleport/discovery/aws.",
+        "An EC2 matcher is present with types [\"ec2\"] and tags {team: [\"core\"]}, covering all regions: because [\"*\"] is the default, regions is omitted, or written explicitly as [\"*\"].",
+        "An EKS matcher is present: types [\"eks\"], regions [\"us-west-2\"], tags {env: [\"staging\"]}, kube_app_discovery = true.",
+        "kube_app_discovery is set only on the EKS matcher, never on the EC2 matcher.",
+        "teleport_proxy_public_addr is exactly acme.teleport.sh:443 and teleport_discovery_group_name is exactly cloud-discovery-group.",
+        "The teleport provider version constraint is >= 18.8.0, < 19.0.0. An open-ended >= 18.8.0 or a major-only pin like ~> 18.0 fails.",
+        "main.tf defines outputs named exactly integration_name, discovery_config_name, oidc_provider_arn, and discovery_role_arn.",
+        "The agent ran no terraform. outputs/ contains no agent-created .terraform directory, .tfstate, or lock file."
       ]
     },
     {
       "id": 3,
-      "prompt": "Enroll my Azure resources into Teleport. tsh is at evals/files/mock-tsh, tctl is at evals/files/mock-tctl, az is at evals/files/mock-az.\n\nSubscriptions: 00000000-0000-0000-0000-000000000001, install Azure resources in resource group: my-rg, Terraform dir: ./tf-output, no VM filters. Prerequisites met. Write the Terraform files — I'll run terraform apply myself.",
-      "context": {},
-      "expected_output": "Skill detects Azure context, uses the provided az output to configure settings, and generates Terraform files in ./tf-output.",
-      "files": [
-        "evals/files/mock-tctl",
-        "evals/files/mock-tsh",
-        "evals/files/mock-az"
-      ],
-      "expectations": [
-        "Ran tsh status to check authentication",
-        "Ran tctl status to check cluster connection",
-        "Detected Azure context from the prompt without asking for provider",
-        "Ran az group list to enumerate resource groups",
-        "Used the subscription ID provided in the prompt",
-        "Presented a configuration summary before writing files",
-        "Created a versions.tf file in ./tf-output",
-        "Created an azure_discovery.tf file in ./tf-output",
-        "azure_discovery.tf contains 'azure_resource_group_name' set to 'my-rg'",
-        "azure_discovery.tf contains 'azure_managed_identity_location' set to 'eastus'",
-        "azure_discovery.tf module version is set to '~> 18.8'",
-        "[outcome] azure_discovery.tf contains 'terraform.releases.teleport.dev/teleport/discovery/azure'",
-        "[outcome] azure_discovery.tf contains 'teleport_proxy_public_addr' set to 'test.teleport.sh:443'",
-        "[outcome] azure_discovery.tf contains 'teleport_discovery_group_name' set to 'cloud-discovery-group'",
-        "[outcome] azure_discovery.tf contains 'subscriptions' containing '00000000-0000-0000-0000-000000000001'",
-        "azure_discovery.tf contains an azure_matchers block with types set to 'vm'",
-        "[outcome] versions.tf contains '>= 18.8.0'",
-        "[outcome] versions.tf 'teleport' provider block has 'addr' set to 'test.teleport.sh:443'",
-        "[outcome] versions.tf teleport provider has source 'terraform.releases.teleport.dev/gravitational/teleport'",
-        "Checked for an existing Terraform module reference before creating files"
+      "eval_name": "aws-write-extend-existing",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "cloud-aws",
+      "copy_fixture": "existing-project-aws/infra",
+      "prompt": "I have an existing Terraform project in ./infra. Add EKS auto-discovery to it for clusters in us-west-2 tagged env=dev, on our Teleport Cloud tenant acme.teleport.sh. The plan is approved, but do not run terraform. I'll review and apply later.",
+      "assertions": [
+        "The discovery module block is added inside the existing infra/ directory; creating a separate new directory instead fails.",
+        "The added module block label is aws_discovery and its source is terraform.releases.teleport.dev/teleport/discovery/aws.",
+        "infra/ required_providers is extended in place to add a teleport entry (source terraform.releases.teleport.dev/gravitational/teleport, version >= 18.8.0, < 19.0.0) while preserving the pre-existing aws entry.",
+        "One matcher: types [\"eks\"], regions [\"us-west-2\"], tags {env: [\"dev\"]}.",
+        "teleport_proxy_public_addr is exactly acme.teleport.sh:443 and teleport_discovery_group_name is exactly cloud-discovery-group.",
+        "The pre-existing resources are untouched: aws_s3_bucket.artifacts and aws_s3_bucket_versioning.artifacts are identical to the fixture.",
+        "terraform validate passes in infra/.",
+        "The agent ran no terraform. infra/ contains no agent-created .terraform directory, .tfstate, or lock file."
       ]
     },
     {
       "id": 4,
-      "prompt": "I want to update my Teleport Azure Discovery setup. tsh is at evals/files/mock-tsh, tctl is at evals/files/mock-tctl, az is at evals/files/mock-az. My existing Terraform configuration is in evals/files/existing-tf/. Add subscription 00000000-0000-0000-0000-000000000002 to the existing one. Keep everything else the same. Write the updated files — I'll run terraform apply myself.",
-      "context": {},
-      "expected_output": "Skill finds the existing configuration using Grep, pre-populates the menu with current values, adds the new subscription, and writes the updated azure_discovery.tf.",
-      "files": [
-        "evals/files/mock-tctl",
-        "evals/files/mock-tsh",
-        "evals/files/mock-az",
-        "evals/files/existing-tf/azure_discovery.tf"
-      ],
-      "expectations": [
-        "Ran tsh status to check authentication",
-        "Ran tctl status to check cluster connection",
-        "Detected an existing module reference in the Terraform directory before writing files",
-        "Found and displayed the existing configuration (proxy, subscriptions, resource group)",
-        "Presented a configuration summary showing both subscriptions before writing",
-        "Wrote the updated azure_discovery.tf to evals/files/existing-tf/",
-        "Did not overwrite files without showing the user the planned configuration first",
-        "[outcome] azure_discovery.tf subscriptions contains '00000000-0000-0000-0000-000000000001'",
-        "[outcome] azure_discovery.tf subscriptions contains '00000000-0000-0000-0000-000000000002'",
-        "[outcome] azure_discovery.tf retains 'azure_resource_group_name' set to 'my-rg'",
-        "[outcome] azure_discovery.tf retains 'teleport_proxy_public_addr' set to 'test.teleport.sh:443'"
+      "eval_name": "aws-write-existing-oidc",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "cloud-aws-existing-oidc",
+      "copy_fixture": null,
+      "prompt": "Enroll our EKS clusters in us-east-1 tagged env=prod into our Teleport Cloud tenant acme.teleport.sh. The plan is approved. Write the Terraform into a new directory but don't apply it.",
+      "assertions": [
+        "Wrote Terraform into a new directory under outputs/ with versions.tf and main.tf.",
+        "terraform validate passes for the directory.",
+        "create_aws_iam_openid_connect_provider = false is set in the module block: the fixture aws returns an existing OIDC provider whose Url is acme.teleport.sh, so the module must not create a second one.",
+        "The agent verified the existing provider through the CLI rather than guessing: it ran aws iam list-open-id-connect-providers, then aws iam get-open-id-connect-provider for the ARN ending in oidc-provider/acme.teleport.sh, and confirmed its Url matched the proxy host.",
+        "teleport_proxy_public_addr is exactly acme.teleport.sh:443 and teleport_discovery_group_name is exactly cloud-discovery-group.",
+        "One matcher: types [\"eks\"], regions [\"us-east-1\"], tags {env: [\"prod\"]}.",
+        "The teleport provider version constraint is >= 18.8.0, < 19.0.0. An open-ended >= 18.8.0 or a major-only pin like ~> 18.0 fails.",
+        "main.tf defines outputs named exactly integration_name, discovery_config_name, oidc_provider_arn, and discovery_role_arn.",
+        "The agent ran no terraform: outputs/ contains no agent-created .terraform directory, .tfstate, or lock file."
       ]
     },
     {
       "id": 5,
-      "prompt": "My Azure VMs aren't enrolling in Teleport. Can you diagnose what's wrong? tsh is at evals/files/mock-tsh, tctl is at evals/files/mock-tctl.",
-      "context": {},
-      "expected_output": "Skill detects troubleshooting intent, runs tctl discovery nodes and tctl get user_tasks, and presents a clear summary of failures with a link to the troubleshooting docs.",
-      "files": [
-        "evals/files/mock-tsh",
-        "evals/files/mock-tctl"
-      ],
-      "expectations": [
-        "Ran tsh status to check authentication",
-        "Ran tctl status to check cluster connection",
-        "Detected troubleshooting intent — did not ask the user to set up discovery from scratch",
-        "Ran tctl discovery nodes with --cloud=azure flag",
-        "Ran tctl get user_tasks --format=json",
-        "Did not write any files",
-        "[outcome] Reported failed instances from the discovery nodes output",
-        "[outcome] Identified azure-vm-not-running as an open issue affecting vm-stopped",
-        "[outcome] Identified azure-vm-missing-run-commands-permission as an open issue affecting vm-no-perms",
-        "[outcome] Filtered out RESOLVED user tasks — only reported OPEN ones",
-        "Presented findings as a human-readable summary, not raw JSON",
-        "Provided a link to the Teleport Auto-Discovery troubleshooting docs",
-        "Did not attempt to fix the issues or write remediation commands"
+      "eval_name": "aws-stub-no-discovery-service",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "selfhosted-no-discovery",
+      "copy_fixture": null,
+      "prompt": "Discover our EC2 instances tagged role=web in us-east-1 and enroll them into our self-hosted Teleport cluster teleport.corp.example.com.",
+      "assertions": [
+        "The agent checked for a running Discovery Service via the stub tctl inventory list --services=discovery, which returns nothing.",
+        "The agent stopped without producing configuration: outputs/ contains no .tf files, no YAML token manifests, no IAM policy documents, no SSM documents, and no install scripts. Shipping an alternative enrollment kit instead of stopping fails.",
+        "final-response.md tells the user that a Discovery Service must be deployed and running in the cluster before discovery can be configured, and that this skill does not deploy one.",
+        "The agent did not invent a discovery_group value or proceed with placeholder configuration.",
+        "final-response.md does not falsely claim that discovery was configured or that resources will enroll.",
+        "The agent invoked only the stub CLIs by absolute path; the final response contains no resource names from any live cluster or account."
+      ]
+    },
+    {
+      "id": 6,
+      "eval_name": "azure-write-vm-create-rg",
+      "cloud": "azure",
+      "tier": "write",
+      "fixture": "cloud-azure-no-rg",
+      "copy_fixture": null,
+      "prompt": "Set up Azure VM auto-discovery on our Teleport Cloud tenant azure-tenant.teleport.sh. Discover VMs in subscription 00000000-0000-0000-0000-000000000001. Put the managed identity in a resource group named teleport-discovery in eastus. The plan is approved. Write the Terraform into a new directory, don't apply it.",
+      "assertions": [
+        "Wrote Terraform into a new directory under outputs/ with versions.tf and main.tf.",
+        "terraform validate passes for the directory.",
+        "main.tf module source is exactly terraform.releases.teleport.dev/teleport/discovery/azure.",
+        "Because the stub az group show fails for teleport-discovery (the group does not exist), main.tf creates the group: it contains an azurerm_resource_group resource named teleport-discovery in eastus, and the module's azure_resource_group_name and azure_managed_identity_location reference that resource, not a data source.",
+        "teleport_proxy_public_addr is exactly azure-tenant.teleport.sh:443 and teleport_discovery_group_name is exactly cloud-discovery-group.",
+        "One azure matcher: types [\"vm\"], subscriptions [\"00000000-0000-0000-0000-000000000001\"].",
+        "The teleport provider version constraint is >= 18.7.6, < 19.0.0, flooring at the Azure discovery-module minimum. An open-ended >= 18.7.6 fails, a major-only pin like ~> 18.0 fails, and a 18.8.0 floor, the AWS minimum, is wrong for Azure.",
+        "versions.tf required_providers includes an azurerm entry with source hashicorp/azurerm and version >= 4.0.",
+        "The module block pins version ~> 18.0, matching the cluster major.",
+        "main.tf defines outputs named exactly integration_name, discovery_config_name, and provision_token_name.",
+        "The agent ran no terraform: outputs/ contains no agent-created .terraform directory, .tfstate, or lock file."
+      ]
+    },
+    {
+      "id": 7,
+      "eval_name": "azure-write-vm-existing-rg",
+      "cloud": "azure",
+      "tier": "write",
+      "fixture": "cloud-azure",
+      "copy_fixture": null,
+      "prompt": "Set up Azure VM auto-discovery on our Teleport Cloud tenant azure-tenant.teleport.sh for subscription 00000000-0000-0000-0000-000000000001. Use our existing resource group my-rg for the managed identity. The plan is approved. Write the Terraform into a new directory, don't apply it.",
+      "assertions": [
+        "Wrote Terraform into a new directory under outputs/ with versions.tf and main.tf.",
+        "terraform validate passes for the directory.",
+        "main.tf module source is exactly terraform.releases.teleport.dev/teleport/discovery/azure.",
+        "Because the stub az group show returns location eastus for my-rg, main.tf references the existing group via a data source: it contains a data azurerm_resource_group block for my-rg and no azurerm_resource_group resource, and the module's azure_resource_group_name and azure_managed_identity_location reference that data source.",
+        "The module's azure_managed_identity_location resolves to eastus (the location the stub az group show returned for my-rg).",
+        "teleport_proxy_public_addr is exactly azure-tenant.teleport.sh:443 and teleport_discovery_group_name is exactly cloud-discovery-group.",
+        "One azure matcher: types [\"vm\"], subscriptions [\"00000000-0000-0000-0000-000000000001\"].",
+        "The teleport provider version constraint is >= 18.7.6, < 19.0.0. An open-ended >= 18.7.6, a major-only pin, or a 18.8.0 floor fails.",
+        "main.tf defines outputs named exactly integration_name, discovery_config_name, and provision_token_name.",
+        "The agent ran no terraform: outputs/ contains no agent-created .terraform directory, .tfstate, or lock file."
+      ]
+    },
+    {
+      "id": 8,
+      "eval_name": "azure-write-extend-existing",
+      "cloud": "azure",
+      "tier": "write",
+      "fixture": "cloud-azure",
+      "copy_fixture": "azure-discovery",
+      "prompt": "Update our Teleport Azure discovery in ./azure-discovery to also cover subscription 00000000-0000-0000-0000-000000000002. Keep everything else the same. Write the updated files. I'll apply them myself.",
+      "assertions": [
+        "The agent read the existing module block in ./azure-discovery and pre-populated the configuration from its current values rather than asking for them.",
+        "The updated azure matcher subscriptions list contains both 00000000-0000-0000-0000-000000000001 (pre-existing) and 00000000-0000-0000-0000-000000000002 (added).",
+        "The module block is edited in place inside ./azure-discovery; a separate new directory fails.",
+        "teleport_proxy_public_addr remains azure-tenant.teleport.sh:443 and teleport_discovery_group_name remains cloud-discovery-group.",
+        "azure_resource_group_name remains my-rg and the matcher types remain [\"vm\"].",
+        "terraform validate passes in ./azure-discovery.",
+        "The agent ran no terraform: the directory contains no agent-created .terraform directory, .tfstate, or lock file."
+      ]
+    },
+    {
+      "id": 9,
+      "eval_name": "cloud-routing-ask",
+      "cloud": "none",
+      "tier": "write",
+      "fixture": "cloud-generic",
+      "copy_fixture": null,
+      "prompt": "I want to set up Teleport auto-discovery for my cloud resources. Help me get it configured.",
+      "assertions": [
+        "The agent asked the user which cloud to configure, naming AWS and Azure as the choices.",
+        "The agent did not assume a cloud provider and did not begin writing a configuration for either.",
+        "outputs/ contains no .tf files: the agent did not generate Terraform before the cloud was determined.",
+        "The agent did not run any aws or az commands before the cloud was determined.",
+        "final-response.md poses the provider question and stops; it does not fabricate matchers, regions, or subscriptions."
+      ]
+    },
+    {
+      "id": 10,
+      "eval_name": "aws-monitor-healthy",
+      "cloud": "aws",
+      "tier": "monitor",
+      "fixture": "monitor-aws-healthy",
+      "copy_fixture": null,
+      "prompt": "Check on my AWS EC2 auto-discovery on Teleport Cloud tenant acme.teleport.sh. Is it working?",
+      "assertions": [
+        "The agent read the discovery_config status via the stub tctl get discovery_config --format=json.",
+        "The agent reported state RUNNING and that enrollment is healthy: found equals enrolled (3 and 3) and failed is 0 for the awsEc2 counts.",
+        "The agent reported the counts to the user in readable form, not raw JSON.",
+        "The agent did not report any failures, did not open the troubleshooting docs, and did not run remediation.",
+        "outputs/ contains no .tf files and no other written artifacts beyond final-response.md: a status check writes nothing."
+      ]
+    },
+    {
+      "id": 11,
+      "eval_name": "aws-monitor-ec2-found-not-enrolled",
+      "cloud": "aws",
+      "tier": "monitor",
+      "fixture": "monitor-aws-ec2-notenrolled",
+      "copy_fixture": null,
+      "prompt": "My EC2 instances aren't showing up in Teleport on tenant acme.teleport.sh even though discovery is set up. Diagnose it.",
+      "assertions": [
+        "The agent read the discovery_config status via tctl get discovery_config --format=json and identified that awsEc2 found is greater than 0 (4) while enrolled is 0.",
+        "The agent identified the cause as instances failing to join, not the matcher failing to find them, and named the likely reasons: a missing or wrong provision token, the AmazonSSMManagedInstanceCore policy or SSM connectivity, or no network path to the proxy on 443.",
+        "The agent checked that the provision token exists via the stub tctl tokens ls.",
+        "The agent read the per-resource failures: it ran tctl get user_tasks --format=json and reported the OPEN discover-ec2 tasks.",
+        "The agent fetched the Teleport auto-discovery servers troubleshooting guide (a WebFetch of the troubleshooting URL) to map the failures to fixes.",
+        "The agent did not write or run any remediation; outputs/ contains no .tf files and no install scripts.",
+        "The findings were presented as a readable summary, not raw JSON."
+      ]
+    },
+    {
+      "id": 12,
+      "eval_name": "aws-monitor-failed-user-tasks",
+      "cloud": "aws",
+      "tier": "monitor",
+      "fixture": "monitor-aws-failed-tasks",
+      "copy_fixture": null,
+      "prompt": "Some of my EC2 and EKS resources failed to enroll on acme.teleport.sh. What went wrong and which resources are affected?",
+      "assertions": [
+        "The agent read the discovery_config status and identified failed greater than 0 for the awsEc2 and awsEks counts.",
+        "The agent ran tctl get user_tasks --format=json to read the per-resource failure reasons.",
+        "The agent reported only the OPEN user tasks and explicitly excluded the RESOLVED one; reporting the RESOLVED task as a current problem fails.",
+        "The agent identified the OPEN discover-ec2 task affecting instance i-0ec2failure with its issue_type (ec2-ssm-agent-not-registered), and the OPEN discover-eks task affecting cluster eks-prod-cluster with its issue_type (eks-status-not-active).",
+        "The agent fetched the auto-discovery troubleshooting guide and matched each issue_type to a resolution.",
+        "The agent did not attempt to fix the issues or write remediation commands; outputs/ contains no .tf files.",
+        "The findings were presented as a readable summary, not raw JSON."
+      ]
+    },
+    {
+      "id": 13,
+      "eval_name": "aws-monitor-oidc-trust-error",
+      "cloud": "aws",
+      "tier": "monitor",
+      "fixture": "monitor-aws-oidc-error",
+      "copy_fixture": null,
+      "prompt": "My AWS discovery on acme.teleport.sh stopped working. Find out why.",
+      "assertions": [
+        "The agent read the discovery_config status via tctl get discovery_config --format=json and identified state ERROR with the errorMessage reporting an AssumeRoleWithWebIdentity / OIDC trust failure.",
+        "The agent diagnosed the cause as a broken AWS OIDC trust, not a matcher or token problem.",
+        "The agent stated the correct trust requirements: the OIDC provider Url must be the proxy host with no port and the audience must be discover.teleport, and that the provider thumbprint must be refreshed (re-apply) after a proxy TLS certificate rotation.",
+        "The agent did not write or apply any changes; outputs/ contains no .tf files.",
+        "The diagnosis was presented as a readable summary citing the errorMessage, not raw JSON."
+      ]
+    },
+    {
+      "id": 14,
+      "eval_name": "azure-monitor-failed-vms",
+      "cloud": "azure",
+      "tier": "monitor",
+      "fixture": "monitor-azure-failed",
+      "copy_fixture": null,
+      "prompt": "My Azure VMs aren't enrolling in Teleport on tenant azure-tenant.teleport.sh. Diagnose what's wrong.",
+      "assertions": [
+        "The agent read the discovery_config status via tctl get discovery_config --format=json and identified that azureVms found is greater than 0 (2) while enrolled is 0.",
+        "The agent ran tctl get user_tasks --format=json to read the per-VM failure reasons.",
+        "The agent reported only OPEN tasks and excluded the RESOLVED one; reporting the RESOLVED task as a current problem fails.",
+        "The agent identified the OPEN discover-azure-vm task for vm-stopped with issue_type azure-vm-not-running, and the OPEN discover-azure-vm task for vm-no-perms with issue_type azure-vm-missing-run-commands-permission.",
+        "The agent stated the Azure enrollment requirements it can infer: each VM needs a managed identity with at least Microsoft.Compute/virtualMachines/read, and a network path to the proxy.",
+        "The agent fetched the auto-discovery troubleshooting guide for resolution steps.",
+        "The agent did not attempt to fix the issues or write files; outputs/ contains no .tf files.",
+        "The findings were presented as a readable summary, not raw JSON."
+      ]
+    },
+    {
+      "id": 15,
+      "eval_name": "aws-apply-ec2-serial",
+      "cloud": "aws",
+      "tier": "e2e-serial",
+      "fixture": "live",
+      "copy_fixture": null,
+      "prompt": "Set up EC2 auto-discovery on our Teleport Cloud dev tenant wispy-wood.beams.sh for instances in us-west-2 tagged teleport-discovery-eval=true. Write the Terraform, apply it, and verify the resources were created.",
+      "assertions": [
+        "terraform apply exited 0 and printed all four outputs: integration_name, discovery_config_name, oidc_provider_arn, discovery_role_arn.",
+        "tctl get integrations shows the aws-oidc integration named in the integration_name output.",
+        "tctl get discovery_config shows the config named in the discovery_config_name output, with one matcher: types [\"ec2\"], regions [\"us-west-2\"], tags {teleport-discovery-eval: [\"true\"]}.",
+        "The discovery_config status reaches DISCOVERY_CONFIG_STATE_SYNCING or RUNNING under the discovery group the running Discovery Service uses.",
+        "An IAM OIDC provider for wispy-wood.beams.sh exists in account 278576220453, matching the oidc_provider_arn output.",
+        "A provision token for the EC2 join was created (the EC2 matcher requires one).",
+        "The teleport provider version constraint in the applied configuration floors at the 18.8.0 module minimum or the cluster major and caps below the next major.",
+        "The agent verified the resources itself following references/monitor.md and reported the verification in final-response.md."
+      ]
+    },
+    {
+      "id": 16,
+      "eval_name": "aws-apply-ec2-parallel-oidc",
+      "cloud": "aws",
+      "tier": "e2e-parallel",
+      "fixture": "live",
+      "copy_fixture": null,
+      "prompt": "We already have an AWS OIDC provider registered for our Teleport Cloud tenant wispy-wood.beams.sh in account 278576220453. Set up EC2 auto-discovery for instances in us-west-2 tagged teleport-discovery-eval=true reusing that existing OIDC provider. Write the Terraform, apply it, and verify.",
+      "assertions": [
+        "create_aws_iam_openid_connect_provider = false is set, so the apply reuses the pre-created OIDC provider rather than creating a new one.",
+        "terraform apply exited 0 and printed integration_name, discovery_config_name, and discovery_role_arn.",
+        "tctl get integrations shows the aws-oidc integration named in the integration_name output.",
+        "tctl get discovery_config shows the config named in the discovery_config_name output, with one matcher: types [\"ec2\"], regions [\"us-west-2\"], tags {teleport-discovery-eval: [\"true\"]}.",
+        "The apply did not attempt to create an IAM OIDC provider (no 409 conflict), confirming the existing provider was reused.",
+        "The agent verified the resources itself following references/monitor.md and reported the verification in final-response.md."
+      ]
+    },
+    {
+      "id": 17,
+      "eval_name": "azure-apply-vm-serial",
+      "cloud": "azure",
+      "tier": "e2e-serial",
+      "fixture": "live-azure",
+      "copy_fixture": null,
+      "prompt": "Set up Azure VM auto-discovery on our Teleport Cloud dev tenant wispy-wood.beams.sh for VMs in subscription $AZURE_SUBSCRIPTION_ID, managed identity in resource group teleport-discovery-eval in eastus. Write the Terraform, apply it, and verify.",
+      "assertions": [
+        "terraform apply exited 0 and printed integration_name, discovery_config_name, and provision_token_name.",
+        "tctl get integrations shows the azure-oidc integration named in the integration_name output.",
+        "tctl get discovery_config shows the config named in the discovery_config_name output, with one matcher: types [\"vm\"], the given subscription.",
+        "The discovery_config status reaches DISCOVERY_CONFIG_STATE_SYNCING or RUNNING under the discovery group the running Discovery Service uses.",
+        "The applied configuration created the Azure managed identity, federated identity credential, custom role definition, and role assignment.",
+        "The teleport provider version constraint in the applied configuration floors at the 18.7.6 module minimum or the cluster major and caps below the next major.",
+        "The agent verified the resources itself following references/monitor.md and reported the verification in final-response.md."
       ]
     }
   ]
