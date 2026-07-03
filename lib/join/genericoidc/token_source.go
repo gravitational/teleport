@@ -53,9 +53,9 @@ func (its *IDTokenSource) GetIDTokenFromEnvironment(key string) (string, error) 
 	return strings.TrimSpace(tok), nil
 }
 
-// GetIDTokenFromCommand executes a command to fetch a JWT. The caller can at
-// their option provide a context with a timeout or deadline, but otherwise this
-// may wait indefinitely for the command to return.
+// GetIDTokenFromCommand executes a command to fetch a JWT. The command may take
+// up to the given timeout to execute, and callers are recommended to provide a
+// sensible default timeout (e.g. 1 minute) by default.
 func (its *IDTokenSource) GetIDTokenFromCommand(ctx context.Context, timeout time.Duration, command ...string) (string, error) {
 	if len(command) == 0 {
 		return "", trace.BadParameter("at least one command argument is required")
@@ -92,7 +92,7 @@ func DefaultCommandRunner(ctx context.Context, command ...string) ([]byte, error
 	cmd.Dir = dir
 
 	// Inherit stderr - if errors are printed, they should be visible to the
-	// user. We could buffer them, and wrap them in our own log, but that may
+	// user. We could buffer them and wrap them in our own log, but that may
 	// make debugging more difficult.
 	cmd.Stderr = os.Stderr
 
