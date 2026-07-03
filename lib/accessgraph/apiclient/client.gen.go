@@ -304,7 +304,9 @@ type IdentityAccessDecision struct {
 
 	// GrantorCounts Counts of grantors backing this (identity, resource) pair, split by level. Denied grantors appear in `grantors` but aren't counted here — these counts describe how access *is* granted, and a deny is the absence of a grant.
 	GrantorCounts IdentityAccessGrantorCounts `json:"grantor_counts"`
-	Grantors      []IdentityAccessGrantor     `json:"grantors"`
+
+	// Grantors Grantors backing (or denying) this access, in a stable order callers can rely on: by `level` priority `denied > standing > impersonate > request`, then permanent before temporary, then by name, then by `id`. The first element is the strongest-priority grantor.
+	Grantors []IdentityAccessGrantor `json:"grantors"`
 
 	// Level Resolved access level for this identity, in priority order `denied > standing > impersonate > request`. `denied` overrides the others when a deny path applies; `impersonate` means the access is only reachable by impersonating another identity (no approval, just a certificate minted as the target); the grantor and path counts still describe how access would otherwise be reached. `temporary` is a within-level qualifier on this value, not a level of its own.
 	Level IdentityAccessDecisionLevel `json:"level"`

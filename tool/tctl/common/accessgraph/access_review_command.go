@@ -320,18 +320,13 @@ func resolveNode(nodesByID map[uuid.UUID]accessgraph.IdentityAccessNode, id uuid
 	return node
 }
 
-// primaryGrantor returns the grantor that backs the access at its resolved
-// level (the first match), falling back to the first grantor of any level.
+// primaryGrantor returns the primary grantor for the access. The backend lists
+// grantors primary-first, so index 0 is authoritative.
 func primaryGrantor(ra resourceAccess) (grantor, bool) {
-	for _, g := range ra.Grantors {
-		if g.Level == ra.Level {
-			return g, true
-		}
+	if len(ra.Grantors) == 0 {
+		return grantor{}, false
 	}
-	if len(ra.Grantors) > 0 {
-		return ra.Grantors[0], true
-	}
-	return grantor{}, false
+	return ra.Grantors[0], true
 }
 
 func grantorSummary(p grantorCounts) string {

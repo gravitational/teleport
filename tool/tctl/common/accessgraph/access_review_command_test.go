@@ -96,13 +96,14 @@ func TestBuildAccessReviewOutput(t *testing.T) {
 		require.Equal(t, &lastAccess, ra.Activity.LastAccess)
 	})
 
-	t.Run("primary grantor matches resolved level", func(t *testing.T) {
+	t.Run("primary grantor is the first grantor", func(t *testing.T) {
 		out := buildAccessReviewOutput(resp)
-		// Grantors are listed request-first, but the resolved level is standing.
+		// The backend lists the primary grantor first, so index 0 is primary
+		// regardless of the resolved level.
 		g, ok := primaryGrantor(out.Identities[0].Resources[0])
 		require.True(t, ok)
-		require.Equal(t, "admins", g.Node.Name)
-		require.False(t, g.Node.Temporary)
+		require.Equal(t, "oncall", g.Node.Name)
+		require.True(t, g.Node.Temporary)
 	})
 
 	t.Run("grantor temporary propagates from node", func(t *testing.T) {
@@ -150,15 +151,9 @@ func TestPrimaryGrantor(t *testing.T) {
 		return grantor{Node: node{Name: name}, Level: level}
 	}
 
-	t.Run("matches resolved level", func(t *testing.T) {
+	t.Run("returns the first grantor", func(t *testing.T) {
+		// The primary is index 0 even when a later grantor matches the level.
 		ra := resourceAccess{Level: "standing", Grantors: []grantor{g("req", "request"), g("std", "standing")}}
-		got, ok := primaryGrantor(ra)
-		require.True(t, ok)
-		require.Equal(t, "std", got.Node.Name)
-	})
-
-	t.Run("falls back to first when no level match", func(t *testing.T) {
-		ra := resourceAccess{Level: "denied", Grantors: []grantor{g("req", "request")}}
 		got, ok := primaryGrantor(ra)
 		require.True(t, ok)
 		require.Equal(t, "req", got.Node.Name)
