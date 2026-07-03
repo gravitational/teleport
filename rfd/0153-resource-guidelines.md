@@ -61,7 +61,7 @@ api/proto
 
 The legacy directory contains resources and API definitions that were defined prior to our shift to user smaller,
 localized services per resource. Adding new resources and APIs to the giant monolithic `proto.AuthService` should be
-avoided if possible.
+avoided.
 
 ### New resource checklist
 
@@ -70,10 +70,10 @@ detail about what is needed to complete a particular item.
 
 - [ ] Create proto spec for resource and RPC service
 - [ ] Create backend service
+- [ ] Implement gRPC service with authz
 - [ ] Add resource client to `api` client
-- [ ] Implement gRPC service
-- [ ] Add resource parser to event stream mechanism
 - [ ] Add resource support to tctl (get, create, edit)
+- [ ] Add resource parser to event stream mechanism
 - [ ] Optional: Add resource to cache
 - [ ] Add support for bootstrapping the resource
 - [ ] Add support for resource to Teleport Operator
@@ -81,9 +81,26 @@ detail about what is needed to complete a particular item.
 
 ### Defining a resource
 
-A resource MUST include a kind, version, `teleport.header.v1.Metadata`, a `spec` and a `status` message. While the kind and version may seem like they would be easy to derive from the message definition itself, they need to be defined so that anything processing a generic resource can identify which resource is being processed. For example, `tctl` interacts with resources in their in raw yaml text form and leverages `services.UnknownResource` to identify the resource and act appropriately.
+At the top level, all new resources MUST include:
 
-All properties defined in the `spec` and `metadata` of a resource MUST only be modified by the
+- `kind`: a string indicating the kind of resource
+- `sub_kind`: a string indicating the resource sub_kind, the field must be defined and validated even if it is unused.
+- `version`: a string indicating the resource version
+- `metadata`: a `teleport.header.v1.Metadata` including the resource name, labels, description, expiration, and revision.
+- `spec`: a message including all other user-specified resource fields.
+
+Most new resources SHOULD include:
+
+- `scope`: a string indicating the administrative scope of the resource, see RFD 229.
+
+New resources MAY include:
+
+- `status`: a message including all resource state that is computed server-side and not user-provided.
+
+
+While the kind and version may seem like they would be easy to derive from the message definition itself, they need to be defined so that anything processing a generic resource can identify which resource is being processed. For example, `tctl` interacts with resources in their in raw yaml text form and leverages `services.UnknownResource` to identify the resource and act appropriately.
+
+All properties defined outside the `status` of a resource MUST only be modified by the
 owner/creator of the resource. For example, if a resource is created via
 `tctl create`, then any fields within the `spec` MUST not be altered dynamically
 by the Teleport process. When Teleport automatically modifies the `spec` during
@@ -91,9 +108,14 @@ runtime it causes drift between what is in the Teleport backend and the state st
 If a resource has properties that must be modified by Teleport, a separate `status` field should
 be added to the resource to contain them. These fields will be ignored by IaC tools during their reconciliation.
 
-The `CheckAndSetDefaults()` pattern is not compatible with the above property because the
-function edits the `spec`, and might run client-side. Adding logic in `CheckAndSetDefaults()`
-for existing resources MUST be avoided.
+Do NOT define a `CheckAndSetDefaults()` method for new resource kinds, default
+values outside of the resource `status` must not be set.
+Resources MUST have a `Validate` or `StrongValidate` function that applies
+strict validation to a resource whenever it is accepted from an untrusted
+source and before it is persisted to storage.
+Resources MAY have a `WeakValidate` function that applies a weaker form of
+validation to a resource when it is accepted from a trusted source such as
+backend storage.
 
 ```protobuf
 import "teleport/header/v1/metadata.proto";
@@ -109,12 +131,14 @@ message Foo {
   string version = 3;
   // Common metadata that all resources share.
   teleport.header.v1.Metadata metadata = 4;
+  // The scope of the resource
+  string scope = 5;
   // The specific properties of a Foo. These should only be modified by
   // the creator/owner of the resource and not dynamically altered or updated.
-  FooSpec spec = 5;
+  FooSpec spec = 6;
   // Any dynamic state of Foo that is modified during runtime of the
   // Teleport process.
-  FooStatus status = 6;
+  FooStatus status = 7;
 }
 
 // FooSpec contains specific properties of a Foo that MUST only
@@ -135,14 +159,6 @@ message FooStatus {
 }
 ```
 
-This differs from existing resources because legacy resources make heavy use of features provided
-by [gogoprotobuf](https://github.com/gogo/protobuf). Since that project has long been abandoned, we're striving to
-migrate away from it as described in [RFD-0139](https://github.com/gravitational/teleport/pull/28386).
-The `teleport.header.v1.Metadata` is a clone of `types.Metadata` which doesn't use any of the gogoproto features.
-Legacy resources also had a `types.ResourceHeader` that used gogo magic to embed the type in the resource message. To
-get around this, the required fields from the header MUST be included in the message itself. A non-gogo clone does exist
-`teleport.header.v1.ResourceHeader`, however, to get the fields, embedded custom marshalling must be manually written.
-
 If a resource has associated secrets (password, private key, jwt, mfa device, etc.) they should be defined in a separate
 resource and stored in a separate key range in the backend. The traditional pattern of defining secrets inline and only
 returning them if a `with_secrets` flag is provided causes a variety of problems and introduces opportunity for human
@@ -159,6 +175,11 @@ is
 was not flexible enough which prevented behavior from being easily extended to
 support a new feature.
 
+Prefer a string over an enum when users will be expected to read or write the
+field in a resource YAML or IaC definition.
+If you use an enum, the terraform provider will only accept integer values.
+Enums may be used when users will not interact with the field.
+
 ### API
 
 All APIs should follow the conventions listed below that are largely based on
@@ -174,7 +195,7 @@ The request MUST fail and return a `trace.AlreadyExists` error if a matching res
 
 ```protobuf
 // Creates a new Foo resource in the backend.
-    rpc CreateFoo(CreateFooRequest) returns (CreateFooResponse);
+rpc CreateFoo(CreateFooRequest) returns (CreateFooResponse);
 
 message CreateFooRequest {
   // The desired Foo to be created.
@@ -190,14 +211,14 @@ message CreateFooResponse {
 
 The `Update` RPC takes a resource to be updated and must also return the updated resource so that any fields that are
 populated server side are provided to clients without requiring an additional call to `Get`. If partial updates of a
-resource are desired, the request may contain
+resource are desired, the request MAY contain
 a [FieldMask](https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#field-mask).
 
 The request MUST fail and return a `trace.NotFound` error if there is no matching resource in the backend.
 
 ```protobuf
 // Updates an existing Foo in the backend.
-    rpc UpdateFoo(UpdateFooRequest) returns (UpdateFooResponse);
+rpc UpdateFoo(UpdateFooRequest) returns (UpdateFooResponse);
 
 message UpdateFooRequest {
   // The full Foo resource to update in the backend.
@@ -213,17 +234,17 @@ message UpdateFooResponse {
 
 #### Upsert
 
-> The `Create` and `Update` RPCs should be preferred over `Upsert` for normal operations,
+> The `Create` and `Update` RPCs should be preferred over `Upsert` for user-driven interactions,
 > see [#1326](https://github.com/gravitational/teleport/issues/1326) for more details.
+> The `Upsert` method is necessary for IaC integrations that define the source of truth for the resource.
 
 The `Upsert` RPC takes a resource that will overwrite a matching existing resource or create a new resource if one does
 not exist. The upserted resource is returned so that any fields that are populated server side are provided to clients
-without requiring a call to `Get`. If `Upsert` is not consumed it may be omitted from the API in favor of `Create` and
-`Update`.
+without requiring a call to `Get`.
 
 ```protobuf
-  // Creates a new Foo or replaces an existing Foo in the backend.
-  rpc UpsertFoo(UpsertFooRequest) returns (UpsertFooResponse);
+// Creates a new Foo or replaces an existing Foo in the backend.
+rpc UpsertFoo(UpsertFooRequest) returns (UpsertFooResponse);
 
 message UpsertFooRequest {
   // The full Foo resource to persist in the backend.
@@ -237,19 +258,21 @@ message UpsertFooResponse {
 
 #### Get
 
-The `Get` RPC takes the parameters required to match a resource (usually the resource name should suffice), and returns
+The `Get` RPC takes the parameters required to match a resource (usually the resource name and scope should suffice), and returns
 the matched resource.
 
 The request MUST fail and return a `trace.NotFound` error if there is no matching resource in the backend.
 
 ```protobuf
 // Returns a single Foo matching the request
-    rpc GetFoo(GetFooRequest) returns (GetFooResponse);
+rpc GetFoo(GetFooRequest) returns (GetFooResponse);
 
 message GetFooRequest {
-  // A filter to match the Foo by. Some resource may require more parameters to match and
+  // A name to match the Foo by. Some resource may require more parameters to match and
   // may not use the name at all.
-  string foo_id = 1;
+  string name = 1;
+  // The scope of the resource.
+  string scope = 2;
 }
 
 message GetFooResponse {
@@ -263,12 +286,9 @@ The `List` RPC takes the requested page size and starting point and returns a li
 additional resources, the response MUST also include a token that indicates where the next page of results begins.
 
 `List` RPC can optionally provide a `Filter` message and/or a `SortMode` field where supported.
+It MUST accept a scope filter if the resource is scoped.
 
-Most legacy APIs do not provide a paginated way to retrieve resources and instead offer some kind of `GetAllFoos` RPC
-which either returns all `Foo` in a single message or leverages a server side stream to send each `Foo` one at a time.
-Returning all items in a single message causes problems when the number of resources scales beyond gRPC message size
-limits. To provide parity with this legacy API if needed, a helper method should be implemented on the client which
-builds the entire resource set by repeatedly calling `List` until all pages have been consumed, see the [clientutils](https://github.com/gravitational/teleport/blob/ae1c0890bccf304b0bb40b9a2436501b4ec2a966/api/utils/clientutils/resources.go#L19) package for more details.
+Do not provide an unpaginated `GetAllFoos` RPC.
 
 ```protobuf
 // Returns a page of Foo and the token to find the next page of items.
@@ -292,6 +312,9 @@ message ListFoosRequest {
 
   // filter is a collection of fields to filter Foos
   ListFoosFilter filter = 5;
+
+  // Filters foos by scope.
+  teleport.scopes.v1.Filter scope_filter = 6;
 }
 
 message ListFoosResponse {
@@ -373,12 +396,14 @@ The request MUST fail and return a `trace.NotFound` error if there is no matchin
 
 ```protobuf
 // Remove a matching Foo resource
-    rpc DeleteFoo(DeleteFooRequest) returns (DeleteFooResponse);
+rpc DeleteFoo(DeleteFooRequest) returns (DeleteFooResponse);
 
 message DeleteFooRequest {
   // Name of the foo to remove. Some resource may require more parameters to match and
   // may not use the name at all.
-  string foo_id = 1;
+  string name = 1;
+  // Scope of the foo to remove.
+  string scope = 2;
 }
 
 message DeleteFooResponse {}
@@ -390,13 +415,46 @@ A backend service to handle persisting and retrieving a resource from the backen
 `lib/services/local/foo.go`. An accompanying interface which mirrors the service is defined in `lib/services/foo.go`.
 Continuing on with the example above, the sections below show how the backend service for the `Foo` resource might look like.
 
-The sections also contain a reference example for how to interact with the backend to perform common operations on a
-resource. For most cases, when adding a new resource, it is preferred to create a service that wraps
-the [generic.Service](https://github.com/gravitational/teleport/blob/7f3c58df1fd675a813dc2992c10b2796b9b5c6bf/lib/services/local/generic/generic.go#L73-L81)
-over implementing everything from scratch. If custom behavior is required for a subset of backend operations, they may
-be implemented directly while all the other operations still make use of the generic service.
+For most cases, when adding a new resource, it is preferred to create a service
+that wraps the `generic.ServiceWrapper` or `generic.ScopeAwareServiceWrapper`
+over implementing everything from scratch.
+If custom behavior is required for a subset of backend operations, they may be
+implemented directly while all the other operations still make use of the
+generic service.
+
+If the resource has a scope, it should be namespace by scope, meaning that each
+resource should be uniquely identified by a `(name, scope)` pair with a unique
+backend key.
+In this case, the backend service should wrap `generic.ScopeAwareServiceWrapper`.
+
+```go
+// FooService is a storage service for Foos.
+type FooService struct {
+	service *generic.ScopeAwareServiceWrapper[*foov1.Foo]
+}
+
+// NewFooService returns a new service for Foos.
+func NewFooService(bk backend.Backend) (*FooService, error) {
+	service, err := generic.NewScopeAwareServiceWrapper(generic.ScopeAwareServiceWrapperConfig[*foov1.Foo]{
+		Backend:               bk,
+		ResourceKind:          foos.Kind,
+		UnscopedBackendPrefix: backend.NewKey("foo"),
+		ScopedBackendPrefix:   backend.NewKey("scoped", "foo"),
+		MarshalFunc:           services.MarshalProtoResource[*foov1.Foo],
+		UnmarshalFunc:         services.UnmarshalProtoResource[*foov1.Foo],
+		ValidateFunc:          foos.StrongValidate,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &FooService{
+		service: service,
+	}, nil
+}
+```
 
 #### Resource validation
+
 The strictest validation of a resource should be performed prior to write operations. Any resource persisted in the
 backend should be guaranteed to be valid. Read operations should not perform resource validations, doing so could
 prevent a resource being read if validations are modified to be more restrictive after a resource had already been
@@ -405,29 +463,14 @@ the backend.
 
 #### Create
 
-When creating a new resource, the `backend.Backend.Create` method should be used to persist the resource. It is also
-imperative that the revision generated by the backend is set on the returned resource.
+When creating a new resource, the `backend.Backend.Create` method should be used to persist the resource.
+It is also imperative that the revision generated by the backend is set on the
+returned resource.
+`generic.(ScopeAware)ServiceWrapper` handles this.
 
 ```go
 func (s *FooService) CreateFoo(ctx context.Context, foo *foov1.Foo) (*foov1.Foo, error) {
-	value, err := convertFooToValue(foo)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key("foo", foo.GetName()),
-		Value:   value,
-		Expires: foo.Expiry(),
-	}
-
-	lease, err := s.backend.Create(ctx, item)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Update the foo with the revision generated by the backend during the write operation.
-	foo.GetMetadata().SetRevision(lease.Revision)
-	return foo, nil
+	return s.service.CreateFoo(ctx, foo)
 }
 ```
 
@@ -435,34 +478,13 @@ func (s *FooService) CreateFoo(ctx context.Context, foo *foov1.Foo) (*foov1.Foo,
 
 All update operations should prefer `backend.Backend.ConditionalUpdate` over the `backend.Backend.Update` method to
 prevent blindly overwriting an existing item. When using conditional update, the backend write will only succeed if the
-revision of the resource in the update request matches the revision of the item in the backend. Conditional updates
-should also be preferred over traditional `CompareAndSwap` operations.
+revision of the resource in the update request matches the revision of the item
+in the backend.
+Conditional updates should also be preferred over `CompareAndSwap` operations.
 
 ```go
 func (s *FooService) UpdateFoo(ctx context.Context, foo *foov1.Foo) (*foov1.Foo, error) {
-	// The revision is cached prior to converting to the value because
-	// conversion functions may set the revision to "" if MarshalConfig.PreserveResourceID
-	// is not set.
-	rev := foo.GetMetadata().GetRevision()
-	value, err := convertFooToValue(foo)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key("foo", foo.GetName()),
-		Value:   value,
-		Expires: foo.Expiry(),
-		Revision: rev,
-	}
-
-	lease, err := s.backend.ConditionalUpdate(ctx, item)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Update the foo with the revision generated by the backend during the write operation.
-	foo.GetMetadata().SetRevision(lease.Revision)
-	return foo, nil
+	return s.service.ConditionalUpdateResource(ctx, foo)
 }
 ```
 
@@ -473,132 +495,150 @@ imperative that the revision generated by the backend is set on the returned res
 
 ```go
 func (s *FooService) UpsertFoo(ctx context.Context, foo *foov1.Foo) (*foov1.Foo, error) {
-	value, err := convertFooToValue(foo)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key("foo", foo.GetName()),
-		Value:   value,
-		Expires: foo.Expiry(),
-	}
-
-	lease, err := s.backend.Put(ctx, item)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Update the foo with the revision generated by the backend during the write operation.
-	foo.GetMetadata().SetRevision(lease.Revision)
-	return foo, nil
+	return s.service.UpsertResource(ctx, foo)
 }
 ```
 
 #### Get
 
-To retrieve a resource the `backend.Backend.Get` method should be provided a key built from the match parameters of the
-request. Note the rewrapping of the `trace.NotFound` error below. This results in a much friendly error being provided
-to the user and prevents the backend key from leaking into other layers.
+The Get method should accept the protobuf `Get<Resource>Request` message as a
+parameter, so that options can be added to the request in a backward-compatible
+manner.
+
+`trace.NotFound` errors from the backend should be re-wrapped to include the resource name instead of the backend key for friendlier user-facing errors.
+`generic.(ScopeAware)ServiceWrapper` handles this.
 
 ```go
-func (s *FooService) GetFoo(ctx context.Context, id string) (*Foo, error) {
-	if id == "" {
-		return nil, trace.BadParameter("missing foo id")
-	}
+// GetFoo returns a single Foo matching the request
+func (s *FooService) GetFoo(ctx context.Context, req *foov1.GetFooRequest) (*foov1.Foo, error) {
+	return s.service.GetResource(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	})
+}
+```
 
-	item, err := s.backend.Get(ctx, backend.Key("foo", id))
-	if err != nil {
-		// Wrap the error to prevent leaking the backend key.
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("foo %v is not found", id)
-		}
-		return nil, trace.Wrap(err)
-	}
-	foo, err := convertItemToFoo(item)
-	return foo, trace.Wrap(err)
+#### Delete
+
+The Delete method should accept the protobuf `Delete<Resource>Request` message as a
+parameter, so that options can be added to the request in a backward-compatible
+manner.
+
+`trace.NotFound` errors from the backend should be re-wrapped to include the resource name instead of the backend key for friendlier user-facing errors.
+`generic.(ScopeAware)ServiceWrapper` handles this.
+
+```go
+// DeleteFoo removes a matching Foo resource
+func (s *FooService) DeleteFoo(ctx context.Context, req *foov1.DeleteFooRequest) error {
+	return s.service.DeleteResource(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	})
 }
 ```
 
 #### List
 
-Listing can either be done via collecting a stream returned by `backend.Backend.Items`, making use of the functional
-helpers in the
-[stream](https://github.com/gravitational/teleport/blob/a32c69b581ff0ceef55b83a601cfb54c6d52d710/lib/itertools/stream/stream.go).
+Listing can be done via collecting a stream returned by
+`backend.Backend.Items`, making use of the functional helpers in the
+[stream](https://github.com/gravitational/teleport/blob/a32c69b581ff0ceef55b83a601cfb54c6d52d710/lib/itertools/stream/stream.go) package.
 
-A listing operation should not abort entirely if a single item cannot be converted from a `backend.Item`, it should
-instead be logged, and the rest of the page should be processed. Aborting an entire page when a single entry is invalid,
-causes Teleport to be permanently unhealthy since it is never able to load or cache the affected resource(s).
+The List method should accept the protobuf `List<Resource>Request` message as a parameter, so that options including filters can be added to the request in a backward-compatible manner.
 
-The backend [generic](https://github.com/gravitational/teleport/blob/a32c69b581ff0ceef55b83a601cfb54c6d52d710/lib/services/local/generic/helpers.go) package providers a helper `CollectPageAndCursor` to implement `ListFoos` in terms of the ranging getter `RangeFoos`
-
+A listing operation should not abort entirely if a single item cannot be
+converted from a `backend.Item`, it should instead be logged, and the rest of
+the page should be processed.
+Aborting an entire page when a single entry is invalid causes Teleport to be
+permanently unhealthy since it is never able to load or cache the affected
+resource(s).
+`generic.(ScopeAware)ServiceWrapper` handles this.
 
 ```go
-func (s *FooService) ListFoos(ctx context.Context, limit int, startKey string) ([]*foov1.Foo, string, error) {
-	return generic.CollectPageAndCursor(s.RangeFoos(ctx, startKey, ""), limit, foov1.Foo.GetName)
-}
-
-func (s *FooService) RangeFoos(ctx context.Context, start, end string) iter.Seq2[*foov1.Foo, error] {
-	mapFn := func(item backend.Item) (*foov1.Foo, bool) {
-		foo, err := convertItemToFoo(item)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal foo",
-				"key", item.Key,
-				"error", err,
-			)
-			return nil, false
-		}
-		return foo, true
+// ListFoos returns a page of Foos and the token to find the next page of items.
+func (s *FooService) ListFoos(ctx context.Context, req *foov1.ListFoosRequest) ([]*foov1.Foo, string, error) {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
-
-	fooKey := backend.NewKey(foosPrefix)
-	startKey := fooKey.AppendKey(backend.KeyFromString(start))
-	endKey := backend.RangeEnd(fooKey)
-	if end != "" {
-		endKey = fooKey.AppendKey(backend.KeyFromString(end)).ExactKey()
-	}
-
-	return stream.TakeWhile(
-		stream.FilterMap(
-			s.Backend.Items(ctx, backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-			mapFn, // mapping function
-		),
-		func(foo *foov1.Foo) bool {
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			return end == "" || foo.GetName() < end
-		})
+	return s.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(foo *foov1.Foo) bool {
+		return scopes.MatchScope(scopeFilter, foo.GetScope())
+	})
 }
-
 ```
 
+#### Range
+
+The Range method should accept the protobuf `List<Resource>Request` message as a parameter, so that options including filters can be added to the request in a backward-compatible manner.
+
+A range operation should not abort entirely if a single item cannot be
+converted from a `backend.Item`, it should instead be logged, and the rest of
+the range should be processed.
+Aborting an entire range when a single entry is invalid causes Teleport to be
+permanently unhealthy since it is never able to load or cache the affected
+resource(s).
+`generic.(ScopeAware)ServiceWrapper` handles this.
+
+```go
+// RangeFoos ranges over all foos matching any scope filter specified in the
+// request, between startKey and endKey interpreted as scoped resource cursors.
+func (s *FooService) RangeFoos(ctx context.Context, req *foov1.ListFoosRequest, startKey, endKey string) iter.Seq2[*foov1.Foo, error] {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return stream.Fail[*foov1.Foo](trace.Wrap(err))
+	}
+	return stream.FilterMap(s.service.Resources(ctx, startKey, endKey), func(foo *foov1.Foo) (*foov1.Foo, bool) {
+		return foo, scopes.MatchScope(scopeFilter, foo.GetScope())
+	})
+}
+```
 
 ### RBAC
 
-Making use of the `stream.FilterMap` pattern can also be used to verify access to a resource when listing:
+Making use of the `stream.FilterMap` pattern can be used to verify access to a resource when listing:
 
 ```go
 // ListFoos returns a page of Foo resources.
-func (a *ServerWithRoles) ListFoos(ctx context.Context, limit int, startKey string) ([]*foov1.Foo, string, error) {
-	if err := a.authorizeAction(types.KindFoo, types.VerbList, types.VerbRead); err != nil {
-		return nil, "", trace.Wrap(err)
+func (s *Service) ListFoos(ctx context.Context, req *foov1.ListFoosRequest) (*foov1.ListFoosResponse, error) {
+	authzContext, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return generic.CollectPageAndCursor(
-		iterstream.FilterMap(
-			a.authServer.RangeFoos(ctx, startKey, ""),
-			func(foo *foov1.Foo) (*foov1.Foo, bool) {
-				if a.checkAccessToFoo(foo) == nil {
-					return foo, true
-				}
-				return nil, false // Drops item from the stream silently
-			},
-		),
-		limit,
-		*foov1.Foo.GetName,
+	// do a pre-check to weed out requests that definitely won't be authorized.
+	ruleCtx := authzContext.RuleContext()
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, foos.Kind, types.VerbReadNoSecrets, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authzContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
+	stream := stream.FilterMap(
+		s.cfg.Reader.RangeFoos(ctx, req, req.GetPageToken(), ""),
+		func(foo *foov1.Foo) (*foov1.Foo, bool) {
+			// Skip foos the caller is not authorized to see
+			ruleCtx := authzContext.RuleContext()
+			ruleCtx.Resource153 = foo
+			if err := authzContext.CheckerContext.Decision(ctx, foo.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				return checker.CheckAccessToRules(&ruleCtx, foos.Kind, types.VerbReadNoSecrets, types.VerbList)
+			}); err != nil {
+				return nil, false
+			}
+			return foo, true
+		},
 	)
+	page, nextPageToken, err := generic.CollectPageAndCursor(
+		stream,
+		int(req.GetPageSize()),
+		foos.MakeCursor,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return foov1.ListFoosResponse_builder{
+		Foos:          page,
+		NextPageToken: nextPageToken,
+	}.Build(), nil
 }
 ```
 
@@ -630,96 +670,98 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	foov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/foos"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 type fooIndex string
 
-const fooNameIndex fooIndex = "name"
+const (
+	fooNameIndex fooIndex = "name"
+)
 
-func newHealthCheckConfigCollection(upstream services.Foo, w types.WatchKind) (*collection[*foov1.Foo, fooIndex], error) {
+func newFooCollection(upstream services.FooUpstream, w types.WatchKind) (*collection[*foov1.Foo, fooIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter Foo")
+		return nil, trace.BadParameter("missing parameter FooUpstream")
 	}
 
 	return &collection[*foov1.Foo, fooIndex]{
 		store: newStore(
+			foos.Kind,
 			proto.CloneOf[*foov1.Foo],
-			map[healthCheckConfigIndex]func(*foov1.Foo) string{
-				fooNameIndex: func(r *foov1.Foo) string {
-					return r.GetMetadata().GetName()
-				},
+			map[fooIndex]func(*foov1.Foo) string{
+				// sorted by name
+				fooNameIndex: foos.MakeCursor,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*foov1.Foo, error) {
-			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListFoos))
-			return out, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*foov1.Foo, string, error) {
+				return upstream.ListFoos(ctx, foov1.ListFoosRequest_builder{
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
+					// TODO: propagate filter from WatchKind.
+					ScopeFilter: nil,
+				}.Build())
+			}))
 		},
 		watch: w,
 	}, nil
 }
 
-// ListFoos lists foos with pagination.
-func (c *Cache) ListFoos(ctx context.Context, pageSize int, nextToken string) ([]*foov1.Foo, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListFoos")
-	defer span.End()
-
-	lister := genericLister[*foov1.Foo, fooIndex]{
-		cache:           c,
-		collection:      c.collections.foo,
-		index:           fooNameIndex,
-		upstreamList:    c.Config.Foo.ListFoos,
-		nextToken:       foov1.Foo.GetName,
-	}
-	out, next, err := lister.list(ctx, pageSize, nextToken)
-	return out, next, trace.Wrap(err)
-}
-
-// GetFoo fetches a foo by name.
-func (c *Cache) GetFoo(ctx context.Context, name string) (*foov1.Foo, error) {
+func (c *Cache) GetFoo(ctx context.Context, req *foov1.GetFooRequest) (*foov1.Foo, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetFoo")
 	defer span.End()
 
 	getter := genericGetter[*foov1.Foo, fooIndex]{
-		cache:       c,
-		collection:  c.collections.foo,
-		index:       fooNameIndex,
-		upstreamGet: c.Config.Foo.GetFoo,
+		cache:      c,
+		collection: c.collections.foos,
+		index:      fooNameIndex,
+		upstreamGet: func(ctx context.Context, _ string) (*foov1.Foo, error) {
+			return c.FooUpstream.GetFoo(ctx, req)
+		},
 	}
-	out, err := getter.get(ctx, name)
+
+	fooCursor := scopes.MakeResourceCursor(req.GetScope(), req.GetName())
+	out, err := getter.get(ctx, fooCursor)
 	return out, trace.Wrap(err)
 }
 
-// RangeFoos returns Foo resources within the range [start, end).
-func (c *Cache) RangeFoos(ctx context.Context, start, end string) iter.Seq2[*foov1.Foo, error] {
+func (c *Cache) RangeFoos(ctx context.Context, req *foov1.ListFoosRequest, startKey, endKey string) iter.Seq2[*foov1.Foo, error] {
+	ctx, span := c.Tracer.Start(ctx, "cache/RangeFoos")
+	defer span.End()
+
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return stream.Fail[*foov1.Foo](trace.Wrap(err))
+	}
+
 	lister := genericLister[*foov1.Foo, fooIndex]{
-		cache:        c,
-		collection:   c.collections.foos,
-		index:        fooNameIndex,
-		upstreamList: c.Config.Foos.ListFoos,
-		nextToken:    foov1.Foo.GetName,
+		cache:      c,
+		collection: c.collections.foos,
+		index:      fooNameIndex,
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]*foov1.Foo, string, error) {
+			return c.FooUpstream.ListFoos(ctx, foov1.ListFoosRequest_builder{
+				PageSize:    int32(pageSize),
+				PageToken:   pageToken,
+				ScopeFilter: scopeFilter,
+			}.Build())
+		},
+		filter: func(foo *foov1.Foo) bool {
+			return scopes.MatchScope(scopeFilter, foo.GetScope())
+		},
+		nextToken: foos.MakeCursor,
 	}
 
-	return func(yield func(*foov1.Foo, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/RangeFoos")
-		defer span.End()
-
-		for foo, err := range lister.Range(ctx, start, end) {
-			if !yield(foo, err) {
-				return
-			}
-
-			if err != nil {
-				return
-			}
-		}
-	}
+	return lister.Range(ctx, startKey, endKey)
 }
 ```
 
@@ -733,12 +775,17 @@ by consumers.
 In order to add your resource to the event stream mechanism, you must write a "parser" which will allow your resource
 to be decoded from the event. This can be found in `lib/services/local/events.go`.
 
+You should NOT return a `ResourceHeader` for delete events, instead return a skeleton of the proper resource type with only the fields that can be derived from the key set.
+
 For example, to add a parser for `foo`:
 
 ```go
 func newFooParser() *fooParser {
 	return &fooParser{
-		baseParser: newBaseParser(backend.ExactKey(fooPrefix)),
+		baseParser: newBaseParser(
+			fooUnscopedWatchPrefix(),
+			fooScopedWatchPrefix(),
+		),
 	}
 }
 
@@ -749,26 +796,60 @@ type fooParser struct {
 func (p *fooParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.ExactKey(fooPrefix))
-		return types.Resource153ToLegacy(&foov1.Foo{
-				Kind: types.KindFoo,
-				SubKind: ""
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: name
-				}
-		})
+		sqn, err := fooNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		foo := foov1.Foo_builder{
+			Kind:    foos.Kind,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: sqn.Name,
+			}.Build(),
+			Scope: sqn.Scope,
+		}.Build()
+		return types.Resource153ToLegacy(foo), nil
 	case types.OpPut:
-		foo, err := services.UnmarshalFoo(
+		foo, err := services.UnmarshalProtoResource[*foov1.Foo](
 			event.Item.Value,
 			services.WithExpires(event.Item.Expires),
-			services.WithRevision(event.Item.Revision))
+			services.WithRevision(event.Item.Revision),
+		)
 		if err != nil {
-			return nil, trace.Wrap(err, "unmarshaling resource from event")
+			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(foo), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func fooNameFromKey(key backend.Key) (scopes.QualifiedName, error) {
+	switch {
+	case key.HasPrefix(fooScopedWatchPrefix()):
+		components := key.TrimPrefix(fooScopedWatchPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		encodedScope, name := components[0], components[1]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  name,
+		}, nil
+	case key.HasPrefix(fooUnscopedWatchPrefix()):
+		components := key.TrimPrefix(fooUnscopedWatchPrefix()).Components()
+		if len(components) != 1 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		return scopes.QualifiedName{
+			Name: components[0],
+		}, nil
+	default:
+		return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
 	}
 }
 ```
@@ -815,177 +896,6 @@ conform with the advice above and falling back to the existing APIs if a `trace.
 all compatible versions of Teleport are using the new version of the API, the old API may be cleaned up.
 
 
-### Proto Specification
+### Reference Implementation
 
-Below is the entire specification for the examples above.
-
-<details open><summary>Foo Proto</summary>
-
-```protobuf
-syntax = "proto3";
-
-package teleport.foo.v1;
-
-import "teleport/header/v1/metadata.proto";
-
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1;foov1";
-
-// Foo is a resource that does foo.
-message Foo {
-  // The kind of resource represented.
-  string kind = 1;
-  // An optional subkind to differentiate variations of the same kind.
-  string sub_kind = 2;
-  // The version of the resource being represented.
-  string version = 3;
-  // Common metadata that all resources shared.
-  teleport.header.v1.Metadata metadata = 4;
-  // The specific properties of a Foo. These should only be modified by
-  // the creator/owner of the resource and not dynamically altered or updated.
-  FooSpec spec = 5;
-  // Any dynamic state of Foo that is modified during runtime of the
-  // Teleport process.
-  FooStatus status = 6;
-}
-
-// FooSpec contains specific properties of a Foo that MUST only
-// be modified by the owner of the resource. These properties should
-// not be automatically adjusted by Teleport during runtime.
-message FooSpec {
-  string bar = 1;
-  int32 baz = 2;
-  bool qux = 3;
-}
-
-// FooStatus contains dynamic properties of a Foo. These properties are
-// modified during runtime of a Teleport process. They should not be exposed
-// to end users and ignored by external IaC tools.
-message FooStatus {
-  google.protobuf.Timestamp next_audit = 1;
-  string teleport_host = 2;
-}
-```
-
-</details>
-
-<details open><summary>Foo Service</summary>
-
-```protobuf
-syntax = "proto3";
-
-package teleport.foo.v1;
-
-import "teleport/foo/v1/foo.proto";
-
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1;foov1";
-
-// FooService provides an API to manage Foos.
-service FooService {
-  // GetFoo returns the specified Foo resource.
-  rpc GetFoo(GetFooRequest) returns (GetFooResponse);
-
-  // ListFoos returns a page of Foo resources.
-  rpc ListFoos(ListFoosRequest) returns (ListFoosResponse);
-
-  // CreateFoo creates a new Foo resource.
-  rpc CreateFoo(CreateFooRequest) returns (CreateFooResponse);
-
-  // UpdateFoo updates an existing Foo resource.
-  rpc UpdateFoo(UpdateFooRequest) returns (UpdateFooResponse);
-
-  // UpsertFoo creates or replaces a Foo resource.
-  rpc UpsertFoo(UpsertFooRequest) returns (UpsertFooResponse);
-
-  // DeleteFoo hard deletes the specified Foo resource.
-  rpc DeleteFoo(DeleteFooRequest) returns (DeleteFooResponse);
-}
-
-// Request for GetFoo.
-message GetFooRequest {
-  // The id of the Foo resource to retrieve.
-  string foo_id = 1;
-}
-
-// Response for GetFoo.
-message GetFooResponse {
-  // The retrieved foo resource.
-  Foo foo = 1;
-}
-
-// Request for ListFoos.
-//
-// Follows the pagination semantics of
-// https://cloud.google.com/apis/design/standard_methods#list.
-message ListFoosRequest {
-  // The maximum number of items to return.
-  // The server may impose a different page size at its discretion.
-  int32 page_size = 1;
-
-  // The page_token value returned from a previous ListFoo request, if any.
-  string page_token = 2;
-}
-
-// Response for ListFoos.
-message ListFoosResponse {
-  // Foo that matched the search.
-  repeated Foo foos = 1;
-
-  // Token to retrieve the next page of results, or empty if there are no
-  // more results exist.
-  string next_page_token = 2;
-}
-
-// Request for CreateFoo.
-message CreateFooRequest {
-  // The foo resource to create.
-  Foo foo = 1;
-}
-
-// Response for CreateFoo.
-message CreateFooResponse {
-  // The foo resource that was created, including its new revision.
-  Foo foo = 1;
-}
-
-// Request for UpdateFoo.
-message UpdateFooRequest {
-  // The foo resource to update.
-  Foo foo = 1;
-
-  // The update mask applied to a Foo.
-  // Fields are masked according to their proto name.
-  FieldMask update_mask = 2;
-}
-
-// Response for UpdateFoo.
-message UpdateFooResponse {
-  // The foo resource that was written in storage, including
-  // its new revision. The resource is complete even if the
-  // update request was for a partial update.
-  Foo foo = 1;
-}
-
-// Request for UpsertFoo.
-message UpsertFooRequest {
-  // The foo resource to upsert.
-  Foo foo = 1;
-}
-
-// Response for UpsertFoo
-message UpsertFooResponse {
-  // The foo resource that was written in storage, including
-  // its new revision.
-  Foo foo = 1;
-}
-
-// Request for DeleteFoo.
-message DeleteFooRequest {
-  // Name of the foo to remove.
-  string foo_id = 1;
-}
-
-// Response for DeleteFoo
-message DeleteFooResponse {}
-```
-
-</details>
+A branch with a complete implementation of a Foo service including the proto specification, backend storage support, a gRPC API layer with authorization, `tctl` support, events support, and cache support can be found at https://github.com/gravitational/teleport/pull/68358
