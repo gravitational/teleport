@@ -17,6 +17,7 @@
  */
 
 import { Event, Formatters } from './types';
+import config from "./config.json";
 
 // eventsWithoutExamples returns an array of event objects based on the
 // elements in formatters that do not have corresponding examples in fixtures.
@@ -161,10 +162,10 @@ export interface ReferencePageEventData {
   };
 }
 
-// getEventType returns the type of an audit event, which is defined as the 
+// getSegment returns the type of an audit event, which is defined as the 
 // first part of the event name, before the first period. If there is no 
 // period in the event name, the entire event name is returned.
-const getEventType = (event: ReferencePageEventData): string => {
+const getSegment = (event: ReferencePageEventData): string => {
   return event.raw.event.split('.')[0] || event.raw.event;
 };
 
@@ -176,7 +177,7 @@ const getEventType = (event: ReferencePageEventData): string => {
 // audit event test fixture.
 export function createReferencePages(
   jsonEvents: ReferencePageEventData[],
-): { type: string; content: string }[] {
+): { id: string; content: string }[] {
   const codeSet = new Set();
   let result = jsonEvents;
   result.sort((a, b) => {
@@ -186,16 +187,18 @@ export function createReferencePages(
       return 1;
     }
   });
-  const eventTypes = new Map<string, Map<string, ReferencePageEventData[]>>();
+
+  // Map event segments to their corresponding events. E.g. "session" => { "session.start" => [event1, event2], "session.end" => [event3] }
+  const eventSegmentsMap = new Map<string, Map<string, ReferencePageEventData[]>>();
   result.forEach(e => {
     if (codeSet.has(e.code)) {
       return;
     }
-    const eventType = getEventType(e);
-    const events = eventTypes.get(eventType);
+    const segment = getSegment(e);
+    const events = eventSegmentsMap.get(segment);
     codeSet.add(e.code);
     if (!events) {
-      eventTypes.set(eventType, new Map([[e.raw.event, [e]]]));
+      eventSegmentsMap.set(segment, new Map([[e.raw.event, [e]]]));
       return;
     }
     const codeData = events.get(e.raw.event);
@@ -206,10 +209,12 @@ export function createReferencePages(
     codeData.push(e);
   });
 
-  return Array.from(eventTypes.keys()).map((eventType) => {
-    const events = eventTypes.get(eventType);
+  // Create a list of segments, each containing the events that belong to that segment.
+  // Each segment will be placed on a themed page based on the config.json file.
+  const segments = Array.from(eventSegmentsMap.keys()).map((segment) => {
+    const events = eventSegmentsMap.get(segment);
     return {
-      type: eventType,
+      type: segment,
       content: events.keys().reduce(
         (accum, current) => {
           const codes = events.get(current);
@@ -218,9 +223,45 @@ export function createReferencePages(
           }
           return accum + '\n' + createMultipleEventsSection(codes);
         },
+        '',
+      ),
+    };
+  });
+
+  const themePages = config.themes.map((theme: { id: string; name: string; segments: string[]; introduction?: string }) => {
+    return {
+      id: theme.id,
+      content: segments.filter(segment => theme.segments.indexOf(segment.type) !== -1).reduce(
+        (accum, current) => {
+          return accum + '\n' + current.content;
+        },
         `---
-title: ${eventType} Audit Events
-description: "Provides a list of ${eventType} Teleport audit events."
+title: ${theme.name} Audit Events
+description: "Provides a list of ${theme.name} audit events."
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run \`make audit-event-reference\` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+${theme.introduction ? `\n${theme.introduction}\n` : ''}
+`,
+      ),
+    };
+  });
+
+  themePages.push({
+    id: "miscellaneous",
+    content: segments.filter(segment => !config.themes.some(theme => theme.segments.indexOf(segment.type) !== -1)).reduce(
+      (accum, current) => {
+        return accum + '\n' + current.content;
+      },
+      `---
+title: Miscellaneous Audit Events
+description: "Provides a list of miscellaneous audit events."
 ---
 {/* Generated file. Do not edit. */}
 {/* To regenerate, run \`make audit-event-reference\` */}
@@ -231,7 +272,8 @@ description: "Provides a list of ${eventType} Teleport audit events."
 what we standardize on in the docs*/}
 {/* vale messaging.capitalization = NO */}
 `,
-      ),
-    };
+    ),
   });
+
+  return themePages;
 }
