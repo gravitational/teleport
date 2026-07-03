@@ -3279,6 +3279,7 @@ func validateRoles(roles string) error {
 			defaults.RoleApp,
 			defaults.RoleDatabase,
 			defaults.RoleWindowsDesktop,
+			defaults.RoleLinuxDesktop,
 			defaults.RoleDiscovery:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
