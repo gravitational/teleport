@@ -6167,6 +6167,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Cache:            cfg.AuthServer.Cache,
 		Emitter:          cfg.Emitter,
 		Clock:            cfg.AuthServer.GetClock(),
+		ScopesFeatures:   cfg.AuthServer.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity resource service")

@@ -64,6 +64,9 @@ type ResourceServiceConfig struct {
 	Clock            clockwork.Clock
 	Emitter          apievents.Emitter
 	Logger           *slog.Logger
+	// ScopesFeatures dictates whether scoped workload identity functionality
+	// is enabled.
+	ScopesFeatures scopes.Features
 }
 
 // ResourceService is the gRPC service for managing workload identity resources.
@@ -77,6 +80,7 @@ type ResourceService struct {
 	clock            clockwork.Clock
 	emitter          apievents.Emitter
 	logger           *slog.Logger
+	scopesFeatures   scopes.Features
 }
 
 // NewResourceService returns a new instance of the ResourceService.
@@ -105,6 +109,7 @@ func NewResourceService(cfg *ResourceServiceConfig) (*ResourceService, error) {
 		clock:            cfg.Clock,
 		emitter:          cfg.Emitter,
 		logger:           cfg.Logger,
+		scopesFeatures:   cfg.ScopesFeatures,
 	}, nil
 }
 
@@ -286,7 +291,7 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetName(),
+			Name:  req.GetName(),
 			Scope: req.GetScope(),
 		},
 	}); err != nil {
@@ -319,6 +324,12 @@ func (s *ResourceService) CreateWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetWorkloadIdentity().GetScope() != "" {
+		if err := s.scopesFeatures.AssertEnabled(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Admin action MFA can only be enforced on unscoped identities.
 	// TODO(strideynet): When scoped identities support MFA, enforce it here.
 	if unscoped, ok := authCtx.UnscopedContext(); ok {
@@ -340,7 +351,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
+			Name:  req.GetWorkloadIdentity().GetMetadata().GetName(),
 			Scope: req.GetWorkloadIdentity().GetScope(),
 		},
 	}
@@ -382,6 +393,12 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetWorkloadIdentity().GetScope() != "" {
+		if err := s.scopesFeatures.AssertEnabled(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Admin action MFA can only be enforced on unscoped identities.
 	// TODO(strideynet): When scoped identities support MFA, enforce it here.
 	if unscoped, ok := authCtx.UnscopedContext(); ok {
@@ -403,7 +420,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
+			Name:  req.GetWorkloadIdentity().GetMetadata().GetName(),
 			Scope: req.GetWorkloadIdentity().GetScope(),
 		},
 	}
@@ -445,6 +462,12 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetWorkloadIdentity().GetScope() != "" {
+		if err := s.scopesFeatures.AssertEnabled(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Admin action MFA can only be enforced on unscoped identities.
 	// TODO(strideynet): When scoped identities support MFA, enforce it here.
 	if unscoped, ok := authCtx.UnscopedContext(); ok {
@@ -466,7 +489,7 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
+			Name:  req.GetWorkloadIdentity().GetMetadata().GetName(),
 			Scope: req.GetWorkloadIdentity().GetScope(),
 		},
 	}

@@ -225,7 +225,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err, "deriving attributes")
 	}
 
-	// TODO: Update to accept scope param and pass down here.
+	// TODO(strideynet): Update to accept scope param and pass down here.
 	wi, err := s.cache.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: req.GetName()})
 	if err != nil {
 		return nil, trace.Wrap(err)

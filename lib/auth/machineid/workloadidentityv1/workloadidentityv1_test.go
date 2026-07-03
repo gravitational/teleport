@@ -3200,6 +3200,55 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 	}
 }
 
+func TestResourceService_ScopedWritesRequireScopesFeature(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+
+	authorizedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"authorized",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindWorkloadIdentity},
+				Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+			},
+		})
+	require.NoError(t, err)
+	authorizedClient, err := srv.NewClient(authtest.TestUser(authorizedUser.GetName()))
+	require.NoError(t, err)
+	client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(authorizedClient.GetConnection())
+
+	const scope = "/scopes/granted"
+	scoped := scopedWorkloadIdentity("scoped", scope, scope+"/_/svc")
+
+	t.Run("create rejected", func(t *testing.T) {
+		_, err := client.CreateWorkloadIdentity(ctx, workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
+			WorkloadIdentity: scoped,
+		}.Build())
+		require.ErrorContains(t, err, "scoping features are not enabled")
+	})
+	t.Run("update rejected", func(t *testing.T) {
+		_, err := client.UpdateWorkloadIdentity(ctx, workloadidentityv1pb.UpdateWorkloadIdentityRequest_builder{
+			WorkloadIdentity: scoped,
+		}.Build())
+		require.ErrorContains(t, err, "scoping features are not enabled")
+	})
+	t.Run("upsert rejected", func(t *testing.T) {
+		_, err := client.UpsertWorkloadIdentity(ctx, workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+			WorkloadIdentity: scoped,
+		}.Build())
+		require.ErrorContains(t, err, "scoping features are not enabled")
+	})
+	t.Run("unscoped create unaffected", func(t *testing.T) {
+		_, err := client.CreateWorkloadIdentity(ctx, workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
+			WorkloadIdentity: scopedWorkloadIdentity("unscoped", "", "/svc"),
+		}.Build())
+		require.NoError(t, err)
+	})
+}
+
 func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
