@@ -194,7 +194,11 @@ func workloadIdentityNameFromKey(key backend.Key) (scopes.QualifiedName, error) 
 	case key.HasPrefix(workloadIdentityScopedWatchPrefix()):
 		components := key.TrimPrefix(workloadIdentityScopedWatchPrefix()).Components()
 		if len(components) != 2 {
-			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+			return scopes.QualifiedName{}, trace.NotFound(
+				"expected 2 components, got %d parsing backend key %v",
+				len(components),
+				key.String(),
+			)
 		}
 		encodedScope, name := components[0], components[1]
 		scope, err := scopes.DecodeFromKey(encodedScope)
@@ -208,13 +212,19 @@ func workloadIdentityNameFromKey(key backend.Key) (scopes.QualifiedName, error) 
 	case key.HasPrefix(workloadIdentityUnscopedWatchPrefix()):
 		components := key.TrimPrefix(workloadIdentityUnscopedWatchPrefix()).Components()
 		if len(components) != 1 {
-			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+			return scopes.QualifiedName{}, trace.NotFound(
+				"expected 1 component, got %d parsing backend key %v",
+				len(components),
+				key.String(),
+			)
 		}
 		return scopes.QualifiedName{
 			Name: components[0],
 		}, nil
 	default:
-		return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		return scopes.QualifiedName{}, trace.NotFound(
+			"unexpected prefix parsing backend key %v", key.String(),
+		)
 	}
 }
 
