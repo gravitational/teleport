@@ -50,14 +50,8 @@ func (c *workloadIdentityCollection) WriteText(w io.Writer, verbose bool) error 
 
 	var rows [][]string
 	for _, item := range c.items {
-		// Scoped workload identities are identified by their scope-qualified
-		// name; unscoped ones by their bare name.
-		name := item.GetMetadata().GetName()
-		if scope := item.GetScope(); scope != "" {
-			name = scopes.QualifiedName{Scope: scope, Name: name}.String()
-		}
 		rows = append(rows, []string{
-			name,
+			scopes.QualifiedName{Scope: item.GetScope(), Name: item.GetMetadata().GetName()}.String(),
 			item.GetSpec().GetSpiffe().GetId(),
 		})
 	}

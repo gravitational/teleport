@@ -1039,7 +1039,7 @@ func TestScopedAndUnscopedWorkloadIdentityResource(t *testing.T) {
 			},
 		},
 	}
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
 	clt, err := testenv.NewDefaultAuthClient(auth)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = clt.Close() })
@@ -1073,19 +1073,13 @@ func TestScopedAndUnscopedWorkloadIdentityResource(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 
-	// Poll until both workload identities appear via the list (cache propagation).
-	timeout := time.After(30 * time.Second)
-	for {
+	// Wait until both workload identities appear via the list (cache propagation).
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "--format=json"})
-		if err == nil && strings.Contains(buf.String(), "classic-wi") && strings.Contains(buf.String(), "staging-wi") {
-			break
-		}
-		select {
-		case <-timeout:
-			require.FailNow(t, "timed out waiting for workload identities to appear in list")
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "classic-wi")
+		require.Contains(t, buf.String(), "staging-wi")
+	}, 30*time.Second, 100*time.Millisecond)
 
 	t.Run("list all shows scope-qualified name for scoped identities", func(t *testing.T) {
 		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "--format=text"})
@@ -1124,19 +1118,10 @@ func TestScopedAndUnscopedWorkloadIdentityResource(t *testing.T) {
 		_, err := runResourceCommand(t, clt, []string{"rm", types.KindWorkloadIdentity, "/staging::staging-wi"})
 		require.NoError(t, err)
 
-		timeout := time.After(30 * time.Second)
-		for {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			_, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "/staging::staging-wi", "--format=json"})
-			if trace.IsNotFound(err) {
-				break
-			}
-			require.NoError(t, err, "unexpected error waiting for staging-wi deletion")
-			select {
-			case <-timeout:
-				require.FailNow(t, "timed out waiting for staging-wi to be deleted")
-			case <-time.After(100 * time.Millisecond):
-			}
-		}
+			require.True(t, trace.IsNotFound(err), "expected NotFound waiting for staging-wi deletion, got: %v", err)
+		}, 30*time.Second, 100*time.Millisecond)
 	})
 
 	t.Run("unscoped delete", func(t *testing.T) {

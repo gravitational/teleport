@@ -315,18 +315,11 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 			fmt.Fprintln(c.stdout, "No workload identities configured")
 			return nil
 		}
-		// TODO(strideynet): Should we just display SQN in Name rather than
-		// splitting name/scope fields?
 		t := asciitable.MakeTable([]string{"Name", "SPIFFE ID"})
 		for _, u := range workloadIdentities {
-			// Scoped workload identities are identified by their scope-qualified
-			// name; unscoped ones by their bare name.
-			name := u.GetMetadata().GetName()
-			if scope := u.GetScope(); scope != "" {
-				name = scopes.QualifiedName{Scope: scope, Name: name}.String()
-			}
 			t.AddRow([]string{
-				name, u.GetSpec().GetSpiffe().GetId(),
+				scopes.QualifiedName{Scope: u.GetScope(), Name: u.GetMetadata().GetName()}.String(),
+				u.GetSpec().GetSpiffe().GetId(),
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())

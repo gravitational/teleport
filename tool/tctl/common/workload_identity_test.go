@@ -37,6 +37,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -58,7 +59,12 @@ func runWorkloadIdentityCommand(
 func TestWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
-	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		testenv.WithLogger(logtest.NewLogger()),
+		// Scoped workload identity writes are feature-gated.
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -175,10 +181,6 @@ spec:
 		require.Empty(t, resources)
 	})
 
-	// Scoped workload identities are shown by their scope-qualified name and are
-	// addressable by an SQN for rm. These run after the unscoped lifecycle above
-	// leaves the cluster empty, so the exact-output/golden assertions there stay
-	// valid; they seed their own resources via `tctl create`.
 	createWorkloadIdentity := func(t *testing.T, yamlData string) {
 		yamlPath := filepath.Join(t.TempDir(), "workload_identity.yaml")
 		require.NoError(t, os.WriteFile(yamlPath, []byte(yamlData), 0644))
