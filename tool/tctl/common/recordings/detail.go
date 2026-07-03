@@ -76,6 +76,13 @@ func renderDetail(s *sessionsearchv1pb.SessionSummary, p palette) string {
 		}
 	}
 	field("Severity", formatSeverityColored(s.GetSeverity()))
+	if reasons := s.GetNeedsFurtherReviewReasons(); len(reasons) > 0 {
+		labels := make([]string, len(reasons))
+		for i, r := range reasons {
+			labels[i] = formatReviewReason(r)
+		}
+		field("Needs Review", strings.Join(labels, "; "))
+	}
 	b.WriteString("\n")
 
 	section("User")
@@ -145,6 +152,24 @@ func severityColor(level summarizerv1pb.RiskLevel) lipgloss.TerminalColor {
 		return lipgloss.Color("196") // bright red
 	default:
 		return lipgloss.NoColor{}
+	}
+}
+
+// formatReviewReason converts a NeedsReviewReason to a human-readable string.
+func formatReviewReason(r summarizerv1pb.NeedsReviewReason) string {
+	switch r {
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE:
+		return "too large to fully analyze"
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED:
+		return "command analysis failed"
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST:
+		return "failed to fetch access request"
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH:
+		return "access request resource mismatch"
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED:
+		return "output not fully captured"
+	default:
+		return strings.ToLower(strings.TrimPrefix(r.String(), "NEEDS_REVIEW_REASON_"))
 	}
 }
 
