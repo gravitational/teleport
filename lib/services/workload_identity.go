@@ -293,8 +293,7 @@ func WorkloadIdentityKey(sortField WorkloadIdentitySortField) (func(*workloadide
 
 // workloadIdentityCursor returns the canonical resource cursor for a
 // WorkloadIdentity, used both as its in-memory cache index key and as its
-// pagination cursor, so it must be stable and unique per resource. See
-// scopes.MakeResourceCursor for the cursor format and ordering properties.
+// pagination cursor, so it must be stable and unique per resource.
 func workloadIdentityCursor(wi *workloadidentityv1pb.WorkloadIdentity) string {
 	cursor, err := scopes.MakeResourceCursor(wi.GetScope(), wi.GetMetadata().GetName())
 	if err != nil {
