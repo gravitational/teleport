@@ -125,6 +125,12 @@ func (f *Forwarder) inBandMFAParamsFromRequest(ctx context.Context, req *http.Re
 // once the resource expires re-verification fails and the client is re-challenged.
 const inBandMFACacheTTL = time.Minute
 
+// inBandMFAVerifyTimeout bounds the backend verification call. The mfav2 verify RPC
+// internally waits up to five minutes for the challenge resource to appear (leaf
+// replication semantics for SSH); on the synchronous kube request path an expired or
+// missing challenge must fail fast instead so the client is re-challenged.
+const inBandMFAVerifyTimeout = 5 * time.Second
+
 // inBandMFACacheMaxSize bounds the verification cache. When full, verification still
 // works but results are not cached.
 const inBandMFACacheMaxSize = 10000
@@ -180,7 +186,9 @@ func (f *Forwarder) satisfyInBandMFA(ctx context.Context, actx *authContext) boo
 		SourceCluster: key.sourceCluster,
 		Username:      key.username,
 	}.Build()
-	if _, err := verifier.VerifyValidatedMFAChallenge(ctx, req); err != nil {
+	verifyCtx, cancel := context.WithTimeout(ctx, inBandMFAVerifyTimeout)
+	defer cancel()
+	if _, err := verifier.VerifyValidatedMFAChallenge(verifyCtx, req); err != nil {
 		f.log.DebugContext(ctx, "In-band MFA challenge verification failed",
 			"error", err,
 			"challenge", key.challengeName,
