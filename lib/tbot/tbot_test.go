@@ -1676,7 +1676,9 @@ func TestScopedBotKubernetes(t *testing.T) {
 		t.TempDir(),
 		defaultTestServerOpts(log),
 		testenv.WithProxyKube(),
-		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
+		// AgentPinEnabled is required for the kube_service agent to join with
+		// a scoped token (only Node/Bot roles may join without agent pins).
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1806,6 +1808,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 
 	t.Run("identity certificate has scope pins", func(t *testing.T) {
 		expectedPin := &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				scopeName: {scopeName: {scopedRoleName}},
