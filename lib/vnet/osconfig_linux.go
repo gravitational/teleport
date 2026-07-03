@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -90,6 +92,34 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		}
 	}
 	return nil
+}
+
+const (
+	// procIPv6Conf holds per-interface IPv6 settings, it is absent when the
+	// kernel was booted with IPv6 disabled.
+	procIPv6Conf = "/proc/sys/net/ipv6/conf"
+	// disableIPv6Setting is the per-interface setting that disables IPv6 when set to 1.
+	disableIPv6Setting = "disable_ipv6"
+)
+
+// hostIPv6Disabled checks whether IPv6 has been disabled on the host.
+func hostIPv6Disabled(tunName string) (bool, error) {
+	if _, err := os.Stat(procIPv6Conf); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return true, nil
+		}
+		return false, trace.Wrap(err, "checking existence of %s", procIPv6Conf)
+	}
+	path := filepath.Join(procIPv6Conf, tunName, disableIPv6Setting)
+	disabled, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, trace.Wrap(err, "reading %s", path)
+	}
+	// The file contains "1" when IPv6 is disabled on the device, "0" when enabled
+	return strings.TrimSpace(string(disabled)) == "1", nil
 }
 
 func shouldReconfigureDNSZones(cfg *osConfig, state *platformOSConfigState) bool {
