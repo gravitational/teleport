@@ -221,6 +221,15 @@ message MemberStatus {
   UserDisplay added_by_display = 2;
 }
 
+// ReviewStatus contains dynamic fields calculated during retrieval.
+message ReviewStatus {
+  // reviewer_displays maps reviewer usernames to read-time display values
+  // derived from the user resource. A present key with empty values is a live
+  // user with no distinct display. An absent key is a user that no longer
+  // exists.
+  map<string, UserDisplay> reviewer_displays = 1;
+}
+
 // MemberSpec is the specification for an Access List member.
 message MemberSpec {
   reserved 8;
@@ -298,6 +307,9 @@ message Review {
   // scope is the scope of the Access List review. It must be equal to the
   // scope of the reviewed Access List.
   string scope = 3;
+
+  // status contains dynamically calculated fields.
+  ReviewStatus status = 4;
 }
 
 // ReviewSpec is the specification for an Access List review.

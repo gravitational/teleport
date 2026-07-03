@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
@@ -39,6 +40,64 @@ func TestReviewRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(review, converted))
+}
+
+func TestReviewStatusConversion(t *testing.T) {
+	t.Parallel()
+
+	review := newAccessListReview(t, "access-list-review")
+	review.Status = &accesslist.ReviewStatus{
+		ReviewerDisplays: map[string]types.UserDisplay{
+			"both": {
+				Primary:   "Both Values",
+				Secondary: "both@example.com",
+			},
+			"primary": {
+				Primary: "Primary Only",
+			},
+			"secondary": {
+				Secondary: "secondary@example.com",
+			},
+			"empty": {},
+		},
+	}
+
+	msg := ToReviewProto(review)
+	require.NotNil(t, msg.GetStatus())
+	require.Equal(t, map[string]*accesslistv1.UserDisplay{
+		"both": {
+			Primary:   "Both Values",
+			Secondary: "both@example.com",
+		},
+		"primary": {
+			Primary: "Primary Only",
+		},
+		"secondary": {
+			Secondary: "secondary@example.com",
+		},
+		"empty": {},
+	}, msg.GetStatus().GetReviewerDisplays())
+
+	withoutStatus, err := FromReviewProto(msg)
+	require.NoError(t, err)
+	require.Nil(t, withoutStatus.Status)
+
+	withStatus, err := FromReviewProto(msg, WithReviewStatusField(msg))
+	require.NoError(t, err)
+	require.NotNil(t, withStatus.Status)
+	require.Equal(t, review.Status.ReviewerDisplays, withStatus.Status.ReviewerDisplays)
+}
+
+func TestReviewStatusConversionNils(t *testing.T) {
+	t.Parallel()
+
+	review := newAccessListReview(t, "access-list-review")
+	msg := ToReviewProto(review)
+	require.Nil(t, msg.GetStatus())
+
+	withStatus, err := FromReviewProto(msg, WithReviewStatusField(msg))
+	require.NoError(t, err)
+	require.Nil(t, withStatus.Status)
 }
 
 // Make sure that we don't panic if any of the message fields are missing.

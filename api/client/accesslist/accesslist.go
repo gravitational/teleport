@@ -414,7 +414,7 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 	reviews = make([]*accesslist.Review, len(resp.Reviews))
 	for i, review := range resp.Reviews {
 		var err error
-		reviews[i], err = conv.FromReviewProto(review)
+		reviews[i], err = conv.FromReviewProto(review, conv.WithReviewStatusField(review))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
