@@ -537,7 +537,17 @@ func (sess *linuxSession) run() error {
 		sess.audit.teardown(context.Background())
 	}()
 
-	return sess.messageLoop()
+	errCh := make(chan error)
+	go func() {
+		errCh <- sess.messageLoop()
+	}()
+
+	select {
+	case err := <-errCh:
+		return trace.Wrap(err)
+	case <-sess.ctx.Done():
+		return trace.Wrap(sess.ctx.Err())
+	}
 }
 
 func (sess *linuxSession) startMonitor() error {
