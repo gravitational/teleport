@@ -111,17 +111,17 @@ example:
             "Effect": "Allow",
             "Action": "secretsmanager:GetSecretValue",
             "Resource": [
-                "arn:aws:secretsmanager:us-west-1:account_id:secret:rdsproxy_alice",
-                "arn:aws:secretsmanager:us-west-1:account_id:secret:rdsproxy_anotheruser"
+                "arn:aws:secretsmanager:region:account_id:secret:rdsproxy_alice",
+                "arn:aws:secretsmanager:region:account_id:secret:rdsproxy_anotheruser"
             ]
         },
         {   
             "Effect": "Allow",
             "Action": "kms:Decrypt",
-            "Resource": "arn:aws:kms:us-west-1:account_id:key/key_id",
+            "Resource": "arn:aws:kms:region:account_id:key/key_id",
             "Condition": {
                 "StringEquals": {
-                    "kms:ViaService": "secretsmanager.us-east-2.amazonaws.com"
+                    "kms:ViaService": "secretsmanager.region.amazonaws.com"
                 }
             }
         }
