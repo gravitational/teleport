@@ -144,7 +144,7 @@ func (s *EnrollPairingService) CreateEnrollPairing(ctx context.Context, user str
 			Action:    backend.Put(pairingItem),
 		},
 		{
-			Key:       enrollPairingByTokenKey(token),
+			Key:       indexItem.Key,
 			Condition: backend.NotExists(),
 			Action:    backend.Put(indexItem),
 		},
