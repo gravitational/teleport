@@ -1225,7 +1225,7 @@ func TestAuthenticate(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
-				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, metaResource{}, apiResource{}),
+				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, metaResource{}, apiResource{}, inBandMFAParams{}),
 				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "ScopedContext", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "checker", "accessState", "LockingMode"),
 			))
 

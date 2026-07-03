@@ -189,6 +189,9 @@ type ForwarderConfig struct {
 	Scope string
 	// ScopePin is the scope and scoped role assignments the forwarder is pinned to.
 	ScopePin *scopesv1.Pin
+	// ValidatedMFAChallengeVerifier verifies validated in-band MFA challenges against the
+	// backend. When unset, the AuthClient's MFA v2 service client is used.
+	ValidatedMFAChallengeVerifier ValidatedMFAChallengeVerifier
 }
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
@@ -344,8 +347,9 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
-		clusterDetails:  make(map[string]*kubeDetails),
-		cachedTransport: transportClients,
+		clusterDetails:    make(map[string]*kubeDetails),
+		cachedTransport:   transportClients,
+		inBandMFAVerified: make(map[inBandMFACacheKey]time.Time),
 	}
 
 	router := httprouter.New()
@@ -425,6 +429,10 @@ type Forwarder struct {
 	// use the heartbeat clusters.
 	getKubernetesServersForKubeCluster getKubeServersByNameFunc
 
+	// inBandMFAVerified caches successful in-band MFA challenge verifications.
+	inBandMFAMu       sync.RWMutex
+	inBandMFAVerified map[inBandMFACacheKey]time.Time
+
 	// cachedTransport is a cache of cachedTransportEntry objects used to
 	// connect to Teleport services.
 	// TODO(tigrato): Implement a cache eviction policy using watchers.
@@ -501,6 +509,12 @@ type authContext struct {
 
 	// LockingMode determines the kubernetes' behavior when locks are stale
 	LockingMode constants.LockingMode
+
+	// inBandMFA holds the in-band per-session MFA parameters extracted from the request.
+	inBandMFA inBandMFAParams
+	// inBandMFAVerified is set when a validated in-band MFA challenge satisfied
+	// per-session MFA for this request instead of an MFA-stamped certificate.
+	inBandMFAVerified bool
 }
 
 func (c authContext) String() string {
@@ -776,6 +790,11 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 // with a Retry-After header set to inform clients that they should retry the request. All
 // other errors are formatted as a [metav1.Status] and written to the [http.ResponseWriter].
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
+	if errors.Is(respErr, errInBandMFAChallengeRequired) {
+		f.writeInBandMFAChallenge(rw)
+		return
+	}
+
 	// This detects failed requests that were terminated by the server due to GOAWAY. There
 	// is no direct way to detect these errors. No exported constants or error types exist from the
 	// standard library, so we have to match on the error message. The two error strings come from:
@@ -873,6 +892,8 @@ func (f *Forwarder) setupContext(
 		teleportClusterName = f.cfg.ClusterName
 	}
 
+	inBandMFA := f.inBandMFAParamsFromRequest(ctx, req, &identity)
+
 	isRemoteCluster := f.cfg.ClusterName != teleportClusterName
 
 	if isRemoteCluster && isRemoteUser {
@@ -960,6 +981,7 @@ func (f *Forwarder) setupContext(
 		kubeServers:              kubeServers,
 		metaResource:             kubeResource,
 		isLocalKubernetesCluster: isLocalKubernetesCluster,
+		inBandMFA:                inBandMFA,
 	}, nil
 }
 
@@ -1258,6 +1280,14 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return trace.Wrap(err)
 	}
 
+	// A validated in-band MFA challenge satisfies per-session MFA the same way an
+	// MFA-stamped certificate does (RFD 0234 extended to Kubernetes). Legacy clients
+	// that did not signal the capability keep the certificate-based flow.
+	if !actx.accessState.MFAVerified && f.satisfyInBandMFA(ctx, actx) {
+		actx.accessState.MFAVerified = true
+		actx.inBandMFAVerified = true
+	}
+
 	notFoundMessage := fmt.Sprintf("kubernetes cluster %q not found", actx.kubeClusterName)
 	var roleMatchers services.RoleMatchers
 	if !actx.metaResource.isList {
@@ -1309,6 +1339,11 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	}
 
 	if err != nil {
+		// If the denial would be cured by per-session MFA and the client can run the
+		// in-band ceremony, challenge it instead of denying outright.
+		if actx.inBandMFA.capable && !actx.accessState.MFAVerified && f.accessWouldBeGrantedWithMFA(ctx, actx, roleMatchers...) {
+			return trace.Wrap(errInBandMFAChallengeRequired)
+		}
 		if actx.metaResource.resourceDefinition != nil {
 			return trace.AccessDenied("%s", notFoundMessage)
 		}
