@@ -180,6 +180,7 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 	}.Build()
 
 	t.Run("transitions to awaiting approval and persists the device", func(t *testing.T) {
+		t.Parallel()
 		ctx := t.Context()
 		created, err := s.CreateEnrollPairing(ctx, "approve-ok")
 		require.NoError(t, err)
@@ -199,6 +200,7 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 	})
 
 	t.Run("rejects a pairing that is no longer awaiting a device", func(t *testing.T) {
+		t.Parallel()
 		ctx := t.Context()
 		created, err := s.CreateEnrollPairing(ctx, "approve-twice")
 		require.NoError(t, err)
@@ -211,18 +213,40 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 		assert.ErrorAs(t, err, new(*trace.CompareFailedError))
 	})
 
-	t.Run("returns NotFound for an unknown token", func(t *testing.T) {
-		_, err := s.RequestEnrollPairingApproval(t.Context(), "does-not-exist", device)
-		assert.ErrorAs(t, err, new(*trace.NotFoundError))
-	})
-
-	t.Run("rejects empty token", func(t *testing.T) {
-		_, err := s.RequestEnrollPairingApproval(t.Context(), "", device)
-		assert.ErrorAs(t, err, new(*trace.BadParameterError))
-	})
-
-	t.Run("rejects nil device", func(t *testing.T) {
-		_, err := s.RequestEnrollPairingApproval(t.Context(), "any-token", nil)
-		assert.ErrorAs(t, err, new(*trace.BadParameterError))
-	})
+	tests := []struct {
+		name      string
+		token     string
+		device    *devicepb.EnrollPairingDevice
+		errTarget any
+		errMsg    string
+	}{
+		{
+			name:      "returns NotFound for an unknown token",
+			token:     "does-not-exist",
+			device:    device,
+			errTarget: new(*trace.NotFoundError),
+		},
+		{
+			name:      "rejects empty token",
+			token:     "",
+			device:    device,
+			errTarget: new(*trace.BadParameterError),
+		},
+		{
+			name:      "rejects nil device",
+			token:     "any-token",
+			device:    nil,
+			errTarget: new(*trace.BadParameterError),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := s.RequestEnrollPairingApproval(t.Context(), test.token, test.device)
+			assert.ErrorAs(t, err, test.errTarget)
+			if test.errMsg != "" {
+				assert.ErrorContains(t, err, test.errMsg)
+			}
+		})
+	}
 }
