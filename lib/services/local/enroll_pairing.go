@@ -213,8 +213,9 @@ func (s *EnrollPairingService) RequestEnrollPairingApproval(ctx context.Context,
 		return nil, trace.Wrap(err)
 	}
 
+	const errNotAwaitingDevice = "enroll pairing is not awaiting a device"
 	if pairing.GetStatus().GetState() != devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE {
-		return nil, trace.CompareFailed("enroll pairing is not awaiting a device")
+		return nil, trace.CompareFailed(errNotAwaitingDevice)
 	}
 
 	pairing.GetStatus().SetState(devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_APPROVAL)
@@ -223,7 +224,7 @@ func (s *EnrollPairingService) RequestEnrollPairingApproval(ctx context.Context,
 	updated, err := s.service.ConditionalUpdateResource(ctx, pairing)
 	if trace.IsCompareFailed(err) {
 		// Lost the CAS to a concurrent claim — same outcome as the state check above.
-		return nil, trace.CompareFailed("enroll pairing is not awaiting a device")
+		return nil, trace.CompareFailed(errNotAwaitingDevice)
 	}
 	return updated, trace.Wrap(err)
 }
