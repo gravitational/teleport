@@ -81,11 +81,12 @@ func (s *SessionSummarizer) pushSummaryToAccessGraph(
 	}
 
 	req := accessgraphv1.StoreSessionSummaryRequest_builder{
-		SessionId:       details.sessionID.String(),
-		Kind:            string(details.kind),
-		Embeddings:      embeddingsToSend,
-		SessionEndEvent: details.summary.GetSessionEndEvent(),
-		Severity:        details.summary.GetEnhancedSummary().GetRiskLevel(),
+		SessionId:                 details.sessionID.String(),
+		Kind:                      string(details.kind),
+		Embeddings:                embeddingsToSend,
+		SessionEndEvent:           details.summary.GetSessionEndEvent(),
+		Severity:                  details.summary.GetEnhancedSummary().GetRiskLevel(),
+		NeedsFurtherReviewReasons: details.summary.GetEnhancedSummary().GetNeedsFurtherReviewReasons(),
 	}.Build()
 
 	if err := populateSessionSummaryRequest(req, details.sessionEnd); err != nil {

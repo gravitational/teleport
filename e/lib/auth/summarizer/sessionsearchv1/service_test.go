@@ -584,6 +584,7 @@ func TestSearchSessionSummaries(t *testing.T) {
 		wantIDs     []string
 		wantErr     func(*testing.T, error)
 		checkStream func(*testing.T, []*pb.SearchSessionSummariesResponse)
+		checkParams func(*testing.T, *accessgraphv1.SearchSessionSummariesParams)
 	}{
 		{
 			name:    "unauthorized",
@@ -669,6 +670,64 @@ func TestSearchSessionSummaries(t *testing.T) {
 			},
 			req: func() *pb.SearchSessionSummariesRequest { r := baseRequest(); r.SetMaxResults(10); return r }(),
 		},
+		{
+			name:    "filter_needs_further_review_reasons forwarded to AG",
+			auth:    &fakeAuthorizer{ctx: makeAuthCtx(t, allowAll())},
+			pages:   []agPage{{summaries: []*accessgraphv1.SessionSummary{makeSessionSummary(t, "s1", "alice")}}},
+			wantIDs: []string{"s1"},
+			req: func() *pb.SearchSessionSummariesRequest {
+				r := baseRequest()
+				r.SetFilterNeedsFurtherReviewReasons([]summarizerpb.NeedsReviewReason{
+					summarizerpb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+					summarizerpb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED,
+				})
+				return r
+			}(),
+			checkParams: func(t *testing.T, p *accessgraphv1.SearchSessionSummariesParams) {
+				require.NotNil(t, p)
+				assert.Equal(t, []summarizerpb.NeedsReviewReason{
+					summarizerpb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+					summarizerpb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED,
+				}, p.GetFilterNeedsFurtherReviewReasons())
+			},
+		},
+		{
+			name:    "empty filter_needs_further_review_reasons sends no filter",
+			auth:    &fakeAuthorizer{ctx: makeAuthCtx(t, allowAll())},
+			pages:   []agPage{{summaries: []*accessgraphv1.SessionSummary{makeSessionSummary(t, "s1", "alice")}}},
+			wantIDs: []string{"s1"},
+			checkParams: func(t *testing.T, p *accessgraphv1.SearchSessionSummariesParams) {
+				require.NotNil(t, p)
+				assert.Empty(t, p.GetFilterNeedsFurtherReviewReasons())
+			},
+		},
+		{
+			name: "needs_further_review_reasons forwarded in response",
+			auth: &fakeAuthorizer{ctx: makeAuthCtx(t, allowAll())},
+			pages: func() []agPage {
+				s := makeSessionSummary(t, "s1", "alice")
+				s.SetNeedsFurtherReviewReasons([]summarizerpb.NeedsReviewReason{
+					summarizerpb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+					summarizerpb.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED,
+				})
+				return []agPage{{summaries: []*accessgraphv1.SessionSummary{s}}}
+			}(),
+			wantIDs: []string{"s1"},
+			checkStream: func(t *testing.T, sent []*pb.SearchSessionSummariesResponse) {
+				var got *pb.SessionSummary
+				for _, r := range sent {
+					if s := r.GetSummary(); s != nil {
+						got = s
+						break
+					}
+				}
+				require.NotNil(t, got, "expected at least one summary in stream")
+				assert.Equal(t, []summarizerpb.NeedsReviewReason{
+					summarizerpb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+					summarizerpb.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED,
+				}, got.GetNeedsFurtherReviewReasons())
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -678,7 +737,8 @@ func TestSearchSessionSummaries(t *testing.T) {
 			if req == nil {
 				req = baseRequest()
 			}
-			svc := newService(t, &fakeAGServer{pages: tc.pages, openErr: tc.agErr}, tc.auth)
+			agSrv := &fakeAGServer{pages: tc.pages, openErr: tc.agErr}
+			svc := newService(t, agSrv, tc.auth)
 			stream := &fakeStream[pb.SearchSessionSummariesResponse]{ctx: t.Context()}
 			err := svc.SearchSessionSummaries(req, stream)
 			if tc.wantErr != nil {
@@ -691,6 +751,9 @@ func TestSearchSessionSummaries(t *testing.T) {
 			assert.ElementsMatch(t, tc.wantIDs, collectSummaryIDs(stream.sent))
 			if tc.checkStream != nil {
 				tc.checkStream(t, stream.sent)
+			}
+			if tc.checkParams != nil {
+				tc.checkParams(t, agSrv.receivedParams)
 			}
 		})
 	}
@@ -787,6 +850,11 @@ func TestConvertSummary(t *testing.T) {
 	sessionEndEvent, err := structpb.NewStruct(map[string]any{"event": "session.end"})
 	require.NoError(t, err)
 
+	reviewReasons := []summarizerpb.NeedsReviewReason{
+		summarizerpb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+		summarizerpb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED,
+	}
+
 	src := accessgraphv1.SessionSummary_builder{
 		SessionId:        "abc-123",
 		Kind:             "ssh",
@@ -800,7 +868,8 @@ func TestConvertSummary(t *testing.T) {
 		ResourceProperties: accessgraphv1.ResourceProperties_builder{
 			Ssh: &accessgraphv1.SSHProperties{},
 		}.Build(),
-		UserTraits: traits,
+		UserTraits:                traits,
+		NeedsFurtherReviewReasons: reviewReasons,
 		// SessionEndEvent must NOT appear in the output.
 		SessionEndEvent: sessionEndEvent,
 	}.Build()
@@ -818,6 +887,7 @@ func TestConvertSummary(t *testing.T) {
 	assert.Equal(t, labels, got.GetResourceLabels())
 	require.NotNil(t, got.GetResourceProperties(), "resource_properties should be converted")
 	assert.NotNil(t, got.GetResourceProperties().GetSsh(), "SSH variant should be preserved")
+	assert.Equal(t, reviewReasons, got.GetNeedsFurtherReviewReasons())
 }
 
 // fakeCacheWithEmbeddings extends fakeCache to return a configurable
