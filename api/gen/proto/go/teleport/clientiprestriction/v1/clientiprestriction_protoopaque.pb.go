@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/clientiprestriction/v1/clientiprestriction.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package clientiprestrictionv1
 
@@ -39,21 +39,15 @@ const (
 
 // ClientIPRestriction is a resource that sets the IP ranges allowed to connect to a Cloud cluster.
 type ClientIPRestriction struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// The kind of resource represented. This is always `client_ip_restriction`.
-	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	// The sub_kind of the resource. Always "".
-	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
-	// The version of the resource. Always "v1".
-	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	// Metadata about the client IP restrictions.
-	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// User-configurable parts of the resource settings.
-	Spec *ClientIPRestrictionSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
-	// User-immutable status of the ClientIPRestriction and its supporting resources.
-	Status        *ClientIPRestrictionStatus `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState     `protogen:"opaque.v1"`
+	xxx_hidden_Kind     string                     `protobuf:"bytes,1,opt,name=kind,proto3"`
+	xxx_hidden_SubKind  string                     `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3"`
+	xxx_hidden_Version  string                     `protobuf:"bytes,3,opt,name=version,proto3"`
+	xxx_hidden_Metadata *v1.Metadata               `protobuf:"bytes,4,opt,name=metadata,proto3"`
+	xxx_hidden_Spec     *ClientIPRestrictionSpec   `protobuf:"bytes,5,opt,name=spec,proto3"`
+	xxx_hidden_Status   *ClientIPRestrictionStatus `protobuf:"bytes,6,opt,name=status,proto3"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ClientIPRestriction) Reset() {
@@ -83,101 +77,101 @@ func (x *ClientIPRestriction) ProtoReflect() protoreflect.Message {
 
 func (x *ClientIPRestriction) GetKind() string {
 	if x != nil {
-		return x.Kind
+		return x.xxx_hidden_Kind
 	}
 	return ""
 }
 
 func (x *ClientIPRestriction) GetSubKind() string {
 	if x != nil {
-		return x.SubKind
+		return x.xxx_hidden_SubKind
 	}
 	return ""
 }
 
 func (x *ClientIPRestriction) GetVersion() string {
 	if x != nil {
-		return x.Version
+		return x.xxx_hidden_Version
 	}
 	return ""
 }
 
 func (x *ClientIPRestriction) GetMetadata() *v1.Metadata {
 	if x != nil {
-		return x.Metadata
+		return x.xxx_hidden_Metadata
 	}
 	return nil
 }
 
 func (x *ClientIPRestriction) GetSpec() *ClientIPRestrictionSpec {
 	if x != nil {
-		return x.Spec
+		return x.xxx_hidden_Spec
 	}
 	return nil
 }
 
 func (x *ClientIPRestriction) GetStatus() *ClientIPRestrictionStatus {
 	if x != nil {
-		return x.Status
+		return x.xxx_hidden_Status
 	}
 	return nil
 }
 
 func (x *ClientIPRestriction) SetKind(v string) {
-	x.Kind = v
+	x.xxx_hidden_Kind = v
 }
 
 func (x *ClientIPRestriction) SetSubKind(v string) {
-	x.SubKind = v
+	x.xxx_hidden_SubKind = v
 }
 
 func (x *ClientIPRestriction) SetVersion(v string) {
-	x.Version = v
+	x.xxx_hidden_Version = v
 }
 
 func (x *ClientIPRestriction) SetMetadata(v *v1.Metadata) {
-	x.Metadata = v
+	x.xxx_hidden_Metadata = v
 }
 
 func (x *ClientIPRestriction) SetSpec(v *ClientIPRestrictionSpec) {
-	x.Spec = v
+	x.xxx_hidden_Spec = v
 }
 
 func (x *ClientIPRestriction) SetStatus(v *ClientIPRestrictionStatus) {
-	x.Status = v
+	x.xxx_hidden_Status = v
 }
 
 func (x *ClientIPRestriction) HasMetadata() bool {
 	if x == nil {
 		return false
 	}
-	return x.Metadata != nil
+	return x.xxx_hidden_Metadata != nil
 }
 
 func (x *ClientIPRestriction) HasSpec() bool {
 	if x == nil {
 		return false
 	}
-	return x.Spec != nil
+	return x.xxx_hidden_Spec != nil
 }
 
 func (x *ClientIPRestriction) HasStatus() bool {
 	if x == nil {
 		return false
 	}
-	return x.Status != nil
+	return x.xxx_hidden_Status != nil
 }
 
 func (x *ClientIPRestriction) ClearMetadata() {
-	x.Metadata = nil
+	x.xxx_hidden_Metadata = nil
 }
 
 func (x *ClientIPRestriction) ClearSpec() {
-	x.Spec = nil
+	x.xxx_hidden_Spec = nil
 }
 
 func (x *ClientIPRestriction) ClearStatus() {
-	x.Status = nil
+	x.xxx_hidden_Status = nil
 }
 
 type ClientIPRestriction_builder struct {
@@ -201,24 +195,22 @@ func (b0 ClientIPRestriction_builder) Build() *ClientIPRestriction {
 	m0 := &ClientIPRestriction{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Kind = b.Kind
-	x.SubKind = b.SubKind
-	x.Version = b.Version
-	x.Metadata = b.Metadata
-	x.Spec = b.Spec
-	x.Status = b.Status
+	x.xxx_hidden_Kind = b.Kind
+	x.xxx_hidden_SubKind = b.SubKind
+	x.xxx_hidden_Version = b.Version
+	x.xxx_hidden_Metadata = b.Metadata
+	x.xxx_hidden_Spec = b.Spec
+	x.xxx_hidden_Status = b.Status
 	return m0
 }
 
 // ClientIPRestrictionSpec contains specific properties of a ClientIPRestriction that is only
 // modifiable by the owner of the resource. These properties will not be automatically adjusted by Teleport during runtime.
 type ClientIPRestrictionSpec struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster.
-	// An empty list disables restrictions and allows all traffic.
-	AllowedCidrs  []string `protobuf:"bytes,1,rep,name=allowed_cidrs,json=allowedCidrs,proto3" json:"allowed_cidrs,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                   protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_AllowedCidrs []string               `protobuf:"bytes,1,rep,name=allowed_cidrs,json=allowedCidrs,proto3"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *ClientIPRestrictionSpec) Reset() {
@@ -248,13 +240,13 @@ func (x *ClientIPRestrictionSpec) ProtoReflect() protoreflect.Message {
 
 func (x *ClientIPRestrictionSpec) GetAllowedCidrs() []string {
 	if x != nil {
-		return x.AllowedCidrs
+		return x.xxx_hidden_AllowedCidrs
 	}
 	return nil
 }
 
 func (x *ClientIPRestrictionSpec) SetAllowedCidrs(v []string) {
-	x.AllowedCidrs = v
+	x.xxx_hidden_AllowedCidrs = v
 }
 
 type ClientIPRestrictionSpec_builder struct {
@@ -269,19 +261,17 @@ func (b0 ClientIPRestrictionSpec_builder) Build() *ClientIPRestrictionSpec {
 	m0 := &ClientIPRestrictionSpec{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.AllowedCidrs = b.AllowedCidrs
+	x.xxx_hidden_AllowedCidrs = b.AllowedCidrs
 	return m0
 }
 
 // ClientIPRestrictionStatus contains dynamic properties of a ClientIPRestriction. These properties are
 // modified during runtime of a Teleport process. They should not be modified by users.
 type ClientIPRestrictionStatus struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// state is the current enforcement state of the restrictions at the ingress layer.
-	// Possible values: "pending", "active".
-	State         string `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_State string                 `protobuf:"bytes,1,opt,name=state,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ClientIPRestrictionStatus) Reset() {
@@ -311,13 +301,13 @@ func (x *ClientIPRestrictionStatus) ProtoReflect() protoreflect.Message {
 
 func (x *ClientIPRestrictionStatus) GetState() string {
 	if x != nil {
-		return x.State
+		return x.xxx_hidden_State
 	}
 	return ""
 }
 
 func (x *ClientIPRestrictionStatus) SetState(v string) {
-	x.State = v
+	x.xxx_hidden_State = v
 }
 
 type ClientIPRestrictionStatus_builder struct {
@@ -332,7 +322,7 @@ func (b0 ClientIPRestrictionStatus_builder) Build() *ClientIPRestrictionStatus {
 	m0 := &ClientIPRestrictionStatus{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.State = b.State
+	x.xxx_hidden_State = b.State
 	return m0
 }
 
