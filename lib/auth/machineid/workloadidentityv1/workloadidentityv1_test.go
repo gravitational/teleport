@@ -2238,7 +2238,7 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	// Scoped deleters pinned to two scopes, plus seeded scoped workload
-	// identities to act on (scoped identities cannot create them yet).
+	// identities to act on.
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = adminClient.Close() })
@@ -2776,7 +2776,7 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 
 func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
-	srv, eventRecorder := newTestTLSServer(t)
+	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
@@ -2832,6 +2832,30 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 				}.Build(),
 			}.Build(),
 		}.Build())
+	require.NoError(t, err)
+
+	// Scoped updaters pinned to two scopes, plus seeded scoped workload
+	// identities to act on.
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const grantedScope = "/scopes/granted"
+	const otherScope = "/scopes/other"
+	grantedUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-granted", grantedScope, types.VerbUpdate)
+	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedUpdater, grantedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = grantedClient.Close() })
+	otherUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-other", otherScope, types.VerbUpdate)
+	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherUpdater, otherScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = otherClient.Close() })
+	scopedPreExisting, err := srv.Auth().CreateWorkloadIdentity(
+		ctx, scopedWorkloadIdentity("scoped-update-ok", grantedScope, grantedScope+"/_/scoped-update-ok"),
+	)
+	require.NoError(t, err)
+	scopedPreExisting2, err := srv.Auth().CreateWorkloadIdentity(
+		ctx, scopedWorkloadIdentity("scoped-update-denied", grantedScope, grantedScope+"/_/scoped-update-denied"),
+	)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -2910,6 +2934,25 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
+		{
+			name:   "scoped update within scope",
+			client: grantedClient,
+			req: workloadidentityv1pb.UpdateWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedPreExisting,
+			}.Build(),
+			requireError:        require.NoError,
+			checkResultReturned: true,
+		},
+		{
+			name:   "scoped update in inaccessible scope denied",
+			client: otherClient,
+			req: workloadidentityv1pb.UpdateWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedPreExisting2,
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2967,7 +3010,7 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 
 func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 	t.Parallel()
-	srv, eventRecorder := newTestTLSServer(t)
+	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
@@ -2992,6 +3035,17 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 	require.NoError(t, err)
 	unauthorizedClient, err := srv.NewClient(authtest.TestUser(unauthorizedUser.GetName()))
 	require.NoError(t, err)
+
+	// A scoped user able to upsert workload identities within /scopes/granted.
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const grantedScope = "/scopes/granted"
+	const otherScope = "/scopes/other"
+	scopedUpserter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-upserter", grantedScope, types.VerbCreate, types.VerbUpdate)
+	scopedUpserterClient, err := srv.NewClient(authtest.TestScopedUser(scopedUpserter, grantedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = scopedUpserterClient.Close() })
 
 	tests := []struct {
 		name                string
@@ -3074,6 +3128,25 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 						}.Build(),
 					}.Build(),
 				}.Build(),
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:   "scoped success",
+			client: scopedUpserterClient,
+			req: workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedWorkloadIdentity("scoped-new", grantedScope, grantedScope+"/_/svc"),
+			}.Build(),
+			requireError:        require.NoError,
+			checkResultReturned: true,
+		},
+		{
+			name:   "scoped denied in another scope",
+			client: scopedUpserterClient,
+			req: workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedWorkloadIdentity("scoped-other", otherScope, otherScope+"/_/svc"),
 			}.Build(),
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))

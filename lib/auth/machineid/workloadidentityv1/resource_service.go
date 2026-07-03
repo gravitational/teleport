@@ -61,7 +61,6 @@ type workloadIdentityReadWriter interface {
 
 // ResourceServiceConfig holds configuration options for the ResourceService.
 type ResourceServiceConfig struct {
-	Authorizer       authz.Authorizer
 	ScopedAuthorizer authz.ScopedAuthorizer
 	Backend          workloadIdentityReadWriter
 	Cache            workloadIdentityReader
@@ -75,7 +74,6 @@ type ResourceServiceConfig struct {
 type ResourceService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityResourceServiceServer
 
-	authorizer       authz.Authorizer
 	scopedAuthorizer authz.ScopedAuthorizer
 	backend          workloadIdentityReadWriter
 	cache            workloadIdentityReader
@@ -91,8 +89,6 @@ func NewResourceService(cfg *ResourceServiceConfig) (*ResourceService, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Cache == nil:
 		return nil, trace.BadParameter("cache service is required")
-	case cfg.Authorizer == nil:
-		return nil, trace.BadParameter("authorizer is required")
 	case cfg.ScopedAuthorizer == nil:
 		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
@@ -106,7 +102,6 @@ func NewResourceService(cfg *ResourceServiceConfig) (*ResourceService, error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	return &ResourceService{
-		authorizer:       cfg.Authorizer,
 		scopedAuthorizer: cfg.ScopedAuthorizer,
 		backend:          cfg.Backend,
 		cache:            cfg.Cache,
@@ -376,15 +371,27 @@ func (s *ResourceService) CreateWorkloadIdentity(
 func (s *ResourceService) UpdateWorkloadIdentity(
 	ctx context.Context, req *workloadidentityv1pb.UpdateWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbUpdate); err != nil {
+
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource153 = req.GetWorkloadIdentity()
+	if err := authCtx.CheckerContext.Decision(
+		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbUpdate)
+		},
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
+
+	// Admin action MFA can only be enforced on unscoped identities.
+	// TODO(strideynet): When scoped identities support MFA, enforce it here.
+	if unscoped, ok := authCtx.UnscopedContext(); ok {
+		if err := unscoped.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	created, err := s.backend.UpdateWorkloadIdentity(ctx, req.GetWorkloadIdentity())
@@ -427,17 +434,27 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 func (s *ResourceService) UpsertWorkloadIdentity(
 	ctx context.Context, req *workloadidentityv1pb.UpsertWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(
-		types.KindWorkloadIdentity, types.VerbCreate, types.VerbUpdate,
+
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource153 = req.GetWorkloadIdentity()
+	if err := authCtx.CheckerContext.Decision(
+		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbCreate, types.VerbUpdate)
+		},
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
+
+	// Admin action MFA can only be enforced on unscoped identities.
+	// TODO(strideynet): When scoped identities support MFA, enforce it here.
+	if unscoped, ok := authCtx.UnscopedContext(); ok {
+		if err := unscoped.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	created, err := s.backend.UpsertWorkloadIdentity(ctx, req.GetWorkloadIdentity())
