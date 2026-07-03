@@ -45,6 +45,10 @@ type LocalProxyHTTPMiddleware interface {
 	// to use the SNI from the [LocalProxy]'s own config.
 	GetServerName(req *http.Request) (string, bool, error)
 
+	// WrapTransport optionally wraps the transport used for connections to the
+	// upstream server, e.g. to intercept and satisfy protocol-level challenges.
+	WrapTransport(rt http.RoundTripper) http.RoundTripper
+
 	// ClearCerts clears the middleware certs.
 	// It will try to reissue them when a new request comes in.
 	ClearCerts()
@@ -78,6 +82,11 @@ func (DefaultLocalProxyHTTPMiddleware) GetClientCerts(req *http.Request) ([]tls.
 // GetServerName implements [LocalProxyHTTPMiddleware].
 func (DefaultLocalProxyHTTPMiddleware) GetServerName(req *http.Request) (string, bool, error) {
 	return "", false, nil
+}
+
+// WrapTransport implements [LocalProxyHTTPMiddleware].
+func (DefaultLocalProxyHTTPMiddleware) WrapTransport(rt http.RoundTripper) http.RoundTripper {
+	return rt
 }
 
 // ClearCerts implements [LocalProxyHTTPMiddleware].

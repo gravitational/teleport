@@ -341,9 +341,9 @@ func (l *LocalProxy) makeHTTPReverseProxy(serverName string, certs ...tls.Certif
 			code := trace.ErrorToCode(err)
 			http.Error(w, http.StatusText(code), code)
 		},
-		Transport: &http.Transport{
+		Transport: l.cfg.HTTPMiddleware.WrapTransport(&http.Transport{
 			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(serverName, certs...)).DialContext,
-		},
+		}),
 	}
 }
 

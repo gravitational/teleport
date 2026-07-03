@@ -376,6 +376,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		Logger:       logger,
 		CloseContext: cf.Context,
 		Relay:        tc.RelayAddr != "",
+		MFACeremony:  kubeProxy.getMFACeremony(tc),
 	})
 
 	if tc.RelayAddr != "" {
@@ -584,6 +585,27 @@ func kubeCertFromKeyRing(keyRing *client.KeyRing, kubeCluster string) (tls.Certi
 	}
 	cert, err := keyRing.KubeTLSCert(kubeCluster)
 	return cert, trace.Wrap(err)
+}
+
+// getMFACeremony returns the runner for in-band session MFA ceremonies triggered by kube
+// forwarder challenges. The ceremony targets the current Teleport cluster; the challenged
+// request's teleportCluster is accepted for future leaf cluster routing. Prompts are
+// written to stderr by the MFA prompt plumbing.
+func (k *kubeLocalProxy) getMFACeremony(tc *client.TeleportClient) alpnproxy.KubeMFACeremony {
+	return func(ctx context.Context, teleportCluster string, certFingerprint []byte) (string, error) {
+		var challengeName string
+		err := client.RetryWithRelogin(ctx, tc, func() error {
+			clusterClient, err := tc.ConnectToCluster(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer clusterClient.Close()
+
+			challengeName, err = clusterClient.PerformKubeSessionMFACeremony(ctx, certFingerprint)
+			return trace.Wrap(err)
+		})
+		return challengeName, trace.Wrap(err)
+	}
 }
 
 // getCertReissuer returns a function that can reissue with MFA user certificate for accessing kubernetes cluster.

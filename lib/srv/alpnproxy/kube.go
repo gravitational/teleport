@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/singleflight"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -99,6 +100,17 @@ type KubeMiddleware struct {
 	certsMu sync.RWMutex
 	// certs is a map by cluster name of Kubernetes client certs.
 	certs KubeClientCerts
+
+	// mfaCeremony, when set, is used to satisfy in-band MFA challenges from the kube
+	// forwarder (see WrapTransport).
+	mfaCeremony KubeMFACeremony
+	// mfaCeremonyGroup deduplicates concurrent MFA ceremonies per session fingerprint.
+	mfaCeremonyGroup singleflight.Group
+
+	challengeNamesMu sync.Mutex
+	// challengeNames stores the latest validated challenge name per session fingerprint,
+	// attached to every outbound request so the forwarder can verify without re-challenging.
+	challengeNames map[string]string
 }
 
 type KubeMiddlewareConfig struct {
@@ -113,18 +125,25 @@ type KubeMiddlewareConfig struct {
 	// override to connect to the Kube forwarder of a Relay rather than the one
 	// of a Proxy.
 	Relay bool
+
+	// MFACeremony, when set, is used to satisfy in-band MFA challenges from the kube
+	// forwarder. When unset, challenges are never issued (the capability header is not
+	// sent) and the legacy per-session-MFA-certificate flow applies.
+	MFACeremony KubeMFACeremony
 }
 
 // NewKubeMiddleware creates a new KubeMiddleware.
 func NewKubeMiddleware(cfg KubeMiddlewareConfig) LocalProxyHTTPMiddleware {
 	return &KubeMiddleware{
-		certs:        cfg.Certs,
-		certReissuer: cfg.CertReissuer,
-		headless:     cfg.Headless,
-		clock:        cfg.Clock,
-		logger:       cfg.Logger,
-		closeContext: cfg.CloseContext,
-		relay:        cfg.Relay,
+		certs:          cfg.Certs,
+		certReissuer:   cfg.CertReissuer,
+		headless:       cfg.Headless,
+		clock:          cfg.Clock,
+		logger:         cfg.Logger,
+		closeContext:   cfg.CloseContext,
+		relay:          cfg.Relay,
+		mfaCeremony:    cfg.MFACeremony,
+		challengeNames: make(map[string]string),
 	}
 }
 
