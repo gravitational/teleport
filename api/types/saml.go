@@ -18,6 +18,7 @@ package types
 
 import (
 	"encoding/json"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -784,6 +785,18 @@ type SAMLConnectorValidationOptions struct {
 	// endpoints like /webapi/ping which must not hang or fail.
 	NoFollowURLs bool
 	WithSecrets  bool
+	// HTTPClient used to fetch entity descriptor during the validation.
+	HTTPClient *http.Client
+}
+
+func NewSAMLConnectorValidationOptions(opts []SAMLConnectorValidationOption) SAMLConnectorValidationOptions {
+	options := SAMLConnectorValidationOptions{
+		HTTPClient: http.DefaultClient,
+	}
+	for _, o := range opts {
+		o(&options)
+	}
+	return options
 }
 
 // SAMLConnectorValidationOption is an option for validation of SAML connectors.
@@ -802,5 +815,13 @@ func SAMLConnectorValidationFollowURLs(follow bool) SAMLConnectorValidationOptio
 func SAMLConnectorValidationWithSecrets(withSecrets bool) SAMLConnectorValidationOption {
 	return func(opts *SAMLConnectorValidationOptions) {
 		opts.WithSecrets = withSecrets
+	}
+}
+
+// SAMLConnectorValidationHTTPClient sets HTTP client used to fetch entity descriptor during the
+// validation.
+func SAMLConnectorValidationHTTPClient(httpClient *http.Client) SAMLConnectorValidationOption {
+	return func(opts *SAMLConnectorValidationOptions) {
+		opts.HTTPClient = httpClient
 	}
 }

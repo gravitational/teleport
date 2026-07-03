@@ -44,6 +44,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// ErrFailedToFetchEntityDescriptor is returned on any error while downloading SAML entity
+// descriptor in entity_descriptor_url is set during the connector validation.
+var ErrFailedToFetchEntityDescriptor = &trace.BadParameterError{Message: "failed to fetch entity descriptor"}
+
 type SAMLConnectorGetter interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
@@ -61,10 +65,9 @@ const (
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
 func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.SAMLConnectorValidationOption) error {
-	var options types.SAMLConnectorValidationOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	ctx := context.TODO()
+	options := types.NewSAMLConnectorValidationOptions(opts)
+	log := slog.With(teleport.ComponentKey, teleport.ComponentSAML, "saml_connector", sc.GetName())
 
 	// WARNING: this validation runs on the read and write paths, which means it
 	// is NOT safe to add new validations here that could invalidate existing
@@ -86,66 +89,25 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 		}
 	}
 
-	getEntityDescriptorFromURL := func(url string) (string, error) {
-		ctx, cancel := context.WithTimeout(context.TODO(), defaults.DefaultIOTimeout)
-		defer cancel()
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return "", trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", url, sc.GetName())
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return "", trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, url, sc.GetName())
-		}
-		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return string(body), nil
+	rawEntityDescriptor, entityDescriptor, err := getEntityDescriptor(ctx, getEntityDescriptorParams{
+		Log:       log,
+		MFA:       false,
+		Connector: sc,
+		Options:   options,
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	sc.SetEntityDescriptor(rawEntityDescriptor)
 
-	getEntityDescriptorMetadata := func(ed string) (*samltypes.EntityDescriptor, error) {
-		metadata := &samltypes.EntityDescriptor{}
-		if err := xml.Unmarshal([]byte(ed), metadata); err != nil {
-			return nil, trace.Wrap(err, "failed to parse entity_descriptor")
-		}
-		return metadata, nil
-	}
-
-	// Validate standard settings.
-	if url := sc.GetEntityDescriptorURL(); url != "" && !options.NoFollowURLs {
-		entityDescriptor, err := getEntityDescriptorFromURL(url)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		sc.SetEntityDescriptor(entityDescriptor)
-		slog.DebugContext(context.Background(), " Successfully fetched entity descriptor for connector",
-			teleport.ComponentKey, teleport.ComponentSAML,
-			"entity_descriptor_url", url,
-			"connector", sc.GetName(),
-		)
-	}
-
-	if ed := sc.GetEntityDescriptor(); ed != "" {
-		md, err := getEntityDescriptorMetadata(ed)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		sc.SetIssuer(md.EntityID)
-		if md.IDPSSODescriptor != nil && len(md.IDPSSODescriptor.SingleSignOnServices) > 0 {
-			metadataSsoUrl := md.IDPSSODescriptor.SingleSignOnServices[0].Location
+	if ed := entityDescriptor; ed != nil {
+		sc.SetIssuer(ed.EntityID)
+		if ed.IDPSSODescriptor != nil && len(ed.IDPSSODescriptor.SingleSignOnServices) > 0 {
+			metadataSsoUrl := ed.IDPSSODescriptor.SingleSignOnServices[0].Location
 			if sc.GetSSO() != "" && sc.GetSSO() != metadataSsoUrl {
-				slog.WarnContext(
-					context.Background(),
+				log.WarnContext(ctx,
 					"Connector has set SSO URL, but it does not match the one found in IDP metadata. Overwriting with the IDP metadata SSO URL.",
-					"connector_name", sc.GetName(), "connector_sso_url", sc.GetSSO(), "idp_metadata_sso_url", metadataSsoUrl,
+					"connector_sso_url", sc.GetSSO(), "idp_metadata_sso_url", metadataSsoUrl,
 				)
 			}
 			sc.SetSSO(metadataSsoUrl)
@@ -187,7 +149,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 					// Role is a template so we cannot check for existence of that literal name.
 					continue
 				}
-				_, err := rg.GetRole(context.Background(), role)
+				_, err := rg.GetRole(ctx, role)
 				switch {
 				case trace.IsNotFound(err):
 					return trace.BadParameter("role %q specified in attributes_to_roles not found", role)
@@ -207,33 +169,32 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 
 	// Validate MFA settings.
 	if mfa := sc.GetMFASettings(); mfa != nil {
+		var mfaEntityDescriptor *samltypes.EntityDescriptor
 		if mfa.EntityDescriptorUrl != "" {
-			switch {
-			case mfa.EntityDescriptorUrl == sc.GetEntityDescriptorURL():
+			if mfa.EntityDescriptorUrl == sc.GetEntityDescriptorURL() {
 				// we got the entity descriptor above, skip the redundant round trip.
 				mfa.EntityDescriptor = sc.GetEntityDescriptor()
-			case !options.NoFollowURLs:
-				entityDescriptor, err := getEntityDescriptorFromURL(mfa.EntityDescriptorUrl)
+			} else {
+				mfa.EntityDescriptor, mfaEntityDescriptor, err = getEntityDescriptor(ctx, getEntityDescriptorParams{
+					Log:       log,
+					MFA:       true,
+					Connector: sc,
+					Options:   options,
+				})
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				mfa.EntityDescriptor = entityDescriptor
 			}
 		}
-		if mfa.EntityDescriptor != "" {
-			md, err := getEntityDescriptorMetadata(mfa.EntityDescriptor)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			mfa.Issuer = md.EntityID
-			if md.IDPSSODescriptor != nil && len(md.IDPSSODescriptor.SingleSignOnServices) > 0 {
-				mfa.Sso = md.IDPSSODescriptor.SingleSignOnServices[0].Location
+		if ed := mfaEntityDescriptor; ed != nil {
+			mfa.Issuer = ed.EntityID
+			if ed.IDPSSODescriptor != nil && len(ed.IDPSSODescriptor.SingleSignOnServices) > 0 {
+				mfa.Sso = ed.IDPSSODescriptor.SingleSignOnServices[0].Location
 			}
 		}
 		if preferredRequestBinding == types.SAMLRequestHTTPPostBinding {
-			slog.WarnContext(context.Background(), "SSO MFA does not support http-post binding request and will use the default http-redirect binding request",
-				teleport.ComponentKey, teleport.ComponentSAML,
+			log.WarnContext(ctx,
+				"SSO MFA does not support http-post binding request and will use the default http-redirect binding request",
 				"preferred_request_binding", preferredRequestBinding,
 			)
 		}
@@ -244,14 +205,91 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 	// a valid authentication mechanism must be available. Proposed solution is to inject the
 	// token provider and ensure a valid azcore.TokenCredential can be resolved.
 
-	slog.DebugContext(context.Background(), "connector validated",
-		teleport.ComponentKey, teleport.ComponentSAML,
+	log.DebugContext(ctx, "Connector validated",
 		"sso", sc.GetSSO(),
 		"issuer", sc.GetIssuer(),
 		"acs", sc.GetAssertionConsumerService(),
 	)
-
 	return nil
+}
+
+type getEntityDescriptorParams struct {
+	Log       *slog.Logger
+	MFA       bool
+	Connector types.SAMLConnector
+	Options   types.SAMLConnectorValidationOptions
+}
+
+func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) (raw string, _ *samltypes.EntityDescriptor, err error) {
+	connector := params.Connector
+	rawEntityDescriptor, url := connector.GetEntityDescriptor(), connector.GetEntityDescriptorURL()
+	if params.MFA {
+		mfa := connector.GetMFASettings()
+		if mfa == nil {
+			return "", nil, trace.BadParameter("MFA set and MFA settings missing in the connector")
+		}
+		rawEntityDescriptor, url = mfa.EntityDescriptor, mfa.EntityDescriptorUrl
+	}
+
+	log := params.Log
+	switch {
+	case params.MFA && url != "":
+		log = log.With("mfa_entity_descriptor_url", url)
+	case url != "":
+		log = log.With("entity_descriptor_url", url)
+	}
+
+	// Sanitize the error message to mitigate potential SSRF attacks attempted by SAML admins.
+	defer func() {
+		if url == "" || params.Options.NoFollowURLs || err == nil {
+			return
+		}
+		if params.MFA {
+			log.ErrorContext(ctx, "Failed to fetch or parse SAML MFA entity descriptor", "error", err)
+		} else {
+			log.ErrorContext(ctx, "Failed to fetch or parse SAML entity descriptor", "error", err)
+		}
+		err = trace.Wrap(ErrFailedToFetchEntityDescriptor)
+	}()
+
+	if url != "" && !params.Options.NoFollowURLs {
+		ctx, cancel := context.WithTimeout(ctx, defaults.DefaultIOTimeout)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return "", nil, trace.Wrap(err)
+		}
+		resp, err := params.Options.HTTPClient.Do(req)
+		if err != nil {
+			return "", nil, trace.Wrap(err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return "", nil, trace.Errorf("unexpected status code %d", resp.StatusCode)
+		}
+		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+		if err != nil {
+			return "", nil, trace.Wrap(err)
+		}
+
+		rawEntityDescriptor = string(body)
+		if params.MFA {
+			log.DebugContext(ctx, "Successfully fetched MFA entity descriptor for connector")
+		} else {
+			log.DebugContext(ctx, "Successfully fetched entity descriptor for connector")
+		}
+	}
+
+	if rawEntityDescriptor == "" {
+		return "", nil, nil
+	}
+
+	entityDescriptor := &samltypes.EntityDescriptor{}
+	if err := xml.Unmarshal([]byte(rawEntityDescriptor), entityDescriptor); err != nil {
+		return "", nil, trace.Wrap(err, "failed to parse entity_descriptor XML")
+	}
+	return rawEntityDescriptor, entityDescriptor, nil
 }
 
 // GetAttributeNames returns a list of claim names from the claim values

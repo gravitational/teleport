@@ -21,18 +21,23 @@ package services
 import (
 	"context"
 	"crypto/x509/pkix"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/listener"
 )
 
 func TestParseFromMetadata(t *testing.T) {
@@ -419,5 +424,151 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, tc.expectedSsoUrl, connector.GetSSO())
+	}
+}
+
+func Test_ValidateSAMLConnector_error_sanitization(t *testing.T) {
+	t.Parallel()
+
+	const role = "existing-test-role"
+
+	for _, tc := range []struct {
+		name                   string
+		spec                   types.SAMLConnectorSpecV2
+		setEntityDescriptorURL func(types.SAMLConnector, string)
+		getEntityDescriptor    func(types.SAMLConnector) string
+	}{
+		{
+			name: "root entity descriptor URL",
+			spec: types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "https://teleport.example.com/v1/webapi/saml/acs",
+				EntityDescriptorURL:      "https://to-be-changed.test",
+				AttributesToRoles: []types.AttributeMapping{
+					{Name: "groups", Value: "admin", Roles: []string{role}},
+				},
+			},
+			setEntityDescriptorURL: func(connector types.SAMLConnector, url string) {
+				connector.SetEntityDescriptorURL(url)
+			},
+			getEntityDescriptor: func(connector types.SAMLConnector) string {
+				return connector.GetEntityDescriptor()
+			},
+		},
+		{
+			name: "MFA entity descriptor URL",
+			spec: types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "https://teleport.example.com/v1/webapi/saml/acs",
+				Issuer:                   "https://idp.example.com",
+				SSO:                      "https://idp.example.com/sso",
+				AttributesToRoles: []types.AttributeMapping{
+					{Name: "groups", Value: "admin", Roles: []string{role}},
+				},
+				MFASettings: &types.SAMLConnectorMFASettings{
+					Enabled:             true,
+					EntityDescriptorUrl: "https://to-be-changed.test",
+				},
+			},
+			setEntityDescriptorURL: func(connector types.SAMLConnector, url string) {
+				connector.GetMFASettings().EntityDescriptorUrl = url
+			},
+			getEntityDescriptor: func(connector types.SAMLConnector) string {
+				return connector.GetMFASettings().EntityDescriptor
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+
+				const happyPath = "/happy"
+				const slowPath = "/slow"
+				const entityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+					<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.example.com">
+						<IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+							<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"></SingleSignOnService>
+						</IDPSSODescriptor>
+					</EntityDescriptor>`
+
+				handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path == happyPath {
+						w.Write([]byte(entityDescriptor))
+						return
+					}
+					if r.URL.Path == slowPath {
+						time.Sleep(1 * time.Hour)
+					}
+					http.Error(w, "upstream response should not be exposed", http.StatusForbidden)
+				})
+
+				listener := listener.NewInMemoryListener()
+				server := httptest.NewUnstartedServer(handler)
+				server.Listener = listener
+				server.Start()
+				t.Cleanup(server.Close)
+
+				samlConnector, err := types.NewSAMLConnector("fetch-entity-descriptor-url-errors", tc.spec)
+				require.NoError(t, err)
+
+				testOpts := []types.SAMLConnectorValidationOption{
+					types.SAMLConnectorValidationHTTPClient(listener.MakeHTTPClient()),
+				}
+
+				// Create a roleSet with <nil> role values as ValidateSAMLConnector only checks if the role
+				// in the connector role mapping exists.
+				var roleGetter = roleSet{role: nil}
+
+				// There are quite a few things to leak in the error message:
+				// 1. The HTTP response content.
+				// 2. The HTTP response code.
+				// 3. The descriptor URL and the path (token=secret in particular)
+				tc.setEntityDescriptorURL(samlConnector, server.URL+"/metadata?token=secret")
+
+				err = ValidateSAMLConnector(samlConnector, roleGetter, testOpts...)
+				require.ErrorIs(t, err, ErrFailedToFetchEntityDescriptor)
+				// Make sure the error doesn't leak any extra info about the download failure.
+				require.Equal(t, ErrFailedToFetchEntityDescriptor.Error(), err.Error())
+
+				// Verify that it also doesn't leak any message specific to timeout.
+				tc.setEntityDescriptorURL(samlConnector, server.URL+slowPath)
+
+				errCh := make(chan error, 1)
+				go func() {
+					err := ValidateSAMLConnector(samlConnector, roleGetter, testOpts...)
+					select {
+					case errCh <- err:
+					case <-ctx.Done():
+					}
+				}()
+
+				time.Sleep(apidefaults.DefaultIOTimeout - 1*time.Nanosecond)
+				synctest.Wait()
+				select {
+				case err := <-errCh:
+					t.Fatalf("expected validation to be blocking on fetching the entity descriptor, but it returned error: %v", err)
+				default:
+				}
+
+				time.Sleep(1 * time.Nanosecond)
+				synctest.Wait()
+				select {
+				case err := <-errCh:
+					require.ErrorIs(t, err, ErrFailedToFetchEntityDescriptor)
+					// Make sure the error doesn't leak any extra info about the timeout.
+					require.Equal(t, ErrFailedToFetchEntityDescriptor.Error(), err.Error())
+				default:
+					t.Fatal("expected ValidateSAMLConnector to already timeout")
+				}
+
+				// To unblock the slow entity server.
+				time.Sleep(2 * time.Hour)
+				synctest.Wait()
+
+				// Verify the happy path.
+				tc.setEntityDescriptorURL(samlConnector, server.URL+happyPath)
+				err = ValidateSAMLConnector(samlConnector, roleGetter, testOpts...)
+				require.NoError(t, err)
+				require.Equal(t, entityDescriptor, tc.getEntityDescriptor(samlConnector))
+			})
+		})
 	}
 }

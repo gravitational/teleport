@@ -28,6 +28,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"sort"
 	"strings"
@@ -1533,6 +1535,43 @@ func TestOIDCConnector(t *testing.T) {
 		require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
 		require.Equal(t, events.OIDCConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
 	})
+}
+
+func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
+	t.Parallel()
+
+	s := newAuthSuite(t)
+	t.Cleanup(func() { _ = s.a.Close() })
+
+	ctx := t.Context()
+
+	role, err := types.NewRole("dummy", types.RoleSpecV6{})
+	require.NoError(t, err)
+	role, err = s.a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	const slowPath = "/slow"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == slowPath {
+			time.Sleep(1 * time.Hour)
+		}
+		http.Error(w, "upstream response should not be exposed", http.StatusForbidden)
+	}))
+	t.Cleanup(server.Close)
+
+	samlConnector, err := types.NewSAMLConnector("fetch-entity-descriptor-url-errors", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://teleport.example.com/v1/webapi/saml/acs",
+		EntityDescriptorURL:      server.URL + "/metadata?token=secret",
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "groups", Value: "admin", Roles: []string{role.GetName()}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = s.a.CreateSAMLConnector(ctx, samlConnector)
+	require.ErrorIs(t, err, services.ErrFailedToFetchEntityDescriptor)
+	// Make sure the error doesn't leak any extra info about the download failure.
+	require.Equal(t, services.ErrFailedToFetchEntityDescriptor.Error(), err.Error())
 }
 
 func TestSAMLConnector(t *testing.T) {
