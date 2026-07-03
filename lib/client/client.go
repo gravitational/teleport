@@ -129,7 +129,11 @@ type ReissueParams struct {
 	NodeName          string
 	SSHLogin          string
 	KubernetesCluster string
-	AccessRequests    []string
+	// KubernetesUnrouted requests a Kubernetes-usage certificate without a routed cluster.
+	// The target cluster is chosen per request via URL path routing at the proxy, so one
+	// certificate serves every cluster. KubernetesCluster must be empty when set.
+	KubernetesUnrouted bool
+	AccessRequests     []string
 	// See [proto.UserCertsRequest.DropAccessRequests].
 	DropAccessRequests    []string
 	RouteToDatabase       proto.RouteToDatabase
@@ -170,9 +174,10 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// SSH means a request for an SSH certificate for access to a specific
 		// SSH node, as specified by NodeName.
 		return proto.UserCertsRequest_SSH
-	case p.KubernetesCluster != "":
+	case p.KubernetesCluster != "" || p.KubernetesUnrouted:
 		// Kubernetes means a request for a TLS certificate for access to a
-		// specific Kubernetes cluster, as specified by KubernetesCluster.
+		// specific Kubernetes cluster, as specified by KubernetesCluster, or
+		// to any cluster via path routing when KubernetesUnrouted is set.
 		return proto.UserCertsRequest_Kubernetes
 	case p.RouteToDatabase.ServiceName != "":
 		// Database means a request for a TLS certificate for access to a

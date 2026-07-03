@@ -90,6 +90,9 @@ type KubeMiddleware struct {
 	// relay signals that the local proxy is routing requests to the kube
 	// forwarder of a relay with the given address rather than of a proxy.
 	relay bool
+	// sharedCerts signals that one shared unrouted certificate per Teleport cluster,
+	// stored under an empty kube cluster key, serves every Kubernetes cluster.
+	sharedCerts bool
 
 	logger       *slog.Logger
 	closeContext context.Context
@@ -130,6 +133,10 @@ type KubeMiddlewareConfig struct {
 	// forwarder. When unset, challenges are never issued (the capability header is not
 	// sent) and the legacy per-session-MFA-certificate flow applies.
 	MFACeremony KubeMFACeremony
+
+	// SharedCerts signals that one shared unrouted certificate per Teleport cluster,
+	// stored under an empty kube cluster key in Certs, serves every Kubernetes cluster.
+	SharedCerts bool
 }
 
 // NewKubeMiddleware creates a new KubeMiddleware.
@@ -143,6 +150,7 @@ func NewKubeMiddleware(cfg KubeMiddlewareConfig) LocalProxyHTTPMiddleware {
 		closeContext:   cfg.CloseContext,
 		relay:          cfg.Relay,
 		mfaCeremony:    cfg.MFACeremony,
+		sharedCerts:    cfg.SharedCerts,
 		challengeNames: make(map[string]string),
 	}
 }
@@ -215,6 +223,10 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 		trace.WriteError(rw, trace.Wrap(err))
 		return true
 	}
+	if m.sharedCerts {
+		// The shared cert is stored, reissued, and replaced under the empty kube cluster key.
+		kubeCluster = ""
+	}
 
 	cert, err := m.getCert(teleportCluster, kubeCluster)
 	// If the cert is cleared using m.ClearCerts(), it won't be found.
@@ -272,6 +284,9 @@ func (m *KubeMiddleware) GetServerName(req *http.Request) (string, bool, error) 
 // API request. Clusters are identified by the (teleport, kube) pair parsed
 // from the request URL path.
 func (m *KubeMiddleware) getCert(teleportCluster, kubeCluster string) (tls.Certificate, error) {
+	if m.sharedCerts {
+		kubeCluster = ""
+	}
 	key := kubeClusterKey{teleportCluster: teleportCluster, kubeCluster: kubeCluster}
 
 	m.certsMu.RLock()

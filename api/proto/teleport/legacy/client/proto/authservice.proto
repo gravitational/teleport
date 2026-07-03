@@ -263,6 +263,13 @@ message UserCertsRequest {
     // When using per-session MFA, this ensures the TTL of the certificate (and thus the AWS session) is the same as the Teleport identity session.
     // AWS credentials should not be written to disk when this requester is used, but may be exported as env variables through stdout.
     TSH_APP_AWS_CREDENTIALPROCESS = 6;
+    // TSH_KUBE_LOCAL_PROXY_MULTI is set when the request was sent by a tsh kube
+    // local proxy fanning out across many Kubernetes clusters with one shared
+    // certificate. The certificate carries no Kubernetes cluster route (the
+    // target cluster is chosen per request via URL path routing at the proxy)
+    // and no MFA state (per-session MFA is enforced in-band by the kube
+    // forwarder). The certificate is kept in memory and never written to disk.
+    TSH_KUBE_LOCAL_PROXY_MULTI = 7;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];

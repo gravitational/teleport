@@ -377,6 +377,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		CloseContext: cf.Context,
 		Relay:        tc.RelayAddr != "",
 		MFACeremony:  kubeProxy.getMFACeremony(tc),
+		SharedCerts:  kubeInBandMFAEnabled(),
 	})
 
 	if tc.RelayAddr != "" {
@@ -530,13 +531,29 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	}
 	defer clusterClient.Close()
 
+	certs := make(alpnproxy.KubeClientCerts)
+	if kubeInBandMFAEnabled() {
+		// One shared unrouted in-memory cert per Teleport cluster serves every Kubernetes
+		// cluster via path routing. It is never persisted to the keystore. Per-session MFA
+		// is not proven at issuance; MFA-gated clusters are challenged in-band by the
+		// forwarder on first use.
+		for _, teleportCluster := range clusters.TeleportClusters() {
+			cert, err := issueSharedKubeCert(ctx, tc, clusterClient, teleportCluster)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			logger.DebugContext(ctx, "Issued shared client cert for Teleport cluster", "teleport_cluster", teleportCluster)
+			certs.Add(teleportCluster, "", cert)
+		}
+		return certs, nil
+	}
+
 	// TODO for best performance, load one kube cert at a time.
 	kubeKeys, err := loadKubeKeys(tc, clusters.TeleportClusters())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	certs := make(alpnproxy.KubeClientCerts)
 	for _, cluster := range clusters {
 		// Try load from store.
 		if key := kubeKeys[cluster.TeleportCluster]; key != nil {
@@ -643,8 +660,59 @@ func (k *kubeLocalProxy) getCertReissuer(tc *client.TeleportClient) func(ctx con
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 
+		if kubeInBandMFAEnabled() {
+			// Reissuing the shared cert rotates the session fingerprint, so the next
+			// MFA-gated request is re-challenged.
+			return issueSharedKubeCert(ctx, tc, clusterClient, teleportCluster)
+		}
 		return issueKubeCert(ctx, tc, clusterClient, teleportCluster, kubeCluster)
 	}
+}
+
+// kubeInBandMFAEnabled reports whether the tsh kube local proxy uses the in-band MFA cert
+// model: one shared unrouted certificate per Teleport cluster, with per-session MFA
+// satisfied via forwarder challenges instead of MFA-stamped per-cluster certificates.
+// Requires a Teleport cluster that issues in-band kube MFA challenges; the env opt-in is
+// the transition mechanism until capability negotiation replaces it.
+func kubeInBandMFAEnabled() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_KUBE_IN_BAND_MFA") == "yes"
+}
+
+// issueSharedKubeCert issues one unrouted in-memory certificate for teleportCluster that
+// path-routes to every Kubernetes cluster the local proxy fronts there. The certificate
+// carries no Kubernetes cluster route and no MFA state, and is never written to disk.
+func issueSharedKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient *client.ClusterClient, teleportCluster string) (tls.Certificate, error) {
+	result, err := clusterClient.IssueUserCertsWithMFA(
+		ctx,
+		client.ReissueParams{
+			RouteToCluster:     teleportCluster,
+			KubernetesUnrouted: true,
+			RequesterName:      proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+			TTL:                tc.KeyTTL,
+			// Never prompt at issuance: MFA-gated clusters are challenged in-band by the
+			// kube forwarder on first use instead.
+			MFACheck: &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			},
+		},
+	)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	cert, err := result.KeyRing.KubeTLSCert("")
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	// Set leaf so we don't have to parse it on each request.
+	leaf, err := utils.TLSCertLeaf(cert)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	cert.Leaf = leaf
+
+	return cert, nil
 }
 
 func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient *client.ClusterClient, teleportCluster, kubeCluster string) (tls.Certificate, error) {

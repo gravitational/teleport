@@ -24,8 +24,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -249,6 +251,64 @@ func TestKubeMFARoundTripper(t *testing.T) {
 		require.Zero(t, ceremonies.Load())
 		require.Equal(t, 1, upstream.requestCount())
 		require.Len(t, upstream.bodies[0], len(oversized), "oversized body must still stream through in full")
+	})
+
+	t.Run("shared cert serves every kube cluster", func(t *testing.T) {
+		m, wantFingerprint := newTestKubeMFAMiddleware(t, nil)
+		// Re-key the cert under the shared (teleport cluster, "") entry.
+		cert, err := m.getCert(testTeleportCluster, testKubeCluster)
+		require.NoError(t, err)
+		m.ClearCerts()
+		m.certs.Add(testTeleportCluster, "", cert)
+		m.sharedCerts = true
+
+		for _, kubeCluster := range []string{testKubeCluster, "kube-b"} {
+			req, err := http.NewRequest(http.MethodGet, "https://teleport.example.com"+common.KubeLocalProxyPathPrefix(testTeleportCluster, kubeCluster)+"/api/v1/pods", nil)
+			require.NoError(t, err)
+			certs, ok, err := m.GetClientCerts(req)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Len(t, certs, 1)
+			fp, err := m.requestCertFingerprint(req)
+			require.NoError(t, err)
+			require.Equal(t, wantFingerprint, fp, "every cluster must be served by the same shared cert")
+		}
+	})
+
+	t.Run("shared cert reissue is stored under the shared key", func(t *testing.T) {
+		ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		require.NoError(t, err)
+		privKey, err := keys.NewPrivateKey(ecKey)
+		require.NoError(t, err)
+		expiredCert, err := createLocalCA(privKey, time.Now().Add(-time.Minute), testTeleportCluster)
+		require.NoError(t, err)
+		freshCert, err := createLocalCA(privKey, time.Now().Add(time.Hour), testTeleportCluster)
+		require.NoError(t, err)
+
+		certs := make(KubeClientCerts)
+		certs.Add(testTeleportCluster, "", expiredCert)
+		var reissuedFor []string
+		m := NewKubeMiddleware(KubeMiddlewareConfig{
+			Certs: certs,
+			CertReissuer: func(_ context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+				reissuedFor = append(reissuedFor, teleportCluster+"/"+kubeCluster)
+				return freshCert, nil
+			},
+			Logger:       logtest.NewLogger(),
+			CloseContext: context.Background(),
+			SharedCerts:  true,
+		}).(*KubeMiddleware)
+		require.NoError(t, m.CheckAndSetDefaults())
+
+		req, err := http.NewRequest(http.MethodGet, "https://teleport.example.com"+common.KubeLocalProxyPathPrefix(testTeleportCluster, testKubeCluster)+"/api/v1/pods", nil)
+		require.NoError(t, err)
+		handled := m.HandleRequest(httptest.NewRecorder(), req)
+		require.False(t, handled, "request must proceed after reissue")
+		require.Equal(t, []string{testTeleportCluster + "/"}, reissuedFor, "reissuer must be called for the shared unrouted cert")
+
+		got, err := m.getCert(testTeleportCluster, testKubeCluster)
+		require.NoError(t, err)
+		require.Equal(t, freshCert.Certificate, got.Certificate, "fresh shared cert must serve all clusters")
 	})
 
 	t.Run("ceremony failure surfaces as an error", func(t *testing.T) {

@@ -738,6 +738,17 @@ func validateUserCertsRequest(srv *ScopedServerWithRoles, req *authpb.UserCertsR
 		}
 	}
 
+	if req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+		if req.Usage != authpb.UserCertsRequest_Kubernetes {
+			return trace.BadParameter("requester %s can only request Kubernetes certificates", req.RequesterName)
+		}
+		// The shared multi-cluster certificate never carries MFA state: per-session MFA is
+		// enforced in-band by the kube forwarder instead of at issuance.
+		if req.MFAResponse != nil {
+			return trace.BadParameter("requester %s cannot request MFA-verified certificates", req.RequesterName)
+		}
+	}
+
 	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 		return nil
 	}
@@ -771,7 +782,9 @@ func validateCertUsage(req *authpb.UserCertsRequest) error {
 			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
 		}
 	case authpb.UserCertsRequest_Kubernetes:
-		if req.KubernetesCluster == "" {
+		// The multi-cluster local proxy requester issues one unrouted certificate for all
+		// clusters; the target cluster is chosen per request via URL path routing.
+		if req.KubernetesCluster == "" && req.RequesterName != authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
 			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
 	case authpb.UserCertsRequest_Database:
@@ -2915,7 +2928,9 @@ func isInMemoryCertRequest(req *authpb.UserCertsRequest) bool {
 	return (req.Usage == authpb.UserCertsRequest_Database &&
 		req.RequesterName == authpb.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
-			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS)) ||
+			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY ||
+				req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS ||
+				req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI)) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
 			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
 }
