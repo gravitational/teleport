@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -230,20 +231,28 @@ func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, err
 			return nil, trace.Wrap(err)
 		}
 
+		if scope != "" {
+			// For scoped wids, we need to leverage a "skeleton" rather than the
+			// ResourceHeader which has no place for the scope.
+			// At some later date, we'll migrate to using the skeleton rather
+			// than ResourceHeader for all WorkloadIdentity Delete events.
+			return types.Resource153ToLegacy(workloadidentityv1pb.WorkloadIdentity_builder{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: name,
+				}.Build(),
+				Scope: scope,
+			}.Build()), nil
+		}
+
+		// Unscoped deletes keep their historical ResourceHeader representation
+		// so existing consumers of these events are unaffected.
 		return &types.ResourceHeader{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
 			Metadata: types.Metadata{
 				Name: name,
-				// A delete event only carries the backend key, and a
-				// ResourceHeader has no scope field, so the scope recovered from
-				// the key is smuggled through Namespace. headerTransform restores
-				// it onto the rebuilt WorkloadIdentity so the cache keys the entry
-				// under the same scope-aware cursor it was stored under.
-				//
-				// TODO(strideynet): bridge until the delete event/ResourceHeader
-				// carries scope as a first-class field.
-				Namespace: scope,
 			},
 		}, nil
 	case types.OpPut:

@@ -379,6 +379,9 @@ func TestWorkloadIdentityParser(t *testing.T) {
 		require.True(t, parser.match(event.Item.Key))
 		resource, err := parser.parse(event)
 		require.NoError(t, err)
+		// Unscoped deletes keep their historical ResourceHeader representation
+		// so existing consumers of these events are unaffected.
+		require.IsType(t, &types.ResourceHeader{}, resource)
 		require.Equal(t, "example", resource.GetMetadata().Name)
 	})
 	t.Run("delete scoped", func(t *testing.T) {
@@ -395,12 +398,16 @@ func TestWorkloadIdentityParser(t *testing.T) {
 		require.True(t, parser.match(event.Item.Key))
 		resource, err := parser.parse(event)
 		require.NoError(t, err)
-		// A scoped delete event carries only the backend key; the parser recovers
-		// the (scope, name) and carries the scope through the header Namespace
-		// (ResourceHeader has no scope field) so the cache can rebuild a
-		// scope-keyed entry to evict.
-		require.Equal(t, name, resource.GetMetadata().Name)
-		require.Equal(t, scope, resource.GetMetadata().Namespace)
+		// A scoped delete event carries only the backend key; the parser
+		// recovers the (scope, name) and emits a skeleton WorkloadIdentity
+		// (a ResourceHeader has no scope field) so the cache can evict the
+		// entry from its scope-aware name index.
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*workloadidentityv1pb.WorkloadIdentity])
+		require.True(t, ok)
+		skeleton := unwrapper.UnwrapT()
+		require.Equal(t, types.KindWorkloadIdentity, skeleton.GetKind())
+		require.Equal(t, name, skeleton.GetMetadata().GetName())
+		require.Equal(t, scope, skeleton.GetScope())
 	})
 	t.Run("put", func(t *testing.T) {
 		event := backend.Event{

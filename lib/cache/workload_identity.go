@@ -67,17 +67,15 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *workloadidentityv1pb.WorkloadIdentity {
+			// Only unscoped deletes arrive as a ResourceHeader (scoped deletes
+			// carry a skeleton WorkloadIdentity with the scope set), so the
+			// rebuilt skeleton keys on the bare name.
 			return workloadidentityv1pb.WorkloadIdentity_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
 				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
 				}.Build(),
-				// Delete events smuggle the scope through the header's Namespace
-				// (ResourceHeader has no scope field); restore it so the store
-				// keys this entry under the same scope-aware cursor it was stored
-				// under.
-				Scope: hdr.Metadata.Namespace,
 			}.Build()
 		},
 		watch: w,
