@@ -15,91 +15,101 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import SwiftUI
+import SwiftUINavigation
 
 struct EnrollDeviceView: View {
+	@Bindable
 	var viewModel: EnrollDeviceViewModel
 
 	var body: some View {
-		VStack(spacing: 16) {
-			Spacer()
-			Image(systemName: "ipad.and.iphone")
-				.font(.system(size: 37))
-				.foregroundStyle(.primary)
-				.frame(width: 75, height: 75)
-				.background(
-					RoundedRectangle(cornerRadius: 16)
-						.fill(Color(.systemBackground)),
-				)
-				.overlay(
-					RoundedRectangle(cornerRadius: 16)
-						.strokeBorder(Color(.separator), lineWidth: 1),
-				)
-			VStack(spacing: 8) {
-				Text("Enroll Your Device")
-					.font(.title2)
-					.fontWeight(.semibold)
-				Text(
-					"To finish enrolling this device, approve the request from your account settings on another device.",
-				)
+		VStack(spacing: .medium) {
+			ScrollView {
+				VStack(spacing: .small) {
+					Icon(systemName: "ipad.and.iphone")
+						.frame(maxWidth: 80)
+						.padding(.bottom, .small)
+						.padding(.top, .xxlarge)
+					titleBlock
+				}
 				.multilineTextAlignment(.center)
-				.foregroundStyle(.secondary)
+				.frame(maxHeight: .infinity, alignment: .center)
 			}
-			Spacer()
-			VStack(spacing: 16) {
-				Button {
-					Task { await viewModel.requestEnrollToken() }
-				} label: {
-					Group {
-						if viewModel.attempt.isLoading {
-							Label(
-								"Request in progress",
-								systemImage: "progress.indicator",
-							)
-							.labelStyle(.iconOnly)
-							.symbolEffect(
-								.variableColor.iterative,
-								options: .repeat(.continuous),
-								isActive: true,
-							)
-						} else {
-							Text("Request Now")
-						}
-					}
-					.frame(maxWidth: .infinity)
-				}
-				.buttonStyle(.borderedProminent)
-				.controlSize(.large)
-				.animation(.easeInOut, value: viewModel.attempt.isLoading)
-				.disabled(viewModel.attempt.isLoading)
-
-				Button(role: .cancel, action: viewModel.userTappedCancel) {
-					Text("Cancel").frame(maxWidth: .infinity)
-				}
-				.buttonStyle(.bordered)
-				.controlSize(.large)
-				.disabled(viewModel.attempt.isLoading)
-			}
+			.scrollBounceBehavior(.basedOnSize)
+			requestNowButton
+			cancelButton
 		}
 		.padding()
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
 		.background(Color(.systemGroupedBackground))
-		.sheet(
-			isPresented: Binding(
-				get: {
-					switch viewModel.attempt {
-						case .idle: false
-						default: true
-					}
-				},
-				set: { if !$0 { viewModel.attempt = .idle } },
-			),
-		) {
-			EnrollRequestStatusView(
-				attempt: viewModel.attempt,
-				onDismiss: { viewModel.attempt = .idle },
-			)
-			.presentationDetents([.medium])
-			.interactiveDismissDisabled(viewModel.attempt.isLoading)
+
+		// MARK: Navigation
+
+		.navigationDestination(item: $viewModel.destination.loadingSheet) {
+			EnrollRequestStatusView(attempt: viewModel.loadingState, onDismiss: {})
+				.presentationDetents([.medium])
+				.interactiveDismissDisabled(viewModel.loadingState.isLoading)
 		}
 	}
+}
+
+// MARK: - Subviews
+
+extension EnrollDeviceView {
+	@ViewBuilder
+	var titleBlock: some View {
+		Text("Enroll Your Device")
+			.font(.title2)
+			.fontWeight(.semibold)
+		Text("To finish enrolling this device, approve the request from your account settings on another device.")
+			.foregroundStyle(.secondary)
+	}
+
+	var requestNowButton: some View {
+		Button {
+			Task { await viewModel.requestEnrollToken() }
+		} label: {
+			Group {
+				if viewModel.loadingState.isLoading {
+					Label(
+						"Request in progress",
+						systemImage: "progress.indicator",
+					)
+					.labelStyle(.iconOnly)
+					.symbolEffect(
+						.variableColor.iterative,
+						options: .repeat(.continuous),
+						isActive: true,
+					)
+				} else {
+					Text("Request Now")
+				}
+			}
+			.frame(maxWidth: .infinity)
+		}
+		.buttonStyle(.primary)
+		.controlSize(.large)
+		.animation(.easeInOut, value: viewModel.loadingState.isLoading)
+		.disabled(viewModel.loadingState.isLoading)
+	}
+
+	var cancelButton: some View {
+		Button(role: .cancel, action: viewModel.userTappedCancel) {
+			Text("Cancel").frame(maxWidth: .infinity)
+		}
+		.buttonStyle(.bordered)
+		.controlSize(.large)
+		.disabled(viewModel.loadingState.isLoading)
+	}
+}
+
+#Preview {
+	EnrollDeviceView(
+		viewModel: EnrollDeviceViewModel(
+			deepLink: EnrollMobileDeviceDeepLink(
+				hostname: "localhost",
+				port: 1234,
+				enrollPairingToken: "pairing-token",
+			),
+		),
+	)
 }
