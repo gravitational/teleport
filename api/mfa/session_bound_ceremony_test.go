@@ -273,6 +273,50 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 	}
 }
 
+func TestSessionBoundCeremonyRun_PayloadPropagation(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name    string
+		payload *mfav2.SessionIdentifyingPayload
+	}{
+		{
+			name: "ssh session id",
+			payload: mfav2.SessionIdentifyingPayload_builder{
+				SshSessionId: []byte("ssh-session-id"),
+			}.Build(),
+		},
+		{
+			name: "kube client cert fingerprint",
+			payload: mfav2.SessionIdentifyingPayload_builder{
+				KubeClientCertFingerprint: []byte("kube-cert-fingerprint"),
+			}.Build(),
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config := newSessionBindingConfig()
+			config.CreateSessionChallenge = func(_ context.Context, req *mfav2.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error) {
+				require.Empty(t, cmp.Diff(test.payload, req.GetPayload(), protocmp.Transform()),
+					"session identifying payload must be forwarded to CreateSessionChallenge unchanged")
+
+				return mfav2.CreateSessionChallengeResponse_builder{
+					MfaChallenge: mfav2.AuthenticateChallenge_builder{
+						Name:              mockChallengeName,
+						WebauthnChallenge: newWebauthnChallenge(mockWebauthnChallenge),
+					}.Build(),
+				}.Build(), nil
+			}
+
+			ceremony, err := mfa.NewSessionBoundCeremony(config)
+			require.NoError(t, err)
+
+			gotName, err := ceremony.Run(t.Context(), test.payload)
+			require.NoError(t, err)
+			require.Equal(t, mockChallengeName, gotName)
+		})
+	}
+}
+
 func TestSessionBoundCeremonyRun_CallbackCeremony(t *testing.T) {
 	t.Parallel()
 

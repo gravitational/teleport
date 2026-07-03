@@ -106,6 +106,24 @@ func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string
 
 // PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
 func (c *ClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	return c.performSessionBoundMFACeremony(ctx, mfav2.SessionIdentifyingPayload_builder{
+		SshSessionId: sessionID,
+	}.Build())
+}
+
+// PerformKubeSessionMFACeremony performs a session-bound MFA ceremony for a kube local proxy
+// session identified by the fingerprint of the local proxy's ephemeral client certificate
+// (computed with lib/srv/alpnproxy/common.KubeClientCertFingerprint) and returns the
+// challenge name.
+func (c *ClusterClient) PerformKubeSessionMFACeremony(ctx context.Context, certFingerprint []byte) (string, error) {
+	return c.performSessionBoundMFACeremony(ctx, mfav2.SessionIdentifyingPayload_builder{
+		KubeClientCertFingerprint: certFingerprint,
+	}.Build())
+}
+
+// performSessionBoundMFACeremony runs the mfav2 session-bound MFA ceremony against the root
+// cluster for the given session identifying payload and returns the validated challenge name.
+func (c *ClusterClient) performSessionBoundMFACeremony(ctx context.Context, payload *mfav2.SessionIdentifyingPayload) (string, error) {
 	rootClient, err := c.ConnectToRootCluster(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -130,12 +148,7 @@ func (c *ClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID
 		return "", trace.Wrap(err)
 	}
 
-	name, err := ceremony.Run(
-		ctx,
-		mfav2.SessionIdentifyingPayload_builder{
-			SshSessionId: sessionID,
-		}.Build(),
-	)
+	name, err := ceremony.Run(ctx, payload)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
