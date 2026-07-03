@@ -42,6 +42,18 @@ const (
 	scopedPrefix = "scoped"
 )
 
+// botInstanceUnscopedWatchPrefix returns the backend key range containing
+// instances of unscoped bots.
+func botInstanceUnscopedWatchPrefix() backend.Key {
+	return backend.NewKey(botInstancePrefix)
+}
+
+// botInstanceScopedWatchPrefix returns the backend key range containing
+// instances of scoped bots.
+func botInstanceScopedWatchPrefix() backend.Key {
+	return backend.NewKey(scopedPrefix, botInstancePrefix)
+}
+
 // BotInstanceService exposes backend functionality for storing bot instances.
 type BotInstanceService struct {
 	service *generic.ScopeAwareServiceWrapper[*machineidv1.BotInstance]
