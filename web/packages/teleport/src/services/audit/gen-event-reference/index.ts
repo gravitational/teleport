@@ -64,6 +64,6 @@ const referencePages = createReferencePages(
 );
 
 referencePages.forEach((page) => {
-  const filePath = `${auditEventsDir}/${page.type}.mdx`;
+  const filePath = `${auditEventsDir}/${page.id}.mdx`;
   fs.writeFileSync(filePath, page.content);
 });
