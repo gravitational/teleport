@@ -24,6 +24,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -245,5 +246,22 @@ func validateEnrollPairing(pairing *devicepb.EnrollPairing) error {
 	if pairing.GetStatus().GetState() == devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_UNSPECIFIED {
 		return trace.BadParameter("enroll pairing status.state is missing")
 	}
+
+	device := pairing.GetStatus().GetDevice()
+
+	if device != nil {
+		if device.GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED {
+			return trace.BadParameter("device.os_type is missing")
+		}
+
+		if strings.TrimSpace(device.GetOsVersion()) == "" {
+			return trace.BadParameter("device.os_version is missing")
+		}
+
+		if strings.TrimSpace(device.GetSerialNumber()) == "" {
+			return trace.BadParameter("device.serial_number is missing")
+		}
+	}
+
 	return nil
 }

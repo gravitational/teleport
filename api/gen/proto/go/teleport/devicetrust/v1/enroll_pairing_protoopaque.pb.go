@@ -496,11 +496,11 @@ func (x *EnrollPairingDevice) SetOsVersion(v string) {
 type EnrollPairingDevice_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Device operating system.
+	// Device operating system. Required.
 	OsType OSType
-	// Device serial number.
+	// Device serial number. Required.
 	SerialNumber string
-	// OS version number, without the leading 'v'.
+	// OS version number, without the leading 'v'. Required.
 	// Example: "13.2.1".
 	OsVersion string
 }

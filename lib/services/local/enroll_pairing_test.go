@@ -173,11 +173,10 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 	t.Parallel()
 
 	s := newEnrollPairingService(t)
-	device := devicepb.EnrollPairingDevice_builder{
-		OsType:       devicepb.OSType_OS_TYPE_IOS,
-		SerialNumber: "CXXXXXXXXX01",
-		OsVersion:    "26.3.1",
-	}.Build()
+	existingPairing, err := s.CreateEnrollPairing(t.Context(), "pairing-for-validation-tests")
+	require.NoError(t, err)
+	existingToken := existingPairing.GetStatus().GetToken()
+	device := makeDevice()
 
 	t.Run("transitions to awaiting approval and persists the device", func(t *testing.T) {
 		t.Parallel()
@@ -213,6 +212,13 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 		assert.ErrorAs(t, err, new(*trace.CompareFailedError))
 	})
 
+	badOSType := makeDevice()
+	badOSType.SetOsType(devicepb.OSType_OS_TYPE_UNSPECIFIED)
+	badOSVersion := makeDevice()
+	badOSVersion.SetOsVersion(" ")
+	badSerialNumber := makeDevice()
+	badSerialNumber.SetSerialNumber(" ")
+
 	tests := []struct {
 		name      string
 		token     string
@@ -238,6 +244,27 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 			device:    nil,
 			errTarget: new(*trace.BadParameterError),
 		},
+		{
+			name:      "rejects empty device OS type",
+			token:     existingToken,
+			device:    badOSType,
+			errTarget: new(*trace.BadParameterError),
+			errMsg:    "os_type is missing",
+		},
+		{
+			name:      "rejects empty device OS version",
+			token:     existingToken,
+			device:    badOSVersion,
+			errTarget: new(*trace.BadParameterError),
+			errMsg:    "os_version is missing",
+		},
+		{
+			name:      "rejects empty device serial number",
+			token:     existingToken,
+			device:    badSerialNumber,
+			errTarget: new(*trace.BadParameterError),
+			errMsg:    "serial_number is missing",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -249,4 +276,12 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 			}
 		})
 	}
+}
+
+func makeDevice() *devicepb.EnrollPairingDevice {
+	return devicepb.EnrollPairingDevice_builder{
+		OsType:       devicepb.OSType_OS_TYPE_IOS,
+		SerialNumber: "CXXXXXXXXX01",
+		OsVersion:    "26.3.1",
+	}.Build()
 }
