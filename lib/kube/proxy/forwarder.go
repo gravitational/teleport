@@ -1076,6 +1076,9 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 		ResponseCode:              int32(status),
 		KubernetesClusterMetadata: sess.eventClusterMeta(req),
 		SessionMetadata: apievents.SessionMetadata{
+			// WithMFA carries the MFA device ID from the certificate and stays empty for
+			// in-band MFA sessions, matching SSH: the in-band proof is recorded on the
+			// mfav2 ceremony events with MFA_FLOW_TYPE_IN_BAND instead.
 			WithMFA: sess.Identity.GetIdentity().MFAVerified,
 		},
 	}
