@@ -80,3 +80,74 @@ func TestNewDefaultInstaller(t *testing.T) {
 	// Test validation: rendered template must look like the snapshot.
 	require.Equal(t, defaultInstallerSnapshot, buf.String())
 }
+
+// defaultWindowsDesktopInstallerSnapshot is the rendered Windows desktop
+// installer with RestartAfterEnrollment set. TEST_CA_BUNDLE stands in for the
+// base64 CA the getWindowsCA template func produces at runtime.
+const defaultWindowsDesktopInstallerSnapshot = `$ErrorActionPreference = 'Stop'
+$ProgressPreference    = 'SilentlyContinue'
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+$Version = '1.2.3'
+$CA = 'TEST_CA_BUNDLE'
+
+$InstallerName = "teleport-windows-auth-setup-v$Version-amd64.exe"
+$WorkDir       = Join-Path $env:TEMP 'teleport-ap-install'
+New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+$InstallerPath = Join-Path $WorkDir $InstallerName
+$CertPath      = Join-Path $WorkDir 'teleport.pem'
+
+Write-Host "Base64-decoding the embedded CA bundle and writing it to $CertPath..."
+[IO.File]::WriteAllBytes($CertPath, [Convert]::FromBase64String($CA))
+
+Write-Host "Downloading authentication package installer ($InstallerName)..."
+try {
+	$dl = @{ Uri = "https://cdn.teleport.dev/$InstallerName"; OutFile = $InstallerPath; UseBasicParsing = $true }
+	if ($env:HTTPS_PROXY) { $dl.Proxy = $env:HTTPS_PROXY }
+	Invoke-WebRequest @dl
+} catch {
+	Write-Host "Authentication package download failed: $_"
+	exit 200
+}
+
+Write-Host "Running authentication package installer..."
+& $InstallerPath install --cert=$CertPath
+if ($LASTEXITCODE -ne 0) {
+	Write-Host "Authentication package installer failed (exit $LASTEXITCODE)"
+	exit 201
+}
+
+
+Write-Host "Scheduling a system restart in 60 seconds to complete the enrollment process"
+& shutdown.exe /r /t 60 /c "Restarting to complete Teleport enrollment process"
+
+`
+
+func TestDefaultWindowsDesktopInstaller(t *testing.T) {
+	// Insert a stub getWindowsCA template func to avoid getting a real CA
+	parse := func() *template.Template {
+		tmpl, err := template.New("").
+			Funcs(template.FuncMap{
+				"getWindowsCA": func() (string, error) { return "TEST_CA_BUNDLE", nil },
+			}).
+			Parse(installer.DefaultWindowsDesktopInstaller.GetScript())
+		require.NoError(t, err)
+		return tmpl
+	}
+
+	render := func(restart bool) string {
+		buf := &bytes.Buffer{}
+		require.NoError(t, parse().Execute(buf, installers.Template{
+			Version:                "1.2.3",
+			RestartAfterEnrollment: restart,
+		}))
+		return buf.String()
+	}
+
+	// With a restart, the snapshot matches the generated script
+	require.Equal(t, defaultWindowsDesktopInstallerSnapshot, render(true /* restart */))
+
+	// Without a restart, the reboot-notice branch is taken instead.
+	withoutRestart := render(false /* don't restart */)
+	require.Contains(t, withoutRestart, `Write-Host "A reboot is required to complete installation."`)
+	require.NotContains(t, withoutRestart, "shutdown.exe")
+}

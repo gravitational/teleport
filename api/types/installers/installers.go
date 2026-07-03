@@ -33,6 +33,10 @@ const InstallerScriptName = types.DefaultInstallerScriptName
 // installer script when agentless mode is enabled for a matcher
 const InstallerScriptNameAgentless = types.DefaultInstallerScriptNameAgentless
 
+// InstallerScriptNameWindowsDesktop is the name of the default populated Windows
+// desktop installer script
+const InstallerScriptNameWindowsDesktop = types.DefaultInstallerScriptNameWindowsDesktop
+
 // DefaultAgentlessInstaller represents a the default agentless installer script provided
 // by teleport
 var DefaultAgentlessInstaller = types.MustNewInstallerV1(InstallerScriptNameAgentless, defaultAgentlessInstallScript)
@@ -55,4 +59,11 @@ type Template struct {
 	// AzureClientID is the client ID of the managed identity to use when joining
 	// the cluster. Only applicable for the azure join method.
 	AzureClientID string
+	// Version is the full version of Teleport auth node e.g. 18.9.2
+	Version string
+	// RestartAfterEnrollment indicates whether the Windows desktop installer
+	// should schedule a system restart after enrollment. A restart is required
+	// for smartcard authentication to work, but the user may choose to restart
+	// later.
+	RestartAfterEnrollment bool
 }

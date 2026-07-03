@@ -3573,6 +3573,63 @@ func TestInstallerScriptRenderedWithTextTemplate(t *testing.T) {
 	require.NotContains(t, response, "&#34;")
 }
 
+// TestInstallerScriptWindowsDesktopRendered renders the built-in Windows
+// desktop installer through the endpoint.
+func TestInstallerScriptWindowsDesktopRendered(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	const rebootNotice = "A reboot is required to complete installation."
+	const scheduleRestart = `& shutdown.exe /r /t 60`
+
+	for _, tt := range []struct {
+		name                   string
+		restartAfterEnrollment string
+		expectContains         string
+		expectNotContains      string
+	}{
+		{
+			name:                   "restart after enrollment",
+			restartAfterEnrollment: "true",
+			expectContains:         scheduleRestart,
+			expectNotContains:      rebootNotice,
+		},
+		{
+			name:                   "no restart after enrollment",
+			restartAfterEnrollment: "false",
+			expectContains:         rebootNotice,
+			expectNotContains:      scheduleRestart,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			re, err := wc.Get(
+				s.ctx,
+				wc.Endpoint("webapi", "scripts", "installer", "default-installer-windows-desktop"),
+				url.Values{"restart-after-enrollment": []string{tt.restartAfterEnrollment}},
+			)
+			require.NoError(t, err)
+
+			response := string(re.Bytes())
+
+			require.Contains(t, response, `$ErrorActionPreference = 'Stop'`)
+			require.Contains(t, response, `$InstallerName = "teleport-windows-auth-setup-`)
+			// The installstatus exit codes survived the fmt.Sprintf injection.
+			require.Contains(t, response, "exit 200") // WindowsInstallerDownloadFailure
+			require.Contains(t, response, "exit 201") // WindowsInstallerExecutionFailure
+
+			// getWindowsCA rendered a non-empty CA bundle, and no template
+			// directives were left unrendered.
+			require.NotContains(t, response, "{{")
+			require.NotContains(t, response, `$CA = ''`)
+
+			// The RestartAfterEnrollment branch resolved correctly.
+			require.Contains(t, response, tt.expectContains)
+			require.NotContains(t, response, tt.expectNotContains)
+		})
+	}
+}
+
 func TestMultipleConnectors(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)

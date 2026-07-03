@@ -57,8 +57,19 @@ func (r AzureInstallResult) Failure() bool {
 	return r.APIError != nil || (r.CommandResult != nil && r.CommandResult.Failure())
 }
 
-// Run initiates Teleport installation on a set of virtual machines and then blocks until the
-// commands have completed.
+func (req *AzureInstallRequest) RunWindowsDesktop(ctx context.Context, client azure.RunCommandClient) error {
+	// Azure treats scripts with the same content as the same invocation and
+	// won't run them more than once. This is fine when the installer script
+	// succeeds, but it makes troubleshooting much harder when it fails. To
+	// work around this, we generate a random string and append it as a comment
+	// to the script, forcing Azure to see each invocation as unique.
+	script, err := installerScriptWindowsDesktop(ctx, req.InstallerParams, withNonceComment(), withProxyAddrGetter(req.ProxyAddrGetter))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return req.run(ctx, client, script)
+}
+
 func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommandClient) error {
 	// Azure treats scripts with the same content as the same invocation and
 	// won't run them more than once. This is fine when the installer script
@@ -69,6 +80,12 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return req.run(ctx, client, script)
+}
+
+// Run initiates Teleport installation on a set of virtual machines and then blocks until the
+// commands have completed.
+func (req *AzureInstallRequest) run(ctx context.Context, client azure.RunCommandClient, script string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)

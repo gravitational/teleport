@@ -19,11 +19,58 @@
 package installer
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
+)
+
+const windowsDesktopScriptSetup = `$ErrorActionPreference = 'Stop'
+$ProgressPreference    = 'SilentlyContinue'
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+$Version = '{{.Version}}'
+$CA = '{{getWindowsCA}}'`
+
+var windowsDesktopInstallerScript = fmt.Sprintf(`$InstallerName = "teleport-windows-auth-setup-v$Version-amd64.exe"
+$WorkDir       = Join-Path $env:TEMP 'teleport-ap-install'
+New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+$InstallerPath = Join-Path $WorkDir $InstallerName
+$CertPath      = Join-Path $WorkDir 'teleport.pem'
+
+Write-Host "Base64-decoding the embedded CA bundle and writing it to $CertPath..."
+[IO.File]::WriteAllBytes($CertPath, [Convert]::FromBase64String($CA))
+
+Write-Host "Downloading authentication package installer ($InstallerName)..."
+try {
+	$dl = @{ Uri = "https://cdn.teleport.dev/$InstallerName"; OutFile = $InstallerPath; UseBasicParsing = $true }
+	if ($env:HTTPS_PROXY) { $dl.Proxy = $env:HTTPS_PROXY }
+	Invoke-WebRequest @dl
+} catch {
+	Write-Host "Authentication package download failed: $_"
+	exit %[1]d
+}
+
+Write-Host "Running authentication package installer..."
+& $InstallerPath install --cert=$CertPath
+if ($LASTEXITCODE -ne 0) {
+	Write-Host "Authentication package installer failed (exit $LASTEXITCODE)"
+	exit %[2]d
+}
+
+{{if .RestartAfterEnrollment}}
+Write-Host "Scheduling a system restart in 60 seconds to complete the enrollment process"
+& shutdown.exe /r /t 60 /c "Restarting to complete Teleport enrollment process"
+{{else}}
+Write-Host "A reboot is required to complete installation."
+{{end}}
+`, installstatus.WindowsInstallerDownloadFailure, installstatus.WindowsInstallerExecutionFailure)
+
+var DefaultWindowsDesktopInstaller = types.MustNewInstallerV1(
+	installers.InstallerScriptNameWindowsDesktop,
+	strings.Join([]string{windowsDesktopScriptSetup, windowsDesktopInstallerScript}, "\n\n"),
 )
 
 const (
