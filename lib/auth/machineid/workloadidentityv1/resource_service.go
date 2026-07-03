@@ -263,10 +263,6 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	// The scope is taken from the request rather than fetched from the stored
-	// resource: the caller declares the scope it is addressing. Once the backend
-	// namespaces workload identities by scope, the delete is addressed by
-	// (scope, name) directly and a wrong scope is simply a not-found there.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.Decision(
 		ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -284,9 +280,6 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		}
 	}
 
-	// The backend namespaces workload identities by scope, so the delete is
-	// addressed by (scope, name): a name that does not exist within the
-	// requested scope is a clean not-found.
 	if err := s.backend.DeleteWorkloadIdentity(ctx, scopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
@@ -303,8 +296,7 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: req.GetName(),
-			// TODO(strideynet): Add resource scope once audit log pr lands with
-			// scope added to ResourceMetadata.
+			Scope: req.GetScope(),
 		},
 	}); err != nil {
 		s.logger.ErrorContext(
@@ -358,8 +350,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
-			// TODO(strideynet): Add resource scope once audit log pr lands with
-			// scope added to ResourceMetadata.
+			Scope: req.GetWorkloadIdentity().GetScope(),
 		},
 	}
 	evt.WorkloadIdentityData, err = resourceToStruct(created)
@@ -410,8 +401,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
-			// TODO(strideynet): Add resource scope once audit log pr lands with
-			// scope added to ResourceMetadata.
+			Scope: req.GetWorkloadIdentity().GetScope(),
 		},
 	}
 	evt.WorkloadIdentityData, err = resourceToStruct(created)
@@ -464,8 +454,7 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
-			// TODO(strideynet): Add resource scope once audit log pr lands with
-			// scope added to ResourceMetadata.
+			Scope: req.GetWorkloadIdentity().GetScope(),
 		},
 	}
 	evt.WorkloadIdentityData, err = resourceToStruct(created)
