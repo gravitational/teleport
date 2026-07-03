@@ -20,15 +20,23 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	_ "embed"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
@@ -38,6 +46,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	cloudawsconfig "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -377,6 +386,102 @@ func setupSelfHostedTestEnv(t *testing.T, postgresImage string) *testEnv {
 	}
 }
 
+// rdsTestEnv constants and env var names. The env var names match those
+// used by the e2e/aws test suite so a single AWS_REGION + RDS_POSTGRES_
+// INSTANCE_NAME configuration drives both.
+const (
+	awsRegionEnv               = "AWS_REGION"
+	rdsPostgresInstanceNameEnv = "RDS_POSTGRES_INSTANCE_NAME"
+	// rdsAdminUser matches the testcontainers admin name so the engine's
+	// procedures and grants look identical across both paths.
+	rdsAdminUser = "teleport-admin"
+)
+
+// awsRDSCertBundleURL is the URL serving the AWS RDS global CA bundle. The
+// bundle is required to validate TLS connections to RDS instances.
+const awsRDSCertBundleURL = "https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
+
+var (
+	rdsCertPoolOnce sync.Once
+	rdsCertPool     *x509.CertPool
+	rdsCertPoolErr  error
+)
+
+func getRDSCertPool(t *testing.T) *x509.CertPool {
+	t.Helper()
+	rdsCertPoolOnce.Do(func() {
+		resp, err := http.Get(awsRDSCertBundleURL)
+		if err != nil {
+			rdsCertPoolErr = trace.Wrap(err)
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			rdsCertPoolErr = trace.Errorf("got status %d fetching %s", resp.StatusCode, awsRDSCertBundleURL)
+			return
+		}
+		bundle, err := io.ReadAll(resp.Body)
+		if err != nil {
+			rdsCertPoolErr = trace.Wrap(err)
+			return
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(bundle) {
+			rdsCertPoolErr = trace.Errorf("failed to parse AWS RDS cert bundle")
+			return
+		}
+		rdsCertPool = pool
+	})
+	require.NoError(t, rdsCertPoolErr)
+	return rdsCertPool
+}
+
+type rdsInstanceInfo struct {
+	endpoint       string
+	port           int
+	masterUsername string
+	masterPassword string
+}
+
+func describeRDSInstance(t *testing.T, ctx context.Context, region, instanceID string) rdsInstanceInfo {
+	t.Helper()
+	awsCfg, err := cloudawsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	require.NoError(t, err)
+
+	rdsClt := rds.NewFromConfig(awsCfg)
+	descOut, err := rdsClt.DescribeDBInstances(ctx, &rds.DescribeDBInstancesInput{
+		DBInstanceIdentifier: &instanceID,
+	})
+	require.NoError(t, err)
+	require.Len(t, descOut.DBInstances, 1, "expected exactly one DB instance for %q", instanceID)
+	inst := descOut.DBInstances[0]
+	require.NotNil(t, inst.MasterUsername)
+	require.NotNil(t, inst.Endpoint)
+	require.NotNil(t, inst.Endpoint.Address)
+	require.NotNil(t, inst.Endpoint.Port)
+	require.NotNil(t, inst.MasterUserSecret, "instance %q must have a managed master user secret", instanceID)
+	require.NotNil(t, inst.MasterUserSecret.SecretArn)
+
+	secretsClt := secretsmanager.NewFromConfig(awsCfg)
+	secretVal, err := secretsClt.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
+		SecretId: inst.MasterUserSecret.SecretArn,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, secretVal.SecretString)
+	var secret struct {
+		Password string `json:"password"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(*secretVal.SecretString), &secret))
+	require.NotEmpty(t, secret.Password, "empty master password in secret %q", *inst.MasterUserSecret.SecretArn)
+
+	return rdsInstanceInfo{
+		endpoint:       *inst.Endpoint.Address,
+		port:           int(*inst.Endpoint.Port),
+		masterUsername: *inst.MasterUsername,
+		masterPassword: secret.Password,
+	}
+}
+
 // cleanupSQL runs statement via conn at test cleanup. Errors are logged, not
 // fatal, so a noisy cleanup can't mask the test result. Uses
 // context.Background() because t.Context() is already canceled by cleanup time.
@@ -387,6 +492,159 @@ func cleanupSQL(t *testing.T, conn *pgx.Conn, statement string) {
 			t.Logf("cleanup statement failed: %s: %v", statement, err)
 		}
 	})
+}
+
+// setupRDSTestEnv provides the same fixture as setupSelfHostedTestEnv against a
+// real RDS instance (AWS_REGION + RDS_POSTGRES_INSTANCE_NAME).
+//
+// RDS outlives a single run, so every server-side change is paired with a
+// t.Cleanup that undoes it, registered beside the mutation. t.Cleanup is LIFO,
+// so the undos unwind in reverse.
+func setupRDSTestEnv(t *testing.T) *testEnv {
+	ctx := t.Context()
+	region := mustGetRDSEnv(t, awsRegionEnv)
+	instanceID := mustGetRDSEnv(t, rdsPostgresInstanceNameEnv)
+	rdsAdminPassword := randomPassword(t)
+
+	info := describeRDSInstance(t, ctx, region, instanceID)
+	tlsConfig := &tls.Config{
+		ServerName: info.endpoint,
+		RootCAs:    getRDSCertPool(t),
+		MinVersion: tls.VersionTLS12,
+	}
+
+	// connectWith sets user/password on the parsed config, not in the URL:
+	// RDS master passwords from Secrets Manager often contain characters
+	// invalid in URL userinfo ('/', '+', ':').
+	connectWith := func(t *testing.T, username, password, dbName string) (*pgx.Conn, error) {
+		cfg, err := pgx.ParseConfig(fmt.Sprintf("postgres://%s:%d/%s?sslmode=verify-full",
+			info.endpoint, info.port, dbName))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.User = username
+		cfg.Password = password
+		cfg.TLSConfig = tlsConfig.Clone()
+		// Drop pgx's plaintext fallback so a blocked or failed TLS handshake
+		// can't silently downgrade to an unencrypted connection (as connector.go
+		// does for the engine's own connections).
+		cfg.Fallbacks = nil
+		return pgx.ConnectConfig(t.Context(), cfg)
+	}
+	connectAsBootstrap := func(t *testing.T, dbName string) (*pgx.Conn, error) {
+		return connectWith(t, info.masterUsername, info.masterPassword, dbName)
+	}
+	connectAsUser := func(t *testing.T, username, password, dbName string) (*pgx.Conn, error) {
+		return connectWith(t, username, password, dbName)
+	}
+
+	// ── bootstrapConn — close last in cleanup so every other cleanup
+	// statement below still has a connection to run through.
+	bootstrapConn, err := connectAsBootstrap(t, "postgres")
+	require.NoError(t, err)
+	t.Cleanup(func() { bootstrapConn.Close(context.Background()) })
+
+	// ── postgres_fdw extension. CASCADE on the drop because the "Refused:
+	// foreign table" subtest creates a foreign server hanging off this
+	// extension; if a prior run crashed before that subtest's cleanups
+	// fired, the server is still there and a plain DROP EXTENSION fails.
+	// IF NOT EXISTS lets a recovery run reuse a leftover extension.
+	cleanupSQL(t, bootstrapConn, `DROP EXTENSION IF EXISTS postgres_fdw CASCADE`)
+	_, err = bootstrapConn.Exec(ctx, `CREATE EXTENSION IF NOT EXISTS postgres_fdw`)
+	require.NoError(t, err)
+
+	// ── teleport-admin user. DROP USER fails while the role still holds
+	// grants (e.g. USAGE on the FDW about to be granted), so each GRANT
+	// is paired with a REVOKE cleanup registered after the DROP USER
+	// cleanup. t.Cleanup is LIFO, so each REVOKE runs first and DROP
+	// USER fires with no dependencies remaining.
+	cleanupSQL(t, bootstrapConn, fmt.Sprintf(`DROP USER IF EXISTS %q`, rdsAdminUser))
+	_, err = bootstrapConn.Exec(ctx, fmt.Sprintf(
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '%[1]s') THEN
+				CREATE USER %[1]q LOGIN CREATEROLE PASSWORD '%[2]s';
+			END IF;
+		END $$`,
+		rdsAdminUser, rdsAdminPassword))
+	require.NoError(t, err)
+	_, err = bootstrapConn.Exec(ctx, fmt.Sprintf(
+		`GRANT USAGE ON FOREIGN DATA WRAPPER postgres_fdw TO %q`, rdsAdminUser))
+	require.NoError(t, err)
+	cleanupSQL(t, bootstrapConn, fmt.Sprintf(
+		`REVOKE USAGE ON FOREIGN DATA WRAPPER postgres_fdw FROM %q`, rdsAdminUser))
+
+	cleanupSQL(t, bootstrapConn, `DROP ROLE IF EXISTS "teleport-auto-user"`)
+
+	// ── other_db. FORCE in the cleanup terminates any still-live sessions
+	// instead of having us close them in a particular order; the matching
+	// pre-drop makes CREATE DATABASE idempotent across crashed runs.
+	cleanupSQL(t, bootstrapConn, `DROP DATABASE IF EXISTS other_db WITH (FORCE)`)
+	_, err = bootstrapConn.Exec(ctx, `DROP DATABASE IF EXISTS other_db WITH (FORCE)`)
+	require.NoError(t, err)
+	_, err = bootstrapConn.Exec(ctx, `CREATE DATABASE other_db`)
+	require.NoError(t, err)
+
+	// ── bootstrapOtherDBConn. Its grants vanish when other_db is dropped, so
+	// they need no separate cleanup.
+	bootstrapOtherDBConn, err := connectAsBootstrap(t, "other_db")
+	require.NoError(t, err)
+	t.Cleanup(func() { bootstrapOtherDBConn.Close(context.Background()) })
+	_, err = bootstrapOtherDBConn.Exec(ctx, fmt.Sprintf(`
+		GRANT CREATE, CONNECT ON DATABASE other_db TO %q;
+		GRANT USAGE,  CREATE  ON SCHEMA   public   TO %q`,
+		rdsAdminUser, rdsAdminUser))
+	require.NoError(t, err)
+
+	// ── adminConn and otherDBConn. teleport-admin peers; closed before the
+	// DROP USER cleanup fires.
+	adminConn, err := connectAsUser(t, rdsAdminUser, rdsAdminPassword, "postgres")
+	require.NoError(t, err)
+	t.Cleanup(func() { adminConn.Close(context.Background()) })
+
+	otherDBConn, err := connectAsUser(t, rdsAdminUser, rdsAdminPassword, "other_db")
+	require.NoError(t, err)
+	t.Cleanup(func() { otherDBConn.Close(context.Background()) })
+
+	// URI carries credentials because the connector prepends "postgres://";
+	// TLS comes from noopAuth via tlsConfig.
+	dbURI := fmt.Sprintf("%s:%s@%s:%d", rdsAdminUser, rdsAdminPassword, info.endpoint, info.port)
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-pg",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      dbURI,
+		AdminUser: &types.DatabaseAdminUser{
+			Name: rdsAdminUser,
+		},
+	})
+	require.NoError(t, err)
+
+	engine := &Engine{
+		EngineConfig: common.EngineConfig{
+			Log:   slog.Default(),
+			Auth:  &noopAuth{tlsConfig: tlsConfig},
+			Audit: &noopAudit{},
+		},
+	}
+
+	return &testEnv{
+		db:                   db,
+		engine:               engine,
+		bootstrapConn:        bootstrapConn,
+		bootstrapOtherDBConn: bootstrapOtherDBConn,
+		adminConn:            adminConn,
+		otherDBConn:          otherDBConn,
+		connectAsUser:        connectAsUser,
+		connectAsBootstrap:   connectAsBootstrap,
+		userPassword:         randomPassword(t),
+	}
+}
+
+func mustGetRDSEnv(t *testing.T, key string) string {
+	t.Helper()
+	val := os.Getenv(key)
+	require.NotEmpty(t, val, "%s environment variable must be set when ENABLE_RDS_TESTS=true", key)
+	return val
 }
 
 func installReassignObjectsProcedure(t *testing.T, conn *pgx.Conn) {
@@ -410,7 +668,13 @@ func TestUserAutoProvisioning(t *testing.T) {
 			})
 		}
 	})
-	// TODO: add tests for RDS using procedure owned by rds_superuser
+	t.Run("RDS postgres", func(t *testing.T) {
+		if run, _ := apiutils.ParseBool(os.Getenv("TEST_AWS_DB")); !run {
+			t.Skip("Test disabled in CI. Enable it by setting env variable TEST_AWS_DB")
+		}
+		env := setupRDSTestEnv(t)
+		runUserAutoProvisioningTests(t, env)
+	})
 }
 
 func runUserAutoProvisioningTests(t *testing.T, env *testEnv) {
