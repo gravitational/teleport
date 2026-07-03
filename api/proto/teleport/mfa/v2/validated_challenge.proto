@@ -54,5 +54,10 @@ message SessionIdentifyingPayload {
     // SSH session hash computed from session state. For example, in Go this is the value from
     // crypto/ssh#ConnMetadata.SessionID().
     bytes ssh_session_id = 1;
+    // SHA-256 digest of the DER-encoded leaf client certificate the Kubernetes local proxy presents to the Teleport
+    // proxy. The local proxy computes it from its own certificate and the kube forwarder computes it from the mTLS peer
+    // certificate, so both sides derive the same value independently. The certificate is ephemeral and scoped to one
+    // local proxy session; reissuing it rotates this payload and triggers a new challenge.
+    bytes kube_client_cert_fingerprint = 2;
   }
 }

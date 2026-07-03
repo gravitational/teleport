@@ -335,11 +335,27 @@ func (x *SessionIdentifyingPayload) GetSshSessionId() []byte {
 	return nil
 }
 
+func (x *SessionIdentifyingPayload) GetKubeClientCertFingerprint() []byte {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Payload.(*sessionIdentifyingPayload_KubeClientCertFingerprint); ok {
+			return x.KubeClientCertFingerprint
+		}
+	}
+	return nil
+}
+
 func (x *SessionIdentifyingPayload) SetSshSessionId(v []byte) {
 	if v == nil {
 		v = []byte{}
 	}
 	x.xxx_hidden_Payload = &sessionIdentifyingPayload_SshSessionId{v}
+}
+
+func (x *SessionIdentifyingPayload) SetKubeClientCertFingerprint(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_Payload = &sessionIdentifyingPayload_KubeClientCertFingerprint{v}
 }
 
 func (x *SessionIdentifyingPayload) HasPayload() bool {
@@ -357,6 +373,14 @@ func (x *SessionIdentifyingPayload) HasSshSessionId() bool {
 	return ok
 }
 
+func (x *SessionIdentifyingPayload) HasKubeClientCertFingerprint() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Payload.(*sessionIdentifyingPayload_KubeClientCertFingerprint)
+	return ok
+}
+
 func (x *SessionIdentifyingPayload) ClearPayload() {
 	x.xxx_hidden_Payload = nil
 }
@@ -367,8 +391,15 @@ func (x *SessionIdentifyingPayload) ClearSshSessionId() {
 	}
 }
 
+func (x *SessionIdentifyingPayload) ClearKubeClientCertFingerprint() {
+	if _, ok := x.xxx_hidden_Payload.(*sessionIdentifyingPayload_KubeClientCertFingerprint); ok {
+		x.xxx_hidden_Payload = nil
+	}
+}
+
 const SessionIdentifyingPayload_Payload_not_set_case case_SessionIdentifyingPayload_Payload = 0
 const SessionIdentifyingPayload_SshSessionId_case case_SessionIdentifyingPayload_Payload = 1
+const SessionIdentifyingPayload_KubeClientCertFingerprint_case case_SessionIdentifyingPayload_Payload = 2
 
 func (x *SessionIdentifyingPayload) WhichPayload() case_SessionIdentifyingPayload_Payload {
 	if x == nil {
@@ -377,6 +408,8 @@ func (x *SessionIdentifyingPayload) WhichPayload() case_SessionIdentifyingPayloa
 	switch x.xxx_hidden_Payload.(type) {
 	case *sessionIdentifyingPayload_SshSessionId:
 		return SessionIdentifyingPayload_SshSessionId_case
+	case *sessionIdentifyingPayload_KubeClientCertFingerprint:
+		return SessionIdentifyingPayload_KubeClientCertFingerprint_case
 	default:
 		return SessionIdentifyingPayload_Payload_not_set_case
 	}
@@ -389,6 +422,11 @@ type SessionIdentifyingPayload_builder struct {
 	// SSH session hash computed from session state. For example, in Go this is the value from
 	// crypto/ssh#ConnMetadata.SessionID().
 	SshSessionId []byte
+	// SHA-256 digest of the DER-encoded leaf client certificate the Kubernetes local proxy presents to the Teleport
+	// proxy. The local proxy computes it from its own certificate and the kube forwarder computes it from the mTLS peer
+	// certificate, so both sides derive the same value independently. The certificate is ephemeral and scoped to one
+	// local proxy session; reissuing it rotates this payload and triggers a new challenge.
+	KubeClientCertFingerprint []byte
 	// -- end of xxx_hidden_Payload
 }
 
@@ -398,6 +436,9 @@ func (b0 SessionIdentifyingPayload_builder) Build() *SessionIdentifyingPayload {
 	_, _ = b, x
 	if b.SshSessionId != nil {
 		x.xxx_hidden_Payload = &sessionIdentifyingPayload_SshSessionId{b.SshSessionId}
+	}
+	if b.KubeClientCertFingerprint != nil {
+		x.xxx_hidden_Payload = &sessionIdentifyingPayload_KubeClientCertFingerprint{b.KubeClientCertFingerprint}
 	}
 	return m0
 }
@@ -422,7 +463,17 @@ type sessionIdentifyingPayload_SshSessionId struct {
 	SshSessionId []byte `protobuf:"bytes,1,opt,name=ssh_session_id,json=sshSessionId,proto3,oneof"`
 }
 
+type sessionIdentifyingPayload_KubeClientCertFingerprint struct {
+	// SHA-256 digest of the DER-encoded leaf client certificate the Kubernetes local proxy presents to the Teleport
+	// proxy. The local proxy computes it from its own certificate and the kube forwarder computes it from the mTLS peer
+	// certificate, so both sides derive the same value independently. The certificate is ephemeral and scoped to one
+	// local proxy session; reissuing it rotates this payload and triggers a new challenge.
+	KubeClientCertFingerprint []byte `protobuf:"bytes,2,opt,name=kube_client_cert_fingerprint,json=kubeClientCertFingerprint,proto3,oneof"`
+}
+
 func (*sessionIdentifyingPayload_SshSessionId) isSessionIdentifyingPayload_Payload() {}
+
+func (*sessionIdentifyingPayload_KubeClientCertFingerprint) isSessionIdentifyingPayload_Payload() {}
 
 var File_teleport_mfa_v2_validated_challenge_proto protoreflect.FileDescriptor
 
@@ -439,9 +490,10 @@ const file_teleport_mfa_v2_validated_challenge_proto_rawDesc = "" +
 	"\apayload\x18\x01 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12%\n" +
 	"\x0esource_cluster\x18\x02 \x01(\tR\rsourceCluster\x12%\n" +
 	"\x0etarget_cluster\x18\x03 \x01(\tR\rtargetCluster\x12\x1a\n" +
-	"\busername\x18\x04 \x01(\tR\busername\"N\n" +
+	"\busername\x18\x04 \x01(\tR\busername\"\x91\x01\n" +
 	"\x19SessionIdentifyingPayload\x12&\n" +
-	"\x0essh_session_id\x18\x01 \x01(\fH\x00R\fsshSessionIdB\t\n" +
+	"\x0essh_session_id\x18\x01 \x01(\fH\x00R\fsshSessionId\x12A\n" +
+	"\x1ckube_client_cert_fingerprint\x18\x02 \x01(\fH\x00R\x19kubeClientCertFingerprintB\t\n" +
 	"\apayloadBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2;mfav2b\x06proto3"
 
 var file_teleport_mfa_v2_validated_challenge_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
@@ -469,6 +521,7 @@ func file_teleport_mfa_v2_validated_challenge_proto_init() {
 	}
 	file_teleport_mfa_v2_validated_challenge_proto_msgTypes[2].OneofWrappers = []any{
 		(*sessionIdentifyingPayload_SshSessionId)(nil),
+		(*sessionIdentifyingPayload_KubeClientCertFingerprint)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
