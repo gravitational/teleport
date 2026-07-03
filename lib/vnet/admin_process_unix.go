@@ -54,7 +54,7 @@ func runUnixAdminProcess(ctx context.Context, clt *clientApplicationServiceClien
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 
-	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
+	osConfigProvider, err := newOSConfigProvider(ctx, osConfigProviderConfig{
 		clt:           clt,
 		tunName:       tunName,
 		ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
