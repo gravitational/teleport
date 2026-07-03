@@ -1659,7 +1659,7 @@ func TestScopedBotSSH(t *testing.T) {
 // discover a scoped Kubernetes cluster via selectors, and that a valid
 // kubeconfig is rendered.
 func TestScopedBotKubernetes(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
 	log := logtest.NewLogger()
@@ -1676,6 +1676,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 		t.TempDir(),
 		defaultTestServerOpts(log),
 		testenv.WithProxyKube(),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1742,8 +1743,9 @@ func TestScopedBotKubernetes(t *testing.T) {
 	// Start a second Teleport process as a kube_service-only agent, joining
 	// with the scoped kube token.
 	kubeNodeCfg := servicecfg.MakeDefaultConfig()
+	kubeNodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	kubeNodeCfg.DataDir = t.TempDir()
-	kubeNodeCfg.SetToken(kubeTokenResp.Token.Metadata.Name + ":" + kubeTokenResp.Token.Status.Secret)
+	kubeNodeCfg.SetToken(jointoken.EncodeScopedToken(kubeTokenResp.GetToken().GetMetadata().GetName(), kubeTokenResp.GetToken().GetStatus().GetSecret()))
 	kubeNodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	kubeNodeCfg.Auth.Enabled = false
 	kubeNodeCfg.Proxy.Enabled = false
