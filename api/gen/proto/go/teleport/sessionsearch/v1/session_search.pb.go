@@ -281,9 +281,12 @@ type SearchSessionSummariesRequest struct {
 	// are present. SEARCH_MODE_UNSPECIFIED and SEARCH_MODE_HYBRID both execute
 	// the full hybrid pipeline. SEARCH_MODE_KEYWORD_ONLY uses only full-text
 	// matching; SEARCH_MODE_EMBEDDING_ONLY uses only vector similarity.
-	SearchMode    SearchMode `protobuf:"varint,15,opt,name=search_mode,json=searchMode,proto3,enum=teleport.sessionsearch.v1.SearchMode" json:"search_mode,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SearchMode SearchMode `protobuf:"varint,15,opt,name=search_mode,json=searchMode,proto3,enum=teleport.sessionsearch.v1.SearchMode" json:"search_mode,omitempty"`
+	// filter_needs_further_review_reasons restricts results to sessions that have
+	// at least one of the given review reasons. An empty list disables this filter.
+	FilterNeedsFurtherReviewReasons []v1.NeedsReviewReason `protobuf:"varint,16,rep,packed,name=filter_needs_further_review_reasons,json=filterNeedsFurtherReviewReasons,proto3,enum=teleport.summarizer.v1.NeedsReviewReason" json:"filter_needs_further_review_reasons,omitempty"`
+	unknownFields                   protoimpl.UnknownFields
+	sizeCache                       protoimpl.SizeCache
 }
 
 func (x *SearchSessionSummariesRequest) Reset() {
@@ -416,6 +419,13 @@ func (x *SearchSessionSummariesRequest) GetSearchMode() SearchMode {
 	return SearchMode_SEARCH_MODE_UNSPECIFIED
 }
 
+func (x *SearchSessionSummariesRequest) GetFilterNeedsFurtherReviewReasons() []v1.NeedsReviewReason {
+	if x != nil {
+		return x.FilterNeedsFurtherReviewReasons
+	}
+	return nil
+}
+
 func (x *SearchSessionSummariesRequest) SetStartTime(v *timestamppb.Timestamp) {
 	x.StartTime = v
 }
@@ -474,6 +484,10 @@ func (x *SearchSessionSummariesRequest) SetBatchToken(v string) {
 
 func (x *SearchSessionSummariesRequest) SetSearchMode(v SearchMode) {
 	x.SearchMode = v
+}
+
+func (x *SearchSessionSummariesRequest) SetFilterNeedsFurtherReviewReasons(v []v1.NeedsReviewReason) {
+	x.FilterNeedsFurtherReviewReasons = v
 }
 
 func (x *SearchSessionSummariesRequest) HasStartTime() bool {
@@ -619,6 +633,9 @@ type SearchSessionSummariesRequest_builder struct {
 	// the full hybrid pipeline. SEARCH_MODE_KEYWORD_ONLY uses only full-text
 	// matching; SEARCH_MODE_EMBEDDING_ONLY uses only vector similarity.
 	SearchMode SearchMode
+	// filter_needs_further_review_reasons restricts results to sessions that have
+	// at least one of the given review reasons. An empty list disables this filter.
+	FilterNeedsFurtherReviewReasons []v1.NeedsReviewReason
 }
 
 func (b0 SearchSessionSummariesRequest_builder) Build() *SearchSessionSummariesRequest {
@@ -640,6 +657,7 @@ func (b0 SearchSessionSummariesRequest_builder) Build() *SearchSessionSummariesR
 	x.MaxResults = b.MaxResults
 	x.BatchToken = b.BatchToken
 	x.SearchMode = b.SearchMode
+	x.FilterNeedsFurtherReviewReasons = b.FilterNeedsFurtherReviewReasons
 	return m0
 }
 
@@ -1601,9 +1619,13 @@ type SessionSummary struct {
 	// session_end is the timestamp when the session ended.
 	SessionEnd *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=session_end,json=sessionEnd,proto3" json:"session_end,omitempty"`
 	// host_id is the unique identifier of the host where the session occurred.
-	HostId        string `protobuf:"bytes,16,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HostId string `protobuf:"bytes,16,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
+	// needs_further_review_reasons contains the reasons why this session was
+	// flagged as requiring further human review by the summarizer. Empty when the
+	// session was not flagged.
+	NeedsFurtherReviewReasons []v1.NeedsReviewReason `protobuf:"varint,17,rep,packed,name=needs_further_review_reasons,json=needsFurtherReviewReasons,proto3,enum=teleport.summarizer.v1.NeedsReviewReason" json:"needs_further_review_reasons,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *SessionSummary) Reset() {
@@ -1743,6 +1765,13 @@ func (x *SessionSummary) GetHostId() string {
 	return ""
 }
 
+func (x *SessionSummary) GetNeedsFurtherReviewReasons() []v1.NeedsReviewReason {
+	if x != nil {
+		return x.NeedsFurtherReviewReasons
+	}
+	return nil
+}
+
 func (x *SessionSummary) SetSessionId(v string) {
 	x.SessionId = v
 }
@@ -1805,6 +1834,10 @@ func (x *SessionSummary) SetSessionEnd(v *timestamppb.Timestamp) {
 
 func (x *SessionSummary) SetHostId(v string) {
 	x.HostId = v
+}
+
+func (x *SessionSummary) SetNeedsFurtherReviewReasons(v []v1.NeedsReviewReason) {
+	x.NeedsFurtherReviewReasons = v
 }
 
 func (x *SessionSummary) HasSessionStart() bool {
@@ -1898,6 +1931,10 @@ type SessionSummary_builder struct {
 	SessionEnd *timestamppb.Timestamp
 	// host_id is the unique identifier of the host where the session occurred.
 	HostId string
+	// needs_further_review_reasons contains the reasons why this session was
+	// flagged as requiring further human review by the summarizer. Empty when the
+	// session was not flagged.
+	NeedsFurtherReviewReasons []v1.NeedsReviewReason
 }
 
 func (b0 SessionSummary_builder) Build() *SessionSummary {
@@ -1920,6 +1957,7 @@ func (b0 SessionSummary_builder) Build() *SessionSummary {
 	x.Severity = b.Severity
 	x.SessionEnd = b.SessionEnd
 	x.HostId = b.HostId
+	x.NeedsFurtherReviewReasons = b.NeedsFurtherReviewReasons
 	return m0
 }
 
@@ -2117,7 +2155,7 @@ var File_teleport_sessionsearch_v1_session_search_proto protoreflect.FileDescrip
 
 const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\n" +
-	".teleport/sessionsearch/v1/session_search.proto\x12\x19teleport.sessionsearch.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/summarizer/v1/summarizer.proto\"\xb6\a\n" +
+	".teleport/sessionsearch/v1/session_search.proto\x12\x19teleport.sessionsearch.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/summarizer/v1/summarizer.proto\"\xaf\b\n" +
 	"\x1dSearchSessionSummariesRequest\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -2139,7 +2177,8 @@ const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\vbatch_token\x18\x0e \x01(\tR\n" +
 	"batchToken\x12F\n" +
 	"\vsearch_mode\x18\x0f \x01(\x0e2%.teleport.sessionsearch.v1.SearchModeR\n" +
-	"searchMode\x1aA\n" +
+	"searchMode\x12w\n" +
+	"#filter_needs_further_review_reasons\x18\x10 \x03(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x1ffilterNeedsFurtherReviewReasons\x1aA\n" +
 	"\x13ResourceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\v\n" +
@@ -2185,7 +2224,7 @@ const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\rBatchComplete\x12\x19\n" +
 	"\bhas_more\x18\x01 \x01(\bR\ahasMore\x12(\n" +
 	"\x10next_batch_token\x18\x02 \x01(\tR\x0enextBatchTokenB\t\n" +
-	"\apayload\"\xd6\x06\n" +
+	"\apayload\"\xc2\a\n" +
 	"\x0eSessionSummary\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
@@ -2208,7 +2247,8 @@ const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\bseverity\x18\x0e \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\bseverity\x12;\n" +
 	"\vsession_end\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"sessionEnd\x12\x17\n" +
-	"\ahost_id\x18\x10 \x01(\tR\x06hostId\x1aA\n" +
+	"\ahost_id\x18\x10 \x01(\tR\x06hostId\x12j\n" +
+	"\x1cneeds_further_review_reasons\x18\x11 \x03(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x19needsFurtherReviewReasons\x1aA\n" +
 	"\x13ResourceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x12\n" +
@@ -2256,7 +2296,8 @@ var file_teleport_sessionsearch_v1_session_search_proto_goTypes = []any{
 	nil,                           // 15: teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
 	(*timestamppb.Timestamp)(nil), // 16: google.protobuf.Timestamp
 	(v1.RiskLevel)(0),             // 17: teleport.summarizer.v1.RiskLevel
-	(*structpb.Struct)(nil),       // 18: google.protobuf.Struct
+	(v1.NeedsReviewReason)(0),     // 18: teleport.summarizer.v1.NeedsReviewReason
+	(*structpb.Struct)(nil),       // 19: google.protobuf.Struct
 }
 var file_teleport_sessionsearch_v1_session_search_proto_depIdxs = []int32{
 	16, // 0: teleport.sessionsearch.v1.SearchSessionSummariesRequest.start_time:type_name -> google.protobuf.Timestamp
@@ -2265,29 +2306,31 @@ var file_teleport_sessionsearch_v1_session_search_proto_depIdxs = []int32{
 	4,  // 3: teleport.sessionsearch.v1.SearchSessionSummariesRequest.resource_properties:type_name -> teleport.sessionsearch.v1.ResourceProperties
 	17, // 4: teleport.sessionsearch.v1.SearchSessionSummariesRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
 	0,  // 5: teleport.sessionsearch.v1.SearchSessionSummariesRequest.search_mode:type_name -> teleport.sessionsearch.v1.SearchMode
-	5,  // 6: teleport.sessionsearch.v1.ResourceProperties.ssh:type_name -> teleport.sessionsearch.v1.SSHProperties
-	6,  // 7: teleport.sessionsearch.v1.ResourceProperties.kubernetes:type_name -> teleport.sessionsearch.v1.KubernetesProperties
-	7,  // 8: teleport.sessionsearch.v1.ResourceProperties.database:type_name -> teleport.sessionsearch.v1.DatabaseProperties
-	8,  // 9: teleport.sessionsearch.v1.ResourceProperties.desktop:type_name -> teleport.sessionsearch.v1.DesktopProperties
-	1,  // 10: teleport.sessionsearch.v1.DesktopProperties.type:type_name -> teleport.sessionsearch.v1.DesktopType
-	10, // 11: teleport.sessionsearch.v1.SearchSessionSummariesResponse.summary:type_name -> teleport.sessionsearch.v1.SessionSummary
-	14, // 12: teleport.sessionsearch.v1.SearchSessionSummariesResponse.batch_complete:type_name -> teleport.sessionsearch.v1.SearchSessionSummariesResponse.BatchComplete
-	16, // 13: teleport.sessionsearch.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
-	18, // 14: teleport.sessionsearch.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
-	15, // 15: teleport.sessionsearch.v1.SessionSummary.resource_labels:type_name -> teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
-	4,  // 16: teleport.sessionsearch.v1.SessionSummary.resource_properties:type_name -> teleport.sessionsearch.v1.ResourceProperties
-	17, // 17: teleport.sessionsearch.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	16, // 18: teleport.sessionsearch.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
-	2,  // 19: teleport.sessionsearch.v1.IsEnabledResponse.availability:type_name -> teleport.sessionsearch.v1.SessionSearchAvailability
-	3,  // 20: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:input_type -> teleport.sessionsearch.v1.SearchSessionSummariesRequest
-	11, // 21: teleport.sessionsearch.v1.SessionSearchService.IsEnabled:input_type -> teleport.sessionsearch.v1.IsEnabledRequest
-	9,  // 22: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:output_type -> teleport.sessionsearch.v1.SearchSessionSummariesResponse
-	12, // 23: teleport.sessionsearch.v1.SessionSearchService.IsEnabled:output_type -> teleport.sessionsearch.v1.IsEnabledResponse
-	22, // [22:24] is the sub-list for method output_type
-	20, // [20:22] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	18, // 6: teleport.sessionsearch.v1.SearchSessionSummariesRequest.filter_needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	5,  // 7: teleport.sessionsearch.v1.ResourceProperties.ssh:type_name -> teleport.sessionsearch.v1.SSHProperties
+	6,  // 8: teleport.sessionsearch.v1.ResourceProperties.kubernetes:type_name -> teleport.sessionsearch.v1.KubernetesProperties
+	7,  // 9: teleport.sessionsearch.v1.ResourceProperties.database:type_name -> teleport.sessionsearch.v1.DatabaseProperties
+	8,  // 10: teleport.sessionsearch.v1.ResourceProperties.desktop:type_name -> teleport.sessionsearch.v1.DesktopProperties
+	1,  // 11: teleport.sessionsearch.v1.DesktopProperties.type:type_name -> teleport.sessionsearch.v1.DesktopType
+	10, // 12: teleport.sessionsearch.v1.SearchSessionSummariesResponse.summary:type_name -> teleport.sessionsearch.v1.SessionSummary
+	14, // 13: teleport.sessionsearch.v1.SearchSessionSummariesResponse.batch_complete:type_name -> teleport.sessionsearch.v1.SearchSessionSummariesResponse.BatchComplete
+	16, // 14: teleport.sessionsearch.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
+	19, // 15: teleport.sessionsearch.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
+	15, // 16: teleport.sessionsearch.v1.SessionSummary.resource_labels:type_name -> teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
+	4,  // 17: teleport.sessionsearch.v1.SessionSummary.resource_properties:type_name -> teleport.sessionsearch.v1.ResourceProperties
+	17, // 18: teleport.sessionsearch.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	16, // 19: teleport.sessionsearch.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
+	18, // 20: teleport.sessionsearch.v1.SessionSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	2,  // 21: teleport.sessionsearch.v1.IsEnabledResponse.availability:type_name -> teleport.sessionsearch.v1.SessionSearchAvailability
+	3,  // 22: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:input_type -> teleport.sessionsearch.v1.SearchSessionSummariesRequest
+	11, // 23: teleport.sessionsearch.v1.SessionSearchService.IsEnabled:input_type -> teleport.sessionsearch.v1.IsEnabledRequest
+	9,  // 24: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:output_type -> teleport.sessionsearch.v1.SearchSessionSummariesResponse
+	12, // 25: teleport.sessionsearch.v1.SessionSearchService.IsEnabled:output_type -> teleport.sessionsearch.v1.IsEnabledResponse
+	24, // [24:26] is the sub-list for method output_type
+	22, // [22:24] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_teleport_sessionsearch_v1_session_search_proto_init() }

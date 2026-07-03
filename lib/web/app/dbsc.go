@@ -38,7 +38,7 @@ import (
 
 const (
 	// secureSessionRegistrationHeader is the header that triggers DBSC registration in the browser.
-	secureSessionRegistrationHeader = "Secure-Session-Registration"
+	secureSessionRegistrationHeader = "Secure-Session-Registration" //nolint:unused // TODO(avatus) re-enable after spec change
 	// secureSessionResponseHeader is the header containing the browser's signed JWT.
 	secureSessionResponseHeader = "Secure-Session-Response"
 	// secureSessionIDHeader is the header containing the session ID for refresh requests.
@@ -265,6 +265,8 @@ func (h *Handler) verifyDBSCChallenge(ctx context.Context, challenge string, ses
 
 // setDBSCRegistrationHeader sets the Secure-Session-Registration header to trigger
 // DBSC registration in the browser.
+//
+//nolint:unused // TODO(avatus) re-enable after spec change
 func (h *Handler) setDBSCRegistrationHeader(ctx context.Context, w http.ResponseWriter, sessionID string) error {
 	challenge, err := h.c.AuthClient.SignDBSCChallenge(ctx, sessionID)
 	if err != nil {
