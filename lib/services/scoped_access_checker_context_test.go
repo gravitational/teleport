@@ -96,7 +96,7 @@ func TestRiskyAuthorizeUnpinnedReadWithScope(t *testing.T) {
 		{
 			name:          "override to orthogonal scope is denied",
 			resourceScope: "/other",
-			wantErr:       "scope pin \"/test/scope\" is orthogonal to resource scope \"/other\"",
+			wantErr:       "a resource in scope \"/other\" can't be manipulated from a session pinned to orthogonal scope \"/test/scope\"",
 		},
 		{
 			name:          "override to empty scope is rejected",
