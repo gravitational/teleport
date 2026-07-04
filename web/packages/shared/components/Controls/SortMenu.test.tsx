@@ -19,9 +19,8 @@
 import { UserEvent } from '@testing-library/user-event';
 import { ComponentProps, PropsWithChildren } from 'react';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
-import { render, screen, userEvent, within } from 'design/utils/testing';
+import { render, screen, theme, userEvent, within } from 'design/utils/testing';
 
 import { SortMenu } from './SortMenu';
 
@@ -254,7 +253,7 @@ const renderComponent = (options?: {
 function makeWrapper() {
   return (props: PropsWithChildren) => {
     return (
-      <ConfiguredThemeProvider theme={darkTheme}>
+      <ConfiguredThemeProvider theme={theme}>
         {props.children}
       </ConfiguredThemeProvider>
     );
