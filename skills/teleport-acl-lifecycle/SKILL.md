@@ -112,6 +112,32 @@ Both `tctl` JSON and your own drafts must be reshaped into something scannable.
   message has more than one part.
 - Keep prose for explanation and warnings only; put data in tables or lists.
 
+## Output Format
+ 
+Use epistolary form.
+ 
+---
+ 
+## CLI Output Format
+ 
+```
+OPEN   {scope} — {context}
+—      {record}
+—      {record}
+CLOSE  {handoff}
+```
+
+## Interrupt Levels
+ 
+```
+·      Roles loaded — 47 users.                         (note — no action needed)
+⚠      Growth workspace: 5 admins. Expected 2.          (warning — recoverable, flagged)
+✕      Guest u_882: write access. Policy violation.     (stop — needs decision)
+       Paused. Awaiting input before continuing.
+✕✕     Admin removed — only admin in workspace.         (halt — irreversible, cannot continue)
+       Cannot proceed. Requires manual resolution.
+```
+
 ## Setup
 
 Find `tctl` (`which tctl`, `/usr/local/bin/tctl`, `/opt/homebrew/bin/tctl`,
