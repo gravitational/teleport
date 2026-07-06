@@ -185,7 +185,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	// Renew the cert a bunch of times.
 	for i := range 10 {
 		// Ensure the state of the bot instance before renewal is sane.
-		bi, err := srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
+		bi, err := srv.Auth().BotInstance.GetBotInstance(ctx, "", initialIdent.BotName, initialIdent.BotInstanceID)
 		require.NoError(t, err)
 
 		// There should always be at least 1 entry as the initial join is
@@ -221,7 +221,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		require.Equal(t, uint64(i+2), renewedIdent.Generation)
 
 		// Ensure the bot instance after renewal is sane.
-		bi, err = srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
+		bi, err = srv.Auth().BotInstance.GetBotInstance(ctx, "", initialIdent.BotName, initialIdent.BotInstanceID)
 		require.NoError(t, err)
 
 		require.Len(t, bi.GetStatus().GetLatestAuthentications(), min(i+2, machineidv1.AuthenticationHistoryLimit))
@@ -432,7 +432,7 @@ func TestRegisterBotInstance(t *testing.T) {
 	require.NotEmpty(t, ident.BotInstanceID)
 
 	// The instance ID should match a bot instance record.
-	botInstance, err := srv.Auth().BotInstance.GetBotInstance(ctx, ident.BotName, ident.BotInstanceID)
+	botInstance, err := srv.Auth().BotInstance.GetBotInstance(ctx, "", ident.BotName, ident.BotInstanceID)
 	require.NoError(t, err)
 
 	require.Equal(t, ident.BotName, botInstance.GetSpec().GetBotName())

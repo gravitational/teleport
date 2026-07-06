@@ -1750,15 +1750,15 @@ func (m *mockBotInstanceCache) ListBotInstances(ctx context.Context, pageSize in
 	return m.bots, "", nil
 }
 
-func (m *mockBotInstanceCache) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error) {
+func (m *mockBotInstanceCache) GetBotInstance(ctx context.Context, botScope, botName, instanceID string) (*machineidv1.BotInstance, error) {
 	return nil, nil
 }
 
-func (m *mockBotInstanceCache) DeleteBotInstance(ctx context.Context, botName, instanceID string) error {
+func (m *mockBotInstanceCache) DeleteBotInstance(ctx context.Context, botScope, botName, instanceID string) error {
 	return nil
 }
 
-func (m *mockBotInstanceCache) PatchBotInstance(ctx context.Context, botName, instanceID string, update func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error)) (*machineidv1.BotInstance, error) {
+func (m *mockBotInstanceCache) PatchBotInstance(ctx context.Context, botScope, botName, instanceID string, update func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error)) (*machineidv1.BotInstance, error) {
 	return nil, nil
 }
 

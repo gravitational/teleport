@@ -2531,7 +2531,7 @@ func (process *TeleportProcess) initAuthService() error {
 				PrimaryCache:       cache,
 				Events:             as.Services,
 				Inventory:          as.Services,
-				BotInstanceBackend: as.Services,
+				BotInstanceBackend: as.Services.BotInstance,
 				Logger:             process.logger.With(teleport.ComponentKey, "inventory.cache"),
 				MetricsRegistry:    process.metricsRegistry.Wrap("inventory_cache"),
 			})

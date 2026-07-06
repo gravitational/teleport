@@ -1981,8 +1981,11 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	firstInstance, generation := testExtractBotParamsFromCerts(t, joinResult.Certs)
 	require.Equal(t, uint64(1), generation)
 
-	// The BotInstance should have the scope set.
+	// The BotInstance should have the scope set. A bot is identified by
+	// (scope, name), so the read must declare the bot's scope to address the
+	// scoped instance.
 	botInstance, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
+		BotScope:   "/test",
 		BotName:    "test-scoped",
 		InstanceId: firstInstance,
 	}.Build())
