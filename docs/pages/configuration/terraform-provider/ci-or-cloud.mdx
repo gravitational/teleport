@@ -267,6 +267,24 @@ spec:
         - "<Var name="my-service-account" />@<Var name="my-project-123456" />.iam.gserviceaccount.com"
 ```
 </TabItem>
+<TabItem label="Azure DevOps">
+To allow the Terraform Provider to join from Azure DevOps pipelines, create the following `terraform-bot-token.yaml`:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: terraform-bot
+spec:
+  azure_devops:
+    allow:
+    - project_name: "<Var name="ado-project" />"
+    organization_id: <Var name="organization-id" />
+  bot_name: terraform
+  join_method: azure_devops
+  roles: [Bot]
+```
+</TabItem>
 </Tabs>
 
 Create the bot token described by the `terraform-bot-token.yaml` manifest:
@@ -488,6 +506,32 @@ Terraform will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
+```
+</TabItem>
+<TabItem label="Azure DevOps">
+In the repository containing your Terraform code add the following Azure DevOps properties in your provider configuration block:
+```terraform
+provider "teleport" {
+  addr        = "<Var name="teleport.example.com:443" />"
+  join_method = "azure_devops"
+  join_token  = "terraform-bot"
+}
+```
+
+In your pipeline configuration, add `$(System.AccessToken)` as an environment variable to the step.
+
+```yaml
+jobs:
+- job: Terraform
+    steps:
+    - task: TerraformTask@5
+      displayName: 'Terraform plan'
+      inputs:
+        provider: 'azurerm'
+        command: 'plan'
+        environmentServiceNameAzureRM: '<your-service-connection>'
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 ```
 </TabItem>
 <TabItem label="GCP">
