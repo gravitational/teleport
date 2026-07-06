@@ -47,7 +47,7 @@ GRANT USAGE ON SCHEMA teleport_objects TO "teleport-admin";
 -- PRIVILEGED USER.
 CREATE OR REPLACE PROCEDURE teleport_objects.teleport_reassign_objects(source_user varchar, destination_user varchar)
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = pg_catalog, pg_temp
 SET lock_timeout = '5s'
 AS $$
@@ -177,7 +177,11 @@ BEGIN
         -- between the whitelist check and the reassignment. Postgres has no
         -- mid-transaction unlock, so the lock is held until the transaction
         -- ends -- strictly safer than releasing right after the check/reassign.
-        EXECUTE FORMAT('LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE',
+        -- The lock is taken via a SECURITY DEFINER helper because this
+        -- procedure runs as the (unprivileged) invoker, which cannot take an
+        -- ACCESS EXCLUSIVE lock on a table it does not own. The lock persists
+        -- to transaction end, so it still covers the whitelist re-check below.
+        EXECUTE FORMAT('CALL teleport_objects.teleport_lock_table(%L, %L)',
             obj.nspname, obj.relname);
 
         -- Whitelist, re-evaluated under the lock so a concurrent change cannot
@@ -322,24 +326,7 @@ BEGIN
                 )
             )
         ) THEN
-            -- Revoke every privilege from all grantees but the owner, so no
-            -- grant (e.g. TRIGGER, which would let the grantee add a malicious
-            -- trigger to the reassigned table) remains.
-            SELECT string_agg(DISTINCT quote_ident(r.rolname), ', ')
-            INTO grantee_list
-            FROM pg_class c
-            CROSS JOIN LATERAL aclexplode(c.relacl) AS a
-            JOIN pg_roles r ON r.oid = a.grantee
-            WHERE c.oid = obj.reloid AND a.grantee <> c.relowner;
-
-            EXECUTE FORMAT('REVOKE ALL ON TABLE %I.%I FROM PUBLIC%s CASCADE',
-                obj.nspname, obj.relname,
-                CASE WHEN grantee_list IS NULL THEN '' ELSE ', ' || grantee_list END);
-
-            -- ALTER TABLE OWNER TO also reassigns the table's indexes, TOAST table,
-            -- composite row type, and identity sequences.
-            EXECUTE FORMAT('ALTER TABLE %I.%I OWNER TO %I',
-                obj.nspname, obj.relname, destination_user);
+            EXECUTE FORMAT('CALL teleport_objects.teleport_reassign_table(%L, %L, %L)', obj.nspname, obj.relname, destination_user);
         END IF;
     END LOOP;
 
@@ -357,7 +344,7 @@ BEGIN
         AND sd.classid = 'pg_class'::regclass
         AND c.relkind = 'S'
     LOOP
-        EXECUTE FORMAT('ALTER SEQUENCE %I.%I OWNER TO %I',
+        EXECUTE FORMAT('CALL teleport_objects.teleport_reassign_sequence(%L, %L, %L)',
             obj.nspname, obj.relname, destination_user);
     END LOOP;
 
@@ -430,5 +417,60 @@ END$$;
 
 -- Ensure teleport-admin can execute the procedure.
 GRANT EXECUTE ON PROCEDURE teleport_objects.teleport_reassign_objects(varchar, varchar) TO "teleport-admin";
+
+-- Take an ACCESS EXCLUSIVE lock on a table. Runs SECURITY DEFINER so the
+-- unprivileged invoker of teleport_reassign_objects can lock a table it does
+-- not own. The lock is held until the surrounding transaction ends.
+CREATE OR REPLACE PROCEDURE teleport_objects.teleport_lock_table(schema_name varchar, table_name varchar)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+SET lock_timeout = '5s'
+AS $$
+BEGIN
+    EXECUTE FORMAT('LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE',
+        schema_name, table_name);
+END$$;
+
+CREATE OR REPLACE PROCEDURE teleport_objects.teleport_reassign_table(schema_name varchar, table_name varchar, destination_user varchar)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+SET lock_timeout = '5s'
+AS $$
+DECLARE
+    grantee_list text;
+BEGIN
+    -- Revoke every privilege from all grantees but the owner, so no
+    -- grant (e.g. TRIGGER, which would let the grantee add a malicious
+    -- trigger to the reassigned table) remains.
+    SELECT string_agg(DISTINCT quote_ident(r.rolname), ', ')
+    INTO grantee_list
+    FROM pg_class c
+    CROSS JOIN LATERAL aclexplode(c.relacl) AS a
+    JOIN pg_roles r ON r.oid = a.grantee
+    WHERE c.oid = FORMAT('%I.%I', schema_name, table_name)::regclass
+      AND a.grantee <> c.relowner;
+
+    EXECUTE FORMAT('REVOKE ALL ON TABLE %I.%I FROM PUBLIC%s CASCADE',
+        schema_name, table_name,
+        CASE WHEN grantee_list IS NULL THEN '' ELSE ', ' || grantee_list END);
+
+    -- ALTER TABLE OWNER TO also reassigns the table's indexes, TOAST table,
+    -- composite row type, and identity sequences.
+    EXECUTE FORMAT('ALTER TABLE %I.%I OWNER TO %I',
+        schema_name, table_name, destination_user);
+END$$;
+
+CREATE OR REPLACE PROCEDURE teleport_objects.teleport_reassign_sequence(schema_name varchar, table_name varchar, destination_user varchar)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+SET lock_timeout = '5s'
+AS $$
+BEGIN
+    EXECUTE FORMAT('ALTER SEQUENCE %I.%I OWNER TO %I',
+        schema_name, table_name, destination_user);
+END$$;
 
 COMMIT;
