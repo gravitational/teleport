@@ -714,6 +714,18 @@ func (p *Plugin) registerBeamsService(ctx context.Context, grpcServer *grpc.Serv
 	}
 	go gc.Run(ctx)
 
+	beamsConfigSrv, err := beamsv1.NewBeamsConfigService(beamsv1.BeamsConfigServiceConfig{
+		Authorizer: p.authServer.Authorizer,
+		Cache:      p.authServer.AuthServer.Cache,
+		Backend:    p.authServer.AuthServer.Services.BeamsConfigService,
+		Emitter:    p.authServer.Emitter,
+		Logger:     logger.With(teleport.ComponentKey, "beams-config-service"),
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating beams config service")
+	}
+	beamsv1pb.RegisterBeamsConfigServiceServer(grpcServer, beamsConfigSrv)
+
 	return nil
 }
 
