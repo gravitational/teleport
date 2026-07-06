@@ -1074,6 +1074,9 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if err := services.ValidateRole(resource); err != nil {
+			slog.WarnContext(context.Background(), "Role has invalid expressions", "role", resource.GetName(), "error", err)
+		}
 		return resource, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)

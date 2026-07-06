@@ -611,8 +611,7 @@ func newBoundKeypairToken() *joiningv1.ScopedToken {
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{
 			AssignedScope: "",
-			BotName:       "example",
-			BotScope:      "/test",
+			Bot:           scopes.QualifiedName{Scope: "/test", Name: "example"}.String(),
 			JoinMethod:    string(types.JoinMethodBoundKeypair),
 			Roles:         []string{types.RoleBot.String()},
 			UsageMode:     string(joining.TokenUsageModeBot),

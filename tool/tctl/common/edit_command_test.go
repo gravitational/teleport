@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -738,11 +739,11 @@ func testEditScopedToken(t *testing.T, clt *authclient.Client) {
 		}
 		created.Metadata.Labels["env"] = "test"
 
-		collection := &scopedTokenCollection{tokens: []*joiningv1.ScopedToken{created}}
+		collection := resources.NewScopedTokenCollection([]*joiningv1.ScopedToken{created})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
-	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken + "/" + created.GetMetadata().GetName()}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken, "/staging::" + created.GetMetadata().GetName()}, withEditor(editor))
 	require.NoError(t, err)
 
 	actual, err := clt.GetScopedToken(ctx, created.GetMetadata().GetName(), true)
@@ -750,7 +751,7 @@ func testEditScopedToken(t *testing.T, clt *authclient.Client) {
 	require.Equal(t, "test", actual.GetMetadata().GetLabels()["env"])
 
 	// Second edit with the stale original revision should fail.
-	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken + "/" + created.GetMetadata().GetName()}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken, "/staging::" + created.GetMetadata().GetName()}, withEditor(editor))
 	require.Error(t, err)
 	require.True(t, trace.IsCompareFailed(err))
 }

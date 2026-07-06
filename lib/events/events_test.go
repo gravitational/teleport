@@ -1254,9 +1254,6 @@ func TestEventCodesInWebTypes(t *testing.T) {
 		"WID004I":     true, // WorkloadIdentityX509RevocationCreateCode
 		"WID005I":     true, // WorkloadIdentityX509RevocationUpdateCode
 		"WID006I":     true, // WorkloadIdentityX509RevocationDeleteCode
-		"TCO05I":      true, // CertAuthOverrideCertificatesAddCode
-		"TCO06I":      true, // CertAuthOverrideCertificatesUpdateCode
-		"TCO07I":      true, // CertAuthOverrideCertificatesRemoveCode
 	}
 
 	codesFile, err := os.ReadFile("codes.go")

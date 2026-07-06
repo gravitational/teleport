@@ -256,15 +256,13 @@ func (p *AgentPool) Start() error {
 		"cluster", p.Cluster,
 	)
 
-	p.wg.Add(1)
-	go func() {
+	p.wg.Go(func() {
 		if err := p.run(); err != nil {
 			p.logger.WarnContext(p.ctx, "Agent pool exited", "error", err)
 		}
 
 		p.cancel()
-		p.wg.Done()
-	}()
+	})
 	return nil
 }
 
@@ -287,9 +285,7 @@ func (p *AgentPool) run() error {
 
 			p.logger.Log(p.ctx, level, "Failed to establish reverse tunnel", "error", err)
 		} else {
-			p.wg.Add(1)
-			p.active.add(agent)
-			p.updateConnectedProxies()
+			p.addActiveAgent(p.ctx, agent)
 		}
 
 		err = p.waitForBackoff(p.ctx, p.events)
@@ -299,6 +295,22 @@ func (p *AgentPool) run() error {
 			p.logger.DebugContext(p.ctx, "Failed to wait for backoff", "error", err)
 		}
 	}
+}
+
+// addActiveAgent registers a successfully started agent with the pool.
+func (p *AgentPool) addActiveAgent(ctx context.Context, agent Agent) {
+	p.wg.Add(1)
+	p.active.add(agent)
+
+	if agent.GetState() == AgentClosed {
+		// The agent can close after Start succeeds but before run registers it.
+		// If the AgentClosed callback already ran, it could not remove the agent
+		// from the active set, so reconcile the state after registration.
+		p.handleEvent(ctx, agent)
+		return
+	}
+
+	p.updateConnectedProxies()
 }
 
 // connectAgent connects a new agent and processes any agent events blocking until a

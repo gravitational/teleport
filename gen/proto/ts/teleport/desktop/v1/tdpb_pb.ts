@@ -4,22 +4,19 @@
 // tslint:disable
 // @ts-nocheck
 //
+// Copyright 2026 Gravitational, Inc.
 //
-// Teleport
-// Copyright (C) 2025  Gravitational, Inc.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 import type { BinaryWriteOptions } from "@protobuf-ts/runtime";
 import type { IBinaryWriter } from "@protobuf-ts/runtime";
@@ -66,9 +63,10 @@ export interface ServerHello {
      */
     clipboardEnabled: boolean;
     /**
-     * Field number 4 and 5 matches master. v18 doesn't use fields 3
-     * (directory_remove_supported on master).
-     *
+     * @generated from protobuf field: bool directory_remove_supported = 3;
+     */
+    directoryRemoveSupported: boolean;
+    /**
      * @generated from protobuf field: repeated teleport.desktop.v1.SessionIdentifier sessions = 4;
      */
     sessions: SessionIdentifier[];
@@ -76,6 +74,10 @@ export interface ServerHello {
      * @generated from protobuf field: bool hidpi_supported = 5;
      */
     hidpiSupported: boolean;
+    /**
+     * @generated from protobuf field: bool multidirectory_sharing_supported = 6;
+     */
+    multidirectorySharingSupported: boolean;
 }
 /**
  * Used to identify sessions available to and selected by users
@@ -358,6 +360,17 @@ export interface SharedDirectoryAnnounce {
     name: string;
 }
 /**
+ * Sent by client to remove a previously announced shared directory.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRemove
+ */
+export interface SharedDirectoryRemove {
+    /**
+     * @generated from protobuf field: uint32 directory_id = 1;
+     */
+    directoryId: number;
+}
+/**
  * Sent by server to acknowledge a new shared directory.
  *
  * @generated from protobuf message teleport.desktop.v1.SharedDirectoryAcknowledge
@@ -575,6 +588,10 @@ export interface SharedDirectoryResponse {
      * @generated from protobuf field: uint32 error_code = 2;
      */
     errorCode: number;
+    /**
+     * @generated from protobuf field: uint32 directory_id = 11;
+     */
+    directoryId: number;
     /**
      * @generated from protobuf oneof: operation
      */
@@ -892,11 +909,14 @@ export interface Envelope {
          */
         ping: Ping;
     } | {
+        oneofKind: "sharedDirectoryRemove";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRemove shared_directory_remove = 21;
+         */
+        sharedDirectoryRemove: SharedDirectoryRemove;
+    } | {
         oneofKind: "sessionSelection";
         /**
-         * Field number 22 matches master, v18 doesn't use 21
-         * (shared_directory_remove on master)
-         *
          * @generated from protobuf field: teleport.desktop.v1.SessionSelection session_selection = 22;
          */
         sessionSelection: SessionSelection;
@@ -1056,15 +1076,19 @@ class ServerHello$Type extends MessageType<ServerHello> {
         super("teleport.desktop.v1.ServerHello", [
             { no: 1, name: "activation_spec", kind: "message", T: () => ConnectionActivated },
             { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "directory_remove_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "sessions", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionIdentifier },
-            { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 6, name: "multidirectory_sharing_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.clipboardEnabled = false;
+        message.directoryRemoveSupported = false;
         message.sessions = [];
         message.hidpiSupported = false;
+        message.multidirectorySharingSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ServerHello>(this, message, value);
         return message;
@@ -1080,11 +1104,17 @@ class ServerHello$Type extends MessageType<ServerHello> {
                 case /* bool clipboard_enabled */ 2:
                     message.clipboardEnabled = reader.bool();
                     break;
+                case /* bool directory_remove_supported */ 3:
+                    message.directoryRemoveSupported = reader.bool();
+                    break;
                 case /* repeated teleport.desktop.v1.SessionIdentifier sessions */ 4:
                     message.sessions.push(SessionIdentifier.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 case /* bool hidpi_supported */ 5:
                     message.hidpiSupported = reader.bool();
+                    break;
+                case /* bool multidirectory_sharing_supported */ 6:
+                    message.multidirectorySharingSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1104,12 +1134,18 @@ class ServerHello$Type extends MessageType<ServerHello> {
         /* bool clipboard_enabled = 2; */
         if (message.clipboardEnabled !== false)
             writer.tag(2, WireType.Varint).bool(message.clipboardEnabled);
+        /* bool directory_remove_supported = 3; */
+        if (message.directoryRemoveSupported !== false)
+            writer.tag(3, WireType.Varint).bool(message.directoryRemoveSupported);
         /* repeated teleport.desktop.v1.SessionIdentifier sessions = 4; */
         for (let i = 0; i < message.sessions.length; i++)
             SessionIdentifier.internalBinaryWrite(message.sessions[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         /* bool hidpi_supported = 5; */
         if (message.hidpiSupported !== false)
             writer.tag(5, WireType.Varint).bool(message.hidpiSupported);
+        /* bool multidirectory_sharing_supported = 6; */
+        if (message.multidirectorySharingSupported !== false)
+            writer.tag(6, WireType.Varint).bool(message.multidirectorySharingSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2084,6 +2120,53 @@ class SharedDirectoryAnnounce$Type extends MessageType<SharedDirectoryAnnounce> 
  */
 export const SharedDirectoryAnnounce = new SharedDirectoryAnnounce$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryRemove$Type extends MessageType<SharedDirectoryRemove> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRemove", [
+            { no: 1, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRemove>): SharedDirectoryRemove {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.directoryId = 0;
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRemove>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRemove): SharedDirectoryRemove {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 directory_id */ 1:
+                    message.directoryId = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRemove, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 directory_id = 1; */
+        if (message.directoryId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.directoryId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRemove
+ */
+export const SharedDirectoryRemove = new SharedDirectoryRemove$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SharedDirectoryAcknowledge$Type extends MessageType<SharedDirectoryAcknowledge> {
     constructor() {
         super("teleport.desktop.v1.SharedDirectoryAcknowledge", [
@@ -2712,6 +2795,7 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         super("teleport.desktop.v1.SharedDirectoryResponse", [
             { no: 1, name: "completion_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "error_code", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 11, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 3, name: "info", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Info },
             { no: 4, name: "create", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Create },
             { no: 5, name: "delete", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Delete },
@@ -2726,6 +2810,7 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         const message = globalThis.Object.create((this.messagePrototype!));
         message.completionId = 0;
         message.errorCode = 0;
+        message.directoryId = 0;
         message.operation = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<SharedDirectoryResponse>(this, message, value);
@@ -2741,6 +2826,9 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
                     break;
                 case /* uint32 error_code */ 2:
                     message.errorCode = reader.uint32();
+                    break;
+                case /* uint32 directory_id */ 11:
+                    message.directoryId = reader.uint32();
                     break;
                 case /* teleport.desktop.v1.SharedDirectoryResponse.Info info */ 3:
                     message.operation = {
@@ -2808,6 +2896,9 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         /* uint32 error_code = 2; */
         if (message.errorCode !== 0)
             writer.tag(2, WireType.Varint).uint32(message.errorCode);
+        /* uint32 directory_id = 11; */
+        if (message.directoryId !== 0)
+            writer.tag(11, WireType.Varint).uint32(message.directoryId);
         /* teleport.desktop.v1.SharedDirectoryResponse.Info info = 3; */
         if (message.operation.oneofKind === "info")
             SharedDirectoryResponse_Info.internalBinaryWrite(message.operation.info, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
@@ -3355,6 +3446,7 @@ class Envelope$Type extends MessageType<Envelope> {
             { no: 18, name: "shared_directory_response", kind: "message", oneof: "payload", T: () => SharedDirectoryResponse },
             { no: 19, name: "latency_stats", kind: "message", oneof: "payload", T: () => LatencyStats },
             { no: 20, name: "ping", kind: "message", oneof: "payload", T: () => Ping },
+            { no: 21, name: "shared_directory_remove", kind: "message", oneof: "payload", T: () => SharedDirectoryRemove },
             { no: 22, name: "session_selection", kind: "message", oneof: "payload", T: () => SessionSelection }
         ]);
     }
@@ -3490,6 +3582,12 @@ class Envelope$Type extends MessageType<Envelope> {
                         ping: Ping.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).ping)
                     };
                     break;
+                case /* teleport.desktop.v1.SharedDirectoryRemove shared_directory_remove */ 21:
+                    message.payload = {
+                        oneofKind: "sharedDirectoryRemove",
+                        sharedDirectoryRemove: SharedDirectoryRemove.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sharedDirectoryRemove)
+                    };
+                    break;
                 case /* teleport.desktop.v1.SessionSelection session_selection */ 22:
                     message.payload = {
                         oneofKind: "sessionSelection",
@@ -3568,6 +3666,9 @@ class Envelope$Type extends MessageType<Envelope> {
         /* teleport.desktop.v1.Ping ping = 20; */
         if (message.payload.oneofKind === "ping")
             Ping.internalBinaryWrite(message.payload.ping, writer.tag(20, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRemove shared_directory_remove = 21; */
+        if (message.payload.oneofKind === "sharedDirectoryRemove")
+            SharedDirectoryRemove.internalBinaryWrite(message.payload.sharedDirectoryRemove, writer.tag(21, WireType.LengthDelimited).fork(), options).join();
         /* teleport.desktop.v1.SessionSelection session_selection = 22; */
         if (message.payload.oneofKind === "sessionSelection")
             SessionSelection.internalBinaryWrite(message.payload.sessionSelection, writer.tag(22, WireType.LengthDelimited).fork(), options).join();

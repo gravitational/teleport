@@ -1,5 +1,41 @@
 # Changelog
 
+## 18.9.2 (06/26/26)
+
+* Fixed desktop connection failures to Windows 11 / Windows Server 2025 instances. [#67483](https://github.com/gravitational/teleport/pull/67483)
+* Fixed potential deadlock when reading access list owners from the cache as the cache becomes unhealthy. [#68013](https://github.com/gravitational/teleport/pull/68013)
+* Added the Sub CA `tctl auth create-override` command, a user-friendly alternative over `tctl create ca_override.yaml`. [#67983](https://github.com/gravitational/teleport/pull/67983)
+* Add `--interactive` flag to prompt for role from stdin if `--interactive` flag is provided. [#67951](https://github.com/gravitational/teleport/pull/67951)
+* Fixed Teleport Connect file uploads for empty files. [#67925](https://github.com/gravitational/teleport/pull/67925)
+* Added scope info to user metadata in audit events. [#67413](https://github.com/gravitational/teleport/pull/67413)
+* Sanitized AWS console federation transport errors to avoid logging AWS session credential material. [#67199](https://github.com/gravitational/teleport/pull/67199)
+* Joining agents and `tsh` now report a clean, actionable error when a proxy returns an unsuccessful response to a ping or find request. [#67912](https://github.com/gravitational/teleport/pull/67912)
+* Reduced write load for the cluster state storage in clusters with large amounts of app resources. [#62243](https://github.com/gravitational/teleport/pull/62243)
+* Updated moderated upload path validation to require an absolute path to a file to prevent confusion. [#67741](https://github.com/gravitational/teleport/pull/67741)
+* Added support for the following Oracle Cloud regions: ap-kulai-2, sa-riodejaneiro-1, af-casablanca-1, and me-alrayyan-1. [#67858](https://github.com/gravitational/teleport/pull/67858)
+* Add scope support for openSSH and proxy recording mode. [#67271](https://github.com/gravitational/teleport/pull/67271)
+* Add locking mode, disconnect expired cert, enhanced session recording, and session recording mode to scoped roles. [#67269](https://github.com/gravitational/teleport/pull/67269)
+* Fixed an issue where path separators could be included in scp file names during upload. [#67772](https://github.com/gravitational/teleport/pull/67772)
+* Prevented users with the same name in different clusters from being able to cancel each others' remote port forwards. [#67689](https://github.com/gravitational/teleport/pull/67689)
+* Fixed a preflight check in Server Discovery where the script would exit even though there was enough space in `/opt/teleport`. [#67596](https://github.com/gravitational/teleport/pull/67596)
+* Fixed an issue in Server Discovery that would prevent suffixed installations in VMs using Ubuntu 25.10 or Ubuntu 26.04. [#67709](https://github.com/gravitational/teleport/pull/67709)
+* Fixed an SSRF vulnerability in AWS application access where a crafted `X-Forwarded-Host` header could divert IAM-signed AWS API requests to an attacker-controlled host. [#67706](https://github.com/gravitational/teleport/pull/67706)
+* Cap AWS STS AssumeRole session duration to the Teleport identity TTL, including query-string AssumeRole requests and requests made with cached assumed-role credentials. [#67704](https://github.com/gravitational/teleport/pull/67704)
+* Fixed an issue where bots could fail to join with `missing identity groups or scope pin` when deleted and recreated quickly. [#67645](https://github.com/gravitational/teleport/pull/67645)
+* Update golang.org/x/crypto to v0.53.0. [#67640](https://github.com/gravitational/teleport/pull/67640)
+* Fixed role impersonation incorrectly being affected by user allow/deny rules. [#67691](https://github.com/gravitational/teleport/pull/67691)
+* Fixed Resource Constraints UI visibility for AWS Console app resources created via integrations or tctl. [#67531](https://github.com/gravitational/teleport/pull/67531)
+* Fixed Windows and Linux desktop Connect dropdowns showing logins from roles the user can request but hasn't been granted. [#67090](https://github.com/gravitational/teleport/pull/67090)
+* EKS agent enrollment installs at the cluster version. [#66868](https://github.com/gravitational/teleport/pull/66868)
+
+Enterprise changes:
+* Only process Okta assignments for groups and apps currently being synced.
+* Prevent user-deletion of Access Lists being synced by Okta integration.
+* Fix plugins metrics registration.
+* Updated Teleport Entra ID integration to support delta sync.
+* Add support for rate limiting in the Teleport SCIM Server.
+* Update golang.org/x/crypto to v0.53.0.
+
 ## 18.9.1 (06/19/26)
 
 * Fixed a limitation in Kubernetes Access causing the agent to throttle at 5 exec/second.

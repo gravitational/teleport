@@ -1107,6 +1107,8 @@ func updateClientsPhaseHelpText(sb *strings.Builder, caType types.CertAuthType) 
 		sb.WriteString("\nAll new database connections will begin to use certificates issued by the new CA certificate.")
 	case types.WindowsCA:
 		sb.WriteString("\nAll new connections to Windows desktops will begin to use certificates issued by the new CA certificate. ")
+	case types.AppClientCA:
+		sb.WriteString("\nAll new applications with client certificates connections will begin to use certificates issued by the new CA certificate. ")
 	default:
 		sb.WriteString("\nAll client certificates issued by this CA must be re-issued before proceeding to the update_servers phase.")
 	}
@@ -1263,6 +1265,19 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 			return []string{
 				"All Windows desktops should be updated to stop trusting the CA certificates that have now been rotated out.",
 			}
+		}
+	case types.AppClientCA:
+		switch phase {
+		case "init":
+			return []string{
+				"All applications using client certificates must be updated to trust both the new and old CA certificates.",
+			}
+		case "rollback":
+			return []string{
+				"All applications using client certificates updated to trust the new CA certificates during the update_servers phase should be reverted to only trust the original CA certificate.",
+			}
+		case "standby":
+			return []string{"All applications using client certificates should be updated to stop trusting the CA certificates that have now been rotated out."}
 		}
 	case types.SPIFFECA:
 		// TODO(strideynet): populate any known manual steps during SPIFFE CA rotation.

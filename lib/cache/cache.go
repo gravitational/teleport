@@ -535,7 +535,12 @@ type Cache struct {
 	// when checking the `ok` or `confirmedKinds` fields. Since the write
 	// lock must be held in order to modify the `ok` field, this serves
 	// to ensure that all in-progress reads complete *before* a reset can begin.
-	rw sync.RWMutex
+	//
+	// In test builds with the race detector enabled, it's a read-write mutex
+	// that must be unlocked for reading in the same goroutine that acquired the
+	// read lock. This is currently the case and shouldn't be particularly
+	// restricting in the future.
+	rw rwMutex
 	// ok indicates whether the cache is in a valid state for reads.
 	// If `ok` is `false`, reads are forwarded directly to the backend.
 	ok bool

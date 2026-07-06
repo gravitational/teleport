@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // ScopedTokensCommand implements `tctl scoped tokens` group of commands
@@ -224,15 +225,13 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		return trace.Wrap(err, "creating scoped token")
 	}
 
-	tokenName = tok.GetMetadata().GetName()
-	tokenSecret := tok.GetStatus().GetSecret()
+	token := joining.EncodeScopedToken(tok.GetMetadata().GetName(), tok.GetStatus().GetSecret())
 	// Print token information formatted with JSON, YAML, or just print the raw token.
 	switch c.format {
 	case teleport.JSON, teleport.YAML:
 		expires := time.Now().Add(c.ttl)
 		tokenInfo := map[string]any{
-			"token":        tokenName,
-			"token_secret": tokenSecret,
+			"token":        token,
 			"roles":        roles,
 			"scope":        tok.GetScope(),
 			"assign_scope": tok.GetSpec().GetAssignedScope(),
@@ -255,17 +254,16 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 
 		return nil
 	case teleport.Text:
-		fmt.Fprintln(c.Stdout, tokenName)
+		fmt.Fprintln(c.Stdout, token)
 		return nil
 	}
 
 	return trace.Wrap(showJoinInstructions(ctx, joinInstructionsInput{
-		out:         c.Stdout,
-		ttl:         c.ttl,
-		roles:       roles,
-		tokenName:   tokenName,
-		tokenSecret: tokenSecret,
-		client:      client,
+		out:    c.Stdout,
+		ttl:    c.ttl,
+		roles:  roles,
+		token:  token,
+		client: client,
 	}))
 }
 
@@ -325,7 +323,7 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 			fmt.Fprintln(c.Stdout, token.GetMetadata().GetName())
 		}
 	default:
-		fmt.Fprint(c.Stdout, scopedTokenTextHelper(tokens, c.withSecrets).String())
+		fmt.Fprint(c.Stdout, resources.ScopedTokenTextHelper(tokens, c.withSecrets).String())
 	}
 	return nil
 }

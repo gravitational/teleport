@@ -39,6 +39,9 @@ import (
 // virtual scale set VMs.
 const virtualScaleSetUniformVMResourceType = "virtualMachineScaleSets/virtualMachines"
 
+// runCommandResultPollingFrequency is the time to wait between polling for Azure run-command completion.
+const runCommandResultPollingFrequency = 30 * time.Second
+
 // virtualMachinesLister provides an interface for an Azure virtual machine client.
 type virtualMachinesLister interface {
 	// Get retrieves information about an Azure virtual machine.
@@ -99,6 +102,13 @@ type VirtualMachine struct {
 	Identities []Identity
 	// Tags are the VM tags, e.g. {"env": "prod"}. Empty map (not nil) when the VM has no tags.
 	Tags map[string]string
+
+	operatingSystem *armcompute.OperatingSystemTypes
+}
+
+// IsLinuxOrUnknown returns whether the VM is running Linux or if the operating system is unknown.
+func (vm *VirtualMachine) IsLinuxOrUnknown() bool {
+	return vm.operatingSystem == nil || *vm.operatingSystem == armcompute.OperatingSystemTypesLinux
 }
 
 // Identity represents an Azure virtual machine identity.
@@ -528,7 +538,7 @@ func (c *runCommandClient) regularVirtualMachineRunCommand(ctx context.Context, 
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 
-	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: runCommandResultPollingFrequency})
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
@@ -551,7 +561,7 @@ func (c *runCommandClient) uniformScaleSetVirtualMachineRunCommand(ctx context.C
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 
-	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: runCommandResultPollingFrequency})
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
@@ -607,8 +617,12 @@ func virtualMachineFromARMComputeVirtualMachine(vm *armcompute.VirtualMachine) (
 	}
 
 	var vmid string
+	var operatingSystem *armcompute.OperatingSystemTypes
 	if vm.Properties != nil {
 		vmid = StringVal(vm.Properties.VMID)
+		if vm.Properties.StorageProfile != nil && vm.Properties.StorageProfile.OSDisk != nil {
+			operatingSystem = vm.Properties.StorageProfile.OSDisk.OSType
+		}
 	}
 
 	// The ARM resource ID should never fail to parse, unless Azure changes the contract.
@@ -618,14 +632,15 @@ func virtualMachineFromARMComputeVirtualMachine(vm *armcompute.VirtualMachine) (
 	}
 
 	return &VirtualMachine{
-		ID:            StringVal(vm.ID),
-		VMID:          vmid,
-		Name:          StringVal(vm.Name),
-		Location:      StringVal(vm.Location),
-		Subscription:  resourceMetadata.SubscriptionID,
-		ResourceGroup: resourceMetadata.ResourceGroupName,
-		Identities:    parseVMIdentities(vm.Identity),
-		Tags:          ConvertTags(vm.Tags),
+		ID:              StringVal(vm.ID),
+		VMID:            vmid,
+		Name:            StringVal(vm.Name),
+		Location:        StringVal(vm.Location),
+		Subscription:    resourceMetadata.SubscriptionID,
+		ResourceGroup:   resourceMetadata.ResourceGroupName,
+		Identities:      parseVMIdentities(vm.Identity),
+		Tags:            ConvertTags(vm.Tags),
+		operatingSystem: operatingSystem,
 	}, nil
 }
 
@@ -635,8 +650,12 @@ func virtualMachineFromARMComputeVirtualMachineScaleSetVM(vm *armcompute.Virtual
 	}
 
 	var vmid string
+	var operatingSystem *armcompute.OperatingSystemTypes
 	if vm.Properties != nil {
 		vmid = StringVal(vm.Properties.VMID)
+		if vm.Properties.StorageProfile != nil && vm.Properties.StorageProfile.OSDisk != nil {
+			operatingSystem = vm.Properties.StorageProfile.OSDisk.OSType
+		}
 	}
 
 	return &VirtualMachine{
@@ -650,6 +669,7 @@ func virtualMachineFromARMComputeVirtualMachineScaleSetVM(vm *armcompute.Virtual
 		Tags:                        ConvertTags(vm.Tags),
 		UniformScaleSetName:         scaleSetName,
 		UniformScaleSetVMInstanceID: StringVal(vm.InstanceID),
+		operatingSystem:             operatingSystem,
 	}, nil
 }
 

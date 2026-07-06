@@ -351,12 +351,28 @@ func (s *X509OutputService) render(
 	}
 
 	if s.cfg.IncludeFederatedTrustBundles {
-		for _, federatedBundle := range bundleSet.Federated {
-			federatedBundleBytes, err := federatedBundle.X509Bundle().Marshal()
+		for _, bundle := range bundleSet.FederatedAndInternalTrustDomains(s.cfg.TrustDomainSelector) {
+			federatedBundleBytes, err := bundle.X509Bundle().Marshal()
 			if err != nil {
-				return trace.Wrap(err, "marshaling federated trust bundle (%s)", federatedBundle.TrustDomain().Name())
+				return trace.Wrap(err, "marshaling trust bundle (%s)", bundle.TrustDomain().Name())
 			}
 			trustBundleBytes = append(trustBundleBytes, federatedBundleBytes...)
+		}
+	} else {
+		for bundle, err := range bundleSet.InternalTrustDomainsBundles(s.cfg.TrustDomainSelector) {
+			if err != nil {
+				// Skip if the bundle is not supported by server.
+				if trace.IsNotImplemented(err) {
+					s.log.InfoContext(ctx, "Internal CA not supported, skipping it", "error", err)
+					continue
+				}
+				return trace.Wrap(err, "unable to add trust domain into the bundle")
+			}
+			trustDomainBundleBytes, err := bundle.X509Bundle().Marshal()
+			if err != nil {
+				return trace.Wrap(err, "marshaling trust bundle (%s)", bundle.TrustDomain().Name())
+			}
+			trustBundleBytes = append(trustBundleBytes, trustDomainBundleBytes...)
 		}
 	}
 

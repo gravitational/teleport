@@ -19,6 +19,7 @@ package joining
 import (
 	"cmp"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"net/url"
@@ -299,16 +300,17 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
 	spec := token.GetSpec()
 
-	if spec.GetBotName() == "" {
-		return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+	if spec.GetBot() == "" {
+		return trace.BadParameter("expected non-empty bot for a scoped bot token")
 	}
 
-	if spec.GetBotScope() == "" {
-		return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+	bot, err := scopes.ParseQualifiedName(spec.GetBot())
+	if err != nil {
+		return trace.Wrap(err, "validating scoped token bot")
 	}
 
-	if err := scopes.StrongValidate(spec.GetBotScope()); err != nil {
-		return trace.Wrap(err, "validating scoped token bot_scope")
+	if err := bot.StrongValidate(); err != nil {
+		return trace.Wrap(err, "validating scoped token bot")
 	}
 
 	if spec.GetUsageMode() != TokenUsageModeBot {
@@ -319,8 +321,8 @@ func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRole
 		return trace.BadParameter("roles must only be '[Bot]' for a scoped bot token")
 	}
 
-	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.GetBotScope()) {
-		return trace.BadParameter("scoped token bot_scope must be a descendant of or equivalent to its resource scope")
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(bot.Scope) {
+		return trace.BadParameter("scoped token bot scope must be a descendant of or equivalent to its resource scope")
 	}
 
 	if spec.AssignedScope != "" {
@@ -339,12 +341,8 @@ func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRole
 func validateNonBotToken(token *joiningv1.ScopedToken) error {
 	spec := token.GetSpec()
 
-	if spec.GetBotName() != "" {
-		return trace.BadParameter("bot_name cannot be set for a non-bot token")
-	}
-
-	if spec.GetBotScope() != "" {
-		return trace.BadParameter("bot_scope cannot be set for a non-bot token")
+	if spec.GetBot() != "" {
+		return trace.BadParameter("bot cannot be set for a non-bot token")
 	}
 
 	if spec.GetUsageMode() == TokenUsageModeBot {
@@ -362,10 +360,11 @@ func validateNonBotToken(token *joiningv1.ScopedToken) error {
 	return nil
 }
 
-// validateBotRef weak-validates the bot reference fields of a scoped token
-// spec and returns the referenced bot's name and scope. Bot tokens must carry
-// both components. For non-bot tokens the bot fields are ignored and empty
-// values are returned: stray bot fields on a non-bot token are rejected by
+// validateBotRef weak-validates the bot reference of a scoped token spec and
+// returns the referenced bot's name and scope, parsed from the
+// scope-qualified name in the bot field. Bot tokens must carry a well-formed
+// scope-qualified name. For non-bot tokens the bot field is ignored and empty
+// values are returned: a stray bot field on a non-bot token is rejected by
 // strong validation at write time, but tolerated here to match weak
 // validation's posture toward existing resources.
 func validateBotRef(spec *joiningv1.ScopedTokenSpec, isBotToken bool) (name, scope string, err error) {
@@ -373,17 +372,18 @@ func validateBotRef(spec *joiningv1.ScopedTokenSpec, isBotToken bool) (name, sco
 		return "", "", nil
 	}
 
-	if spec.GetBotName() == "" {
-		return "", "", trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+	if spec.GetBot() == "" {
+		return "", "", trace.BadParameter("expected non-empty bot for a scoped bot token")
 	}
-	if spec.GetBotScope() == "" {
-		return "", "", trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+	bot, err := scopes.ParseQualifiedName(spec.GetBot())
+	if err != nil {
+		return "", "", trace.Wrap(err, "validating scoped token bot")
 	}
-	if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
-		return "", "", trace.Wrap(err, "validating scoped token bot_scope")
+	if err := bot.WeakValidate(); err != nil {
+		return "", "", trace.Wrap(err, "validating scoped token bot")
 	}
 
-	return spec.GetBotName(), spec.GetBotScope(), nil
+	return bot.Name, bot.Scope, nil
 }
 
 // StrongValidateToken checks if the scoped token is well-formed according to
@@ -403,6 +403,8 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	}
 	if name := token.GetMetadata().GetName(); name == "" {
 		return trace.BadParameter("missing name")
+	} else if strings.Contains(name, ":") {
+		return trace.BadParameter("scoped token names cannot contain colons")
 	}
 
 	if token.GetScope() == "" {
@@ -592,10 +594,10 @@ type Token struct {
 // NewToken returns the wrapped version of the given [joiningv1.ScopedToken].
 // It will return an error if the configured join method is not a valid
 // [types.JoinMethod], if any of the configured roles are not a valid
-// [types.SystemRole], or if the bot_name/bot_scope fields are inconsistent
-// with the configured roles. The validated join method, roles, and bot
-// reference are cached on the [Token] wrapper itself so they can be read
-// without repeating validation.
+// [types.SystemRole], or if the bot field is inconsistent with the configured
+// roles. The validated join method, roles, and bot reference are cached on
+// the [Token] wrapper itself so they can be read without repeating
+// validation.
 func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
 	joinMethod := types.JoinMethod(token.GetSpec().GetJoinMethod())
 	if err := types.ValidateJoinMethod(joinMethod); err != nil {
@@ -998,4 +1000,28 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 func VerifyImmutableLabelsHash(labels *joiningv1.ImmutableLabels, hash string) bool {
 	newHash := HashImmutableLabels(labels)
 	return newHash == hash
+}
+
+const tokenNameAndSecretSeparator = ":"
+
+// EncodeScopedToken combines a token name and secret into a single encoded value. The encoded
+// tokens are used when providing tokens externally to end users to ease UX.
+func EncodeScopedToken(name, secret string) string {
+	return name + tokenNameAndSecretSeparator + base64.RawURLEncoding.EncodeToString([]byte(secret))
+}
+
+// DecodeScopedToken produces a token name and secret from an encoded value. If the token
+// is not encoded the return value is token, "", false.
+func DecodeScopedToken(token string) (name string, secret string, ok bool) {
+	name, base64Secret, ok := strings.Cut(token, tokenNameAndSecretSeparator)
+	if !ok {
+		return token, "", false
+	}
+
+	s, err := base64.RawURLEncoding.DecodeString(base64Secret)
+	if err != nil {
+		return token, "", false
+	}
+
+	return name, string(s), true
 }

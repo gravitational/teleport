@@ -61,7 +61,7 @@ use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
-use log::{debug, error};
+use log::{debug, error, warn};
 use rand::{Rng, TryRngCore};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
@@ -477,6 +477,10 @@ impl Client {
                     Client::handle_tdp_sd_announce(&mut write_stream, x224_processor.clone(), sda)
                         .await?;
                 }
+                ClientFunction::HandleTdpSdRemove(sdr) => {
+                    Client::handle_tdp_sd_remove(&mut write_stream, x224_processor.clone(), sdr)
+                        .await?;
+                }
                 ClientFunction::HandleTdpSdInfoResponse(res) => {
                     Client::handle_tdp_sd_info_response(x224_processor.clone(), res).await?;
                 }
@@ -706,6 +710,27 @@ impl Client {
         Ok(())
     }
 
+    async fn write_rdpdr_pdus(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        pdus: Vec<RdpdrPdu>,
+    ) -> ClientResult<()> {
+        debug!("sending rdp: {:?}", pdus);
+
+        let svc_messages: Vec<SvcMessage> = pdus.into_iter().map(SvcMessage::from).collect();
+
+        // Process the RDPDR PDU.
+        let encoded = Client::x224_process_svc_messages(
+            x224_processor,
+            SvcProcessorMessages::<Rdpdr>::new(svc_messages),
+        )
+        .await?;
+
+        // Write the RDPDR PDU to the RDP server.
+        write_stream.write_all(&encoded).await?;
+        Ok(())
+    }
+
     async fn write_rdpdr(
         write_stream: &mut RdpWriteStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
@@ -831,6 +856,20 @@ impl Client {
         Ok(())
     }
 
+    async fn handle_tdp_sd_remove(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        sdr: tdp::SharedDirectoryRemove,
+    ) -> ClientResult<()> {
+        debug!("received tdp: {:?}", sdr);
+
+        let cancel_pdus = Self::remove_drive(x224_processor.clone(), sdr.directory_id)?;
+
+        // Bulk send any cancellations for pending I/O requests.
+        Self::write_rdpdr_pdus(write_stream, x224_processor.clone(), cancel_pdus).await?;
+        Ok(())
+    }
+
     async fn handle_tdp_sd_info_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryInfoResponse,
@@ -949,11 +988,47 @@ impl Client {
     ) -> ClientResult<ClientDeviceListAnnounce> {
         task::spawn_blocking(move || {
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
-            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-            let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
-            Ok(pdu)
+            // Make sure the teleport backend knows about this new drive.
+            Self::rdpdr_backend(&mut x224_processor)?.add_device(sda.directory_id)?;
+            // The Base Rdpdr instance must also know about the device.
+            Ok(Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?
+                .add_drive(sda.directory_id, sda.name))
         })
         .await?
+    }
+
+    fn remove_drive(
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        device_id: u32,
+    ) -> ClientResult<Vec<RdpdrPdu>> {
+        // Lock the x224 processor before calling "remove_drive" so that the read loop
+        // doesn't try to process an inbound message for a device that we're in the process
+        // of removing.
+        let mut processor = Self::x224_lock(&x224_processor)?;
+        let backend = Self::rdpdr_backend(&mut processor)?;
+
+        // Attempt to remove the device from the Teleport Rdpdr backend
+        let (mut cancel_pdus, remove_complete) = backend
+            .remove_device(device_id)
+            .inspect_err(|e| warn!("could not remove device from teleport backend: {}", e))
+            .map_err(ClientError::PduError)?;
+
+        if remove_complete {
+            // If the device was successfully removed from the backend, then remove it from
+            // the top level rdpdr instance and send the device remove pdu. Otherwise,
+            // do nothing. The the rdpdr backend will synthesize another TDP shared directory remove
+            // message once the instance is ready for deletion (leading us right back here again to retry).
+            let remove_pdu = processor
+                .get_svc_processor_mut::<Rdpdr>()
+                .ok_or(ClientError::UnknownDevice(device_id))?
+                .remove_device(device_id)
+                .ok_or(ClientError::UnknownDevice(device_id))?;
+
+            // Make sure the remove PDU is pushed last.
+            cancel_pdus.push(RdpdrPdu::ClientDeviceListRemove(remove_pdu))
+        }
+
+        Ok(cancel_pdus)
     }
 
     /// Processes an x224 frame on a blocking thread.
@@ -1092,6 +1167,8 @@ enum ClientFunction {
     WriteScreenResize(u32, u32, u32),
     /// Corresponds to [`Client::handle_tdp_sd_announce`]
     HandleTdpSdAnnounce(tdp::SharedDirectoryAnnounce),
+    /// Corresponds to [`Client::handle_tdp_sd_remove`]
+    HandleTdpSdRemove(tdp::SharedDirectoryRemove),
     /// Corresponds to [`Client::handle_tdp_sd_info_response`]
     HandleTdpSdInfoResponse(tdp::SharedDirectoryInfoResponse),
     /// Corresponds to [`Client::handle_tdp_sd_create_response`]
@@ -1186,6 +1263,10 @@ impl ClientHandle {
 
     pub fn handle_tdp_sd_announce(&self, sda: tdp::SharedDirectoryAnnounce) -> ClientResult<()> {
         self.blocking_send(ClientFunction::HandleTdpSdAnnounce(sda))
+    }
+
+    pub fn handle_tdp_sd_remove(&self, sda: tdp::SharedDirectoryRemove) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdRemove(sda))
     }
 
     pub async fn handle_tdp_sd_announce_async(
@@ -1500,6 +1581,7 @@ pub enum ClientError {
     JoinError(JoinError),
     InternalError(String),
     UnknownAddress,
+    UnknownDevice(u32),
     UrlError(url::ParseError),
     #[cfg(feature = "fips")]
     ErrorStack(ErrorStack),
@@ -1539,8 +1621,9 @@ impl Display for ClientError {
             ClientError::InternalError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::EncodeError(e) => Display::fmt(e, f),
-            ClientError::PduError(e) => Display::fmt(e, f),
+            ClientError::PduError(e) => Display::fmt(&e.report(), f),
             ClientError::UrlError(e) => Display::fmt(e, f),
+            ClientError::UnknownDevice(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]
             ClientError::ErrorStack(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]

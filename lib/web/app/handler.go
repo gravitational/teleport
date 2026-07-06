@@ -224,13 +224,13 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 // HealthCheckAppServer establishes a connection to a AppServer that can handle
 // application requests. Can be used to ensure the proxy can handle application
 // requests before they arrive.
-func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, clusterName string) error {
+func (h *Handler) HealthCheckAppServer(ctx context.Context, appName, publicAddr, clusterName string) error {
 	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(publicAddr))
+	servers, err := MatchUnshuffled(ctx, clusterClient, MatchAppServerForRoute(appName, publicAddr))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -616,6 +616,41 @@ func HasSessionCookie(r *http.Request) bool {
 // HasClientCert checks if the request has a client certificate.
 func HasClientCert(r *http.Request) bool {
 	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
+}
+
+// appAuthCertificateIdentities returns certificate-backed identities that
+// participate in app auth for the request. HTTPS-tunneled requests validate the
+// outer tunnel identity and, when present, the inner client cert identity.
+// Cookie/browser clients return no identities.
+func appAuthCertificateIdentities(r *http.Request) []*tlsca.Identity {
+	var identities []*tlsca.Identity
+	if IsHTTPSTunnelConn(r) {
+		identity, err := getIdentityFromHTTPSTunnelRequest(r)
+		if err == nil {
+			identities = append(identities, identity)
+		}
+	}
+	if HasClientCert(r) {
+		cert := r.TLS.PeerCertificates[0]
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		if err == nil {
+			identities = append(identities, identity)
+		}
+	}
+	return identities
+}
+
+// connectionCredentialExpired reports whether a certificate-authenticated
+// request is backed by a credential that has already expired as of now. Returns
+// false for cookie/browser clients, which don't authenticate with a
+// certificate.
+func connectionCredentialExpired(r *http.Request, now time.Time) bool {
+	for _, identity := range appAuthCertificateIdentities(r) {
+		if identity.Expires.Before(now) {
+			return true
+		}
+	}
+	return false
 }
 
 // isBrowserRequest reports whether the request originated from a browser.

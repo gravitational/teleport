@@ -1102,6 +1102,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, %q or %q to print everything as JSON or YAML.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
 	).Short('f').StringVar(&cf.Format)
+	appLogins := apps.Command("logins", "List available logins for a Cloud console application.")
+	appLogins.Arg("app", "App name to list logins for. Currently only AWS is supported.").Required().StringVar(&cf.AppName)
+	appLogins.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	// Recordings.
 	recordings := app.Command("recordings", "View and control session recordings.").Alias("recording")
@@ -1875,6 +1878,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onAppLogout(&cf)
 	case appConfig.FullCommand():
 		err = onAppConfig(&cf)
+	case appLogins.FullCommand():
+		err = onAppLogins(&cf)
 	case kube.credentials.FullCommand():
 		err = kube.credentials.run(&cf)
 	case kube.ls.FullCommand():

@@ -521,6 +521,24 @@ Flags:
 |`--out`|*no default*|If set, writes exported revocation lists to files with the given path prefix|
 |`--type`|*no default* (one of: `host`, `db`, `db_client`, `user`)|Certificate authority type.|
 
+## tctl auth delete-override
+
+Delete a single certificate override from a CA override resource
+
+Usage:
+
+```code
+$ tctl auth delete-override --type=TYPE --public-key=PUBLIC-KEY [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]force`|`false`|If true attempts to force deletion. May be used to delete live overrides.|
+|`--public-key`|*no default*|Public key hash of the certificate override to be targeted|
+|`--type`|*no default*|CA type (db-client, windows)|
+
 ## tctl auth export
 
 Export public cluster CA certificates to stdout.
@@ -540,7 +558,7 @@ Flags:
 |`--integration`|*no default*|Name of the integration. Only applies to "github" CAs.|
 |`--[no-]keys`|`false`|if set, will print private keys|
 |`--out`|*no default*|If set writes exported authorities to files with the given path prefix|
-|`--type`|*no default* (one of: `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `tls-spiffe`, `windows`, `db`, `db-der`, `db-client`, `db-client-der`, `openssh`, `saml-idp`, `github`, `awsra`)|export certificate type (user, host, tls-host, tls-user, tls-user-der, tls-spiffe, windows, db, db-der, db-client, db-client-der, openssh, saml-idp, github, awsra)|
+|`--type`|*no default* (one of: `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `tls-spiffe`, `windows`, `db`, `db-der`, `db-client`, `db-client-der`, `openssh`, `saml-idp`, `github`, `awsra`, `app-client`)|export certificate type (user, host, tls-host, tls-user, tls-user-der, tls-spiffe, windows, db, db-der, db-client, db-client-der, openssh, saml-idp, github, awsra, app-client)|
 
 ## tctl auth ls
 
@@ -593,7 +611,7 @@ Flags:
 |`--[no-]interactive`|`false`|Enable interactive mode|
 |`--[no-]manual`|`false`|Activate manual rotation, set rotation phases manually|
 |`--phase`|*no default*|Target rotation phase to set, used in manual rotation, one of: init, standby, update_clients, update_servers, rollback|
-|`--type`|*no default* (one of: `host`, `windows`, `user`, `db`, `db_client`, `openssh`, `jwt`, `saml_idp`, `oidc_idp`, `spiffe`, `okta`, `awsra`, `bound_keypair`)|Certificate authority to rotate.|
+|`--type`|*no default* (one of: `host`, `windows`, `user`, `db`, `db_client`, `openssh`, `jwt`, `saml_idp`, `oidc_idp`, `spiffe`, `okta`, `awsra`, `bound_keypair`, `app_client`)|Certificate authority to rotate.|
 
 ## tctl auth sign
 
@@ -629,6 +647,28 @@ Flags:
 |`--windows-pki-domain`|*no default*|Active Directory domain where CRLs will be located. Only used when --format is set to "windows"|
 |`--windows-sid`|*no default*|Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"|
 |`--windows-user`|*no default*|Window user placed on the identity file. Only used when --format is set to "windows"|
+
+## tctl auth update-override
+
+Update a single certificate override in a CA override resource
+
+Usage:
+
+```code
+$ tctl auth update-override --type=TYPE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]clear-chain`|`false`|Clears existing CA override trust chain|
+|`--[no-]force`|`false`|If true attempts to force the update. May be used to ignore select state validation or disable live overrides.|
+|`--public-key`|*no default*|Public key hash of the certificate override to be targeted|
+|`--set-cert`|*no default*|CA override certificate file in PEM form|
+|`--set-chain`|*no default*|CA override trust chain files in PEM form|
+|`--set-disabled`|*no default* (one of: `true`, `false`)|If true disables the override, if false enables it|
+|`--type`|*no default*|CA type (db-client, windows)|
 
 ## tctl autoupdate agents mark-done
 
@@ -1123,13 +1163,14 @@ Edit a Teleport resource.
 Usage:
 
 ```code
-$ tctl edit [<resource type/resource name>]
+$ tctl edit [<resource type/resource name>] [<id>]
 ```
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
+|id|*no default* (optional)|Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds|
 |resource type/resource name|*no default* (optional)|Resource to update, e.g., "user/myuser"|
 
 ## tctl get
@@ -1139,7 +1180,7 @@ Print a YAML declaration of various Teleport resources.
 Usage:
 
 ```code
-$ tctl get [<flags>] <resources>
+$ tctl get [<flags>] <resources> [<id>]
 ```
 
 Flags:
@@ -1154,6 +1195,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
+|id|*no default* (optional)|Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds|
 |resources|*no default* (required)|Resource spec: 'type/\[name\]\[,...\]' or 'all'|
 
 ## tctl help
@@ -1189,6 +1231,28 @@ Flags:
 |`--format`|*no default*|output format, 'yaml' or 'json'|
 |`--sp`|*no default*|name of a file containing service provider spec|
 |`-u`, `--users`|*no default*|username or name of a file containing user spec|
+
+## tctl integrations test
+
+Verify an integration.
+
+Usage:
+
+```code
+$ tctl integrations test [<flags>] <integration>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|integration|*no default* (required)|Name of the integration to test. Use `tctl get integrations` to list integrations.|
 
 ## tctl inventory list
 
@@ -1955,13 +2019,14 @@ Delete a resource.
 Usage:
 
 ```code
-$ tctl rm [<resource type/resource name>]
+$ tctl rm [<resource type/resource name>] [<id>]
 ```
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
+|id|*no default* (optional)|Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds|
 |resource type/resource name|*no default* (optional)|Resource to delete
 	\<resource type\>  Type of a resource \[for example: connector,user,cluster,token\]
 	\<resource name\>  Resource name to delete
@@ -2340,7 +2405,7 @@ Update resource fields.
 Usage:
 
 ```code
-$ tctl update [<flags>] [<resource type/resource name>]
+$ tctl update [<flags>] [<resource type/resource name>] [<id>]
 ```
 
 Flags:
@@ -2354,6 +2419,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
+|id|*no default* (optional)|Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds|
 |resource type/resource name|*no default* (optional)|Resource to update
 	\<resource type\>  Type of a resource \[for example: rc\]
 	\<resource name\>  Resource name to update

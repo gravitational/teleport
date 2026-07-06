@@ -32,13 +32,14 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/subca"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 type certAuthorityOverrideCollection struct {
 	overrides []*subcav1.CertAuthorityOverride
 }
 
-func (c *certAuthorityOverrideCollection) resources() []types.Resource {
+func (c *certAuthorityOverrideCollection) Resources() []types.Resource {
 	ret := make([]types.Resource, len(c.overrides))
 	for i, o := range c.overrides {
 		ret[i] = types.Resource153ToLegacy(o)
@@ -46,7 +47,7 @@ func (c *certAuthorityOverrideCollection) resources() []types.Resource {
 	return ret
 }
 
-func (c *certAuthorityOverrideCollection) writeText(w io.Writer, verbose bool) error {
+func (c *certAuthorityOverrideCollection) WriteText(w io.Writer, verbose bool) error {
 	// Mimics the CA table.
 	// One entry per certificate override, or one entry per "empty" CA override.
 	t := asciitable.MakeTable([]string{"Cluster Name", "CA Type", "Public Key Hash"})
@@ -85,8 +86,8 @@ func (c *certAuthorityOverrideCollection) writeText(w io.Writer, verbose bool) e
 func (rc *ResourceCommand) getCAOverrides(
 	ctx context.Context,
 	authClient *authclient.Client,
-) (ResourceCollection, error) {
-	ref := rc.ref
+	ref services.Ref,
+) (resources.Collection, error) {
 
 	// Defensive. Shouldn't happen. Only 3 forms of ref are possible:
 	//   - kind ("tctl get ca_overrides")
@@ -223,8 +224,8 @@ func (rc *ResourceCommand) updateCAOverride(
 func (rc *ResourceCommand) deleteCAOverride(
 	ctx context.Context,
 	authClient *authclient.Client,
+	ref services.Ref,
 ) error {
-	ref := rc.ref
 
 	if ref.Kind != types.KindCertAuthorityOverride ||
 		ref.SubKind != "" ||

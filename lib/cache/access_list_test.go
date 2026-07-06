@@ -19,10 +19,7 @@ package cache
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"strconv"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -365,12 +362,7 @@ func TestGetAccessListOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			// this busyloop will eventually hit a deadlock if
-			// GetAccessListOwners becomes reentrant again
-			stop := spinloopRWMutex(&p.cache.rw)
-			defer stop()
 			owners, err := p.cache.GetAccessListOwners(ctx, al.GetName())
-			stop()
 			assert.NoError(t, err)
 
 			names := make([]string, 0, len(owners))
@@ -422,12 +414,7 @@ func TestGetAccessListOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			// this busyloop will eventually hit a deadlock if
-			// GetAccessListOwners becomes reentrant again
-			stop := spinloopRWMutex(&p.cache.rw)
-			defer stop()
 			owners, err := p.cache.GetAccessListOwners(ctx, parentList.GetName())
-			stop()
 			assert.NoError(t, err)
 
 			names := make([]string, 0, len(owners))
@@ -438,25 +425,6 @@ func TestGetAccessListOwners(t *testing.T) {
 			assert.ElementsMatch(t, []string{"nested-member-1", "nested-member-2"}, names)
 		}, 15*time.Second, 100*time.Millisecond)
 	})
-}
-
-func spinloopRWMutex(mu *sync.RWMutex) (stop func()) {
-	var wg sync.WaitGroup
-	var done atomic.Bool
-	wg.Go(func() {
-		for !done.Load() {
-			mu.Lock()
-			// this critical section is deliberately left empty
-			_ = 0
-			mu.Unlock()
-			// Gosched is generally discouraged but so are spinloops...
-			runtime.Gosched()
-		}
-	})
-	return func() {
-		done.Store(true)
-		wg.Wait()
-	}
 }
 
 func TestListAccessListsV2(t *testing.T) {

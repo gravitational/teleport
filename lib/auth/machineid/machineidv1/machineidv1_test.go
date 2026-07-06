@@ -3625,8 +3625,7 @@ func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
 				SubKind: scopedaccess.SubKindDynamic,
 				Scope:   "/scopes",
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-					BotName:  botName,
-					BotScope: "/scopes/test",
+					Bot: scopes.QualifiedName{Scope: "/scopes/test", Name: botName}.String(),
 					Assignments: []*scopedaccessv1.Assignment{
 						{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/test"},
 					},

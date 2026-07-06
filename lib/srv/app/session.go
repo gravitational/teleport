@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -159,6 +160,7 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(c.closeContext,
 		&transportConfig{
+			clock:         c.cfg.Clock,
 			app:           app,
 			publicPort:    c.proxyPort,
 			cipherSuites:  c.cfg.CipherSuites,
@@ -166,6 +168,17 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 			rewriteTraits: rewriteTraits,
 			log:           c.log,
 			hostID:        c.cfg.HostID,
+			insecureMode:  c.cfg.InsecureMode,
+			clusterName:   c.clusterName,
+			accessPoint:   c.cfg.AccessPoint,
+			authClient:    c.cfg.AuthClient,
+			getUserCertFunc: func() ([]byte, error) {
+				userCert, err := authz.UserCertificateFromContext(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return userCert.Raw, nil
+			},
 		})
 	if err != nil {
 		return trace.Wrap(err)
