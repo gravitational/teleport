@@ -44,7 +44,11 @@ type GetBotInstanceRequest struct {
 	// The name of the bot associated with the instance.
 	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	// The unique identifier of the bot instance to retrieve.
-	InstanceId    string `protobuf:"bytes,2,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	InstanceId string `protobuf:"bytes,2,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	// The scope of the bot associated with the instance. Combined with bot_name
+	// to uniquely identify a scoped bot. Leave empty if the associated bot is
+	// unscoped.
+	BotScope      string `protobuf:"bytes,3,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -88,12 +92,23 @@ func (x *GetBotInstanceRequest) GetInstanceId() string {
 	return ""
 }
 
+func (x *GetBotInstanceRequest) GetBotScope() string {
+	if x != nil {
+		return x.BotScope
+	}
+	return ""
+}
+
 func (x *GetBotInstanceRequest) SetBotName(v string) {
 	x.BotName = v
 }
 
 func (x *GetBotInstanceRequest) SetInstanceId(v string) {
 	x.InstanceId = v
+}
+
+func (x *GetBotInstanceRequest) SetBotScope(v string) {
+	x.BotScope = v
 }
 
 type GetBotInstanceRequest_builder struct {
@@ -103,6 +118,10 @@ type GetBotInstanceRequest_builder struct {
 	BotName string
 	// The unique identifier of the bot instance to retrieve.
 	InstanceId string
+	// The scope of the bot associated with the instance. Combined with bot_name
+	// to uniquely identify a scoped bot. Leave empty if the associated bot is
+	// unscoped.
+	BotScope string
 }
 
 func (b0 GetBotInstanceRequest_builder) Build() *GetBotInstanceRequest {
@@ -111,6 +130,7 @@ func (b0 GetBotInstanceRequest_builder) Build() *GetBotInstanceRequest {
 	_, _ = b, x
 	x.BotName = b.BotName
 	x.InstanceId = b.InstanceId
+	x.BotScope = b.BotScope
 	return m0
 }
 
@@ -488,7 +508,11 @@ type DeleteBotInstanceRequest struct {
 	// The name of the BotInstance to delete.
 	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	// The unique identifier of the bot instance to delete.
-	InstanceId    string `protobuf:"bytes,2,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	InstanceId string `protobuf:"bytes,2,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	// The scope of the bot associated with the instance. Combined with bot_name
+	// to uniquely identify a scoped bot. Leave empty if the associated bot is
+	// unscoped.
+	BotScope      string `protobuf:"bytes,3,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -532,12 +556,23 @@ func (x *DeleteBotInstanceRequest) GetInstanceId() string {
 	return ""
 }
 
+func (x *DeleteBotInstanceRequest) GetBotScope() string {
+	if x != nil {
+		return x.BotScope
+	}
+	return ""
+}
+
 func (x *DeleteBotInstanceRequest) SetBotName(v string) {
 	x.BotName = v
 }
 
 func (x *DeleteBotInstanceRequest) SetInstanceId(v string) {
 	x.InstanceId = v
+}
+
+func (x *DeleteBotInstanceRequest) SetBotScope(v string) {
+	x.BotScope = v
 }
 
 type DeleteBotInstanceRequest_builder struct {
@@ -547,6 +582,10 @@ type DeleteBotInstanceRequest_builder struct {
 	BotName string
 	// The unique identifier of the bot instance to delete.
 	InstanceId string
+	// The scope of the bot associated with the instance. Combined with bot_name
+	// to uniquely identify a scoped bot. Leave empty if the associated bot is
+	// unscoped.
+	BotScope string
 }
 
 func (b0 DeleteBotInstanceRequest_builder) Build() *DeleteBotInstanceRequest {
@@ -555,6 +594,7 @@ func (b0 DeleteBotInstanceRequest_builder) Build() *DeleteBotInstanceRequest {
 	_, _ = b, x
 	x.BotName = b.BotName
 	x.InstanceId = b.InstanceId
+	x.BotScope = b.BotScope
 	return m0
 }
 
@@ -699,7 +739,13 @@ type ListBotInstancesV2Request_Filters struct {
 	// match against supported fields.
 	SearchTerm string `protobuf:"bytes,2,opt,name=search_term,json=searchTerm,proto3" json:"search_term,omitempty"`
 	// A Teleport predicate language query used to filter the results.
-	Query         string `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Query string `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	// The scope of the bot to list BotInstances for. Combined with bot_name
+	// to uniquely identify a scoped bot. If bot_name or bot_scope is
+	// non-empty, only BotInstances whose bot's scope matches bot_scope
+	// exactly will be listed (an empty bot_scope with a non-empty bot_name
+	// selects instances of the unscoped bot with that name).
+	BotScope      string `protobuf:"bytes,4,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -750,6 +796,13 @@ func (x *ListBotInstancesV2Request_Filters) GetQuery() string {
 	return ""
 }
 
+func (x *ListBotInstancesV2Request_Filters) GetBotScope() string {
+	if x != nil {
+		return x.BotScope
+	}
+	return ""
+}
+
 func (x *ListBotInstancesV2Request_Filters) SetBotName(v string) {
 	x.BotName = v
 }
@@ -760,6 +813,10 @@ func (x *ListBotInstancesV2Request_Filters) SetSearchTerm(v string) {
 
 func (x *ListBotInstancesV2Request_Filters) SetQuery(v string) {
 	x.Query = v
+}
+
+func (x *ListBotInstancesV2Request_Filters) SetBotScope(v string) {
+	x.BotScope = v
 }
 
 type ListBotInstancesV2Request_Filters_builder struct {
@@ -773,6 +830,12 @@ type ListBotInstancesV2Request_Filters_builder struct {
 	SearchTerm string
 	// A Teleport predicate language query used to filter the results.
 	Query string
+	// The scope of the bot to list BotInstances for. Combined with bot_name
+	// to uniquely identify a scoped bot. If bot_name or bot_scope is
+	// non-empty, only BotInstances whose bot's scope matches bot_scope
+	// exactly will be listed (an empty bot_scope with a non-empty bot_name
+	// selects instances of the unscoped bot with that name).
+	BotScope string
 }
 
 func (b0 ListBotInstancesV2Request_Filters_builder) Build() *ListBotInstancesV2Request_Filters {
@@ -782,6 +845,7 @@ func (b0 ListBotInstancesV2Request_Filters_builder) Build() *ListBotInstancesV2R
 	x.BotName = b.BotName
 	x.SearchTerm = b.SearchTerm
 	x.Query = b.Query
+	x.BotScope = b.BotScope
 	return m0
 }
 
@@ -789,18 +853,19 @@ var File_teleport_machineid_v1_bot_instance_service_proto protoreflect.FileDescr
 
 const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
-	"0teleport/machineid/v1/bot_instance_service.proto\x12\x15teleport.machineid.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\"S\n" +
+	"0teleport/machineid/v1/bot_instance_service.proto\x12\x15teleport.machineid.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\"p\n" +
 	"\x15GetBotInstanceRequest\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +
-	"instanceId\"\xce\x01\n" +
+	"instanceId\x12\x1b\n" +
+	"\tbot_scope\x18\x03 \x01(\tR\bbotScope\"\xce\x01\n" +
 	"\x17ListBotInstancesRequest\x12&\n" +
 	"\x0ffilter_bot_name\x18\x01 \x01(\tR\rfilterBotName\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12,\n" +
 	"\x12filter_search_term\x18\x04 \x01(\tR\x10filterSearchTerm\x12!\n" +
-	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\xc2\x02\n" +
+	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\xdf\x02\n" +
 	"\x19ListBotInstancesV2Request\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -808,19 +873,21 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
 	"sort_field\x18\x03 \x01(\tR\tsortField\x12\x1b\n" +
 	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12P\n" +
-	"\x06filter\x18\x05 \x01(\v28.teleport.machineid.v1.ListBotInstancesV2Request.FiltersR\x06filter\x1a[\n" +
+	"\x06filter\x18\x05 \x01(\v28.teleport.machineid.v1.ListBotInstancesV2Request.FiltersR\x06filter\x1ax\n" +
 	"\aFilters\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vsearch_term\x18\x02 \x01(\tR\n" +
 	"searchTerm\x12\x14\n" +
-	"\x05query\x18\x03 \x01(\tR\x05query\"\x8b\x01\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1b\n" +
+	"\tbot_scope\x18\x04 \x01(\tR\bbotScope\"\x8b\x01\n" +
 	"\x18ListBotInstancesResponse\x12G\n" +
 	"\rbot_instances\x18\x01 \x03(\v2\".teleport.machineid.v1.BotInstanceR\fbotInstances\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"V\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"s\n" +
 	"\x18DeleteBotInstanceRequest\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +
-	"instanceId\"\xc1\x01\n" +
+	"instanceId\x12\x1b\n" +
+	"\tbot_scope\x18\x03 \x01(\tR\bbotScope\"\xc1\x01\n" +
 	"\x16SubmitHeartbeatRequest\x12O\n" +
 	"\theartbeat\x18\x01 \x01(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\theartbeat\x12V\n" +
 	"\x0eservice_health\x18\x02 \x03(\v2/.teleport.machineid.v1.BotInstanceServiceHealthR\rserviceHealth\"\x19\n" +
