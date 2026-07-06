@@ -1410,6 +1410,10 @@ const (
 	// BeamAppTypeLabel is the label used to denote the type of app created for
 	// Beams. Valid values: "ingress" and "llm".
 	BeamAppTypeLabel = BeamsInternalLabelPrefix + "app-type"
+
+	// BeamRegionLabel is the label used to track the requested routing region
+	// for a Beam.
+	BeamRegionLabel = BeamsInternalLabelPrefix + "region"
 )
 
 const (

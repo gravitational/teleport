@@ -147,6 +147,11 @@ type CreateBeamRequest struct {
 	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
 	// be provided when EGRESS_MODE_RESTRICTED is set.
 	AllowedDomains []string `protobuf:"bytes,2,rep,name=allowed_domains,json=allowedDomains,proto3" json:"allowed_domains,omitempty"`
+	// proxy_region is the closest proxy region discovered from /webapi/find.
+	ProxyRegion string `protobuf:"bytes,3,opt,name=proxy_region,json=proxyRegion,proto3" json:"proxy_region,omitempty"`
+	// override_region is the requested Beam routing region. If empty, Auth uses
+	// proxy_region as the default.
+	OverrideRegion string `protobuf:"bytes,4,opt,name=override_region,json=overrideRegion,proto3" json:"override_region,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -190,12 +195,34 @@ func (x *CreateBeamRequest) GetAllowedDomains() []string {
 	return nil
 }
 
+func (x *CreateBeamRequest) GetProxyRegion() string {
+	if x != nil {
+		return x.ProxyRegion
+	}
+	return ""
+}
+
+func (x *CreateBeamRequest) GetOverrideRegion() string {
+	if x != nil {
+		return x.OverrideRegion
+	}
+	return ""
+}
+
 func (x *CreateBeamRequest) SetEgress(v EgressMode) {
 	x.Egress = v
 }
 
 func (x *CreateBeamRequest) SetAllowedDomains(v []string) {
 	x.AllowedDomains = v
+}
+
+func (x *CreateBeamRequest) SetProxyRegion(v string) {
+	x.ProxyRegion = v
+}
+
+func (x *CreateBeamRequest) SetOverrideRegion(v string) {
+	x.OverrideRegion = v
 }
 
 type CreateBeamRequest_builder struct {
@@ -206,6 +233,11 @@ type CreateBeamRequest_builder struct {
 	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
 	// be provided when EGRESS_MODE_RESTRICTED is set.
 	AllowedDomains []string
+	// proxy_region is the closest proxy region discovered from /webapi/find.
+	ProxyRegion string
+	// override_region is the requested Beam routing region. If empty, Auth uses
+	// proxy_region as the default.
+	OverrideRegion string
 }
 
 func (b0 CreateBeamRequest_builder) Build() *CreateBeamRequest {
@@ -214,6 +246,8 @@ func (b0 CreateBeamRequest_builder) Build() *CreateBeamRequest {
 	_, _ = b, x
 	x.Egress = b.Egress
 	x.AllowedDomains = b.AllowedDomains
+	x.ProxyRegion = b.ProxyRegion
+	x.OverrideRegion = b.OverrideRegion
 	return m0
 }
 
@@ -1028,10 +1062,12 @@ var File_teleport_beams_v1_beam_service_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\n" +
-	"$teleport/beams/v1/beam_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\"s\n" +
+	"$teleport/beams/v1/beam_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\"\xbf\x01\n" +
 	"\x11CreateBeamRequest\x125\n" +
 	"\x06egress\x18\x01 \x01(\x0e2\x1d.teleport.beams.v1.EgressModeR\x06egress\x12'\n" +
-	"\x0fallowed_domains\x18\x02 \x03(\tR\x0eallowedDomains\"A\n" +
+	"\x0fallowed_domains\x18\x02 \x03(\tR\x0eallowedDomains\x12!\n" +
+	"\fproxy_region\x18\x03 \x01(\tR\vproxyRegion\x12'\n" +
+	"\x0foverride_region\x18\x04 \x01(\tR\x0eoverrideRegion\"A\n" +
 	"\x12CreateBeamResponse\x12+\n" +
 	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"@\n" +
 	"\x11UpdateBeamRequest\x12+\n" +
