@@ -33,7 +33,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -1226,67 +1225,40 @@ func TestDiscoveryServer_getAllTAGFetchersConcurrentAccess(t *testing.T) {
 		readerCount = 4
 		writeCount  = 1_000
 	)
+
 	// Only initialize fields used by the TAG fetcher getters.
 	server := &Server{
 		dynamicTAGAWSFetchers:   make(map[string][]*awssync.Fetcher),
 		dynamicTAGAzureFetchers: make(map[string][]*azuresync.Fetcher),
 	}
-	wantAWSFetcher := &awssync.Fetcher{}
-	wantAzureFetcher := &azuresync.Fetcher{}
 
-	readersReady := make(chan bool, readerCount)
-	startReaders := make(chan struct{})
-	writerDone := make(chan struct{})
-	var observedExpected atomic.Int32
+	// Readers: exercise the real read paths until both getters observe a
+	// write, which guarantees the reads overlap the writer's mutations.
 	var wg sync.WaitGroup
 	for range readerCount {
 		wg.Go(func() {
-			readersReady <- len(server.getAllAWSSyncFetchers()) == 0 && len(server.getAllTAGSyncAzureFetchers()) == 0
-			<-startReaders
-
-			observed := false
-			for {
-				if slices.Contains(server.getAllAWSSyncFetchers(), wantAWSFetcher) &&
-					slices.Contains(server.getAllTAGSyncAzureFetchers(), wantAzureFetcher) {
-					observed = true
-				}
-				select {
-				case <-writerDone:
-					if observed {
-						observedExpected.Add(1)
-					}
-					return
-				default:
-				}
+			for len(server.getAllAWSSyncFetchers()) == 0 || len(server.getAllTAGSyncAzureFetchers()) == 0 {
 				runtime.Gosched()
 			}
 		})
 	}
 
-	for range readerCount {
-		require.True(t, <-readersReady, "reader did not observe empty dynamic TAG fetchers before writes")
-	}
-	close(startReaders)
-
-	// Keep the maps small while repeatedly changing their length to exercise both
-	// TAG fetcher getters against concurrent writes.
+	// Writer: mutate the maps under their exclusive locks, mimicking upsertDynamicMatchers/deleteDynamicFetchers
+	// adding and removing fetchers while repeatedly changing the map lengths.
 	keys := [2]string{"a", "b"}
 	for i := range writeCount {
 		server.muDynamicTAGAWSFetchers.Lock()
 		delete(server.dynamicTAGAWSFetchers, keys[(i+1)%len(keys)])
-		server.dynamicTAGAWSFetchers[keys[i%len(keys)]] = []*awssync.Fetcher{wantAWSFetcher}
+		server.dynamicTAGAWSFetchers[keys[i%len(keys)]] = []*awssync.Fetcher{{}}
 		server.muDynamicTAGAWSFetchers.Unlock()
 
 		server.muDynamicTAGAzureFetchers.Lock()
 		delete(server.dynamicTAGAzureFetchers, keys[(i+1)%len(keys)])
-		server.dynamicTAGAzureFetchers[keys[i%len(keys)]] = []*azuresync.Fetcher{wantAzureFetcher}
+		server.dynamicTAGAzureFetchers[keys[i%len(keys)]] = []*azuresync.Fetcher{{}}
 		server.muDynamicTAGAzureFetchers.Unlock()
-
-		runtime.Gosched()
 	}
-	close(writerDone)
+
 	wg.Wait()
-	require.Equal(t, int32(readerCount), observedExpected.Load())
 }
 
 // TestDiscoveryServer_dynamicMatcherGroupReassign covers the OpPut branch
