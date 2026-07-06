@@ -1,8 +1,6 @@
-.version: &version "19.0.0-prealpha.2"
-
 name: teleport-proxy
 apiVersion: v2
-version: *version
+version: &version "19.0.0-prealpha.2"
 appVersion: *version
 description: Teleport Proxy Server
 icon: https://goteleport.com/static/teleport-symbol-bimi.svg
