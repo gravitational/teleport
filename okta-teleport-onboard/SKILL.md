@@ -106,9 +106,18 @@ The runtime now authenticates via the OAuth client ID; the SSWS token is no
 longer needed. `okta::revoke_token` (or delete it in the Okta admin UI). Confirm
 sync still succeeds afterward.
 
-## Teardown
-`okta-teleport-onboard/scripts/cleanup.sh <saml-app-id> <service-app-id>` removes
-the Teleport plugin + connector and the Okta apps created here. Re-runnable.
+## Teardown / offboarding
+`scripts/cleanup.sh <saml-app-id> <service-app-id> <role-id> <resource-set-id>`
+(validated end-to-end). Enforced order, because bidirectional sync is on:
+1. `tctl plugins delete okta` — delete the plugin FIRST so later deletions don't
+   propagate back into Okta.
+2. `tctl plugins cleanup okta --no-dry-run` — remove Okta-sourced Access Lists +
+   generated roles. Refuses to run while the plugin is active, hence step 1 first.
+3. `tctl rm saml/okta` — connector is NOT auto-deleted (note: `tctl rm`, not `delete`).
+4. Delete okta-origin Teleport users (user sync created them; cleanup doesn't touch users).
+5. Okta side: delete role binding → resource set → custom role, then deactivate+delete both apps.
+Best-effort and re-runnable. Revoke the bootstrap SSWS token afterward
+(`okta::revoke_token <id>`) unless you kept it for re-runs.
 
 ## Known first-run validation points (isolated to steps 2–3)
 - Okta OIDC **service app** creation body + binding the JWKS `jwks_uri` and
