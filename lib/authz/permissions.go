@@ -1325,6 +1325,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					LinuxDesktopLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 					GitHubPermissions: []types.GitHubPermission{{
 						Organizations: []string{types.Wildcard},
 					}},
