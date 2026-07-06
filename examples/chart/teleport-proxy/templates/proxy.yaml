@@ -15,8 +15,6 @@
 {{- $_ := set $proxy.Values "serviceAccountTokenAudience" $proxy.Values.clusterName -}}
 {{- $_ := set $proxy.Values "serviceAccountTokenExpirationSeconds" 600 -}}
 {{- end -}}
-{{- $_ := set $proxy.Values "extraVolumes" (include "teleport-proxy.extraVolumes" $proxy | fromYamlArray) -}}
-{{- $_ := set $proxy.Values "extraVolumeMounts" (include "teleport-proxy.extraVolumeMounts" $proxy | fromYamlArray) -}}
 
 {{/* Render all proxy charts */}}
 {{- include "teleport-proxy-lib.all" $proxy -}}

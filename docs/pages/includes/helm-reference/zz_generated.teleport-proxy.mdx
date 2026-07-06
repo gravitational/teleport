@@ -29,10 +29,15 @@ VIP used by your existing Teleport cluster.
 
 To use this chart, you must pre-provision a Teleport Provision Token this
 proxy can use to authenticate to the cluster. Configure the token name and
-other parameters here. See
-[Teleport Config Reference](https://goteleport.com/docs/reference/deployment/config/#instance-wide-settings).
+other parameters here. Only delegated join methods that don't require secrets
+are supported by this chart. This **excludes** the `token` and `bound_keypair`
+join methods.
 
-To create the token, see docs ([Terraform](https://goteleport.com/docs/reference/infrastructure-as-code/terraform-provider/resources/provision_token/) or [tctl](https://goteleport.com/docs/reference/cli/tctl/#tctl-tokens-add)):
+See also:
+* [Join Methods and Tokens](../../deployment/join-methods/)
+* [Teleport Config Reference](../../deployment/config/#instance-wide-settings).
+
+To create the token, see docs ([Terraform](../../infrastructure-as-code/terraform-provider/resources/provision_token/) or [tctl](https://goteleport.com/docs/reference/cli/tctl/#tctl-tokens-add)):
       `tctl tokens add --type=proxy ...`
 
 ### `join_params.method`
@@ -44,9 +49,9 @@ To create the token, see docs ([Terraform](https://goteleport.com/docs/reference
 `join_params.method` How to join the cluster.
 
 Running on eks/aks/gke? Consider cloud-specific Workload Identity instead of Kubernetes:
-* [AWS](https://goteleport.com/docs/reference/deployment/join-methods/#aws-iam-role-iam)
-* [Azure](https://goteleport.com/docs/reference/deployment/join-methods/)#azure-managed-identity-azure
-* [GCP](https://goteleport.com/docs/reference/deployment/join-methods/#gcp-service-account-gcp)
+* [AWS](../../deployment/join-methods/#aws-iam-role-iam)
+* [Azure](../../deployment/join-methods/)#azure-managed-identity-azure
+* [GCP](../../deployment/join-methods/#gcp-service-account-gcp)
 
 ### `join_params.token_name`
 
@@ -188,7 +193,7 @@ proxy pods. The configuration will be merged with the chart-generated
 configuration and will take precedence in case of conflict.
 
 See the Teleport Configuration Reference for the list of supported fields:
-https://goteleport.com/docs/reference/config/
+../../config/
 
 ```yaml
 teleportConfig:
