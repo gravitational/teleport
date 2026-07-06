@@ -79,6 +79,8 @@ import (
 	_ "github.com/aws/smithy-go"
 	_ "github.com/aws/smithy-go/transport/http"
 	_ "github.com/beevik/etree"
+	_ "github.com/boombuler/barcode"
+	_ "github.com/boombuler/barcode/qr"
 	_ "github.com/coreos/go-semver/semver"
 	_ "github.com/crewjam/saml"
 	_ "github.com/crewjam/saml/samlsp"

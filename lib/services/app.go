@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -297,7 +298,23 @@ func ValidateAppServer(server types.AppServer, proxyGetter ProxyGetter) error {
 	if errs := validation.IsDNS1123SubdomainWithUnderscore(server.GetName()); len(errs) > 0 {
 		return trace.BadParameter("app server name %q must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', must start and end with alphanumeric, max 253 chars): %s", server.GetName(), strings.Join(errs, ", "))
 	}
+
+	if app := server.GetApp(); app != nil && !AppServerScopesEqual(server.GetScope(), app.GetScope()) {
+		return trace.BadParameter("app server %q scope %q does not match its embedded app scope %q", server.GetName(), server.GetScope(), app.GetScope())
+	}
+
 	return trace.Wrap(ValidateApp(server.GetApp(), proxyGetter))
+}
+
+// AppServerScopesEqual reports whether an app server's scope and its embedded
+// app's scope are equivalent.
+func AppServerScopesEqual(serverScope, appScope string) bool {
+	// Empty string comparison is treated as orthogonal in scopes.Compare.
+	// If server scope is empty (unscoped), we should make sure the app's scope is also empty, and vice versa.
+	if serverScope == "" || appScope == "" {
+		return serverScope == appScope
+	}
+	return scopes.Compare(serverScope, appScope) == scopes.Equivalent
 }
 
 // ValidatePublicAddr requires a lowercase DNS-1123 hostname. An

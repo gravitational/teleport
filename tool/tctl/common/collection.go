@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -61,35 +60,6 @@ func (r *reverseTunnelCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, tunnel := range r.tunnels {
 		t.AddRow([]string{
 			tunnel.GetClusterName(), strings.Join(tunnel.GetDialAddrs(), ","),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type trustedClusterCollection struct {
-	trustedClusters []types.TrustedCluster
-}
-
-func (c *trustedClusterCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.trustedClusters {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *trustedClusterCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{
-		"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map",
-	})
-	for _, tc := range c.trustedClusters {
-		t.AddRow([]string{
-			tc.GetName(),
-			strconv.FormatBool(tc.GetEnabled()),
-			tc.GetToken(),
-			tc.GetProxyAddress(),
-			tc.GetReverseTunnelAddress(),
-			fmt.Sprintf("%v", tc.CombinedMapping()),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

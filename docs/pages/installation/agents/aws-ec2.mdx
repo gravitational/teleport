@@ -7,9 +7,10 @@ tags:
  - zero-trust
  - infrastructure-identity
  - aws
+page_type: how-to
 ---
 
-This guide explains how to use the **EC2 join method** to configure Teleport
+In this guide, you will use the **EC2 join method** to configure Teleport
 processes to join your Teleport cluster without sharing any secrets when they
 are running in AWS.
 
@@ -46,10 +47,21 @@ Teleport processes joining the cluster.
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="self-hosted Teleport"!)
 
 - (!docs/pages/includes/iac-clients.mdx!)
+
 - An AWS EC2 instance to host a Teleport process, with the Teleport binary
   installed. The host should not have an existing data dir (`/var/lib/teleport`
   by default). Remove the data directory if this instance has previously joined
   a Teleport cluster.
+
+- An AWS IAM principal for the Teleport Auth Service. This can either be an
+  instance profile or an IAM user. If you select an instance profile, we assume
+  the name of the attached role is `TeleportAuthServiceRole`. If you select a
+  user, we assume the name of the user is `TeleportAuthServiceUser`.
+
+  You can provide the IAM credentials to Teleport through a shared configuration
+  file or environment variables. See
+  [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v2/developer-guide/configure-gosdk.html#specifying-credentials)
+  for details.
 
 ## Step 1/5. Set up AWS IAM credentials
 
@@ -60,37 +72,52 @@ currently running.
 ### Create the IAM policy
 
 Create the following AWS IAM policy named `teleport-DescribeInstances-policy` in
-your account:
+your account.
 
-```json
-{
-   "Version": "2012-10-17",
-   "Statement": [
-	   {
-		   "Effect": "Allow",
-		   "Action": "ec2:DescribeInstances",
-		   "Resource": "*"
-	   }
-   ]
-}
-```
+1. Add the following to a file named `describe-instances.json`:
+
+   ```json
+   {
+      "Version": "2012-10-17",
+      "Statement": [
+   	   {
+   		   "Effect": "Allow",
+   		   "Action": "ec2:DescribeInstances",
+   		   "Resource": "*"
+   	   }
+      ]
+   }
+   ```
+
+1. Create the policy:
+
+   ```code
+   $ aws iam create-policy --policy-name teleport-DescribeInstances-policy \
+        --policy-document file://describe-instances.json
+   ```
+
+1. Note the ARN of the policy you created for the next section. Assign it to
+   <Var name="policy ARN" />.
 
 ### Attach the IAM policy
 
 If your Teleport Auth Service is running on an EC2 instance and already has an
 attached "IAM role for Amazon EC2", add the above
-`teleport-DescribeInstances-policy` to the existing role. If the instance
-does not already have an attached role, create an IAM role with the above
-policy and attach it to your EC2 instance running the Teleport Auth Service.
+`teleport-DescribeInstances-policy` to the existing role:
+
+```code
+$ aws iam attach-role-policy --role-name TeleportAuthServiceRole \
+     --policy-arn <Var name="policy ARN" />
+```
 
 If you are running your Teleport Auth Service outside of AWS you can attach
 the `teleport-DescribeInstances-policy` directly to an IAM user which
-Teleport will use to authenticate.
+Teleport will use to authenticate:
 
-You can provide the IAM credentials to Teleport through a shared configuration
-file or environment variables. See
-[Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v2/developer-guide/configure-gosdk.html#specifying-credentials)
-for details.
+```code
+$ aws iam attach-user-policy --user-name TeleportAuthServiceUser \
+     --policy-arn <Var name="policy ARN" />
+```
 
 ## Step 2/5. Create the AWS joining token
 

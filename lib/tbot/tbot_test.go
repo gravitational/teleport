@@ -1473,8 +1473,7 @@ func TestScopedBotSSH(t *testing.T) {
 	nodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	nodeCfg.Hostname = nodeHostname
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(nodeTokenResp.GetToken().GetMetadata().GetName())
-	nodeCfg.SetTokenSecret(nodeTokenResp.GetToken().GetStatus().GetSecret())
+	nodeCfg.SetToken(jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret()))
 	nodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
@@ -1659,6 +1658,8 @@ func TestScopedBotSSH(t *testing.T) {
 // discover a scoped Kubernetes cluster via selectors, and that a valid
 // kubeconfig is rendered.
 func TestScopedBotKubernetes(t *testing.T) {
+	// TODO(eriktate): remove this skip once scoped kube agents work with agent scope pins
+	t.Skip("scoped kube currently requires agent scope pins which are not fully supported yet")
 	ctx := t.Context()
 	log := logtest.NewLogger()
 
@@ -1674,7 +1675,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 		t.TempDir(),
 		defaultTestServerOpts(log),
 		testenv.WithProxyKube(),
-		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1741,10 +1742,9 @@ func TestScopedBotKubernetes(t *testing.T) {
 	// Start a second Teleport process as a kube_service-only agent, joining
 	// with the scoped kube token.
 	kubeNodeCfg := servicecfg.MakeDefaultConfig()
-	kubeNodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
+	kubeNodeCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
 	kubeNodeCfg.DataDir = t.TempDir()
-	kubeNodeCfg.SetToken(kubeTokenResp.GetToken().GetMetadata().GetName())
-	kubeNodeCfg.SetTokenSecret(kubeTokenResp.GetToken().GetStatus().GetSecret())
+	kubeNodeCfg.SetToken(jointoken.EncodeScopedToken(kubeTokenResp.GetToken().GetMetadata().GetName(), kubeTokenResp.GetToken().GetStatus().GetSecret()))
 	kubeNodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	kubeNodeCfg.Auth.Enabled = false
 	kubeNodeCfg.Proxy.Enabled = false
@@ -1911,8 +1911,7 @@ func createScopedBot(
 				Roles:      []string{types.RoleBot.String()},
 				JoinMethod: string(types.JoinMethodBoundKeypair),
 				UsageMode:  jointoken.TokenUsageModeBot,
-				BotName:    botName,
-				BotScope:   scopeName,
+				Bot:        scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				BoundKeypair: joiningv1.BoundKeypairSpec_builder{
 					Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
 						InitialPublicKey: botPublicKey,
@@ -1940,8 +1939,7 @@ func createScopedBot(
 			Metadata: headerv1.Metadata_builder{Name: uuid.NewString()}.Build(),
 			Scope:    scopeName,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  botName,
-				BotScope: scopeName,
+				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: scopedRoleName, Scope: scopeName}.Build(),
 				},

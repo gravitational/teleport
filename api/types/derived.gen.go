@@ -59,7 +59,8 @@ func deriveTeleportEqualAppV3(this, that *AppV3) bool {
 			this.SubKind == that.SubKind &&
 			this.Version == that.Version &&
 			deriveTeleportEqualMetadata(&this.Metadata, &that.Metadata) &&
-			deriveTeleportEqual_3(&this.Spec, &that.Spec)
+			deriveTeleportEqual_3(&this.Spec, &that.Spec) &&
+			this.Scope == that.Scope
 }
 
 // deriveTeleportEqualAppServerV3 returns whether this and that are equal.
@@ -1359,7 +1360,8 @@ func deriveTeleportEqual_77(this, that *AccessReview) bool {
 			deriveTeleportEqual_115(this.ThresholdIndexes, that.ThresholdIndexes) &&
 			deriveTeleportEqual_38(this.AccessList, that.AccessList) &&
 			((this.AssumeStartTime == nil && that.AssumeStartTime == nil) || (this.AssumeStartTime != nil && that.AssumeStartTime != nil && (*(this.AssumeStartTime)).Equal(*(that.AssumeStartTime)))) &&
-			this.SubmittedBy == that.SubmittedBy
+			this.SubmittedBy == that.SubmittedBy &&
+			this.SubmittedOnBehalfOfAuthor == that.SubmittedOnBehalfOfAuthor
 }
 
 // deriveTeleportEqual_78 returns whether this and that are equal.

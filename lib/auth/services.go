@@ -98,9 +98,10 @@ type Services struct {
 	services.Summarizer
 	services.ScopedTokenService
 	MFAService
-	services.WorkloadClusterService
 	services.Beams
+	services.BeamsConfigService
 	services.SubCAService
+	services.EnrollPairing
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.

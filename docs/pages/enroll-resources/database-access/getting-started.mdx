@@ -31,8 +31,21 @@ page_type: how-to
 
 - An AWS account with a PostgreSQL Amazon Aurora database and permissions to create
   and attach IAM policies.
+
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
+
+- An AWS IAM principal for the host. For this guide, we assume that this is
+  either an instance profile or an IAM user. If you select an instance profile,
+  we assume the name of the attached role is `TeleportDatabaseServiceRole`. If
+  you select a user, we assume the name of the user is
+  `TeleportDatabaseServiceUser`.
+
+  You can provide the IAM credentials to Teleport through a shared configuration
+  file or environment variables. See
+  [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v2/developer-guide/configure-gosdk.html#specifying-credentials)
+  for details.
+
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up Aurora
@@ -48,48 +61,82 @@ Make sure to choose the "Standard create" database creation method and enable
 For existing Aurora instances, the status of IAM authentication is displayed on
 the Configuration tab and can be enabled by modifying the database instance.
 
-Next, create the following IAM policy and attach it to the AWS user or service
-account. The Teleport Database Service will need to use the credentials of this
-AWS user or service account in order to use this policy.
+Next, create an IAM policy and attach it to the AWS user or service account
+role. The Teleport Database Service will need to use the credentials of this AWS
+user or service account in order to use this policy.
 
-```json
-{
-   "Version": "2012-10-17",
-   "Statement": [
-      {
-         "Effect": "Allow",
-         "Action": [
-             "rds-db:connect"
-         ],
-         "Resource": [
-             "arn:aws:rds-db:<region>:<account-id>:dbuser:<resource-id>/*"
-         ]
-      }
-   ]
-}
-```
+1. Add the following to a file called `database-service-policy.json`:
 
-This policy allows any database account to connect to the Aurora instance specified
-with resource ID using IAM auth.
+   ```json
+   {
+      "Version": "2012-10-17",
+      "Statement": [
+         {
+            "Effect": "Allow",
+            "Action": [
+                "rds-db:connect"
+            ],
+            "Resource": [
+                "arn:aws:rds-db:<region>:<account-id>:dbuser:<resource-id>/*"
+            ]
+         }
+      ]
+   }
+   ```
 
-<Admonition
-  type="note"
-  title="Resource ID"
->
-  The database resource ID is shown on the Configuration tab of a particular
-  database instance in the RDS control panel, under "Resource id". For regular
-  RDS database it starts with `db-` prefix. For Aurora, use the database
-  cluster resource ID (`cluster-`), not the individual instance ID.
-</Admonition>
+   This policy allows the Teleport Database Service to connect to the Aurora
+   instance as any database user using IAM auth.
 
-Finally, connect to the database and create a database account with IAM auth
-support (or update an existing one). Once connected, execute the following
-SQL statements to create a new database account and allow IAM auth for it:
+   <Admonition
+     type="note"
+     title="Resource ID"
+   >
+     The database resource ID is shown on the Configuration tab of a particular
+     database instance in the RDS control panel, under "Resource id". For regular
+     RDS database it starts with `db-` prefix. For Aurora, use the database
+     cluster resource ID (`cluster-`), not the individual instance ID.
+   </Admonition>
 
-```sql
-CREATE USER alice;
-GRANT rds_iam TO alice;
-```
+1. Create the policy:
+
+   ```code
+   $ aws iam create-policy --policy-name RDSConnect \
+        --policy-document file://database-service-policy.json
+   ```
+
+1. Note the ARN of the policy you created for the next section. Assign it to
+   <Var name="policy ARN" />.
+
+1. Attach the `RDSConnect` policy to either an EC2 instance role or an IAM user:
+
+   <Tabs>
+   <TabItem label="EC2 instance">
+
+   ```code
+   $ aws iam attach-role-policy --role-name TeleportDatabaseServiceRole \
+        --policy-arn <Var name="policy ARN" />
+   ```
+
+   </TabItem>
+   <TabItem label="IAM user">
+
+   ```code
+   $ aws iam attach-user-policy --user-name TeleportDatabaseServiceUser \
+        --policy-arn <Var name="policy ARN" />
+   ```
+
+   </TabItem>
+   </Tabs>
+
+1. Connect to the database and create a database account with IAM auth support
+   (or update an existing one). Once connected, execute the following SQL
+   statements to create a new database account and allow IAM auth for it:
+
+   ```sql
+   CREATE USER alice;
+   GRANT rds_iam TO alice;
+   ```
+
 For more information about connecting to the PostgreSQL instance directly,
 see the AWS [documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ConnectToPostgreSQLInstance.html).
 

@@ -56,6 +56,7 @@ import (
 	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	appgcp "github.com/gravitational/teleport/lib/srv/app/gcp"
+	appllm "github.com/gravitational/teleport/lib/srv/app/llm"
 	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -204,6 +205,7 @@ type ConnectionsHandler struct {
 	awsHandler   http.Handler
 	azureHandler http.Handler
 	gcpHandler   http.Handler
+	llmHandler   http.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
 	authMiddleware *authz.Middleware
@@ -211,8 +213,8 @@ type ConnectionsHandler struct {
 	proxyPort   string
 	clusterName string
 
-	// getAppByPublicAddress returns a types.Application using the public address as matcher.
-	getAppByPublicAddress func(context.Context, string) (types.Application, error)
+	// resolveApp returns a types.Application using the name and public address as matchers.
+	resolveApp func(ctx context.Context, name, addr string) (types.Application, error)
 }
 
 // NewConnectionsHandler returns a new ConnectionsHandler.
@@ -246,6 +248,14 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	llmHandler, err := appllm.NewHandler(closeContext, appllm.HandlerConfig{
+		Log:               cfg.Logger.With(teleport.ComponentKey, teleport.ComponentLLM),
+		AWSConfigProvider: awsConfigProvider,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterName, err := cfg.AccessPoint.GetClusterName(closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -257,10 +267,11 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		awsHandler:   awsHandler,
 		azureHandler: azureHandler,
 		gcpHandler:   gcpHandler,
+		llmHandler:   llmHandler,
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
 		clusterName:  clusterName.GetClusterName(),
-		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
+		resolveApp: func(context.Context, string, string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
 	}
@@ -324,8 +335,9 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 
 // SetApplicationsProvider sets the internal state for the monitored applications.
 // This method must be called before the ConnectionsHandler is able to handle connections.
-func (c *ConnectionsHandler) SetApplicationsProvider(fn func(context.Context, string) (types.Application, error)) {
-	c.getAppByPublicAddress = fn
+func (c *ConnectionsHandler) SetApplicationsProvider(
+	fn func(context.Context, string, string) (types.Application, error)) {
+	c.resolveApp = fn
 }
 
 func (c *ConnectionsHandler) expireSessions() {
@@ -381,12 +393,30 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 
 // serveSession finds the app session and forwards the request.
 func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) error {
+	// The user certificate is set on the request context by authz middleware.
+	// It's needed both to derive the session start time and to issue managed
+	// upstream client certificates, so read it once here.
+	userCert, err := authz.UserCertificateFromContext(r.Context())
+	if err != nil {
+		c.log.WarnContext(r.Context(), "Unable to retrieve session user certificate.", "error", err)
+	}
+
+	var startTime time.Time
+	if userCert != nil {
+		startTime = userCert.NotBefore
+	}
+
 	// Fetch a cached request forwarder (or create one) that lives about 5
 	// minutes. Used to stream session chunks to the Audit Log.
 	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), common.MaxSessionChunkDuration)
 	session, err := utils.FnCacheGetWithTTL(r.Context(), c.cache, identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
-		session, err := c.newSessionChunk(ctx, identity, app, c.sessionStartTime(r.Context()), opts...)
-		return session, trace.Wrap(err)
+		// The FnCache loader runs on a context detached from the request, which
+		// drops request-scoped values. Re-inject the user certificate so
+		// session opts (e.g. managed upstream client certs) can read it.
+		if userCert != nil {
+			ctx = authz.ContextWithUserCertificate(ctx, userCert)
+		}
+		return c.newSessionChunk(ctx, identity, app, startTime, opts...)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -410,24 +440,15 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 	return nil
 }
 
-// sessionStartTime fetches the session start time based on the certificate
-// valid date.
-func (c *ConnectionsHandler) sessionStartTime(ctx context.Context) time.Time {
-	if userCert, err := authz.UserCertificateFromContext(ctx); err == nil {
-		return userCert.NotBefore
-	}
-
-	c.log.WarnContext(ctx, "Unable to retrieve session start time from certificate.")
-	return time.Time{}
-}
-
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
+		clock:        c.cfg.Clock,
 		emitter:      c.cfg.Emitter,
 		hostID:       c.cfg.HostID,
 		log:          c.log,
-		caGetter:     c.cfg.AccessPoint,
+		accessPoint:  c.cfg.AccessPoint,
+		authClient:   c.cfg.AuthClient,
 		clusterName:  c.clusterName,
 		cipherSuites: c.cfg.CipherSuites,
 		insecureMode: c.cfg.InsecureMode,
@@ -484,9 +505,8 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 	case app.IsGCP():
 		return c.serveSession(w, r, &identity, app, c.withGCPHandler)
 
-	// TODO(gabrielcorado): implement inference endpoint handler.
 	case app.IsLLM():
-		return trace.NotImplemented("LLM access is not implemented")
+		return c.serveSession(w, r, &identity, app, c.withLLMHandler)
 
 	default:
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
@@ -563,7 +583,11 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 	identity := authContext.Identity.GetIdentity()
 
 	// Fetch the application and check if the identity has access.
-	app, err := c.getAppByPublicAddress(ctx, identity.RouteToApp.PublicAddr)
+	app, err := c.resolveApp(
+		ctx,
+		identity.RouteToApp.Name,
+		identity.RouteToApp.PublicAddr,
+	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -865,7 +889,11 @@ func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Con
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	app, err := c.getAppByPublicAddress(ctx, user.GetIdentity().RouteToApp.PublicAddr)
+	app, err := c.resolveApp(
+		ctx,
+		user.GetIdentity().RouteToApp.Name,
+		user.GetIdentity().RouteToApp.PublicAddr,
+	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}

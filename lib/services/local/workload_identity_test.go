@@ -18,14 +18,11 @@ package local
 
 import (
 	"context"
-	"fmt"
-	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -35,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 func setupWorkloadIdentityServiceTest(
@@ -146,100 +142,62 @@ func TestWorkloadIdentityService_UpsertWorkloadIdentity(t *testing.T) {
 	})
 }
 
-func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
+func TestWorkloadIdentityService_RangeWorkloadIdentities(t *testing.T) {
 	ctx, service := setupWorkloadIdentityServiceTest(t)
-	// Create entities to list
-	createdObjects := []*workloadidentityv1pb.WorkloadIdentity{}
-	// Create 49 entities to test an incomplete page at the end.
-	for i := range 49 {
-		created, err := service.CreateWorkloadIdentity(
-			ctx,
-			newValidWorkloadIdentity(fmt.Sprintf("%d", i)),
-		)
+
+	// Create entities to range over, in non-sorted insertion order to confirm
+	// the range returns them ordered by name.
+	names := []string{"c", "a", "e", "b", "d"}
+	for _, name := range names {
+		_, err := service.CreateWorkloadIdentity(ctx, newValidWorkloadIdentity(name))
 		require.NoError(t, err)
-		createdObjects = append(createdObjects, created)
 	}
-	t.Run("default page size", func(t *testing.T) {
-		page, nextToken, err := service.ListWorkloadIdentities(ctx, 0, "", nil)
-		require.NoError(t, err)
-		require.Len(t, page, 49)
-		require.Empty(t, nextToken)
 
-		// Expect that we get all the things we have created
-		for _, created := range createdObjects {
-			require.True(t, slices.ContainsFunc(page, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
-				return proto.Equal(created, resource)
-			}))
-		}
-	})
-	t.Run("pagination", func(t *testing.T) {
-		fetched := []*workloadidentityv1pb.WorkloadIdentity{}
-		token := ""
-		iterations := 0
-		for {
-			iterations++
-			page, nextToken, err := service.ListWorkloadIdentities(ctx, 10, token, nil)
+	collect := func(start, end string) []string {
+		var got []string
+		for wi, err := range service.RangeWorkloadIdentities(ctx, start, end, "", false) {
 			require.NoError(t, err)
-			fetched = append(fetched, page...)
-			if nextToken == "" {
-				break
-			}
-			token = nextToken
+			got = append(got, wi.GetMetadata().GetName())
 		}
-		require.Equal(t, 5, iterations)
+		return got
+	}
 
-		require.Len(t, fetched, 49)
-		// Expect that we get all the things we have created
-		for _, created := range createdObjects {
-			require.True(t, slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
-				return proto.Equal(created, resource)
-			}))
+	t.Run("full range is ordered by name", func(t *testing.T) {
+		require.Equal(t, []string{"a", "b", "c", "d", "e"}, collect("", ""))
+	})
+	t.Run("bounded range is exclusive of end", func(t *testing.T) {
+		require.Equal(t, []string{"b", "c"}, collect("b", "d"))
+	})
+	t.Run("open start", func(t *testing.T) {
+		require.Equal(t, []string{"a", "b"}, collect("", "c"))
+	})
+	t.Run("open end", func(t *testing.T) {
+		require.Equal(t, []string{"d", "e"}, collect("d", ""))
+	})
+	t.Run("empty range", func(t *testing.T) {
+		require.Empty(t, collect("f", ""))
+	})
+	t.Run("explicit name sort", func(t *testing.T) {
+		var got []string
+		for wi, err := range service.RangeWorkloadIdentities(ctx, "", "", "name", false) {
+			require.NoError(t, err)
+			got = append(got, wi.GetMetadata().GetName())
 		}
+		require.Equal(t, []string{"a", "b", "c", "d", "e"}, got)
 	})
-	t.Run("default sort", func(t *testing.T) {
-		page, nextToken, err := service.ListWorkloadIdentities(ctx, 0, "", nil)
-		require.NoError(t, err)
-		require.Len(t, page, 49)
-		require.Empty(t, nextToken)
-
-		prevName := ""
-		for i := range len(page) {
-			assert.Greater(t, page[i].GetMetadata().GetName(), prevName)
-			prevName = page[i].GetMetadata().GetName()
+	t.Run("unsupported sort field errors", func(t *testing.T) {
+		var err error
+		for _, iterErr := range service.RangeWorkloadIdentities(ctx, "", "", "spiffe_id", false) {
+			err = iterErr
 		}
+		require.ErrorContains(t, err, `unsupported sort, only name field is supported, but got "spiffe_id"`)
 	})
-	t.Run("unsupported sort field error", func(t *testing.T) {
-		_, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			SortField: "blah",
-		})
-		require.ErrorContains(t, err, `unsupported sort, only name field is supported, but got "blah"`)
-	})
-	t.Run("unsupported sort order error", func(t *testing.T) {
-		_, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			SortDesc: true,
-		})
+	t.Run("descending sort errors", func(t *testing.T) {
+		var err error
+		for _, iterErr := range service.RangeWorkloadIdentities(ctx, "", "", "name", true) {
+			err = iterErr
+		}
 		require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
-	})
-	t.Run("search filter match on name", func(t *testing.T) {
-		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			FilterSearchTerm: "9",
-		})
-		require.NoError(t, err)
-		assert.Len(t, page, 4)
-	})
-	t.Run("search filter match on spiffe id", func(t *testing.T) {
-		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			FilterSearchTerm: "test/22",
-		})
-		require.NoError(t, err)
-		assert.Len(t, page, 1)
-	})
-	t.Run("search filter match on spiffe hint", func(t *testing.T) {
-		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			FilterSearchTerm: "hint 13",
-		})
-		require.NoError(t, err)
-		assert.Len(t, page, 1)
 	})
 }
 
@@ -311,16 +269,21 @@ func TestWorkloadIdentityService_DeleteAllWorkloadIdentities(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	page, _, err := service.ListWorkloadIdentities(ctx, 0, "", nil)
-	require.NoError(t, err)
-	require.Len(t, page, 2)
+	collect := func() []*workloadidentityv1pb.WorkloadIdentity {
+		var out []*workloadidentityv1pb.WorkloadIdentity
+		for wi, err := range service.RangeWorkloadIdentities(ctx, "", "", "", false) {
+			require.NoError(t, err)
+			out = append(out, wi)
+		}
+		return out
+	}
+
+	require.Len(t, collect(), 2)
 
 	err = service.DeleteAllWorkloadIdentities(ctx)
 	require.NoError(t, err)
 
-	page, _, err = service.ListWorkloadIdentities(ctx, 0, "", nil)
-	require.NoError(t, err)
-	require.Empty(t, page)
+	require.Empty(t, collect())
 }
 
 func TestWorkloadIdentityService_UpdateWorkloadIdentity(t *testing.T) {

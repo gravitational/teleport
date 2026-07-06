@@ -135,7 +135,8 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 		return trace.Wrap(err)
 	}
 	var invalidClusters []string
-	for _, resourceID := range ar.GetRequestedResourceIDs() {
+	for _, resourceAccessID := range ar.GetAllRequestedResourceIDs() {
+		resourceID := resourceAccessID.GetResourceID()
 		if resourceID.ClusterName == "" {
 			continue
 		}
@@ -222,8 +223,8 @@ func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, resourceID := range req.ResourceIDs {
-		if resourceID.ClusterName != currentCluster.GetClusterName() {
+	for _, resourceAccessID := range types.CombineAsResourceAccessIDs(req.ResourceIDs, req.ResourceAccessIds) {
+		if resourceAccessID.GetResourceID().ClusterName != currentCluster.GetClusterName() {
 			// Requested resource is from another cluster, so we can't know
 			// all of the roles which would grant access to it.
 			return false, nil
@@ -241,6 +242,7 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	}
 	if !shouldFilter && req.FilterRequestableRolesByResource {
 		req.ResourceIDs = nil
+		req.ResourceAccessIds = nil
 	}
 
 	var caps types.AccessCapabilities
@@ -251,19 +253,21 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.ResourceIDs) != 0 && !req.FilterRequestableRolesByResource {
-		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, types.ResourceIDsToResourceAccessIDs(req.ResourceIDs), req.Login)
+	resourceAccessIDs := types.CombineAsResourceAccessIDs(req.ResourceIDs, req.ResourceAccessIds)
+
+	if len(resourceAccessIDs) != 0 && !req.FilterRequestableRolesByResource {
+		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, resourceAccessIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	if req.RequestableRoles {
-		var resourceIDs []types.ResourceID
+		var requestableResourceAccessIDs []types.ResourceAccessID
 		if req.FilterRequestableRolesByResource {
-			resourceIDs = req.ResourceIDs
+			requestableResourceAccessIDs = resourceAccessIDs
 		}
-		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, types.ResourceIDsToResourceAccessIDs(resourceIDs), req.Login)
+		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, requestableResourceAccessIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -568,6 +572,12 @@ func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
 	// the backend by a teleport instance which does not support the review feature.
 	if len(req.GetThresholds()) == 0 {
 		return trace.BadParameter("request is uninitialized or does not support reviews")
+	}
+
+	// A review submitted by an identity (eg. plugin), for another user, cannot be applied to the submitter's
+	// own request.
+	if rev.SubmittedBy == req.GetUser() {
+		return trace.AccessDenied("review submitter %q cannot apply a review on their own request", rev.SubmittedBy)
 	}
 
 	// user must not have previously reviewed this request
@@ -997,6 +1007,11 @@ func (u userStateRoleOverride) GetRoles() []string {
 	return u.Roles
 }
 
+// NewReviewPermissionChecker creates a review permission checker for the Teleport user given
+// by the username and identity. The identity is used for bot users that must retain minimal
+// permissions granted by the bot identity's roles.
+// The caller of this function should verify that the username (review author) and identity
+// refer to the same user, or otherwise pass in a nil identity.
 func NewReviewPermissionChecker(
 	ctx context.Context,
 	getter RequestValidatorGetter,
@@ -1019,6 +1034,11 @@ func NewReviewPermissionChecker(
 		if identity == nil {
 			// Handle an edge case where SubmitAccessReview is being invoked
 			// in-memory but as a bot user.
+			//
+			// There should not be a scenario where a different identity (eg. plugin) submits
+			// a review for a bot user, and this check enforces it.
+			// Identities submitting for other users should only be able to create
+			// permission checkers for human users, if they are granted `submit_for_users` permissions.
 			return ReviewPermissionChecker{}, trace.BadParameter(
 				"bot user provided but identity parameter is nil",
 			)
@@ -1756,11 +1776,18 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		return nil, trace.Wrap(err)
 	}
 
-	// Filter out resources the user requested but doesn't have access to.
+	// Filter out resources the user requested but doesn't have access to and
+	// pair each remaining resource with matchers for any requested constraints.
 	filteredResources := make([]types.ResourceWithLabels, 0, len(underlyingResources))
+	constraintMatchers := make([][]RoleMatcher, 0, len(underlyingResources))
 	for _, resource := range underlyingResources {
 		if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
+			matchers, err := BuildResourceConstraintMatchers(resourceAccessIDs, resource)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			filteredResources = append(filteredResources, resource)
+			constraintMatchers = append(constraintMatchers, matchers)
 		}
 	}
 
@@ -1772,25 +1799,8 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		}
 
 		roleAllowsAccess := true
-		for _, resource := range filteredResources {
-			var extraMatchers []RoleMatcher
-			for _, raid := range resourceAccessIDs {
-				if rid := raid.GetResourceID(); rid.Name != resource.GetName() || rid.Kind != resource.GetKind() {
-					continue
-				}
-				if c := raid.GetConstraints(); c != nil {
-					rm, err := MatcherFromConstraints(raid.GetConstraints())
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					if rm != nil {
-						extraMatchers = append(extraMatchers, rm)
-					}
-					break
-				}
-			}
-
-			access, err := m.roleAllowsResource(role, resource, loginHint, extraMatchers...)
+		for i, resource := range filteredResources {
+			access, err := m.roleAllowsResource(role, resource, loginHint, constraintMatchers[i]...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

@@ -597,9 +597,6 @@ type sliceWriter struct {
 	// by the recording metadata service (currently, this is true if the session
 	// is a SSH, k8s or desktop session).
 	shouldProcessMetadata bool
-	// shouldSkipSummarize is set to true for session types that should not
-	// be summarized (e.g. desktop sessions).
-	shouldSkipSummarize bool
 	// sshSessionEndEvent is an event that marked the end of this session if it was
 	// an SSH one. It may be nil if the stream hasn't ended yet, and it may also
 	// be nil if the stream picked up after an auth server start from a point
@@ -612,6 +609,12 @@ type sliceWriter struct {
 	// point where the session end event has already been uploaded. If captured,
 	// it will be passed to the summarizer.
 	dbSessionEndEvent *apievents.DatabaseSessionEnd
+	// desktopSessionEndEvent is an event that marked the end of this session if
+	// it was a Windows desktop one. It may be nil if the stream hasn't ended
+	// yet, and it may also be nil if the stream picked up after an auth server
+	// start from a point where the session end event has already been uploaded.
+	// If captured, it will be passed to the summarizer.
+	desktopSessionEndEvent *apievents.WindowsDesktopSessionEnd
 
 	// hasSessionEnd indicates if the session end event is present.
 	hasSessionEnd bool
@@ -729,11 +732,9 @@ func (w *sliceWriter) receiveAndUpload() error {
 				w.sessionStartTime = e.WindowsDesktopSessionStart.Time
 				w.sessionType = recordingmetadata.SessionTypeDesktop
 				w.shouldProcessMetadata = true
-				w.shouldSkipSummarize = true
 
 			case *apievents.OneOf_DesktopRecording:
 				w.sessionEndTime = e.DesktopRecording.Time
-				w.shouldSkipSummarize = true
 
 			case *apievents.OneOf_SessionPrint:
 				w.sessionEndTime = e.SessionPrint.Time
@@ -750,10 +751,10 @@ func (w *sliceWriter) receiveAndUpload() error {
 				w.dbSessionEndEvent = e.DatabaseSessionEnd
 				w.hasSessionEnd = true
 			case *apievents.OneOf_WindowsDesktopSessionEnd:
+				w.desktopSessionEndEvent = e.WindowsDesktopSessionEnd
 				w.sessionEndTime = e.WindowsDesktopSessionEnd.Time
 				w.hasSessionEnd = true
 				w.shouldProcessMetadata = true
-				w.shouldSkipSummarize = true
 				w.sessionType = recordingmetadata.SessionTypeDesktop
 				if w.sessionStartTime.IsZero() {
 					w.sessionStartTime = e.WindowsDesktopSessionEnd.StartTime
@@ -904,8 +905,8 @@ func (w *sliceWriter) completeStream() {
 			case *apievents.DatabaseSessionEnd:
 				w.dbSessionEndEvent = o
 			case *apievents.WindowsDesktopSessionEnd:
+				w.desktopSessionEndEvent = o
 				w.shouldProcessMetadata = true
-				w.shouldSkipSummarize = true
 				w.sessionType = recordingmetadata.SessionTypeDesktop
 				if w.sessionStartTime.IsZero() {
 					w.sessionStartTime = o.StartTime
@@ -930,20 +931,20 @@ func (w *sliceWriter) completeStream() {
 			}
 		}
 
-		if !w.shouldSkipSummarize {
-			summarizer := w.proto.cfg.SessionSummarizerProvider.SessionSummarizer()
-			switch {
-			case w.sshSessionEndEvent != nil:
-				err = summarizer.SummarizeSSH(w.proto.cancelCtx, w.sshSessionEndEvent)
-			case w.dbSessionEndEvent != nil:
-				err = summarizer.SummarizeDatabase(w.proto.cancelCtx, w.dbSessionEndEvent)
-			default:
-				err = summarizer.SummarizeWithoutEndEvent(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
-			}
-			if err != nil {
-				slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
-				return
-			}
+		summarizer := w.proto.cfg.SessionSummarizerProvider.SessionSummarizer()
+		switch {
+		case w.sshSessionEndEvent != nil:
+			err = summarizer.SummarizeSSH(w.proto.cancelCtx, w.sshSessionEndEvent)
+		case w.dbSessionEndEvent != nil:
+			err = summarizer.SummarizeDatabase(w.proto.cancelCtx, w.dbSessionEndEvent)
+		case w.desktopSessionEndEvent != nil:
+			err = summarizer.SummarizeWindowsDesktop(w.proto.cancelCtx, w.desktopSessionEndEvent)
+		default:
+			err = summarizer.SummarizeWithoutEndEvent(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+		}
+		if err != nil {
+			slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
+			return
 		}
 	}
 }
