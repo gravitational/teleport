@@ -248,11 +248,6 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Description: "Azure is the set of Azure-specific installation parameters.",
 									Optional:    true,
 								},
-								"enroll_mode": {
-									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
-								},
 								"http_proxy_settings": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"http_proxy": {
@@ -402,11 +397,6 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 								},
-								"enroll_mode": {
-									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
-								},
 								"http_proxy_settings": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"http_proxy": {
@@ -526,11 +516,6 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									}}),
 									Description: "Azure is the set of Azure-specific installation parameters.",
 									Optional:    true,
-								},
-								"enroll_mode": {
-									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 								"http_proxy_settings": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -1182,23 +1167,6 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																	}
 																}
 																{
-																	a, ok := tf.Attrs["enroll_mode"]
-																	if !ok {
-																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Params.EnrollMode"})
-																	} else {
-																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																		} else {
-																			var t github_com_gravitational_teleport_api_types.InstallParamEnrollMode
-																			if !v.Null && !v.Unknown {
-																				t = github_com_gravitational_teleport_api_types.InstallParamEnrollMode(v.Value)
-																			}
-																			obj.EnrollMode = t
-																		}
-																	}
-																}
-																{
 																	a, ok := tf.Attrs["suffix"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Params.Suffix"})
@@ -1794,23 +1762,6 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																	}
 																}
 																{
-																	a, ok := tf.Attrs["enroll_mode"]
-																	if !ok {
-																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.azure.Params.EnrollMode"})
-																	} else {
-																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																		} else {
-																			var t github_com_gravitational_teleport_api_types.InstallParamEnrollMode
-																			if !v.Null && !v.Unknown {
-																				t = github_com_gravitational_teleport_api_types.InstallParamEnrollMode(v.Value)
-																			}
-																			obj.EnrollMode = t
-																		}
-																	}
-																}
-																{
 																	a, ok := tf.Attrs["suffix"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.azure.Params.Suffix"})
@@ -2226,23 +2177,6 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																					}
 																				}
 																			}
-																		}
-																	}
-																}
-																{
-																	a, ok := tf.Attrs["enroll_mode"]
-																	if !ok {
-																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.gcp.Params.EnrollMode"})
-																	} else {
-																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																		} else {
-																			var t github_com_gravitational_teleport_api_types.InstallParamEnrollMode
-																			if !v.Null && !v.Unknown {
-																				t = github_com_gravitational_teleport_api_types.InstallParamEnrollMode(v.Value)
-																			}
-																			obj.EnrollMode = t
 																		}
 																	}
 																}
@@ -3586,28 +3520,6 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																}
 															}
 															{
-																t, ok := tf.AttrTypes["enroll_mode"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Params.EnrollMode"})
-																} else {
-																	v, ok := tf.Attrs["enroll_mode"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-																	if !ok {
-																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.EnrollMode", err})
-																		}
-																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																		}
-																		v.Null = int64(obj.EnrollMode) == 0
-																	}
-																	v.Value = int64(obj.EnrollMode)
-																	v.Unknown = false
-																	tf.Attrs["enroll_mode"] = v
-																}
-															}
-															{
 																t, ok := tf.AttrTypes["suffix"]
 																if !ok {
 																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Params.Suffix"})
@@ -4559,28 +4471,6 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																}
 															}
 															{
-																t, ok := tf.AttrTypes["enroll_mode"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.azure.Params.EnrollMode"})
-																} else {
-																	v, ok := tf.Attrs["enroll_mode"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-																	if !ok {
-																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.EnrollMode", err})
-																		}
-																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																		}
-																		v.Null = int64(obj.EnrollMode) == 0
-																	}
-																	v.Value = int64(obj.EnrollMode)
-																	v.Unknown = false
-																	tf.Attrs["enroll_mode"] = v
-																}
-															}
-															{
 																t, ok := tf.AttrTypes["suffix"]
 																if !ok {
 																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.azure.Params.Suffix"})
@@ -5239,28 +5129,6 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																		v.Unknown = false
 																		tf.Attrs["azure"] = v
 																	}
-																}
-															}
-															{
-																t, ok := tf.AttrTypes["enroll_mode"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.gcp.Params.EnrollMode"})
-																} else {
-																	v, ok := tf.Attrs["enroll_mode"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-																	if !ok {
-																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.EnrollMode", err})
-																		}
-																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																		}
-																		v.Null = int64(obj.EnrollMode) == 0
-																	}
-																	v.Value = int64(obj.EnrollMode)
-																	v.Unknown = false
-																	tf.Attrs["enroll_mode"] = v
 																}
 															}
 															{

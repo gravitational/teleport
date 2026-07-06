@@ -2050,10 +2050,6 @@ type InstallParams struct {
 	PublicProxyAddr string `yaml:"public_proxy_addr,omitempty"`
 	// Azure is te set of installation parameters specific to Azure.
 	Azure *AzureInstallParams `yaml:"azure,omitempty"`
-	// EnrollMode indicates the mode used to enroll the node into Teleport.
-	// Valid values: script, eice.
-	// Optional.
-	EnrollMode string `yaml:"enroll_mode"`
 	// Suffix indicates the installation suffix for the teleport installation.
 	// Set this value if you want multiple installations of Teleport.
 	// See --install-suffix flag in teleport-update program.
@@ -2079,11 +2075,10 @@ type HTTPProxySettings struct {
 }
 
 const (
-	installEnrollModeEICE   = "eice"
 	installEnrollModeScript = "script"
 )
 
-var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeScript}
+var validInstallEnrollModes = []string{installEnrollModeScript}
 
 func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
@@ -2092,7 +2087,6 @@ func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams,
 		ScriptName:      ip.ScriptName,
 		InstallTeleport: true,
 		SSHDConfig:      ip.SSHDConfig,
-		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
 		Suffix:          ip.Suffix,
 		UpdateGroup:     ip.UpdateGroup,
 		PublicProxyAddr: cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
@@ -2108,17 +2102,6 @@ func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams,
 		if err := install.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-
-	switch ip.EnrollMode {
-	case installEnrollModeEICE:
-		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE
-	case installEnrollModeScript:
-		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT
-	case "":
-		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED
-	default:
-		return nil, trace.BadParameter("enroll mode %q is invalid, valid values: %v", ip.EnrollMode, validInstallEnrollModes)
 	}
 
 	if ip.Azure != nil {

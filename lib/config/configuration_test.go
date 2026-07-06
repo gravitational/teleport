@@ -961,7 +961,6 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 		JoinToken:       types.IAMInviteTokenName,
 		ScriptName:      "default-installer",
 		SSHDConfig:      types.SSHDConfigPath,
-		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 	}, cfg.Discovery.AWSMatchers[0].Params)
 
 	require.True(t, cfg.Okta.Enabled)
@@ -5475,7 +5474,6 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					ScriptName:      installers.InstallerScriptName,
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &types.AWSSSM{DocumentName: types.AWSInstallerDocument},
 			}},
@@ -5514,7 +5512,6 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					ScriptName:      installers.InstallerScriptName,
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &types.AWSSSM{DocumentName: types.AWSInstallerDocument},
 			}},
@@ -5560,7 +5557,6 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					ScriptName:      "installer-custom",
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 					Suffix:          "blue",
 				},
 				SSM: &types.AWSSSM{DocumentName: "hello_document"},
@@ -5569,67 +5565,6 @@ func TestDiscoveryConfig(t *testing.T) {
 					ExternalID: "externalID123",
 				},
 			}},
-		},
-		{
-			desc:          "AWS section with eice enroll mode, returns an error",
-			expectError:   require.Error,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":   []string{"ec2"},
-						"regions": []string{"eu-central-1"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-						"install": cfgMap{
-							"join_params": cfgMap{
-								"token_name": "hello-iam-a-token",
-								"method":     "iam",
-							},
-							"script_name": "installer-custom",
-							"enroll_mode": "eice",
-						},
-						"ssm": cfgMap{
-							"document_name": "hello_document",
-						},
-						"assume_role_arn": "arn:aws:iam::123456789012:role/DBDiscoverer",
-						"external_id":     "externalID123",
-						"integration":     "my-integration",
-					},
-				}
-			},
-		},
-		{
-			desc:          "AWS cannot use EICE mode without integration",
-			expectError:   require.Error,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":   []string{"ec2"},
-						"regions": []string{"eu-central-1"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-						"install": cfgMap{
-							"join_params": cfgMap{
-								"token_name": "hello-iam-a-token",
-								"method":     "iam",
-							},
-							"script_name": "installer-custom",
-							"enroll_mode": "eice",
-						},
-						"ssm": cfgMap{
-							"document_name": "hello_document",
-						},
-						"assume_role_arn": "arn:aws:iam::123456789012:role/DBDiscoverer",
-						"external_id":     "externalID123",
-					},
-				}
-			},
 		},
 		{
 			desc:          "AWS section is filled with invalid region",
@@ -5676,7 +5611,6 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					ScriptName:      "default-installer",
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 			}},
@@ -5815,7 +5749,6 @@ func TestDiscoveryConfig(t *testing.T) {
 					ScriptName:      installers.InstallerScriptName,
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 			}},
 		},
@@ -5855,7 +5788,6 @@ func TestDiscoveryConfig(t *testing.T) {
 					ScriptName:      installers.InstallerScriptName,
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 					HTTPProxySettings: &types.HTTPProxySettings{
 						HTTPProxy:  "http://squid-local:8080",
 						HTTPSProxy: "http://squid-local:8081",
@@ -5900,7 +5832,6 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					ScriptName:      "default-installer",
 					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 				AssumeRole: &types.AssumeRole{

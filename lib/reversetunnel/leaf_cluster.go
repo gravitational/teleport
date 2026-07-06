@@ -920,7 +920,6 @@ func (s *leafCluster) dialAndForward(params reversetunnelclient.DialParams) (_ n
 		LockWatcher:              s.srv.LockWatcher,
 		TargetServer:             params.TargetServer,
 		Clock:                    s.clock,
-		EICESigner:               s.srv.EICESigner,
 	}
 	forwardingServer, err := forward.New(serverConfig)
 	if err != nil {

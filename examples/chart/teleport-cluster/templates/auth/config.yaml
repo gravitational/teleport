@@ -67,7 +67,7 @@ data:
     spec:
       allow:
         # The operator role can see all nodes.
-        # This is required to reconcile OpenSSH and OpenSSHEICE nodes.
+        # This is required to reconcile OpenSSH nodes.
         # However, it has no login set, so it cannot SSH on them
         node_labels:
           "*": ["*"]

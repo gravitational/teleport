@@ -72,6 +72,15 @@ the output was written to stderr, rather than stdout. `--help` output now
 goes to stdout, and contains info on only one level of subcommands. Affected
 programs include `teleport`, `tsh`, `tctl`, `tbot`, and `teleport-update`.
 
+#### Access AWS EC2 nodes using EC2 Instance Connect Endpoint (EICE)
+
+Discovering and accessing EC2 instances using the EICE is no longer possible.
+
+Remove any configuration related to enrolling EC2 instances using the EICE mode,
+which might exist in Discovery Config resources (`tctl get discovery_config`) or in `teleport.yaml` which has EC2 matchers.
+
+Alternatives are: agent or agentless discovery of EC2 instances.
+
 ## 18.5.0 (12/04/25)
 
 ### Kubernetes support for Relay Service

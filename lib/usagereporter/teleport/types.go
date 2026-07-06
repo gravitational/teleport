@@ -779,13 +779,12 @@ func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEven
 type ResourceKind = prehogv1a.ResourceKind
 
 const (
-	ResourceKindNode            = prehogv1a.ResourceKind_RESOURCE_KIND_NODE
-	ResourceKindAppServer       = prehogv1a.ResourceKind_RESOURCE_KIND_APP_SERVER
-	ResourceKindKubeServer      = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
-	ResourceKindDBServer        = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
-	ResourceKindWindowsDesktop  = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
-	ResourceKindNodeOpenSSH     = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
-	ResourceKindNodeOpenSSHEICE = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH_EICE
+	ResourceKindNode           = prehogv1a.ResourceKind_RESOURCE_KIND_NODE
+	ResourceKindAppServer      = prehogv1a.ResourceKind_RESOURCE_KIND_APP_SERVER
+	ResourceKindKubeServer     = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
+	ResourceKindDBServer       = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
+	ResourceKindWindowsDesktop = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindNodeOpenSSH    = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
 )
 
 func ResourceKindFromKeepAliveType(t types.KeepAlive_KeepAliveType) ResourceKind {
@@ -1831,17 +1830,6 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverEc2InstanceSelection.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverEc2InstanceSelection.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverEc2InstanceSelection.Status),
-		}
-		if err := ret.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return ret, nil
-	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployEice:
-		ret := &UIDiscoverDeployEICEEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployEice.Metadata, userMD),
-			Resource: discoverResourceToPrehog(e.UiDiscoverDeployEice.Resource),
-			Status:   discoverStatusToPrehog(e.UiDiscoverDeployEice.Status),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

@@ -517,12 +517,8 @@ type Server interface {
 	GetAWSInfo() *types.AWSInfo
 
 	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
+	// This returns true for SubKindOpenSSHNode.
 	IsOpenSSHNode() bool
-
-	// IsEICE returns whether the Node is an EICE instance.
-	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
-	IsEICE() bool
 
 	// GetAWSInstanceID returns the AWS Instance ID if this node comes from an EC2 instance.
 	GetAWSInstanceID() string
