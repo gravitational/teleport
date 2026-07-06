@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.9.2"
+const Version = "18.10.1-dev.terraform.1"
 
 const VersionMajor = 18
-const VersionMinor = 9
-const VersionPatch = 2
-const VersionPreRelease = ""
+const VersionMinor = 10
+const VersionPatch = 1
+const VersionPreRelease = "dev.terraform.1"
 const VersionMetadata = ""
