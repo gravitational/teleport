@@ -182,7 +182,7 @@ func (r resourceTeleportClientIPRestriction) Create(ctx context.Context, req tfs
 		Target:  []string{
 			"active",
 		},
-		Timeout:      900 * time.Second,
+		Timeout:      1200 * time.Second,
 		PollInterval: 30 * time.Second,
 		Refresh: func() (any, string, error) {
 			clientIPRestriction, err := r.p.Client.GetClientIPRestriction(ctx)
@@ -355,7 +355,7 @@ func (r resourceTeleportClientIPRestriction) Update(ctx context.Context, req tfs
 		Target:  []string{
 			"active",
 		},
-		Timeout:      900 * time.Second,
+		Timeout:      1200 * time.Second,
 		PollInterval: 30 * time.Second,
 		Refresh: func() (any, string, error) {
 			clientIPRestriction, err := r.p.Client.GetClientIPRestriction(ctx)
