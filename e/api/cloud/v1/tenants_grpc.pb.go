@@ -108,6 +108,16 @@ type TenantsServiceClient interface {
 	GetClientIPRestrictions(ctx context.Context, in *GetClientIPRestrictionsRequest, opts ...grpc.CallOption) (*GetClientIPRestrictionsResponse, error)
 	// PutClientIPRestrictions replaces the tenant's client IP ingress allow list.
 	PutClientIPRestrictions(ctx context.Context, in *PutClientIPRestrictionsRequest, opts ...grpc.CallOption) (*PutClientIPRestrictionsResponse, error)
+	// GetClientIPRestriction returns the ClientIPRestriction resource for the authenticated tenant.
+	GetClientIPRestriction(ctx context.Context, in *GetClientIPRestrictionRequest, opts ...grpc.CallOption) (*GetClientIPRestrictionResponse, error)
+	// CreateClientIPRestriction creates a ClientIPRestriction for the authenticated tenant.
+	CreateClientIPRestriction(ctx context.Context, in *CreateClientIPRestrictionRequest, opts ...grpc.CallOption) (*CreateClientIPRestrictionResponse, error)
+	// UpdateClientIPRestriction updates the ClientIPRestriction for the authenticated tenant.
+	UpdateClientIPRestriction(ctx context.Context, in *UpdateClientIPRestrictionRequest, opts ...grpc.CallOption) (*UpdateClientIPRestrictionResponse, error)
+	// UpsertClientIPRestriction creates or replaces the ClientIPRestriction for the authenticated tenant.
+	UpsertClientIPRestriction(ctx context.Context, in *UpsertClientIPRestrictionRequest, opts ...grpc.CallOption) (*UpsertClientIPRestrictionResponse, error)
+	// DeleteClientIPRestriction removes the ClientIPRestriction for the authenticated tenant.
+	DeleteClientIPRestriction(ctx context.Context, in *DeleteClientIPRestrictionRequest, opts ...grpc.CallOption) (*DeleteClientIPRestrictionResponse, error)
 	// Deprecated: Do not use.
 	// ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
 	ChildCluster(ctx context.Context, in *ChildClusterRequest, opts ...grpc.CallOption) (*ChildClusterResponse, error)
@@ -453,6 +463,51 @@ func (c *tenantsServiceClient) PutClientIPRestrictions(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *tenantsServiceClient) GetClientIPRestriction(ctx context.Context, in *GetClientIPRestrictionRequest, opts ...grpc.CallOption) (*GetClientIPRestrictionResponse, error) {
+	out := new(GetClientIPRestrictionResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetClientIPRestriction", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) CreateClientIPRestriction(ctx context.Context, in *CreateClientIPRestrictionRequest, opts ...grpc.CallOption) (*CreateClientIPRestrictionResponse, error) {
+	out := new(CreateClientIPRestrictionResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/CreateClientIPRestriction", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) UpdateClientIPRestriction(ctx context.Context, in *UpdateClientIPRestrictionRequest, opts ...grpc.CallOption) (*UpdateClientIPRestrictionResponse, error) {
+	out := new(UpdateClientIPRestrictionResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdateClientIPRestriction", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) UpsertClientIPRestriction(ctx context.Context, in *UpsertClientIPRestrictionRequest, opts ...grpc.CallOption) (*UpsertClientIPRestrictionResponse, error) {
+	out := new(UpsertClientIPRestrictionResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpsertClientIPRestriction", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) DeleteClientIPRestriction(ctx context.Context, in *DeleteClientIPRestrictionRequest, opts ...grpc.CallOption) (*DeleteClientIPRestrictionResponse, error) {
+	out := new(DeleteClientIPRestrictionResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/DeleteClientIPRestriction", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Deprecated: Do not use.
 func (c *tenantsServiceClient) ChildCluster(ctx context.Context, in *ChildClusterRequest, opts ...grpc.CallOption) (*ChildClusterResponse, error) {
 	out := new(ChildClusterResponse)
@@ -639,6 +694,16 @@ type TenantsServiceServer interface {
 	GetClientIPRestrictions(context.Context, *GetClientIPRestrictionsRequest) (*GetClientIPRestrictionsResponse, error)
 	// PutClientIPRestrictions replaces the tenant's client IP ingress allow list.
 	PutClientIPRestrictions(context.Context, *PutClientIPRestrictionsRequest) (*PutClientIPRestrictionsResponse, error)
+	// GetClientIPRestriction returns the ClientIPRestriction resource for the authenticated tenant.
+	GetClientIPRestriction(context.Context, *GetClientIPRestrictionRequest) (*GetClientIPRestrictionResponse, error)
+	// CreateClientIPRestriction creates a ClientIPRestriction for the authenticated tenant.
+	CreateClientIPRestriction(context.Context, *CreateClientIPRestrictionRequest) (*CreateClientIPRestrictionResponse, error)
+	// UpdateClientIPRestriction updates the ClientIPRestriction for the authenticated tenant.
+	UpdateClientIPRestriction(context.Context, *UpdateClientIPRestrictionRequest) (*UpdateClientIPRestrictionResponse, error)
+	// UpsertClientIPRestriction creates or replaces the ClientIPRestriction for the authenticated tenant.
+	UpsertClientIPRestriction(context.Context, *UpsertClientIPRestrictionRequest) (*UpsertClientIPRestrictionResponse, error)
+	// DeleteClientIPRestriction removes the ClientIPRestriction for the authenticated tenant.
+	DeleteClientIPRestriction(context.Context, *DeleteClientIPRestrictionRequest) (*DeleteClientIPRestrictionResponse, error)
 	// Deprecated: Do not use.
 	// ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
 	ChildCluster(context.Context, *ChildClusterRequest) (*ChildClusterResponse, error)
@@ -766,6 +831,21 @@ func (UnimplementedTenantsServiceServer) GetClientIPRestrictions(context.Context
 }
 func (UnimplementedTenantsServiceServer) PutClientIPRestrictions(context.Context, *PutClientIPRestrictionsRequest) (*PutClientIPRestrictionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutClientIPRestrictions not implemented")
+}
+func (UnimplementedTenantsServiceServer) GetClientIPRestriction(context.Context, *GetClientIPRestrictionRequest) (*GetClientIPRestrictionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClientIPRestriction not implemented")
+}
+func (UnimplementedTenantsServiceServer) CreateClientIPRestriction(context.Context, *CreateClientIPRestrictionRequest) (*CreateClientIPRestrictionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateClientIPRestriction not implemented")
+}
+func (UnimplementedTenantsServiceServer) UpdateClientIPRestriction(context.Context, *UpdateClientIPRestrictionRequest) (*UpdateClientIPRestrictionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateClientIPRestriction not implemented")
+}
+func (UnimplementedTenantsServiceServer) UpsertClientIPRestriction(context.Context, *UpsertClientIPRestrictionRequest) (*UpsertClientIPRestrictionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertClientIPRestriction not implemented")
+}
+func (UnimplementedTenantsServiceServer) DeleteClientIPRestriction(context.Context, *DeleteClientIPRestrictionRequest) (*DeleteClientIPRestrictionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteClientIPRestriction not implemented")
 }
 func (UnimplementedTenantsServiceServer) ChildCluster(context.Context, *ChildClusterRequest) (*ChildClusterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ChildCluster not implemented")
@@ -1416,6 +1496,96 @@ func _TenantsService_PutClientIPRestrictions_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TenantsService_GetClientIPRestriction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClientIPRestrictionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetClientIPRestriction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetClientIPRestriction",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetClientIPRestriction(ctx, req.(*GetClientIPRestrictionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_CreateClientIPRestriction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateClientIPRestrictionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).CreateClientIPRestriction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/CreateClientIPRestriction",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).CreateClientIPRestriction(ctx, req.(*CreateClientIPRestrictionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_UpdateClientIPRestriction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateClientIPRestrictionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).UpdateClientIPRestriction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/UpdateClientIPRestriction",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).UpdateClientIPRestriction(ctx, req.(*UpdateClientIPRestrictionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_UpsertClientIPRestriction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertClientIPRestrictionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).UpsertClientIPRestriction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/UpsertClientIPRestriction",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).UpsertClientIPRestriction(ctx, req.(*UpsertClientIPRestrictionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_DeleteClientIPRestriction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteClientIPRestrictionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).DeleteClientIPRestriction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/DeleteClientIPRestriction",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).DeleteClientIPRestriction(ctx, req.(*DeleteClientIPRestrictionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TenantsService_ChildCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ChildClusterRequest)
 	if err := dec(in); err != nil {
@@ -1705,6 +1875,26 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PutClientIPRestrictions",
 			Handler:    _TenantsService_PutClientIPRestrictions_Handler,
+		},
+		{
+			MethodName: "GetClientIPRestriction",
+			Handler:    _TenantsService_GetClientIPRestriction_Handler,
+		},
+		{
+			MethodName: "CreateClientIPRestriction",
+			Handler:    _TenantsService_CreateClientIPRestriction_Handler,
+		},
+		{
+			MethodName: "UpdateClientIPRestriction",
+			Handler:    _TenantsService_UpdateClientIPRestriction_Handler,
+		},
+		{
+			MethodName: "UpsertClientIPRestriction",
+			Handler:    _TenantsService_UpsertClientIPRestriction_Handler,
+		},
+		{
+			MethodName: "DeleteClientIPRestriction",
+			Handler:    _TenantsService_DeleteClientIPRestriction_Handler,
 		},
 		{
 			MethodName: "ChildCluster",

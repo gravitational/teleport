@@ -23,6 +23,16 @@ import type { GetFileRequest } from "./tenants_pb";
 import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
 import type { ChildClusterResponse } from "./tenants_pb";
 import type { ChildClusterRequest } from "./tenants_pb";
+import type { DeleteClientIPRestrictionResponse } from "./tenants_pb";
+import type { DeleteClientIPRestrictionRequest } from "./tenants_pb";
+import type { UpsertClientIPRestrictionResponse } from "./tenants_pb";
+import type { UpsertClientIPRestrictionRequest } from "./tenants_pb";
+import type { UpdateClientIPRestrictionResponse } from "./tenants_pb";
+import type { UpdateClientIPRestrictionRequest } from "./tenants_pb";
+import type { CreateClientIPRestrictionResponse } from "./tenants_pb";
+import type { CreateClientIPRestrictionRequest } from "./tenants_pb";
+import type { GetClientIPRestrictionResponse } from "./tenants_pb";
+import type { GetClientIPRestrictionRequest } from "./tenants_pb";
 import type { PutClientIPRestrictionsResponse } from "./tenants_pb";
 import type { PutClientIPRestrictionsRequest } from "./tenants_pb";
 import type { GetClientIPRestrictionsResponse } from "./tenants_pb";
@@ -298,6 +308,36 @@ export interface ITenantsServiceClient {
      * @generated from protobuf rpc: PutClientIPRestrictions
      */
     putClientIPRestrictions(input: PutClientIPRestrictionsRequest, options?: RpcOptions): UnaryCall<PutClientIPRestrictionsRequest, PutClientIPRestrictionsResponse>;
+    /**
+     * GetClientIPRestriction returns the ClientIPRestriction resource for the authenticated tenant.
+     *
+     * @generated from protobuf rpc: GetClientIPRestriction
+     */
+    getClientIPRestriction(input: GetClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<GetClientIPRestrictionRequest, GetClientIPRestrictionResponse>;
+    /**
+     * CreateClientIPRestriction creates a ClientIPRestriction for the authenticated tenant.
+     *
+     * @generated from protobuf rpc: CreateClientIPRestriction
+     */
+    createClientIPRestriction(input: CreateClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<CreateClientIPRestrictionRequest, CreateClientIPRestrictionResponse>;
+    /**
+     * UpdateClientIPRestriction updates the ClientIPRestriction for the authenticated tenant.
+     *
+     * @generated from protobuf rpc: UpdateClientIPRestriction
+     */
+    updateClientIPRestriction(input: UpdateClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<UpdateClientIPRestrictionRequest, UpdateClientIPRestrictionResponse>;
+    /**
+     * UpsertClientIPRestriction creates or replaces the ClientIPRestriction for the authenticated tenant.
+     *
+     * @generated from protobuf rpc: UpsertClientIPRestriction
+     */
+    upsertClientIPRestriction(input: UpsertClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<UpsertClientIPRestrictionRequest, UpsertClientIPRestrictionResponse>;
+    /**
+     * DeleteClientIPRestriction removes the ClientIPRestriction for the authenticated tenant.
+     *
+     * @generated from protobuf rpc: DeleteClientIPRestriction
+     */
+    deleteClientIPRestriction(input: DeleteClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<DeleteClientIPRestrictionRequest, DeleteClientIPRestrictionResponse>;
     /**
      * ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
      *
@@ -686,13 +726,58 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
         return stackIntercept<PutClientIPRestrictionsRequest, PutClientIPRestrictionsResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * GetClientIPRestriction returns the ClientIPRestriction resource for the authenticated tenant.
+     *
+     * @generated from protobuf rpc: GetClientIPRestriction
+     */
+    getClientIPRestriction(input: GetClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<GetClientIPRestrictionRequest, GetClientIPRestrictionResponse> {
+        const method = this.methods[34], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetClientIPRestrictionRequest, GetClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * CreateClientIPRestriction creates a ClientIPRestriction for the authenticated tenant.
+     *
+     * @generated from protobuf rpc: CreateClientIPRestriction
+     */
+    createClientIPRestriction(input: CreateClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<CreateClientIPRestrictionRequest, CreateClientIPRestrictionResponse> {
+        const method = this.methods[35], opt = this._transport.mergeOptions(options);
+        return stackIntercept<CreateClientIPRestrictionRequest, CreateClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * UpdateClientIPRestriction updates the ClientIPRestriction for the authenticated tenant.
+     *
+     * @generated from protobuf rpc: UpdateClientIPRestriction
+     */
+    updateClientIPRestriction(input: UpdateClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<UpdateClientIPRestrictionRequest, UpdateClientIPRestrictionResponse> {
+        const method = this.methods[36], opt = this._transport.mergeOptions(options);
+        return stackIntercept<UpdateClientIPRestrictionRequest, UpdateClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * UpsertClientIPRestriction creates or replaces the ClientIPRestriction for the authenticated tenant.
+     *
+     * @generated from protobuf rpc: UpsertClientIPRestriction
+     */
+    upsertClientIPRestriction(input: UpsertClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<UpsertClientIPRestrictionRequest, UpsertClientIPRestrictionResponse> {
+        const method = this.methods[37], opt = this._transport.mergeOptions(options);
+        return stackIntercept<UpsertClientIPRestrictionRequest, UpsertClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * DeleteClientIPRestriction removes the ClientIPRestriction for the authenticated tenant.
+     *
+     * @generated from protobuf rpc: DeleteClientIPRestriction
+     */
+    deleteClientIPRestriction(input: DeleteClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<DeleteClientIPRestrictionRequest, DeleteClientIPRestrictionResponse> {
+        const method = this.methods[38], opt = this._transport.mergeOptions(options);
+        return stackIntercept<DeleteClientIPRestrictionRequest, DeleteClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
      *
      * @deprecated
      * @generated from protobuf rpc: ChildCluster
      */
     childCluster(input: ChildClusterRequest, options?: RpcOptions): UnaryCall<ChildClusterRequest, ChildClusterResponse> {
-        const method = this.methods[34], opt = this._transport.mergeOptions(options);
+        const method = this.methods[39], opt = this._transport.mergeOptions(options);
         return stackIntercept<ChildClusterRequest, ChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -703,7 +788,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetFile
      */
     getFile(input: GetFileRequest, options?: RpcOptions): ServerStreamingCall<GetFileRequest, GetFileResponse> {
-        const method = this.methods[35], opt = this._transport.mergeOptions(options);
+        const method = this.methods[40], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetFileRequest, GetFileResponse>("serverStreaming", this._transport, method, opt, input);
     }
     /**
@@ -712,7 +797,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CreateChildCluster
      */
     createChildCluster(input: CreateChildClusterRequest, options?: RpcOptions): UnaryCall<CreateChildClusterRequest, CreateChildClusterResponse> {
-        const method = this.methods[36], opt = this._transport.mergeOptions(options);
+        const method = this.methods[41], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateChildClusterRequest, CreateChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -721,7 +806,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetChildCluster
      */
     getChildCluster(input: GetChildClusterRequest, options?: RpcOptions): UnaryCall<GetChildClusterRequest, GetChildClusterResponse> {
-        const method = this.methods[37], opt = this._transport.mergeOptions(options);
+        const method = this.methods[42], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetChildClusterRequest, GetChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -730,7 +815,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateChildCluster
      */
     updateChildCluster(input: UpdateChildClusterRequest, options?: RpcOptions): UnaryCall<UpdateChildClusterRequest, UpdateChildClusterResponse> {
-        const method = this.methods[38], opt = this._transport.mergeOptions(options);
+        const method = this.methods[43], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateChildClusterRequest, UpdateChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -739,7 +824,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpsertChildCluster
      */
     upsertChildCluster(input: UpsertChildClusterRequest, options?: RpcOptions): UnaryCall<UpsertChildClusterRequest, UpsertChildClusterResponse> {
-        const method = this.methods[39], opt = this._transport.mergeOptions(options);
+        const method = this.methods[44], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpsertChildClusterRequest, UpsertChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -748,7 +833,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SuspendChildCluster
      */
     suspendChildCluster(input: SuspendChildClusterRequest, options?: RpcOptions): UnaryCall<SuspendChildClusterRequest, SuspendChildClusterResponse> {
-        const method = this.methods[40], opt = this._transport.mergeOptions(options);
+        const method = this.methods[45], opt = this._transport.mergeOptions(options);
         return stackIntercept<SuspendChildClusterRequest, SuspendChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -757,7 +842,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: ListChildClusters
      */
     listChildClusters(input: ListChildClustersRequest, options?: RpcOptions): UnaryCall<ListChildClustersRequest, ListChildClustersResponse> {
-        const method = this.methods[41], opt = this._transport.mergeOptions(options);
+        const method = this.methods[46], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListChildClustersRequest, ListChildClustersResponse>("unary", this._transport, method, opt, input);
     }
 }

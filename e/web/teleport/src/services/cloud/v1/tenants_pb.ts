@@ -1880,6 +1880,149 @@ export interface CIDR {
     cidr: string;
 }
 /**
+ * ClientIPRestriction represents the client IP restriction resource.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.ClientIPRestriction
+ */
+export interface ClientIPRestriction {
+    /**
+     * cidrs is the list of allowed ingress CIDR blocks.
+     *
+     * @generated from protobuf field: repeated string cidrs = 1
+     */
+    cidrs: string[];
+    /**
+     * revision is the resource revision UUID, changes on every write.
+     *
+     * @generated from protobuf field: string revision = 2
+     */
+    revision: string;
+    /**
+     * status is the current status of the restriction.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ClientIPRestrictionStatus status = 3
+     */
+    status: ClientIPRestrictionStatus;
+}
+/**
+ * GetClientIPRestrictionRequest is the request for GetClientIPRestriction.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetClientIPRestrictionRequest
+ */
+export interface GetClientIPRestrictionRequest {
+}
+/**
+ * GetClientIPRestrictionResponse is the response from GetClientIPRestriction.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetClientIPRestrictionResponse
+ */
+export interface GetClientIPRestrictionResponse {
+    /**
+     * client_ip_restriction is the current ClientIPRestriction for the tenant.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction = 1
+     */
+    clientIpRestriction?: ClientIPRestriction;
+}
+/**
+ * CreateClientIPRestrictionRequest is the request for CreateClientIPRestriction.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.CreateClientIPRestrictionRequest
+ */
+export interface CreateClientIPRestrictionRequest {
+    /**
+     * cidrs is the list of allowed ingress CIDR blocks.
+     *
+     * @generated from protobuf field: repeated string cidrs = 1
+     */
+    cidrs: string[];
+}
+/**
+ * CreateClientIPRestrictionResponse is the response from CreateClientIPRestriction.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.CreateClientIPRestrictionResponse
+ */
+export interface CreateClientIPRestrictionResponse {
+    /**
+     * client_ip_restriction is the created ClientIPRestriction.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction = 1
+     */
+    clientIpRestriction?: ClientIPRestriction;
+}
+/**
+ * UpdateClientIPRestrictionRequest is the request for UpdateClientIPRestriction.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UpdateClientIPRestrictionRequest
+ */
+export interface UpdateClientIPRestrictionRequest {
+    /**
+     * cidrs is the list of allowed ingress CIDR blocks.
+     *
+     * @generated from protobuf field: repeated string cidrs = 1
+     */
+    cidrs: string[];
+    /**
+     * revision must match the current resource revision.
+     *
+     * @generated from protobuf field: string revision = 2
+     */
+    revision: string;
+}
+/**
+ * UpdateClientIPRestrictionResponse is the response from UpdateClientIPRestriction.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UpdateClientIPRestrictionResponse
+ */
+export interface UpdateClientIPRestrictionResponse {
+    /**
+     * client_ip_restriction is the updated ClientIPRestriction.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction = 1
+     */
+    clientIpRestriction?: ClientIPRestriction;
+}
+/**
+ * UpsertClientIPRestrictionRequest is the request for UpsertClientIPRestriction.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UpsertClientIPRestrictionRequest
+ */
+export interface UpsertClientIPRestrictionRequest {
+    /**
+     * cidrs is the list of allowed ingress CIDR blocks.
+     *
+     * @generated from protobuf field: repeated string cidrs = 1
+     */
+    cidrs: string[];
+}
+/**
+ * UpsertClientIPRestrictionResponse is the response from UpsertClientIPRestriction.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UpsertClientIPRestrictionResponse
+ */
+export interface UpsertClientIPRestrictionResponse {
+    /**
+     * client_ip_restriction is the upserted ClientIPRestriction.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction = 1
+     */
+    clientIpRestriction?: ClientIPRestriction;
+}
+/**
+ * DeleteClientIPRestrictionRequest is the request for DeleteClientIPRestriction.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.DeleteClientIPRestrictionRequest
+ */
+export interface DeleteClientIPRestrictionRequest {
+}
+/**
+ * DeleteClientIPRestrictionResponse is the response from DeleteClientIPRestriction.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.DeleteClientIPRestrictionResponse
+ */
+export interface DeleteClientIPRestrictionResponse {
+}
+/**
  * @generated from protobuf message gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest
  */
 export interface PutClientIPRestrictionsRequest {
@@ -2708,6 +2851,31 @@ export enum ContactState {
      * @generated from protobuf enum value: CONTACT_STATE_EXPIRED = 3;
      */
     EXPIRED = 3
+}
+/**
+ * ClientIPRestrictionStatus is the status of a ClientIPRestriction resource.
+ *
+ * @generated from protobuf enum gravitational.cloud.tenants.v1.ClientIPRestrictionStatus
+ */
+export enum ClientIPRestrictionStatus {
+    /**
+     * @generated from protobuf enum value: CLIENT_IP_RESTRICTION_STATUS_UNSPECIFIED = 0;
+     */
+    CLIENT_IP_RESTRICTION_STATUS_UNSPECIFIED = 0,
+    /**
+     * CLIENT_IP_RESTRICTION_STATUS_PENDING means the restriction has been written
+     * but has not yet been applied by the controller.
+     *
+     * @generated from protobuf enum value: CLIENT_IP_RESTRICTION_STATUS_PENDING = 1;
+     */
+    CLIENT_IP_RESTRICTION_STATUS_PENDING = 1,
+    /**
+     * CLIENT_IP_RESTRICTION_STATUS_ACTIVE means the restriction is applied and
+     * only IPs within the allowlist can reach the tenant.
+     *
+     * @generated from protobuf enum value: CLIENT_IP_RESTRICTION_STATUS_ACTIVE = 2;
+     */
+    CLIENT_IP_RESTRICTION_STATUS_ACTIVE = 2
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StripeBillingAddressRequest$Type extends MessageType<StripeBillingAddressRequest> {
@@ -6770,6 +6938,516 @@ class CIDR$Type extends MessageType<CIDR> {
  */
 export const CIDR = new CIDR$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class ClientIPRestriction$Type extends MessageType<ClientIPRestriction> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.ClientIPRestriction", [
+            { no: 1, name: "cidrs", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "revision", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "status", kind: "enum", T: () => ["gravitational.cloud.tenants.v1.ClientIPRestrictionStatus", ClientIPRestrictionStatus] }
+        ]);
+    }
+    create(value?: PartialMessage<ClientIPRestriction>): ClientIPRestriction {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.cidrs = [];
+        message.revision = "";
+        message.status = 0;
+        if (value !== undefined)
+            reflectionMergePartial<ClientIPRestriction>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ClientIPRestriction): ClientIPRestriction {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string cidrs */ 1:
+                    message.cidrs.push(reader.string());
+                    break;
+                case /* string revision */ 2:
+                    message.revision = reader.string();
+                    break;
+                case /* gravitational.cloud.tenants.v1.ClientIPRestrictionStatus status */ 3:
+                    message.status = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ClientIPRestriction, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string cidrs = 1; */
+        for (let i = 0; i < message.cidrs.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.cidrs[i]);
+        /* string revision = 2; */
+        if (message.revision !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.revision);
+        /* gravitational.cloud.tenants.v1.ClientIPRestrictionStatus status = 3; */
+        if (message.status !== 0)
+            writer.tag(3, WireType.Varint).int32(message.status);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.ClientIPRestriction
+ */
+export const ClientIPRestriction = new ClientIPRestriction$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetClientIPRestrictionRequest$Type extends MessageType<GetClientIPRestrictionRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetClientIPRestrictionRequest", []);
+    }
+    create(value?: PartialMessage<GetClientIPRestrictionRequest>): GetClientIPRestrictionRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetClientIPRestrictionRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetClientIPRestrictionRequest): GetClientIPRestrictionRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetClientIPRestrictionRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetClientIPRestrictionRequest
+ */
+export const GetClientIPRestrictionRequest = new GetClientIPRestrictionRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetClientIPRestrictionResponse$Type extends MessageType<GetClientIPRestrictionResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetClientIPRestrictionResponse", [
+            { no: 1, name: "client_ip_restriction", kind: "message", T: () => ClientIPRestriction }
+        ]);
+    }
+    create(value?: PartialMessage<GetClientIPRestrictionResponse>): GetClientIPRestrictionResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetClientIPRestrictionResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetClientIPRestrictionResponse): GetClientIPRestrictionResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction */ 1:
+                    message.clientIpRestriction = ClientIPRestriction.internalBinaryRead(reader, reader.uint32(), options, message.clientIpRestriction);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetClientIPRestrictionResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction = 1; */
+        if (message.clientIpRestriction)
+            ClientIPRestriction.internalBinaryWrite(message.clientIpRestriction, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetClientIPRestrictionResponse
+ */
+export const GetClientIPRestrictionResponse = new GetClientIPRestrictionResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CreateClientIPRestrictionRequest$Type extends MessageType<CreateClientIPRestrictionRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.CreateClientIPRestrictionRequest", [
+            { no: 1, name: "cidrs", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CreateClientIPRestrictionRequest>): CreateClientIPRestrictionRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.cidrs = [];
+        if (value !== undefined)
+            reflectionMergePartial<CreateClientIPRestrictionRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreateClientIPRestrictionRequest): CreateClientIPRestrictionRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string cidrs */ 1:
+                    message.cidrs.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreateClientIPRestrictionRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string cidrs = 1; */
+        for (let i = 0; i < message.cidrs.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.cidrs[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.CreateClientIPRestrictionRequest
+ */
+export const CreateClientIPRestrictionRequest = new CreateClientIPRestrictionRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CreateClientIPRestrictionResponse$Type extends MessageType<CreateClientIPRestrictionResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.CreateClientIPRestrictionResponse", [
+            { no: 1, name: "client_ip_restriction", kind: "message", T: () => ClientIPRestriction }
+        ]);
+    }
+    create(value?: PartialMessage<CreateClientIPRestrictionResponse>): CreateClientIPRestrictionResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<CreateClientIPRestrictionResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreateClientIPRestrictionResponse): CreateClientIPRestrictionResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction */ 1:
+                    message.clientIpRestriction = ClientIPRestriction.internalBinaryRead(reader, reader.uint32(), options, message.clientIpRestriction);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreateClientIPRestrictionResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction = 1; */
+        if (message.clientIpRestriction)
+            ClientIPRestriction.internalBinaryWrite(message.clientIpRestriction, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.CreateClientIPRestrictionResponse
+ */
+export const CreateClientIPRestrictionResponse = new CreateClientIPRestrictionResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateClientIPRestrictionRequest$Type extends MessageType<UpdateClientIPRestrictionRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UpdateClientIPRestrictionRequest", [
+            { no: 1, name: "cidrs", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "revision", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UpdateClientIPRestrictionRequest>): UpdateClientIPRestrictionRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.cidrs = [];
+        message.revision = "";
+        if (value !== undefined)
+            reflectionMergePartial<UpdateClientIPRestrictionRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateClientIPRestrictionRequest): UpdateClientIPRestrictionRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string cidrs */ 1:
+                    message.cidrs.push(reader.string());
+                    break;
+                case /* string revision */ 2:
+                    message.revision = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateClientIPRestrictionRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string cidrs = 1; */
+        for (let i = 0; i < message.cidrs.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.cidrs[i]);
+        /* string revision = 2; */
+        if (message.revision !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.revision);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UpdateClientIPRestrictionRequest
+ */
+export const UpdateClientIPRestrictionRequest = new UpdateClientIPRestrictionRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateClientIPRestrictionResponse$Type extends MessageType<UpdateClientIPRestrictionResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UpdateClientIPRestrictionResponse", [
+            { no: 1, name: "client_ip_restriction", kind: "message", T: () => ClientIPRestriction }
+        ]);
+    }
+    create(value?: PartialMessage<UpdateClientIPRestrictionResponse>): UpdateClientIPRestrictionResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UpdateClientIPRestrictionResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateClientIPRestrictionResponse): UpdateClientIPRestrictionResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction */ 1:
+                    message.clientIpRestriction = ClientIPRestriction.internalBinaryRead(reader, reader.uint32(), options, message.clientIpRestriction);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateClientIPRestrictionResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction = 1; */
+        if (message.clientIpRestriction)
+            ClientIPRestriction.internalBinaryWrite(message.clientIpRestriction, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UpdateClientIPRestrictionResponse
+ */
+export const UpdateClientIPRestrictionResponse = new UpdateClientIPRestrictionResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpsertClientIPRestrictionRequest$Type extends MessageType<UpsertClientIPRestrictionRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UpsertClientIPRestrictionRequest", [
+            { no: 1, name: "cidrs", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UpsertClientIPRestrictionRequest>): UpsertClientIPRestrictionRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.cidrs = [];
+        if (value !== undefined)
+            reflectionMergePartial<UpsertClientIPRestrictionRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpsertClientIPRestrictionRequest): UpsertClientIPRestrictionRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string cidrs */ 1:
+                    message.cidrs.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpsertClientIPRestrictionRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string cidrs = 1; */
+        for (let i = 0; i < message.cidrs.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.cidrs[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UpsertClientIPRestrictionRequest
+ */
+export const UpsertClientIPRestrictionRequest = new UpsertClientIPRestrictionRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpsertClientIPRestrictionResponse$Type extends MessageType<UpsertClientIPRestrictionResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UpsertClientIPRestrictionResponse", [
+            { no: 1, name: "client_ip_restriction", kind: "message", T: () => ClientIPRestriction }
+        ]);
+    }
+    create(value?: PartialMessage<UpsertClientIPRestrictionResponse>): UpsertClientIPRestrictionResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UpsertClientIPRestrictionResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpsertClientIPRestrictionResponse): UpsertClientIPRestrictionResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction */ 1:
+                    message.clientIpRestriction = ClientIPRestriction.internalBinaryRead(reader, reader.uint32(), options, message.clientIpRestriction);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpsertClientIPRestrictionResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.ClientIPRestriction client_ip_restriction = 1; */
+        if (message.clientIpRestriction)
+            ClientIPRestriction.internalBinaryWrite(message.clientIpRestriction, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UpsertClientIPRestrictionResponse
+ */
+export const UpsertClientIPRestrictionResponse = new UpsertClientIPRestrictionResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DeleteClientIPRestrictionRequest$Type extends MessageType<DeleteClientIPRestrictionRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.DeleteClientIPRestrictionRequest", []);
+    }
+    create(value?: PartialMessage<DeleteClientIPRestrictionRequest>): DeleteClientIPRestrictionRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<DeleteClientIPRestrictionRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DeleteClientIPRestrictionRequest): DeleteClientIPRestrictionRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DeleteClientIPRestrictionRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.DeleteClientIPRestrictionRequest
+ */
+export const DeleteClientIPRestrictionRequest = new DeleteClientIPRestrictionRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DeleteClientIPRestrictionResponse$Type extends MessageType<DeleteClientIPRestrictionResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.DeleteClientIPRestrictionResponse", []);
+    }
+    create(value?: PartialMessage<DeleteClientIPRestrictionResponse>): DeleteClientIPRestrictionResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<DeleteClientIPRestrictionResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DeleteClientIPRestrictionResponse): DeleteClientIPRestrictionResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DeleteClientIPRestrictionResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.DeleteClientIPRestrictionResponse
+ */
+export const DeleteClientIPRestrictionResponse = new DeleteClientIPRestrictionResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class PutClientIPRestrictionsRequest$Type extends MessageType<PutClientIPRestrictionsRequest> {
     constructor() {
         super("gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest", [
@@ -8805,6 +9483,11 @@ export const TenantsService = new ServiceType("gravitational.cloud.tenants.v1.Te
     { name: "CancelSubscription", options: {}, I: EmptyRequest, O: EmptyResponse },
     { name: "GetClientIPRestrictions", options: {}, I: GetClientIPRestrictionsRequest, O: GetClientIPRestrictionsResponse },
     { name: "PutClientIPRestrictions", options: {}, I: PutClientIPRestrictionsRequest, O: PutClientIPRestrictionsResponse },
+    { name: "GetClientIPRestriction", options: {}, I: GetClientIPRestrictionRequest, O: GetClientIPRestrictionResponse },
+    { name: "CreateClientIPRestriction", options: {}, I: CreateClientIPRestrictionRequest, O: CreateClientIPRestrictionResponse },
+    { name: "UpdateClientIPRestriction", options: {}, I: UpdateClientIPRestrictionRequest, O: UpdateClientIPRestrictionResponse },
+    { name: "UpsertClientIPRestriction", options: {}, I: UpsertClientIPRestrictionRequest, O: UpsertClientIPRestrictionResponse },
+    { name: "DeleteClientIPRestriction", options: {}, I: DeleteClientIPRestrictionRequest, O: DeleteClientIPRestrictionResponse },
     { name: "ChildCluster", options: {}, I: ChildClusterRequest, O: ChildClusterResponse },
     { name: "GetFile", serverStreaming: true, options: {}, I: GetFileRequest, O: GetFileResponse },
     { name: "CreateChildCluster", options: {}, I: CreateChildClusterRequest, O: CreateChildClusterResponse },

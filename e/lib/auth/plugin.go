@@ -18,6 +18,7 @@ import (
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	beamsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	clientiprestrictionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	externalauditstoragev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -37,6 +38,7 @@ import (
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/accesslist"
+	clientiprestrictionv1 "github.com/gravitational/teleport/e/lib/auth/clientiprestriction/clientiprestrictionv1"
 	"github.com/gravitational/teleport/e/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/sessionsearchv1"
@@ -313,6 +315,20 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			return trace.Wrap(err)
 		}
 		workloadclusterv1pb.RegisterWorkloadClusterServiceServer(gRPCServer, workloadclusterServiceServer)
+	}
+
+	if p.Config.Modules.Features().Cloud {
+		cirServiceServer, err := clientiprestrictionv1.NewService(clientiprestrictionv1.ServiceConfig{
+			Authorizer:        p.authServer.Authorizer,
+			Emitter:           p.authServer.Emitter,
+			CloudClientGetter: p,
+			Modules:           p.Config.Modules,
+			Logger:            p.logger,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		clientiprestrictionv1pb.RegisterClientIPRestrictionServiceServer(gRPCServer, cirServiceServer)
 	}
 
 	keypair := p.Config.License.GetKeyPair()
