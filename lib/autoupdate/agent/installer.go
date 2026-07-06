@@ -418,9 +418,15 @@ func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, url strin
 		return trace.Wrap(err, "failed to download signature from %s", url)
 	}
 	// WithDigest reuses the SHA-256 computed during download, so the verifier does
-	// not need the artifact bytes here. Use an empty reader as a safe placeholder
-	// rather than nil; upstream sigstore-go uses the same digest-only pattern:
+	// not need the artifact bytes here for the current ECDSA verifier path. Use
+	// an empty reader as a safe placeholder rather than nil; upstream
+	// sigstore-go uses the same digest-only pattern:
 	// https://github.com/sigstore/sigstore-go/blob/v1.1.4/pkg/verify/signature.go#L398
+	//
+	// Note: this is not a generic sigstore pattern for all key types. In
+	// particular, sigstore's Ed25519 verifier rejects WithDigest-based
+	// verification, so this code would need to change if the signing algorithm
+	// changes in the future.
 	//
 	// Sigstore documents an ECDSA malleability warning for WithDigest:
 	// https://github.com/sigstore/sigstore/blob/v1.10.5/pkg/signature/options/digest.go#L29
