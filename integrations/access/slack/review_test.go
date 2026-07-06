@@ -129,7 +129,6 @@ func TestResolveTeleportUser(t *testing.T) {
 		teleportTraits:   map[string][]string{"slack_uid": {"U_eve"}},
 	}
 
-	// Link some emails to Slack users
 	mockBot := &mockReviewBot{}
 	createUserInSlackAndTeleport(t, mockBot, authServer, aliceUser)
 	createUserInSlackAndTeleport(t, mockBot, authServer, bobUser)

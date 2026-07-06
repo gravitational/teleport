@@ -490,6 +490,15 @@ func (c *Connector) ScopePin() *scopesv1.Pin {
 	return c.scopePin
 }
 
+// checkScopedAppJoin rejects an app agent that joined with a scoped token while
+// agent scope pins are disabled.
+func checkScopedAppJoin(conn *Connector) error {
+	if conn.Scope() != "" && conn.ScopePin() == nil {
+		return trace.BadParameter("set TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes on main auth service to join a scoped app agent")
+	}
+	return nil
+}
+
 func (c *Connector) Role() types.SystemRole {
 	return c.role
 }
@@ -3133,6 +3142,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AppSession = services.IdentityInternal
 	cfg.Applications = services.ApplicationsInternal
 	cfg.Beams = services.Beams
+	cfg.BeamsConfig = services.BeamsConfigService
 	cfg.DelegationSessions = services.DelegationSessions
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.StaticScopedToken = services.ClusterConfigurationInternal
@@ -5032,6 +5042,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	alpnLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// make a caching auth client for the auth server:
 	accessPoint, err := process.newLocalCacheForProxy(conn.Client, []string{teleport.ComponentProxy})
 	if err != nil {
@@ -6348,6 +6363,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Listener:          listeners.alpn,
 			ClusterName:       clusterName,
 			AccessPoint:       accessPoint,
+			Limiter:           alpnLimiter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6375,6 +6391,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Listener:          listeners.reverseTunnelALPN,
 				ClusterName:       clusterName,
 				AccessPoint:       accessPoint,
+				Limiter:           reverseTunnelLimiter,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6888,6 +6905,11 @@ func (process *TeleportProcess) initApps() {
 			})
 		}
 
+		if err := checkScopedAppJoin(conn); err != nil {
+			return trace.Wrap(err)
+		}
+		scopePin := conn.ScopePin()
+
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
@@ -6937,7 +6959,7 @@ func (process *TeleportProcess) initApps() {
 				MCP:                   app.MCP,
 				LLM:                   app.LLM,
 				TLS:                   app.TLS,
-			})
+			}, scopePin.GetScope())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -7057,6 +7079,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectionsHandler:          connectionsHandler,
 			InventoryHandle:             process.inventoryHandle,
 			IgnoreAppsWithCommandLabels: runningOnBeams,
+			ScopePin:                    scopePin,
 		})
 		if err != nil {
 			return trace.Wrap(err)

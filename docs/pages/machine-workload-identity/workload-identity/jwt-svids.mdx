@@ -5,6 +5,7 @@ tags:
  - conceptual
  - mwi
  - infrastructure-identity
+page_type: conceptual
 ---
 
 One type of credential that can be issued by Teleport Workload Identity is a
@@ -12,6 +13,9 @@ JWT SVID. This is a short-lived JSON Web Token (JWT) that contains the identity
 of the workload and is signed by the Teleport Workload Identity CA.
 
 The ability to issue JWT SVIDs has been available since Teleport 16.4.3.
+
+This page describes the claims available in Workload Ident ity JWT SVIDs and
+provides details on OIDC compatibility.
 
 ## Claims
 
@@ -32,7 +36,7 @@ The JWT-SVID can be useful in scenarios where X509-SVIDs are not suitable.
 For example, when the workload needs to authenticate to another workload which
 is behind a TLS-terminating load balancer.
 
-## OIDC Compatibility
+## OIDC compatibility
 
 The JWT SVIDs issued by Teleport Workload Identity are compatible with the
 specification for OIDC ID Tokens. This means that they can be used by workloads

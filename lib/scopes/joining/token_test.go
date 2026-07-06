@@ -31,6 +31,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -1470,6 +1471,7 @@ func TestValidateTokenForUse(t *testing.T) {
 			Roles:         []string{types.RoleNode.String()},
 			JoinMethod:    string(types.JoinMethodToken),
 			AssignedScope: "/test",
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
 		}.Build(),
 		Status: joiningv1.ScopedTokenStatus_builder{
 			Secret: "secret",
@@ -1481,7 +1483,51 @@ func TestValidateTokenForUse(t *testing.T) {
 	assert.NoError(t, joining.WeakValidateToken(token))
 	strongValidateErr := joining.StrongValidateToken(token)
 	assert.Error(t, strongValidateErr)
-	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token))
+	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled: true,
+	}))
+
+	// fix token so StrongValidate succeeds
+	token.SetKind(types.KindScopedToken)
+	token.SetVersion(types.V1)
+	token.SetMetadata(headerv1.Metadata_builder{
+		Name: "test-token",
+	}.Build())
+
+	// validation should succeed for node role if scopes are enabled
+	require.NoError(t, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled: true,
+	}))
+
+	// validation should fail if scopes are disabled
+	require.ErrorContains(t, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled: false,
+	}), "scoping features are not enabled")
+
+	// validation should fail for kube role if agent pinning is disabled
+	token.GetSpec().SetRoles(append(token.GetSpec().GetRoles(), string(types.RoleKube)))
+	require.ErrorContains(t, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled: true,
+	}), "scoped token cannot be used to join [Node, Kube] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
+
+	// validation should succeed for kube role if agent pinning is enabled
+	require.NoError(t, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled:         true,
+		AgentPinEnabled: true,
+	}))
+
+	// validation should succeed for bot role even if agent scope pins are disabled
+	token.GetSpec().SetBot(scopes.QualifiedName{
+		Scope: token.GetSpec().GetAssignedScope(),
+		Name:  "bot-name",
+	}.String())
+	token.GetSpec().SetAssignedScope("")
+	token.GetSpec().SetJoinMethod(string(types.JoinMethodBoundKeypair))
+	token.GetSpec().SetUsageMode(string(joining.TokenUsageModeBot))
+	token.GetSpec().SetRoles([]string{string(types.RoleBot)})
+	require.NoError(t, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled: true,
+	}))
 }
 
 func TestScopedTokenEncoding(t *testing.T) {

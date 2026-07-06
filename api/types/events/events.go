@@ -573,6 +573,10 @@ func (m *X11Forward) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *AgentForward) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *PortForward) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
@@ -3023,7 +3027,41 @@ func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
 			newStrTrimmer(m.Path, &out.Path),
 			newStrTrimmer(m.Method, &out.Method),
 			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
+			newStrTrimmer(m.Model, &out.Model),
+			newGenericTrimmer(&m.Status, &out.Status),
 		}
+	})
+}
+
+func (m *AppSessionHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.Url, &out.Url),
+			newStrTrimmer(m.RawQuery, &out.RawQuery),
+			newHTTPHeadersTrimmer(m.Headers, &out.Headers),
+		}
+	})
+}
+
+func (m *AppSessionHTTPRequestBodyChunk) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPRequestBodyChunk) fieldTrimmer {
+		return newBytesTrimmer(m.Data, &out.Data)
+	})
+}
+
+func (m *AppSessionHTTPResponse) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPResponse) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.StatusText, &out.StatusText),
+			newHTTPHeadersTrimmer(m.Headers, &out.Headers),
+		}
+	})
+}
+
+func (m *AppSessionHTTPResponseBodyChunk) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPResponseBodyChunk) fieldTrimmer {
+		return newBytesTrimmer(m.Data, &out.Data)
 	})
 }
 
@@ -3048,5 +3086,31 @@ func (m *ClassifierUpdate) TrimToMaxSize(_ int) AuditEvent {
 }
 
 func (m *ClassifierDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *ScopedTokenCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *ScopedTokenCreate) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Scope, &out.Scope),
+			newStrTrimmer(m.JoinMethod, &out.JoinMethod),
+			newStrTrimmer(m.UsageMode, &out.UsageMode),
+			newStrSliceTrimmer(m.Roles, &out.Roles),
+		}
+	})
+}
+
+func (m *ScopedTokenUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *ScopedTokenUpdate) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Scope, &out.Scope),
+			newStrTrimmer(m.JoinMethod, &out.JoinMethod),
+			newStrTrimmer(m.UsageMode, &out.UsageMode),
+			newStrSliceTrimmer(m.Roles, &out.Roles),
+		}
+	})
+}
+
+func (m *ScopedTokenDelete) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }

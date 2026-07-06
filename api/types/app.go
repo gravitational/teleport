@@ -120,14 +120,27 @@ type Application interface {
 	GetTLSMode() AppTLSMode
 	// IsEqual determines if two application resources are equivalent to one another.
 	IsEqual(Application) bool
+	// GetScope gets the scope of the app.
+	GetScope() string
 }
 
 // NewAppV3 creates a new app resource.
-func NewAppV3(meta Metadata, spec AppSpecV3) (*AppV3, error) {
+// TODO(williamo/scopes): scope is variadic only so existing
+// callers compile unchanged during the scope migration.
+func NewAppV3(meta Metadata, spec AppSpecV3, scope ...string) (*AppV3, error) {
 	app := &AppV3{
 		Metadata: meta,
 		Spec:     spec,
 	}
+
+	switch len(scope) {
+	case 0: // unscoped
+	case 1:
+		app.Scope = scope[0]
+	default:
+		return nil, trace.BadParameter("expected at most 1 scope, got %d", len(scope))
+	}
+
 	if err := app.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -523,6 +536,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 		a.Metadata.Labels[AppSubKindLabel] = a.SubKind
 	}
+
 	return nil
 }
 
@@ -722,6 +736,15 @@ func (a *AppV3) GetClientCertMode() AppClientCertMode {
 	}
 
 	return a.Spec.TLS.ClientCertMode
+}
+
+// GetScope returns the scope of the app.
+func (a *AppV3) GetScope() string {
+	if a == nil {
+		return ""
+	}
+
+	return a.Scope
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.

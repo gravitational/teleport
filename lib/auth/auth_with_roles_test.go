@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
@@ -527,6 +528,152 @@ func TestGitHubConnectorNameTooLarge(t *testing.T) {
 	conn.SetName(strings.Repeat("abc", 300))
 	_, err = authWithRoles.UpdateGithubConnector(t.Context(), conn)
 	require.ErrorContains(t, err, "exceeds maximum length")
+}
+
+// TestAuthConnectorReadSecretsAdminActionMFA verifies that reading an auth
+// connector with secrets requires admin action MFA.
+func TestAuthConnectorReadSecretsAdminActionMFA(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	role, err := types.NewRole("test-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAuthConnector, services.RO()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.AuthServer.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("test-user")
+	require.NoError(t, err)
+	user.AddRole(role.GetName())
+	_, err = srv.AuthServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	githubConn, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		RedirectURL:  "https://proxy.example.com/v1/webapi/github/callback",
+		TeamsToRoles: []types.TeamRolesMapping{
+			{Organization: "octocats", Team: "dummy", Roles: []string{role.GetName()}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = auth.UpsertGithubConnector(ctx, srv.AuthServer, githubConn)
+	require.NoError(t, err)
+
+	oidcConn, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		ClaimsToRoles: []types.ClaimMapping{
+			{Claim: "dummy", Value: "dummy", Roles: []string{role.GetName()}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.AuthServer.UpsertOIDCConnector(ctx, oidcConn)
+	require.NoError(t, err)
+
+	// Get a valid signing certifiate so the SAML connector is valid
+	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+	signingKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	certBytes, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: signingKey.Public(),
+		Subject:   pkix.Name{CommonName: "test"},
+		NotAfter:  time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	samlConn, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://proxy.example.com/v1/webapi/saml/acs",
+		Issuer:                   "test",
+		SSO:                      "https://example.com",
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "dummy", Value: "dummy", Roles: []string{role.GetName()}},
+		},
+		Cert: string(certBytes),
+	})
+	require.NoError(t, err)
+	_, err = srv.AuthServer.UpsertSAMLConnector(ctx, samlConn)
+	require.NoError(t, err)
+
+	// clientForState returns a client acting as the user with the admin action MFA auth state.
+	clientForState := func(t *testing.T, state authz.AdminActionAuthState) *auth.ServerWithRoles {
+		localUser := authz.LocalUser{
+			Username: "test-user",
+			Identity: tlsca.Identity{Username: "test-user", Groups: []string{role.GetName()}},
+		}
+		authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer.Services, srv.ClusterName, true /* disableDeviceAuthz */)
+		require.NoError(t, err)
+		authContext.AdminActionAuthState = state
+		return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authContext)
+	}
+
+	tests := []struct {
+		name             string
+		getConnectorFunc func(clt *auth.ServerWithRoles, withSecrets bool) error
+	}{
+		{"github/Get", func(clt *auth.ServerWithRoles, withSecrets bool) error {
+			_, err := clt.GetGithubConnector(ctx, githubConn.GetName(), withSecrets)
+			return err
+		}},
+		{"github/GetAll", func(clt *auth.ServerWithRoles, withSecrets bool) error {
+			_, err := clt.GetGithubConnectors(ctx, withSecrets)
+			return err
+		}},
+		{"github/List", func(clt *auth.ServerWithRoles, withSecrets bool) error {
+			_, _, err := clt.ListGithubConnectors(ctx, 0, "", withSecrets)
+			return err
+		}},
+		{"saml/Get", func(clt *auth.ServerWithRoles, withSecrets bool) error {
+			_, err := clt.GetSAMLConnector(ctx, samlConn.GetName(), withSecrets)
+			return err
+		}},
+		{"saml/GetAll", func(clt *auth.ServerWithRoles, withSecrets bool) error {
+			_, err := clt.GetSAMLConnectors(ctx, withSecrets)
+			return err
+		}},
+		{"saml/List", func(clt *auth.ServerWithRoles, withSecrets bool) error {
+			_, _, err := clt.ListSAMLConnectorsWithOptions(ctx, 0, "", withSecrets)
+			return err
+		}},
+		{"oidc/Get", func(clt *auth.ServerWithRoles, withSecrets bool) error {
+			_, err := clt.GetOIDCConnector(ctx, oidcConn.GetName(), withSecrets)
+			return err
+		}},
+		{"oidc/GetAll", func(clt *auth.ServerWithRoles, withSecrets bool) error {
+			_, err := clt.GetOIDCConnectors(ctx, withSecrets)
+			return err
+		}},
+		{"oidc/List", func(clt *auth.ServerWithRoles, withSecrets bool) error {
+			_, _, err := clt.ListOIDCConnectors(ctx, 0, "", withSecrets)
+			return err
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Reading secrets without MFA returns an error
+			err := test.getConnectorFunc(clientForState(t, authz.AdminActionAuthUnauthorized), true /* withSecrets */)
+			require.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired)
+
+			// Reading secrets with MFA works
+			err = test.getConnectorFunc(clientForState(t, authz.AdminActionAuthMFAVerified), true /* withSecrets */)
+			require.NoError(t, err)
+
+			// Reading without secrets works without MFA
+			err = test.getConnectorFunc(clientForState(t, authz.AdminActionAuthUnauthorized), false /* withSecrets */)
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestGithubAuthRequest(t *testing.T) {
@@ -3320,25 +3467,25 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
+		require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, scopedCluster))
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, nonCloudCluster)))
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
-		require.True(t, trace.IsBadParameter(discoveryClt.CreateKubernetesCluster(ctx, scopedCluster)))
 	})
 	t.Run("Read", func(t *testing.T) {
 		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
 
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster, scopedCluster}, clusters, diffopt))
 
 		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
 		require.Empty(t, next)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster, scopedCluster}, clusters, diffopt))
 
 		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster, scopedCluster}, clusters, diffopt))
 	})
 
 	t.Run("Update", func(t *testing.T) {
@@ -3375,16 +3522,12 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 func TestKubeCRUDFromKubeService(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	srv := newTestTLSServer(t, withBufconnListener())
+	srv := newTestTLSServer(t, withBufconnListener(), withScopesFeatures(scopes.Features{
+		Enabled:         true,
+		AgentPinEnabled: true,
+	}))
 
-	scopedIdent := authtest.TestBuiltin(types.RoleKube)
-	// override the agent scope in the test identity
-	builtinRole, ok := scopedIdent.I.(authz.BuiltinRole)
-	require.True(t, ok, "expected ident to be a builtin role")
-
-	builtinRole.Identity.AgentScope = "/test"
-	scopedIdent.I = builtinRole
-
+	scopedIdent := authtest.TestScopePinnedHost(srv.ClusterName(), "scoped-host", "/test", types.RoleKube)
 	scopedKubeClient, err := srv.NewClient(scopedIdent)
 	require.NoError(t, err)
 
@@ -3396,23 +3539,37 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 	require.NoError(t, err)
 
 	const clusterName = "kube-cluster"
-	kubeCluster, err := types.NewKubernetesClusterV3(
-		types.Metadata{
+	kubeCluster := &types.KubernetesClusterV3{
+		Kind:    types.KindKubernetesCluster,
+		Version: types.V3,
+		Metadata: types.Metadata{
 			Name: clusterName,
 			Labels: map[string]string{
 				"env": "test",
 			},
 		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
+	}
 
-	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", "host-id")
-	require.NoError(t, err)
+	scopedKubeCluster := &types.KubernetesClusterV3{
+		Kind:    types.KindKubernetesCluster,
+		Version: types.V3,
+		Scope:   "/test",
+		Metadata: types.Metadata{
+			Name: "scoped-" + clusterName,
+			Labels: map[string]string{
+				"env": "test",
+			},
+		},
+	}
 
 	err = adminClient.CreateKubernetesCluster(ctx, kubeCluster)
 	require.NoError(t, err)
 
+	err = adminClient.CreateKubernetesCluster(ctx, scopedKubeCluster)
+	require.NoError(t, err)
+
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", "host-id")
+	require.NoError(t, err)
 	_, err = adminClient.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 
@@ -3438,7 +3595,7 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 
-		err = scopedKubeClient.CreateKubernetesCluster(ctx, kubeCluster)
+		err = scopedKubeClient.CreateKubernetesCluster(ctx, scopedKubeCluster)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 	})
@@ -3449,45 +3606,60 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 
-		err = scopedKubeClient.UpdateKubernetesCluster(ctx, kubeCluster)
+		err = scopedKubeClient.UpdateKubernetesCluster(ctx, scopedKubeCluster)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 	})
 
 	t.Run("GetKubernetesCluster", func(t *testing.T) {
-		// unscoped kube clients SHOULD be able to fetch a kube cluster
+		// unscoped kube clients SHOULD be able to fetch an unscoped kube cluster
 		cluster, err := unscopedKubeClient.GetKubernetesCluster(ctx, clusterName)
 		require.NoError(t, err)
 		require.NotNil(t, cluster)
 
-		// scoped kube clients SHOULD NOT be able to fetch a kube cluster
-		_, err = scopedKubeClient.GetKubernetesCluster(ctx, clusterName)
+		// unscoped kube clients SHOULD be able to fetch a scoped kube cluster
+		cluster, err = unscopedKubeClient.GetKubernetesCluster(ctx, clusterName)
+		require.NoError(t, err)
+		require.NotNil(t, cluster)
+
+		// scoped kube clients SHOULD NOT be able to fetch an unscoped kube cluster
+		scopedCluster, err := scopedKubeClient.GetKubernetesCluster(ctx, clusterName)
 		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+		require.Nil(t, scopedCluster, "expected unscoped kube cluster to be nil")
+		require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDeniedError")
+
+		// scoped kube clients SHOULD be able to fetch a scoped kube cluster
+		scopedCluster, err = scopedKubeClient.GetKubernetesCluster(ctx, "scoped-"+clusterName)
+		require.NoError(t, err)
+		require.NotNil(t, scopedCluster)
 	})
 
 	t.Run("GetKubernetesClusters", func(t *testing.T) {
 		// unscoped kube clients SHOULD be able to list kube clusters
 		clusters, err := unscopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Len(t, clusters, 1)
+		require.Len(t, clusters, 2)
 
-		// scoped kube clients SHOULD NOT be able to list a kube clusters
-		clusters, err = scopedKubeClient.GetKubernetesClusters(ctx)
+		// scoped kube clients SHOULD be able to list a kube clusters
+		scopedClusters, err := scopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, clusters)
+		require.Len(t, scopedClusters, 1)
+
+		require.NotElementsMatch(t, clusters, scopedClusters)
 	})
 
 	t.Run("ListKubernetesClusters", func(t *testing.T) {
 		// unscoped kube clients SHOULD be able to list kube clusters
 		clusters, _, err := unscopedKubeClient.ListKubernetesClusters(ctx, 10, "")
 		require.NoError(t, err)
-		require.Len(t, clusters, 1)
+		require.Len(t, clusters, 2)
 
-		// scoped kube clients SHOULD NOT be able to list kube clusters
-		clusters, _, err = scopedKubeClient.ListKubernetesClusters(ctx, 10, "")
+		// scoped kube clients SHOULD be able to list kube clusters
+		scopedClusters, _, err := scopedKubeClient.ListKubernetesClusters(ctx, 10, "")
 		require.NoError(t, err)
-		require.Empty(t, clusters)
+		require.Len(t, scopedClusters, 1)
+
+		require.NotElementsMatch(t, clusters, scopedClusters)
 	})
 
 	t.Run("DeleteKubernetesCluster", func(t *testing.T) {
@@ -3501,7 +3673,7 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 	})
 
-	t.Run("DeleteAllKubernetesCluster", func(t *testing.T) {
+	t.Run("DeleteAllKubernetesClusters", func(t *testing.T) {
 		// neither scoped nor unscoped kube clients should be able to delete all kube clusters
 		err := unscopedKubeClient.DeleteAllKubernetesClusters(ctx)
 		require.Error(t, err)
@@ -9150,7 +9322,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 					*authContext,
 				)
 
-				err := s.EmitAuditEvent(ctx, &apievents.UserLogin{
+				err := s.ScopedServerWithRoles().EmitAuditEvent(ctx, &apievents.UserLogin{
 					Metadata: apievents.Metadata{
 						Type: events.UserLoginEvent,
 						Code: events.UserLocalLoginFailureCode,
@@ -9168,7 +9340,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 					*authContext,
 				)
 
-				stream, err := s.CreateAuditStream(ctx, session.ID("streamer"))
+				stream, err := s.ScopedServerWithRoles().CreateAuditStream(ctx, session.ID("streamer"))
 				require.NoError(t, err)
 				require.NoError(t, stream.Close(ctx))
 			})
@@ -9180,7 +9352,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 					*authContext,
 				)
 
-				stream, err := s.ResumeAuditStream(ctx, session.ID("streamer"), "upload")
+				stream, err := s.ScopedServerWithRoles().ResumeAuditStream(ctx, session.ID("streamer"), "upload")
 				require.NoError(t, err)
 				require.NoError(t, stream.Close(ctx))
 			})
@@ -13350,4 +13522,80 @@ func TestScopedUserCertGeneration(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestScopePinnedEmitAuditEvent verifies that an agent with a scope pin is able to emit an audit event.
+func TestScopePinnedEmitAuditEvent(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+			ScopesFeatures: scopes.Features{
+				Enabled:         true,
+				AgentPinEnabled: true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { srv.Close() })
+
+	const (
+		hostID   = "test-host"
+		username = "test-user"
+		scope    = "/test"
+	)
+	// setup auth with scope pinned host
+	scopedHostAuth := newScopePinnedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
+
+	// create user to test scope pinned users
+	_, err = authtest.CreateUser(ctx, srv.Auth(), username)
+	require.NoError(t, err)
+	// create a scoped role assigning perms to create events
+	_, err = srv.Auth().ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: username + "-role",
+			}.Build(),
+			Scope: scope,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scope},
+				Rules: []*scopedaccessv1.ScopedRule{
+					scopedaccessv1.ScopedRule_builder{
+						Resources: []string{types.KindEvent},
+						Verbs:     []string{types.VerbCreate},
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	// NOTE (etate): if scoped role validation ever permits VerbCreate on KindEvent, then this test either needs to be updated
+	// to assert that EmitAuditEvent still fails for scoped user pins, or EmitAuditEvent needs to be updated to permit
+	// identities with scoped user pins
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected trace.BadParameterError")
+
+	// ensure that scope pinned agents are able to emit events
+	err = scopedHostAuth.EmitAuditEvent(ctx, &apievents.SessionConnect{
+		Metadata: apievents.Metadata{
+			Type: events.SessionConnectEvent,
+			Code: events.SessionConnectCode,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID: hostID,
+		},
+	})
+	require.NoError(t, err)
+
+	// ensure that scope pinned agents are able to create and resume audit streams
+	sessionID := session.ID("streamer")
+	stream, err := scopedHostAuth.CreateAuditStream(ctx, sessionID)
+	require.NoError(t, err)
+	require.NoError(t, stream.Close(ctx))
+
+	stream, err = scopedHostAuth.ResumeAuditStream(ctx, sessionID, "upload")
+	require.NoError(t, err)
+	require.NoError(t, stream.Close(ctx))
 }

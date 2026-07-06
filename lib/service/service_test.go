@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -2651,5 +2652,44 @@ func TestInitAppsFromConfig(t *testing.T) {
 		require.Equal(t, appCfg.URI, app.GetURI())
 		require.Empty(t, cmp.Diff(appCfg.TLS, app.GetTLS(), protocmp.Transform()))
 		require.Empty(t, cmp.Diff(appCfg.LLM, app.GetLLM(), protocmp.Transform()))
+	}
+}
+
+func TestInitAppsScoped(t *testing.T) {
+	t.Parallel()
+
+	agentPin := func(scope string) *scopesv1.Pin {
+		return scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+			Scope: scope,
+		}.Build()
+	}
+
+	tests := []struct {
+		name      string
+		conn      *Connector
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name:      "unscoped agent is allowed",
+			conn:      &Connector{},
+			assertErr: require.NoError,
+		},
+		{
+			name:      "scoped agent with a pin is allowed",
+			conn:      &Connector{scopePin: agentPin("/staging/west")},
+			assertErr: require.NoError,
+		},
+		{
+			name:      "scoped agent without a pin is rejected",
+			conn:      &Connector{scope: "/staging/west"},
+			assertErr: require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.assertErr(t, checkScopedAppJoin(tt.conn))
+		})
 	}
 }

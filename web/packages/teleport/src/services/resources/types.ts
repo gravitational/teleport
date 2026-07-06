@@ -313,6 +313,7 @@ export enum ResourceKind {
   Lock = 'lock',
   LoginRule = 'login_rule',
   MFADevice = 'mfa_device',
+  MobileDevice = 'mobile_device',
   // Ignoring duplicate: KindNamespace = "namespace"
   NetworkRestrictions = 'network_restrictions',
   Node = 'node',

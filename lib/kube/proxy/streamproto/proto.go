@@ -68,8 +68,10 @@ type SessionStream struct {
 	// A list of resize requests.
 	resizeQueue chan *remotecommand.TerminalSize
 
-	// A notification channel for force termination requests.
-	forceTerminate chan struct{}
+	// A notification channel for force termination requests, along with a
+	// guard so it is closed at most once.
+	forceTerminate     chan struct{}
+	forceTerminateOnce sync.Once
 
 	writeSync   sync.Mutex
 	done        chan struct{}
@@ -209,7 +211,7 @@ func (s *SessionStream) readTask() {
 			}
 
 			if msg.ForceTerminate {
-				close(s.forceTerminate)
+				s.forceTerminateOnce.Do(func() { close(s.forceTerminate) })
 			}
 		}
 

@@ -35,6 +35,7 @@ message ServerHello {
   bool directory_remove_supported = 3;
   repeated SessionIdentifier sessions = 4;
   bool hidpi_supported = 5;
+  bool multidirectory_sharing_supported = 6;
 }
 
 // Used to identify sessions available to and selected by users
@@ -265,6 +266,7 @@ message SharedDirectoryResponse {
   // Common fields used for all response types.
   uint32 completion_id = 1;
   uint32 error_code = 2;
+  uint32 directory_id = 11;
 
   // Info response.
   message Info {

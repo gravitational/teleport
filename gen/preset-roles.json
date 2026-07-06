@@ -651,6 +651,14 @@
           },
           {
             "resources": [
+              "mobile_device"
+            ],
+            "verbs": [
+              "create_enroll_token"
+            ]
+          },
+          {
+            "resources": [
               "db_service"
             ],
             "verbs": [
@@ -1276,6 +1284,18 @@
           {
             "resources": [
               "recording_encryption"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "beams_config"
             ],
             "verbs": [
               "list",
