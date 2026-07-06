@@ -56,10 +56,6 @@ import (
 
 // Announcer specifies interface responsible for announcing presence
 type Announcer interface {
-	// UpsertNode registers node presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
-
 	// UpsertProxyServerWithoutReturn registers proxy presence, permanently if
 	// ttl is 0 or for the specified duration with second resolution if it's
 	// >= 1 second. The upserted server is not returned because the HTTP
@@ -73,17 +69,8 @@ type Announcer interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertAuthServer(ctx context.Context, s types.Server) error
 
-	// UpsertKubernetesServer registers a kubernetes server
-	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
-
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
-
-	// UpsertApplicationServer registers an application server.
-	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
-
-	// UpsertDatabaseServer registers a database proxy server.
-	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
 
 	// UpsertWindowsDesktopService registers a Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
