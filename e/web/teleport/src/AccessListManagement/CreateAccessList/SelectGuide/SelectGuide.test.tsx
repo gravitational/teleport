@@ -1,13 +1,13 @@
 import { QueryClientProvider } from '@tanstack/react-query';
+import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
 
 import {
   enableMswServer,
-  render,
   screen,
   server,
   testQueryClient,
+  userEvent,
   waitFor,
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -22,25 +22,40 @@ import { pluginsService } from 'e-teleport/services/plugins';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { getAcl } from 'teleport/mocks/contexts';
+import { allAccessAcl, getAcl, noAccess } from 'teleport/mocks/contexts';
 import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
 import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import ResourceService from 'teleport/services/resources';
 import userService from 'teleport/services/user';
+import { userEventService } from 'teleport/services/userEvent';
+import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
+import { UserContextProvider } from 'teleport/User';
 
+import { CreateAccessList } from '../CreateAccessList';
 import { CreateAccessListContextProvider } from '../CreateAccessListContextProvider';
 import { SelectGuide } from './SelectGuide';
 
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultAccessListentitlement = cfg.entitlements.AccessLists;
+const rootScopedRolesPath = ecfg.getRootScopedRolesUrl({}).split('?')[0];
 
 enableMswServer();
+mockIntersectionObserver();
 
 beforeEach(() => {
   server.use(
     http.get(unifiedResourcePath, () => {
       return HttpResponse.json({
         items: [],
+      });
+    }),
+    http.get(cfg.api.userPreferencesPath, () => {
+      return HttpResponse.json({});
+    }),
+    http.get(rootScopedRolesPath, () => {
+      return HttpResponse.json({
+        roles: [],
+        startKey: '',
       });
     })
   );
@@ -126,22 +141,99 @@ describe('upsell links', () => {
       expect.stringMatching(/upgrade-igs/i)
     );
   });
+
+  test('both buttons are enabled with full role access', async () => {
+    ecfg.oss.entitlements.AccessLists = {
+      enabled: true,
+      limit: 0,
+    };
+
+    jest
+      .spyOn(userEventService, 'captureAccessListEvent')
+      .mockImplementation(() => {});
+
+    const user = userEvent.setup();
+
+    renderWithRoleAccess(allAccessAcl.roles);
+    await screen.findByText(/Select a guide/i);
+
+    expect(screen.getByRole('button', { name: /start guide/i })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: /use custom form instead/i })
+    ).toBeEnabled();
+
+    // Test clicking into start guide button
+    await user.type(
+      screen.getByPlaceholderText(/Access List name/i),
+      'guided title'
+    );
+    await user.click(screen.getByRole('button', { name: /start guide/i }));
+    expect(
+      await screen.findByText(/define access to resources/i)
+    ).toBeInTheDocument();
+  });
+
+  test('only custom button is enabled with no role access', async () => {
+    ecfg.oss.entitlements.AccessLists = {
+      enabled: true,
+      limit: 0,
+    };
+
+    jest
+      .spyOn(userEventService, 'captureAccessListEvent')
+      .mockImplementation(() => {});
+
+    const user = userEvent.setup();
+
+    renderWithRoleAccess(noAccess);
+    await screen.findByText(/Select a guide/i);
+
+    expect(screen.getByRole('button', { name: /start guide/i })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /use custom form instead/i })
+    ).toBeEnabled();
+
+    // Test clicking into custom button
+    await user.type(
+      screen.getByPlaceholderText(/Access List name/i),
+      'some title'
+    );
+    await user.click(
+      screen.getByRole('button', { name: /use custom form instead/i })
+    );
+    expect(await screen.findByText(/basic information/i)).toBeInTheDocument();
+  });
 });
 
-function renderComponent(ctx: TeleportEContext) {
-  return render(
-    <MemoryRouter>
-      <QueryClientProvider client={testQueryClient}>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
+function renderWithRoleAccess(roles: typeof noAccess) {
+  return renderComponent(
+    createTeleportContextE({
+      customAcl: {
+        ...allAccessAcl,
+        roles,
+      },
+    }),
+    <CreateAccessList />
+  );
+}
+
+function renderComponent(ctx: TeleportEContext, component = <SelectGuide />) {
+  return renderWithMemoryRouter(
+    <QueryClientProvider client={testQueryClient}>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>
+          <UserContextProvider>
             <AccessListManagementContextProvider>
               <CreateAccessListContextProvider>
-                <SelectGuide />
+                {component}
               </CreateAccessListContextProvider>
             </AccessListManagementContextProvider>
-          </ContextProvider>
-        </InfoGuidePanelProvider>
-      </QueryClientProvider>
-    </MemoryRouter>
+          </UserContextProvider>
+        </ContextProvider>
+      </InfoGuidePanelProvider>
+    </QueryClientProvider>,
+    {
+      initialEntries: [ecfg.routes.accessListNew],
+    }
   );
 }

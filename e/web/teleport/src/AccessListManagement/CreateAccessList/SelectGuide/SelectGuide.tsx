@@ -55,7 +55,7 @@ export function SelectGuide() {
     accessListName: string,
     description: string
   ) {
-    if (featureLimitReached || !hasRoleAccess) {
+    if (featureLimitReached || (preset !== '' && !hasRoleAccess)) {
       return;
     }
 
