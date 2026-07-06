@@ -661,11 +661,9 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 		return attrs
 	}
 
-	// Scoped issuance setup: a user authorized to issue using WorkloadIdentities
-	// labeled foo=bar within /test-scope (holding both the read_no_secrets/list
-	// rules and the workload_identity label selector), plus scoped resources
-	// covering the success, scope-mismatch, label-mismatch, cross-scope, and
-	// templating-escape paths.
+	// Scoped issuance setup: a user authorized to issue using foo=bar-labeled
+	// WorkloadIdentities within its scope, plus scoped resources for the
+	// scoped table cases below.
 	adminClient, err := tp.srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = adminClient.Close() })
@@ -679,11 +677,11 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = scopedIssuerClient.Close() })
 
-	// A WorkloadIdentity in /test-scope the issuer can access (label match).
+	// A WorkloadIdentity in the issuer's scope it can access (label match).
 	scopedWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
 		scopedWorkloadIdentityWithLabels("scoped-wi", scopedScope, scopedScope+"/_/foo", map[string]string{"foo": "bar"}))
 	require.NoError(t, err)
-	// A WorkloadIdentity in /test-scope the issuer cannot access (label mismatch).
+	// A WorkloadIdentity in the issuer's scope it cannot access (label mismatch).
 	unmatchedWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
 		scopedWorkloadIdentityWithLabels("unmatched-wi", scopedScope, scopedScope+"/_/nope", map[string]string{"foo": "other"}))
 	require.NoError(t, err)
@@ -733,8 +731,8 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 			},
 		},
 		{
-			// The issuer holds the rules in /test-scope but the resource's labels
-			// do not match its workload_identity label selector.
+			// The issuer holds the rules in the resource's scope but the resource's
+			// labels do not match its workload_identity label selector.
 			name:   "scoped label mismatch denied",
 			client: scopedIssuerClient,
 			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
@@ -748,7 +746,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 			},
 		},
 		{
-			// The issuer is not assigned any role in /other-scope.
+			// The issuer is not assigned any role in the resource's scope.
 			name:   "scoped cross-scope denied",
 			client: scopedIssuerClient,
 			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
@@ -1598,9 +1596,8 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 		}
 		return attrs
 	}
-	// Scoped issuance: a user pinned to /test-scope, granted the rules and a
-	// scoped=plural label selector, may only issue using scoped WorkloadIdentities
-	// in /test-scope — not identically-labeled ones in other scopes.
+	// Scoped issuance setup: an issuer scoped to one scope, with
+	// identically-labeled WorkloadIdentities in two scopes.
 	adminClient, err := tp.srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = adminClient.Close() })
@@ -1628,8 +1625,9 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 		assert     func(*testing.T, *workloadidentityv1pb.IssueWorkloadIdentitiesResponse)
 	}{
 		{
-			// Only the /test-scope identity is issued; the identically-labeled
-			// /other-scope identity is filtered out by per-item scope authz.
+			// Only the identity in the issuer's scope is issued; the
+			// identically-labeled one in the other scope is filtered out by
+			// per-item scope authz.
 			name:   "scoped filtered by scope",
 			client: scopedIssuerClient,
 			req: workloadidentityv1pb.IssueWorkloadIdentitiesRequest_builder{

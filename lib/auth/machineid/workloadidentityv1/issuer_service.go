@@ -235,9 +235,6 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	// Check the caller is authorized to issue using this WorkloadIdentity: within
-	// the resource's scope they must hold the read rule for the workload_identity
-	// kind AND match it via a workload_identity label selector.
 	if err := s.authorizeIssuance(ctx, authCtx, wi, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -246,8 +243,6 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	if !decision.shouldIssue {
 		return nil, trace.Wrap(decision.reason, "workload identity failed evaluation")
 	}
-	// Defense-in-depth: ensure templating did not produce a SPIFFE ID that
-	// violates our rules.
 	if err := validateRenderedWorkloadIdentity(decision.templatedWorkloadIdentity); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -355,8 +350,6 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 
 		decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
 		if decision.shouldIssue {
-			// Defense-in-depth: ensure templating did not produce a SPIFFE ID
-			// that escapes the WorkloadIdentity's scope.
 			if err := validateRenderedWorkloadIdentity(decision.templatedWorkloadIdentity); err != nil {
 				return nil, trace.Wrap(err)
 			}

@@ -77,9 +77,7 @@ type JWTOutputService struct {
 	trustBundleCache  TrustBundleGetter
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
-	// scoped indicates whether the bot is running in scoped mode. When set, the
-	// service uses the bot's internal scoped identity rather than a role-
-	// impersonated identity to issue SVIDs.
+	// scoped indicates whether the bot is running in scoped mode.
 	scoped bool
 }
 

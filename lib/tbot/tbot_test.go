@@ -1868,6 +1868,8 @@ func TestScopedBotKubernetes(t *testing.T) {
 // which scoped bots cannot mint) to call IssueWorkloadIdentity, and a scope-
 // qualified name selector ("<scope>::<name>") addresses the scoped resource.
 func TestScopedBotWorkloadIdentityX509(t *testing.T) {
+	t.Parallel()
+
 	ctx := t.Context()
 	log := logtest.NewLogger()
 
@@ -1896,9 +1898,7 @@ func TestScopedBotWorkloadIdentityX509(t *testing.T) {
 
 	clusterName := process.Config.Auth.ClusterName.GetClusterName()
 
-	// Create a scoped role granting issuance using prod-labeled
-	// WorkloadIdentities within the scope: the read_no_secrets+list rules for the
-	// workload_identity kind, plus a workload_identity label selector.
+	// Create a scoped role granting issuance using prod-labeled WorkloadIdentities.
 	scopedSvc := rootClient.ScopedAccessServiceClient()
 	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 		Role: scopedaccessv1.ScopedRole_builder{
@@ -1928,8 +1928,7 @@ func TestScopedBotWorkloadIdentityX509(t *testing.T) {
 
 	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
 
-	// Create a scoped WorkloadIdentity at the backend. Its SPIFFE ID is a scoped
-	// SPIFFE ID rooted at the bot's scope.
+	// Create a scoped WorkloadIdentity at the backend.
 	_, err = process.GetAuthServer().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
@@ -1946,9 +1945,8 @@ func TestScopedBotWorkloadIdentityX509(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 
-	// Configure and run tbot with a workload-identity-x509 output in scoped
-	// mode. The selector uses a scope-qualified name to address the scoped
-	// resource. defaultBotConfig sets Oneshot, so Run issues once and returns.
+	// Configure and run tbot with a workload-identity-x509 output.
+	// defaultBotConfig sets Oneshot, so Run issues once and returns.
 	tmpDir := t.TempDir()
 	botConfig := defaultBotConfig(
 		t, process, botOnboarding,
