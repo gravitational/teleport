@@ -90,7 +90,7 @@ func GenSchemaLoginRule(ctx context.Context) (github_com_hashicorp_terraform_plu
 				},
 			}),
 			Description: "Metadata is resource metadata.",
-			Optional:    true,
+			Required:    true,
 		},
 		"priority": {
 			Description: "Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first.",
