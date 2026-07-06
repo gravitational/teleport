@@ -29,3 +29,20 @@ resource "teleport_login_rule" "map_rule" {
     }
   }
 }
+
+resource "teleport_login_rule" "expression_to_map" {
+  metadata = {
+    name = "expression_to_map"
+  }
+
+  version  = "v1"
+  priority = 1
+  traits_map = {
+    "logins" = {
+      values = [
+        "external.logins",
+        "external.username",
+      ]
+    }
+  }
+}
