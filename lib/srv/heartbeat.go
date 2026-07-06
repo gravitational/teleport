@@ -88,7 +88,7 @@ type HeartbeatMode int
 // CheckAndSetDefaults checks values and sets defaults
 func (h HeartbeatMode) CheckAndSetDefaults() error {
 	switch h {
-	case HeartbeatModeNode, HeartbeatModeProxy, HeartbeatModeAuth, HeartbeatModeKube, HeartbeatModeApp, HeartbeatModeDB, HeartbeatModeDatabaseService, HeartbeatModeWindowsDesktopService, HeartbeatModeWindowsDesktop:
+	case HeartbeatModeProxy, HeartbeatModeAuth, HeartbeatModeDatabaseService, HeartbeatModeWindowsDesktopService, HeartbeatModeWindowsDesktop:
 		return nil
 	default:
 		return trace.BadParameter("unrecognized mode")
@@ -98,18 +98,10 @@ func (h HeartbeatMode) CheckAndSetDefaults() error {
 // String returns user-friendly representation of the mode
 func (h HeartbeatMode) String() string {
 	switch h {
-	case HeartbeatModeNode:
-		return "Node"
 	case HeartbeatModeProxy:
 		return "Proxy"
 	case HeartbeatModeAuth:
 		return "Auth"
-	case HeartbeatModeKube:
-		return "Kube"
-	case HeartbeatModeApp:
-		return "App"
-	case HeartbeatModeDB:
-		return "Database"
 	case HeartbeatModeDatabaseService:
 		return "DatabaseService"
 	case HeartbeatModeWindowsDesktopService:
@@ -122,21 +114,12 @@ func (h HeartbeatMode) String() string {
 }
 
 const (
-	// HeartbeatModeNode sets heartbeat to node
-	// updates that support keep alives
-	HeartbeatModeNode HeartbeatMode = iota
 	// HeartbeatModeProxy sets heartbeat to proxy
 	// that does not support keep alives
-	HeartbeatModeProxy
+	HeartbeatModeProxy HeartbeatMode = iota
 	// HeartbeatModeAuth sets heartbeat to auth
 	// that does not support keep alives
 	HeartbeatModeAuth
-	// HeartbeatModeKube is a mode for kubernetes service heartbeats.
-	HeartbeatModeKube
-	// HeartbeatModeApp sets heartbeat to apps and will use keep alives.
-	HeartbeatModeApp
-	// HeartbeatModeDB sets heartbeat to db
-	HeartbeatModeDB
 	// HeartbeatModeDatabaseService sets heartbeat mode to DatabaseService.
 	HeartbeatModeDatabaseService
 	// HeartbeatModeWindowsDesktopService sets heartbeat mode to windows desktop
