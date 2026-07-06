@@ -44,10 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ErrFailedToFetchEntityDescriptor is returned on any error while downloading SAML entity
-// descriptor in entity_descriptor_url is set during the connector validation.
-var ErrFailedToFetchEntityDescriptor = &trace.BadParameterError{Message: "failed to fetch entity descriptor"}
-
 type SAMLConnectorGetter interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
@@ -61,6 +57,10 @@ const (
 	// ErrMsgHowToFixMissingOAuthCreds is the error message displayed when validation of the OAuth credentials for secret refill fails.
 	ErrMsgHowToFixMissingOAuthCreds = "You must specify the OAuth credentials (obtain the existing one with `tctl get saml --with-secrets`)."
 )
+
+// ErrFailedToFetchEntityDescriptor is returned on any error while downloading SAML entity
+// descriptor in entity_descriptor_url is set during the connector validation.
+var ErrFailedToFetchEntityDescriptor = &trace.BadParameterError{Message: "failed to fetch entity descriptor"}
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
@@ -287,7 +287,7 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 
 	entityDescriptor := &samltypes.EntityDescriptor{}
 	if err := xml.Unmarshal([]byte(rawEntityDescriptor), entityDescriptor); err != nil {
-		return "", nil, trace.Wrap(err, "failed to parse entity_descriptor XML")
+		return "", nil, trace.BadParameter("failed to parse entity_descriptor XML: %s", err)
 	}
 	return rawEntityDescriptor, entityDescriptor, nil
 }

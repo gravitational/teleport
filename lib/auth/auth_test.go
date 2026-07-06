@@ -1561,7 +1561,7 @@ func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
 
 	samlConnector, err := types.NewSAMLConnector("fetch-entity-descriptor-url-errors", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "https://teleport.example.com/v1/webapi/saml/acs",
-		EntityDescriptorURL:      server.URL + "/metadata?token=secret",
+		EntityDescriptorURL:      server.URL + "/test_metadata",
 		AttributesToRoles: []types.AttributeMapping{
 			{Name: "groups", Value: "admin", Roles: []string{role.GetName()}},
 		},

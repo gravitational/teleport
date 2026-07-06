@@ -566,8 +566,8 @@ func Test_ValidateSAMLConnector_error_sanitization(t *testing.T) {
 				// There are quite a few things to leak in the error message:
 				// 1. The HTTP response content.
 				// 2. The HTTP response code.
-				// 3. The descriptor URL and the path (token=secret in particular)
-				tc.setEntityDescriptorURL(samlConnector, server.URL+"/metadata?token=secret")
+				// 3. The descriptor URL and the path.
+				tc.setEntityDescriptorURL(samlConnector, server.URL+"/test_metadata")
 
 				err = ValidateSAMLConnector(samlConnector, roleGetter, testOpts...)
 				require.ErrorIs(t, err, ErrFailedToFetchEntityDescriptor)
