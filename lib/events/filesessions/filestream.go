@@ -356,6 +356,11 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			h.logger.WarnContext(ctx, "Skipping upload, not a directory.", "upload_id", uploadID)
 			continue
 		}
+		sessionID := session.ID(filepath.Base(files[0].Name()))
+		if err := sessionID.Check(); err != nil {
+			h.logger.WarnContext(ctx, "Skipping upload with bad session ID format", "upload_id", uploadID, "error", err)
+			continue
+		}
 
 		info, err := dir.Info()
 		if err != nil {
@@ -364,7 +369,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		}
 
 		uploads = append(uploads, events.StreamUpload{
-			SessionID: session.ID(filepath.Base(files[0].Name())),
+			SessionID: sessionID,
 			ID:        uploadID,
 			Initiated: info.ModTime(),
 		})
