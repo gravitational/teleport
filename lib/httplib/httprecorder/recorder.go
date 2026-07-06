@@ -354,11 +354,21 @@ type headerEmitter func(status int, header http.Header, waitMs int64) error
 //
 // It deliberately does not implement io.ReaderFrom. Otherwise io.Copy and
 // net/http sendfile paths could bypass Write and skip recording.
+//
+// WriteHeader, Write, Flush, and Finish are safe for concurrent use: they hold
+// mu across recording and the underlying write, so a handler can write while a
+// separate goroutine flushes on an interval without racing on the recording
+// state or the underlying (non-concurrent) http.ResponseWriter.
 type ResponseWriter struct {
 	http.ResponseWriter
-	onHeader   headerEmitter
-	emit       chunkEmitter
-	start      time.Time
+	onHeader headerEmitter
+	emit     chunkEmitter
+	start    time.Time
+
+	// mu guards the recording state below and serializes access to the
+	// underlying ResponseWriter, so a handler's Write/WriteHeader can run
+	// concurrently with a goroutine that flushes on an interval.
+	mu         sync.Mutex
 	index      int64
 	headerSent bool
 	finished   bool
@@ -377,13 +387,13 @@ func newResponseWriter(w http.ResponseWriter, start time.Time, onHeader headerEm
 // Unwrap returns the wrapped writer for http.ResponseController.
 func (w *ResponseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// emitHeader records response metadata exactly once, using the status and
-// headers the client receives.
+// emitHeaderLocked records response metadata exactly once, using the status and
+// headers the client receives. The caller holds w.mu.
 //
 // 1xx informational responses are ignored here. A server may send several of
 // them before the final status, and WriteHeader still forwards them to the
 // client.
-func (w *ResponseWriter) emitHeader(status int) error {
+func (w *ResponseWriter) emitHeaderLocked(status int) error {
 	if w.headerSent || (status >= 100 && status < 200) {
 		return nil
 	}
@@ -401,25 +411,31 @@ func (w *ResponseWriter) emitHeader(status int) error {
 // exchange when Write or Finish reports the error. The failure itself is
 // already logged where the event is emitted.
 func (w *ResponseWriter) WriteHeader(status int) {
-	if err := w.emitHeader(status); err != nil {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.emitHeaderLocked(status); err != nil {
 		w.recordErr = err
 		return
 	}
 	w.ResponseWriter.WriteHeader(status)
 }
 
-// emitChunk reports a single response body chunk and advances the chunk index.
-func (w *ResponseWriter) emitChunk(data []byte, isLast bool) error {
+// emitChunkLocked reports a single response body chunk and advances the chunk
+// index. The caller holds w.mu.
+func (w *ResponseWriter) emitChunkLocked(data []byte, isLast bool) error {
 	err := w.emit(data, w.index, isLast)
 	w.index++
 	return err
 }
 
-// Write records the payload before forwarding it to the underlying writer. If
+// Write records the payload before forwarding it to the underlying writer,
+// splitting writes larger than maxChunkSize across several chunk events. If
 // recording fails, Write returns the error and writes nothing.
 func (w *ResponseWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	// A Write without a preceding WriteHeader implies a 200 status.
-	if err := w.emitHeader(http.StatusOK); err != nil {
+	if err := w.emitHeaderLocked(http.StatusOK); err != nil {
 		return 0, err
 	}
 	// A head recorded by an earlier WriteHeader may have failed; the head was
@@ -428,15 +444,42 @@ func (w *ResponseWriter) Write(p []byte) (int, error) {
 		return 0, w.recordErr
 	}
 	if !w.finished {
-		if err := w.emitChunk(p, false); err != nil {
-			return 0, err
+		// Split oversized writes so no single chunk exceeds maxChunkSize, the
+		// same way body.Read caps recorded reads. A multi-MiB write would
+		// otherwise produce one chunk event too large for the stream/gRPC
+		// limits, and the recording would be rejected after the bytes had
+		// already been forwarded to the client.
+		for chunk := range slices.Chunk(p, maxChunkSize) {
+			if err := w.emitChunkLocked(chunk, false); err != nil {
+				return 0, err
+			}
 		}
 	}
 	return w.ResponseWriter.Write(p)
 }
 
-// Flush forwards to the underlying writer when streaming is supported.
+// Flush forwards to the underlying writer when streaming is supported. It is
+// safe to call from a separate goroutine (for example, one that flushes on an
+// interval) concurrently with the handler's writes.
+//
+// A flush commits the response head to the client, so it records the implicit
+// 200 head first (for a handler that flushes before any Write or WriteHeader,
+// such as an SSE stream) and suppresses the flush if that recording fails. Like
+// WriteHeader, the failure is stashed and surfaced through the next Write or
+// through Finish, so the exchange still fails closed.
 func (w *ResponseWriter) Flush() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	// A Flush without a preceding WriteHeader implies a 200 status.
+	if err := w.emitHeaderLocked(http.StatusOK); err != nil {
+		w.recordErr = err
+		return
+	}
+	// A head recorded by an earlier WriteHeader may have failed; that head was
+	// not forwarded, so do not flush an unrecorded response to the client.
+	if w.recordErr != nil {
+		return
+	}
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
@@ -464,6 +507,8 @@ func (w *ResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 // its failure cannot be undone; it is logged where the event is emitted and
 // does not fail Finish.
 func (w *ResponseWriter) Finish() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if w.finished {
 		return nil
 	}
@@ -474,10 +519,10 @@ func (w *ResponseWriter) Finish() error {
 	}
 	// A handler that wrote nothing leaves the head unrecorded until now; its
 	// failure is still actionable because the client has not seen it.
-	if err := w.emitHeader(http.StatusOK); err != nil {
+	if err := w.emitHeaderLocked(http.StatusOK); err != nil {
 		return err
 	}
-	_ = w.emitChunk(nil, true)
+	_ = w.emitChunkLocked(nil, true)
 	return nil
 }
 

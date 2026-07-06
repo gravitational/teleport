@@ -3039,6 +3039,7 @@ func (m *AppSessionHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
 			newStrTrimmer(m.Method, &out.Method),
 			newStrTrimmer(m.Url, &out.Url),
 			newStrTrimmer(m.RawQuery, &out.RawQuery),
+			newHTTPHeadersTrimmer(m.Headers, &out.Headers),
 		}
 	})
 }
@@ -3051,7 +3052,10 @@ func (m *AppSessionHTTPRequestBodyChunk) TrimToMaxSize(maxSize int) AuditEvent {
 
 func (m *AppSessionHTTPResponse) TrimToMaxSize(maxSize int) AuditEvent {
 	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPResponse) fieldTrimmer {
-		return newStrTrimmer(m.StatusText, &out.StatusText)
+		return fieldTrimmers{
+			newStrTrimmer(m.StatusText, &out.StatusText),
+			newHTTPHeadersTrimmer(m.Headers, &out.Headers),
+		}
 	})
 }
 

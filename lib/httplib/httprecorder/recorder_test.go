@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -228,6 +229,38 @@ func TestResponseWriter(t *testing.T) {
 	require.Empty(t, last.data)
 }
 
+// TestResponseWriterChunkSplitting covers a single Write large enough to span
+// several audit events, mirroring TestBodyChunkSplitting for the response path.
+func TestResponseWriterChunkSplitting(t *testing.T) {
+	t.Parallel()
+	// 2.5 * maxChunkSize so the write splits into 3 chunks (1MB, 1MB, 0.5MB).
+	size := maxChunkSize*2 + maxChunkSize/2
+	src := bytes.Repeat([]byte("x"), size)
+
+	var dataChunks [][]byte
+	rec := httptest.NewRecorder()
+	rw := newResponseWriter(rec, time.Now(),
+		func(int, http.Header, int64) error { return nil },
+		func(data []byte, _ int64, isLast bool) error {
+			if len(data) > 0 {
+				require.LessOrEqual(t, len(data), maxChunkSize, "no chunk may exceed maxChunkSize")
+				dataChunks = append(dataChunks, bytes.Clone(data))
+			}
+			return nil
+		})
+
+	// a single large write must be split inside the recorder.
+	n, err := rw.Write(src)
+	require.NoError(t, err)
+	require.Equal(t, size, n)
+	require.NoError(t, rw.Finish())
+
+	require.GreaterOrEqual(t, len(dataChunks), 3, "data larger than maxChunkSize must split")
+	require.Equal(t, src, bytes.Join(dataChunks, nil))
+	// the client still receives the full, unmodified payload.
+	require.Equal(t, size, rec.Body.Len())
+}
+
 // TestResponseWriterHeaderEmittedOnce checks both explicit and implicit
 // response heads.
 func TestResponseWriterHeaderEmittedOnce(t *testing.T) {
@@ -317,6 +350,101 @@ func TestResponseWriterForwardsFlushAndHijack(t *testing.T) {
 	_, _, err := hijacker.Hijack()
 	require.NoError(t, err)
 	require.True(t, inner.hijacked)
+}
+
+// TestResponseWriterFlushRecordsHead covers a handler (such as an SSE stream)
+// that flushes before any Write or WriteHeader: the flush must record the
+// implicit 200 head before committing it to the client.
+func TestResponseWriterFlushRecordsHead(t *testing.T) {
+	t.Parallel()
+	var (
+		calls  int
+		status int
+	)
+	inner := &flushHijackRecorder{ResponseRecorder: httptest.NewRecorder()}
+	rw := newResponseWriter(inner, time.Now(),
+		func(s int, _ http.Header, _ int64) error {
+			calls++
+			status = s
+			return nil
+		},
+		func([]byte, int64, bool) error { return nil })
+
+	rw.Flush()
+
+	require.Equal(t, 1, calls, "flush must record the implicit response head")
+	require.Equal(t, http.StatusOK, status)
+	require.True(t, inner.flushed)
+}
+
+// TestResponseWriterFlushFailsClosed covers a flush whose implicit-head
+// recording fails: the flush must be suppressed and the failure surfaced
+// through Finish so an unrecorded response is never committed to the client.
+func TestResponseWriterFlushFailsClosed(t *testing.T) {
+	t.Parallel()
+	inner := &flushHijackRecorder{ResponseRecorder: httptest.NewRecorder()}
+	rw := newResponseWriter(inner, time.Now(),
+		func(int, http.Header, int64) error { return assert.AnError },
+		func([]byte, int64, bool) error { return nil })
+
+	rw.Flush()
+	require.False(t, inner.flushed, "an unrecorded head must not be flushed to the client")
+
+	require.ErrorIs(t, rw.Finish(), assert.AnError)
+}
+
+// TestResponseWriterConcurrentWriteFlush exercises the mutex that lets a
+// goroutine flush on an interval (the SSE-style use case) run concurrently with
+// the handler's writes. synctest's fake clock fires the ticker deterministically
+// so the interleaving of Write and Flush is reproducible; run under the race
+// detector (go test -race) to check the locking.
+func TestResponseWriterConcurrentWriteFlush(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		inner := &flushHijackRecorder{ResponseRecorder: httptest.NewRecorder()}
+		rw := newResponseWriter(inner, time.Now(),
+			func(int, http.Header, int64) error { return nil },
+			func([]byte, int64, bool) error { return nil })
+
+		const (
+			chunk       = "chunk"
+			writes      = 5
+			flushPeriod = 10 * time.Millisecond
+		)
+
+		// a goroutine that flushes on an interval, like a periodic flusher.
+		done := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(flushPeriod)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					rw.Flush()
+				}
+			}
+		}()
+
+		for range writes {
+			_, err := rw.Write([]byte(chunk))
+			require.NoError(t, err)
+
+			// Advance the fake clock past the flush period so the ticker fires
+			// once, then wait for that Flush to complete. This pins the ordering
+			// of each Write/Flush pair.
+			time.Sleep(flushPeriod)
+			synctest.Wait()
+		}
+
+		close(done)
+		synctest.Wait()
+
+		require.NoError(t, rw.Finish())
+		require.Equal(t, writes*len(chunk), inner.Body.Len(), "every write must reach the client")
+		require.True(t, inner.flushed, "the periodic flusher must have run")
+	})
 }
 
 // TestResponseWriterHijackUnsupported covers a writer that cannot be hijacked.
