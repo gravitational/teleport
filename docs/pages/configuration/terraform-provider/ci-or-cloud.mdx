@@ -510,7 +510,7 @@ Plan: 1 to add, 0 to change, 0 to destroy.
 </TabItem>
 <TabItem label="Azure DevOps">
 In the repository containing your Terraform code add the following Azure DevOps properties in your provider configuration block:
-```terraform
+```hcl
 provider "teleport" {
   addr        = "<Var name="teleport.example.com:443" />"
   join_method = "azure_devops"
@@ -529,7 +529,7 @@ jobs:
       inputs:
         provider: 'azurerm'
         command: 'plan'
-        environmentServiceNameAzureRM: '<your-service-connection>'
+        environmentServiceNameAzureRM: '<Var name="service-connection" />'
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 ```
