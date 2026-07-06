@@ -225,12 +225,18 @@ func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Contex
 		// access to only resources subject to /foo/bar.
 		if enforcePin {
 			if !pinning.PinAppliesToResourceScope(c.pin, scope) {
-				yield(nil, trace.AccessDenied("scope pin %q does not apply to resource scope %q", c.pin.GetScope(), scope))
+				yield(nil, trace.AccessDenied(
+					"a resource in scope %q can't be manipulated from a session pinned to scope %q",
+					scope, c.pin.GetScope(),
+				))
 				return
 			}
 		} else if !pinning.PinCompatibleWithPolicyScope(c.pin, scope) {
 			// Unpinned reads should still not allow orthogonal reads.
-			yield(nil, trace.AccessDenied("scope pin %q is orthogonal to resource scope %q", c.pin.GetScope(), scope))
+			yield(nil, trace.AccessDenied(
+				"a resource in scope %q can't be manipulated from a session pinned to orthogonal scope %q",
+				scope, c.pin.GetScope(),
+			))
 			return
 		}
 

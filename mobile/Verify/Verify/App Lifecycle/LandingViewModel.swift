@@ -19,20 +19,31 @@ import SwiftNavigation
 
 @Observable @MainActor
 final class LandingViewModel {
+	// swiftformat:sort
 	@CasePathable
 	enum Destination {
-		case deviceEnrollment(EnrollDeviceViewModel)
+		case cameraScanner(EnrollCameraScannerViewModel)
 		case deepLinkParsingAlert(errorMessage: String)
+		case enrollDevice(EnrollDeviceViewModel)
 	}
 
 	var destination: Destination? = nil
+	var sensoryFeedbackTrigger = false
+}
+
+// MARK: - User Actions
+
+extension LandingViewModel {
+	func userTappedOnScanQRCode() {
+		destination = .cameraScanner(EnrollCameraScannerViewModel(delegate: self))
+	}
 }
 
 // MARK: - Programmatic Navigation
 
 extension LandingViewModel {
 	func navigateToDeviceEnrollment(with deepLink: EnrollMobileDeviceDeepLink) {
-		destination = .deviceEnrollment(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
+		destination = .enrollDevice(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
 	}
 
 	func showParserError(errorMessage: String) {
@@ -45,5 +56,17 @@ extension LandingViewModel {
 extension LandingViewModel: EnrollDeviceViewModel.Delegate {
 	func enrollDeviceViewModelDidCancelOperation(_ viewModel: EnrollDeviceViewModel) {
 		destination = nil
+	}
+}
+
+// MARK: - EnrollCameraScannerViewModel.Delegate
+
+extension LandingViewModel: EnrollCameraScannerViewModel.Delegate {
+	func enrollCameraScannerViewModel(
+		_ viewModel: EnrollCameraScannerViewModel,
+		didReceiveEnrollMobileDeviceDeepLink deepLink: EnrollMobileDeviceDeepLink,
+	) {
+		sensoryFeedbackTrigger.toggle()
+		destination = .enrollDevice(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
 	}
 }

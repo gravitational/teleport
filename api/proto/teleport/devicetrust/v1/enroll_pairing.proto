@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.devicetrust.v1;
 
+import "teleport/devicetrust/v1/os_type.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
@@ -49,6 +50,14 @@ message EnrollPairingStatus {
 
   // Pairing token to be encoded into a QR code by the Web UI.
   string token = 2;
+
+  // Identifying data about the device, submitted by the mobile app with
+  // CreatePairedDeviceEnrollToken and persisted on the transition to
+  // ENROLL_PAIRING_STATE_AWAITING_APPROVAL. The Web UI uses it to show the user
+  // which device is being enrolled before they approve. os_type and
+  // serial_number also gate retries of CreatePairedDeviceEnrollToken so that
+  // only the original device can retry the request.
+  EnrollPairingDevice device = 3;
 }
 
 // EnrollPairingState is the state of an EnrollPairing.
@@ -78,4 +87,20 @@ enum EnrollPairingState {
   // Set after the Web UI user has approved the request with MFA. The mobile
   // app may now retrieve the enrollment token.
   ENROLL_PAIRING_STATE_APPROVED = 3;
+}
+
+// EnrollPairingDevice is a client-submitted description of the device. It is
+// presented to the user in the Web UI before they approve enroll pairing.
+// os_type and serial_number are also used to gate retries of
+// CreatePairedDeviceEnrollToken.
+message EnrollPairingDevice {
+  // Device operating system.
+  OSType os_type = 1;
+
+  // Device serial number.
+  string serial_number = 2;
+
+  // OS version number, without the leading 'v'.
+  // Example: "13.2.1".
+  string os_version = 3;
 }

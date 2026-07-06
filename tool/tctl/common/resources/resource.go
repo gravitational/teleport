@@ -55,6 +55,7 @@ func Handlers() map[string]Handler {
 		types.KindCertAuthority:                      certAuthorityHandler(),
 		types.KindCertAuthorityOverride:              certAuthorityOverrideHandler(),
 		types.KindClassifier:                         classifierHandler(),
+		types.KindClientIPRestriction:                clientIPRestrictionHandler(),
 		types.KindClusterAuthPreference:              authPreferenceHandler(),
 		types.KindClusterMaintenanceConfig:           clusterMaintenanceConfigHandler(),
 		types.KindClusterNetworkingConfig:            networkingConfigHandler(),
