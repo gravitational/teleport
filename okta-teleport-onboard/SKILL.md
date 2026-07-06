@@ -23,14 +23,12 @@ Drive this as a guided, confirm-once-then-execute flow.
 - **Derive, don't interrogate.** Infer `PROXY` from `tsh status`, `OKTA_ORG`/`OKTA_SSWS`
   from the creds file, and default SSO group `Everyone`, ACL owner = logged-in user,
   filters `*`. Only ask the user when something can't be derived.
-- **Gate A — confirm the plan (BLOCKING, before running the orchestrator).** Present a
-  summary card and use `AskUserQuestion` for explicit approval. The card shows: target
-  cluster + proxy, Okta org, SSO group(s), Access List owner(s), import filters, and
-  a prospective "Will create" list for each side — phrase it in FUTURE tense, never
-  "Objects created" / past tense (nothing has run at Gate A) — plus the warning that app/group sync
-  is **bidirectional and writes back into Okta**. Options: "Proceed", "Change an input",
-  "Cancel". Run nothing that mutates until "Proceed". (Preflight is the orchestrator's
-  first, read-only phase and aborts safely on its own.)
+- **Gate A — confirm the plan (BLOCKING, before running the orchestrator).** Get the
+  plan card from `onboard.sh --plan` (deterministic; creates nothing) and relay it
+  VERBATIM — do not re-render, re-order, or re-word it. Then use `AskUserQuestion` with
+  options "Proceed" / "Change an input" / "Cancel". Run nothing that mutates until
+  "Proceed". (`--plan` prints the inputs, a "will create" list, and the bidirectional-
+  sync warning; the real run's first phase is read-only preflight and aborts safely.)
 - **Gate C — confirm teardown (BLOCKING).** Before `cleanup.sh`, list what will be
   deleted (plugin, connector, N Access Lists, N okta-origin users, the Okta apps +
   role + resource set) and require explicit approval — teardown is destructive.
@@ -49,8 +47,9 @@ Drive this as a guided, confirm-once-then-execute flow.
 - **On failure.** The orchestrator stops at the first error with an `ERR <reason>` line.
   Surface it and ask via `AskUserQuestion` how to proceed (retry / adjust / abort). Do
   not silently re-run or paper over it.
-- **Closing summary.** Resource table + plugin status + imported-user count + the
-  teardown command (`scripts/cleanup.sh`, no args).
+- **Closing summary.** The orchestrator's `Verify` + `Done` blocks ARE the summary
+  (status, synced-user count, created-object table, teardown command). Relay them
+  verbatim; do not compose your own.
 
 ## Preconditions
 1. `tsh status` succeeds and the identity can manage plugins (editor/admin).
@@ -68,7 +67,13 @@ Drive this as a guided, confirm-once-then-execute flow.
    ```
    Derive `PROXY` from `tsh status`; default `SSO_GROUP=Everyone`,
    `ACL_OWNER=<logged-in user>`, `GROUP_FILTER=*`, `APP_FILTER=*`.
-2. **Gate A** — render the confirmation card and get "Proceed".
+2. **Gate A** — get the deterministic plan card, relay it verbatim, then confirm:
+   ```
+   set -a; source ~/.okta-onboard.env; set +a
+   PROXY="<host:443>" SSO_GROUP="Everyone" ACL_OWNER="<user>" \
+     .claude/skills/okta-teleport-onboard/scripts/onboard.sh --plan
+   ```
+   Then `AskUserQuestion`: Proceed / Change an input / Cancel. Nothing mutates yet.
 3. **Execute** the orchestrator and relay its progress (single call):
    ```
    set -a; source ~/.okta-onboard.env; set +a
@@ -79,12 +84,12 @@ Drive this as a guided, confirm-once-then-execute flow.
    scoped role + resource set + binding → Teleport validate + enroll, records the
    created IDs to `$OKTA_ONBOARD_STATE`, and prints them. On non-zero exit, see the
    `ERR` line and follow the on-failure protocol.
-4. **Verify:**
-   - `tctl get plugins/okta --format=json | jq '.[].status.code'` → `1` (RUNNING).
-   - `tctl get saml/okta` exists.
-   - After a sync cycle, okta-origin users appear:
-     `tctl get users --format=json | jq '[.[]|select(.metadata.labels."teleport.dev/origin"=="okta")]|length'`.
-5. **Summarize** per the closing-summary rule.
+4. **Verify:** the orchestrator prints its own `Verify` section at the end (plugin
+   status → RUNNING, connector present, synced-user count) — relay it. Do NOT hand-
+   assemble verification commands; nested quotes in ad-hoc `echo "$(… "x" …)"` shell
+   trip the command parser (parse error).
+5. **Summary** — the `Verify` + `Done` output above IS the summary; relay it verbatim.
+   Do not author an additional summary.
 
 ## Teardown / offboarding
 Confirm via Gate C first — destructive. `scripts/cleanup.sh` needs **no args**:

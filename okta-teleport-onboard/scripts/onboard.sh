@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# Orchestrated Okta -> Teleport onboarding. ALL mutation logic lives here so the
-# driving agent just derives inputs, confirms once, runs this, and relays output.
-# Emits clean, structured progress; exits non-zero with a clear line on failure.
+# Orchestrated Okta -> Teleport onboarding. ALL mutation logic AND all happy-path
+# presentation live here, so the driving agent just: runs `--plan`, relays it, gets a
+# yes/no, runs without `--plan`, relays it. Output is deterministic on the happy path.
 #
 # Prereqs: OKTA_ORG + OKTA_SSWS in the environment (source ~/.okta-onboard.env),
 # an authenticated tsh session, and this skill living inside the Teleport repo.
+#
+# Usage:
+#   onboard.sh --plan   print the deterministic plan card and exit (no mutations)
+#   onboard.sh          run preflight -> create -> enroll -> verify
 #
 # Env inputs (defaults in parens):
 #   PROXY         Teleport proxy host[:port]                     (required)
@@ -13,8 +17,9 @@
 #   GROUP_FILTER  Okta group import filter                       (*)
 #   APP_FILTER    Okta app import filter                         (*)
 set -uo pipefail
+PLAN_ONLY=0; [[ "${1:-}" == "--plan" ]] && PLAN_ONLY=1
 here=$(cd "$(dirname "$0")" && pwd)
-repo=$(cd "$here/../../../.." && pwd)   # <repo>/.claude/skills/okta-teleport-onboard/scripts
+repo=$(cd "$here/../../../.." && pwd)
 source "$here/okta.sh"
 set +e   # this script checks each result explicitly via || die
 
@@ -28,9 +33,37 @@ LABEL=${LABEL:-Teleport ($host)}
 
 say() { printf '\n==> %s\n' "$1"; }
 ok()  { printf '    OK  %-14s %s\n' "$1" "${2:-}"; }
+er()  { printf '    !!  %-14s %s\n' "$1" "${2:-}"; }   # non-fatal warning
 die() { printf '    ERR %s\n' "$1" >&2; exit 1; }
 idof(){ jq -r '.id // empty'; }
 err(){ jq -r '.errorSummary // .errorCode // "unknown error"'; }
+
+print_plan() {
+  cat <<EOF
+
+Okta -> Teleport onboarding — PLAN (nothing created yet)
+
+  Cluster / proxy    $host  ($PROXY)
+  Okta org           $OKTA_ORG
+  SSO group(s)       $SSO_GROUP
+  Access List owner  $ACL_OWNER
+  Group filter       $GROUP_FILTER
+  App filter         $APP_FILTER
+
+  Will create — Okta:
+    - SAML 2.0 app (SSO) + assign group "$SSO_GROUP"
+    - OAuth API Services app (private_key_jwt, JWKS trust)
+    - custom IAM admin role + resource set + role binding
+  Will create — Teleport:
+    - saml/okta connector + Okta integration plugin
+    - user sync + app/group sync (bidirectional); synced Access Lists + users
+
+  WARNING: app/group sync is BIDIRECTIONAL and writes back into Okta — membership
+           changes in Teleport add/remove users from Okta groups. SCIM is out of scope.
+EOF
+}
+
+if [[ $PLAN_ONLY == 1 ]]; then print_plan; exit 0; fi
 
 say "Preflight"
 [[ "$(okta::check_token)" == 200 ]] || die "Okta token rejected (check OKTA_SSWS)"
@@ -81,6 +114,13 @@ run_enroll -proxy "$PROXY" -org "$OKTA_ORG" -oauth-id "$CLIENT_ID" -metadata-url
   -owner "$ACL_OWNER" -group-filter "$GROUP_FILTER" -app-filter "$APP_FILTER" \
   || die "enrollment RPC failed"
 ok "integration" "plugin=okta connector=okta"
+
+say "Verify"
+code=$(tctl get plugins/okta --format=json 2>/dev/null | jq -r '.[].status.code // "?"')
+case "$code" in 1) ok "plugin status" "RUNNING";; *) er "plugin status" "code=$code";; esac
+tctl get saml/okta >/dev/null 2>&1 && ok "connector" "saml/okta present" || er "connector" "saml/okta MISSING"
+uc=$(tctl get users --format=json 2>/dev/null | jq '[.[]|select(.metadata.labels."teleport.dev/origin"=="okta")]|length' 2>/dev/null)
+ok "synced users" "${uc:-0} so far (grows over the next sync cycle)"
 
 say "Done — created objects (also saved to $OKTA_ONBOARD_STATE)"
 printf '    SAML app      %s\n    Service app   %s\n    Admin role    %s\n    Resource set  %s\n' \
