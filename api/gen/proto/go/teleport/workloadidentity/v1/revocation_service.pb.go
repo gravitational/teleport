@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/revocation_service.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // The request for CreateWorkloadIdentityX509Revocation.
 type CreateWorkloadIdentityX509RevocationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The X509 workload identity revocation to create.
 	WorkloadIdentityX509Revocation *WorkloadIdentityX509Revocation `protobuf:"bytes,1,opt,name=workload_identity_x509_revocation,json=workloadIdentityX509Revocation,proto3" json:"workload_identity_x509_revocation,omitempty"`
 	unknownFields                  protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *CreateWorkloadIdentityX509RevocationRequest) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateWorkloadIdentityX509RevocationRequest.ProtoReflect.Descriptor instead.
-func (*CreateWorkloadIdentityX509RevocationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateWorkloadIdentityX509RevocationRequest) GetWorkloadIdentityX509Revocation() *WorkloadIdentityX509Revocation {
 	if x != nil {
 		return x.WorkloadIdentityX509Revocation
@@ -82,9 +78,39 @@ func (x *CreateWorkloadIdentityX509RevocationRequest) GetWorkloadIdentityX509Rev
 	return nil
 }
 
+func (x *CreateWorkloadIdentityX509RevocationRequest) SetWorkloadIdentityX509Revocation(v *WorkloadIdentityX509Revocation) {
+	x.WorkloadIdentityX509Revocation = v
+}
+
+func (x *CreateWorkloadIdentityX509RevocationRequest) HasWorkloadIdentityX509Revocation() bool {
+	if x == nil {
+		return false
+	}
+	return x.WorkloadIdentityX509Revocation != nil
+}
+
+func (x *CreateWorkloadIdentityX509RevocationRequest) ClearWorkloadIdentityX509Revocation() {
+	x.WorkloadIdentityX509Revocation = nil
+}
+
+type CreateWorkloadIdentityX509RevocationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The X509 workload identity revocation to create.
+	WorkloadIdentityX509Revocation *WorkloadIdentityX509Revocation
+}
+
+func (b0 CreateWorkloadIdentityX509RevocationRequest_builder) Build() *CreateWorkloadIdentityX509RevocationRequest {
+	m0 := &CreateWorkloadIdentityX509RevocationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WorkloadIdentityX509Revocation = b.WorkloadIdentityX509Revocation
+	return m0
+}
+
 // The request for UpdateWorkloadIdentityX509Revocation.
 type UpdateWorkloadIdentityX509RevocationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The X509 workload identity revocation to update.
 	WorkloadIdentityX509Revocation *WorkloadIdentityX509Revocation `protobuf:"bytes,1,opt,name=workload_identity_x509_revocation,json=workloadIdentityX509Revocation,proto3" json:"workload_identity_x509_revocation,omitempty"`
 	unknownFields                  protoimpl.UnknownFields
@@ -116,11 +142,6 @@ func (x *UpdateWorkloadIdentityX509RevocationRequest) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateWorkloadIdentityX509RevocationRequest.ProtoReflect.Descriptor instead.
-func (*UpdateWorkloadIdentityX509RevocationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *UpdateWorkloadIdentityX509RevocationRequest) GetWorkloadIdentityX509Revocation() *WorkloadIdentityX509Revocation {
 	if x != nil {
 		return x.WorkloadIdentityX509Revocation
@@ -128,9 +149,39 @@ func (x *UpdateWorkloadIdentityX509RevocationRequest) GetWorkloadIdentityX509Rev
 	return nil
 }
 
+func (x *UpdateWorkloadIdentityX509RevocationRequest) SetWorkloadIdentityX509Revocation(v *WorkloadIdentityX509Revocation) {
+	x.WorkloadIdentityX509Revocation = v
+}
+
+func (x *UpdateWorkloadIdentityX509RevocationRequest) HasWorkloadIdentityX509Revocation() bool {
+	if x == nil {
+		return false
+	}
+	return x.WorkloadIdentityX509Revocation != nil
+}
+
+func (x *UpdateWorkloadIdentityX509RevocationRequest) ClearWorkloadIdentityX509Revocation() {
+	x.WorkloadIdentityX509Revocation = nil
+}
+
+type UpdateWorkloadIdentityX509RevocationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The X509 workload identity revocation to update.
+	WorkloadIdentityX509Revocation *WorkloadIdentityX509Revocation
+}
+
+func (b0 UpdateWorkloadIdentityX509RevocationRequest_builder) Build() *UpdateWorkloadIdentityX509RevocationRequest {
+	m0 := &UpdateWorkloadIdentityX509RevocationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WorkloadIdentityX509Revocation = b.WorkloadIdentityX509Revocation
+	return m0
+}
+
 // The request for UpsertWorkloadIdentityX509Revocation.
 type UpsertWorkloadIdentityX509RevocationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The X509 workload identity revocation to upsert.
 	WorkloadIdentityX509Revocation *WorkloadIdentityX509Revocation `protobuf:"bytes,1,opt,name=workload_identity_x509_revocation,json=workloadIdentityX509Revocation,proto3" json:"workload_identity_x509_revocation,omitempty"`
 	unknownFields                  protoimpl.UnknownFields
@@ -162,11 +213,6 @@ func (x *UpsertWorkloadIdentityX509RevocationRequest) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertWorkloadIdentityX509RevocationRequest.ProtoReflect.Descriptor instead.
-func (*UpsertWorkloadIdentityX509RevocationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpsertWorkloadIdentityX509RevocationRequest) GetWorkloadIdentityX509Revocation() *WorkloadIdentityX509Revocation {
 	if x != nil {
 		return x.WorkloadIdentityX509Revocation
@@ -174,9 +220,39 @@ func (x *UpsertWorkloadIdentityX509RevocationRequest) GetWorkloadIdentityX509Rev
 	return nil
 }
 
+func (x *UpsertWorkloadIdentityX509RevocationRequest) SetWorkloadIdentityX509Revocation(v *WorkloadIdentityX509Revocation) {
+	x.WorkloadIdentityX509Revocation = v
+}
+
+func (x *UpsertWorkloadIdentityX509RevocationRequest) HasWorkloadIdentityX509Revocation() bool {
+	if x == nil {
+		return false
+	}
+	return x.WorkloadIdentityX509Revocation != nil
+}
+
+func (x *UpsertWorkloadIdentityX509RevocationRequest) ClearWorkloadIdentityX509Revocation() {
+	x.WorkloadIdentityX509Revocation = nil
+}
+
+type UpsertWorkloadIdentityX509RevocationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The X509 workload identity revocation to upsert.
+	WorkloadIdentityX509Revocation *WorkloadIdentityX509Revocation
+}
+
+func (b0 UpsertWorkloadIdentityX509RevocationRequest_builder) Build() *UpsertWorkloadIdentityX509RevocationRequest {
+	m0 := &UpsertWorkloadIdentityX509RevocationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WorkloadIdentityX509Revocation = b.WorkloadIdentityX509Revocation
+	return m0
+}
+
 // The request for GetWorkloadIdentityX509Revocation.
 type GetWorkloadIdentityX509RevocationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the X509 workload identity revocation to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -208,11 +284,6 @@ func (x *GetWorkloadIdentityX509RevocationRequest) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetWorkloadIdentityX509RevocationRequest.ProtoReflect.Descriptor instead.
-func (*GetWorkloadIdentityX509RevocationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *GetWorkloadIdentityX509RevocationRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -220,9 +291,28 @@ func (x *GetWorkloadIdentityX509RevocationRequest) GetName() string {
 	return ""
 }
 
+func (x *GetWorkloadIdentityX509RevocationRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetWorkloadIdentityX509RevocationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the X509 workload identity revocation to retrieve.
+	Name string
+}
+
+func (b0 GetWorkloadIdentityX509RevocationRequest_builder) Build() *GetWorkloadIdentityX509RevocationRequest {
+	m0 := &GetWorkloadIdentityX509RevocationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // The request for DeleteWorkloadIdentityX509Revocation.
 type DeleteWorkloadIdentityX509RevocationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the workload identity to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -254,11 +344,6 @@ func (x *DeleteWorkloadIdentityX509RevocationRequest) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteWorkloadIdentityX509RevocationRequest.ProtoReflect.Descriptor instead.
-func (*DeleteWorkloadIdentityX509RevocationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeleteWorkloadIdentityX509RevocationRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -266,9 +351,28 @@ func (x *DeleteWorkloadIdentityX509RevocationRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteWorkloadIdentityX509RevocationRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteWorkloadIdentityX509RevocationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the workload identity to delete.
+	Name string
+}
+
+func (b0 DeleteWorkloadIdentityX509RevocationRequest_builder) Build() *DeleteWorkloadIdentityX509RevocationRequest {
+	m0 := &DeleteWorkloadIdentityX509RevocationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // The request for ListWorkloadIdentityX509Revocations.
 type ListWorkloadIdentityX509RevocationsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -303,11 +407,6 @@ func (x *ListWorkloadIdentityX509RevocationsRequest) ProtoReflect() protoreflect
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListWorkloadIdentityX509RevocationsRequest.ProtoReflect.Descriptor instead.
-func (*ListWorkloadIdentityX509RevocationsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ListWorkloadIdentityX509RevocationsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -322,9 +421,36 @@ func (x *ListWorkloadIdentityX509RevocationsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListWorkloadIdentityX509RevocationsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListWorkloadIdentityX509RevocationsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListWorkloadIdentityX509RevocationsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token value returned from a previous ListWorkloadIdentities request, if any.
+	PageToken string
+}
+
+func (b0 ListWorkloadIdentityX509RevocationsRequest_builder) Build() *ListWorkloadIdentityX509RevocationsRequest {
+	m0 := &ListWorkloadIdentityX509RevocationsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // The response for ListWorkloadIdentityX509Revocations.
 type ListWorkloadIdentityX509RevocationsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of workload identities that matched the request.
 	WorkloadIdentityX509Revocations []*WorkloadIdentityX509Revocation `protobuf:"bytes,1,rep,name=workload_identity_x509_revocations,json=workloadIdentityX509Revocations,proto3" json:"workload_identity_x509_revocations,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -359,11 +485,6 @@ func (x *ListWorkloadIdentityX509RevocationsResponse) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListWorkloadIdentityX509RevocationsResponse.ProtoReflect.Descriptor instead.
-func (*ListWorkloadIdentityX509RevocationsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ListWorkloadIdentityX509RevocationsResponse) GetWorkloadIdentityX509Revocations() []*WorkloadIdentityX509Revocation {
 	if x != nil {
 		return x.WorkloadIdentityX509Revocations
@@ -378,9 +499,36 @@ func (x *ListWorkloadIdentityX509RevocationsResponse) GetNextPageToken() string 
 	return ""
 }
 
+func (x *ListWorkloadIdentityX509RevocationsResponse) SetWorkloadIdentityX509Revocations(v []*WorkloadIdentityX509Revocation) {
+	x.WorkloadIdentityX509Revocations = v
+}
+
+func (x *ListWorkloadIdentityX509RevocationsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListWorkloadIdentityX509RevocationsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of workload identities that matched the request.
+	WorkloadIdentityX509Revocations []*WorkloadIdentityX509Revocation
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListWorkloadIdentityX509RevocationsResponse_builder) Build() *ListWorkloadIdentityX509RevocationsResponse {
+	m0 := &ListWorkloadIdentityX509RevocationsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WorkloadIdentityX509Revocations = b.WorkloadIdentityX509Revocations
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // The request for StreamSignedCRL.
 type StreamSignedCRLRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -410,14 +558,21 @@ func (x *StreamSignedCRLRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StreamSignedCRLRequest.ProtoReflect.Descriptor instead.
-func (*StreamSignedCRLRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_service_proto_rawDescGZIP(), []int{7}
+type StreamSignedCRLRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 StreamSignedCRLRequest_builder) Build() *StreamSignedCRLRequest {
+	m0 := &StreamSignedCRLRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // The response for StreamSignedCRL.
 type StreamSignedCRLResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The signed Certificate Revocation List (CRL).
 	//
 	// The syntax of the CRL is defined at https://www.rfc-editor.org/rfc/rfc5280.html#section-5
@@ -455,16 +610,39 @@ func (x *StreamSignedCRLResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StreamSignedCRLResponse.ProtoReflect.Descriptor instead.
-func (*StreamSignedCRLResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *StreamSignedCRLResponse) GetCrl() []byte {
 	if x != nil {
 		return x.Crl
 	}
 	return nil
+}
+
+func (x *StreamSignedCRLResponse) SetCrl(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Crl = v
+}
+
+type StreamSignedCRLResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The signed Certificate Revocation List (CRL).
+	//
+	// The syntax of the CRL is defined at https://www.rfc-editor.org/rfc/rfc5280.html#section-5
+	// This field is encoded in DER ASN.1 without any PEM wrapping.
+	//
+	// When a new signed CRL is available, the full new CRL will be sent to the
+	// client again using this field.
+	Crl []byte
+}
+
+func (b0 StreamSignedCRLResponse_builder) Build() *StreamSignedCRLResponse {
+	m0 := &StreamSignedCRLResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Crl = b.Crl
+	return m0
 }
 
 var File_teleport_workloadidentity_v1_revocation_service_proto protoreflect.FileDescriptor
@@ -500,18 +678,6 @@ const file_teleport_workloadidentity_v1_revocation_service_proto_rawDesc = "" +
 	"$DeleteWorkloadIdentityX509Revocation\x12I.teleport.workloadidentity.v1.DeleteWorkloadIdentityX509RevocationRequest\x1a\x16.google.protobuf.Empty\x12\xba\x01\n" +
 	"#ListWorkloadIdentityX509Revocations\x12H.teleport.workloadidentity.v1.ListWorkloadIdentityX509RevocationsRequest\x1aI.teleport.workloadidentity.v1.ListWorkloadIdentityX509RevocationsResponse\x12\x80\x01\n" +
 	"\x0fStreamSignedCRL\x124.teleport.workloadidentity.v1.StreamSignedCRLRequest\x1a5.teleport.workloadidentity.v1.StreamSignedCRLResponse0\x01BdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_revocation_service_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_revocation_service_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_revocation_service_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_revocation_service_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_revocation_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_revocation_service_proto_rawDesc), len(file_teleport_workloadidentity_v1_revocation_service_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_revocation_service_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_revocation_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_workloadidentity_v1_revocation_service_proto_goTypes = []any{

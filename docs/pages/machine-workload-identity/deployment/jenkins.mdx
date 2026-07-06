@@ -7,16 +7,17 @@ tags:
  - how-to
  - mwi
  - infrastructure-identity
+page_type: how-to
 ---
-
-{/* lint disable page-structure remark-lint */}
 
 Jenkins is an open source automation server that is frequently used to build
 Continuous Integration and Continuous Delivery (CI/CD) pipelines.
 
-In this guide, we will demonstrate how to migrate existing Jenkins pipelines to
-utilize Machine & Workload Identity to connect to infrastructure protected by
-Teleport.
+In this guide, you will create a Machine & Workload Identity Bot and use it to
+generate short-lived credentials that your Jenkins pipeline can use to connect
+to Teleport-protected infrastructure.
+
+{/* lint ignore page-structure remark-link */}
 
 ## Prerequisites
 

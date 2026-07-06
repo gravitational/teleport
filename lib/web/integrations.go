@@ -250,10 +250,10 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	deleteAssociatedResources, _ := apiutils.ParseBool(r.URL.Query().Get("associatedresources"))
-	if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), &integrationv1.DeleteIntegrationRequest{
+	if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), integrationv1.DeleteIntegrationRequest_builder{
 		Name:                      integrationName,
 		DeleteAssociatedResources: deleteAssociatedResources,
-	}); err != nil {
+	}.Build()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -346,10 +346,10 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		}
 	}
 
-	tasks := allUserTasks(ctx, req.userTasksClient, &usertasksv1.ListUserTasksFilters{
+	tasks := allUserTasks(ctx, req.userTasksClient, usertasksv1.ListUserTasksFilters_builder{
 		Integration: req.integration.GetName(),
 		TaskState:   usertasks.TaskStateOpen,
-	})
+	}.Build())
 	for task, err := range tasks {
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -369,35 +369,58 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	}
 	ret.UnresolvedUserTasks = len(ret.UserTasks)
 
+	// Track whether any resource type is currently being scanned.
+	// If any are scanning, we set SyncEnd to nil after all iterations.
+	// TODO (avatus) might need to make this a bit more scalable in the
+	// future if we have a bunch of types but this is ok for now
+	var ec2Scanning, rdsScanning, eksScanning, azureVMScanning bool
+
 	for cfg, err := range allDiscoveryConfigs(ctx, req.discoveryConfigLister) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		discoveredResources, ok := cfg.Status.IntegrationDiscoveredResources[req.integration.GetName()]
-		if !ok {
+		summary := integrationSummaryForConfig(cfg, req.integration.GetName())
+		if summary == nil {
 			continue
 		}
 
-		if matchers := rulesWithIntegration(cfg, types.AWSMatcherEC2, req.integration.GetName()); matchers != 0 {
-			ret.AWSEC2.RulesCount += matchers
-			mergeResourceTypeSummary(&ret.AWSEC2, cfg.Status.LastSyncTime, discoveredResources.AwsEc2)
-		}
+		ec2Matchers := rulesWithIntegration(cfg, types.AWSMatcherEC2, req.integration.GetName())
+		rdsMatchers := rulesWithIntegration(cfg, types.AWSMatcherRDS, req.integration.GetName())
+		eksMatchers := rulesWithIntegration(cfg, types.AWSMatcherEKS, req.integration.GetName())
+		azureVMMatchers := rulesWithIntegration(cfg, types.AzureMatcherVM, req.integration.GetName())
 
-		if matchers := rulesWithIntegration(cfg, types.AWSMatcherRDS, req.integration.GetName()); matchers != 0 {
-			ret.AWSRDS.RulesCount += matchers
-			mergeResourceTypeSummary(&ret.AWSRDS, cfg.Status.LastSyncTime, discoveredResources.AwsRds)
-		}
+		ret.AWSEC2.RulesCount += ec2Matchers
+		ret.AWSRDS.RulesCount += rdsMatchers
+		ret.AWSEKS.RulesCount += eksMatchers
+		ret.AzureVM.RulesCount += azureVMMatchers
 
-		if matchers := rulesWithIntegration(cfg, types.AWSMatcherEKS, req.integration.GetName()); matchers != 0 {
-			ret.AWSEKS.RulesCount += matchers
-			mergeResourceTypeSummary(&ret.AWSEKS, cfg.Status.LastSyncTime, discoveredResources.AwsEks)
+		if ec2Matchers != 0 {
+			ec2Scanning = mergeResourceTypeSummary(&ret.AWSEC2, summary.summary.GetAwsEc2(), summary.pollInterval) || ec2Scanning
 		}
+		if rdsMatchers != 0 {
+			rdsScanning = mergeResourceTypeSummary(&ret.AWSRDS, summary.summary.GetAwsRds(), summary.pollInterval) || rdsScanning
+		}
+		if eksMatchers != 0 {
+			eksScanning = mergeResourceTypeSummary(&ret.AWSEKS, summary.summary.GetAwsEks(), summary.pollInterval) || eksScanning
+		}
+		if azureVMMatchers != 0 {
+			azureVMScanning = mergeResourceTypeSummary(&ret.AzureVM, summary.summary.GetAzureVms(), summary.pollInterval) || azureVMScanning
+		}
+	}
 
-		if matchers := rulesWithIntegration(cfg, types.AzureMatcherVM, req.integration.GetName()); matchers != 0 {
-			ret.AzureVM.RulesCount += matchers
-			mergeResourceTypeSummary(&ret.AzureVM, cfg.Status.LastSyncTime, discoveredResources.AzureVms)
-		}
+	// If any resource type is currently scanning, set SyncEnd to nil.
+	if ec2Scanning {
+		ret.AWSEC2.SyncEnd = nil
+	}
+	if rdsScanning {
+		ret.AWSRDS.SyncEnd = nil
+	}
+	if eksScanning {
+		ret.AWSEKS.SyncEnd = nil
+	}
+	if azureVMScanning {
+		ret.AzureVM.SyncEnd = nil
 	}
 
 	switch req.integration.GetSubKind() {
@@ -448,10 +471,10 @@ func buildBriefSummaries(ctx context.Context, igs []types.Integration, uclt user
 	}
 
 	for name := range summaries {
-		tasks := allUserTasks(ctx, uclt, &usertasksv1.ListUserTasksFilters{
+		tasks := allUserTasks(ctx, uclt, usertasksv1.ListUserTasksFilters_builder{
 			Integration: name,
 			TaskState:   usertasks.TaskStateOpen,
-		})
+		}.Build())
 		for task, err := range tasks {
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -486,9 +509,9 @@ func addResourceCounts(rc *ui.ResourcesCount, dr *discoveryconfigv1.ResourcesDis
 	if rc == nil || dr == nil {
 		return
 	}
-	rc.Found += int(dr.Found)
-	rc.Enrolled += int(dr.Enrolled)
-	rc.Failed += int(dr.Failed)
+	rc.Found += int(dr.GetFound())
+	rc.Enrolled += int(dr.GetEnrolled())
+	rc.Failed += int(dr.GetFailed())
 }
 
 func allUserTasks(
@@ -533,18 +556,87 @@ func countAWSOIDCDeployedDatabaseServices(ctx context.Context, req collectIntegr
 	return len(services), nil
 }
 
-func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, lastSyncTime time.Time, new *discoveryconfigv1.ResourcesDiscoveredSummary) {
-	if new == nil {
-		return
-	}
-
-	in.DiscoverLastSync = lastSync(in.DiscoverLastSync, lastSyncTime)
-	in.ResourcesFound += int(new.Found)
-	in.ResourcesEnrollmentSuccess += int(new.Enrolled)
-	in.ResourcesEnrollmentFailed += int(new.Failed)
+type integrationSummaryWithPollInterval struct {
+	summary      *discoveryconfigv1.DiscoverSummary
+	pollInterval time.Duration
 }
 
-func lastSync(current *time.Time, new time.Time) *time.Time {
+// integrationSummaryForConfig returns the most recently updated server's summary
+// for the given integration. In HA deployments, multiple Discovery Services may
+// report summaries for the same resources, so we use only the most recent one
+// to avoid double-counting.
+func integrationSummaryForConfig(cfg *discoveryconfig.DiscoveryConfig, integrationName string) *integrationSummaryWithPollInterval {
+	var mostRecent *integrationSummaryWithPollInterval
+	var mostRecentTime time.Time
+
+	for _, serverStatus := range cfg.Status.ServerStatus {
+		if serverStatus == nil || serverStatus.DiscoveryStatusServer == nil {
+			continue
+		}
+		discoverSummary, ok := serverStatus.GetIntegrationSummaries()[integrationName]
+		if !ok {
+			continue
+		}
+
+		lastUpdate := serverStatus.GetLastUpdate().AsTime()
+		if mostRecent == nil || lastUpdate.After(mostRecentTime) {
+			mostRecent = &integrationSummaryWithPollInterval{
+				summary:      discoverSummary,
+				pollInterval: serverStatus.GetPollInterval().AsDuration(),
+			}
+			mostRecentTime = lastUpdate
+		}
+	}
+	return mostRecent
+}
+
+// mergeResourceTypeSummary merges resource summary data into the aggregated summary.
+// It returns true if the resource is currently being scanned (has no SyncEnd time yet).
+func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, resourceSummary *discoveryconfigv1.ResourceSummary, pollInterval time.Duration) bool {
+	if resourceSummary == nil {
+		return false
+	}
+
+	previous := resourceSummary.GetPrevious()
+	if previous != nil {
+		in.ResourcesFound += int(previous.GetFound())
+		in.ResourcesEnrollmentSuccess += int(previous.GetEnrolled())
+		in.ResourcesEnrollmentFailed += int(previous.GetFailed())
+
+		in.DiscoverLastSync = latestTime(in.DiscoverLastSync, previous.GetSyncEnd().AsTime())
+	}
+
+	isScanning := false
+	syncEndUpdated := false
+	current := resourceSummary.GetCurrent()
+	if current != nil {
+		in.SyncStart = latestTime(in.SyncStart, current.GetSyncStart().AsTime())
+		if current.GetSyncEnd().AsTime().IsZero() {
+			isScanning = true
+		} else {
+			prevSyncEnd := in.SyncEnd
+			in.SyncEnd = latestTime(in.SyncEnd, current.GetSyncEnd().AsTime())
+			syncEndUpdated = in.SyncEnd != prevSyncEnd
+		}
+	} else if previous != nil {
+		in.SyncStart = latestTime(in.SyncStart, previous.GetSyncStart().AsTime())
+		prevSyncEnd := in.SyncEnd
+		in.SyncEnd = latestTime(in.SyncEnd, previous.GetSyncEnd().AsTime())
+		syncEndUpdated = in.SyncEnd != prevSyncEnd
+	}
+
+	if pollInterval > 0 && (in.PollIntervalSeconds == 0 || syncEndUpdated) {
+		in.PollIntervalSeconds = int(pollInterval.Seconds())
+	}
+
+	return isScanning
+}
+
+func latestTime(current *time.Time, new time.Time) *time.Time {
+	if new.IsZero() {
+		return current
+	}
+
 	if current == nil {
 		return &new
 	}
@@ -814,10 +906,10 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), &pluginspb.GetPluginRequest{
+	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), pluginspb.GetPluginRequest_builder{
 		Name:        p.ByName("plugin"),
 		WithSecrets: false,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -850,13 +942,13 @@ func (h *Handler) integrationsExportCA(_ http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.IntegrationsClient().ExportIntegrationCertAuthorities(r.Context(), &integrationv1.ExportIntegrationCertAuthoritiesRequest{
+	resp, err := clt.IntegrationsClient().ExportIntegrationCertAuthorities(r.Context(), integrationv1.ExportIntegrationCertAuthoritiesRequest_builder{
 		Integration: integrationName,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	uiCAKeySet, err := ui.MakeCAKeySet(resp.CertAuthorities)
+	uiCAKeySet, err := ui.MakeCAKeySet(resp.GetCertAuthorities())
 	return uiCAKeySet, trace.Wrap(err)
 }

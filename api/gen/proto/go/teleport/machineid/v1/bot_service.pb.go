@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/machineid/v1/bot_service.proto
 
+//go:build !protoopaque
+
 package machineidv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 
 // The request for CreateBot.
 type CreateBotRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The bot to create.
 	Bot           *Bot `protobuf:"bytes,1,opt,name=bot,proto3" json:"bot,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -71,11 +72,6 @@ func (x *CreateBotRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateBotRequest.ProtoReflect.Descriptor instead.
-func (*CreateBotRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateBotRequest) GetBot() *Bot {
 	if x != nil {
 		return x.Bot
@@ -83,9 +79,39 @@ func (x *CreateBotRequest) GetBot() *Bot {
 	return nil
 }
 
+func (x *CreateBotRequest) SetBot(v *Bot) {
+	x.Bot = v
+}
+
+func (x *CreateBotRequest) HasBot() bool {
+	if x == nil {
+		return false
+	}
+	return x.Bot != nil
+}
+
+func (x *CreateBotRequest) ClearBot() {
+	x.Bot = nil
+}
+
+type CreateBotRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The bot to create.
+	Bot *Bot
+}
+
+func (b0 CreateBotRequest_builder) Build() *CreateBotRequest {
+	m0 := &CreateBotRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Bot = b.Bot
+	return m0
+}
+
 // The request for GetBot.
 type GetBotRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the bot to fetch.
 	BotName       string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -117,11 +143,6 @@ func (x *GetBotRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetBotRequest.ProtoReflect.Descriptor instead.
-func (*GetBotRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetBotRequest) GetBotName() string {
 	if x != nil {
 		return x.BotName
@@ -129,9 +150,28 @@ func (x *GetBotRequest) GetBotName() string {
 	return ""
 }
 
+func (x *GetBotRequest) SetBotName(v string) {
+	x.BotName = v
+}
+
+type GetBotRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the bot to fetch.
+	BotName string
+}
+
+func (b0 GetBotRequest_builder) Build() *GetBotRequest {
+	m0 := &GetBotRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.BotName = b.BotName
+	return m0
+}
+
 // The request for ListBots.
 type ListBotsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -166,11 +206,6 @@ func (x *ListBotsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBotsRequest.ProtoReflect.Descriptor instead.
-func (*ListBotsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListBotsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -185,9 +220,36 @@ func (x *ListBotsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListBotsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListBotsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListBotsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListBotsRequest_builder) Build() *ListBotsRequest {
+	m0 := &ListBotsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // The response for ListBots.
 type ListBotsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of Bots that matched the request.
 	Bots []*Bot `protobuf:"bytes,1,rep,name=bots,proto3" json:"bots,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -222,11 +284,6 @@ func (x *ListBotsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBotsResponse.ProtoReflect.Descriptor instead.
-func (*ListBotsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListBotsResponse) GetBots() []*Bot {
 	if x != nil {
 		return x.Bots
@@ -241,9 +298,36 @@ func (x *ListBotsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListBotsResponse) SetBots(v []*Bot) {
+	x.Bots = v
+}
+
+func (x *ListBotsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListBotsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of Bots that matched the request.
+	Bots []*Bot
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListBotsResponse_builder) Build() *ListBotsResponse {
+	m0 := &ListBotsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Bots = b.Bots
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // The request for UpdateBot.
 type UpdateBotRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The values to apply based on the update mask. The name must be specified.
 	Bot *Bot `protobuf:"bytes,1,opt,name=bot,proto3" json:"bot,omitempty"`
 	// The update mask applied to a Bot.
@@ -278,11 +362,6 @@ func (x *UpdateBotRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateBotRequest.ProtoReflect.Descriptor instead.
-func (*UpdateBotRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateBotRequest) GetBot() *Bot {
 	if x != nil {
 		return x.Bot
@@ -297,9 +376,58 @@ func (x *UpdateBotRequest) GetUpdateMask() *fieldmaskpb.FieldMask {
 	return nil
 }
 
+func (x *UpdateBotRequest) SetBot(v *Bot) {
+	x.Bot = v
+}
+
+func (x *UpdateBotRequest) SetUpdateMask(v *fieldmaskpb.FieldMask) {
+	x.UpdateMask = v
+}
+
+func (x *UpdateBotRequest) HasBot() bool {
+	if x == nil {
+		return false
+	}
+	return x.Bot != nil
+}
+
+func (x *UpdateBotRequest) HasUpdateMask() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdateMask != nil
+}
+
+func (x *UpdateBotRequest) ClearBot() {
+	x.Bot = nil
+}
+
+func (x *UpdateBotRequest) ClearUpdateMask() {
+	x.UpdateMask = nil
+}
+
+type UpdateBotRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The values to apply based on the update mask. The name must be specified.
+	Bot *Bot
+	// The update mask applied to a Bot.
+	// Fields are masked according to their proto name.
+	UpdateMask *fieldmaskpb.FieldMask
+}
+
+func (b0 UpdateBotRequest_builder) Build() *UpdateBotRequest {
+	m0 := &UpdateBotRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Bot = b.Bot
+	x.UpdateMask = b.UpdateMask
+	return m0
+}
+
 // The request for UpsertBot.
 type UpsertBotRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The bot to create or replace.
 	Bot           *Bot `protobuf:"bytes,1,opt,name=bot,proto3" json:"bot,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -331,11 +459,6 @@ func (x *UpsertBotRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertBotRequest.ProtoReflect.Descriptor instead.
-func (*UpsertBotRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpsertBotRequest) GetBot() *Bot {
 	if x != nil {
 		return x.Bot
@@ -343,9 +466,39 @@ func (x *UpsertBotRequest) GetBot() *Bot {
 	return nil
 }
 
+func (x *UpsertBotRequest) SetBot(v *Bot) {
+	x.Bot = v
+}
+
+func (x *UpsertBotRequest) HasBot() bool {
+	if x == nil {
+		return false
+	}
+	return x.Bot != nil
+}
+
+func (x *UpsertBotRequest) ClearBot() {
+	x.Bot = nil
+}
+
+type UpsertBotRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The bot to create or replace.
+	Bot *Bot
+}
+
+func (b0 UpsertBotRequest_builder) Build() *UpsertBotRequest {
+	m0 := &UpsertBotRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Bot = b.Bot
+	return m0
+}
+
 // The request for DeleteBot.
 type DeleteBotRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the bot to delete.
 	BotName       string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -377,16 +530,30 @@ func (x *DeleteBotRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteBotRequest.ProtoReflect.Descriptor instead.
-func (*DeleteBotRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteBotRequest) GetBotName() string {
 	if x != nil {
 		return x.BotName
 	}
 	return ""
+}
+
+func (x *DeleteBotRequest) SetBotName(v string) {
+	x.BotName = v
+}
+
+type DeleteBotRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the bot to delete.
+	BotName string
+}
+
+func (b0 DeleteBotRequest_builder) Build() *DeleteBotRequest {
+	m0 := &DeleteBotRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.BotName = b.BotName
+	return m0
 }
 
 var File_teleport_machineid_v1_bot_service_proto protoreflect.FileDescriptor
@@ -421,18 +588,6 @@ const file_teleport_machineid_v1_bot_service_proto_rawDesc = "" +
 	"\tUpdateBot\x12'.teleport.machineid.v1.UpdateBotRequest\x1a\x1a.teleport.machineid.v1.Bot\x12P\n" +
 	"\tUpsertBot\x12'.teleport.machineid.v1.UpsertBotRequest\x1a\x1a.teleport.machineid.v1.Bot\x12L\n" +
 	"\tDeleteBot\x12'.teleport.machineid.v1.DeleteBotRequest\x1a\x16.google.protobuf.EmptyBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
-
-var (
-	file_teleport_machineid_v1_bot_service_proto_rawDescOnce sync.Once
-	file_teleport_machineid_v1_bot_service_proto_rawDescData []byte
-)
-
-func file_teleport_machineid_v1_bot_service_proto_rawDescGZIP() []byte {
-	file_teleport_machineid_v1_bot_service_proto_rawDescOnce.Do(func() {
-		file_teleport_machineid_v1_bot_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_machineid_v1_bot_service_proto_rawDesc), len(file_teleport_machineid_v1_bot_service_proto_rawDesc)))
-	})
-	return file_teleport_machineid_v1_bot_service_proto_rawDescData
-}
 
 var file_teleport_machineid_v1_bot_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_machineid_v1_bot_service_proto_goTypes = []any{

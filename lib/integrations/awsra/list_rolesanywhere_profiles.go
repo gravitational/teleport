@@ -186,14 +186,14 @@ func convertRolesAnywhereProfilePageToProto(ctx context.Context, profilesListRes
 			labels[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
 		}
 
-		ret = append(ret, &integrationv1.RolesAnywhereProfile{
+		ret = append(ret, integrationv1.RolesAnywhereProfile_builder{
 			Arn:                   aws.ToString(profile.ProfileArn),
 			Name:                  aws.ToString(profile.Name),
 			Enabled:               aws.ToBool(profile.Enabled),
 			AcceptRoleSessionName: aws.ToBool(profile.AcceptRoleSessionName),
 			Roles:                 profile.RoleArns,
 			Tags:                  labels,
-		})
+		}.Build())
 	}
 
 	return ret, nil

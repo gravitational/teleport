@@ -47,21 +47,21 @@ func newUserCollection(upstream services.UsersService, w types.WatchKind) (*coll
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
 			fn := func(ctx context.Context, pageSize int, token string) ([]types.User, string, error) {
-				rsp, err := upstream.ListUsers(ctx, &userspb.ListUsersRequest{
+				rsp, err := upstream.ListUsers(ctx, userspb.ListUsersRequest_builder{
 					WithSecrets: loadSecrets,
 					PageSize:    int32(pageSize),
 					PageToken:   token,
-				})
+				}.Build())
 				if err != nil {
 					return nil, "", trace.Wrap(err)
 				}
 
-				out := make([]types.User, 0, len(rsp.Users))
-				for _, user := range rsp.Users {
+				out := make([]types.User, 0, len(rsp.GetUsers()))
+				for _, user := range rsp.GetUsers() {
 					out = append(out, user)
 				}
 
-				return out, rsp.NextPageToken, nil
+				return out, rsp.GetNextPageToken(), nil
 			}
 
 			// Use clientutils for auto pagesize backoff.
@@ -83,7 +83,7 @@ func newUserCollection(upstream services.UsersService, w types.WatchKind) (*coll
 
 // GetUser is a part of auth.Cache implementation.
 func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	_, span := c.Tracer.Start(ctx, "cache/GetUser")
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUser")
 	defer span.End()
 
 	if withSecrets { // cache never tracks user secrets
@@ -125,7 +125,7 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 
 // GetUsers is a part of auth.Cache implementation
 func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	_, span := c.Tracer.Start(ctx, "cache/GetUsers")
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUsers")
 	defer span.End()
 
 	if withSecrets { // cache never tracks user secrets
@@ -157,10 +157,10 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 
 // ListUsers returns a page of users.
 func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUsers")
 	defer span.End()
 
-	if req.WithSecrets { // cache never tracks user secrets
+	if req.GetWithSecrets() { // cache never tracks user secrets
 		rsp, err := c.Config.Users.ListUsers(ctx, req)
 		return rsp, trace.Wrap(err)
 	}
@@ -177,31 +177,31 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 	}
 
 	// Adjust page size, so it can't be too large.
-	pageSize := int(req.PageSize)
+	pageSize := int(req.GetPageSize())
 	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
 		pageSize = apidefaults.DefaultChunkSize
 	}
 
 	var resp userspb.ListUsersResponse
-	for u := range rg.store.resources(userNameIndex, req.PageToken, "") {
+	for u := range rg.store.resources(userNameIndex, req.GetPageToken(), "") {
 		uv2, ok := u.(*types.UserV2)
 		if !ok {
 			continue
 		}
 
-		if req.Filter != nil && !req.Filter.Match(uv2) {
+		if req.HasFilter() && !req.GetFilter().Match(uv2) {
 			continue
 		}
 
-		if len(resp.Users) == pageSize {
-			resp.NextPageToken = u.GetName()
+		if len(resp.GetUsers()) == pageSize {
+			resp.SetNextPageToken(u.GetName())
 			break
 		}
 
-		if req.WithSecrets {
-			resp.Users = append(resp.Users, u.Clone().(*types.UserV2))
+		if req.GetWithSecrets() {
+			resp.SetUsers(append(resp.GetUsers(), u.Clone().(*types.UserV2)))
 		} else {
-			resp.Users = append(resp.Users, u.WithoutSecrets().(*types.UserV2))
+			resp.SetUsers(append(resp.GetUsers(), u.WithoutSecrets().(*types.UserV2)))
 		}
 	}
 	return &resp, nil

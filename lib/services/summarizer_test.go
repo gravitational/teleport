@@ -53,12 +53,23 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	desktop, err := types.NewWindowsDesktopV3(
+		"desktop-1", nil,
+		types.WindowsDesktopSpecV3{Addr: "10.0.0.1:3389", Domain: "example.com"},
+	)
+	require.NoError(t, err)
+
 	kubeSessionEnd := &events.SessionEnd{
 		KubernetesPodMetadata: events.KubernetesPodMetadata{KubernetesPodName: "pod-1"},
 	}
 
 	dbSessionEnd := &events.DatabaseSessionEnd{
 		DatabaseMetadata: events.DatabaseMetadata{DatabaseProtocol: types.DatabaseProtocolPostgreSQL},
+	}
+
+	desktopSessionEnd := &events.WindowsDesktopSessionEnd{
+		Metadata:    events.Metadata{ClusterName: "cluster-1"},
+		DesktopName: "desktop-1",
 	}
 
 	cases := []struct {
@@ -119,6 +130,18 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 			notFound:   true,
 		},
 		{
+			name:       "known desktop field",
+			resource:   desktop,
+			expression: "resource.spec.domain",
+			expected:   "example.com",
+		},
+		{
+			name:       "unknown desktop field",
+			resource:   desktop,
+			expression: "resource.spec.unknown",
+			notFound:   true,
+		},
+		{
 			name:       "known shell session field",
 			session:    kubeSessionEnd,
 			expression: "session.kubernetes_pod_name",
@@ -139,6 +162,24 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 		{
 			name:       "unknown database session field",
 			session:    dbSessionEnd,
+			expression: "session.unknown",
+			notFound:   true,
+		},
+		{
+			name:       "known desktop session field",
+			session:    desktopSessionEnd,
+			expression: "session.desktop_name",
+			expected:   "desktop-1",
+		},
+		{
+			name:       "desktop session field shared with shell sessions",
+			session:    desktopSessionEnd,
+			expression: "session.cluster_name",
+			expected:   "cluster-1",
+		},
+		{
+			name:       "unknown desktop session field",
+			session:    desktopSessionEnd,
 			expression: "session.unknown",
 			notFound:   true,
 		},
@@ -211,7 +252,7 @@ func TestInferencePolicyMatchingContext_MixedTypeBooleanExpressions(t *testing.T
 func TestValidateInferencePolicy(t *testing.T) {
 	t.Parallel()
 
-	allKinds := []string{"ssh", "k8s", "db"}
+	allKinds := []string{"ssh", "k8s", "db", "desktop"}
 
 	cases := []struct {
 		name         string
@@ -224,8 +265,10 @@ func TestValidateInferencePolicy(t *testing.T) {
 		{name: "valid server filter", kinds: allKinds, filter: `equals(resource.spec.hostname, "node1")`},
 		{name: "valid db filter", kinds: allKinds, filter: `equals(resource.spec.protocol, "postgres")`},
 		{name: "valid kube filter", kinds: allKinds, filter: `resource.metadata.labels["env"] == "prod"`},
+		{name: "valid desktop filter", kinds: allKinds, filter: `equals(resource.spec.domain, "example.com")`},
 		{name: "valid shell session filter", kinds: allKinds, filter: `contains(session.participants, "joe")`},
 		{name: "valid db session filter", kinds: allKinds, filter: `session.db_protocol == "postgres"`},
+		{name: "valid desktop session filter", kinds: allKinds, filter: `session.desktop_name == "desktop-1"`},
 
 		{
 			name:         "invalid kinds",
@@ -260,11 +303,11 @@ func TestValidateInferencePolicy(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			p := apisummarizer.NewInferencePolicy("my-policy", &summarizerv1.InferencePolicySpec{
+			p := apisummarizer.NewInferencePolicy("my-policy", summarizerv1.InferencePolicySpec_builder{
 				Kinds:  tc.kinds,
 				Filter: tc.filter,
 				Model:  "my-model",
-			})
+			}.Build())
 			err := ValidateInferencePolicy(p)
 			if tc.errorMessage == "" {
 				require.NoError(t, err)
@@ -274,4 +317,111 @@ func TestValidateInferencePolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newTestClassifier(name string, kinds []string, filter string) *summarizerv1.Classifier {
+	return apisummarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
+		Kinds:    kinds,
+		Filter:   filter,
+		Criteria: "sessions that touch production data",
+	}.Build())
+}
+
+func TestMatchingClassifiers(t *testing.T) {
+	t.Parallel()
+
+	user, err := types.NewUser("alice")
+	require.NoError(t, err)
+
+	server, err := types.NewServer("server-1", types.KindNode, types.ServerSpecV2{Hostname: "host-1"})
+	require.NoError(t, err)
+	server.SetStaticLabels(map[string]string{"env": "prod"})
+
+	matchingCtx := &InferencePolicyMatchingContext{
+		User:     user,
+		Resource: server,
+	}
+
+	all := []*summarizerv1.Classifier{
+		newTestClassifier("ssh-any", []string{"ssh"}, ""),
+		newTestClassifier("ssh-prod", []string{"ssh"}, `equals(resource.metadata.labels["env"], "prod")`),
+		newTestClassifier("ssh-dev", []string{"ssh"}, `equals(resource.metadata.labels["env"], "dev")`),
+		newTestClassifier("ssh-alice", []string{"ssh"}, `equals(user.metadata.name, "alice")`),
+		newTestClassifier("db-any", []string{"db"}, ""),
+	}
+	classifiers := func(yield func(*summarizerv1.Classifier, error) bool) {
+		for _, c := range all {
+			if !yield(c, nil) {
+				return
+			}
+		}
+	}
+
+	matched, err := MatchingClassifiers(classifiers, types.SSHSessionKind, matchingCtx)
+	require.NoError(t, err)
+	names := make([]string, 0, len(matched))
+	for _, c := range matched {
+		names = append(names, c.GetMetadata().GetName())
+	}
+	assert.Equal(t, []string{"ssh-any", "ssh-prod", "ssh-alice"}, names)
+
+	matched, err = MatchingClassifiers(classifiers, types.DatabaseSessionKind, matchingCtx)
+	require.NoError(t, err)
+	require.Len(t, matched, 1)
+	assert.Equal(t, "db-any", matched[0].GetMetadata().GetName())
+
+	matched, err = MatchingClassifiers(classifiers, types.KubernetesSessionKind, matchingCtx)
+	require.NoError(t, err)
+	assert.Empty(t, matched)
+
+	iterErr := trace.BadParameter("backend failure")
+	failing := func(yield func(*summarizerv1.Classifier, error) bool) {
+		yield(nil, iterErr)
+	}
+	_, err = MatchingClassifiers(failing, types.SSHSessionKind, matchingCtx)
+	require.ErrorIs(t, err, iterErr)
+
+	invalid := []*summarizerv1.Classifier{
+		newTestClassifier("bad-filter", []string{"ssh"}, "$%^@$"),
+	}
+	invalidSeq := func(yield func(*summarizerv1.Classifier, error) bool) {
+		for _, c := range invalid {
+			if !yield(c, nil) {
+				return
+			}
+		}
+	}
+	_, err = MatchingClassifiers(invalidSeq, types.SSHSessionKind, matchingCtx)
+	require.Error(t, err)
+}
+
+func TestValidateClassifier(t *testing.T) {
+	t.Parallel()
+
+	c := newTestClassifier(
+		"my-classifier",
+		[]string{"ssh", "k8s", "db"},
+		`equals(resource.metadata.labels["env"], "prod") || equals(user.metadata.name, "admin")`,
+	)
+	require.NoError(t, ValidateClassifier(c))
+
+	// Empty filter should also be valid.
+	c.GetSpec().SetFilter("")
+	require.NoError(t, ValidateClassifier(c))
+
+	// Filter syntax errors are rejected.
+	c.GetSpec().SetFilter("$%^@$")
+	err := ValidateClassifier(c)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "spec.filter has to be a valid predicate")
+
+	c.GetSpec().SetFilter("user.metadata.name")
+	err = ValidateClassifier(c)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "spec.filter has to be a boolean expression")
+
+	// Errors from the api-level validation propagate.
+	c.GetSpec().SetFilter("")
+	c.GetSpec().SetCriteria("")
+	assert.ErrorContains(t, ValidateClassifier(c), "spec.criteria is required")
 }

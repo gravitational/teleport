@@ -48,11 +48,11 @@ func TestUserPreferences_ClusterPreferences(t *testing.T) {
 
 	ctx := context.Background()
 	defaultPref := local.DefaultUserPreferences()
-	defaultPref.ClusterPreferences = &userpreferencesv1.ClusterUserPreferences{
-		PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+	defaultPref.SetClusterPreferences(userpreferencesv1.ClusterUserPreferences_builder{
+		PinnedResources: userpreferencesv1.PinnedResourcesUserPreferences_builder{
 			ResourceIds: []string{"123", "234"},
-		},
-	}
+		}.Build(),
+	}.Build())
 
 	username := "something"
 	identity := newUserPreferencesService(t)
@@ -93,218 +93,218 @@ func TestUserPreferencesCRUD(t *testing.T) {
 		},
 		{
 			name: "update the theme preference only",
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Preferences: &userpreferencesv1.UserPreferences{
+			req: userpreferencesv1.UpsertUserPreferencesRequest_builder{
+				Preferences: userpreferencesv1.UserPreferences_builder{
 					Theme: userpreferencesv1.Theme_THEME_DARK,
-				},
-			},
-			expected: &userpreferencesv1.UserPreferences{
-				Onboard:                    defaultPref.Onboard,
+				}.Build(),
+			}.Build(),
+			expected: userpreferencesv1.UserPreferences_builder{
+				Onboard:                    defaultPref.GetOnboard(),
 				Theme:                      userpreferencesv1.Theme_THEME_DARK,
-				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
-				ClusterPreferences:         defaultPref.ClusterPreferences,
-				SideNavDrawerMode:          defaultPref.SideNavDrawerMode,
-			},
+				UnifiedResourcePreferences: defaultPref.GetUnifiedResourcePreferences(),
+				ClusterPreferences:         defaultPref.GetClusterPreferences(),
+				SideNavDrawerMode:          defaultPref.GetSideNavDrawerMode(),
+			}.Build(),
 		},
 		{
 			name: "update the availability view only",
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Preferences: &userpreferencesv1.UserPreferences{
-					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+			req: userpreferencesv1.UpsertUserPreferencesRequest_builder{
+				Preferences: userpreferencesv1.UserPreferences_builder{
+					UnifiedResourcePreferences: userpreferencesv1.UnifiedResourcePreferences_builder{
 						AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ACCESSIBLE,
-					},
-				},
-			},
-			expected: &userpreferencesv1.UserPreferences{
-				Onboard: defaultPref.Onboard,
-				Theme:   defaultPref.Theme,
-				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			expected: userpreferencesv1.UserPreferences_builder{
+				Onboard: defaultPref.GetOnboard(),
+				Theme:   defaultPref.GetTheme(),
+				UnifiedResourcePreferences: userpreferencesv1.UnifiedResourcePreferences_builder{
 					DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
 					ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
 					LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ACCESSIBLE,
-				},
-				ClusterPreferences: defaultPref.ClusterPreferences,
-				SideNavDrawerMode:  defaultPref.SideNavDrawerMode,
-			},
+				}.Build(),
+				ClusterPreferences: defaultPref.GetClusterPreferences(),
+				SideNavDrawerMode:  defaultPref.GetSideNavDrawerMode(),
+			}.Build(),
 		},
 		{
 			name: "update the unified tab preference only",
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Preferences: &userpreferencesv1.UserPreferences{
-					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+			req: userpreferencesv1.UpsertUserPreferencesRequest_builder{
+				Preferences: userpreferencesv1.UserPreferences_builder{
+					UnifiedResourcePreferences: userpreferencesv1.UnifiedResourcePreferences_builder{
 						DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
-					},
-				},
-			},
-			expected: &userpreferencesv1.UserPreferences{
-				Onboard: defaultPref.Onboard,
-				Theme:   defaultPref.Theme,
-				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			expected: userpreferencesv1.UserPreferences_builder{
+				Onboard: defaultPref.GetOnboard(),
+				Theme:   defaultPref.GetTheme(),
+				UnifiedResourcePreferences: userpreferencesv1.UnifiedResourcePreferences_builder{
 					DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
 					ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
 					LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
-				},
-				ClusterPreferences: defaultPref.ClusterPreferences,
-				SideNavDrawerMode:  defaultPref.SideNavDrawerMode,
-			},
+				}.Build(),
+				ClusterPreferences: defaultPref.GetClusterPreferences(),
+				SideNavDrawerMode:  defaultPref.GetSideNavDrawerMode(),
+			}.Build(),
 		},
 		{
 			name: "update the onboard preference only",
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Preferences: &userpreferencesv1.UserPreferences{
-					Onboard: &userpreferencesv1.OnboardUserPreferences{
+			req: userpreferencesv1.UpsertUserPreferencesRequest_builder{
+				Preferences: userpreferencesv1.UserPreferences_builder{
+					Onboard: userpreferencesv1.OnboardUserPreferences_builder{
 						PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
-						MarketingParams: &userpreferencesv1.MarketingParams{
+						MarketingParams: userpreferencesv1.MarketingParams_builder{
 							Campaign: "c_1",
 							Source:   "s_1",
 							Medium:   "m_1",
 							Intent:   "i_1",
-						},
-					},
-				},
-			},
-			expected: &userpreferencesv1.UserPreferences{
-				Theme:                      defaultPref.Theme,
-				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
-				SideNavDrawerMode:          defaultPref.SideNavDrawerMode,
-				Onboard: &userpreferencesv1.OnboardUserPreferences{
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			expected: userpreferencesv1.UserPreferences_builder{
+				Theme:                      defaultPref.GetTheme(),
+				UnifiedResourcePreferences: defaultPref.GetUnifiedResourcePreferences(),
+				SideNavDrawerMode:          defaultPref.GetSideNavDrawerMode(),
+				Onboard: userpreferencesv1.OnboardUserPreferences_builder{
 					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
-					MarketingParams: &userpreferencesv1.MarketingParams{
+					MarketingParams: userpreferencesv1.MarketingParams_builder{
 						Campaign: "c_1",
 						Source:   "s_1",
 						Medium:   "m_1",
 						Intent:   "i_1",
-					},
-				},
-				ClusterPreferences: defaultPref.ClusterPreferences,
-			},
+					}.Build(),
+				}.Build(),
+				ClusterPreferences: defaultPref.GetClusterPreferences(),
+			}.Build(),
 		},
 		{
 			name: "update cluster preference only",
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Preferences: &userpreferencesv1.UserPreferences{
-					ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
-						PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+			req: userpreferencesv1.UpsertUserPreferencesRequest_builder{
+				Preferences: userpreferencesv1.UserPreferences_builder{
+					ClusterPreferences: userpreferencesv1.ClusterUserPreferences_builder{
+						PinnedResources: userpreferencesv1.PinnedResourcesUserPreferences_builder{
 							ResourceIds: []string{"node1", "node2"},
-						},
-					},
-				},
-			},
-			expected: &userpreferencesv1.UserPreferences{
-				Theme:                      defaultPref.Theme,
-				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
-				Onboard:                    defaultPref.Onboard,
-				SideNavDrawerMode:          defaultPref.SideNavDrawerMode,
-				ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
-					PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			expected: userpreferencesv1.UserPreferences_builder{
+				Theme:                      defaultPref.GetTheme(),
+				UnifiedResourcePreferences: defaultPref.GetUnifiedResourcePreferences(),
+				Onboard:                    defaultPref.GetOnboard(),
+				SideNavDrawerMode:          defaultPref.GetSideNavDrawerMode(),
+				ClusterPreferences: userpreferencesv1.ClusterUserPreferences_builder{
+					PinnedResources: userpreferencesv1.PinnedResourcesUserPreferences_builder{
 						ResourceIds: []string{"node1", "node2"},
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "update sidenav preference only",
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Preferences: &userpreferencesv1.UserPreferences{
+			req: userpreferencesv1.UpsertUserPreferencesRequest_builder{
+				Preferences: userpreferencesv1.UserPreferences_builder{
 					SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_STICKY,
-				},
-			},
-			expected: &userpreferencesv1.UserPreferences{
-				Theme:                      defaultPref.Theme,
-				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
-				Onboard:                    defaultPref.Onboard,
-				ClusterPreferences:         defaultPref.ClusterPreferences,
+				}.Build(),
+			}.Build(),
+			expected: userpreferencesv1.UserPreferences_builder{
+				Theme:                      defaultPref.GetTheme(),
+				UnifiedResourcePreferences: defaultPref.GetUnifiedResourcePreferences(),
+				Onboard:                    defaultPref.GetOnboard(),
+				ClusterPreferences:         defaultPref.GetClusterPreferences(),
 				SideNavDrawerMode:          userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_STICKY,
-			},
+			}.Build(),
 		},
 		{
 			name: "update the discover resource guide preference only",
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Preferences: &userpreferencesv1.UserPreferences{
-					DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
-						DiscoverGuide: &userpreferencesv1.DiscoverGuide{
+			req: userpreferencesv1.UpsertUserPreferencesRequest_builder{
+				Preferences: userpreferencesv1.UserPreferences_builder{
+					DiscoverResourcePreferences: userpreferencesv1.DiscoverResourcePreferences_builder{
+						DiscoverGuide: userpreferencesv1.DiscoverGuide_builder{
 							Pinned: []string{"guide-1", "guide-2"},
-						},
-					},
-				},
-			},
-			expected: &userpreferencesv1.UserPreferences{
-				Onboard:                    defaultPref.Onboard,
-				Theme:                      defaultPref.Theme,
-				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
-				ClusterPreferences:         defaultPref.ClusterPreferences,
-				SideNavDrawerMode:          defaultPref.SideNavDrawerMode,
-				DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
-					DiscoverGuide: &userpreferencesv1.DiscoverGuide{
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			expected: userpreferencesv1.UserPreferences_builder{
+				Onboard:                    defaultPref.GetOnboard(),
+				Theme:                      defaultPref.GetTheme(),
+				UnifiedResourcePreferences: defaultPref.GetUnifiedResourcePreferences(),
+				ClusterPreferences:         defaultPref.GetClusterPreferences(),
+				SideNavDrawerMode:          defaultPref.GetSideNavDrawerMode(),
+				DiscoverResourcePreferences: userpreferencesv1.DiscoverResourcePreferences_builder{
+					DiscoverGuide: userpreferencesv1.DiscoverGuide_builder{
 						Pinned: []string{"guide-1", "guide-2"},
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "update all the settings at once",
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Preferences: &userpreferencesv1.UserPreferences{
+			req: userpreferencesv1.UpsertUserPreferencesRequest_builder{
+				Preferences: userpreferencesv1.UserPreferences_builder{
 					Theme: userpreferencesv1.Theme_THEME_LIGHT,
-					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+					UnifiedResourcePreferences: userpreferencesv1.UnifiedResourcePreferences_builder{
 						DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
 						ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_LIST,
 						LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 						AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
-					},
+					}.Build(),
 					SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_STICKY,
-					Onboard: &userpreferencesv1.OnboardUserPreferences{
+					Onboard: userpreferencesv1.OnboardUserPreferences_builder{
 						PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
-						MarketingParams: &userpreferencesv1.MarketingParams{
+						MarketingParams: userpreferencesv1.MarketingParams_builder{
 							Campaign: "c_2",
 							Source:   "s_2",
 							Medium:   "m_2",
 							Intent:   "i_2",
-						},
-					},
-					ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
-						PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+						}.Build(),
+					}.Build(),
+					ClusterPreferences: userpreferencesv1.ClusterUserPreferences_builder{
+						PinnedResources: userpreferencesv1.PinnedResourcesUserPreferences_builder{
 							ResourceIds: []string{"node1", "node2"},
-						},
-					},
-					DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
-						DiscoverGuide: &userpreferencesv1.DiscoverGuide{
+						}.Build(),
+					}.Build(),
+					DiscoverResourcePreferences: userpreferencesv1.DiscoverResourcePreferences_builder{
+						DiscoverGuide: userpreferencesv1.DiscoverGuide_builder{
 							Pinned: []string{"guide-3", "guide-4"},
-						},
-					},
-				},
-			},
-			expected: &userpreferencesv1.UserPreferences{
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			expected: userpreferencesv1.UserPreferences_builder{
 				Theme: userpreferencesv1.Theme_THEME_LIGHT,
-				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+				UnifiedResourcePreferences: userpreferencesv1.UnifiedResourcePreferences_builder{
 					DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
 					ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_LIST,
 					LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
-				},
-				Onboard: &userpreferencesv1.OnboardUserPreferences{
+				}.Build(),
+				Onboard: userpreferencesv1.OnboardUserPreferences_builder{
 					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
-					MarketingParams: &userpreferencesv1.MarketingParams{
+					MarketingParams: userpreferencesv1.MarketingParams_builder{
 						Campaign: "c_2",
 						Source:   "s_2",
 						Medium:   "m_2",
 						Intent:   "i_2",
-					},
-				},
-				ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
-					PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+					}.Build(),
+				}.Build(),
+				ClusterPreferences: userpreferencesv1.ClusterUserPreferences_builder{
+					PinnedResources: userpreferencesv1.PinnedResourcesUserPreferences_builder{
 						ResourceIds: []string{"node1", "node2"},
-					},
-				},
-				DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
-					DiscoverGuide: &userpreferencesv1.DiscoverGuide{
+					}.Build(),
+				}.Build(),
+				DiscoverResourcePreferences: userpreferencesv1.DiscoverResourcePreferences_builder{
+					DiscoverGuide: userpreferencesv1.DiscoverGuide_builder{
 						Pinned: []string{"guide-3", "guide-4"},
-					},
-				},
+					}.Build(),
+				}.Build(),
 				SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_STICKY,
-			},
+			}.Build(),
 		},
 	}
 
@@ -320,7 +320,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 			require.Empty(t, cmp.Diff(defaultPref, proto.Clone(res), protocmp.Transform()))
 
 			if test.req != nil {
-				err := identity.UpsertUserPreferences(ctx, username, test.req.Preferences)
+				err := identity.UpsertUserPreferences(ctx, username, test.req.GetPreferences())
 				require.NoError(t, err)
 			}
 

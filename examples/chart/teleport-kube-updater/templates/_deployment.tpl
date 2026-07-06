@@ -131,5 +131,8 @@ spec:
 {{- if .priorityClassName }}
       priorityClassName: {{ .priorityClassName }}
 {{- end }}
+{{- if .podSecurityContext }}
+      securityContext: {{- toYaml .podSecurityContext | nindent 8 }}
+{{- end }}
       serviceAccountName: {{ .serviceAccount.name }}
 {{- end -}}

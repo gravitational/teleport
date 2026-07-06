@@ -37,4 +37,4 @@ spec:
   publishNotReadyAddresses: true
   selector:
     {{- include "teleport-cluster.auth.selectorLabels" . | nindent 4 }}
-    teleport.dev/majorVersion: {{ include "teleport-cluster.majorVersion" . | quote }}
+    teleport.dev/majorVersion: {{ include "teleport-util-lib.majorVersion" . | quote }}

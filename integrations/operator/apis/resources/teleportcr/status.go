@@ -22,6 +22,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Important: Do not add new fields without omitempty for backward compatibility.
+
 // Status defines the observed state of the Teleport resource
 type Status struct {
 	// Conditions represent the latest available observations of an object's state

@@ -52,9 +52,9 @@ func TestExportIntegrationCertAuthorities(t *testing.T) {
 		Username: string(types.RoleAdmin),
 	})
 
-	_, err = resourceSvc.CreateIntegration(adminCtx, &integrationpb.CreateIntegrationRequest{Integration: githubIntegration})
+	_, err = resourceSvc.CreateIntegration(adminCtx, integrationpb.CreateIntegrationRequest_builder{Integration: githubIntegration}.Build())
 	require.NoError(t, err)
-	_, err = resourceSvc.CreateIntegration(adminCtx, &integrationpb.CreateIntegrationRequest{Integration: oidcIntegration})
+	_, err = resourceSvc.CreateIntegration(adminCtx, integrationpb.CreateIntegrationRequest_builder{Integration: oidcIntegration}.Build())
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -71,11 +71,11 @@ func TestExportIntegrationCertAuthorities(t *testing.T) {
 				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, resp)
-				require.NotNil(t, resp.CertAuthorities)
-				require.Len(t, resp.CertAuthorities.SSH, 1)
-				require.NotNil(t, resp.CertAuthorities.SSH[0])
-				assert.NotEmpty(t, resp.CertAuthorities.SSH[0].PublicKey)
-				assert.Empty(t, resp.CertAuthorities.SSH[0].PrivateKey)
+				require.NotNil(t, resp.GetCertAuthorities())
+				require.Len(t, resp.GetCertAuthorities().SSH, 1)
+				require.NotNil(t, resp.GetCertAuthorities().SSH[0])
+				assert.NotEmpty(t, resp.GetCertAuthorities().SSH[0].PublicKey)
+				assert.Empty(t, resp.GetCertAuthorities().SSH[0].PrivateKey)
 			},
 		},
 		{
@@ -115,9 +115,9 @@ func TestExportIntegrationCertAuthorities(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			resp, err := resourceSvc.ExportIntegrationCertAuthorities(test.identity, &integrationpb.ExportIntegrationCertAuthoritiesRequest{
+			resp, err := resourceSvc.ExportIntegrationCertAuthorities(test.identity, integrationpb.ExportIntegrationCertAuthoritiesRequest_builder{
 				Integration: test.integration,
-			})
+			}.Build())
 			test.check(t, resp, err)
 		})
 	}

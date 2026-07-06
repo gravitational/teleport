@@ -7,6 +7,7 @@ tags:
  - mwi
  - infrastructure-identity
  - aws
+page_type: how-to
 ---
 
 Teleport Workload Identity issues flexible short-lived identities in JWT format.
@@ -18,7 +19,7 @@ AWS services without the use of a long-lived credential. This is because the
 machine can authenticate with Teleport without using any shared secrets by
 using one of our delegated join methods.
 
-In this guide, we'll configure Teleport Workload Identity and AWS to allow our
+In this guide, you will configure Teleport Workload Identity and AWS to allow a
 workload to authenticate to the AWS S3 API and upload content to a bucket.
 
 ## How it works

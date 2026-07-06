@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -57,20 +58,38 @@ import (
 // It allows to make the entire cluster set up once, instead of per test,
 // which speeds things up significantly.
 func TestAppAccess(t *testing.T) {
-	// Enable MCP test servers.
-	sseServerURL := mcptest.MustStartSSETestServer(t)
-	streamableHTTPServer := mcpserver.NewTestStreamableHTTPServer(mcptest.NewServer())
-	streamableHTTPServerURL := fmt.Sprintf("mcp+%s/mcp", streamableHTTPServer.URL)
+	sseServer := httptest.NewTLSServer(mcpserver.NewSSEServer(mcptest.NewServer()))
+	sseServerURL := "mcp+sse+" + sseServer.URL + "/sse"
+	t.Cleanup(sseServer.Close)
+
+	sseTLSServer := httptest.NewTLSServer(mcpserver.NewSSEServer(mcptest.NewServer()))
+	sseTLSServerURL := "mcp+sse+" + sseTLSServer.URL + "/sse"
+	t.Cleanup(sseTLSServer.Close)
+
+	streamableHTTPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcptest.NewServer()))
+	streamableHTTPServerURL := "mcp+" + streamableHTTPServer.URL + "/mcp"
 	t.Cleanup(streamableHTTPServer.Close)
+
+	streamableHTTPTLSServer := httptest.NewTLSServer(mcpserver.NewStreamableHTTPServer(mcptest.NewServer()))
+	streamableHTTPTLSServerURL := "mcp+" + streamableHTTPTLSServer.URL + "/mcp"
+	t.Cleanup(streamableHTTPTLSServer.Close)
 
 	extraApps := []servicecfg.App{
 		{
 			Name: "test-sse",
-			URI:  "mcp+sse+" + sseServerURL,
+			URI:  sseServerURL,
+		},
+		{
+			Name: "test-sse-https",
+			URI:  sseTLSServerURL,
 		},
 		{
 			Name: "test-http",
 			URI:  streamableHTTPServerURL,
+		},
+		{
+			Name: "test-https",
+			URI:  streamableHTTPTLSServerURL,
 		},
 	}
 
@@ -96,6 +115,119 @@ func TestAppAccess(t *testing.T) {
 
 	// This test should go last because it stops/starts app servers.
 	t.Run("TestAppServersHA", bind(pack, testServersHA))
+}
+
+// TestAppAccessRoutingByName tests the scenario where two apps share a
+// public address but have distinct names.
+func TestAppAccessRoutingByName(t *testing.T) {
+	const sharedPublicAddr = "dup.example.com"
+
+	appOneMessage := "app-one-" + uuid.NewString()
+	appTwoMessage := "app-two-" + uuid.NewString()
+
+	appOneServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, appOneMessage)
+	}))
+	t.Cleanup(appOneServer.Close)
+	appTwoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, appTwoMessage)
+	}))
+	t.Cleanup(appTwoServer.Close)
+
+	// Both apps share a public address but have different names and labels.
+	pack := SetupWithOptions(t, AppTestOptions{
+		ExtraRootApps: []servicecfg.App{
+			{
+				Name:         "dup-app-1",
+				URI:          appOneServer.URL,
+				PublicAddr:   sharedPublicAddr,
+				StaticLabels: map[string]string{"app_name": "dup-app-1"},
+			},
+			{
+				Name:         "dup-app-2",
+				URI:          appTwoServer.URL,
+				PublicAddr:   sharedPublicAddr,
+				StaticLabels: map[string]string{"app_name": "dup-app-2"},
+			},
+		},
+	})
+
+	for _, tc := range []struct {
+		appName     string
+		wantMessage string
+	}{
+		{appName: "dup-app-1", wantMessage: appOneMessage},
+		{appName: "dup-app-2", wantMessage: appTwoMessage},
+	} {
+		t.Run(tc.appName, func(t *testing.T) {
+			cookies := pack.CreateAppSessionCookiesForApp(t, tc.appName, sharedPublicAddr, pack.rootAppClusterName)
+
+			for range 20 {
+				status, body, err := pack.MakeRequest(cookies, http.MethodGet, "/")
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, status)
+				require.Equal(t, tc.wantMessage, strings.TrimSpace(body),
+					"request must only ever be routed to %q", tc.appName)
+			}
+		})
+	}
+}
+
+// TestAppAccessRoutingByNameLeafCluster is the trusted-cluster version of
+// TestAppAccessRoutingByName. It registers two distinct apps in a leaf cluster with
+// the same public address and verifies that requests are routed to the correct app.
+func TestAppAccessRoutingByNameLeafCluster(t *testing.T) {
+	const sharedPublicAddr = "leaf-dup.example.com"
+
+	appOneMessage := "leaf-app-one-" + uuid.NewString()
+	appTwoMessage := "leaf-app-two-" + uuid.NewString()
+
+	appOneServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, appOneMessage)
+	}))
+	t.Cleanup(appOneServer.Close)
+	appTwoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, appTwoMessage)
+	}))
+	t.Cleanup(appTwoServer.Close)
+
+	pack := SetupWithOptions(t, AppTestOptions{
+		ExtraLeafApps: []servicecfg.App{
+			{
+				Name:         "leaf-dup-1",
+				URI:          appOneServer.URL,
+				PublicAddr:   sharedPublicAddr,
+				StaticLabels: map[string]string{"app_name": "leaf-dup-1"},
+			},
+			{
+				Name:         "leaf-dup-2",
+				URI:          appTwoServer.URL,
+				PublicAddr:   sharedPublicAddr,
+				StaticLabels: map[string]string{"app_name": "leaf-dup-2"},
+			},
+		},
+	})
+
+	for _, tc := range []struct {
+		appName     string
+		wantMessage string
+	}{
+		{appName: "leaf-dup-1", wantMessage: appOneMessage},
+		{appName: "leaf-dup-2", wantMessage: appTwoMessage},
+	} {
+		t.Run(tc.appName, func(t *testing.T) {
+			// Resolve within the leaf cluster (note the leaf cluster name).
+			cookies := pack.CreateAppSessionCookiesForApp(t, tc.appName, sharedPublicAddr, pack.leafAppClusterName)
+
+			for range 20 {
+				status, body, err := pack.MakeRequest(cookies, http.MethodGet, "/")
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, status)
+				require.Equal(t, tc.wantMessage, strings.TrimSpace(body),
+					"request must only ever be routed to %q in the leaf cluster", tc.appName)
+			}
+		})
+	}
 }
 
 // testForward tests that requests get forwarded to the target application

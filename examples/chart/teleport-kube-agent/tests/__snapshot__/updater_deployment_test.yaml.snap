@@ -63,6 +63,8 @@ sets the affinity:
         runAsUser: 9807
         seccompProfile:
           type: RuntimeDefault
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME-updater
 sets the tolerations:
   1: |
@@ -109,6 +111,8 @@ sets the tolerations:
         runAsUser: 9807
         seccompProfile:
           type: RuntimeDefault
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME-updater
     tolerations:
     - effect: NoExecute

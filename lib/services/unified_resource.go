@@ -894,6 +894,9 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 		case types.OpDelete:
 			switch event.Resource.GetKind() {
 			case types.KindIdentityCenterAccount:
+				// IdentityCenterAccountToAppServer stores the entry under
+				// KindAppServer with the IC account's name; rebuild that
+				// header so the delete matches the cache key.
 				c.deleteLocked(&types.ResourceHeader{
 					Kind: types.KindAppServer,
 					Metadata: types.Metadata{
@@ -1107,7 +1110,7 @@ func (a *aggregatedAppServer) GetComponentFeatures() *componentfeaturesv1.Compon
 func intersectComponentFeaturesForAppServers(servers map[string]types.AppServer) *componentfeaturesv1.ComponentFeatures {
 	allFeatures := make([]*componentfeaturesv1.ComponentFeatures, 0, len(servers))
 	for _, s := range servers {
-		allFeatures = append(allFeatures, s.GetComponentFeatures())
+		allFeatures = append(allFeatures, componentfeatures.GetEffectiveServerFeatures(s))
 	}
 	return componentfeatures.Intersect(allFeatures...)
 }

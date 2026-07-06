@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/access_graph/v1/private_key.proto
 
+//go:build !protoopaque
+
 package accessgraphv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -94,17 +95,12 @@ func (x PublicKeyMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use PublicKeyMode.Descriptor instead.
-func (PublicKeyMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_access_graph_v1_private_key_proto_rawDescGZIP(), []int{0}
-}
-
 // The `PrivateKey` message represents a private key entry for a specific local user.
 // It serves as a reference to a private key located on a user's laptop. Note that it *NEVER* contains the private key itself.
 // Instead, it stores metadata related to the key, including the fingerprint of the public key, the device trust identifier, and the public key mode.
 // The Teleport Access Graph uses this metadata to assess whether a particular private key is authorized to access a user on the node without using Teleport.
 type PrivateKey struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// metadata is the PrivateKey's metadata.
 	Metadata *v1.Metadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// kind is a resource kind.
@@ -144,11 +140,6 @@ func (x *PrivateKey) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrivateKey.ProtoReflect.Descriptor instead.
-func (*PrivateKey) Descriptor() ([]byte, []int) {
-	return file_teleport_access_graph_v1_private_key_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *PrivateKey) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
@@ -184,9 +175,78 @@ func (x *PrivateKey) GetSpec() *PrivateKeySpec {
 	return nil
 }
 
+func (x *PrivateKey) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *PrivateKey) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *PrivateKey) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *PrivateKey) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *PrivateKey) SetSpec(v *PrivateKeySpec) {
+	x.Spec = v
+}
+
+func (x *PrivateKey) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *PrivateKey) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *PrivateKey) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *PrivateKey) ClearSpec() {
+	x.Spec = nil
+}
+
+type PrivateKey_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// metadata is the PrivateKey's metadata.
+	Metadata *v1.Metadata
+	// kind is a resource kind.
+	Kind string
+	// sub_kind is an optional resource sub kind, used in some resources.
+	SubKind string
+	// version is version.
+	Version string
+	// Spec is a PrivateKey specification.
+	Spec *PrivateKeySpec
+}
+
+func (b0 PrivateKey_builder) Build() *PrivateKey {
+	m0 := &PrivateKey{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Spec = b.Spec
+	return m0
+}
+
 // PrivateKeySpec is the private key spec.
 type PrivateKeySpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// device_id is the device trust identifier of the device that owns the key.
 	DeviceId string `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	// public_key_fingerprint is the SHA256 of the SSH public key corresponding to
@@ -223,11 +283,6 @@ func (x *PrivateKeySpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrivateKeySpec.ProtoReflect.Descriptor instead.
-func (*PrivateKeySpec) Descriptor() ([]byte, []int) {
-	return file_teleport_access_graph_v1_private_key_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *PrivateKeySpec) GetDeviceId() string {
 	if x != nil {
 		return x.DeviceId
@@ -247,6 +302,40 @@ func (x *PrivateKeySpec) GetPublicKeyMode() PublicKeyMode {
 		return x.PublicKeyMode
 	}
 	return PublicKeyMode_PUBLIC_KEY_MODE_UNSPECIFIED
+}
+
+func (x *PrivateKeySpec) SetDeviceId(v string) {
+	x.DeviceId = v
+}
+
+func (x *PrivateKeySpec) SetPublicKeyFingerprint(v string) {
+	x.PublicKeyFingerprint = v
+}
+
+func (x *PrivateKeySpec) SetPublicKeyMode(v PublicKeyMode) {
+	x.PublicKeyMode = v
+}
+
+type PrivateKeySpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// device_id is the device trust identifier of the device that owns the key.
+	DeviceId string
+	// public_key_fingerprint is the SHA256 of the SSH public key corresponding to
+	// the private key.
+	PublicKeyFingerprint string
+	// public_key_mode is the public key mode.
+	PublicKeyMode PublicKeyMode
+}
+
+func (b0 PrivateKeySpec_builder) Build() *PrivateKeySpec {
+	m0 := &PrivateKeySpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DeviceId = b.DeviceId
+	x.PublicKeyFingerprint = b.PublicKeyFingerprint
+	x.PublicKeyMode = b.PublicKeyMode
+	return m0
 }
 
 var File_teleport_access_graph_v1_private_key_proto protoreflect.FileDescriptor
@@ -270,18 +359,6 @@ const file_teleport_access_graph_v1_private_key_proto_rawDesc = "" +
 	"\x17PUBLIC_KEY_MODE_DERIVED\x10\x01\x12\x1c\n" +
 	"\x18PUBLIC_KEY_MODE_PUB_FILE\x10\x02\x12\x1d\n" +
 	"\x19PUBLIC_KEY_MODE_PROTECTED\x10\x03BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1;accessgraphv1b\x06proto3"
-
-var (
-	file_teleport_access_graph_v1_private_key_proto_rawDescOnce sync.Once
-	file_teleport_access_graph_v1_private_key_proto_rawDescData []byte
-)
-
-func file_teleport_access_graph_v1_private_key_proto_rawDescGZIP() []byte {
-	file_teleport_access_graph_v1_private_key_proto_rawDescOnce.Do(func() {
-		file_teleport_access_graph_v1_private_key_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_access_graph_v1_private_key_proto_rawDesc), len(file_teleport_access_graph_v1_private_key_proto_rawDesc)))
-	})
-	return file_teleport_access_graph_v1_private_key_proto_rawDescData
-}
 
 var file_teleport_access_graph_v1_private_key_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_access_graph_v1_private_key_proto_msgTypes = make([]protoimpl.MessageInfo, 2)

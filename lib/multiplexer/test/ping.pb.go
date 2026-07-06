@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/multiplexer/test/ping.proto
 
+//go:build !protoopaque
+
 package test
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 )
 
 type Request struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Payload       string                 `protobuf:"bytes,1,opt,name=Payload,proto3" json:"Payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -70,11 +71,6 @@ func (x *Request) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Request.ProtoReflect.Descriptor instead.
-func (*Request) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_multiplexer_test_ping_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Request) GetPayload() string {
 	if x != nil {
 		return x.Payload
@@ -82,8 +78,26 @@ func (x *Request) GetPayload() string {
 	return ""
 }
 
+func (x *Request) SetPayload(v string) {
+	x.Payload = v
+}
+
+type Request_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Payload string
+}
+
+func (b0 Request_builder) Build() *Request {
+	m0 := &Request{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Payload = b.Payload
+	return m0
+}
+
 type Response struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Payload       string                 `protobuf:"bytes,1,opt,name=Payload,proto3" json:"Payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -114,16 +128,29 @@ func (x *Response) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Response.ProtoReflect.Descriptor instead.
-func (*Response) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_multiplexer_test_ping_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *Response) GetPayload() string {
 	if x != nil {
 		return x.Payload
 	}
 	return ""
+}
+
+func (x *Response) SetPayload(v string) {
+	x.Payload = v
+}
+
+type Response_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Payload string
+}
+
+func (b0 Response_builder) Build() *Response {
+	m0 := &Response{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Payload = b.Payload
+	return m0
 }
 
 var File_teleport_lib_multiplexer_test_ping_proto protoreflect.FileDescriptor
@@ -137,18 +164,6 @@ const file_teleport_lib_multiplexer_test_ping_proto_rawDesc = "" +
 	"\aPayload\x18\x01 \x01(\tR\aPayload2a\n" +
 	"\x06Pinger\x12W\n" +
 	"\x04Ping\x12&.teleport.lib.multiplexer.test.Request\x1a'.teleport.lib.multiplexer.test.ResponseB8Z6github.com/gravitational/teleport/lib/multiplexer/testb\x06proto3"
-
-var (
-	file_teleport_lib_multiplexer_test_ping_proto_rawDescOnce sync.Once
-	file_teleport_lib_multiplexer_test_ping_proto_rawDescData []byte
-)
-
-func file_teleport_lib_multiplexer_test_ping_proto_rawDescGZIP() []byte {
-	file_teleport_lib_multiplexer_test_ping_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_multiplexer_test_ping_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_multiplexer_test_ping_proto_rawDesc), len(file_teleport_lib_multiplexer_test_ping_proto_rawDesc)))
-	})
-	return file_teleport_lib_multiplexer_test_ping_proto_rawDescData
-}
 
 var file_teleport_lib_multiplexer_test_ping_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_lib_multiplexer_test_ping_proto_goTypes = []any{

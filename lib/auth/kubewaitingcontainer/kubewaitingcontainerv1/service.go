@@ -92,34 +92,34 @@ func (s *Service) ListKubernetesWaitingContainers(ctx context.Context, req *kube
 		return nil, trace.AccessDenied("unauthorized to list Kubernetes waiting container resources")
 	}
 
-	conts, nextToken, err := s.cache.ListKubernetesWaitingContainers(ctx, int(req.PageSize), req.PageToken)
+	conts, nextToken, err := s.cache.ListKubernetesWaitingContainers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &kubewaitingcontainerpb.ListKubernetesWaitingContainersResponse{
+	return kubewaitingcontainerpb.ListKubernetesWaitingContainersResponse_builder{
 		WaitingContainers: conts,
 		NextPageToken:     nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
 func (s *Service) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	if req.Username == "" {
+	if req.GetUsername() == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	if req.Cluster == "" {
+	if req.GetCluster() == "" {
 		return nil, trace.BadParameter("missing cluster")
 	}
-	if req.Namespace == "" {
+	if req.GetNamespace() == "" {
 		return nil, trace.BadParameter("missing namespace")
 	}
-	if req.PodName == "" {
+	if req.GetPodName() == "" {
 		return nil, trace.BadParameter("missing pod name")
 	}
-	if req.ContainerName == "" {
+	if req.GetContainerName() == "" {
 		return nil, trace.BadParameter("missing container name")
 	}
 
@@ -134,13 +134,13 @@ func (s *Service) GetKubernetesWaitingContainer(ctx context.Context, req *kubewa
 		return nil, trace.AccessDenied("unauthorized to read Kubernetes waiting container resources")
 	}
 
-	out, err := s.cache.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
-		Username:      req.Username,
-		Cluster:       req.Cluster,
-		Namespace:     req.Namespace,
-		PodName:       req.PodName,
-		ContainerName: req.ContainerName,
-	})
+	out, err := s.cache.GetKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest_builder{
+		Username:      req.GetUsername(),
+		Cluster:       req.GetCluster(),
+		Namespace:     req.GetNamespace(),
+		PodName:       req.GetPodName(),
+		ContainerName: req.GetContainerName(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,7 +163,7 @@ func (s *Service) CreateKubernetesWaitingContainer(ctx context.Context, req *kub
 		return nil, trace.AccessDenied("unauthorized to create Kubernetes waiting container resources")
 	}
 
-	out, err := s.backend.CreateKubernetesWaitingContainer(ctx, req.WaitingContainer)
+	out, err := s.backend.CreateKubernetesWaitingContainer(ctx, req.GetWaitingContainer())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,19 +175,19 @@ func (s *Service) CreateKubernetesWaitingContainer(ctx context.Context, req *kub
 // container that are waiting to be created until moderated
 // session conditions are met.
 func (s *Service) DeleteKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest) (*emptypb.Empty, error) {
-	if req.Username == "" {
+	if req.GetUsername() == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	if req.Cluster == "" {
+	if req.GetCluster() == "" {
 		return nil, trace.BadParameter("missing cluster")
 	}
-	if req.Namespace == "" {
+	if req.GetNamespace() == "" {
 		return nil, trace.BadParameter("missing namespace")
 	}
-	if req.PodName == "" {
+	if req.GetPodName() == "" {
 		return nil, trace.BadParameter("missing pod name")
 	}
-	if req.ContainerName == "" {
+	if req.GetContainerName() == "" {
 		return nil, trace.BadParameter("missing container name")
 	}
 
@@ -202,13 +202,13 @@ func (s *Service) DeleteKubernetesWaitingContainer(ctx context.Context, req *kub
 		return nil, trace.AccessDenied("unauthorized to delete Kubernetes waiting container resources")
 	}
 
-	return &emptypb.Empty{}, trace.Wrap(s.backend.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
-		Username:      req.Username,
-		Cluster:       req.Cluster,
-		Namespace:     req.Namespace,
-		PodName:       req.PodName,
-		ContainerName: req.ContainerName,
-	}))
+	return &emptypb.Empty{}, trace.Wrap(s.backend.DeleteKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest_builder{
+		Username:      req.GetUsername(),
+		Cluster:       req.GetCluster(),
+		Namespace:     req.GetNamespace(),
+		PodName:       req.GetPodName(),
+		ContainerName: req.GetContainerName(),
+	}.Build()))
 }
 
 // isKubeSvcOrProxy returns true if the given context has the builtin role

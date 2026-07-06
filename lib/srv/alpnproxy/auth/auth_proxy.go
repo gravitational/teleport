@@ -151,7 +151,7 @@ func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context, client
 }
 
 func (s *AuthProxyDialerService) dialRemoteAuthServer(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
-	_, span := s.tracer.Start(ctx, "authProxyDialerService/dialRemoteAuthServer",
+	ctx, span := s.tracer.Start(ctx, "authProxyDialerService/dialRemoteAuthServer",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			attribute.String("src_addr", fmt.Sprintf("%v", clientSrcAddr)),

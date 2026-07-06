@@ -28,6 +28,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
 )
 
@@ -44,45 +45,62 @@ func StrongValidate(pin *scopesv1.Pin) error {
 		return trace.Errorf("invalid pinned scope: %w", err)
 	}
 
-	if pin.GetAssignmentTree() == nil {
-		// in theory there isn't any harm in allowing pins to be created without any assignments, but we're choosing to err
-		// on the side of caution for now. this limitation may be lifted later.
-		// NOTE: if lifting this restriction, the equivalent check in the pin building logic must also be lifted.
-		return trace.BadParameter("scope pin at %q contains no assignment tree", pin.GetScope())
-	}
-
-	if len(pin.GetAssignments()) != 0 { //nolint:staticcheck // SA1019.
-		return trace.BadParameter("scope pin uses outdated format, please ensure all teleport components are upgraded and relogin")
-	}
-
-	// Validate all assignments in the tree by enumerating them
-	hasAssignments := false
-	for assignment := range EnumerateAllAssignments(pin) {
-		hasAssignments = true
-
-		if err := scopes.StrongValidate(assignment.ScopeOfOrigin); err != nil {
-			return trace.Errorf("invalid scope of origin %q in pinned assignment: %w", assignment.ScopeOfOrigin, err)
+	switch pin.GetKind() {
+	case scopesv1.PinKind_PIN_KIND_USER:
+		if pin.GetSystemRoles() != nil {
+			return trace.BadParameter("user scope pin must not have system_roles set")
+		}
+		if pin.GetAssignmentTree() == nil {
+			// in theory there isn't any harm in allowing pins to be created without any assignments, but we're choosing to err
+			// on the side of caution for now. this limitation may be lifted later.
+			// NOTE: if lifting this restriction, the equivalent check in the pin building logic must also be lifted.
+			return trace.BadParameter("scope pin at %q contains no assignment tree", pin.GetScope())
 		}
 
-		if err := scopes.StrongValidate(assignment.ScopeOfEffect); err != nil {
-			return trace.Errorf("invalid scope of effect %q in pinned assignment: %w", assignment.ScopeOfEffect, err)
+		// Validate all assignments in the tree by enumerating them
+		hasAssignments := false
+		for assignment := range EnumerateAllAssignments(pin) {
+			hasAssignments = true
+
+			if err := scopes.StrongValidate(assignment.ScopeOfOrigin); err != nil {
+				return trace.Errorf("invalid scope of origin %q in pinned assignment: %w", assignment.ScopeOfOrigin, err)
+			}
+
+			if err := scopes.StrongValidate(assignment.ScopeOfEffect); err != nil {
+				return trace.Errorf("invalid scope of effect %q in pinned assignment: %w", assignment.ScopeOfEffect, err)
+			}
+
+			if assignment.RoleName == "" {
+				return trace.BadParameter("scope pin at %q contains assignment with empty role name", pin.GetScope())
+			}
+
+			if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfOrigin) {
+				return trace.BadParameter("scope pin at %q contains assignment with incompatible scope of origin %q", pin.GetScope(), assignment.ScopeOfOrigin)
+			}
+
+			if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfEffect) {
+				return trace.BadParameter("scope pin at %q contains assignment with incompatible scope of effect %q", pin.GetScope(), assignment.ScopeOfEffect)
+			}
 		}
 
-		if assignment.RoleName == "" {
-			return trace.BadParameter("scope pin at %q contains assignment with empty role name", pin.GetScope())
+		if !hasAssignments {
+			return trace.BadParameter("scope pin at %q contains no assignments", pin.GetScope())
 		}
 
-		if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfOrigin) {
-			return trace.BadParameter("scope pin at %q contains assignment with incompatible scope of origin %q", pin.GetScope(), assignment.ScopeOfOrigin)
+	case scopesv1.PinKind_PIN_KIND_AGENT:
+		if pin.GetAssignmentTree() != nil {
+			return trace.BadParameter("agent scope pin must not have assignment_tree set")
+		}
+		sr := pin.GetSystemRoles()
+		if sr == nil {
+			return trace.BadParameter("agent scope pin must have system_roles set")
+		}
+		if sr.GetPrimary() == "" {
+			return trace.BadParameter("agent scope pin system_roles must have primary role set")
 		}
 
-		if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfEffect) {
-			return trace.BadParameter("scope pin at %q contains assignment with incompatible scope of effect %q", pin.GetScope(), assignment.ScopeOfEffect)
-		}
-	}
-
-	if !hasAssignments {
-		return trace.BadParameter("scope pin at %q contains no assignments", pin.GetScope())
+	default:
+		return trace.BadParameter("unknown scope pin kind %v", pin.GetKind())
 	}
 
 	return nil
@@ -91,7 +109,7 @@ func StrongValidate(pin *scopesv1.Pin) error {
 // WeakValidate performs a weak form of validation on a scope pin. This function is intended to catch
 // bugs/incompatibilities that might have resulted in a scope pin too malformed for us to safely reason
 // about (e.g. due to significant version drift). Use this function to validate scope pins extracted from
-// certificates or otherwsie propagated from the control plane. Prefer using [StrongValidate] when building
+// certificates or otherwise propagated from the control plane. Prefer using [StrongValidate] when building
 // a new scope pin from scratch.
 func WeakValidate(pin *scopesv1.Pin) error {
 	if pin == nil {
@@ -102,16 +120,52 @@ func WeakValidate(pin *scopesv1.Pin) error {
 		return trace.Errorf("invalid pinned scope: %w", err)
 	}
 
-	if len(pin.GetAssignments()) != 0 { //nolint:staticcheck // SA1019.
-		return trace.BadParameter("scope pin uses outdated format, plase ensure all teleport components are upgraded and relogin")
+	switch pin.GetKind() {
+	case scopesv1.PinKind_PIN_KIND_USER:
+		// Note that we do not validate the assignment tree here. Scoped access checks are designed to omit
+		// any assignments that are malformed. This is allowable because the scoped role model promises to
+		// never apply deny rules or cross-role side effects via roles. This makes it safe to simply skip
+		// anything we don't understand.
+	case scopesv1.PinKind_PIN_KIND_AGENT:
+		// we generally try to make weak validation as unopinionated as possible barring issues that would
+		// lead to very bad behavior.  However, missing primary system role is likely to lead to confusing and
+		// inconsistent error messages so its preferable to catch it here.
+		if pin.GetSystemRoles().GetPrimary() == "" {
+			return trace.BadParameter("agent scope pin missing primary system role")
+		}
+	default:
+		// we can never handle a scope pin with an unknown kind, as we will not know how to confer privileges
+		// from the pin. It is best to catch unknown scope pin kinds immediately and return a clear error. Note
+		// that adding new scope pin kinds *is* a sensible way to introduce new scope pin features that might
+		// otherwise cause incorrect behavior in outdated agents, so hitting this may not indicate a bug. It
+		// may simply mean that the error-ing teleport isntance is outdated and back-compat safety is working
+		// as intended.
+		return trace.BadParameter("unsupported scope pin kind %v", pin.GetKind())
 	}
 
-	// Note that we do not valdiate the assignment tree here. Scoped access checks are designed to omit
-	// any assignments that are malformed. This is allowable because the scoped role model promises to
-	// never apply deny rules or cross-role side effects via roles. This makes it safe to simply skip
-	// anything we don't understand.
-
 	return nil
+}
+
+// SystemRoles returns an iterator over the effective system roles encoded in an agent scope pin.
+// For instance certs the primary role is Instance (which carries no privileges of its own),
+// so the real roles come from the additional list. For per-service certs the primary role
+// is the sole role.
+func SystemRoles(pin *scopesv1.Pin) iter.Seq[types.SystemRole] {
+	return func(yield func(types.SystemRole) bool) {
+		sr := pin.GetSystemRoles()
+		primary := types.SystemRole(sr.GetPrimary())
+		if primary == types.RoleInstance {
+			for _, r := range sr.GetAdditional() {
+				if !yield(types.SystemRole(r)) {
+					return
+				}
+			}
+			return
+		}
+		if primary != "" {
+			yield(primary)
+		}
+	}
 }
 
 // PinCompatibleWithPolicyScope checks if a given policy scope might affect access subject to the pin. When building a
@@ -147,7 +201,7 @@ func AssignmentTreeFromMap(m map[string]map[string][]string) *scopesv1.Assignmen
 		}
 	}
 
-	return pin.AssignmentTree
+	return pin.GetAssignmentTree()
 }
 
 // AssignmentTreeIntoMap converts an assignment tree back into a nested map of the form scopeOfOrigin -> scopeOfEffect -> roles.
@@ -159,7 +213,7 @@ func AssignmentTreeIntoMap(tree *scopesv1.AssignmentNode) map[string]map[string]
 
 	out := make(map[string]map[string][]string)
 
-	for assignment := range EnumerateAllAssignments(&scopesv1.Pin{AssignmentTree: tree}) {
+	for assignment := range EnumerateAllAssignments(scopesv1.Pin_builder{AssignmentTree: tree}.Build()) {
 		if out[assignment.ScopeOfOrigin] == nil {
 			out[assignment.ScopeOfOrigin] = make(map[string][]string)
 		}
@@ -172,9 +226,13 @@ func AssignmentTreeIntoMap(tree *scopesv1.AssignmentNode) map[string]map[string]
 	return out
 }
 
-// RoleAssignment contains the details of a pinned role assignment. This type is used when building and iterating the assignment
-// tree structure within a scope pin.
+// RoleAssignment contains the details of a pinned role assignment. This type is used when building, iterating, and
+// resolving role assignments within a scope pin. Note that some packages use the zero value as a sentinel, but
+// general-purpose helpers should treat a zero value RoleAssignment as meaningless or invalid.
 type RoleAssignment struct {
+	// RoleKind distinguishes user-assigned scoped roles from system roles.
+	RoleKind RoleKind
+
 	// ScopeOfOrigin is the scope that the role was assigned *from* (i.e. the scope of the assignment resource that specified the
 	// role assignment). Roles with a more ancestral Scope of Origin take precedence over roles with a more descendant Scope of Origin.
 	ScopeOfOrigin string
@@ -190,6 +248,12 @@ type RoleAssignment struct {
 // WriteRoleAssignment encodes a role assignment into the given scope pin's assignment tree. The pin must be compatible
 // with both the scope of origin and scope of effect of the assignment, and the scopes must be valid.
 func WriteRoleAssignment(pin *scopesv1.Pin, assignment RoleAssignment) error {
+	if pin.GetKind() != scopesv1.PinKind_PIN_KIND_USER {
+		return trace.BadParameter("cannot write role assignment to scope pin of kind %v, expected %v", pin.GetKind(), scopesv1.PinKind_PIN_KIND_USER)
+	}
+	if assignment.RoleKind != RoleKindUser {
+		return trace.BadParameter("cannot write non-user role assignment (kind %q) to scope pin assignment tree", assignment.RoleKind)
+	}
 	// verify that the assignment's scopes look like valid scopes.
 	if err := scopes.WeakValidate(assignment.ScopeOfOrigin); err != nil {
 		return trace.Errorf("cannot write role assignment to scope pin, invalid scope of origin %q for role %q: %w", assignment.ScopeOfOrigin, assignment.RoleName, err)
@@ -215,56 +279,56 @@ func WriteRoleAssignment(pin *scopesv1.Pin, assignment RoleAssignment) error {
 // for tests.
 func writeRoleAssignmentUnchecked(pin *scopesv1.Pin, assignment RoleAssignment) {
 	// ensure the pin's assignment tree is initialized
-	if pin.AssignmentTree == nil {
-		pin.AssignmentTree = &scopesv1.AssignmentNode{}
+	if !pin.HasAssignmentTree() {
+		pin.SetAssignmentTree(&scopesv1.AssignmentNode{})
 	}
 
 	// start at the root of the assignment tree
-	assignmentNode := pin.AssignmentTree
+	assignmentNode := pin.GetAssignmentTree()
 
 	// descend to the correct assignment node for the scope of origin
 	for segment := range scopes.DescendingSegments(assignment.ScopeOfOrigin) {
-		if assignmentNode.Children == nil {
-			assignmentNode.Children = make(map[string]*scopesv1.AssignmentNode)
+		if assignmentNode.GetChildren() == nil {
+			assignmentNode.SetChildren(make(map[string]*scopesv1.AssignmentNode))
 		}
 
-		child, ok := assignmentNode.Children[segment]
+		child, ok := assignmentNode.GetChildren()[segment]
 		if !ok {
 			child = &scopesv1.AssignmentNode{}
-			assignmentNode.Children[segment] = child
+			assignmentNode.GetChildren()[segment] = child
 		}
 
 		assignmentNode = child
 	}
 
 	// ensure the role tree is initialized for this assignment node
-	if assignmentNode.RoleTree == nil {
-		assignmentNode.RoleTree = &scopesv1.RoleNode{}
+	if !assignmentNode.HasRoleTree() {
+		assignmentNode.SetRoleTree(&scopesv1.RoleNode{})
 	}
 
 	// start at the root of the role tree for this assignment node
-	roleNode := assignmentNode.RoleTree
+	roleNode := assignmentNode.GetRoleTree()
 
 	// descend to the correct role node for the scope of effect
 	for segment := range scopes.DescendingSegments(assignment.ScopeOfEffect) {
-		if roleNode.Children == nil {
-			roleNode.Children = make(map[string]*scopesv1.RoleNode)
+		if roleNode.GetChildren() == nil {
+			roleNode.SetChildren(make(map[string]*scopesv1.RoleNode))
 		}
 
-		child, ok := roleNode.Children[segment]
+		child, ok := roleNode.GetChildren()[segment]
 		if !ok {
 			child = &scopesv1.RoleNode{}
-			roleNode.Children[segment] = child
+			roleNode.GetChildren()[segment] = child
 		}
 
 		roleNode = child
 	}
 
 	// append the role to the role list for this role node if it's not already present
-	if !slices.Contains(roleNode.Roles, assignment.RoleName) {
-		roleNode.Roles = append(roleNode.Roles, assignment.RoleName)
+	if !slices.Contains(roleNode.GetRoles(), assignment.RoleName) {
+		roleNode.SetRoles(append(roleNode.GetRoles(), assignment.RoleName))
 		// ensure the role list is sorted for deterministic iteration
-		slices.Sort(roleNode.Roles)
+		slices.Sort(roleNode.GetRoles())
 	}
 }
 
@@ -283,12 +347,12 @@ func DescendAssignmentTree(pin *scopesv1.Pin, resourceScope string) (iter.Seq[Ro
 		return nil, trace.BadParameter("invalid resource scope %q for scope pin at %q in assignment lookup (this is a bug)", resourceScope, pin.GetScope())
 	}
 	return func(yield func(RoleAssignment) bool) {
-		if pin.AssignmentTree == nil {
+		if !pin.HasAssignmentTree() {
 			return
 		}
 
 		resourceScopeSegments := scopes.Split(resourceScope)
-		yieldAssignmentNode(pin.AssignmentTree, resourceScopeSegments, 0 /*depth*/, yield)
+		yieldAssignmentNode(pin.GetAssignmentTree(), resourceScopeSegments, 0 /*depth*/, yield)
 	}, nil
 }
 
@@ -298,15 +362,15 @@ func DescendAssignmentTree(pin *scopesv1.Pin, resourceScope string) (iter.Seq[Ro
 // to preserve scope hierarchy during evaluation.
 func yieldAssignmentNode(node *scopesv1.AssignmentNode, resourceScopeSegments []string, depth int, yield func(RoleAssignment) bool) bool {
 	// first yield any matching roles from the current depth's role tree
-	if node.RoleTree != nil {
+	if node.HasRoleTree() {
 		scopeOfOrigin := scopes.Join(resourceScopeSegments[:depth]...)
-		if !yeildRoleNode(node.RoleTree, scopeOfOrigin, resourceScopeSegments, 0 /*role tree depth*/, yield) {
+		if !yeildRoleNode(node.GetRoleTree(), scopeOfOrigin, resourceScopeSegments, 0 /*role tree depth*/, yield) {
 			return false
 		}
 	}
 
 	if len(resourceScopeSegments) > depth {
-		if child, ok := node.Children[resourceScopeSegments[depth]]; ok {
+		if child, ok := node.GetChildren()[resourceScopeSegments[depth]]; ok {
 			if !yieldAssignmentNode(child, resourceScopeSegments, depth+1, yield) {
 				return false
 			}
@@ -326,20 +390,21 @@ func yieldAssignmentNode(node *scopesv1.AssignmentNode, resourceScopeSegments []
 // details on scoped role evaluation ordering and its implications.
 func yeildRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, resourceScopeSegments []string, depth int, yield func(RoleAssignment) bool) bool {
 	if len(resourceScopeSegments) > depth {
-		if child, ok := node.Children[resourceScopeSegments[depth]]; ok {
+		if child, ok := node.GetChildren()[resourceScopeSegments[depth]]; ok {
 			if !yeildRoleNode(child, scopeOfOrigin, resourceScopeSegments, depth+1, yield) {
 				return false
 			}
 		}
 	}
 
-	if len(node.Roles) == 0 {
+	if len(node.GetRoles()) == 0 {
 		return true
 	}
 
 	scopeOfEffect := scopes.Join(resourceScopeSegments[:depth]...)
-	for _, roleName := range node.Roles {
+	for _, roleName := range node.GetRoles() {
 		if !yield(RoleAssignment{
+			RoleKind:      RoleKindUser,
 			ScopeOfOrigin: scopeOfOrigin,
 			ScopeOfEffect: scopeOfEffect,
 			RoleName:      roleName,
@@ -351,8 +416,19 @@ func yeildRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, resourceScopeS
 	return true
 }
 
-// GetRolesAtEnforcementPoint returns an iterator over role names assigned at the specified enforcement point
-// within the assignment tree. Returns an empty iterator if no roles are assigned at that combination.
+// RoleKind distinguishes user-assigned scoped roles from built-in system roles.
+type RoleKind string
+
+const (
+	// RoleKindUser identifies a user-assigned scoped role sourced from the pin's assignment tree.
+	RoleKindUser RoleKind = "user"
+	// RoleKindSystem identifies a built-in system role sourced from the pin's system_roles field.
+	RoleKindSystem RoleKind = "system"
+)
+
+// GetRolesAtEnforcementPoint returns an iterator over RoleAssignments at the specified enforcement point,
+// dispatching on pin kind. For user pins, assignments are sourced from the assignment tree with RoleKind=user.
+// For agent pins, assignments are sourced from system_roles with RoleKind=system.
 //
 // This function is intended to be composed with [scopes.EnforcementPointsForResourceScope] to allow callers to fetch roles
 // at each hierarchy level as they evaluate access. Note that it would be more efficient to build an iterator that
@@ -363,48 +439,86 @@ func yeildRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, resourceScopeS
 // NOTE: the order in which roles are evaluated is *extremely important* for correct scoped role behavior. Before calling
 // this function in an access evaluation context, ensure that the enforcement points are being processed in the correct
 // order as described in the scopes RFD.
-func GetRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint) iter.Seq[string] {
-	return func(yield func(string) bool) {
-		if pin == nil || pin.AssignmentTree == nil {
+func GetRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint) iter.Seq[RoleAssignment] {
+	return func(yield func(RoleAssignment) bool) {
+		if pin == nil {
 			return
 		}
+		switch pin.GetKind() {
+		case scopesv1.PinKind_PIN_KIND_AGENT:
+			getSystemRolesAtEnforcementPoint(pin, point, yield)
+		default:
+			getUserRolesAtEnforcementPoint(pin, point, yield)
+		}
+	}
+}
 
-		if point.ScopeOfOrigin == "" || point.ScopeOfEffect == "" {
+// getUserRolesAtEnforcementPoint yields user-assigned role assignments from the pin's assignment tree at
+// the given enforcement point.
+func getUserRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint, yield func(RoleAssignment) bool) {
+	if !pin.HasAssignmentTree() {
+		return
+	}
+
+	if point.ScopeOfOrigin == "" || point.ScopeOfEffect == "" {
+		return
+	}
+
+	// navigate to the assignment node for the Scope of Origin
+	assignmentNode := pin.GetAssignmentTree()
+	for segment := range scopes.DescendingSegments(point.ScopeOfOrigin) {
+		child, ok := assignmentNode.GetChildren()[segment]
+		if !ok {
+			// the scope of origin doesn't exist in the tree
 			return
 		}
+		assignmentNode = child
+	}
 
-		// navigate to the assignment node for the Scope of Origin
-		assignmentNode := pin.AssignmentTree
-		for segment := range scopes.DescendingSegments(point.ScopeOfOrigin) {
-			child, ok := assignmentNode.Children[segment]
-			if !ok {
-				// the scope of origin doesn't exist in the tree
-				return
-			}
-			assignmentNode = child
-		}
+	// navigate to the role node for the Scope of Effect within this assignment node
+	if !assignmentNode.HasRoleTree() {
+		return
+	}
 
-		// navigate to the role node for the Scope of Effect within this assignment node
-		if assignmentNode.RoleTree == nil {
+	roleNode := assignmentNode.GetRoleTree()
+	for segment := range scopes.DescendingSegments(point.ScopeOfEffect) {
+		child, ok := roleNode.GetChildren()[segment]
+		if !ok {
+			// the scope of effect doesn't exist in the tree
 			return
 		}
+		roleNode = child
+	}
 
-		roleNode := assignmentNode.RoleTree
-		for segment := range scopes.DescendingSegments(point.ScopeOfEffect) {
-			child, ok := roleNode.Children[segment]
-			if !ok {
-				// the scope of effect doesn't exist in the tree
-				return
-			}
-			roleNode = child
+	// yield each role in the order that they are stored. it is the responsibility
+	// of pin construction logic to ensure deterministic ordering.
+	for _, roleName := range roleNode.GetRoles() {
+		if !yield(RoleAssignment{
+			RoleKind:      RoleKindUser,
+			ScopeOfOrigin: point.ScopeOfOrigin,
+			ScopeOfEffect: point.ScopeOfEffect,
+			RoleName:      roleName,
+		}) {
+			return
 		}
+	}
+}
 
-		// yield each role name in the order that they are stored. it is the responsibility
-		// of pin construction logic to ensure deterministic ordering.
-		for _, roleName := range roleNode.Roles {
-			if !yield(roleName) {
-				return
-			}
+// getSystemRolesAtEnforcementPoint yields system role assignments for agent pins. System roles are only
+// present at the (root, root) enforcement point currently. Future work may break up system roles into
+// smaller subsets of privileges assigned at root and agent scope.
+func getSystemRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint, yield func(RoleAssignment) bool) {
+	if point.ScopeOfOrigin != scopes.Root || point.ScopeOfEffect != scopes.Root {
+		return
+	}
+	for sr := range SystemRoles(pin) {
+		if !yield(RoleAssignment{
+			RoleKind:      RoleKindSystem,
+			ScopeOfOrigin: scopes.Root,
+			ScopeOfEffect: scopes.Root,
+			RoleName:      string(sr),
+		}) {
+			return
 		}
 	}
 }
@@ -417,12 +531,12 @@ func GetRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint
 // *NOTE*: this function is not suitable for being the basis of access control evaluation ordering.
 func EnumerateAllAssignments(pin *scopesv1.Pin) iter.Seq[RoleAssignment] {
 	return func(yield func(RoleAssignment) bool) {
-		if pin == nil || pin.AssignmentTree == nil {
+		if pin == nil || !pin.HasAssignmentTree() {
 			return
 		}
 
 		// Start enumeration at the root of the assignment tree with empty segment list (representing root scope)
-		enumerateAssignmentNode(pin.AssignmentTree, nil, yield)
+		enumerateAssignmentNode(pin.GetAssignmentTree(), nil, yield)
 	}
 }
 
@@ -433,14 +547,14 @@ func enumerateAssignmentNode(node *scopesv1.AssignmentNode, originSegments []str
 	scopeOfOrigin := scopes.Join(originSegments...)
 
 	// Enumerate all roles in this node's role tree
-	if node.RoleTree != nil {
-		if !enumerateRoleNode(node.RoleTree, scopeOfOrigin, nil, yield) {
+	if node.HasRoleTree() {
+		if !enumerateRoleNode(node.GetRoleTree(), scopeOfOrigin, nil, yield) {
 			return false
 		}
 	}
 
 	// Recursively enumerate all child assignment nodes
-	for segment, child := range node.Children {
+	for segment, child := range node.GetChildren() {
 		childOriginSegments := append(originSegments, segment)
 		if !enumerateAssignmentNode(child, childOriginSegments, yield) {
 			return false
@@ -457,8 +571,9 @@ func enumerateRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegm
 	scopeOfEffect := scopes.Join(effectSegments...)
 
 	// Yield all roles at this node
-	for _, roleName := range node.Roles {
+	for _, roleName := range node.GetRoles() {
 		if !yield(RoleAssignment{
+			RoleKind:      RoleKindUser,
 			ScopeOfOrigin: scopeOfOrigin,
 			ScopeOfEffect: scopeOfEffect,
 			RoleName:      roleName,
@@ -468,7 +583,7 @@ func enumerateRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegm
 	}
 
 	// Recursively enumerate all child role nodes
-	for segment, child := range node.Children {
+	for segment, child := range node.GetChildren() {
 		childEffectSegments := append(effectSegments, segment)
 		if !enumerateRoleNode(child, scopeOfOrigin, childEffectSegments, yield) {
 			return false
@@ -506,25 +621,25 @@ func enumerateRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegm
 // solving the orthogonal ranking problem, but may be something to revisit if the scenarios where it performs better
 // end up being more common in practice than we anticipate.
 func PruneAssignmentTree(ctx context.Context, pin *scopesv1.Pin, maxBytes int) (prunedCount int) {
-	if pin == nil || pin.AssignmentTree == nil {
+	if pin == nil || !pin.HasAssignmentTree() {
 		return 0
 	}
 
 	// check if pruning is actually needed
-	initialSize := proto.Size(pin.AssignmentTree)
+	initialSize := proto.Size(pin.GetAssignmentTree())
 	if initialSize <= maxBytes {
 		return 0
 	}
 
 	// get count of assignments before pruning
-	initialCount := countAssignments(pin.AssignmentTree)
+	initialCount := countAssignments(pin.GetAssignmentTree())
 
 	currentSize := initialSize
 
 	// iteratively prune the deepest depth level until we fit within the size limit
 	for {
 		// find the deepest Scope of Origin depth currently contained in the tree
-		maxDepth := maxAssignmentDepth(pin.AssignmentTree)
+		maxDepth := maxAssignmentDepth(pin.GetAssignmentTree())
 		if maxDepth == 0 {
 			slog.WarnContext(ctx, "assignment tree exceeds prescribed size limit but will not be pruned further due to all remaining assignments originating from root scope",
 				"pin_scope", pin.GetScope(),
@@ -532,7 +647,7 @@ func PruneAssignmentTree(ctx context.Context, pin *scopesv1.Pin, maxBytes int) (
 				"current_size", currentSize,
 				"max_size", maxBytes,
 				"initial_count", initialCount,
-				"current_count", countAssignments(pin.AssignmentTree),
+				"current_count", countAssignments(pin.GetAssignmentTree()),
 			)
 			// note that the pin may still contain root level assignments. we opt not to prune
 			// those as they would render the pin (and therefore the resulting certificate)
@@ -541,9 +656,9 @@ func PruneAssignmentTree(ctx context.Context, pin *scopesv1.Pin, maxBytes int) (
 		}
 
 		// prune the tree in-place
-		pruneTreeToDepth(pin.AssignmentTree, maxDepth-1)
+		pruneTreeToDepth(pin.GetAssignmentTree(), maxDepth-1)
 
-		currentSize = proto.Size(pin.AssignmentTree)
+		currentSize = proto.Size(pin.GetAssignmentTree())
 		if currentSize <= maxBytes {
 			// we've pruned enough to fit within the size limit
 			break
@@ -551,7 +666,7 @@ func PruneAssignmentTree(ctx context.Context, pin *scopesv1.Pin, maxBytes int) (
 	}
 
 	// return total number of assignments pruned
-	return initialCount - countAssignments(pin.AssignmentTree)
+	return initialCount - countAssignments(pin.GetAssignmentTree())
 }
 
 // maxAssignmentDepth returns the maximum Scope of Origin depth present in the assignment tree.
@@ -569,7 +684,7 @@ func maxAssignmentDepth(tree *scopesv1.AssignmentNode) int {
 func maxDepthOfAssignmentNode(node *scopesv1.AssignmentNode, depth int) int {
 	// maxDepth tracks the maximum depth found among child nodes
 	maxDepth := depth
-	for _, child := range node.Children {
+	for _, child := range node.GetChildren() {
 		maxDepth = max(maxDepth, maxDepthOfAssignmentNode(child, depth+1))
 	}
 
@@ -589,12 +704,12 @@ func countAssignmentsInTree(node *scopesv1.AssignmentNode) int {
 	count := 0
 
 	// count roles in this node's role tree
-	if node.RoleTree != nil {
-		count += countRolesInTree(node.RoleTree)
+	if node.HasRoleTree() {
+		count += countRolesInTree(node.GetRoleTree())
 	}
 
 	// recursively count in children
-	for _, child := range node.Children {
+	for _, child := range node.GetChildren() {
 		count += countAssignmentsInTree(child)
 	}
 
@@ -603,10 +718,10 @@ func countAssignmentsInTree(node *scopesv1.AssignmentNode) int {
 
 // countRolesInTree recursively counts roles in a role tree node.
 func countRolesInTree(node *scopesv1.RoleNode) int {
-	count := len(node.Roles)
+	count := len(node.GetRoles())
 
 	// recursively count in children
-	for _, child := range node.Children {
+	for _, child := range node.GetChildren() {
 		count += countRolesInTree(child)
 	}
 
@@ -624,12 +739,12 @@ func pruneTreeToDepth(tree *scopesv1.AssignmentNode, maxDepth int) {
 func pruneAssignmentNodeToDepth(node *scopesv1.AssignmentNode, maxDepth, currentDepth int) {
 	if currentDepth == maxDepth {
 		// This is the last level we want to keep, remove all children
-		node.Children = nil
+		node.SetChildren(nil)
 		return
 	}
 
 	// currentDepth < maxDepth, so recursively prune children
-	for _, child := range node.Children {
+	for _, child := range node.GetChildren() {
 		pruneAssignmentNodeToDepth(child, maxDepth, currentDepth+1)
 	}
 }

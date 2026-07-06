@@ -43,6 +43,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -163,6 +164,11 @@ type suiteConfig struct {
 	// ManualStart skips calling Start() automatically so the
 	// caller can inject state before starting the server.
 	ManualStart bool
+	// OverrideCAs are cert authorities to upsert into the test cluster after
+	// the auth server starts.
+	OverrideCAs []types.CertAuthority
+	// InsecureMode sets service to insecure mode.
+	InsecureMode bool
 }
 
 type fakeConnMonitor struct{}
@@ -212,6 +218,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		s.tlsServer.Close()
 	})
 
+	for _, ca := range config.OverrideCAs {
+		require.NoError(t, s.tlsServer.Auth().UpsertCertAuthority(s.closeContext, ca))
+	}
+
 	// Set up the host cert pool.
 	rootCA, err := s.tlsServer.Auth().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
@@ -260,6 +270,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 			err = ws.WriteMessage(websocket.TextMessage, []byte(s.message))
 			require.NoError(t, err)
+
+			// Close the upstream websocket once the message has been written so
+			// the backend->client copy direction reaches EOF promptly.
+			require.NoError(t, ws.Close())
 		} else {
 			fmt.Fprintln(w, s.message)
 		}
@@ -380,6 +394,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		ConnectionMonitor: fakeConnMonitor{},
 		CipherSuites:      utils.DefaultCipherSuites(),
 		ServiceComponent:  teleport.ComponentApp,
+		InsecureMode:      config.InsecureMode,
 		AWSConfigOptions: []awsconfig.OptionsFn{
 			awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
 				return &mocks.STSClient{}
@@ -390,12 +405,12 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream,
 		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
-			return &proto.UpstreamInventoryHello{
+			return proto.UpstreamInventoryHello_builder{
 				ServerID: s.hostUUID,
 				Version:  teleport.Version,
 				Services: types.SystemRoles{types.RoleApp}.StringSlice(),
 				Hostname: "test",
-			}, nil
+			}.Build(), nil
 		})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
@@ -439,9 +454,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		case sender := <-inventoryHandle.Sender():
 			appServer, err := s.appServer.getServerInfo(app)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(s.closeContext, &proto.InventoryHeartbeat{
+			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat_builder{
 				AppServer: appServer,
-			}))
+			}.Build()))
 		case <-time.After(20 * time.Second):
 			t.Fatal("timed out waiting for inventory handle sender")
 		}
@@ -725,6 +740,68 @@ func TestAppWithUpdatedLabels(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetApp(t *testing.T) {
+	t.Parallel()
+
+	const sharedAddr = "demoqa.com"
+
+	mustNewApp := func(t *testing.T, name, addr string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: map[string]string{"app_name": name},
+		}, types.AppSpecV3{
+			URI:        "http://localhost:8080",
+			PublicAddr: addr,
+		})
+		require.NoError(t, err)
+		return app
+	}
+
+	appOne := mustNewApp(t, "test-app-1", sharedAddr)
+	appTwo := mustNewApp(t, "test-app-2", sharedAddr)
+	appOther := mustNewApp(t, "other-app", "other.example.com")
+
+	s := &Server{
+		c: &Config{},
+		apps: map[string]types.Application{
+			appOne.GetName():   appOne,
+			appTwo.GetName():   appTwo,
+			appOther.GetName(): appOther,
+		},
+		dynamicLabels: map[string]*labels.Dynamic{},
+	}
+
+	t.Run("disambiguates shared public addr by name", func(t *testing.T) {
+		// Repeat the lookup to ensure the result is deterministic and always
+		// hits the correct app.
+		for range 100 {
+			got, err := s.GetApp(t.Context(), "test-app-1", sharedAddr)
+			require.NoError(t, err)
+			require.Equal(t, "test-app-1", got.GetName())
+
+			got, err = s.GetApp(t.Context(), "test-app-2", sharedAddr)
+			require.NoError(t, err)
+			require.Equal(t, "test-app-2", got.GetName())
+		}
+	})
+
+	t.Run("legacy cert without name falls back to public addr", func(t *testing.T) {
+		got, err := s.GetApp(t.Context(), "", sharedAddr)
+		require.NoError(t, err)
+		require.Equal(t, sharedAddr, got.GetPublicAddr())
+	})
+
+	t.Run("name and addr must both match", func(t *testing.T) {
+		_, err := s.GetApp(t.Context(), "test-app-1", "other.example.com")
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	})
+
+	t.Run("unknown app", func(t *testing.T) {
+		_, err := s.GetApp(t.Context(), "nope", "nope.example.com")
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	})
 }
 
 // testIMClient is a test instance metadata client for exercising cloud labels.

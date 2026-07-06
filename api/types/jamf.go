@@ -38,6 +38,20 @@ var JamfOnMissingActions = []string{
 	JamfOnMissingDelete,
 }
 
+const (
+	// JamfDeviceTypeComputers is the device type for macOS computers.
+	JamfDeviceTypeComputers = "computers"
+	// JamfDeviceTypeMobileDevices is the device type for iOS/iPadOS mobile
+	// devices.
+	JamfDeviceTypeMobileDevices = "mobile_devices"
+)
+
+// JamfDeviceTypes is a slice of all valid device type values.
+var JamfDeviceTypes = []string{
+	JamfDeviceTypeComputers,
+	JamfDeviceTypeMobileDevices,
+}
+
 // ValidateJamfSpecV1 validates a [JamfSpecV1] instance.
 func ValidateJamfSpecV1(s *JamfSpecV1) error {
 	if s == nil {
@@ -59,6 +73,12 @@ func ValidateJamfSpecV1(s *JamfSpecV1) error {
 			return trace.BadParameter(
 				"inventory[%v]: invalid on_missing action %q (expect empty or one of [%v])",
 				i, e.OnMissing, strings.Join(JamfOnMissingActions, ","))
+		}
+
+		if e.DeviceType != "" && !slices.Contains(JamfDeviceTypes, e.DeviceType) {
+			return trace.BadParameter(
+				"inventory[%v]: invalid device_type %q (expect empty or one of [%v])",
+				i, e.DeviceType, strings.Join(JamfDeviceTypes, ","))
 		}
 
 		syncPartial := e.SyncPeriodPartial

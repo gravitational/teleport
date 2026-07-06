@@ -21,7 +21,6 @@ package server
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -32,18 +31,21 @@ import (
 // AzureInstallRequest combines parameters for running commands on a set of Azure
 // virtual machines.
 type AzureInstallRequest struct {
-	Instances            []*armcompute.VirtualMachine
-	InstallerParams      *types.InstallerParams
-	ProxyAddrGetter      func(context.Context) (string, error)
-	Region               string
-	ResourceGroup        string
+	Instances       []*azure.VirtualMachine
+	InstallerParams *types.InstallerParams
+	ProxyAddrGetter func(context.Context) (string, error)
+	Region          string
+	ResourceGroup   string
+	// AcquireLease acquires a lease before the install request runs a command.
+	// This limits the number of installers that are run and polled concurrently.
+	AcquireLease         func(ctx context.Context) (release func(), err error)
 	OnRunCommandFinished func(result AzureInstallResult)
 }
 
 // AzureInstallResult stores installation results for particular VM instance.
 type AzureInstallResult struct {
-	// Instance is VM instance.
-	Instance *armcompute.VirtualMachine
+	// Instance is the Azure Virtual Machine the installation was attempted on.
+	Instance *azure.VirtualMachine
 	// APIError is potential API error encountered.
 	APIError error
 	// CommandResult is the result of run command: execution status, exit code, stdout, stderr.
@@ -67,13 +69,14 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)
 
-	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
-	// hundreds of nodes at once.
-	// TODO (Tener): increase limit/make it configurable.
-	const azureParallelInstallLimit = 10
-	g.SetLimit(azureParallelInstallLimit)
+	if req.AcquireLease == nil {
+		// enforce an arbitrary limit if the caller didn't provide a lease func.
+		g.SetLimit(10)
+	}
 
 	for _, inst := range req.Instances {
 		g.Go(func() error {
@@ -81,12 +84,21 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 			if err := ctx.Err(); err != nil {
 				return err
 			}
+			if req.AcquireLease != nil {
+				release, err := req.AcquireLease(ctx)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer release()
+			}
 
 			runRequest := azure.RunCommandRequest{
-				Region:        req.Region,
-				ResourceGroup: req.ResourceGroup,
-				VMName:        azure.StringVal(inst.Name),
-				Script:        script,
+				Region:                      req.Region,
+				ResourceGroup:               req.ResourceGroup,
+				VMName:                      inst.Name,
+				Script:                      script,
+				UniformScaleSetName:         inst.UniformScaleSetName,
+				UniformScaleSetVMInstanceID: inst.UniformScaleSetVMInstanceID,
 			}
 
 			commandResult, apiError := client.Run(ctx, runRequest)
