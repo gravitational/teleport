@@ -618,7 +618,9 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 			}
 
 			// 4. Handle delivery failures.
-			q.handleDeliveryFailures(ctx, items, successfullyDelivered)
+			if ctx.Err() == nil && q.ctx.Err() == nil {
+				q.handleDeliveryFailures(ctx, items, successfullyDelivered)
+			}
 		}
 
 		// Back off when we made no forward progress to prevent hammering the
