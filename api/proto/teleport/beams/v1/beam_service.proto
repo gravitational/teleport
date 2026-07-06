@@ -59,6 +59,13 @@ message CreateBeamRequest {
   // An allow-list of FQDNs that can be dialed from inside the beam. Can only
   // be provided when EGRESS_MODE_RESTRICTED is set.
   repeated string allowed_domains = 2;
+
+  // ProxyRegion is the closest proxy region, discovered from /webapi/find.
+  string proxy_region = 3;
+
+  // OverrideRegion is the user-requested Beam routing region.
+  // This field may override ProxyRegion.
+  string override_region = 4;
 }
 
 // CreateBeamResponse contains the results of the CreateBeam RPC.

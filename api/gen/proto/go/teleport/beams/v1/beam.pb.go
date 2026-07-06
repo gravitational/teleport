@@ -378,9 +378,13 @@ type BeamSpec struct {
 	// Note: we do not use the `metadata.expires` field for this, because Teleport
 	// is responsible for garbage-collecting the compute resources, so we need the
 	// actual record not to be deleted until we're ready.
-	Expires       *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Expires *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
+	// requested_region is the Cloud region requested for Beam routing. This is
+	// either the proxy region discovered by tsh or the user's explicit region
+	// override.
+	RequestedRegion string `protobuf:"bytes,5,opt,name=requested_region,json=requestedRegion,proto3" json:"requested_region,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *BeamSpec) Reset() {
@@ -436,6 +440,13 @@ func (x *BeamSpec) GetExpires() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *BeamSpec) GetRequestedRegion() string {
+	if x != nil {
+		return x.RequestedRegion
+	}
+	return ""
+}
+
 func (x *BeamSpec) SetEgress(v EgressMode) {
 	x.Egress = v
 }
@@ -450,6 +461,10 @@ func (x *BeamSpec) SetPublish(v *PublishSpec) {
 
 func (x *BeamSpec) SetExpires(v *timestamppb.Timestamp) {
 	x.Expires = v
+}
+
+func (x *BeamSpec) SetRequestedRegion(v string) {
+	x.RequestedRegion = v
 }
 
 func (x *BeamSpec) HasPublish() bool {
@@ -490,6 +505,10 @@ type BeamSpec_builder struct {
 	// is responsible for garbage-collecting the compute resources, so we need the
 	// actual record not to be deleted until we're ready.
 	Expires *timestamppb.Timestamp
+	// requested_region is the Cloud region requested for Beam routing. This is
+	// either the proxy region discovered by tsh or the user's explicit region
+	// override.
+	RequestedRegion string
 }
 
 func (b0 BeamSpec_builder) Build() *BeamSpec {
@@ -500,6 +519,7 @@ func (b0 BeamSpec_builder) Build() *BeamSpec {
 	x.AllowedDomains = b.AllowedDomains
 	x.Publish = b.Publish
 	x.Expires = b.Expires
+	x.RequestedRegion = b.RequestedRegion
 	return m0
 }
 
@@ -625,6 +645,9 @@ type BeamStatus struct {
 	WorkloadIdentityName string `protobuf:"bytes,11,opt,name=workload_identity_name,json=workloadIdentityName,proto3" json:"workload_identity_name,omitempty"`
 	// ComputeStatus represents the current state of the beam's compute resources.
 	ComputeStatus ComputeStatus `protobuf:"varint,12,opt,name=compute_status,json=computeStatus,proto3,enum=teleport.beams.v1.ComputeStatus" json:"compute_status,omitempty"`
+	// Region is the Cloud region where the Beam compute resources were actually
+	// created after Cloud's proxy-region to Beam-region mapping.
+	Region        string `protobuf:"bytes,13,opt,name=region,proto3" json:"region,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -738,6 +761,13 @@ func (x *BeamStatus) GetComputeStatus() ComputeStatus {
 	return ComputeStatus_COMPUTE_STATUS_UNSPECIFIED
 }
 
+func (x *BeamStatus) GetRegion() string {
+	if x != nil {
+		return x.Region
+	}
+	return ""
+}
+
 func (x *BeamStatus) SetUser(v string) {
 	x.User = v
 }
@@ -786,6 +816,10 @@ func (x *BeamStatus) SetComputeStatus(v ComputeStatus) {
 	x.ComputeStatus = v
 }
 
+func (x *BeamStatus) SetRegion(v string) {
+	x.Region = v
+}
+
 type BeamStatus_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -820,6 +854,9 @@ type BeamStatus_builder struct {
 	WorkloadIdentityName string
 	// ComputeStatus represents the current state of the beam's compute resources.
 	ComputeStatus ComputeStatus
+	// Region is the Cloud region where the Beam compute resources were actually
+	// created after Cloud's proxy-region to Beam-region mapping.
+	Region string
 }
 
 func (b0 BeamStatus_builder) Build() *BeamStatus {
@@ -838,6 +875,7 @@ func (b0 BeamStatus_builder) Build() *BeamStatus {
 	x.DelegationSessionId = b.DelegationSessionId
 	x.WorkloadIdentityName = b.WorkloadIdentityName
 	x.ComputeStatus = b.ComputeStatus
+	x.Region = b.Region
 	return m0
 }
 
@@ -852,15 +890,16 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12/\n" +
 	"\x04spec\x18\x05 \x01(\v2\x1b.teleport.beams.v1.BeamSpecR\x04spec\x125\n" +
-	"\x06status\x18\x06 \x01(\v2\x1d.teleport.beams.v1.BeamStatusR\x06status\"\xda\x01\n" +
+	"\x06status\x18\x06 \x01(\v2\x1d.teleport.beams.v1.BeamStatusR\x06status\"\x85\x02\n" +
 	"\bBeamSpec\x125\n" +
 	"\x06egress\x18\x01 \x01(\x0e2\x1d.teleport.beams.v1.EgressModeR\x06egress\x12'\n" +
 	"\x0fallowed_domains\x18\x02 \x03(\tR\x0eallowedDomains\x128\n" +
 	"\apublish\x18\x03 \x01(\v2\x1e.teleport.beams.v1.PublishSpecR\apublish\x124\n" +
-	"\aexpires\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\"Z\n" +
+	"\aexpires\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\x12)\n" +
+	"\x10requested_region\x18\x05 \x01(\tR\x0frequestedRegion\"Z\n" +
 	"\vPublishSpec\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x127\n" +
-	"\bprotocol\x18\x02 \x01(\x0e2\x1b.teleport.beams.v1.ProtocolR\bprotocol\"\xc1\x03\n" +
+	"\bprotocol\x18\x02 \x01(\x0e2\x1b.teleport.beams.v1.ProtocolR\bprotocol\"\xd9\x03\n" +
 	"\n" +
 	"BeamStatus\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x14\n" +
@@ -876,7 +915,8 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\x15delegation_session_id\x18\n" +
 	" \x01(\tR\x13delegationSessionId\x124\n" +
 	"\x16workload_identity_name\x18\v \x01(\tR\x14workloadIdentityName\x12G\n" +
-	"\x0ecompute_status\x18\f \x01(\x0e2 .teleport.beams.v1.ComputeStatusR\rcomputeStatus*c\n" +
+	"\x0ecompute_status\x18\f \x01(\x0e2 .teleport.beams.v1.ComputeStatusR\rcomputeStatus\x12\x16\n" +
+	"\x06region\x18\r \x01(\tR\x06region*c\n" +
 	"\n" +
 	"EgressMode\x12\x1b\n" +
 	"\x17EGRESS_MODE_UNSPECIFIED\x10\x00\x12\x1a\n" +

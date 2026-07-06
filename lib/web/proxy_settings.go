@@ -97,6 +97,7 @@ func (p *ProxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 	if p.ServiceConfig.Proxy.Kube.Enabled {
 		proxySettings.Kube.ListenAddr = p.ServiceConfig.Proxy.Kube.ListenAddr.String()
 	}
+	proxySettings.GroupID = p.ServiceConfig.Proxy.ProxyGroupID
 	return &proxySettings
 }
 

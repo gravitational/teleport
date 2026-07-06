@@ -61,6 +61,11 @@ message BeamSpec {
   // is responsible for garbage-collecting the compute resources, so we need the
   // actual record not to be deleted until we're ready.
   google.protobuf.Timestamp expires = 4;
+
+  // RequestedRegion is the Cloud region requested for Beam routing.
+  // This field may differ from the actual resolved region in BeamStatus.Region,
+  // in the case that the RequestedRegion was unable to fulfill the request.
+  string requested_region = 5;
 }
 
 // EgressMode configures outgoing network connectivity from the beam.
@@ -150,6 +155,9 @@ message BeamStatus {
 
   // ComputeStatus represents the current state of the beam's compute resources.
   ComputeStatus compute_status = 12;
+
+  // Region is the Cloud region where the Beam was created.
+  string region = 13;
 }
 
 // ComputeStatus represents the current state of the beam's compute resources.
