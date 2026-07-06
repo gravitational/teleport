@@ -368,10 +368,10 @@ func newArtifactSignatureVerifier() (signature.Verifier, error) {
 }
 
 func (li *LocalInstaller) artifactSignatureVerifier() (signature.Verifier, error) {
-	if li.ArtifactSignatureVerifier != nil {
-		return li.ArtifactSignatureVerifier, nil
+	if li.ArtifactSignatureVerifier == nil {
+		return nil, trace.BadParameter("teleport-update artifact signature verifier is not configured")
 	}
-	return newArtifactSignatureVerifier()
+	return li.ArtifactSignatureVerifier, nil
 }
 
 func (li *LocalInstaller) getSignature(ctx context.Context, url string) ([]byte, error) {

@@ -21,7 +21,13 @@ package agent
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -47,6 +53,17 @@ import (
 
 func TestMain(m *testing.M) {
 	initTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
+	if err != nil {
+		panic(err)
+	}
+	teleportUpdateArtifactSignaturePublicKeyB64 = base64.StdEncoding.EncodeToString(
+		pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}),
+	)
 	os.Exit(m.Run())
 }
 
