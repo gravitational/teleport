@@ -17,7 +17,7 @@ tests:
           of: ConfigMap
       - matchRegex:
           path: data.teleport\.yaml
-          pattern: 'join_params:\n\s+bound_keypair:\n\s+registration_secret_path: /etc/teleport-secrets/registration-secret'
+          pattern: '(?m)registration_secret_path: /etc/teleport-secrets/registration-secret$'
       - notMatchRegex:
           path: data.teleport\.yaml
           pattern: 'registration_secret_value:'

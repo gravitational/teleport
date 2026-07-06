@@ -62,7 +62,7 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
 
 {{- define "teleport-proxy.token_name" -}}
   {{- if eq .Values.join_params.method "token" -}}
-     {{- printf "%s/auth-token" (include "teleport-proxy.join-token-mount-path" .) -}}
+     {{- include "teleport-proxy.join-token-mount-path" . -}}
   {{- else -}}
     {{- .Values.join_params.token_name -}}
   {{- end -}}
