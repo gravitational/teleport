@@ -16,17 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package scopes
+package scopes_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
-// TestFeatureEnabled verifies the expected behavior of the scope feature flag.
-func TestFeatureEnabled(t *testing.T) {
-	require.Error(t, AssertFeatureEnabled())
+// TestFeatures verifies the expected behavior of scope feature parsing.
+func TestFeatures(t *testing.T) {
+	require.False(t, scopes.FeaturesFromEnv().Enabled)
+	require.False(t, scopes.FeaturesFromEnv().AgentPinEnabled)
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	require.NoError(t, AssertFeatureEnabled())
+	require.True(t, scopes.FeaturesFromEnv().Enabled)
+	require.False(t, scopes.FeaturesFromEnv().AgentPinEnabled)
+	require.NoError(t, scopes.Features{Enabled: true}.AssertEnabled())
+	require.Error(t, scopes.Features{}.AssertEnabled())
+	t.Setenv("TELEPORT_UNSTABLE_AGENT_SCOPE_PIN", "yes")
+	require.True(t, scopes.FeaturesFromEnv().Enabled)
+	require.True(t, scopes.FeaturesFromEnv().AgentPinEnabled)
 }

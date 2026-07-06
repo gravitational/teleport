@@ -112,6 +112,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_X11Forward{
 			X11Forward: e,
 		}
+	case *AgentForward:
+		out.Event = &OneOf_AgentForward{
+			AgentForward: e,
+		}
 	case *Subsystem:
 		out.Event = &OneOf_Subsystem{
 			Subsystem: e,
@@ -239,6 +243,22 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *AppSessionLLMRequest:
 		out.Event = &OneOf_AppSessionLLMRequest{
 			AppSessionLLMRequest: e,
+		}
+	case *AppSessionHTTPRequest:
+		out.Event = &OneOf_AppSessionHTTPRequest{
+			AppSessionHTTPRequest: e,
+		}
+	case *AppSessionHTTPRequestBodyChunk:
+		out.Event = &OneOf_AppSessionHTTPRequestBodyChunk{
+			AppSessionHTTPRequestBodyChunk: e,
+		}
+	case *AppSessionHTTPResponse:
+		out.Event = &OneOf_AppSessionHTTPResponse{
+			AppSessionHTTPResponse: e,
+		}
+	case *AppSessionHTTPResponseBodyChunk:
+		out.Event = &OneOf_AppSessionHTTPResponseBodyChunk{
+			AppSessionHTTPResponseBodyChunk: e,
 		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
@@ -1044,7 +1064,42 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_CertAuthorityOverrideEvent{
 			CertAuthorityOverrideEvent: e,
 		}
-
+	case *BeamsConfigCreate:
+		out.Event = &OneOf_BeamsConfigCreate{
+			BeamsConfigCreate: e,
+		}
+	case *BeamsConfigUpdate:
+		out.Event = &OneOf_BeamsConfigUpdate{
+			BeamsConfigUpdate: e,
+		}
+	case *BeamsConfigDelete:
+		out.Event = &OneOf_BeamsConfigDelete{
+			BeamsConfigDelete: e,
+		}
+	case *ClassifierCreate:
+		out.Event = &OneOf_ClassifierCreate{
+			ClassifierCreate: e,
+		}
+	case *ClassifierUpdate:
+		out.Event = &OneOf_ClassifierUpdate{
+			ClassifierUpdate: e,
+		}
+	case *ClassifierDelete:
+		out.Event = &OneOf_ClassifierDelete{
+			ClassifierDelete: e,
+		}
+	case *ScopedTokenCreate:
+		out.Event = &OneOf_ScopedTokenCreate{
+			ScopedTokenCreate: e,
+		}
+	case *ScopedTokenUpdate:
+		out.Event = &OneOf_ScopedTokenUpdate{
+			ScopedTokenUpdate: e,
+		}
+	case *ScopedTokenDelete:
+		out.Event = &OneOf_ScopedTokenDelete{
+			ScopedTokenDelete: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

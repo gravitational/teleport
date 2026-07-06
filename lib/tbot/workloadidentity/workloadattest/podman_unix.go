@@ -65,15 +65,15 @@ func (a *PodmanAttestor) Attest(ctx context.Context, pid int) (*workloadidentity
 		return nil, trace.Wrap(err, "inspecting container %q", ctr.ID)
 	}
 
-	attrs := &workloadidentityv1pb.WorkloadAttrsPodman{
+	attrs := workloadidentityv1pb.WorkloadAttrsPodman_builder{
 		Attested: true,
-		Container: &workloadidentityv1pb.WorkloadAttrsPodmanContainer{
+		Container: workloadidentityv1pb.WorkloadAttrsPodmanContainer_builder{
 			Name:        container.Name,
 			Image:       container.Config.Image,
 			Labels:      container.Config.Labels,
 			ImageDigest: container.ImageDigest,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	var pod *podman.Pod
 	if ctr.PodID != "" {
@@ -81,10 +81,10 @@ func (a *PodmanAttestor) Attest(ctx context.Context, pid int) (*workloadidentity
 		if err != nil {
 			return nil, trace.Wrap(err, "inspecting pod %q", ctr.PodID)
 		}
-		attrs.Pod = &workloadidentityv1pb.WorkloadAttrsPodmanPod{
+		attrs.SetPod(workloadidentityv1pb.WorkloadAttrsPodmanPod_builder{
 			Name:   pod.Name,
 			Labels: pod.Labels,
-		}
+		}.Build())
 	}
 
 	return attrs, nil

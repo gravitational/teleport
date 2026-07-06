@@ -45,14 +45,14 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 
 	// Read input parameters.
 	confirmToken := &devicepb.DeviceConfirmationToken{}
-	confirmToken.Id = query.Get("id")
-	confirmToken.Token = query.Get("token")
+	confirmToken.SetId(query.Get("id"))
+	confirmToken.SetToken(query.Get("token"))
 	unsafeRedirectURI := query.Get("redirect_uri")
 
 	switch {
-	case confirmToken.Id == "":
+	case confirmToken.GetId() == "":
 		return nil, trace.BadParameter("parameter id required")
-	case confirmToken.Token == "":
+	case confirmToken.GetToken() == "":
 		return nil, trace.BadParameter("parameter token required")
 	}
 
@@ -60,10 +60,10 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	devicesClient := h.GetProxyClient().DevicesClient()
 	ctx := r.Context()
 
-	_, err := devicesClient.ConfirmDeviceWebAuthentication(ctx, &devicepb.ConfirmDeviceWebAuthenticationRequest{
+	_, err := devicesClient.ConfirmDeviceWebAuthentication(ctx, devicepb.ConfirmDeviceWebAuthenticationRequest_builder{
 		ConfirmationToken:   confirmToken,
 		CurrentWebSessionId: sessionCtx.GetSessionID(),
-	})
+	}.Build())
 	switch {
 	case err != nil:
 		h.logger.WarnContext(ctx, "Device web authentication confirm failed",

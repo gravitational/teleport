@@ -20,7 +20,9 @@ package player_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"testing"
 	"testing/synctest"
@@ -84,6 +86,25 @@ func TestPlayPause(t *testing.T) {
 	require.Equal(t, 3, count)
 }
 
+func TestPlayerError(t *testing.T) {
+	errCh := make(chan error)
+	p, err := player.New(&player.Config{
+		SessionID: "test-session",
+		Streamer:  &errorStreamer{errCh: errCh},
+		Log:       slog.New(slog.DiscardHandler),
+	})
+	require.NoError(t, err)
+
+	errCh <- errors.New("some error")
+
+	_, ok := <-p.C()
+	require.False(t, ok)
+
+	// Player should return the backend error that
+	// caused playback failure.
+	require.ErrorContains(t, p.Err(), "some error")
+}
+
 func TestAppliesTiming(t *testing.T) {
 	for _, test := range []struct {
 		desc    string
@@ -112,6 +133,7 @@ func TestAppliesTiming(t *testing.T) {
 				Clock:     clk,
 				SessionID: "test-session",
 				Streamer:  &simpleStreamer{count: 3, delay: 1000},
+				Log:       slog.New(slog.DiscardHandler),
 			})
 			require.NoError(t, err)
 
@@ -151,6 +173,7 @@ func TestClose(t *testing.T) {
 		Clock:     clk,
 		SessionID: "test-session",
 		Streamer:  &simpleStreamer{count: 2, delay: 1000},
+		Log:       slog.New(slog.DiscardHandler),
 	})
 	require.NoError(t, err)
 
@@ -180,6 +203,7 @@ func TestRewind(t *testing.T) {
 		Clock:     clk,
 		SessionID: "test-session",
 		Streamer:  &simpleStreamer{count: 10, delay: 1000},
+		Log:       slog.New(slog.DiscardHandler),
 	})
 	require.NoError(t, err)
 	require.NoError(t, p.Play())
@@ -221,6 +245,7 @@ func TestUseDatabaseTranslator(t *testing.T) {
 					Clock:     clk,
 					SessionID: "test-session",
 					Streamer:  &databaseStreamer{protocol: protocol, count: int64(queryEventCount)},
+					Log:       slog.New(slog.DiscardHandler),
 				})
 				require.NoError(t, err)
 				require.NoError(t, p.Play())
@@ -252,6 +277,7 @@ func TestUseDatabaseTranslator(t *testing.T) {
 			Clock:     clk,
 			SessionID: "test-session",
 			Streamer:  &databaseStreamer{protocol: "random-protocol", count: int64(queryEventCount)},
+			Log:       slog.New(slog.DiscardHandler),
 		})
 		require.NoError(t, err)
 		require.NoError(t, p.Play())
@@ -281,6 +307,7 @@ func TestSkipIdlePeriods(t *testing.T) {
 		SessionID:    "test-session",
 		SkipIdleTime: true,
 		Streamer:     &simpleStreamer{count: int64(eventCount), delay: int64(delayMilliseconds)},
+		Log:          slog.New(slog.DiscardHandler),
 	})
 	require.NoError(t, err)
 	require.NoError(t, p.Play())
@@ -305,10 +332,13 @@ func TestSkipIdlePeriods(t *testing.T) {
 type simpleStreamer struct {
 	count int64
 	delay int64 // milliseconds
+	errCh chan error
 }
 
 func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	errors := make(chan error, 1)
+	if s.errCh == nil {
+		s.errCh = make(chan error)
+	}
 	evts := make(chan apievents.AuditEvent)
 
 	go func() {
@@ -336,7 +366,17 @@ func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID sess
 		}
 	}()
 
-	return evts, errors
+	return evts, s.errCh
+}
+
+// errorStreamer is a Streamer that never emits any events and only
+// surfaces an error.
+type errorStreamer struct {
+	errCh chan error
+}
+
+func (s *errorStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	return make(chan apievents.AuditEvent), s.errCh
 }
 
 type databaseStreamer struct {
@@ -401,6 +441,7 @@ func TestInterruptsDelay(t *testing.T) {
 		p, err := player.New(&player.Config{
 			SessionID: "test-session",
 			Streamer:  &simpleStreamer{count: 3, delay: 5000},
+			Log:       slog.New(slog.DiscardHandler),
 		})
 		require.NoError(t, err)
 
@@ -439,6 +480,7 @@ func TestSeekForward(t *testing.T) {
 		p, err := player.New(&player.Config{
 			SessionID: "test-session",
 			Streamer:  &simpleStreamer{count: 1, delay: 6000},
+			Log:       slog.New(slog.DiscardHandler),
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { p.Close() })

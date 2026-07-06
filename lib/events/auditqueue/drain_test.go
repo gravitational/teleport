@@ -38,7 +38,7 @@ func TestDrain_DrainsMainQueue(t *testing.T) {
 
 			const n = 25
 			for i := int64(0); i < n; i++ {
-				require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+				require.NoError(t, q.Enqueue(newTestEvent(i)))
 			}
 
 			runCtx, cancel := context.WithCancel(ctx)
@@ -83,7 +83,7 @@ func TestDrain_DrainsMainQueue(t *testing.T) {
 			require.Equal(t, int64(n), delivered.Load())
 
 			cancel()
-			require.NoError(t, <-runErr)
+			require.ErrorIs(t, <-runErr, context.Canceled)
 		})
 	}
 }
@@ -99,7 +99,7 @@ func TestDrain_RespectsContextDeadline(t *testing.T) {
 
 			const n = 5
 			for i := int64(0); i < n; i++ {
-				require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+				require.NoError(t, q.Enqueue(newTestEvent(i)))
 			}
 
 			drainCtx, drainCancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -129,7 +129,7 @@ func TestDrain_RespectsContextDeadline(t *testing.T) {
 			}, testDefaultTimeout, 10*time.Millisecond)
 
 			cancel()
-			require.NoError(t, <-runErr)
+			require.ErrorIs(t, <-runErr, context.Canceled)
 		})
 	}
 }

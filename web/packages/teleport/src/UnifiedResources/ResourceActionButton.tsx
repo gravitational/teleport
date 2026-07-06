@@ -182,7 +182,9 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
 
   const isAwsIdentityCenterApp = subKind === AppSubKind.AwsIcAccount;
   if (awsConsole || isAwsIdentityCenterApp) {
-    let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles;
+    let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles.filter(
+      ps => !ps.requiresRequest
+    );
     if (isAwsIdentityCenterApp) {
       awsConsoleOrIdentityCenterRoles = permissionSets.map(
         (ps): AwsRole => ({

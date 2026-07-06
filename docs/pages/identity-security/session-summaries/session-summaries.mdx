@@ -6,16 +6,19 @@ description: Describes how to use Teleport Identity security to summarize sessio
 videoBanner: AW5DVLVNf6A
 tags:
   - session-recording
-  - conceptual
+  - how-to
   - identity-security
   - ai
 enterprise: Identity Security
+page_type: how-to
 ---
 
 Teleport Identity Security allows you to generate and view session recording
 summaries for shell and database sessions. This allows you to see at a glance
 what your users do and estimate legitimacy of their actions before digging
 deeper and reviewing the entire recording.
+
+In this guide, you will configure session recording summaries for your cluster.
 
 <Admonition type="note">
 **Session Recording Summaries and AI Usage**
@@ -413,11 +416,13 @@ summarize (Kubernetes, Database, SSH), give the policy a name, and click
      name: all-sessions
      description: Summarize all sessions
    spec:
-     # Session kinds affected by this policy. Allowed values: "ssh", "k8s", "db".
+     # Session kinds affected by this policy. Allowed values: "ssh", "k8s",
+     # "db", "desktop".
      kinds:
      - ssh
      - k8s
      - db
+     - desktop
      # Name of the pre-provisioned Teleport-managed inference model.
      model: teleport-cloud-default
    ```
@@ -432,11 +437,13 @@ summarize (Kubernetes, Database, SSH), give the policy a name, and click
      name: shell-sessions
      description: Summarize all sessions
    spec:
-     # Session kinds affected by this policy. Allowed values: "ssh", "k8s", "db".
+     # Session kinds affected by this policy. Allowed values: "ssh", "k8s",
+     # "db", "desktop".
      kinds:
      - ssh
      - k8s
      - db
+     - desktop
      # Name of the `inference_model` resource that will be used for summarizing
      # these sessions.
      model: shell-summary-model

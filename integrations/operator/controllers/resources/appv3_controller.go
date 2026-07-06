@@ -69,6 +69,7 @@ func NewAppV3Reconciler(client kclient.Client, tClient *client.Client) (controll
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Application, *resourcesv1.TeleportAppV3](
 		client,
 		appClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

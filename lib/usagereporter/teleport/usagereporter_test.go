@@ -811,7 +811,7 @@ func TestConvertUsageEvent(t *testing.T) {
 
 			got := usageEvent.Anonymize(anonymizer)
 
-			require.Equal(t, tt.expected, &got)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }

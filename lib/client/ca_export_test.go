@@ -81,9 +81,9 @@ type mockIntegrationsClient struct {
 }
 
 func (m *mockIntegrationsClient) ExportIntegrationCertAuthorities(ctx context.Context, in *integrationpb.ExportIntegrationCertAuthoritiesRequest, opts ...grpc.CallOption) (*integrationpb.ExportIntegrationCertAuthoritiesResponse, error) {
-	return &integrationpb.ExportIntegrationCertAuthoritiesResponse{
+	return integrationpb.ExportIntegrationCertAuthoritiesResponse_builder{
 		CertAuthorities: m.caKeySet,
-	}, nil
+	}.Build(), nil
 }
 
 func TestExportAllAuthorities(t *testing.T) {

@@ -20,7 +20,6 @@ package app
 
 import (
 	"context"
-	"crypto/tls"
 	"io"
 	"log/slog"
 	"net"
@@ -32,13 +31,16 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -49,6 +51,7 @@ const responseHeaderTimeout = time.Hour
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
+	clock         clockwork.Clock
 	app           types.Application
 	publicPort    string
 	cipherSuites  []uint16
@@ -58,10 +61,18 @@ type transportConfig struct {
 	// hostID is purely for troubleshooting purposes (put in the error messages)
 	hostID       string
 	insecureMode bool
+	clusterName  string
+	accessPoint  authclient.AppsAccessPoint
+	authClient   authclient.ClientI
+	// getUserCertFunc is the function used to retrieve session user certificate.
+	getUserCertFunc func() ([]byte, error)
 }
 
 // Check validates configuration.
 func (c *transportConfig) Check() error {
+	if c.clock == nil {
+		c.clock = clockwork.NewRealClock()
+	}
 	if c.app == nil {
 		return trace.BadParameter("app missing")
 	}
@@ -73,6 +84,18 @@ func (c *transportConfig) Check() error {
 	}
 	if c.log == nil {
 		c.log = slog.With(teleport.ComponentKey, "transport")
+	}
+	if c.clusterName == "" {
+		return trace.BadParameter("cluster name missing")
+	}
+	if c.accessPoint == nil {
+		return trace.BadParameter("access point missing")
+	}
+	if c.authClient == nil {
+		return trace.BadParameter("auth client missing")
+	}
+	if c.getUserCertFunc == nil {
+		return trace.BadParameter("get user cert function missing")
 	}
 
 	return nil
@@ -110,7 +133,17 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 
 	tr.ResponseHeaderTimeout = responseHeaderTimeout
 
-	tr.TLSClientConfig, err = configureTLS(c)
+	tr.TLSClientConfig, err = upstreamtls.Configure(ctx, upstreamtls.Options{
+		Logger:                       c.log,
+		AccessPoint:                  c.accessPoint,
+		Clock:                        c.clock,
+		WorkloadIdentityClientGetter: c.authClient,
+		ClusterName:                  c.clusterName,
+		App:                          c.app,
+		CipherSuites:                 c.cipherSuites,
+		InsecureMode:                 c.insecureMode,
+		GetUserCertFunc:              c.getUserCertFunc,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -282,19 +315,6 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 		resp.Header.Set("Location", u.String())
 	}
 	return nil
-}
-
-// configureTLS creates and configures a *tls.Config that will be used for
-// mutual authentication.
-func configureTLS(c *transportConfig) (*tls.Config, error) {
-	tlsConfig := utils.TLSConfig(c.cipherSuites)
-
-	// Don't verify the server's certificate if Teleport was started with
-	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in
-	// the application config.
-	tlsConfig.InsecureSkipVerify = (c.insecureMode || c.app.GetInsecureSkipVerify())
-
-	return tlsConfig, nil
 }
 
 // host returns the host from a host:port string.

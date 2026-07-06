@@ -32,7 +32,7 @@ import (
 
 // Login logs in a user to a cluster
 func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyResponse, error) {
-	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.GetClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -41,17 +41,17 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		return nil, trace.BadParameter("cluster URI must be a root URI")
 	}
 
-	if req.Params == nil {
+	if !req.HasParams() {
 		return nil, trace.BadParameter("missing login parameters")
 	}
 
-	switch params := req.Params.(type) {
-	case *api.LoginRequest_Local:
-		if err := cluster.LocalLogin(ctx, params.Local.User, params.Local.Password, params.Local.Token); err != nil {
+	switch req.WhichParams() {
+	case api.LoginRequest_Local_case:
+		if err := cluster.LocalLogin(ctx, req.GetLocal().GetUser(), req.GetLocal().GetPassword(), req.GetLocal().GetToken()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *api.LoginRequest_Sso:
-		if err := cluster.SSOLogin(ctx, params.Sso.ProviderType, params.Sso.ProviderName); err != nil {
+	case api.LoginRequest_Sso_case:
+		if err := cluster.SSOLogin(ctx, req.GetSso().GetProviderType(), req.GetSso().GetProviderName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
@@ -116,7 +116,7 @@ func (s *Handler) Logout(ctx context.Context, req *api.LogoutRequest) (*api.Empt
 		return nil, trace.Wrap(err)
 	}
 
-	if err = s.DaemonService.ClusterLogout(ctx, clusterURI, req.RemoveProfile); err != nil {
+	if err = s.DaemonService.ClusterLogout(ctx, clusterURI, req.GetRemoveProfile()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -125,7 +125,7 @@ func (s *Handler) Logout(ctx context.Context, req *api.LogoutRequest) (*api.Empt
 
 // GetAuthSettings returns cluster auth preferences
 func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsRequest) (*api.AuthSettings, error) {
-	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.GetClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -135,20 +135,20 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 		return nil, trace.Wrap(err)
 	}
 
-	result := &api.AuthSettings{
+	result := api.AuthSettings_builder{
 		LocalAuthEnabled:   preferences.LocalAuthEnabled,
 		AuthType:           preferences.AuthType,
 		AllowPasswordless:  preferences.AllowPasswordless,
 		LocalConnectorName: preferences.LocalConnectorName,
 		MessageOfTheDay:    preferences.MOTD,
-	}
+	}.Build()
 
 	for _, provider := range preferences.Providers {
-		result.AuthProviders = append(result.AuthProviders, &api.AuthProvider{
+		result.SetAuthProviders(append(result.GetAuthProviders(), api.AuthProvider_builder{
 			Type:        provider.Type,
 			Name:        provider.Name,
 			DisplayName: provider.DisplayName,
-		})
+		}.Build()))
 	}
 
 	versions := client.Versions{
@@ -162,17 +162,17 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 		return nil, trace.Wrap(err)
 	}
 
-	result.ClientVersionStatus = libclientVersionStatusToAPIVersionStatus(clientVersionStatus)
-	result.Versions = &api.Versions{
+	result.SetClientVersionStatus(libclientVersionStatusToAPIVersionStatus(clientVersionStatus))
+	result.SetVersions(api.Versions_builder{
 		MinClient: versions.MinClient,
 		Client:    versions.Client,
 		Server:    versions.Server,
-	}
+	}.Build())
 
 	if minClientWithoutPreRelease, err := utils.VersionWithoutPreRelease(versions.MinClient); err != nil {
 		log.DebugContext(ctx, "Could not strip pre-release suffix", "error", err)
 	} else {
-		result.Versions.MinClient = minClientWithoutPreRelease
+		result.GetVersions().SetMinClient(minClientWithoutPreRelease)
 	}
 
 	return result, nil
@@ -182,7 +182,7 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 // If the watcher is already running, it is restarted.
 func (s *Handler) StartHeadlessWatcher(_ context.Context, req *api.StartHeadlessWatcherRequest) (*api.StartHeadlessWatcherResponse, error) {
 	// Don't wait for the headless watcher to initialize
-	err := s.DaemonService.StartHeadlessWatcher(req.RootClusterUri, false /* waitInit */)
+	err := s.DaemonService.StartHeadlessWatcher(req.GetRootClusterUri(), false /* waitInit */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

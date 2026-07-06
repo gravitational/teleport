@@ -113,7 +113,7 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 			}
 		})
 	} else {
-		// TODO: Remove this in v19 - We will only use the SQLite queue in future releases.
+		// TODO(kkloberdanz): Remove this in v19 - We will only use the SQLite queue in future releases.
 		a.wg.Go(a.forward)
 	}
 	return a, nil
@@ -241,7 +241,7 @@ func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []a
 func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	// TODO: For v19, we will only use the `a.queue` code path.
 	if a.queue != nil {
-		err := a.queue.Enqueue(ctx, event)
+		err := a.queue.Enqueue(event)
 		if errors.Is(err, auditqueue.ErrQueueFull) {
 			slog.ErrorContext(
 				ctx,
@@ -254,7 +254,7 @@ func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 		return trace.Wrap(err)
 	}
 
-	// TODO: Remove this in v19 - We will only use the SQLite queue in future releases.
+	// TODO(kkloberdanz): Remove this in v19 - We will only use the SQLite queue in future releases.
 	select {
 	case a.eventsCh <- event:
 		return nil
@@ -457,7 +457,13 @@ func (l *LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Aud
 	}
 
 	switch event.GetType() {
-	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, "":
+	case ResizeEvent,
+		SessionDiskEvent,
+		SessionPrintEvent,
+		AppSessionRequestEvent,
+		AppSessionLLMRequestSuccessEvent,
+		AppSessionLLMRequestFailureEvent,
+		"":
 		return nil
 	}
 

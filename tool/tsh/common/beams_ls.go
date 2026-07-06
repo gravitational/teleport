@@ -107,18 +107,18 @@ func (c *beamsLSCommand) fetch(ctx context.Context, tc *client.TeleportClient, a
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			filters.Users = []string{user.GetName()}
+			filters.SetUsers([]string{user.GetName()})
 		}
 
 		beams, err = stream.Collect(
 			clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
 				rsp, err := rootClient.
 					BeamServiceClient().
-					ListBeams(ctx, &beamsv1.ListBeamsRequest{
+					ListBeams(ctx, beamsv1.ListBeamsRequest_builder{
 						PageSize:  int32(pageSize),
 						PageToken: pageToken,
 						Filters:   filters,
-					})
+					}.Build())
 				if err != nil {
 					return nil, "", trace.Wrap(err)
 				}

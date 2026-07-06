@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/dbobjectimportrule/v1/dbobjectimportrule.proto
 
+//go:build !protoopaque
+
 package dbobjectimportrulev1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -42,7 +43,7 @@ const (
 // See type teleport.dbobject.v1.DatabaseObject for the description of a database object.
 // For rationale behind this type, see the RFD 151.
 type DatabaseObjectImportRule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Mandatory field for all resources. Not populated for this resource type.
@@ -82,11 +83,6 @@ func (x *DatabaseObjectImportRule) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseObjectImportRule.ProtoReflect.Descriptor instead.
-func (*DatabaseObjectImportRule) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DatabaseObjectImportRule) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -122,9 +118,78 @@ func (x *DatabaseObjectImportRule) GetSpec() *DatabaseObjectImportRuleSpec {
 	return nil
 }
 
+func (x *DatabaseObjectImportRule) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *DatabaseObjectImportRule) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *DatabaseObjectImportRule) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *DatabaseObjectImportRule) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *DatabaseObjectImportRule) SetSpec(v *DatabaseObjectImportRuleSpec) {
+	x.Spec = v
+}
+
+func (x *DatabaseObjectImportRule) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *DatabaseObjectImportRule) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *DatabaseObjectImportRule) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *DatabaseObjectImportRule) ClearSpec() {
+	x.Spec = nil
+}
+
+type DatabaseObjectImportRule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented.
+	Kind string
+	// Mandatory field for all resources. Not populated for this resource type.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	Metadata *v1.Metadata
+	// spec represents the specifications for the database object import rule.
+	Spec *DatabaseObjectImportRuleSpec
+}
+
+func (b0 DatabaseObjectImportRule_builder) Build() *DatabaseObjectImportRule {
+	m0 := &DatabaseObjectImportRule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // DatabaseObjectImportRuleSpec is the spec for database object import rule.
 type DatabaseObjectImportRuleSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// priority represents the priority of the rule application.
 	//
 	// Rules are processed from lowest to highest priority.
@@ -163,11 +228,6 @@ func (x *DatabaseObjectImportRuleSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseObjectImportRuleSpec.ProtoReflect.Descriptor instead.
-func (*DatabaseObjectImportRuleSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DatabaseObjectImportRuleSpec) GetPriority() int32 {
 	if x != nil {
 		return x.Priority
@@ -189,9 +249,45 @@ func (x *DatabaseObjectImportRuleSpec) GetMappings() []*DatabaseObjectImportRule
 	return nil
 }
 
+func (x *DatabaseObjectImportRuleSpec) SetPriority(v int32) {
+	x.Priority = v
+}
+
+func (x *DatabaseObjectImportRuleSpec) SetDatabaseLabels(v []*v11.Label) {
+	x.DatabaseLabels = v
+}
+
+func (x *DatabaseObjectImportRuleSpec) SetMappings(v []*DatabaseObjectImportRuleMapping) {
+	x.Mappings = v
+}
+
+type DatabaseObjectImportRuleSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// priority represents the priority of the rule application.
+	//
+	// Rules are processed from lowest to highest priority.
+	// If two rules apply the same label, then the value applied with the rule with the highest priority wins.
+	Priority int32
+	// db_labels is a set of labels matched against database labels.
+	DatabaseLabels []*v11.Label
+	// mappings is a list of matches that will map match conditions to labels.
+	Mappings []*DatabaseObjectImportRuleMapping
+}
+
+func (b0 DatabaseObjectImportRuleSpec_builder) Build() *DatabaseObjectImportRuleSpec {
+	m0 := &DatabaseObjectImportRuleSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Priority = b.Priority
+	x.DatabaseLabels = b.DatabaseLabels
+	x.Mappings = b.Mappings
+	return m0
+}
+
 // DatabaseObjectImportRuleMapping is the mapping between object properties and labels that will be added to the object.
 type DatabaseObjectImportRuleMapping struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// match specifies the matching rules, like the object names.
 	Match *DatabaseObjectImportMatch `protobuf:"bytes,1,opt,name=match,proto3" json:"match,omitempty"`
 	// scope specifies the object scope. Optional. If not provided, all scopes will be accepted.
@@ -227,11 +323,6 @@ func (x *DatabaseObjectImportRuleMapping) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseObjectImportRuleMapping.ProtoReflect.Descriptor instead.
-func (*DatabaseObjectImportRuleMapping) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *DatabaseObjectImportRuleMapping) GetMatch() *DatabaseObjectImportMatch {
 	if x != nil {
 		return x.Match
@@ -253,9 +344,64 @@ func (x *DatabaseObjectImportRuleMapping) GetAddLabels() map[string]string {
 	return nil
 }
 
+func (x *DatabaseObjectImportRuleMapping) SetMatch(v *DatabaseObjectImportMatch) {
+	x.Match = v
+}
+
+func (x *DatabaseObjectImportRuleMapping) SetScope(v *DatabaseObjectImportScope) {
+	x.Scope = v
+}
+
+func (x *DatabaseObjectImportRuleMapping) SetAddLabels(v map[string]string) {
+	x.AddLabels = v
+}
+
+func (x *DatabaseObjectImportRuleMapping) HasMatch() bool {
+	if x == nil {
+		return false
+	}
+	return x.Match != nil
+}
+
+func (x *DatabaseObjectImportRuleMapping) HasScope() bool {
+	if x == nil {
+		return false
+	}
+	return x.Scope != nil
+}
+
+func (x *DatabaseObjectImportRuleMapping) ClearMatch() {
+	x.Match = nil
+}
+
+func (x *DatabaseObjectImportRuleMapping) ClearScope() {
+	x.Scope = nil
+}
+
+type DatabaseObjectImportRuleMapping_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// match specifies the matching rules, like the object names.
+	Match *DatabaseObjectImportMatch
+	// scope specifies the object scope. Optional. If not provided, all scopes will be accepted.
+	Scope *DatabaseObjectImportScope
+	// add_labels specifies which labels to add if the match succeeds. At least one should be present.
+	AddLabels map[string]string
+}
+
+func (b0 DatabaseObjectImportRuleMapping_builder) Build() *DatabaseObjectImportRuleMapping {
+	m0 := &DatabaseObjectImportRuleMapping{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Match = b.Match
+	x.Scope = b.Scope
+	x.AddLabels = b.AddLabels
+	return m0
+}
+
 // DatabaseObjectImportMatch specifies acceptable object names. Must have at least one non-empty member.
 type DatabaseObjectImportMatch struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// table_names specify the names of the tables to match. Optional.
 	TableNames []string `protobuf:"bytes,1,rep,name=table_names,json=tableNames,proto3" json:"table_names,omitempty"`
 	// view_names specify the names of the views to match. Optional.
@@ -291,11 +437,6 @@ func (x *DatabaseObjectImportMatch) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseObjectImportMatch.ProtoReflect.Descriptor instead.
-func (*DatabaseObjectImportMatch) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *DatabaseObjectImportMatch) GetTableNames() []string {
 	if x != nil {
 		return x.TableNames
@@ -317,9 +458,42 @@ func (x *DatabaseObjectImportMatch) GetProcedureNames() []string {
 	return nil
 }
 
+func (x *DatabaseObjectImportMatch) SetTableNames(v []string) {
+	x.TableNames = v
+}
+
+func (x *DatabaseObjectImportMatch) SetViewNames(v []string) {
+	x.ViewNames = v
+}
+
+func (x *DatabaseObjectImportMatch) SetProcedureNames(v []string) {
+	x.ProcedureNames = v
+}
+
+type DatabaseObjectImportMatch_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// table_names specify the names of the tables to match. Optional.
+	TableNames []string
+	// view_names specify the names of the views to match. Optional.
+	ViewNames []string
+	// procedure_names specify the names of the procedures to match. Optional.
+	ProcedureNames []string
+}
+
+func (b0 DatabaseObjectImportMatch_builder) Build() *DatabaseObjectImportMatch {
+	m0 := &DatabaseObjectImportMatch{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TableNames = b.TableNames
+	x.ViewNames = b.ViewNames
+	x.ProcedureNames = b.ProcedureNames
+	return m0
+}
+
 // DatabaseObjectImportScope specifies the object scope. Members are matched independently of each other.
 type DatabaseObjectImportScope struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// database_names specify the names of the databases to include in the scope. Optional.
 	DatabaseNames []string `protobuf:"bytes,1,rep,name=database_names,json=databaseNames,proto3" json:"database_names,omitempty"`
 	// schema_names specify the names of the schemas to include in the scope. Optional.
@@ -353,11 +527,6 @@ func (x *DatabaseObjectImportScope) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseObjectImportScope.ProtoReflect.Descriptor instead.
-func (*DatabaseObjectImportScope) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DatabaseObjectImportScope) GetDatabaseNames() []string {
 	if x != nil {
 		return x.DatabaseNames
@@ -370,6 +539,32 @@ func (x *DatabaseObjectImportScope) GetSchemaNames() []string {
 		return x.SchemaNames
 	}
 	return nil
+}
+
+func (x *DatabaseObjectImportScope) SetDatabaseNames(v []string) {
+	x.DatabaseNames = v
+}
+
+func (x *DatabaseObjectImportScope) SetSchemaNames(v []string) {
+	x.SchemaNames = v
+}
+
+type DatabaseObjectImportScope_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// database_names specify the names of the databases to include in the scope. Optional.
+	DatabaseNames []string
+	// schema_names specify the names of the schemas to include in the scope. Optional.
+	SchemaNames []string
+}
+
+func (b0 DatabaseObjectImportScope_builder) Build() *DatabaseObjectImportScope {
+	m0 := &DatabaseObjectImportScope{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DatabaseNames = b.DatabaseNames
+	x.SchemaNames = b.SchemaNames
+	return m0
 }
 
 var File_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto protoreflect.FileDescriptor
@@ -404,18 +599,6 @@ const file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDesc = "" 
 	"\x19DatabaseObjectImportScope\x12%\n" +
 	"\x0edatabase_names\x18\x01 \x03(\tR\rdatabaseNames\x12!\n" +
 	"\fschema_names\x18\x02 \x03(\tR\vschemaNamesBhZfgithub.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1;dbobjectimportrulev1b\x06proto3"
-
-var (
-	file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescOnce sync.Once
-	file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescData []byte
-)
-
-func file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescGZIP() []byte {
-	file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescOnce.Do(func() {
-		file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDesc), len(file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDesc)))
-	})
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_rawDescData
-}
 
 var file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_dbobjectimportrule_v1_dbobjectimportrule_proto_goTypes = []any{

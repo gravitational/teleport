@@ -81,8 +81,8 @@ func (u *UIAccessListDefineAccessEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateAccessListBaseEventFields(u.Metadata, u.Status))
 }
 
-func (u *UIAccessListDefineAccessEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIAccessListDefineAccessEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiAccessListDefineAccessEvent{
 			UiAccessListDefineAccessEvent: &prehogv1a.UIAccessListDefineAccessEvent{
 				Metadata: &prehogv1a.AccessListMetadata{
@@ -102,8 +102,8 @@ func (u *UIAccessListDefineIdentitiesEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateAccessListBaseEventFields(u.Metadata, u.Status))
 }
 
-func (u *UIAccessListDefineIdentitiesEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIAccessListDefineIdentitiesEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiAccessListDefineIdentitiesEvent{
 			UiAccessListDefineIdentitiesEvent: &prehogv1a.UIAccessListDefineIdentitiesEvent{
 				Metadata: &prehogv1a.AccessListMetadata{
@@ -123,8 +123,8 @@ func (u *UIAccessListBasicInfoEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateAccessListBaseEventFields(u.Metadata, u.Status))
 }
 
-func (u *UIAccessListBasicInfoEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIAccessListBasicInfoEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiAccessListDefineBasicInfoEvent{
 			UiAccessListDefineBasicInfoEvent: &prehogv1a.UIAccessListDefineBasicInfoEvent{
 				Metadata: &prehogv1a.AccessListMetadata{
@@ -144,8 +144,8 @@ func (u *UIAccessListDefineMembersEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateAccessListBaseEventFields(u.Metadata, u.Status))
 }
 
-func (u *UIAccessListDefineMembersEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIAccessListDefineMembersEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiAccessListDefineMembersEvent{
 			UiAccessListDefineMembersEvent: &prehogv1a.UIAccessListDefineMembersEvent{
 				Metadata: &prehogv1a.AccessListMetadata{
@@ -165,8 +165,8 @@ func (u *UIAccessListDefineOwnersEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateAccessListBaseEventFields(u.Metadata, u.Status))
 }
 
-func (u *UIAccessListDefineOwnersEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIAccessListDefineOwnersEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiAccessListDefineOwnersEvent{
 			UiAccessListDefineOwnersEvent: &prehogv1a.UIAccessListDefineOwnersEvent{
 				Metadata: &prehogv1a.AccessListMetadata{
@@ -186,8 +186,8 @@ func (u *UIAccessListStartedEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateAccessListBaseEventFields(u.Metadata, u.Status))
 }
 
-func (u *UIAccessListStartedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIAccessListStartedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiAccessListStartEvent{
 			UiAccessListStartEvent: &prehogv1a.UIAccessListStartEvent{
 				Metadata: &prehogv1a.AccessListMetadata{
@@ -207,8 +207,8 @@ func (u *UIAccessListCompletedEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateAccessListBaseEventFields(u.Metadata, u.Status))
 }
 
-func (u *UIAccessListCompletedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIAccessListCompletedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiAccessListCompleteEvent{
 			UiAccessListCompleteEvent: &prehogv1a.UIAccessListCompleteEvent{
 				Metadata: &prehogv1a.AccessListMetadata{
@@ -229,8 +229,8 @@ func (u *UIAccessListCustomEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateAccessListBaseEventFields(u.Metadata, u.Status))
 }
 
-func (u *UIAccessListCustomEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIAccessListCustomEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiAccessListCustomEvent{
 			UiAccessListCustomEvent: &prehogv1a.UIAccessListCustomEvent{
 				Metadata: &prehogv1a.AccessListMetadata{
@@ -249,8 +249,8 @@ func (u *UIAccessListIntegrateEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateAccessListMetadata(u.Metadata))
 }
 
-func (u *UIAccessListIntegrateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIAccessListIntegrateEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiAccessListIntegrateEvent{
 			UiAccessListIntegrateEvent: &prehogv1a.UIAccessListIntegrateEvent{
 				Metadata: &prehogv1a.AccessListMetadata{

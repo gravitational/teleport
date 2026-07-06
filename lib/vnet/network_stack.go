@@ -24,6 +24,7 @@ import (
 	"net/netip"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -162,6 +163,16 @@ type networkStack struct {
 
 	// ipv6Prefix holds the 96-bit prefix that will be used for all IPv6 addresses assigned in the VNet.
 	ipv6Prefix tcpip.Address
+
+	// diagProbeIPv6 is the IPv6 address (ipv6Prefix::2) returned to diagnostic probe queries.
+	// Set once in newNetworkStack.
+	diagProbeIPv6 [16]byte
+
+	// diagProbeIPv4 is the IPv4 address returned to diagnostic probe queries. Set on the
+	// first call of addDNSAddress, which happens after the first call of targetOSConfig
+	// and before DNS addresses are registered with any OS resolver, so ResolveA should
+	// not read nil in practice.
+	diagProbeIPv4 atomic.Pointer[[4]byte]
 
 	// dnsServer is the VNet's local DNS server that can handle UDP DNS
 	// requests.
@@ -323,10 +334,16 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	ns.stack.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
 	if cfg.dnsIPv6 != (tcpip.Address{}) {
+		ns.diagProbeIPv6 = cfg.dnsIPv6.As16()
 		if err := ns.assignUDPHandler(cfg.dnsIPv6, dnsServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		logger.DebugContext(context.Background(), "Serving DNS on IPv6.", "dns_addr", cfg.dnsIPv6)
+	} else {
+		// This branch shouldn't be reachable, every caller sets cfg.dnsIPv6.
+		// Added it so the probe handler can return a stable value if a future caller
+		// forgets to set it.
+		ns.diagProbeIPv6 = ipv6WithSuffix(cfg.ipv6Prefix, dns.DNSServerSuffix).As16()
 	}
 
 	return ns, nil
@@ -626,6 +643,11 @@ func (ns *networkStack) addDNSAddress(ip net.IP) error {
 	if !ok {
 		return trace.Errorf("error parsing IPv4 DNS address %s", ip.String())
 	}
+	if v4 := ip.To4(); v4 != nil && ns.diagProbeIPv4.Load() == nil {
+		var b [4]byte
+		copy(b[:], v4)
+		ns.diagProbeIPv4.CompareAndSwap(nil, &b)
+	}
 	if ns.upstreamFilter != nil {
 		ns.upstreamFilter.AddExclude(dns.AddrWithDNSPort(addr))
 	}
@@ -635,6 +657,15 @@ func (ns *networkStack) addDNSAddress(ip net.IP) error {
 
 // ResolveA implements [dns.Resolver.ResolveA].
 func (ns *networkStack) ResolveA(ctx context.Context, fqdn string) (dns.Result, error) {
+	// Diagnostic probes short-circuit here. Without this, each probe's unique random label
+	// would allocate a fresh IPv4 from the CIDR pool, leaking the entry.
+	if dns.HasDiagProbePrefix(fqdn) {
+		if v4 := ns.diagProbeIPv4.Load(); v4 != nil {
+			return dns.Result{A: *v4}, nil
+		}
+		return dns.Result{NoRecord: true}, nil
+	}
+
 	// Do the actual resolution within a [singleflight.Group] keyed by [fqdn] to avoid concurrent requests to
 	// resolve an FQDN and then assign an address to it.
 	resultAny, err, _ := ns.resolveHandlerGroup.Do(fqdn, func() (any, error) {
@@ -675,6 +706,12 @@ func (ns *networkStack) ResolveA(ctx context.Context, fqdn string) (dns.Result, 
 
 // ResolveAAAA implements [dns.Resolver.ResolveAAAA].
 func (ns *networkStack) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, error) {
+	// Diagnostic probes return the stable IPv6 probe address — the value the diagnostic
+	// check compares against. No handler is allocated.
+	if dns.HasDiagProbePrefix(fqdn) {
+		return dns.Result{AAAA: ns.diagProbeIPv6}, nil
+	}
+
 	result, err := ns.ResolveA(ctx, fqdn)
 	if err != nil {
 		return dns.Result{}, trace.Wrap(err)

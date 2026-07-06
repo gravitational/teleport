@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/clusterconfig/v1/access_graph_settings.proto
 
+//go:build !protoopaque
+
 package clusterconfigv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -84,11 +85,6 @@ func (x AccessGraphDemoMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AccessGraphDemoMode.Descriptor instead.
-func (AccessGraphDemoMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescGZIP(), []int{0}
-}
-
 // AccessGraphSecretsScanConfig is used to configure the parameters for the secrets scanning functionality.
 type AccessGraphSecretsScanConfig int32
 
@@ -137,14 +133,9 @@ func (x AccessGraphSecretsScanConfig) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AccessGraphSecretsScanConfig.Descriptor instead.
-func (AccessGraphSecretsScanConfig) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescGZIP(), []int{1}
-}
-
 // AccessGraphSettings holds dynamic configuration settings for the Access Graph service.
 type AccessGraphSettings struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// kind is the kind of the resource.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// sub_kind is the sub kind of the resource.
@@ -184,11 +175,6 @@ func (x *AccessGraphSettings) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccessGraphSettings.ProtoReflect.Descriptor instead.
-func (*AccessGraphSettings) Descriptor() ([]byte, []int) {
-	return file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AccessGraphSettings) GetKind() string {
@@ -233,9 +219,96 @@ func (x *AccessGraphSettings) GetStatus() *AccessGraphSettingsStatus {
 	return nil
 }
 
+func (x *AccessGraphSettings) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *AccessGraphSettings) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *AccessGraphSettings) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AccessGraphSettings) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *AccessGraphSettings) SetSpec(v *AccessGraphSettingsSpec) {
+	x.Spec = v
+}
+
+func (x *AccessGraphSettings) SetStatus(v *AccessGraphSettingsStatus) {
+	x.Status = v
+}
+
+func (x *AccessGraphSettings) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *AccessGraphSettings) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AccessGraphSettings) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *AccessGraphSettings) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *AccessGraphSettings) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *AccessGraphSettings) ClearStatus() {
+	x.Status = nil
+}
+
+type AccessGraphSettings_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is the kind of the resource.
+	Kind string
+	// sub_kind is the sub kind of the resource.
+	SubKind string
+	// version is the version of the resource.
+	Version string
+	// metadata is the metadata of the resource.
+	Metadata *v1.Metadata
+	// spec is the spec of the resource.
+	Spec *AccessGraphSettingsSpec
+	// status is the status of the configured access graph service
+	Status *AccessGraphSettingsStatus
+}
+
+func (b0 AccessGraphSettings_builder) Build() *AccessGraphSettings {
+	m0 := &AccessGraphSettings{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // AccessGraphSettingsStatus is the status of the configured access graph service
 type AccessGraphSettingsStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// initial_sync_complete indicates if the access graph service has sent resources to access graph at least once.
 	InitialSyncComplete bool `protobuf:"varint,1,opt,name=initial_sync_complete,json=initialSyncComplete,proto3" json:"initial_sync_complete,omitempty"`
 	unknownFields       protoimpl.UnknownFields
@@ -267,11 +340,6 @@ func (x *AccessGraphSettingsStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessGraphSettingsStatus.ProtoReflect.Descriptor instead.
-func (*AccessGraphSettingsStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AccessGraphSettingsStatus) GetInitialSyncComplete() bool {
 	if x != nil {
 		return x.InitialSyncComplete
@@ -279,9 +347,28 @@ func (x *AccessGraphSettingsStatus) GetInitialSyncComplete() bool {
 	return false
 }
 
+func (x *AccessGraphSettingsStatus) SetInitialSyncComplete(v bool) {
+	x.InitialSyncComplete = v
+}
+
+type AccessGraphSettingsStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// initial_sync_complete indicates if the access graph service has sent resources to access graph at least once.
+	InitialSyncComplete bool
+}
+
+func (b0 AccessGraphSettingsStatus_builder) Build() *AccessGraphSettingsStatus {
+	m0 := &AccessGraphSettingsStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.InitialSyncComplete = b.InitialSyncComplete
+	return m0
+}
+
 // AccessGraphSettingsSpec is the spec for the Access Graph service configuration settings.
 type AccessGraphSettingsSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// secrets_scan_config is used to configure the parameters for the secrets scanning functionality.
 	SecretsScanConfig AccessGraphSecretsScanConfig `protobuf:"varint,1,opt,name=secrets_scan_config,json=secretsScanConfig,proto3,enum=teleport.clusterconfig.v1.AccessGraphSecretsScanConfig" json:"secrets_scan_config,omitempty"`
 	// demo_mode is used to determine if some features should be available for use in a demo capacity
@@ -315,11 +402,6 @@ func (x *AccessGraphSettingsSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessGraphSettingsSpec.ProtoReflect.Descriptor instead.
-func (*AccessGraphSettingsSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *AccessGraphSettingsSpec) GetSecretsScanConfig() AccessGraphSecretsScanConfig {
 	if x != nil {
 		return x.SecretsScanConfig
@@ -332,6 +414,32 @@ func (x *AccessGraphSettingsSpec) GetDemoMode() AccessGraphDemoMode {
 		return x.DemoMode
 	}
 	return AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_UNSPECIFIED
+}
+
+func (x *AccessGraphSettingsSpec) SetSecretsScanConfig(v AccessGraphSecretsScanConfig) {
+	x.SecretsScanConfig = v
+}
+
+func (x *AccessGraphSettingsSpec) SetDemoMode(v AccessGraphDemoMode) {
+	x.DemoMode = v
+}
+
+type AccessGraphSettingsSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// secrets_scan_config is used to configure the parameters for the secrets scanning functionality.
+	SecretsScanConfig AccessGraphSecretsScanConfig
+	// demo_mode is used to determine if some features should be available for use in a demo capacity
+	DemoMode AccessGraphDemoMode
+}
+
+func (b0 AccessGraphSettingsSpec_builder) Build() *AccessGraphSettingsSpec {
+	m0 := &AccessGraphSettingsSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SecretsScanConfig = b.SecretsScanConfig
+	x.DemoMode = b.DemoMode
+	return m0
 }
 
 var File_teleport_clusterconfig_v1_access_graph_settings_proto protoreflect.FileDescriptor
@@ -359,18 +467,6 @@ const file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDesc = "" +
 	",ACCESS_GRAPH_SECRETS_SCAN_CONFIG_UNSPECIFIED\x10\x00\x12-\n" +
 	")ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED\x10\x01\x12,\n" +
 	"(ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED\x10\x02B^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1b\x06proto3"
-
-var (
-	file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescOnce sync.Once
-	file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescData []byte
-)
-
-func file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescGZIP() []byte {
-	file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescOnce.Do(func() {
-		file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDesc), len(file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDesc)))
-	})
-	return file_teleport_clusterconfig_v1_access_graph_settings_proto_rawDescData
-}
 
 var file_teleport_clusterconfig_v1_access_graph_settings_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_clusterconfig_v1_access_graph_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 3)

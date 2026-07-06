@@ -19,8 +19,7 @@
 import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
-import { ITerminalAddon, Terminal } from '@xterm/xterm';
-import type { DefaultTheme } from 'styled-components';
+import { ITerminalAddon, ITheme, Terminal } from '@xterm/xterm';
 
 import { Logger } from 'design/logger';
 import { getPlatform, Platform } from 'design/platform';
@@ -46,7 +45,8 @@ export class TtyPlayer extends Player<TtyEvent> {
   private size: TerminalSize;
 
   constructor(
-    private theme: DefaultTheme,
+    private xtermTheme: ITheme,
+    private fontFamily: string,
     size: TerminalSize
   ) {
     super();
@@ -60,10 +60,10 @@ export class TtyPlayer extends Player<TtyEvent> {
   override init(element: HTMLElement) {
     this.terminal = new Terminal({
       fontSize: getPlatform() === Platform.macOS ? 12 : 14,
-      fontFamily: this.theme.fonts.mono,
+      fontFamily: this.fontFamily,
       cols: this.size.cols,
       rows: this.size.rows,
-      theme: this.theme.colors.terminal,
+      theme: this.xtermTheme,
     });
 
     const linksAddon = new WebLinksAddon();
@@ -108,6 +108,21 @@ export class TtyPlayer extends Player<TtyEvent> {
 
     // Set up mouse event interceptor to scale coordinates
     this.setupMouseEventScaling();
+  }
+
+  /**
+   * Updates the terminal's color theme. Called when the app theme changes so an
+   * in-progress recording recalculates its colors instead of keeping the colors
+   * captured when the terminal was first created. Setting `options.theme`
+   * triggers xterm to clear its texture atlas and repaint, so this works even
+   * while playback is paused and no new data is streaming.
+   */
+  updateTheme(theme: ITheme) {
+    this.xtermTheme = theme;
+
+    if (this.terminal) {
+      this.terminal.options.theme = theme;
+    }
   }
 
   override applyEvent(event: TtyEvent) {

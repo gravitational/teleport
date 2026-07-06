@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/userpreferences/v1/onboard.proto
 
+//go:build !protoopaque
+
 package userpreferencesv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -89,15 +90,10 @@ func (x Resource) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use Resource.Descriptor instead.
-func (Resource) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_onboard_proto_rawDescGZIP(), []int{0}
-}
-
 // MarketingParams are the parameters associated with a user via marketing campaign at the time of sign up.
 // They contain both traditional Urchin Tracking Module (UTM) parameters as well as custom parameters.
 type MarketingParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// campaign is the UTM campaign parameter which identifies a specific product promotion
 	Campaign string `protobuf:"bytes,1,opt,name=campaign,proto3" json:"campaign,omitempty"`
 	// source is the UTM source parameter which identifies which site sent the traffic
@@ -136,11 +132,6 @@ func (x *MarketingParams) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MarketingParams.ProtoReflect.Descriptor instead.
-func (*MarketingParams) Descriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_onboard_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *MarketingParams) GetCampaign() string {
 	if x != nil {
 		return x.Campaign
@@ -169,9 +160,50 @@ func (x *MarketingParams) GetIntent() string {
 	return ""
 }
 
+func (x *MarketingParams) SetCampaign(v string) {
+	x.Campaign = v
+}
+
+func (x *MarketingParams) SetSource(v string) {
+	x.Source = v
+}
+
+func (x *MarketingParams) SetMedium(v string) {
+	x.Medium = v
+}
+
+func (x *MarketingParams) SetIntent(v string) {
+	x.Intent = v
+}
+
+type MarketingParams_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// campaign is the UTM campaign parameter which identifies a specific product promotion
+	Campaign string
+	// source is the UTM source parameter which identifies which site sent the traffic
+	Source string
+	// medium is the UTM medium parameter which identifies what type of link was used
+	Medium string
+	// intent is the internal query param, which identifies any additional marketing intentions
+	// via internally set and directed parameters.
+	Intent string
+}
+
+func (b0 MarketingParams_builder) Build() *MarketingParams {
+	m0 := &MarketingParams{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Campaign = b.Campaign
+	x.Source = b.Source
+	x.Medium = b.Medium
+	x.Intent = b.Intent
+	return m0
+}
+
 // OnboardUserPreferences is the user preferences selected during onboarding.
 type OnboardUserPreferences struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// preferredResources is an array of the resources a user selected during their onboarding questionnaire.
 	PreferredResources []Resource `protobuf:"varint,1,rep,packed,name=preferred_resources,json=preferredResources,proto3,enum=teleport.userpreferences.v1.Resource" json:"preferred_resources,omitempty"`
 	// marketingParams are the parameters associated with a user via marketing campaign at the time of sign up
@@ -205,11 +237,6 @@ func (x *OnboardUserPreferences) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OnboardUserPreferences.ProtoReflect.Descriptor instead.
-func (*OnboardUserPreferences) Descriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_onboard_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *OnboardUserPreferences) GetPreferredResources() []Resource {
 	if x != nil {
 		return x.PreferredResources
@@ -222,6 +249,43 @@ func (x *OnboardUserPreferences) GetMarketingParams() *MarketingParams {
 		return x.MarketingParams
 	}
 	return nil
+}
+
+func (x *OnboardUserPreferences) SetPreferredResources(v []Resource) {
+	x.PreferredResources = v
+}
+
+func (x *OnboardUserPreferences) SetMarketingParams(v *MarketingParams) {
+	x.MarketingParams = v
+}
+
+func (x *OnboardUserPreferences) HasMarketingParams() bool {
+	if x == nil {
+		return false
+	}
+	return x.MarketingParams != nil
+}
+
+func (x *OnboardUserPreferences) ClearMarketingParams() {
+	x.MarketingParams = nil
+}
+
+type OnboardUserPreferences_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// preferredResources is an array of the resources a user selected during their onboarding questionnaire.
+	PreferredResources []Resource
+	// marketingParams are the parameters associated with a user via marketing campaign at the time of sign up
+	MarketingParams *MarketingParams
+}
+
+func (b0 OnboardUserPreferences_builder) Build() *OnboardUserPreferences {
+	m0 := &OnboardUserPreferences{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PreferredResources = b.PreferredResources
+	x.MarketingParams = b.MarketingParams
+	return m0
 }
 
 var File_teleport_userpreferences_v1_onboard_proto protoreflect.FileDescriptor
@@ -244,18 +308,6 @@ const file_teleport_userpreferences_v1_onboard_proto_rawDesc = "" +
 	"\x12RESOURCE_DATABASES\x10\x03\x12\x17\n" +
 	"\x13RESOURCE_KUBERNETES\x10\x04\x12\x1d\n" +
 	"\x19RESOURCE_WEB_APPLICATIONS\x10\x05BYZWgithub.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1b\x06proto3"
-
-var (
-	file_teleport_userpreferences_v1_onboard_proto_rawDescOnce sync.Once
-	file_teleport_userpreferences_v1_onboard_proto_rawDescData []byte
-)
-
-func file_teleport_userpreferences_v1_onboard_proto_rawDescGZIP() []byte {
-	file_teleport_userpreferences_v1_onboard_proto_rawDescOnce.Do(func() {
-		file_teleport_userpreferences_v1_onboard_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userpreferences_v1_onboard_proto_rawDesc), len(file_teleport_userpreferences_v1_onboard_proto_rawDesc)))
-	})
-	return file_teleport_userpreferences_v1_onboard_proto_rawDescData
-}
 
 var file_teleport_userpreferences_v1_onboard_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_userpreferences_v1_onboard_proto_msgTypes = make([]protoimpl.MessageInfo, 2)

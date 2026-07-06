@@ -46,6 +46,14 @@ type SubCAService interface {
 	// DeleteCertAuthorityOverride hard-deletes a CA override.
 	DeleteCertAuthorityOverride(ctx context.Context, id types.CertAuthorityOverrideID) error
 
+	// ConditionalDeleteCertAuthorityOverride conditionally deletes a CA override
+	// based on its revision.
+	ConditionalDeleteCertAuthorityOverride(
+		ctx context.Context,
+		id types.CertAuthorityOverrideID,
+		revision string,
+	) error
+
 	// UpdateCertAuthorityOverride conditionally updates a CA override.
 	UpdateCertAuthorityOverride(ctx context.Context, resource *subcav1.CertAuthorityOverride) (*subcav1.CertAuthorityOverride, error)
 

@@ -36,16 +36,14 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
-var inferenceModelSpec = &summarizerv1.InferenceModelSpec{
-	Provider: &summarizerv1.InferenceModelSpec_Bedrock{
-		Bedrock: &summarizerv1.BedrockProvider{
-			Region:         "us-east-1",
-			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
-			Integration:    "some-integration",
-		},
-	},
+var inferenceModelSpec = summarizerv1.InferenceModelSpec_builder{
+	Bedrock: summarizerv1.BedrockProvider_builder{
+		Region:         "us-east-1",
+		BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
+		Integration:    "some-integration",
+	}.Build(),
 	MaxSessionLengthBytes: 1234567,
-}
+}.Build()
 
 type inferenceModelTestingPrimitives struct {
 	setup *TestSetup
@@ -63,20 +61,20 @@ func (p *inferenceModelTestingPrimitives) SetupTeleportFixtures(ctx context.Cont
 func (p *inferenceModelTestingPrimitives) CreateTeleportResource(
 	ctx context.Context, name string,
 ) error {
-	model := &summarizerv1.InferenceModel{
+	model := summarizerv1.InferenceModel_builder{
 		Kind:    types.KindInferenceModel,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		},
+		}.Build(),
 		Spec: inferenceModelSpec,
-	}
+	}.Build()
 	_, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		CreateInferenceModel(ctx, &summarizerv1.CreateInferenceModelRequest{Model: model})
+		CreateInferenceModel(ctx, summarizerv1.CreateInferenceModelRequest_builder{Model: model}.Build())
 	return trace.Wrap(err)
 }
 
@@ -85,11 +83,11 @@ func (p *inferenceModelTestingPrimitives) GetTeleportResource(
 ) (*summarizerv1.InferenceModel, error) {
 	resp, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		GetInferenceModel(ctx, &summarizerv1.GetInferenceModelRequest{Name: name})
+		GetInferenceModel(ctx, summarizerv1.GetInferenceModelRequest_builder{Name: name}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp.Model, nil
+	return resp.GetModel(), nil
 }
 
 func (p *inferenceModelTestingPrimitives) DeleteTeleportResource(
@@ -97,7 +95,7 @@ func (p *inferenceModelTestingPrimitives) DeleteTeleportResource(
 ) error {
 	_, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		DeleteInferenceModel(ctx, &summarizerv1.DeleteInferenceModelRequest{Name: name})
+		DeleteInferenceModel(ctx, summarizerv1.DeleteInferenceModelRequest_builder{Name: name}.Build())
 	return trace.Wrap(err)
 }
 
@@ -146,8 +144,8 @@ func (p *inferenceModelTestingPrimitives) ModifyKubernetesResource(
 		return trace.Wrap(err)
 	}
 	model.Spec.MaxSessionLengthBytes = 7654321
-	(*summarizerv1.InferenceModelSpec)(model.Spec).GetBedrock().BedrockModelId =
-		"anthropic.claude-3-5-sonnet-20240620-v1:0"
+	(*summarizerv1.InferenceModelSpec)(model.Spec).GetBedrock().SetBedrockModelId(
+		"anthropic.claude-3-5-sonnet-20240620-v1:0")
 	return trace.Wrap(p.setup.K8sClient.Update(ctx, model))
 }
 

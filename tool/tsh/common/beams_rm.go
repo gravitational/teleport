@@ -72,9 +72,9 @@ func (c *beamsRMCommand) run(cf *CLIConf) error {
 		// Delete the beam.
 		_, err = rootClient.
 			BeamServiceClient().
-			DeleteBeam(ctx, &beamsv1.DeleteBeamRequest{
+			DeleteBeam(ctx, beamsv1.DeleteBeamRequest_builder{
 				Name: beam.GetMetadata().GetName(),
-			})
+			}.Build())
 		return trace.Wrap(err)
 	})
 	if err != nil {

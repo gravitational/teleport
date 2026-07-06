@@ -5,6 +5,7 @@ tags:
  - how-to
  - zero-trust
  - privileged-access
+page_type: how-to
 ---
 
 Browser MFA enables users of `tsh`, `tctl`, and Teleport Connect to complete
@@ -28,6 +29,9 @@ $ tsh mfa add --mfa-mode=browser
 $ tctl edit --mfa-mode=browser cluster_auth_preference
 ```
 
+In this guide, you will enable browser MFA on your Teleport cluster and use a
+browser to authenticate your user to Teleport.
+
 ## How it works
 
 In the Browser MFA flow, a user runs a command requiring MFA but only has a
@@ -41,7 +45,7 @@ and uses it to complete the original command.
 
 ## Prerequisites
 
-- A Teleport Cloud cloud or a self-hosted cluster with WebAuthn configured.
+- A Teleport Cloud or a self-hosted cluster with WebAuthn configured.
 
 <details>
 <summary>Enable WebAuthn</summary>
