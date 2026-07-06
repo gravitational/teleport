@@ -84,6 +84,7 @@ func (o TeleportOktaImportRule) ToTeleport() types.OktaImportRule {
 				Description: o.Annotations[teleportcr.DescriptionKey],
 			},
 			Version: types.V1,
+			Kind:    types.KindOktaImportRule,
 		},
 		Spec: types.OktaImportRuleSpecV1{
 			Priority: o.Spec.Priority,

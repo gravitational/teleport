@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
@@ -147,8 +148,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("token",
 		"Invitation token or path to file with token value. Used to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
-	start.Flag("token-secret", "Invitation token secret or path to file with secret value. Used to register with an auth server [none]").
-		StringVar(&ccf.TokenSecret)
 	start.Flag("ca-pin",
 		"CA pin to validate the Auth Server (can be repeated for multiple pins)").
 		StringsVar(&ccf.CAPins)
@@ -495,7 +494,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	joinOpenSSH.Flag("proxy-server", "Address of the proxy server.").StringVar(&ccf.ProxyServer)
 	joinOpenSSH.Flag("token", "Invitation token or path to file with token value to register with an auth server.").StringVar(&ccf.AuthToken)
 	joinOpenSSH.Flag("join-method", "Method to use to join the cluster.").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
-	joinOpenSSH.Flag("token-secret", "Invitation token secret or path to file with secret value. Used to register with an auth server [none]").StringVar(&ccf.TokenSecret)
 	joinOpenSSH.Flag("openssh-config", fmt.Sprintf("Path to the OpenSSH config file [%v].", "/etc/ssh/sshd_config")).Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
 	joinOpenSSH.Flag("data-dir", fmt.Sprintf("Path to directory to store teleport data [%v].", defaults.DataDir)).Default(defaults.DataDir).StringVar(&ccf.DataDir)
 	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH.").Default("true").BoolVar(&ccf.RestartOpenSSH)
@@ -707,6 +705,7 @@ Examples:
 
 	// Create default configuration.
 	conf = servicecfg.MakeDefaultConfig()
+	conf.ScopesFeatures = scopes.FeaturesFromEnv()
 
 	// If FIPS mode is specified update defaults to be FIPS appropriate and
 	// cross-validate the current config.
@@ -847,21 +846,16 @@ Examples:
 	case metricsCmd.FullCommand():
 		err = onMetrics(ctx, ccf.ConfigFile)
 	case checkSessionHelperCmd.FullCommand():
-		var ok bool
-		ok, err = reexec.InitEmbeddedReexec()
+		if !reexec.EmbeddedReexecAvailable {
+			fmt.Println("The embedded session helper is not available in this build.")
+			break
+		}
+		err = reexec.InitEmbeddedReexec()
 		if err == nil {
-			if ok {
-				fmt.Println("The embedded session helper is available in this build.")
-			} else {
-				fmt.Println("The embedded session helper is not available in this build.")
-			}
+			fmt.Println("The embedded session helper is available in this build.")
 		}
 	case requireSessionHelperCmd.FullCommand():
-		var ok bool
-		ok, err = reexec.InitEmbeddedReexec()
-		if err == nil && !ok {
-			err = errors.New("the embedded session helper is not available in this build")
-		}
+		err = reexec.InitEmbeddedReexec()
 	case moduleSourceCmd.FullCommand():
 		if runtime.GOOS != "linux" {
 			break
@@ -1078,7 +1072,12 @@ func onConfigDump(flags dumpFlags) error {
 		return trace.Wrap(err)
 	}
 
-	configPath, err := dumpConfigFile(flags.output, sfc.DebugDumpToYAML(), sampleConfComment)
+	configYAML, err := sfc.YAMLString()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	configPath, err := dumpConfigFile(flags.output, configYAML, sampleConfComment)
 	if err != nil {
 		return trace.Wrap(err)
 	}

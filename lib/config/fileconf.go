@@ -51,13 +51,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
@@ -339,7 +339,7 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 	if enabled {
 		s.EnabledFlag = "yes"
 		s.ListenAddress = conf.SSH.Addr.Addr
-		labels, err := client.ParseLabelSpec(flags.NodeLabels)
+		labels, err := parse.LabelSelectorSpec(flags.NodeLabels)
 		if err != nil {
 			return s, trace.Wrap(err)
 		}
@@ -461,13 +461,14 @@ func roleMapFromFlags(flags SampleFlags) map[string]bool {
 	return m
 }
 
-// DebugDumpToYAML allows for quick YAML dumping of the config
-func (conf *FileConfig) DebugDumpToYAML() string {
-	bytes, err := yaml.Marshal(&conf)
+// YAMLString returns the YAML representation of the config.
+func (conf *FileConfig) YAMLString() (string, error) {
+	raw, err := yaml.Marshal(&conf)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return string(bytes)
+
+	return string(raw), nil
 }
 
 // CheckAndSetDefaults sets defaults and ensures that the ciphers, kex
@@ -509,7 +510,6 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
 	TokenName    string             `yaml:"token_name"`
-	TokenSecret  string             `yaml:"token_secret,omitempty"`
 	Method       types.JoinMethod   `yaml:"method"`
 	Azure        AzureJoinParams    `yaml:"azure,omitempty"`
 	BoundKeypair BoundKeypairParams `yaml:"bound_keypair,omitempty"`
@@ -1133,24 +1133,24 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		scopedToken := &joiningv1.ScopedToken{
+		scopedToken := joiningv1.ScopedToken_builder{
 			Version: types.V1,
 			Kind:    types.KindScopedToken,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: st.Name,
-			},
+			}.Build(),
 			Scope: scopes.Root,
-			Spec: &joiningv1.ScopedTokenSpec{
+			Spec: joiningv1.ScopedTokenSpec_builder{
 				Roles:           roles.StringSlice(),
 				AssignedScope:   st.Scope,
 				JoinMethod:      string(types.JoinMethodToken),
 				UsageMode:       string(joining.TokenUsageModeUnlimited),
 				ImmutableLabels: immutableLabels,
-			},
-			Status: &joiningv1.ScopedTokenStatus{
+			}.Build(),
+			Status: joiningv1.ScopedTokenStatus_builder{
 				Secret: st.Secret,
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		if err := joining.StrongValidateToken(scopedToken); err != nil {
 			return nil, trace.Wrap(err)
@@ -1159,17 +1159,17 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 		scopedTokens = append(scopedTokens, scopedToken)
 	}
 
-	return &joiningv1.StaticScopedTokens{
+	return joiningv1.StaticScopedTokens_builder{
 		Version: types.V1,
 		Kind:    types.KindStaticScopedTokens,
 		Scope:   scopes.Root,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameStaticScopedTokens,
-		},
-		Spec: &joiningv1.StaticScopedTokensSpec{
+		}.Build(),
+		Spec: joiningv1.StaticScopedTokensSpec_builder{
 			Tokens: scopedTokens,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 // ImmutableLabels capture yaml configuration used to generate [joiningv1.ImmutableLabels].
@@ -1184,9 +1184,9 @@ func (il *ImmutableLabels) Parse() (*joiningv1.ImmutableLabels, error) {
 		return nil, nil
 	}
 
-	return &joiningv1.ImmutableLabels{
+	return joiningv1.ImmutableLabels_builder{
 		Ssh: il.SSH,
-	}, nil
+	}.Build(), nil
 }
 
 // StaticScopedToken is a statically defined scoped token. It is meant to capture
@@ -3165,7 +3165,8 @@ type JamfService struct {
 // entry.
 // Corresponds to [types.JamfInventoryEntry].
 type JamfInventoryEntry struct {
-	// FilterRSQL is a Jamf Pro API RSQL filter string.
+	// FilterRSQL is a Jamf Pro API RSQL filter string. The set of filterable
+	// fields depends on DeviceType. Empty means no filter.
 	FilterRSQL string `yaml:"filter_rsql,omitempty"`
 	// SyncPeriodPartial is the period for PARTIAL syncs.
 	// Zero means "server default", negative means "disabled".
@@ -3179,6 +3180,10 @@ type JamfInventoryEntry struct {
 	// Custom page size for inventory queries.
 	// A server default is used if zeroed or negative.
 	PageSize int32 `yaml:"page_size,omitempty"`
+	// DeviceType is the Jamf device type to sync.
+	// Valid values are "computers" and "mobile_devices".
+	// If empty, defaults to "computers" for backwards compatibility.
+	DeviceType string `yaml:"device_type,omitempty"`
 }
 
 func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
@@ -3198,6 +3203,7 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 			SyncPeriodFull:    types.DurationStringForJamfSpecV1(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
 			PageSize:          e.PageSize,
+			DeviceType:        e.DeviceType,
 		}
 	}
 	spec := &types.JamfSpecV1{

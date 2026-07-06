@@ -104,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/shell"
@@ -830,6 +831,7 @@ const (
 	awsRegionEnvVar           = "TELEPORT_AWS_REGION"
 	awsKeystoreEnvVar         = "TELEPORT_AWS_KEYSTORE"
 	awsWorkgroupEnvVar        = "TELEPORT_AWS_WORKGROUP"
+	awsLoginInteractive       = "TELEPORT_AWS_LOGIN_INTERACTIVE"
 	proxyKubeConfigEnvVar     = "TELEPORT_KUBECONFIG"
 	noResumeEnvVar            = "TELEPORT_NO_RESUME"
 	requestModeEnvVar         = "TELEPORT_REQUEST_MODE"
@@ -1095,6 +1097,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	appLogin.Flag("target-port", "Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.").Uint16Var(&cf.TargetPort)
+	appLogin.Flag("interactive", "Prompt for AWS Roles interactively (--aws-role takes precedence).").Short('T').Default("true").Envar(awsLoginInteractive).BoolVar(&cf.Interactive)
 	appLogin.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
@@ -1103,6 +1106,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, %q or %q to print everything as JSON or YAML.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
 	).Short('f').StringVar(&cf.Format)
+	appLogins := apps.Command("logins", "List available logins for a Cloud console application.")
+	appLogins.Arg("app", "App name to list logins for. Currently only AWS is supported.").Required().StringVar(&cf.AppName)
+	appLogins.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	// Recordings.
 	recordings := app.Command("recordings", "View and control session recordings.").Alias("recording")
@@ -1875,6 +1881,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onAppLogout(&cf)
 	case appConfig.FullCommand():
 		err = onAppConfig(&cf)
+	case appLogins.FullCommand():
+		err = onAppLogins(&cf)
 	case kube.credentials.FullCommand():
 		err = kube.credentials.run(&cf)
 	case kube.ls.FullCommand():
@@ -1989,6 +1997,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onHeadlessApprove(&cf)
 	case workloadIdentityCmd.issueX509.FullCommand():
 		err = workloadIdentityCmd.issueX509.run(&cf)
+	case workloadIdentityCmd.issueJWT.FullCommand():
+		err = workloadIdentityCmd.issueJWT.run(&cf)
 	case vnetCommand.FullCommand():
 		err = vnetCommand.run(&cf)
 	case vnetSSHAutoConfigCommand.FullCommand():
@@ -2309,7 +2319,7 @@ func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 
 		currentScope := ""
 		if profile != nil && profile.ScopePin != nil {
-			currentScope = profile.ScopePin.Scope
+			currentScope = profile.ScopePin.GetScope()
 		}
 
 		return targetScope, targetScope != currentScope
@@ -2317,7 +2327,7 @@ func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 
 	// --scope not provided, inherit from profile.
 	if profile != nil && profile.ScopePin != nil {
-		return profile.ScopePin.Scope, false
+		return profile.ScopePin.GetScope(), false
 	}
 
 	return "", false
@@ -4459,7 +4469,7 @@ func onResolve(cf *CLIConf) error {
 	// on the hostname of the server. Otherwise, this would end up listing
 	// the first two servers that the user has access to and yield unexpected results.
 	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
-		req.PredicateExpression = fmt.Sprintf(`name == "%s"`, tc.Host)
+		req.PredicateExpression = fmt.Sprintf(`name == %q`, tc.Host)
 	}
 
 	// Only enable the re-authentication behavior if not invoked with `-q`. When
@@ -4890,7 +4900,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		}
 		// see if remote host is specified as a set of labels
 		if strings.Contains(hostUser, "=") {
-			labels, err = client.ParseLabelSpec(hostUser)
+			labels, err = parse.LabelSelectorSpec(hostUser)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -4917,7 +4927,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 
 	// explicitly passed --labels overrides user@labels positional arg form.
 	if cf.Labels != "" {
-		labels, err = client.ParseLabelSpec(cf.Labels)
+		labels, err = parse.LabelSelectorSpec(cf.Labels)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

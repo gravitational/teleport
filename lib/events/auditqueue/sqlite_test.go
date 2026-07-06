@@ -76,11 +76,10 @@ func fetchDeadLetter(ctx context.Context, db *sql.DB, limit int) ([]Item, error)
 
 func TestEnqueueDequeue_FIFO(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	for i := int64(0); i < 3; i++ {
-		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+		require.NoError(t, q.Enqueue(newTestEvent(i)))
 	}
 
 	got, err := q.fetch(3)
@@ -94,11 +93,10 @@ func TestEnqueueDequeue_FIFO(t *testing.T) {
 
 func TestDequeue_RespectsLimit(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	for i := int64(0); i < 5; i++ {
-		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+		require.NoError(t, q.Enqueue(newTestEvent(i)))
 	}
 
 	first, err := q.fetch(2)
@@ -134,10 +132,9 @@ func TestDequeue_QueueClosed(t *testing.T) {
 
 func TestDequeue_WithoutAckRetainsEvents(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
-	require.NoError(t, q.Enqueue(ctx, newTestEvent(42)))
+	require.NoError(t, q.Enqueue(newTestEvent(42)))
 
 	first, err := q.fetch(1)
 	require.NoError(t, err)
@@ -147,7 +144,7 @@ func TestDequeue_WithoutAckRetainsEvents(t *testing.T) {
 	second, err := q.fetch(1)
 	require.NoError(t, err)
 	require.Len(t, second, 1)
-	require.Equal(t, first[0].ID, second[0].ID)
+	require.Equal(t, first[0].id, second[0].id)
 
 	require.NoError(t, q.ack(second))
 
@@ -162,7 +159,7 @@ func TestRun_DeliversAndAcks(t *testing.T) {
 	q := newSqliteTestQueue(t)
 
 	for i := int64(0); i < 3; i++ {
-		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+		require.NoError(t, q.Enqueue(newTestEvent(i)))
 	}
 
 	runCtx, cancel := context.WithCancel(ctx)
@@ -186,7 +183,7 @@ func TestRun_DeliversAndAcks(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 
 	cancel()
-	require.NoError(t, <-runErr)
+	require.ErrorIs(t, <-runErr, context.Canceled)
 
 	mu.Lock()
 	require.Len(t, got, 3)
@@ -202,15 +199,13 @@ func TestRun_HandlerSubsetIsAcked(t *testing.T) {
 	q := newSqliteTestQueue(t)
 
 	for i := int64(0); i < 3; i++ {
-		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+		require.NoError(t, q.Enqueue(newTestEvent(i)))
 	}
 
 	runCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
 
-	var once sync.Once
 	handler := func(_ context.Context, items []Item) []Item {
-		once.Do(cancel)
 		var ack []Item
 		for _, it := range items {
 			if it.Event.GetIndex()%2 == 0 {
@@ -223,12 +218,16 @@ func TestRun_HandlerSubsetIsAcked(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() { runErr <- q.Run(runCtx, handler) }()
 
-	require.NoError(t, <-runErr)
+	require.Eventually(t, func() bool {
+		items, err := q.fetch(10)
+		if err != nil || len(items) != 1 {
+			return false
+		}
+		return items[0].Event.GetIndex() == 1
+	}, 2*time.Second, 10*time.Millisecond)
 
-	items, err := q.fetch(10)
-	require.NoError(t, err)
-	require.Len(t, items, 1)
-	require.Equal(t, int64(1), items[0].Event.GetIndex())
+	cancel()
+	require.ErrorIs(t, <-runErr, context.Canceled)
 }
 
 func TestClose(t *testing.T) {
@@ -259,7 +258,6 @@ func TestNewSQLiteQueue_RequiresPath(t *testing.T) {
 
 func TestEnqueue_ConcurrentCallersAllSucceed(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	const N = 100
@@ -270,7 +268,7 @@ func TestEnqueue_ConcurrentCallersAllSucceed(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			errs[i] = q.Enqueue(ctx, newTestEvent(int64(i)))
+			errs[i] = q.Enqueue(newTestEvent(int64(i)))
 		}(i)
 	}
 	wg.Wait()
@@ -286,7 +284,6 @@ func TestEnqueue_ConcurrentCallersAllSucceed(t *testing.T) {
 
 func TestEnqueue_FIFOWithinSingleProducer(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	const G = 10
@@ -298,7 +295,7 @@ func TestEnqueue_FIFOWithinSingleProducer(t *testing.T) {
 			defer wg.Done()
 			for i := 0; i < Per; i++ {
 				idx := int64(g*Per + i)
-				require.NoError(t, q.Enqueue(ctx, newTestEvent(idx)))
+				require.NoError(t, q.Enqueue(newTestEvent(idx)))
 			}
 		}()
 	}
@@ -325,10 +322,9 @@ func TestEnqueue_FIFOWithinSingleProducer(t *testing.T) {
 
 func TestEnqueue_VisibleImmediatelyAfterReturn(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
-	require.NoError(t, q.Enqueue(ctx, newTestEvent(42)))
+	require.NoError(t, q.Enqueue(newTestEvent(42)))
 
 	items, err := q.fetch(1)
 	require.NoError(t, err)
@@ -349,7 +345,7 @@ func TestClose_PendingEnqueuesReturn(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = q.Enqueue(t.Context(), newTestEvent(int64(i)))
+			_ = q.Enqueue(newTestEvent(int64(i)))
 		}()
 	}
 
@@ -369,12 +365,11 @@ func TestClose_PendingEnqueuesReturn(t *testing.T) {
 
 func TestBatchSizeMetricRecorded(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	before := histogramSampleCount(t, batchSize)
 
-	require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
+	require.NoError(t, q.Enqueue(newTestEvent(0)))
 
 	after := histogramSampleCount(t, batchSize)
 	require.Greater(t, after, before,
@@ -394,7 +389,6 @@ func TestTeleportInfoTable(t *testing.T) {
 
 func TestAboveSoftLimit_TripsAndUntrips(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 
 	q, err := newSQLiteQueue(Config{
 		Path:      filepath.Join(t.TempDir(), "queue"),
@@ -408,7 +402,7 @@ func TestAboveSoftLimit_TripsAndUntrips(t *testing.T) {
 	require.False(t, above, "fresh queue (size %d) should not exceed soft limit", size)
 
 	for i := 0; i < 200; i++ {
-		require.NoError(t, q.Enqueue(ctx, newTestEvent(int64(i))))
+		require.NoError(t, q.Enqueue(newTestEvent(int64(i))))
 	}
 	_, err = q.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 	require.NoError(t, err)
@@ -420,18 +414,17 @@ func TestAboveSoftLimit_TripsAndUntrips(t *testing.T) {
 
 func TestEnqueue_FullReturnsErrQueueFull(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 
 	q, err := newSQLiteQueue(Config{
 		Path:     filepath.Join(t.TempDir(), "queue"),
-		MaxBytes: 8 * sqlitePageSize,
+		MaxBytes: 50 * sqlitePageSize,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = q.Close() })
 
 	var got error
 	for i := 0; i < 10000; i++ {
-		got = q.Enqueue(ctx, newTestEvent(int64(i)))
+		got = q.Enqueue(newTestEvent(int64(i)))
 		if got != nil {
 			break
 		}
@@ -448,7 +441,7 @@ func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
 
 	a := newQueueAt(t, filepath.Join(parent, "a"), time.Hour)
 	for i := int64(0); i < 5; i++ {
-		require.NoError(t, a.Enqueue(ctx, newTestEvent(i)))
+		require.NoError(t, a.Enqueue(newTestEvent(i)))
 	}
 	require.NoError(t, a.Close())
 
@@ -480,7 +473,7 @@ func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond, "expected orphan A's directory to be removed")
 
 	cancel()
-	require.NoError(t, <-runErr)
+	require.ErrorIs(t, <-runErr, context.Canceled)
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -499,7 +492,7 @@ func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
 		DeadLetterSweepInterval: time.Hour,
 	})
 	require.NoError(t, err)
-	require.NoError(t, a.Enqueue(ctx, newTestEvent(42)))
+	require.NoError(t, a.Enqueue(newTestEvent(42)))
 
 	runCtx, cancelA := context.WithCancel(ctx)
 	runErrA := make(chan error, 1)
@@ -511,7 +504,7 @@ func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond, "expected A's event to land in its dead-letter queue")
 
 	cancelA()
-	require.NoError(t, <-runErrA)
+	require.ErrorIs(t, <-runErrA, context.Canceled)
 	require.NoError(t, a.Close())
 
 	_, err = os.Stat(aPath)
@@ -543,7 +536,7 @@ func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond, "expected A's directory to be removed after migration")
 
 	cancelB()
-	require.NoError(t, <-bRunErr)
+	require.ErrorIs(t, <-bRunErr, context.Canceled)
 }
 
 func TestOrphanAdoption_SkipsLockedQueue(t *testing.T) {
@@ -556,7 +549,7 @@ func TestOrphanAdoption_SkipsLockedQueue(t *testing.T) {
 	b := newQueueAt(t, filepath.Join(parent, "b"), 50*time.Millisecond)
 	t.Cleanup(func() { _ = b.Close() })
 
-	require.NoError(t, a.Enqueue(ctx, newTestEvent(0)))
+	require.NoError(t, a.Enqueue(newTestEvent(0)))
 
 	runCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
@@ -576,7 +569,7 @@ func TestOrphanAdoption_SkipsLockedQueue(t *testing.T) {
 		"B should not have delivered A's events while A is locked")
 
 	cancel()
-	require.NoError(t, <-runErr)
+	require.ErrorIs(t, <-runErr, context.Canceled)
 }
 
 func TestOrphanAdoption_SkipsTmpSuffix(t *testing.T) {
@@ -600,7 +593,7 @@ func TestOrphanAdoption_SkipsTmpSuffix(t *testing.T) {
 	require.NoError(t, err, "recent .tmp/ directory should not be adopted or swept")
 
 	cancel()
-	require.NoError(t, <-runErr)
+	require.ErrorIs(t, <-runErr, context.Canceled)
 }
 
 func TestOrphanAdoption_StaleTmpSwept(t *testing.T) {
@@ -628,7 +621,7 @@ func TestOrphanAdoption_StaleTmpSwept(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond, "stale .tmp/ directory should be swept")
 
 	cancel()
-	require.NoError(t, <-runErr)
+	require.ErrorIs(t, <-runErr, context.Canceled)
 }
 
 func TestAckDB_DeletesOnlyAckedItems(t *testing.T) {
@@ -637,7 +630,7 @@ func TestAckDB_DeletesOnlyAckedItems(t *testing.T) {
 	q := newSqliteTestQueue(t)
 
 	for i := int64(0); i < 5; i++ {
-		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+		require.NoError(t, q.Enqueue(newTestEvent(i)))
 	}
 
 	// Fetch 4 of the 5 items and ack them.
@@ -647,7 +640,7 @@ func TestAckDB_DeletesOnlyAckedItems(t *testing.T) {
 
 	ackedIDs := make(map[int64]struct{}, len(items))
 	for _, item := range items {
-		ackedIDs[item.ID] = struct{}{}
+		ackedIDs[item.id] = struct{}{}
 	}
 
 	require.NoError(t, ackDB(ctx, q.db, items))
@@ -656,7 +649,7 @@ func TestAckDB_DeletesOnlyAckedItems(t *testing.T) {
 	remaining, err := q.fetch(10)
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
-	_, wasAcked := ackedIDs[remaining[0].ID]
+	_, wasAcked := ackedIDs[remaining[0].id]
 	require.False(t, wasAcked, "remaining item should not be one that was acked")
 }
 
@@ -712,7 +705,6 @@ func TestPlaceholders(t *testing.T) {
 
 func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 
 	q, err := newSQLiteQueue(Config{
 		Path:        filepath.Join(t.TempDir(), queueDir),
@@ -721,8 +713,8 @@ func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = q.Close() })
 
-	require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
-	require.NoError(t, q.Enqueue(ctx, newTestEvent(1)))
+	require.NoError(t, q.Enqueue(newTestEvent(0)))
+	require.NoError(t, q.Enqueue(newTestEvent(1)))
 
 	items, err := q.fetch(10)
 	require.NoError(t, err)
@@ -763,7 +755,7 @@ func TestRetry_ExhaustedMovesToDeadLetter(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = q.Close() })
 
-	require.NoError(t, q.Enqueue(ctx, newTestEvent(42)))
+	require.NoError(t, q.Enqueue(newTestEvent(42)))
 
 	alwaysFail := func(_ context.Context, items []Item) []Item { return nil }
 
@@ -786,7 +778,7 @@ func TestRetry_ExhaustedMovesToDeadLetter(t *testing.T) {
 	require.Equal(t, int64(42), dlItems[0].Event.GetIndex())
 
 	cancel()
-	require.NoError(t, <-runErr)
+	require.ErrorIs(t, <-runErr, context.Canceled)
 }
 
 func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
@@ -802,7 +794,7 @@ func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = q.Close() })
 
-	require.NoError(t, q.Enqueue(ctx, newTestEvent(7)))
+	require.NoError(t, q.Enqueue(newTestEvent(7)))
 
 	var recovered atomic.Bool
 	handler := func(_ context.Context, items []Item) []Item {
@@ -833,7 +825,7 @@ func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
 	}, 5*time.Second, sweepInterval)
 
 	cancel()
-	require.NoError(t, <-runErr)
+	require.ErrorIs(t, <-runErr, context.Canceled)
 }
 
 func TestDeadLetterSweep_DrainsEntireBacklog(t *testing.T) {
@@ -850,7 +842,7 @@ func TestDeadLetterSweep_DrainsEntireBacklog(t *testing.T) {
 
 	const total = dequeueBatchSize*2 + 10
 	for i := int64(0); i < total; i++ {
-		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+		require.NoError(t, q.Enqueue(newTestEvent(i)))
 	}
 	items, err := q.fetch(total)
 	require.NoError(t, err)
@@ -880,7 +872,6 @@ func TestDeadLetterSweep_DrainsEntireBacklog(t *testing.T) {
 
 func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 
 	q, err := newSQLiteQueue(Config{
 		Path:          filepath.Join(t.TempDir(), queueDir),
@@ -892,7 +883,7 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 
 	// Enqueue one event, then move it to dead-letter directly so we can
 	// control its failed_at timestamp.
-	require.NoError(t, q.Enqueue(ctx, newTestEvent(99)))
+	require.NoError(t, q.Enqueue(newTestEvent(99)))
 	items, err := q.fetch(1)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
@@ -927,7 +918,7 @@ func TestItemsNotIn(t *testing.T) {
 	mk := func(ids ...int64) []Item {
 		items := make([]Item, len(ids))
 		for i, id := range ids {
-			items[i] = Item{ID: id}
+			items[i] = Item{id: id}
 		}
 		return items
 	}

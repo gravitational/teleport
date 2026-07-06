@@ -507,6 +507,17 @@ const (
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
 
+	// KindMobileDevice is used to gate access to the mobile device enrollment
+	// ceremony. It is not a stored resource, it exists only as the target of RBAC
+	// rules. The verb create_enroll_token permits a user to initiate enrollment
+	// of a mobile device.
+	KindMobileDevice = "mobile_device"
+
+	// KindEnrollPairing is the resource kind for a mobile device enrollment
+	// pairing: a short-lived ceremony that pairs a Web UI session with the
+	// Teleport Verify mobile app via a QR-code-encoded token.
+	KindEnrollPairing = "enroll_pairing"
+
 	// KindDownload represents Teleport binaries downloads.
 	KindDownload = "download"
 
@@ -695,12 +706,19 @@ const (
 	// KindInferencePolicy is the kind of teleport.summarizer.v1.InferencePolicy.
 	KindInferencePolicy = "inference_policy"
 
+	// KindClassifier is the kind of teleport.summarizer.v1.Classifier.
+	KindClassifier = "classifier"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
 
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
+
+	// MetaNameClientIPRestriction is the exact name of the singleton resource holding
+	// the cluster's client IP restriction allowlist.
+	MetaNameClientIPRestriction = "client-ip-restriction"
 
 	// MetaNameRetrievalModel is the name of the singleton resource holding
 	// the default retrieval model configuration.
@@ -732,6 +750,12 @@ const (
 
 	// KindBeam is an ephemeral AI-optimized compute environment.
 	KindBeam = "beam"
+
+	// KindBeamsConfig is the user-provided configuration for Beams.
+	KindBeamsConfig = "beams_config"
+
+	// MetaNameBeamsConfig is the exact name of the singleton resource holding Beams config.
+	MetaNameBeamsConfig = "beams-config"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -884,11 +908,9 @@ const (
 	AWSSSORegionLabel = TeleportNamespace + "/sso-region"
 	// SubscriptionIDLabelInternal is a hidden label (teleport.internal/) used
 	// to identify Azure VMs by subscription ID during auto-discovery.
-	// Preserved for backward compatibility; superseded by SubscriptionIDLabel.
 	SubscriptionIDLabelInternal = TeleportInternalLabelPrefix + "subscription-id"
 	// VMIDLabelInternal is a hidden label (teleport.internal/) used to identify
 	// Azure VMs by VM ID during auto-discovery.
-	// Preserved for backward compatibility; superseded by VMIDLabel.
 	VMIDLabelInternal = TeleportInternalLabelPrefix + "vm-id"
 	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
 	projectIDLabelSuffix = "project-id"
@@ -902,11 +924,9 @@ const (
 	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
 	// RegionLabelInternal is a hidden label (teleport.internal/) used to
 	// identify Azure VMs by region during auto-discovery.
-	// Preserved for backward compatibility; superseded by RegionLabel.
 	RegionLabelInternal = TeleportInternalLabelPrefix + "region"
 	// ResourceGroupLabelInternal is a hidden label (teleport.internal/) used
 	// to identify Azure VMs by resource group during auto-discovery.
-	// Preserved for backward compatibility; superseded by ResourceGroupLabel.
 	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
 	// AzureManagedIdentityRegionLabel is the label key for the Azure region for
 	// the managed identity created by the Azure discovery Terraform module.
@@ -1355,20 +1375,23 @@ const (
 	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
 	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
 
+	// BeamsInternalLabelPrefix is the prefix used by internal beams labels.
+	BeamsInternalLabelPrefix = TeleportInternalLabelPrefix + "beams/"
+
 	// BeamIDLabel is the label used to track which Beam a resource belongs to.
-	BeamIDLabel = TeleportInternalLabelPrefix + "beams/id"
+	BeamIDLabel = BeamsInternalLabelPrefix + "id"
 
 	// BeamOwnerLabel is the label used to track which user's Beam a resource
 	// belongs to.
-	BeamOwnerLabel = TeleportInternalLabelPrefix + "beams/owner"
+	BeamOwnerLabel = BeamsInternalLabelPrefix + "owner"
 
 	// BeamAliasLabel is the label used to track the alias of the Beam a
 	// resource belongs to.
-	BeamAliasLabel = TeleportInternalLabelPrefix + "beams/alias"
+	BeamAliasLabel = BeamsInternalLabelPrefix + "alias"
 
 	// BeamAppTypeLabel is the label used to denote the type of app created for
 	// Beams. Valid values: "ingress" and "llm".
-	BeamAppTypeLabel = TeleportInternalLabelPrefix + "beams/app-type"
+	BeamAppTypeLabel = BeamsInternalLabelPrefix + "app-type"
 )
 
 const (
@@ -1715,6 +1738,11 @@ const (
 	KubeVerbExec = "exec"
 	// KubeVerbPortForward is the Kubernetes verb for "pod/portforward".
 	KubeVerbPortForward = "portforward"
+	// KubeVerbProxy is the Kubernetes verb for the pods/proxy,
+	// services/proxy, and nodes/proxy subresources. These endpoints
+	// reach pod ports, service endpoints, or the kubelet API over HTTP
+	// (distinct from portforward, which tunnels raw TCP).
+	KubeVerbProxy = "proxy"
 )
 
 // The list below needs to be kept in sync with `kubernetesResourceVerbOptions`
@@ -1735,6 +1763,7 @@ var KubernetesVerbs = []string{
 	KubeVerbDeleteCollection,
 	KubeVerbExec,
 	KubeVerbPortForward,
+	KubeVerbProxy,
 }
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds

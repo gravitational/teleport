@@ -77,6 +77,9 @@ func NewAccessListReconciler(client kclient.Client, tClient *client.Client) (con
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
 		client,
 		accessListClient,
+		reconcilers.Config{
+			CheckFeatures: controllers.RequireEnterprise,
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

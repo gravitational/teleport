@@ -18,11 +18,12 @@
 
 import { EventEmitter } from 'events';
 
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 
 import { render } from 'design/utils/testing';
+import { Envelope } from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 import {
   MessageType,
@@ -33,9 +34,16 @@ import {
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 import { DesktopSessionWithSharing } from './DesktopSessionWithSharing';
+import { directorySharingMessage } from './useDesktopSession';
 
 // Disable WASM in tests.
 jest.mock('shared/libs/ironrdp/pkg/ironrdp');
+
+const NullLogger = {
+  warn(..._args: any[]) {},
+  info(..._args: any[]) {},
+  error(..._args: any[]) {},
+};
 
 // Matches codec.decodePngFrame.
 function encodePngFrame(): ArrayBuffer {
@@ -50,6 +58,59 @@ function encodePngFrame(): ArrayBuffer {
   return buffer;
 }
 
+// Matches codec.decodePngFrame.
+function encodePngFrameTDPB(): ArrayBuffer {
+  const msg = Envelope.toBinary(
+    Envelope.create({
+      payload: {
+        oneofKind: 'pngFrame',
+        pngFrame: {
+          coordinates: {
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+          },
+          data: new Uint8Array(),
+        },
+      },
+    })
+  );
+  const arraybuf = new Uint8Array(msg.length + 4);
+  const view = new DataView(arraybuf.buffer);
+  view.setUint32(0, msg.length);
+  arraybuf.set(msg, 4);
+  return arraybuf.buffer;
+}
+
+function encodeServerHello(canRemoveDirectory: boolean): ArrayBuffer {
+  const msg = Envelope.toBinary(
+    Envelope.create({
+      payload: {
+        oneofKind: 'serverHello',
+        serverHello: {
+          activationSpec: {
+            ioChannelId: 1,
+            userChannelId: 2,
+            screenHeight: 100,
+            screenWidth: 100,
+          },
+          clipboardEnabled: true,
+          directoryRemoveSupported: canRemoveDirectory,
+          multidirectorySharingSupported: true,
+          hidpiSupported: false,
+          sessions: [],
+        },
+      },
+    })
+  );
+  const arraybuf = new Uint8Array(msg.length + 4);
+  const view = new DataView(arraybuf.buffer);
+  view.setUint32(0, msg.length);
+  arraybuf.set(msg, 4);
+  return arraybuf.buffer;
+}
+
 const hasNoOtherSession = jest.fn().mockResolvedValue(false);
 const aclAttempt = makeSuccessAttempt({
   clipboardSharingEnabled: true,
@@ -61,6 +122,10 @@ const getMockTransport = () => {
     emitTransportError: () =>
       emitter.emit('error', new Error('Could not send bytes')),
     emitPngFrameMessage: () => emitter.emit('message', encodePngFrame()),
+    emitPngFrameTDPBMessage: () =>
+      emitter.emit('message', encodePngFrameTDPB()),
+    emitServerCapabilities: (opts: { canRemove: boolean }) =>
+      emitter.emit('message', encodeServerHello(opts.canRemove)),
     getTransport: async (abortSignal: AbortSignal): Promise<TdpTransport> => {
       abortSignal.onabort = () => {
         emitter.emit('complete');
@@ -103,7 +168,8 @@ test('reconnect button reinitializes the connection', async () => {
   const transport = getMockTransport();
   const tpdClient = new TdpClient(
     transport.getTransport,
-    selectDirectoryInBrowser
+    selectDirectoryInBrowser,
+    NullLogger
   );
   jest.spyOn(tpdClient, 'connect');
   jest.spyOn(tpdClient, 'shutdown');
@@ -145,11 +211,78 @@ test('reconnect button reinitializes the connection', async () => {
   expect(tpdClient.shutdown).toHaveBeenCalledTimes(2);
 });
 
+test('directory sharing menu', async () => {
+  const transport = getMockTransport();
+  const dirName = 'some directory';
+  const tpdClient = new TdpClient(
+    transport.getTransport,
+    async () => mockDirectoryAccess(dirName),
+    NullLogger,
+    { mode: 'tdpb' }
+  );
+  render(
+    <DesktopSessionWithSharing
+      client={tpdClient}
+      username="admin"
+      desktop="win-lab"
+      aclAttempt={aclAttempt}
+      hasAnotherSession={hasNoOtherSession}
+      browserSupportsSharing
+    />
+  );
+
+  // The session is initializing.
+  expect(await screen.findByTestId('indicator')).toBeInTheDocument();
+
+  // Successfully initialize the connection.
+  await act(() => transport.emitPngFrameTDPBMessage());
+  await act(() => transport.emitServerCapabilities({ canRemove: false }));
+
+  // The menu icon should also be visible
+  const shareButton = await screen.findByRole('button', {
+    name: directorySharingMessage({
+      allowedByAcl: true,
+      browserSupported: true,
+    }),
+  });
+  expect(shareButton).toBeVisible();
+
+  // Clicking the new menu icon should open a menu
+  await userEvent.click(shareButton);
+
+  // Share a couple directories via this menu
+  let shareMenu = await screen.findByTestId('shared-directory-menu');
+  await userEvent.click(
+    within(shareMenu).getByRole('button', { name: 'Share a directory' })
+  );
+  await userEvent.click(
+    within(shareMenu).getByRole('button', { name: 'Share a directory' })
+  );
+
+  // retrieve the directories
+  const directories = await getSharedDirectoryEntries(shareMenu);
+  expect(directories).toHaveLength(2);
+  expect(directories[0].name).toEqual(dirName);
+  expect(directories[1].name).toEqual(dirName);
+});
+
+async function getSharedDirectoryEntries(menu: HTMLElement) {
+  const list = within(menu).getByRole('list', { name: 'Shared directories' });
+  const entries = await within(list).findAllByRole('listitem');
+
+  return entries.map(elem => {
+    return {
+      name: elem.textContent,
+    };
+  });
+}
+
 test('ensure sharing remains enabled if the initial desktop connection attempt fails', async () => {
   const transport = getMockTransport();
   const tpdClient = new TdpClient(
     transport.getTransport,
-    selectDirectoryInBrowser
+    selectDirectoryInBrowser,
+    NullLogger
   );
   render(
     <DesktopSessionWithSharing
@@ -184,8 +317,13 @@ test('ensure sharing remains enabled if the initial desktop connection attempt f
 
 test('re-sharing directory is possible after a reconnect', async () => {
   const transport = getMockTransport();
+
   const mockFsSpy = jest.fn(async () => mockDirectoryAccess());
-  const tpdClient = new TdpClient(transport.getTransport, mockFsSpy);
+  const tpdClient = new TdpClient(
+    transport.getTransport,
+    mockFsSpy,
+    NullLogger
+  );
   render(
     <DesktopSessionWithSharing
       client={tpdClient}
@@ -228,9 +366,9 @@ async function testSharingDirectory() {
   await userEvent.click(await screen.findByText('Share Directory'));
 }
 
-function mockDirectoryAccess(): SharedDirectoryAccess {
+function mockDirectoryAccess(name: string = ''): SharedDirectoryAccess {
   return {
-    getDirectoryName: () => '',
+    getDirectoryName: () => name,
     create: () => undefined,
     read: () => undefined,
     stat: () => undefined,

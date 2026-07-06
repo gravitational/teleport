@@ -204,6 +204,62 @@ func (s *UnimplementedService) ListInferencePolicies(
 	return nil, requireEnterprise()
 }
 
+// CRUD operations for classifiers
+
+// CreateClassifier is supposed to create a new classifier, but returns an
+// error indicating that this feature is only available in the enterprise
+// version of Teleport.
+func (s *UnimplementedService) CreateClassifier(
+	ctx context.Context, req *summarizerv1pb.CreateClassifierRequest,
+) (*summarizerv1pb.CreateClassifierResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// GetClassifier is supposed to retrieve a classifier by name, but returns an
+// error indicating that this feature is only available in the enterprise
+// version of Teleport.
+func (s *UnimplementedService) GetClassifier(
+	ctx context.Context, req *summarizerv1pb.GetClassifierRequest,
+) (*summarizerv1pb.GetClassifierResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// UpdateClassifier is supposed to update an existing classifier, but returns
+// an error indicating that this feature is only available in the enterprise
+// version of Teleport.
+func (s *UnimplementedService) UpdateClassifier(
+	ctx context.Context, req *summarizerv1pb.UpdateClassifierRequest,
+) (*summarizerv1pb.UpdateClassifierResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// UpsertClassifier is supposed to create or update a classifier, but returns
+// an error indicating that this feature is only available in the enterprise
+// version of Teleport.
+func (s *UnimplementedService) UpsertClassifier(
+	ctx context.Context, req *summarizerv1pb.UpsertClassifierRequest,
+) (*summarizerv1pb.UpsertClassifierResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// DeleteClassifier is supposed to delete a classifier by name, but returns an
+// error indicating that this feature is only available in the enterprise
+// version of Teleport.
+func (s *UnimplementedService) DeleteClassifier(
+	ctx context.Context, req *summarizerv1pb.DeleteClassifierRequest,
+) (*summarizerv1pb.DeleteClassifierResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// ListClassifiers is supposed to list classifiers with pagination support,
+// but returns an error indicating that this feature is only available in the
+// enterprise version of Teleport.
+func (s *UnimplementedService) ListClassifiers(
+	ctx context.Context, req *summarizerv1pb.ListClassifiersRequest,
+) (*summarizerv1pb.ListClassifiersResponse, error) {
+	return nil, requireEnterprise()
+}
+
 // IsEnabled is supposed to tell if the summarizer is enabled by the license
 // and configured, but it always returns false. In contrast to other methods
 // here, it doesn't return an error, since not having an enterprise license is
@@ -211,7 +267,7 @@ func (s *UnimplementedService) ListInferencePolicies(
 func (s *UnimplementedService) IsEnabled(
 	ctx context.Context, req *summarizerv1pb.IsEnabledRequest,
 ) (*summarizerv1pb.IsEnabledResponse, error) {
-	return &summarizerv1pb.IsEnabledResponse{Enabled: false}, nil
+	return summarizerv1pb.IsEnabledResponse_builder{Enabled: false}.Build(), nil
 }
 
 func requireEnterprise() error {

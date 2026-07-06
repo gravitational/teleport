@@ -23,7 +23,7 @@ import styled, { useTheme } from 'styled-components';
 import { breakpointsPx, Flex, Image, TopNav } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 
-import { logos } from 'teleport/components/LogoHero/LogoHero';
+import { logoSrc } from 'teleport/components/LogoHero/LogoHero';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
@@ -94,7 +94,7 @@ const TeleportLogo = ({
   CustomLogo?: () => React.ReactElement;
 }) => {
   const theme = useTheme();
-  const src = logos[cfg.edition][theme.type];
+  const src = logoSrc(theme.type);
 
   return (
     <HoverTooltip placement="bottom" tipContent="Teleport Resources Home">

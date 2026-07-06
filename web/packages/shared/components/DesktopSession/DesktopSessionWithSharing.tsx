@@ -59,14 +59,21 @@ export function DesktopSessionWithSharing(
           onDisconnect={controls.onDisconnect}
           userHost={`${props.username} on ${props.desktop}`}
           canShareDirectory={controls.canShareDirectory}
-          isSharingDirectory={controls.isSharingDirectory}
           isSharingClipboard={controls.isSharingClipboard}
           clipboardSharingMessage={controls.clipboardSharingMessage}
-          onShareDirectory={controls.onShareDirectory}
           onCtrlAltDel={controls.onCtrlAltDel}
           alerts={controls.alerts}
           onRemoveAlert={controls.onRemoveAlert}
           latency={controls.latencyStats}
+          hiDpiEnabled={controls.hiDpiEnabled}
+          onToggleHiDpi={controls.onToggleHiDpi}
+          screenIsHiDpi={controls.screenIsHiDpi}
+          hiDpiSupported={controls.hiDpiSupported}
+          sharedDirectories={controls.sharedDirectories}
+          onAddSharedDirectory={controls.onAddSharedDirectory}
+          maxSharedDirectories={controls.maxSharedDirectories}
+          directorySharingMessage={controls.directorySharingMessage}
+          multidirectorySharingSupported={controls.canShareMultipleDirectories}
         />
       )}
     />

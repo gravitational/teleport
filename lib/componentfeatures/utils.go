@@ -21,6 +21,9 @@ package componentfeatures
 import (
 	"context"
 	"log/slog"
+	"slices"
+
+	"github.com/coreos/go-semver/semver"
 
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -172,7 +175,7 @@ func GetClusterAuthProxyServerFeatures(ctx context.Context, clt AuthProxyServers
 		features = append(features, nil)
 	} else {
 		for _, srv := range allProxies {
-			features = append(features, srv.GetComponentFeatures())
+			features = append(features, GetEffectiveServerFeatures(srv))
 		}
 	}
 
@@ -189,9 +192,53 @@ func GetClusterAuthProxyServerFeatures(ctx context.Context, clt AuthProxyServers
 		features = append(features, nil)
 	} else {
 		for _, srv := range allAuthServers {
-			features = append(features, srv.GetComponentFeatures())
+			features = append(features, GetEffectiveServerFeatures(srv))
 		}
 	}
 
 	return Intersect(features...)
+}
+
+// versionedComponent is implemented by any server type that advertises a
+// version and a set of component features.
+//
+// TODO(kiosion): DELETE in 20.0.0
+type versionedComponent interface {
+	GetTeleportVersion() string
+	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
+}
+
+// GetEffectiveServerFeatures computes a server's effective feature support.
+//
+// "Agentless" resources with no backing agent process to heartbeat
+// ComponentFeatures to presence have features computed from their type
+// instead of read from their spec field:
+//   - AppServer with integration set (served directly by Proxy, not an
+//     app agent; see lib/web/app/transport.go).
+//
+// Agent-backed resources use the field from spec set by presence heartbeat,
+// with version-gating applied to strip premature advertisements from servers <18.7.6.
+//
+// TODO(kiosion): DELETE version-gating logic in 20.0.0
+func GetEffectiveServerFeatures(component versionedComponent) *componentfeaturesv1.ComponentFeatures {
+	// Agentless app servers: no heartbeat, compute from app type.
+	if appServer, ok := component.(types.AppServer); ok && appServer.GetApp().GetIntegration() != "" {
+		return ForAppServer(appServer)
+	}
+	// Agent-backed: read stored field with version-gating.
+	f := component.GetComponentFeatures()
+	if f == nil {
+		return f
+	}
+	ver, err := semver.NewVersion(component.GetTeleportVersion())
+	if err != nil {
+		return f
+	}
+	if ver.LessThan(semver.Version{Major: 18, Minor: 7, Patch: 6}) {
+		features := slices.DeleteFunc(slices.Clone(f.GetFeatures()), func(id componentfeaturesv1.ComponentFeatureID) bool {
+			return id == FeatureResourceConstraintsV1.ToProto()
+		})
+		return &componentfeaturesv1.ComponentFeatures{Features: features}
+	}
+	return f
 }

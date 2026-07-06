@@ -45,13 +45,13 @@ import (
 func ApplyDatabaseObjectImportRules(ctx context.Context, logger *slog.Logger, rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database, objs []*dbobjectv1.DatabaseObject) ([]*dbobjectv1.DatabaseObject, int) {
 	// sort: rules with higher priorities are applied last.
 	sort.Slice(rules, func(i, j int) bool {
-		return rules[i].Spec.Priority < rules[j].Spec.Priority
+		return rules[i].GetSpec().GetPriority() < rules[j].GetSpec().GetPriority()
 	})
 
 	// get mappings from rules matching database labels
 	var mappings []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping
 	for _, rule := range filterRulesForDatabase(rules, database) {
-		mappings = append(mappings, rule.Spec.Mappings...)
+		mappings = append(mappings, rule.GetSpec().GetMappings()...)
 	}
 
 	var objects []*dbobjectv1.DatabaseObject
@@ -65,15 +65,15 @@ func ApplyDatabaseObjectImportRules(ctx context.Context, logger *slog.Logger, ru
 	for _, obj := range objs {
 		// prepare object clone
 		objClone := utils.CloneProtoMsg(obj)
-		if objClone.Metadata.Labels == nil {
-			objClone.Metadata.Labels = map[string]string{}
+		if objClone.GetMetadata().GetLabels() == nil {
+			objClone.GetMetadata().SetLabels(map[string]string{})
 		}
 
 		// apply each mapping in order.
 		matched := false
 		hadError := false
 		for _, mapping := range mappings {
-			match, err := applyMappingToObject(mapping, objClone.GetSpec(), objClone.Metadata.Labels)
+			match, err := applyMappingToObject(mapping, objClone.GetSpec(), objClone.GetMetadata().GetLabels())
 			if err != nil {
 				logger.DebugContext(ctx, "failed to apply label due to template error", "name", obj.GetMetadata().GetName(), "error", err)
 				errCount++
@@ -101,7 +101,7 @@ func CalculateDatabaseNameFilter(rules []*dbobjectimportrulev1.DatabaseObjectImp
 	var patterns []string
 	for _, rule := range filterRulesForDatabase(rules, database) {
 		spec := rule.GetSpec()
-		for _, mapping := range spec.Mappings {
+		for _, mapping := range spec.GetMappings() {
 			names := mapping.GetScope().GetDatabaseNames()
 			// empty list of database names means "any database name".
 			if len(names) == 0 {
@@ -122,7 +122,7 @@ func filterRulesForDatabase(rules []*dbobjectimportrulev1.DatabaseObjectImportRu
 	var out []*dbobjectimportrulev1.DatabaseObjectImportRule
 	for _, rule := range rules {
 		dbLabels := make(types.Labels)
-		mapLabel := label.ToMap(rule.Spec.GetDatabaseLabels())
+		mapLabel := label.ToMap(rule.GetSpec().GetDatabaseLabels())
 		for k, v := range mapLabel {
 			dbLabels[k] = v
 		}
@@ -257,7 +257,7 @@ func applyMappingToObject(mapping *dbobjectimportrulev1.DatabaseObjectImportRule
 		return false, nil
 	}
 
-	for key, value := range mapping.AddLabels {
+	for key, value := range mapping.GetAddLabels() {
 		out, err := evalTemplate(value, spec)
 		if err != nil {
 			return false, trace.Wrap(err)

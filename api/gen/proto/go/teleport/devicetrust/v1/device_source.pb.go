@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/device_source.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -87,15 +88,10 @@ func (x DeviceOrigin) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use DeviceOrigin.Descriptor instead.
-func (DeviceOrigin) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_source_proto_rawDescGZIP(), []int{0}
-}
-
 // Source of device, for devices that are managed by external systems
 // (for example, MDMs).
 type DeviceSource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name of the source.
 	// Matches the name of the corresponding MDM service, if applicable.
 	// Readonly.
@@ -132,11 +128,6 @@ func (x *DeviceSource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeviceSource.ProtoReflect.Descriptor instead.
-func (*DeviceSource) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_source_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DeviceSource) GetName() string {
 	if x != nil {
 		return x.Name
@@ -149,6 +140,35 @@ func (x *DeviceSource) GetOrigin() DeviceOrigin {
 		return x.Origin
 	}
 	return DeviceOrigin_DEVICE_ORIGIN_UNSPECIFIED
+}
+
+func (x *DeviceSource) SetName(v string) {
+	x.Name = v
+}
+
+func (x *DeviceSource) SetOrigin(v DeviceOrigin) {
+	x.Origin = v
+}
+
+type DeviceSource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name of the source.
+	// Matches the name of the corresponding MDM service, if applicable.
+	// Readonly.
+	Name string
+	// Origin of the source.
+	// Readonly.
+	Origin DeviceOrigin
+}
+
+func (b0 DeviceSource_builder) Build() *DeviceSource {
+	m0 := &DeviceSource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Origin = b.Origin
+	return m0
 }
 
 var File_teleport_devicetrust_v1_device_source_proto protoreflect.FileDescriptor
@@ -164,18 +184,6 @@ const file_teleport_devicetrust_v1_device_source_proto_rawDesc = "" +
 	"\x11DEVICE_ORIGIN_API\x10\x01\x12\x16\n" +
 	"\x12DEVICE_ORIGIN_JAMF\x10\x02\x12\x18\n" +
 	"\x14DEVICE_ORIGIN_INTUNE\x10\x03BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_device_source_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_device_source_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_device_source_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_device_source_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_device_source_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_device_source_proto_rawDesc), len(file_teleport_devicetrust_v1_device_source_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_device_source_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_device_source_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_devicetrust_v1_device_source_proto_msgTypes = make([]protoimpl.MessageInfo, 1)

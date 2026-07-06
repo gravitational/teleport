@@ -382,6 +382,8 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 		err = summarizer.SummarizeSSH(ctx, o)
 	case *apievents.DatabaseSessionEnd:
 		err = summarizer.SummarizeDatabase(ctx, o)
+	case *apievents.WindowsDesktopSessionEnd:
+		err = summarizer.SummarizeWindowsDesktop(ctx, o)
 	}
 	if err != nil {
 		slog.WarnContext(ctx, "Failed to summarize upload", "error", err)

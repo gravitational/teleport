@@ -30,7 +30,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"strings"
 	"time"
 
 	"github.com/google/go-attestation/attest"
@@ -181,7 +180,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		displayName = displayName[:maxUsernameLen]
 	}
 
-	return &devicepb.DeviceCollectedData{
+	return devicepb.DeviceCollectedData_builder{
 		CollectTime:           timestamppb.Now(),
 		OsType:                devicepb.OSType_OS_TYPE_LINUX,
 		SerialNumber:          firstValidAssetTag(reportedAssetTag, systemSerialNumber, baseBoardSerialNumber),
@@ -194,7 +193,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		ReportedAssetTag:      reportedAssetTag,
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,
-	}, nil
+	}.Build(), nil
 }
 
 func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
@@ -228,7 +227,7 @@ func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
 		fallthrough
 
 	case CollectedDataAlwaysEscalate:
-		logger.DebugContext(ctx, "Running escalated `tsh device dmi-info`")
+		logger.DebugContext(ctx, "Running escalated `tsh device dmi-read`")
 
 		dmiInfo, err = cddFuncs.readDMIInfoEscalated()
 		if err != nil {
@@ -303,17 +302,23 @@ func readDMIInfoEscalated() (*linux.DMIInfo, error) {
 		return nil, trace.Wrap(err, "running `sudo tsh device dmi-read`")
 	}
 
-	// Strip any leading output before the first `{`, just in case.
-	val := dmiOut.String()
-	if n := strings.Index(val, "{"); n > 0 {
-		val = val[n-1:]
-	}
-
-	var dmiInfo linux.DMIInfo
-	if err := json.Unmarshal([]byte(val), &dmiInfo); err != nil {
+	dmiInfo, err := parseDMIReadOutput(dmiOut.Bytes())
+	if err != nil {
 		return nil, trace.Wrap(err, "parsing dmi-read output")
 	}
 
+	return dmiInfo, nil
+}
+
+func parseDMIReadOutput(text []byte) (*linux.DMIInfo, error) {
+	if i := bytes.IndexByte(text, '{'); i > 0 {
+		text = text[i:]
+	}
+
+	var dmiInfo linux.DMIInfo
+	if err := json.NewDecoder(bytes.NewReader(text)).Decode(&dmiInfo); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &dmiInfo, nil
 }
 

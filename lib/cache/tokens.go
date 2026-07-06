@@ -67,7 +67,7 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
 func (c *Cache) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
-	_, span := c.Tracer.Start(ctx, "cache/GetStaticTokens")
+	ctx, span := c.Tracer.Start(ctx, "cache/GetStaticTokens")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.staticTokens)

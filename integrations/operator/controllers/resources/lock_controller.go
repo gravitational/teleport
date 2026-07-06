@@ -75,6 +75,7 @@ func NewLockV2Reconciler(client kclient.Client, tClient *client.Client) (control
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.Lock, *resourcesv1.TeleportLockV2](
 		client,
 		lockClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

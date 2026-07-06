@@ -20,10 +20,19 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/usertasks"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/srv/server"
 )
+
+func classifyAzureInstallResultIssue(installResult server.AzureInstallResult) string {
+	if installResult.CommandResult != nil {
+		return usertasks.AutoDiscoverAzureVMIssueEnrollmentError
+	}
+	return classifyAzureVMEnrollmentError(installResult.APIError)
+}
 
 // classifyAzureVMEnrollmentError classifies Azure API errors into user-facing
 // messages for VM auto-discovery. This is best-effort based on error strings
@@ -35,26 +44,18 @@ func classifyAzureVMEnrollmentError(err error) string {
 	if err == nil {
 		return ""
 	}
+	switch {
+	case errors.Is(err, &azure.VMNotRunningError{}):
+		return usertasks.AutoDiscoverAzureVMIssueVMNotRunning
 
-	errMsg := err.Error()
+	case errors.Is(err, &azure.VMAgentNotAvailableError{}):
+		return usertasks.AutoDiscoverAzureVMIssueVMAgentNotAvailable
 
-	var respErr *azcore.ResponseError
-	if errors.As(err, &respErr) {
-		switch {
-		case respErr.StatusCode == 403 && respErr.ErrorCode == "AuthorizationFailed":
-			if strings.Contains(errMsg, "runCommands") {
-				return usertasks.AutoDiscoverAzureVMIssueMissingRunCommandsPermission
-			}
-		case respErr.StatusCode == 409 && respErr.ErrorCode == "OperationNotAllowed":
-			if strings.Contains(errMsg, "VM is not running") {
-				return usertasks.AutoDiscoverAzureVMIssueVMNotRunning
-			}
-			if strings.Contains(errMsg, "extension operations are disallowed") {
-				return usertasks.AutoDiscoverAzureVMIssueVMAgentNotAvailable
-			}
-		}
+	case trace.IsAccessDenied(err) && strings.Contains(err.Error(), "runCommands"):
+		return usertasks.AutoDiscoverAzureVMIssueMissingRunCommandsPermission
+
+	default:
+		// generic error
+		return usertasks.AutoDiscoverAzureVMIssueEnrollmentError
 	}
-
-	// generic error
-	return usertasks.AutoDiscoverAzureVMIssueEnrollmentError
 }

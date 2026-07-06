@@ -58,15 +58,15 @@ func TestLinuxDesktop(t *testing.T) {
 }
 
 func newLinuxDesktopResource(name string) *linuxdesktopv1.LinuxDesktop {
-	return &linuxdesktopv1.LinuxDesktop{
+	return linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "127.0.0.1:22",
 			Hostname: "host",
-		},
-	}
+		}.Build(),
+	}.Build()
 }

@@ -176,6 +176,8 @@ func (s *SubCAService) ListCertAuthorityOverrides(
 // DeleteCertAuthorityOverride unconditionally deletes a CA override from the
 // backend.
 // Returns a trace.NotFoundError if the resource cannot be found.
+//
+// Prefer [SubCAService.ConditionalDeleteCertAuthorityOverride].
 func (s *SubCAService) DeleteCertAuthorityOverride(
 	ctx context.Context,
 	id CertAuthorityOverrideID,
@@ -190,6 +192,27 @@ func (s *SubCAService) DeleteCertAuthorityOverride(
 	name := id.FullName()
 
 	return trace.Wrap(service.DeleteResource(ctx, name))
+}
+
+// ConditionalDeleteCertAuthorityOverride conditionally deletes a CA override
+// based on its revision.
+// Returns a trace.CompareFailedError if the item is not found or the revision
+// is incorrect.
+func (s *SubCAService) ConditionalDeleteCertAuthorityOverride(
+	ctx context.Context,
+	id CertAuthorityOverrideID,
+	revision string,
+) error {
+	service, err := s.serviceForClusterAndType(id.ClusterName, id.CAType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Name has no effect on the delete, it's only used for errors.
+	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
+	name := id.FullName()
+
+	return trace.Wrap(service.ConditionalDeleteResource(ctx, name, revision))
 }
 
 func (s *SubCAService) serviceForResource(
@@ -241,14 +264,14 @@ func (p *certAuthorityOverrideParser) parse(event backend.Event) (types.Resource
 		name := parts[0]
 		subKind := parts[1]
 
-		return types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{
+		return types.Resource153ToLegacy(subcav1.CertAuthorityOverride_builder{
 			Kind:    types.KindCertAuthorityOverride,
 			Version: types.V1,
 			SubKind: subKind,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-		}), nil
+			}.Build(),
+		}.Build()), nil
 	case types.OpPut:
 		r, err := services.UnmarshalCertAuthorityOverride(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -278,13 +301,13 @@ func itemFromCertAuthorityOverride(resource *subcav1.CertAuthorityOverride) (*ba
 	}
 
 	key := newCAOverridesPrefix().AppendKey(backend.NewKey(
-		resource.Metadata.Name,
-		resource.SubKind,
+		resource.GetMetadata().GetName(),
+		resource.GetSubKind(),
 	))
 	return &backend.Item{
 		Key:      key,
 		Value:    value,
 		Expires:  expires,
-		Revision: resource.Metadata.Revision,
+		Revision: resource.GetMetadata().GetRevision(),
 	}, nil
 }

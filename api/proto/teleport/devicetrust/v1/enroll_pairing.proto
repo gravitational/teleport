@@ -1,0 +1,106 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.devicetrust.v1;
+
+import "teleport/devicetrust/v1/os_type.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
+
+// EnrollPairing is a short-lived, single-use ceremony that pairs a Web UI
+// session with a Teleport Verify mobile app, mediated by a token encoded in a
+// QR code.
+//
+// One pairing is active per user at a time, with a 5-minute TTL. Pairings are
+// deleted on TTL expiration or successful enrollment. The pairing's
+// metadata.name is the owning user's name.
+//
+// See the "Managing EnrollPairing" section of RFD 32e for more details.
+message EnrollPairing {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  EnrollPairingSpec spec = 5;
+  EnrollPairingStatus status = 6;
+}
+
+// EnrollPairingSpec is the owner-defined section of an EnrollPairing. It is
+// currently empty - every property of an EnrollPairing is server-driven.
+message EnrollPairingSpec {}
+
+// EnrollPairingStatus holds the runtime state of an EnrollPairing.
+message EnrollPairingStatus {
+  // Current state of the pairing.
+  EnrollPairingState state = 1;
+
+  // Pairing token to be encoded into a QR code by the Web UI.
+  string token = 2;
+
+  // Identifying data about the device, submitted by the mobile app with
+  // CreatePairedDeviceEnrollToken and persisted on the transition to
+  // ENROLL_PAIRING_STATE_AWAITING_APPROVAL. The Web UI uses it to show the user
+  // which device is being enrolled before they approve. os_type and
+  // serial_number also gate retries of CreatePairedDeviceEnrollToken so that
+  // only the original device can retry the request.
+  EnrollPairingDevice device = 3;
+}
+
+// EnrollPairingState is the state of an EnrollPairing.
+//
+// The full state machine is:
+//
+//   ENROLL_PAIRING_STATE_AWAITING_DEVICE ->
+//   ENROLL_PAIRING_STATE_AWAITING_APPROVAL ->
+//   ENROLL_PAIRING_STATE_APPROVED
+//
+// ENROLL_PAIRING_STATE_AWAITING_DEVICE is set by CreateEnrollPairing.
+// Transitions to ENROLL_PAIRING_STATE_AWAITING_APPROVAL and
+// ENROLL_PAIRING_STATE_APPROVED are driven by the mobile app and by user
+// approval respectively.
+enum EnrollPairingState {
+  ENROLL_PAIRING_STATE_UNSPECIFIED = 0;
+
+  // Set when the Web UI creates the pairing. The pairing is waiting for the
+  // mobile app to read the token and call the public Device Trust service.
+  ENROLL_PAIRING_STATE_AWAITING_DEVICE = 1;
+
+  // Set when the mobile app has presented the token to the public Device
+  // Trust service. The pairing is waiting for the Web UI user to approve the
+  // request with MFA.
+  ENROLL_PAIRING_STATE_AWAITING_APPROVAL = 2;
+
+  // Set after the Web UI user has approved the request with MFA. The mobile
+  // app may now retrieve the enrollment token.
+  ENROLL_PAIRING_STATE_APPROVED = 3;
+}
+
+// EnrollPairingDevice is a client-submitted description of the device. It is
+// presented to the user in the Web UI before they approve enroll pairing.
+// os_type and serial_number are also used to gate retries of
+// CreatePairedDeviceEnrollToken.
+message EnrollPairingDevice {
+  // Device operating system.
+  OSType os_type = 1;
+
+  // Device serial number.
+  string serial_number = 2;
+
+  // OS version number, without the leading 'v'.
+  // Example: "13.2.1".
+  string os_version = 3;
+}

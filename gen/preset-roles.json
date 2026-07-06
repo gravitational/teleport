@@ -651,6 +651,14 @@
           },
           {
             "resources": [
+              "mobile_device"
+            ],
+            "verbs": [
+              "create_enroll_token"
+            ]
+          },
+          {
+            "resources": [
               "db_service"
             ],
             "verbs": [
@@ -1179,6 +1187,18 @@
           },
           {
             "resources": [
+              "classifier"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
               "retrieval_model"
             ],
             "verbs": [
@@ -1264,6 +1284,18 @@
           {
             "resources": [
               "recording_encryption"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "beams_config"
             ],
             "verbs": [
               "list",

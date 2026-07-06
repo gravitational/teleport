@@ -43,17 +43,16 @@ use ironrdp_pdu::input::fast_path::{
     FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
 };
 use ironrdp_pdu::input::mouse::PointerFlags;
-use ironrdp_pdu::input::{InputEventError, MousePdu};
+use ironrdp_pdu::input::MousePdu;
 use ironrdp_pdu::nego::NegoRequestData;
 use ironrdp_pdu::rdp::capability_sets::{
     client_codecs_capabilities, BitmapCodecs, MajorPlatformType,
 };
 use ironrdp_pdu::rdp::client_info::{PerformanceFlags, TimezoneInfo};
-use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduError;
 use ironrdp_pdu::PduResult;
 use ironrdp_pdu::{encode_err, pdu_other_err};
-use ironrdp_rdpdr::pdu::efs::{ClientDeviceListAnnounce, ClientDeviceListRemove};
+use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
@@ -90,7 +89,7 @@ const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 /// by the server. Until it does so, we withhold the latest screen
 /// resize, and only send it once we're notified that the DVC is open.
 struct PendingResize {
-    pending_resize: Option<(u32, u32)>,
+    pending_resize: Option<(u32, u32, u32)>,
 }
 
 /// The RDP client on the Rust side of things. Each `Client`
@@ -188,7 +187,11 @@ impl Client {
         }
 
         let pending_resize = Arc::new(Mutex::new(PendingResize {
-            pending_resize: None,
+            pending_resize: Some((
+                params.screen_width as u32,
+                params.screen_height as u32,
+                params.screen_scale as u32,
+            )),
         }));
 
         let pending_resize_clone = pending_resize.clone();
@@ -230,15 +233,19 @@ impl Client {
             .map_err(ClientError::UrlError)?
             .map(|kdc_url| KerberosConfig {
                 kdc_proxy_url: Some(kdc_url),
-                hostname: params.computer_name.clone(),
+                hostname: params
+                    .computer_name
+                    .as_deref()
+                    .unwrap_or("missing.computer.name")
+                    .to_string(),
             });
         let connection_result = ironrdp_tokio::connect_finalize(
             upgraded,
-            &mut rdp_stream,
             connector,
+            &mut rdp_stream,
+            &mut network_client,
             params.computer_name.unwrap_or(server_addr).into(),
             server_public_key,
-            Some(&mut network_client),
             kerberos_config,
         )
         .await?;
@@ -262,6 +269,7 @@ impl Client {
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
+            connection_result.share_id,
             connection_result.connection_activation,
         )));
 
@@ -393,7 +401,7 @@ impl Client {
                                         user_channel_id,
                                         desktop_size,
                                         ..
-                                    } = sequence.state
+                                    } = sequence.connection_activation_state()
                                     {
                                         // Upon completing the activation sequence, register the io/user channels
                                         // and desktop size with the client, just like we do upon receiving the
@@ -408,6 +416,20 @@ impl Client {
                                         break;
                                     }
                                 }
+                            }
+                            ProcessorOutput::AutoDetect(req) => {
+                                // These are allegedly handled automatically internally,
+                                // so we'll just log them in case they're useful for debugging.
+                                debug!("received autodetect request: {:?}", req);
+                            }
+                            ProcessorOutput::MultitransportRequest(_) => {
+                                error!("Received unsupported multi-transport request")
+                            }
+                            ProcessorOutput::PointerUpdate(_) => {
+                                error!("Received unsupported slow-path pointer update")
+                            }
+                            ProcessorOutput::GraphicsUpdate(_) => {
+                                error!("Received unsupported slow-path graphics update")
                             }
                         }
                     }
@@ -440,10 +462,11 @@ impl Client {
                 ClientFunction::WriteRdpdr(args) => {
                     Client::write_rdpdr(&mut write_stream, x224_processor.clone(), args).await?;
                 }
-                ClientFunction::WriteScreenResize(width, height) => {
+                ClientFunction::WriteScreenResize(width, height, scale) => {
                     Client::handle_screen_resize(
                         width,
                         height,
+                        scale,
                         x224_processor.clone(),
                         &mut write_stream,
                         pending_resize.clone(),
@@ -508,11 +531,11 @@ impl Client {
         let mut pending_resize =
             Self::resize_manager_lock(pending_resize).map_err(ClientError::from)?;
         let pending_resize = pending_resize.pending_resize.take();
-        if let Some((initial_width, initial_height)) = pending_resize {
+        if let Some((initial_width, initial_height, scale)) = pending_resize {
             // If there was a resize pending, perform it now.
             debug!(
-                "Pending resize for size [{:?}x{:?}] found, sending now",
-                initial_width, initial_height
+                "Pending resize for size [{:?}x{:?}] scale [{:?}] found, sending now",
+                initial_width, initial_height, scale
             );
             let (width, height) =
                 MonitorLayoutEntry::adjust_display_size(initial_width, initial_height);
@@ -522,7 +545,7 @@ impl Client {
             let pdu: DisplayControlPdu = DisplayControlMonitorLayout::new_single_primary_monitor(
                 width,
                 height,
-                None,
+                rdp_scale_factor(scale),
                 Some((width, height)),
             )
             .map_err(|e| encode_err!(e))?
@@ -582,7 +605,7 @@ impl Client {
         let messages: ClientResult<CliprdrSvcMessages<ironrdp_cliprdr::Client>> =
             task::spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&processor)?;
-                let cliprdr = Self::get_svc_processor::<CliprdrClient>(&mut x224_processor)?;
+                let cliprdr = Self::get_svc_processor_mut::<CliprdrClient>(&mut x224_processor)?;
                 Ok(fun.call(cliprdr)?)
             })
             .await?;
@@ -687,6 +710,27 @@ impl Client {
         Ok(())
     }
 
+    async fn write_rdpdr_pdus(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        pdus: Vec<RdpdrPdu>,
+    ) -> ClientResult<()> {
+        debug!("sending rdp: {:?}", pdus);
+
+        let svc_messages: Vec<SvcMessage> = pdus.into_iter().map(SvcMessage::from).collect();
+
+        // Process the RDPDR PDU.
+        let encoded = Client::x224_process_svc_messages(
+            x224_processor,
+            SvcProcessorMessages::<Rdpdr>::new(svc_messages),
+        )
+        .await?;
+
+        // Write the RDPDR PDU to the RDP server.
+        write_stream.write_all(&encoded).await?;
+        Ok(())
+    }
+
     async fn write_rdpdr(
         write_stream: &mut RdpWriteStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
@@ -708,6 +752,7 @@ impl Client {
     async fn handle_screen_resize(
         width: u32,
         height: u32,
+        scale: u32,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_stream: &mut RdpWriteStream,
         pending_resize: Arc<Mutex<PendingResize>>,
@@ -716,44 +761,35 @@ impl Client {
         let init_width = width;
         let init_height = height;
         debug!(
-            "Received screen resize [{:?}x{:?}]",
-            init_width, init_height
+            "Received screen resize [{:?}x{:?}] scale [{:?}]",
+            init_width, init_height, scale
         );
         let (width, height) = MonitorLayoutEntry::adjust_display_size(init_width, init_height);
         if width != init_width || height != init_height {
             debug!("Adjusted screen resize to [{:?}x{:?}]", width, height);
         }
 
-        // Determine whether to withhold the resize or perform it immediately.
-        let action = {
-            let x224_processor = Self::x224_lock(&x224_processor)?;
-            let dvc = x224_processor.get_dvc::<DisplayControlClient>().ok_or(
-                ClientError::InternalError("DisplayControlClient not found".to_string()),
-            )?;
+        // Our DisplayControlClient is lazily initialized and added as a svc_processor
+        // once the dynamic channel for display control is opened and server capabilities are
+        // received. Failure to acquire the DVC is normal until this point in the connection setup.
+        // Ensure that the DVC is both accessible and open.
+        let dvc_is_ready = {
+            Self::x224_lock(&x224_processor)?
+                .get_dvc::<DisplayControlClient>()
+                .is_some_and(|dvc| dvc.is_open())
+        };
 
-            if dvc.is_open() {
-                // Resize channel is open, perform the resize immediately.
-                Some((width, height))
-            } else {
-                // The client requested a resize but the DisplayControl channel has not been opened yet.
-                // Sending the resize now would cause an RDP error and end the session; instead we withhold
-                // it until the DisplayControl channel is ready.
-                debug!("DisplayControl channel not ready, withholding resize");
-                let mut pending_resize = Self::resize_manager_lock(&pending_resize)?;
-                pending_resize.pending_resize = Some((width, height));
-                None // No immediate action required.
-            }
-        }; // Drop the x224 lock here to avoid holding it over the await below.
-
-        if let Some((width, height)) = action {
-            return Client::write_screen_resize(
-                write_stream,
-                x224_processor.clone(),
-                width,
-                height,
-            )
-            .await;
+        if dvc_is_ready {
+            return Client::write_screen_resize(write_stream, x224_processor, width, height, scale)
+                .await;
         }
+
+        // The client requested a resize but the DisplayControl channel has not been opened yet.
+        // Sending the resize now would cause an RDP error and end the session; instead we withhold
+        // it until the DisplayControl channel is ready.
+        debug!("DisplayControl channel not ready, withholding resize");
+        let mut pending_resize = Self::resize_manager_lock(&pending_resize)?;
+        pending_resize.pending_resize = Some((width, height, scale));
 
         Ok(())
     }
@@ -764,8 +800,10 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         width: u32,
         height: u32,
+        scale: u32,
     ) -> ClientResult<()> {
         let cloned = x224_processor.clone();
+        let scale_factor = rdp_scale_factor(scale);
         let messages = task::spawn_blocking(move || {
             let x224_processor = Self::x224_lock(&cloned)?;
             let dvc = Self::get_dvc::<DisplayControlClient>(&x224_processor)?;
@@ -782,7 +820,7 @@ impl Client {
                 channel_id,
                 width,
                 height,
-                None,
+                scale_factor,
                 Some((width, height)),
             ))
         })
@@ -793,7 +831,10 @@ impl Client {
             SvcProcessorMessages::<DrdynvcClient>::new(messages),
         )
         .await?;
-        debug!("Writing resize to [{:?}x{:?}]", width, height);
+        debug!(
+            "Writing resize to [{:?}x{:?}] scale [{:?}]",
+            width, height, scale
+        );
         write_stream.write_all(&encoded).await?;
 
         Ok(())
@@ -821,24 +862,12 @@ impl Client {
         sdr: tdp::SharedDirectoryRemove,
     ) -> ClientResult<()> {
         debug!("received tdp: {:?}", sdr);
-        let pdu = Self::remove_drive(x224_processor.clone(), sdr.directory_id).await;
 
-        match pdu {
-            Ok(remove) => {
-                Self::write_rdpdr(
-                    write_stream,
-                    x224_processor,
-                    RdpdrPdu::ClientDeviceListRemove(remove),
-                )
-                .await?;
-                Ok(())
-            }
-            Err(ClientError::UnknownDevice(id)) => {
-                warn!("attempted to remove unknown device id: {:?}", id);
-                Ok(())
-            }
-            Err(other) => Err(other),
-        }
+        let cancel_pdus = Self::remove_drive(x224_processor.clone(), sdr.directory_id)?;
+
+        // Bulk send any cancellations for pending I/O requests.
+        Self::write_rdpdr_pdus(write_stream, x224_processor.clone(), cancel_pdus).await?;
+        Ok(())
     }
 
     async fn handle_tdp_sd_info_response(
@@ -959,26 +988,47 @@ impl Client {
     ) -> ClientResult<ClientDeviceListAnnounce> {
         task::spawn_blocking(move || {
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
-            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-            let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
-            Ok(pdu)
+            // Make sure the teleport backend knows about this new drive.
+            Self::rdpdr_backend(&mut x224_processor)?.add_device(sda.directory_id)?;
+            // The Base Rdpdr instance must also know about the device.
+            Ok(Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?
+                .add_drive(sda.directory_id, sda.name))
         })
         .await?
     }
 
-    async fn remove_drive(
+    fn remove_drive(
         x224_processor: Arc<Mutex<x224::Processor>>,
         device_id: u32,
-    ) -> ClientResult<ClientDeviceListRemove> {
-        task::spawn_blocking(move || {
-            let mut x224_processor = Self::x224_lock(&x224_processor)?;
-            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-            if let Some(pdu) = rdpdr.remove_device(device_id) {
-                return Ok(pdu);
-            }
-            Err(ClientError::UnknownDevice(device_id))
-        })
-        .await?
+    ) -> ClientResult<Vec<RdpdrPdu>> {
+        // Lock the x224 processor before calling "remove_drive" so that the read loop
+        // doesn't try to process an inbound message for a device that we're in the process
+        // of removing.
+        let mut processor = Self::x224_lock(&x224_processor)?;
+        let backend = Self::rdpdr_backend(&mut processor)?;
+
+        // Attempt to remove the device from the Teleport Rdpdr backend
+        let (mut cancel_pdus, remove_complete) = backend
+            .remove_device(device_id)
+            .inspect_err(|e| warn!("could not remove device from teleport backend: {}", e))
+            .map_err(ClientError::PduError)?;
+
+        if remove_complete {
+            // If the device was successfully removed from the backend, then remove it from
+            // the top level rdpdr instance and send the device remove pdu. Otherwise,
+            // do nothing. The the rdpdr backend will synthesize another TDP shared directory remove
+            // message once the instance is ready for deletion (leading us right back here again to retry).
+            let remove_pdu = processor
+                .get_svc_processor_mut::<Rdpdr>()
+                .ok_or(ClientError::UnknownDevice(device_id))?
+                .remove_device(device_id)
+                .ok_or(ClientError::UnknownDevice(device_id))?;
+
+            // Make sure the remove PDU is pushed last.
+            cancel_pdus.push(RdpdrPdu::ClientDeviceListRemove(remove_pdu))
+        }
+
+        Ok(cancel_pdus)
     }
 
     /// Processes an x224 frame on a blocking thread.
@@ -1027,29 +1077,6 @@ impl Client {
         pending_resize
             .lock()
             .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
-    }
-
-    /// Returns an immutable reference to the [`SvcProcessor`] of type `S`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let mut x224_processor = Self::x224_lock(&x224_processor)?;
-    /// let cliprdr = Self::get_svc_processor::<Cliprdr>(&mut x224_processor)?;
-    /// // Now we can call methods on the Cliprdr processor.
-    /// ```
-    fn get_svc_processor<'a, S>(
-        x224_processor: &'a mut MutexGuard<'_, x224::Processor>,
-    ) -> Result<&'a S, ClientError>
-    where
-        S: SvcProcessor + 'static,
-    {
-        x224_processor
-            .get_svc_processor::<S>()
-            .ok_or(ClientError::InternalError(format!(
-                "get_svc_processor::<{}>() returned None",
-                std::any::type_name::<S>(),
-            )))
     }
 
     /// Returns a mutable reference to the [`SvcProcessor`] of type `S`.
@@ -1137,7 +1164,7 @@ enum ClientFunction {
     /// Corresponds to [`Client::write_rdpdr`]
     WriteRdpdr(RdpdrPdu),
     /// Corresponds to [`Client::write_screen_resize`]
-    WriteScreenResize(u32, u32),
+    WriteScreenResize(u32, u32, u32),
     /// Corresponds to [`Client::handle_tdp_sd_announce`]
     HandleTdpSdAnnounce(tdp::SharedDirectoryAnnounce),
     /// Corresponds to [`Client::handle_tdp_sd_remove`]
@@ -1220,12 +1247,17 @@ impl ClientHandle {
         self.send(ClientFunction::WriteRdpdr(pdu)).await
     }
 
-    pub fn write_screen_resize(&self, width: u32, height: u32) -> ClientResult<()> {
-        self.blocking_send(ClientFunction::WriteScreenResize(width, height))
+    pub fn write_screen_resize(&self, width: u32, height: u32, scale: u32) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteScreenResize(width, height, scale))
     }
 
-    pub async fn write_screen_resize_async(&self, width: u32, height: u32) -> ClientResult<()> {
-        self.send(ClientFunction::WriteScreenResize(width, height))
+    pub async fn write_screen_resize_async(
+        &self,
+        width: u32,
+        height: u32,
+        scale: u32,
+    ) -> ClientResult<()> {
+        self.send(ClientFunction::WriteScreenResize(width, height, scale))
             .await
     }
 
@@ -1425,6 +1457,17 @@ impl FunctionReceiver {
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
+/// Converts a raw scale value to an RDP scale factor.
+/// Per the RDP spec, valid values are in [100, 500]; anything outside
+/// that range is treated as unset (None).
+fn rdp_scale_factor(scale: u32) -> Option<u32> {
+    if (100..=500).contains(&scale) {
+        Some(scale)
+    } else {
+        None
+    }
+}
+
 fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> Config {
     let initial_width = params.screen_width as u32;
     let initial_height = params.screen_height as u32;
@@ -1493,10 +1536,16 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         } else {
             PerformanceFlags::empty()
         },
-        // spec says that any value not in [100, 500] is ignored
-        desktop_scale_factor: 100,
+        // Per the RDP spec, values must be in [100, 500]. Clamp the client's
+        // reported scale factor (devicePixelRatio * 100) to this range, defaulting
+        // to 100 if not provided.
+        desktop_scale_factor: params.screen_scale.clamp(100, 500) as u32,
         license_cache: Some(Arc::new(GoLicenseCache { cgo_handle })),
         hardware_id: Some(params.client_id),
+        alternate_shell: "".to_string(),
+        work_dir: "".to_string(),
+        compression_type: None,
+        multitransport_flags: None,
     }
 }
 
@@ -1510,6 +1559,7 @@ pub struct ConnectParams {
     pub key_der: Vec<u8>,
     pub screen_width: u16,
     pub screen_height: u16,
+    pub screen_scale: u16,
     pub allow_clipboard: bool,
     pub allow_directory_sharing: bool,
     pub show_desktop_wallpaper: bool,
@@ -1522,7 +1572,6 @@ pub struct ConnectParams {
 #[derive(Debug)]
 pub enum ClientError {
     Tcp(IoError),
-    Rdp(RdpError),
     EncodeError(EncodeError),
     PduError(PduError),
     SessionError(SessionError),
@@ -1532,7 +1581,6 @@ pub enum ClientError {
     JoinError(JoinError),
     InternalError(String),
     UnknownAddress,
-    InputEventError(InputEventError),
     UnknownDevice(u32),
     UrlError(url::ParseError),
     #[cfg(feature = "fips")]
@@ -1547,19 +1595,18 @@ impl Display for ClientError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ClientError::Tcp(e) => Display::fmt(e, f),
-            ClientError::Rdp(e) => Display::fmt(e, f),
-            ClientError::SessionError(e) => match &e.kind {
+            ClientError::SessionError(e) => match &e.kind() {
                 Reason(reason) => Display::fmt(reason, f),
                 _ => Display::fmt(e, f),
             },
             // TODO(zmb3, probakowski): improve the formatting on the IronRDP side
             // https://github.com/Devolutions/IronRDP/blob/master/crates/ironrdp-connector/src/lib.rs#L263
-            ClientError::ConnectorError(e) => match &e.kind {
+            ClientError::ConnectorError(e) => match &e.kind() {
                 ConnectorErrorKind::Credssp(e) => {
                     write!(f, "CredSSP {:?}: {}", e.error_type, e.description)
                 }
                 ConnectorErrorKind::Custom => {
-                    write!(f, "Error: {}", e.context)?;
+                    write!(f, "Error: {}", e.report())?;
                     if let Some(src) = e.source() {
                         write!(f, " ({})", src)
                     } else {
@@ -1568,14 +1615,13 @@ impl Display for ClientError {
                 }
                 _ => Display::fmt(e, f),
             },
-            ClientError::InputEventError(e) => Display::fmt(e, f),
             ClientError::JoinError(e) => Display::fmt(e, f),
             ClientError::CGOErrCode(e) => Debug::fmt(e, f),
             ClientError::SendError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::InternalError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::EncodeError(e) => Display::fmt(e, f),
-            ClientError::PduError(e) => Display::fmt(e, f),
+            ClientError::PduError(e) => Display::fmt(&e.report(), f),
             ClientError::UrlError(e) => Display::fmt(e, f),
             ClientError::UnknownDevice(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]
@@ -1589,12 +1635,6 @@ impl Display for ClientError {
 impl From<IoError> for ClientError {
     fn from(e: IoError) -> ClientError {
         ClientError::Tcp(e)
-    }
-}
-
-impl From<RdpError> for ClientError {
-    fn from(e: RdpError) -> ClientError {
-        ClientError::Rdp(e)
     }
 }
 
@@ -1668,11 +1708,5 @@ impl From<CGOErrCode> for ClientResult<()> {
             CGOErrCode::ErrCodeSuccess => Ok(()),
             _ => Err(ClientError::from(value)),
         }
-    }
-}
-
-impl From<InputEventError> for ClientError {
-    fn from(e: InputEventError) -> Self {
-        ClientError::InputEventError(e)
     }
 }
