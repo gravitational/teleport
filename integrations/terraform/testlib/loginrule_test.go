@@ -30,9 +30,6 @@ import (
 )
 
 func (s *TerraformSuiteEnterprise) TestLoginRule() {
-	// TODO: Test case should now expect a zero value rather than a null value.
-	s.T().Skip("Attribute 'traits_expression' found when not expected")
-
 	oidc := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.OIDC)
 	saml := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.SAML)
 	require.True(s.T(),
@@ -45,7 +42,8 @@ func (s *TerraformSuiteEnterprise) TestLoginRule() {
 
 	expressionRuleName := "teleport_login_rule.expression_rule"
 	mapRuleName := "teleport_login_rule.map_rule"
-	allRules := []string{expressionRuleName, mapRuleName}
+	expressionToMapRuleName := "teleport_login_rule.expression_to_map"
+	allRules := []string{expressionRuleName, mapRuleName, expressionToMapRuleName}
 
 	checkDestroyed := func(state *terraform.State) error {
 		for _, ruleName := range allRules {
@@ -74,14 +72,16 @@ func (s *TerraformSuiteEnterprise) TestLoginRule() {
 					resource.TestCheckResourceAttr(expressionRuleName, "version", "v1"),
 					resource.TestCheckResourceAttr(expressionRuleName, "priority", "1"),
 					resource.TestCheckResourceAttr(expressionRuleName, "traits_expression", "external"),
-					resource.TestCheckNoResourceAttr(expressionRuleName, "traits_map"),
+					resource.TestCheckResourceAttr(expressionRuleName, "traits_map.%", "0"),
 					resource.TestCheckResourceAttr(mapRuleName, "metadata.name", "map_rule"),
 					resource.TestCheckResourceAttr(mapRuleName, "metadata.labels.env", "test"),
 					resource.TestCheckResourceAttr(mapRuleName, "version", "v1"),
 					resource.TestCheckResourceAttr(mapRuleName, "priority", "2"),
 					resource.TestCheckResourceAttr(mapRuleName, "traits_map.logins.values.0", "external.logins"),
 					resource.TestCheckResourceAttr(mapRuleName, "traits_map.logins.values.1", "external.username"),
-					resource.TestCheckNoResourceAttr(mapRuleName, "traits_expression"),
+					resource.TestCheckResourceAttr(expressionToMapRuleName, "metadata.name", "expression_to_map"),
+					resource.TestCheckResourceAttr(expressionToMapRuleName, "traits_expression", "external"),
+					resource.TestCheckResourceAttr(expressionToMapRuleName, "traits_map.%", "0"),
 				),
 			},
 			{
@@ -96,14 +96,18 @@ func (s *TerraformSuiteEnterprise) TestLoginRule() {
 					resource.TestCheckResourceAttr(expressionRuleName, "version", "v1"),
 					resource.TestCheckResourceAttr(expressionRuleName, "priority", "1"),
 					resource.TestCheckResourceAttr(expressionRuleName, "traits_expression", `external.put("logins", external.logins.add("external.username"))`),
-					resource.TestCheckNoResourceAttr(expressionRuleName, "traits_map"),
+					resource.TestCheckResourceAttr(expressionRuleName, "traits_map.%", "0"),
 					resource.TestCheckResourceAttr(mapRuleName, "metadata.name", "map_rule"),
 					resource.TestCheckResourceAttr(mapRuleName, "metadata.labels.env", "test"),
 					resource.TestCheckResourceAttr(mapRuleName, "version", "v1"),
 					resource.TestCheckResourceAttr(mapRuleName, "priority", "2"),
 					resource.TestCheckResourceAttr(mapRuleName, "traits_map.kube_groups.values.0", `"system:masters"`),
-					resource.TestCheckNoResourceAttr(mapRuleName, "traits_map.logins"),
-					resource.TestCheckNoResourceAttr(mapRuleName, "traits_expression"),
+					resource.TestCheckResourceAttr(mapRuleName, "traits_map.logins.%", "0"),
+					resource.TestCheckResourceAttr(mapRuleName, "traits_expression", ""),
+					resource.TestCheckResourceAttr(expressionToMapRuleName, "metadata.name", "expression_to_map"),
+					resource.TestCheckResourceAttr(expressionToMapRuleName, "traits_expression", ""),
+					resource.TestCheckResourceAttr(expressionToMapRuleName, "traits_map.logins.values.0", "external.logins"),
+					resource.TestCheckResourceAttr(expressionToMapRuleName, "traits_map.logins.values.1", "external.username"),
 				),
 			},
 			{
