@@ -427,6 +427,52 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 	}
 }
 
+func Test_ValidateSAMLConnector_populatesLoginAndMFASettingsFromEntityDescriptor(t *testing.T) {
+	t.Parallel()
+
+	const role = "test_role"
+	const loginEntityDescriptor = `
+		<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://login.idp.test/metadata">
+			<IDPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+				<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://login.idp.test/sso/saml"></SingleSignOnService>
+			</IDPSSODescriptor>
+		</EntityDescriptor>`
+	const mfaEntityDescriptor = `
+		<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://mfa.idp.test/metadata">
+			<IDPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+				<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://mfa.idp.test/sso/saml"></SingleSignOnService>
+			</IDPSSODescriptor>
+		</EntityDescriptor>`
+
+	connector, err := types.NewSAMLConnector("test-connector", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://idp.test/acs",
+		EntityDescriptor:         loginEntityDescriptor,
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "groups", Value: "Everyone", Roles: []string{role}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled:          true,
+			EntityDescriptor: mfaEntityDescriptor,
+		},
+	})
+	require.NoError(t, err)
+
+	require.Empty(t, connector.GetIssuer())
+	require.Empty(t, connector.GetSSO())
+	require.Empty(t, connector.GetMFASettings().Issuer)
+	require.Empty(t, connector.GetMFASettings().Sso)
+
+	// Create a roleSet with <nil> role values as ValidateSAMLConnector only checks if the role
+	// in the connector role mapping exists.
+	err = ValidateSAMLConnector(connector, roleSet{role: nil})
+	require.NoError(t, err)
+
+	require.Equal(t, "https://login.idp.test/metadata", connector.GetIssuer())
+	require.Equal(t, "https://login.idp.test/sso/saml", connector.GetSSO())
+	require.Equal(t, "https://mfa.idp.test/metadata", connector.GetMFASettings().Issuer)
+	require.Equal(t, "https://mfa.idp.test/sso/saml", connector.GetMFASettings().Sso)
+}
+
 func Test_ValidateSAMLConnector_error_sanitization(t *testing.T) {
 	t.Parallel()
 

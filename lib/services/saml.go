@@ -170,20 +170,20 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 	// Validate MFA settings.
 	if mfa := sc.GetMFASettings(); mfa != nil {
 		var mfaEntityDescriptor *samltypes.EntityDescriptor
-		if mfa.EntityDescriptorUrl != "" {
-			if mfa.EntityDescriptorUrl == sc.GetEntityDescriptorURL() {
-				// we got the entity descriptor above, skip the redundant round trip.
-				mfa.EntityDescriptor = sc.GetEntityDescriptor()
-			} else {
-				mfa.EntityDescriptor, mfaEntityDescriptor, err = getEntityDescriptor(ctx, getEntityDescriptorParams{
-					Log:       log,
-					MFA:       true,
-					Connector: sc,
-					Options:   options,
-				})
-				if err != nil {
-					return trace.Wrap(err)
-				}
+		if mfa.EntityDescriptorUrl != "" && mfa.EntityDescriptorUrl == sc.GetEntityDescriptorURL() {
+			// we got the entity descriptor above, skip the redundant round trip.
+			mfa.EntityDescriptor = rawEntityDescriptor
+			mfaEntityDescriptor = entityDescriptor
+		}
+		if mfaEntityDescriptor == nil {
+			mfa.EntityDescriptor, mfaEntityDescriptor, err = getEntityDescriptor(ctx, getEntityDescriptorParams{
+				Log:       log,
+				MFA:       true,
+				Connector: sc,
+				Options:   options,
+			})
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		}
 		if ed := mfaEntityDescriptor; ed != nil {
