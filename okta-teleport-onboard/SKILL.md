@@ -12,119 +12,108 @@ description: >-
 
 # Okta ↔ Teleport onboarding (prototype)
 
-## When to use
-The user wants to stand up the Teleport Okta integration without clicking
-through the web wizard. Scope: SSO, user sync, app/group sync (bidirectional).
-NOT SCIM.
+Expected invocation: *"Onboard `<cluster>` using this skill. Okta creds are in
+`<file>`."* Everything else is derived, confirmed once, then executed by a single
+orchestrator (`scripts/onboard.sh`) that emits clean progress — you relay it, you
+do not re-run the individual helpers by hand unless the orchestrator fails.
 
-## Hard preconditions — verify before any mutation
+## Interaction protocol (UX) — read first
+Drive this as a guided, confirm-once-then-execute flow.
+
+- **Derive, don't interrogate.** Infer `PROXY` from `tsh status`, `OKTA_ORG`/`OKTA_SSWS`
+  from the creds file, and default SSO group `Everyone`, ACL owner = logged-in user,
+  filters `*`. Only ask the user when something can't be derived.
+- **Gate A — confirm the plan (BLOCKING, before running the orchestrator).** Present a
+  summary card and use `AskUserQuestion` for explicit approval. The card shows: target
+  cluster + proxy, Okta org, SSO group(s), Access List owner(s), import filters, and
+  the objects that will be created on each side — plus the warning that app/group sync
+  is **bidirectional and writes back into Okta**. Options: "Proceed", "Change an input",
+  "Cancel". Run nothing that mutates until "Proceed". (Preflight is the orchestrator's
+  first, read-only phase and aborts safely on its own.)
+- **Gate C — confirm teardown (BLOCKING).** Before `cleanup.sh`, list what will be
+  deleted (plugin, connector, N Access Lists, N okta-origin users, the Okta apps +
+  role + resource set) and require explicit approval — teardown is destructive.
+- **Bootstrap token: NEVER revoke.** The SSWS token is the user's to manage. The skill
+  must never list, revoke, or delete it, and there are deliberately no helpers to do so.
+- **Formatting.** Relay the orchestrator's `==> section` / `OK` lines as a clean
+  progress log; keep a `✅/⏳/⬜` step checklist. Present created objects as a
+  `Resource | ID` table. Never print the SSWS token — refer to it as "(provided)".
+- **No internal narration.** The user cares about the task, not the mechanics. Do NOT
+  narrate tool use ("let me read the script", "running shell command", "reading file"),
+  and do NOT pre-read the skill's own scripts — they are validated; run them directly.
+  Surface only task-level progress (e.g. "✓ plugin deleted", "✓ 7 Access Lists removed"),
+  the plan card, questions, and the summary — never how you execute them. The scripts
+  self-report each result (deleted / already gone / error / OK); trust their output and
+  do NOT run extra verification or inspection commands afterward.
+- **On failure.** The orchestrator stops at the first error with an `ERR <reason>` line.
+  Surface it and ask via `AskUserQuestion` how to proceed (retry / adjust / abort). Do
+  not silently re-run or paper over it.
+- **Closing summary.** Resource table + plugin status + imported-user count + the
+  teardown command (`scripts/cleanup.sh`, no args).
+
+## Preconditions
 1. `tsh status` succeeds and the identity can manage plugins (editor/admin).
-2. The target is a **dev** cluster and a **dev** Okta org. Refuse otherwise —
-   app/group sync writes back into Okta (bidirectional) and can remove users
-   from Okta groups.
-3. The cluster proxy is reachable from Okta over the public internet (required
-   so Okta can fetch the JWKS URL).
-4. A bootstrap **SSWS** token is available, created by an Okta admin with app-
-   management and IAM-admin (roles/resource-sets) rights.
+2. Target is a **dev** cluster and a **dev** Okta org. Refuse otherwise — app/group
+   sync writes back into Okta and can remove users from Okta groups.
+3. The cluster proxy is reachable from Okta over the public internet (Okta must fetch
+   the JWKS URL).
+4. A bootstrap **SSWS** token exists (Okta admin with app-management + IAM-admin
+   rights), available via the creds file.
 
-Collect and confirm these inputs with the user, then echo them back before
-proceeding:
-- `OKTA_ORG` (e.g. `https://dev-12345.okta.com`)
-- `OKTA_SSWS` (bootstrap token — treated as sensitive, never logged)
-- `PROXY` (e.g. `dev.teleport.sh:443`)
-- SSO group(s) to assign to the app
-- Access List default owner(s) (≥1, required by app/group sync)
-- optional group/app import filters
-
-Derived automatically:
-- ACS/audience: `https://<PROXY-host>/v1/webapi/saml/acs/okta`
-- JWKS URL: `https://<PROXY-host>/v1/.well-known/jwks-okta`
-
-`source okta-teleport-onboard/scripts/okta.sh` exposes helpers used below.
-Run every mutating call through the agent, inspect each response, and STOP on
-the first unexpected error — do not blindly continue.
-
-## Procedure
-
-### 0. Preflight
-- `okta::check_token` → expect HTTP 200.
-- `curl -fsS https://<PROXY-host>/v1/.well-known/jwks-okta | jq .keys` → expect a
-  non-empty JWKS. If empty/404, the cluster lacks the Okta CA; stop.
-
-### 1. SSO — custom SAML 2.0 app
-- `okta::create_saml_app "<label>" "https://<PROXY-host>/v1/webapi/saml/acs/okta"`; record `APP_ID` (`.id`).
-- `METADATA_URL=$(okta::saml_metadata_url "$APP_ID")` — the PUBLIC metadata URL
-  (`{org}/app/{exk-id}/sso/saml/metadata`). Do NOT use `._links.metadata.href`;
-  that API endpoint is SSWS-gated and Teleport fetches metadata anonymously (403).
-- Assign each SSO group: `okta::assign_group "$APP_ID" "$GROUP_ID"`
-  (resolve group ids via `okta::find_group "<name>"`).
-
-### 2. OAuth API Services app  ⚠️ payload unvalidated — see scripts/okta.sh
-- `okta::create_service_app "<label>" "https://<PROXY-host>/v1/.well-known/jwks-okta"`
-- Record `CLIENT_ID` (`.credentials.oauthClient.client_id`).
-- Disable DPoP and confirm `token_endpoint_auth_method=private_key_jwt` with the
-  JWKS URL bound. **Read the response**; if a field is rejected, adjust per the
-  error and retry — do not paper over it.
-- Grant scopes: `okta::grant_scope "$SERVICE_APP_ID" <scope>` for
-  `okta.users.read okta.users.manage okta.groups.read okta.groups.manage okta.apps.read okta.apps.manage`.
-
-### 3. Scoped admin access  ⚠️ IAM API unvalidated — see scripts/okta.sh
-- `okta::create_admin_role` (user/group/app view+manage perms) → `ROLE_ID`.
-- `okta::create_resource_set` including the SAML app + in-scope apps/groups →
-  `RSET_ID`.
-- `okta::assign_role "$SERVICE_APP_ID" "$ROLE_ID" "$RSET_ID"`.
-- If the IAM endpoints block the prototype, fall back to assigning a built-in
-  admin role to the service app and note the reduced scoping to the user.
-
-### 4. Validate credentials (no writes)
-The helper is part of the Teleport Go module (no own go.mod), so run it from the
-checkout root `$TELEPORT_REPO` to build against the cluster's proto. It lives under
-`.claude/` — a dot-dir Go excludes from `./...` wildcards but runs fine by explicit path.
-```
-(cd "$TELEPORT_REPO" && go run ./.claude/skills/okta-teleport-onboard/scripts/tp-enroll \
-  -proxy "$PROXY" -org "$OKTA_ORG" -oauth-id "$CLIENT_ID" -validate-only)
-```
-Must succeed before enrolling. A failure here means Okta can't verify Teleport's
-JWT — recheck the JWKS trust and DPoP settings in step 2.
-
-### 5. Enroll the Teleport integration
-```
-(cd "$TELEPORT_REPO" && go run ./.claude/skills/okta-teleport-onboard/scripts/tp-enroll \
-  -proxy "$PROXY" -org "$OKTA_ORG" -oauth-id "$CLIENT_ID" -metadata-url "$METADATA_URL" \
-  -owner "<owner1>,<owner2>" -group-filter "<glob>" -app-filter "<glob>")
-```
-This one RPC creates the SAML connector (from `-metadata-url`), the plugin, and
-the OAuth credential, with user sync + app/group sync + bidirectional sync on.
-
-### 6. Verify
-- `tctl get plugins/okta --format=json | jq '.[].status'` → `RUNNING`.
-- `tctl get saml/okta` exists.
-- After a sync cycle, `tctl get users --format=json | jq '.[]|select(.metadata.labels."teleport.dev/origin"=="okta")|.metadata.name'` shows imported users.
-
-### 7. Revoke the bootstrap token
-The runtime now authenticates via the OAuth client ID; the SSWS token is no
-longer needed. `okta::revoke_token` (or delete it in the Okta admin UI). Confirm
-sync still succeeds afterward.
+## Run
+1. **Load creds + derive inputs** (one shell block; keeps the token out of the log):
+   ```
+   set -a; source ~/.okta-onboard.env; set +a      # OKTA_ORG + OKTA_SSWS
+   ```
+   Derive `PROXY` from `tsh status`; default `SSO_GROUP=Everyone`,
+   `ACL_OWNER=<logged-in user>`, `GROUP_FILTER=*`, `APP_FILTER=*`.
+2. **Gate A** — render the confirmation card and get "Proceed".
+3. **Execute** the orchestrator and relay its progress (single call):
+   ```
+   set -a; source ~/.okta-onboard.env; set +a
+   PROXY="<host:443>" SSO_GROUP="Everyone" ACL_OWNER="<user>" \
+     .claude/skills/okta-teleport-onboard/scripts/onboard.sh
+   ```
+   It runs preflight → SAML app + group + metadata → OAuth service app + scopes →
+   scoped role + resource set + binding → Teleport validate + enroll, records the
+   created IDs to `$OKTA_ONBOARD_STATE`, and prints them. On non-zero exit, see the
+   `ERR` line and follow the on-failure protocol.
+4. **Verify:**
+   - `tctl get plugins/okta --format=json | jq '.[].status.code'` → `1` (RUNNING).
+   - `tctl get saml/okta` exists.
+   - After a sync cycle, okta-origin users appear:
+     `tctl get users --format=json | jq '[.[]|select(.metadata.labels."teleport.dev/origin"=="okta")]|length'`.
+5. **Summarize** per the closing-summary rule.
 
 ## Teardown / offboarding
-`scripts/cleanup.sh` — no args needed. Onboarding auto-records the created Okta
-object IDs to `$OKTA_ONBOARD_STATE` (default `~/.okta-onboard.state`) and cleanup
-reads them; pass `<saml-app-id> <service-app-id> <role-id> <resource-set-id>` to
-override. Validated end-to-end. Enforced order, because bidirectional sync is on:
+Confirm via Gate C first — destructive. `scripts/cleanup.sh` needs **no args**:
+onboarding recorded the object IDs to `$OKTA_ONBOARD_STATE` (default
+`~/.okta-onboard.state`) and cleanup reads them (positional
+`<saml-app> <svc-app> <role> <rset>` override). Enforced order, because bidirectional
+sync is on:
 1. `tctl plugins delete okta` — delete the plugin FIRST so later deletions don't
    propagate back into Okta.
 2. `tctl plugins cleanup okta --no-dry-run` — remove Okta-sourced Access Lists +
    generated roles. Refuses to run while the plugin is active, hence step 1 first.
-3. `tctl rm saml/okta` — connector is NOT auto-deleted (note: `tctl rm`, not `delete`).
-4. Delete okta-origin Teleport users (user sync created them; cleanup doesn't touch users).
-5. Okta side: delete role binding → resource set → custom role, then deactivate+delete both apps.
-Best-effort and re-runnable. Revoke the bootstrap SSWS token afterward
-(`okta::revoke_token <id>`) unless you kept it for re-runs.
+3. `tctl rm saml/okta` — connector is NOT auto-deleted (`tctl rm`, not `delete`).
+4. Delete okta-origin Teleport users (cleanup doesn't touch users).
+5. Okta: role binding → resource set → custom role, then deactivate+delete both apps.
+`cleanup.sh` reports each deletion's outcome (deleted / already gone / error), so just
+relay its output — run no follow-up verification. Re-runnable. The bootstrap SSWS token
+is left untouched.
 
-## Known first-run validation points (isolated to steps 2–3)
-- Okta OIDC **service app** creation body + binding the JWKS `jwks_uri` and
-  `private_key_jwt` via API.
+## Manual / debugging
+`scripts/onboard.sh` is just an ordered driver over `scripts/okta.sh` helpers
+(`okta::create_saml_app`, `saml_metadata_url`, `create_service_app`, `grant_scope`,
+`create_admin_role`, `create_resource_set`, `assign_role`) plus the `tp-enroll` Go
+helper. When the orchestrator fails, reproduce the single failing helper by hand to
+inspect the raw response, fix the helper, and re-run `onboard.sh` (it upserts state
+and Okta calls are create-or-adjust).
+
+## Known validation points (isolated to the Okta service-app + IAM calls)
+- OIDC **service app** creation body + JWKS `jwks_uri` / `private_key_jwt` binding.
 - The DPoP-disable field name on the app.
-- Okta **IAM** roles / resource-sets / assignment endpoints (newer surface).
-These do not affect SSO/user-sync/app-group-sync correctness once the client ID
-is trusted; they only determine how scoped the service app is.
+- Okta **IAM** roles / resource-sets / bindings (newer API surface).
+These don't affect SSO/user-sync/app-group-sync correctness once the client ID is
+trusted; they only determine how scoped the service app is. Validated against an Okta
+integrator org; re-verify on a materially different org version.

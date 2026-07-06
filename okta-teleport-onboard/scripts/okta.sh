@@ -74,9 +74,10 @@ okta::create_saml_app() { # label acsUrl
 # NB: it uses the SAML IdP config id (exk...) from the metadata entityID, NOT the
 # app id (0oa...) and NOT ._links.metadata.href (that API endpoint is SSWS-gated,
 # so Teleport's anonymous fetch of it returns 403).
-okta::saml_metadata_url() { # appId
-  local idp
-  idp=$(_okta GET "/api/v1/apps/$1/sso/saml/metadata" \
+okta::saml_metadata_url() { # appId — metadata is XML; _okta forces JSON headers which
+  local idp                 # Okta rejects here (E0000019), so fetch raw with XML Accept.
+  idp=$(curl -sS -H "Authorization: SSWS ${OKTA_SSWS}" -H "Accept: application/xml" \
+        "${OKTA_ORG}/api/v1/apps/$1/sso/saml/metadata" \
     | grep -oE 'entityID="[^"]+"' | head -1 \
     | sed -E 's#entityID="https?://www\.okta\.com/##; s#".*##')
   printf '%s/app/%s/sso/saml/metadata\n' "$OKTA_ORG" "$idp"
@@ -124,5 +125,5 @@ okta::delete_role()         { _okta DELETE "/api/v1/iam/roles/$1"; }            
 # OK — deactivate is required before delete
 okta::deactivate_app() { _okta POST "/api/v1/apps/$1/lifecycle/deactivate" ''; }
 okta::delete_app()     { _okta DELETE "/api/v1/apps/$1"; }
-okta::list_tokens()    { _okta GET /api/v1/api-tokens; }
-okta::revoke_token()   { _okta DELETE "/api/v1/api-tokens/$1"; }             # tokenId
+# NOTE: intentionally NO token helpers. The bootstrap SSWS token is the user's to
+# manage — the skill must never list or revoke it.
