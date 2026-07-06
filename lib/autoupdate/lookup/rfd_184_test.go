@@ -81,24 +81,24 @@ func TestGetVersionFromRollout(t *testing.T) {
 				t.Run(fmt.Sprintf("%s/%s/%s", mode, schedule, state), func(t *testing.T) {
 					expectedSemVersion, err := version.EnsureSemver(expectedVersion)
 					require.NoError(t, err)
-					rollout := &autoupdatepb.AutoUpdateAgentRollout{
-						Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+					rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
+						Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
 							StartVersion:   testVersionLow,
 							TargetVersion:  testVersionHigh,
 							Schedule:       schedule,
 							AutoupdateMode: mode,
 							// Strategy does not affect which version are served
 							Strategy: autoupdate.AgentsStrategyTimeBased,
-						},
-						Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+						}.Build(),
+						Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
 							Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-								{
+								autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
 									Name:  groupName,
 									State: state,
-								},
+								}.Build(),
 							},
-						},
-					}
+						}.Build(),
+					}.Build()
 					version, err := getVersionFromRollout(rollout, groupName, "")
 					require.NoError(t, err)
 					require.Equal(t, expectedSemVersion, version)
@@ -123,32 +123,32 @@ func TestGetVersionFromRollout(t *testing.T) {
 				expectedSemVersion, err := version.EnsureSemver(expectedVersion)
 				require.NoError(t, err)
 
-				rollout := &autoupdatepb.AutoUpdateAgentRollout{
-					Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+				rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
+					Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
 						StartVersion:   testVersionLow,
 						TargetVersion:  testVersionHigh,
 						Schedule:       schedule,
 						AutoupdateMode: mode,
 						// Strategy does not affect which version are served
 						Strategy: autoupdate.AgentsStrategyTimeBased,
-					},
-					Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+					}.Build(),
+					Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
 						Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-							{
+							autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
 								Name:  groupName,
 								State: state,
 								Canaries: []*autoupdatepb.Canary{
-									{
+									autoupdatepb.Canary_builder{
 										UpdaterId: uuid.NewString(),
 										HostId:    uuid.NewString(),
 										Hostname:  "test-host",
 										Success:   false,
-									},
+									}.Build(),
 								},
-							},
+							}.Build(),
 						},
-					},
-				}
+					}.Build(),
+				}.Build()
 				var updaterID string
 				if canaryMatching {
 					updaterID = rollout.GetStatus().GetGroups()[0].GetCanaries()[0].GetUpdaterId()
@@ -235,23 +235,23 @@ func TestGetTriggerFromRollout(t *testing.T) {
 			for schedule, stateCases := range scheduleCases {
 				for state, expectedTrigger := range stateCases {
 					t.Run(fmt.Sprintf("%s/%s/%s/%s", mode, strategy, schedule, state), func(t *testing.T) {
-						rollout := &autoupdatepb.AutoUpdateAgentRollout{
-							Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+						rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
+							Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
 								StartVersion:   testVersionLow,
 								TargetVersion:  testVersionHigh,
 								Schedule:       schedule,
 								AutoupdateMode: mode,
 								Strategy:       strategy,
-							},
-							Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+							}.Build(),
+							Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
 								Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-									{
+									autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
 										Name:  groupName,
 										State: state,
-									},
+									}.Build(),
 								},
-							},
-						}
+							}.Build(),
+						}.Build()
 						shouldUpdate, err := getTriggerFromRollout(rollout, groupName, "")
 						require.NoError(t, err)
 						require.Equal(t, expectedTrigger, shouldUpdate)
@@ -305,31 +305,31 @@ func TestGetTriggerFromRollout(t *testing.T) {
 		for strategy, statesCases := range strategyCases {
 			for state, expectedTrigger := range statesCases {
 				t.Run(fmt.Sprintf("canary(%s)/%s/%s", strconv.FormatBool(canaryMatching), strategy, state), func(t *testing.T) {
-					rollout := &autoupdatepb.AutoUpdateAgentRollout{
-						Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+					rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
+						Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
 							StartVersion:   testVersionLow,
 							TargetVersion:  testVersionHigh,
 							Schedule:       schedule,
 							AutoupdateMode: mode,
 							Strategy:       strategy,
-						},
-						Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+						}.Build(),
+						Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
 							Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-								{
+								autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
 									Name:  groupName,
 									State: state,
 									Canaries: []*autoupdatepb.Canary{
-										{
+										autoupdatepb.Canary_builder{
 											UpdaterId: uuid.NewString(),
 											HostId:    uuid.NewString(),
 											Hostname:  "test-host",
 											Success:   false,
-										},
+										}.Build(),
 									},
-								},
+								}.Build(),
 							},
-						},
-					}
+						}.Build(),
+					}.Build()
 					var updaterID string
 					if canaryMatching {
 						updaterID = rollout.GetStatus().GetGroups()[0].GetCanaries()[0].GetUpdaterId()
@@ -368,51 +368,51 @@ func TestGetGroup(t *testing.T) {
 		},
 		{
 			name:        "nil status groups",
-			rollout:     &autoupdatepb.AutoUpdateAgentRollout{Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{}},
+			rollout:     autoupdatepb.AutoUpdateAgentRollout_builder{Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{}}.Build(),
 			expectError: require.Error,
 		},
 		{
 			name: "empty status groups",
-			rollout: &autoupdatepb.AutoUpdateAgentRollout{
-				Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+			rollout: autoupdatepb.AutoUpdateAgentRollout_builder{
+				Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
 					Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectError: require.Error,
 		},
 		{
 			name: "group matching name",
-			rollout: &autoupdatepb.AutoUpdateAgentRollout{
-				Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+			rollout: autoupdatepb.AutoUpdateAgentRollout_builder{
+				Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
 					Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-						{Name: "foo", State: 1},
-						{Name: "bar", State: 1},
-						{Name: groupName, State: 2},
-						{Name: "baz", State: 1},
+						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{Name: "foo", State: 1}.Build(),
+						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{Name: "bar", State: 1}.Build(),
+						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{Name: groupName, State: 2}.Build(),
+						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{Name: "baz", State: 1}.Build(),
 					},
-				},
-			},
-			expectedResult: &autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
+				}.Build(),
+			}.Build(),
+			expectedResult: autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  groupName,
 				State: 2,
-			},
+			}.Build(),
 			expectError: require.NoError,
 		},
 		{
 			name: "no group matching name, should fallback to default",
-			rollout: &autoupdatepb.AutoUpdateAgentRollout{
-				Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+			rollout: autoupdatepb.AutoUpdateAgentRollout_builder{
+				Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
 					Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-						{Name: "foo", State: 1},
-						{Name: "bar", State: 1},
-						{Name: "baz", State: 1},
+						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{Name: "foo", State: 1}.Build(),
+						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{Name: "bar", State: 1}.Build(),
+						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{Name: "baz", State: 1}.Build(),
 					},
-				},
-			},
-			expectedResult: &autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
+				}.Build(),
+			}.Build(),
+			expectedResult: autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "baz",
 				State: 1,
-			},
+			}.Build(),
 			expectError: require.NoError,
 		},
 	}

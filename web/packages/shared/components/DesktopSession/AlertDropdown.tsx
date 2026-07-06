@@ -51,16 +51,13 @@ export function AlertDropdown(
   if (alerts.length === 0 && showDropdown) setShowDropdown(false);
 
   // Close the dropdown if it's open and the user clicks outside of it
-  useClickOutside(ref, () => {
-    setShowDropdown(prevState => {
-      if (prevState) {
-        return false;
-      }
-    });
-  });
+  useClickOutside(ref, () => setShowDropdown(false));
 
   return (
-    <>
+    // `display: contents` keeps this wrapper out of the layout while still
+    // giving useClickOutside a node that contains both the toggle button and
+    // the dropdown, so clicks on either are treated as "inside".
+    <div ref={ref} style={{ display: 'contents' }}>
       <HoverTooltip
         tipContent={`${alerts.length} ${pluralize(alerts.length, 'alert')}`}
         placement="top"
@@ -84,9 +81,16 @@ export function AlertDropdown(
           }}
           {...boxProps}
         >
-          <Flex alignItems="center" justifyContent="space-between">
+          <Flex
+            alignItems="center"
+            justifyContent="space-between"
+            pb={2}
+            mb={1}
+            borderBottom={1}
+            borderColor="spotBackground.1"
+          >
             <H3 px={3} style={{ overflow: 'visible' }}>
-              {alerts.length} {alerts.length > 1 ? 'Alerts' : 'Alert'}
+              {alerts.length} {pluralize(alerts.length, 'Alert')}
             </H3>
             <ButtonIcon size={1} ml={1} mr={2} onClick={toggleDropdown}>
               <Cross size="medium" />
@@ -104,7 +108,7 @@ export function AlertDropdown(
           </StyledOverflow>
         </StyledCard>
       )}
-    </>
+    </div>
   );
 }
 
@@ -112,10 +116,12 @@ const StyledButton = styled(Button)`
   color: ${({ theme }) => theme.colors.light};
   min-height: 0;
   height: ${({ theme }) => theme.fontSizes[7] + 'px'};
-  background-color: ${props => props.theme.colors.warning.main};
+  background-color: ${props =>
+    props.theme.colors.interactive.solid.alert.default};
   &:hover,
   &:focus {
-    background-color: ${props => props.theme.colors.warning.hover};
+    background-color: ${props =>
+      props.theme.colors.interactive.solid.alert.hover};
   }
 `;
 
@@ -127,13 +133,13 @@ const StyledCard = styled(Card).attrs(props => ({
   display: flex;
   flex-direction: column;
   position: absolute;
+  /* 320px notification width + horizontal card padding. */
+  width: 336px;
   background-color: ${({ theme }) => theme.colors.levels.elevated};
 `;
 
 const StyledNotification = styled(ToastNotification)`
-  background: ${({ theme }) => theme.colors.spotBackground[0]};
-  ${({ theme }) =>
-    theme.type === 'light' && `border: 1px solid ${theme.colors.text.muted};`}
+  background: ${({ theme }) => theme.colors.interactive.tonal.neutral[0]};
   box-shadow: none;
 `;
 

@@ -158,12 +158,12 @@ crd-manifests-diff: crdgen
 
 # This is a helper to dump a request sent to crdgen.
 # See crdgen/DEBUG.md for instruction on how to use this target to replay crdgen with a debugger attached.
-.PHONY: crdgen-debug-dump-request
+.PHONY: debug-dump-request
 debug-dump-request:
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
 	for proto in $(PROTOS); do \
 		protoc \
-			-I=../../../api/proto/ \
+			-I=../../api/proto/ \
 			-I=$(PROTOBUF_MOD_PATH) \
 			--plugin=./crdgen/hack/protoc-gen-dump \
 			--dump_out="." \
@@ -241,7 +241,7 @@ TIMESTAMP := $(shell date +%Y%m%d%H%M%S)
 TELEPORT_VERSION ?= 19.0.0-dev
 TELEPORT_IMAGE_DEFAULT := public.ecr.aws/gravitational/teleport-distroless
 TELEPORT_IMAGE ?= $(TELEPORT_IMAGE_DEFAULT)
-TELEPORT_IMAGE_VERSION ?= 18.6.4
+TELEPORT_IMAGE_VERSION ?= 18.8.1
 LOCAL_BUILD := $(if $(filter-out $(TELEPORT_IMAGE_DEFAULT),$(TELEPORT_IMAGE)),1,)
 ARCH ?= $(shell go env GOARCH)
 
@@ -261,6 +261,10 @@ ifeq ($(LOCAL_BUILD),1)
 else
 	k3d image import -c $(K3D_CLUSTER_NAME) $(IMG)
 endif
+	kubectl create namespace test --dry-run=client -o yaml | kubectl apply -f -
+
+	$(if $(ENTERPRISE), kubectl -n test create secret generic license --from-file=/var/lib/teleport/license.pem --dry-run=client -o yaml | kubectl replace --force -f -)
+	
 	# deploy a teleport cluster with the operator
 	# To add feature flags, append --set "extraEnv[N].name=..." lines below.
 	KUBECONFIG=$(KUBECONFIG) helm upgrade \
@@ -271,8 +275,10 @@ endif
 		--set "teleportVersionOverride=$(TELEPORT_IMAGE_VERSION)" \
 		--set "operator.teleportVersionOverride=$(VERSION)" \
 		--set "operator.image=$(subst :$(VERSION),,$(IMG))" \
+		--set "extraEnv[0].name=TELEPORT_UNSTABLE_SCOPES" \
+		--set "extraEnv[0].value=yes" \
 		$(if $(LOCAL_BUILD),--set "image=$(TELEPORT_IMAGE)") \
 		$(if $(ENTERPRISE),--set "enterprise=true") \
-		$(if $(ENTERPRISE),--set "enterpriseImage=$(TELEPORT_IMAGE)")
+		$(if $(and $(ENTERPRISE),$(LOCAL_BUILD)),--set "enterpriseImage=$(TELEPORT_IMAGE)")
 
 	rm $$KUBECONFIG

@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	tracingssh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
@@ -198,8 +199,18 @@ func (t *TermHandlers) HandleWinChange(ctx context.Context, ch ssh.Channel, req 
 	return nil
 }
 
-func (t *TermHandlers) HandleForceTerminate(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
-	err := t.SessionRegistry.ForceTerminate(ctx)
+func (t *TermHandlers) HandleForceTerminate(_ ssh.Channel, _ *ssh.Request, ctx *ServerContext) error {
+	p := ctx.getParty()
+	if p == nil {
+		t.SessionRegistry.logger.DebugContext(t.SessionRegistry.Srv.Context(), "Unable to terminate session, not party to a session.")
+		return nil
+	}
+
+	if p.mode != types.SessionModeratorMode {
+		return trace.AccessDenied("only moderators can force terminate a session")
+	}
+
+	err := t.SessionRegistry.ForceTerminate(p.s)
 	return trace.Wrap(err)
 }
 

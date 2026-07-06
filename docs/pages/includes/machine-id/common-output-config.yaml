@@ -8,13 +8,6 @@
 destination:
   type: directory
   path: /opt/machine-id
-# roles specifies the roles that should be included in the certificates generated
-# by the output. These roles must be roles that the bot has been granted
-# permission to impersonate.
-#
-# if no roles are specified, all roles the bot is allowed to impersonate are used.
-roles:
-  - editor
 
 # credential_ttl and renewal_interval override the credential TTL and renewal
 # interval for this specific output, so that you can make its certificates valid

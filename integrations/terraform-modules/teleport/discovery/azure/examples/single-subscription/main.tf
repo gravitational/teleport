@@ -20,7 +20,7 @@ module "azure_discovery" {
 
   # Name of an existing Azure Resource Group where Azure resources will be created.
   azure_resource_group_name = azurerm_resource_group.example.name
-  # Region where Azure managed identity will be created (westus)
+  # Region where Azure managed identity will be created (eastus)
   azure_managed_identity_location = azurerm_resource_group.example.location
 
   # Discover Azure VMs across all resource groups in the current subscription

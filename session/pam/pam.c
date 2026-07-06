@@ -43,9 +43,11 @@ int converse(int n, const struct pam_message **msg, struct pam_response **resp, 
     int i;
     struct pam_response *aresp;
 
-    // If no messages arrived, or the number of messages is greater than
-    // allowed, something is wrong with the caller.
-    if (n <= 0 || n > PAM_MAX_NUM_MSG) {
+    // Something is wrong with the caller if:
+    // - no messages arrived
+    // - the number of messages is greater than allowed
+    // - msg or resp is NULL
+    if (n <= 0 || n > PAM_MAX_NUM_MSG || msg == NULL || resp == NULL) {
         return PAM_CONV_ERR;
     }
 
@@ -60,6 +62,10 @@ int converse(int n, const struct pam_message **msg, struct pam_response **resp, 
 
     // Loop over all messages and process them.
     for (i = 0; i < n; ++i) {
+        if (msg[i] == NULL) {
+            goto fail;
+        }
+
         aresp[i].resp_retcode = 0;
         aresp[i].resp = NULL;
 
@@ -74,7 +80,9 @@ int converse(int n, const struct pam_message **msg, struct pam_response **resp, 
             break;
         case PAM_PROMPT_ECHO_ON:
             // First write the message to stderr.
-            writeCallback((uintptr_t)data, STDERR_FILENO, (char *)(msg[i]->msg));
+            if (writeCallback((uintptr_t)data, STDERR_FILENO, (char *)(msg[i]->msg)) != 0) {
+                goto fail;
+            }
 
             // Read back response from user. What the user writes will be
             // echoed to the screen.
@@ -85,16 +93,24 @@ int converse(int n, const struct pam_message **msg, struct pam_response **resp, 
             break;
         case PAM_ERROR_MSG:
             // Write message to stderr.
-            writeCallback((uintptr_t)data, STDERR_FILENO, (char *)(msg[i]->msg));
+            if (writeCallback((uintptr_t)data, STDERR_FILENO, (char *)(msg[i]->msg)) != 0) {
+                goto fail;
+            }
             if (strlen(msg[i]->msg) > 0 && msg[i]->msg[strlen(msg[i]->msg) - 1] != '\n') {
-                writeCallback((uintptr_t)data, STDERR_FILENO, (char *)"\n");
+                if (writeCallback((uintptr_t)data, STDERR_FILENO, (char *)"\n") != 0) {
+                    goto fail;
+                }
             }
             break;
         case PAM_TEXT_INFO:
             // Write message to stdout.
-            writeCallback((uintptr_t)data, STDOUT_FILENO, (char *)(msg[i]->msg));
+            if (writeCallback((uintptr_t)data, STDOUT_FILENO, (char *)(msg[i]->msg)) != 0) {
+                goto fail;
+            }
             if (strlen(msg[i]->msg) > 0 && msg[i]->msg[strlen(msg[i]->msg) - 1] != '\n') {
-                writeCallback((uintptr_t)data, STDOUT_FILENO, (char *)"\n");
+                if (writeCallback((uintptr_t)data, STDOUT_FILENO, (char *)"\n") != 0) {
+                    goto fail;
+                }
             }
 
             break;

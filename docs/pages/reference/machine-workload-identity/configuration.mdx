@@ -217,8 +217,8 @@ services:
 ## Output Services
 
 Output services define what actions `tbot` should take when it runs. They
-describe the format of the certificates to be generated, the roles used to
-generate the certificates, and the destination where they should be written.
+describe the format of the certificates to be generated and the destination
+where they should be written.
 
 There are multiple types of output. Select the one that is most appropriate for
 your intended use-case.
@@ -252,6 +252,43 @@ ssh_config: on
 allow_reissue: false
 
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
+```
+
+### `identity/key-agent`
+
+The `identity/key-agent` service provides similar functionality to the
+`identity` output service, but makes it impossible to steal or exfiltrate the
+generated identity by keeping private key material entirely in memory.
+
+It works similarly to the [Hardware Key Agent](https://github.com/gravitational/teleport/blob/master/rfd/0199-hardware-key-agent.md)
+in that it runs a gRPC service on a Unix socket, which the Teleport Client calls
+to perform cryptographic signing operations.
+
+It can be used to authenticate:
+
+- SSH access to your Teleport servers, using `tsh`.
+- Administrative actions against your cluster using tools like `tsh` or `tctl`.
+- Management of Teleport resources using the Teleport Terraform provider.
+- Access to the Teleport API using the Teleport Go SDK.
+
+```yaml
+# type specifies the type of the output. For the key agent output, this will
+# always be `identity/key-agent`.
+type: identity/key-agent
+
+(!docs/pages/includes/machine-id/common-output-config.yaml!)
+```
+
+To use the `identity/key-agent` service with `tsh` or `tctl`, you must set the
+`TELEPORT_KEY_AGENT_DIR` environment variable to the configured destination
+directory path, and use the generated identity file.
+
+Example:
+
+```code
+$ TELEPORT_KEY_AGENT_DIR=/opt/machine-id \
+  TELEPORT_IDENTITY_FILE=/opt/machine-id/identity \
+  tsh ssh user@host
 ```
 
 ### `application`
@@ -376,7 +413,6 @@ selectors:
       env: dev
 
 # The following configuration fields are available across most output types.
-# Note that `roles` are not supported for this output type.
 
 destination:
   type: directory
@@ -554,7 +590,7 @@ cluster_resources: true
 cluster_name_template: "{{.KubeName}}"
 
 # The following configuration fields are available across most output types.
-# Note that `roles` and `destination` are not supported for this output type.
+# Note that `destination` is not supported for this output type.
 
 # credential_ttl and renewal_interval override the credential TTL and renewal
 # interval for this specific output, so that you can make its certificates valid

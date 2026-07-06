@@ -74,7 +74,7 @@ func databaseObjectHandler() Handler {
 func getDatabaseObject(ctx context.Context, client *authclient.Client, ref services.Ref, _ GetOpts) (Collection, error) {
 	remote := client.DatabaseObjectClient()
 	if ref.Name != "" {
-		object, err := remote.GetDatabaseObject(ctx, &dbobjectv1.GetDatabaseObjectRequest{Name: ref.Name})
+		object, err := remote.GetDatabaseObject(ctx, dbobjectv1.GetDatabaseObjectRequest_builder{Name: ref.Name}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -83,10 +83,10 @@ func getDatabaseObject(ctx context.Context, client *authclient.Client, ref servi
 
 	objects, err := stream.Collect(clientutils.Resources(ctx,
 		func(ctx context.Context, limit int, token string) ([]*dbobjectv1.DatabaseObject, string, error) {
-			resp, err := remote.ListDatabaseObjects(ctx, &dbobjectv1.ListDatabaseObjectsRequest{
+			resp, err := remote.ListDatabaseObjects(ctx, dbobjectv1.ListDatabaseObjectsRequest_builder{
 				PageSize:  int32(limit),
 				PageToken: token,
-			})
+			}.Build())
 
 			return resp.GetObjects(), resp.GetNextPageToken(), trace.Wrap(err)
 		}))
@@ -102,18 +102,18 @@ func createDatabaseObject(ctx context.Context, client *authclient.Client, raw se
 		return trace.Wrap(err)
 	}
 	if opts.Force {
-		_, err = client.DatabaseObjectClient().UpsertDatabaseObject(ctx, &dbobjectv1.UpsertDatabaseObjectRequest{
+		_, err = client.DatabaseObjectClient().UpsertDatabaseObject(ctx, dbobjectv1.UpsertDatabaseObjectRequest_builder{
 			Object: object,
-		})
+		}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("database object %q has been created\n", object.GetMetadata().GetName())
 		return nil
 	}
-	_, err = client.DatabaseObjectClient().CreateDatabaseObject(ctx, &dbobjectv1.CreateDatabaseObjectRequest{
+	_, err = client.DatabaseObjectClient().CreateDatabaseObject(ctx, dbobjectv1.CreateDatabaseObjectRequest_builder{
 		Object: object,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -127,9 +127,9 @@ func updateDatabaseObject(ctx context.Context, client *authclient.Client, raw se
 		return trace.Wrap(err)
 	}
 
-	_, err = client.DatabaseObjectClient().UpdateDatabaseObject(ctx, &dbobjectv1.UpdateDatabaseObjectRequest{
+	_, err = client.DatabaseObjectClient().UpdateDatabaseObject(ctx, dbobjectv1.UpdateDatabaseObjectRequest_builder{
 		Object: object,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,7 +139,7 @@ func updateDatabaseObject(ctx context.Context, client *authclient.Client, raw se
 }
 
 func deleteDatabaseObject(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if _, err := client.DatabaseObjectClient().DeleteDatabaseObject(ctx, &dbobjectv1.DeleteDatabaseObjectRequest{Name: ref.Name}); err != nil {
+	if _, err := client.DatabaseObjectClient().DeleteDatabaseObject(ctx, dbobjectv1.DeleteDatabaseObjectRequest_builder{Name: ref.Name}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("database object %q has been deleted\n", ref.Name)

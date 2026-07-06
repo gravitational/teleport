@@ -41,6 +41,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -59,9 +60,14 @@ type Announcer interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
 
-	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(ctx context.Context, s types.Server) error
+	// UpsertProxyServerWithoutReturn registers proxy presence, permanently if
+	// ttl is 0 or for the specified duration with second resolution if it's
+	// >= 1 second. The upserted server is not returned because the HTTP
+	// fallback path cannot provide it.
+	//
+	// TODO(noah): DELETE IN v20.0.0 — replace with a returning variant once the
+	// HTTP fallback is removed.
+	UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -100,10 +106,10 @@ type accessPoint interface {
 	types.Semaphores
 
 	// UpsertTunnelConnection upserts tunnel connection
-	UpsertTunnelConnection(conn types.TunnelConnection) error
+	UpsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error
 
 	// DeleteTunnelConnection deletes tunnel connection
-	DeleteTunnelConnection(clusterName, connName string) error
+	DeleteTunnelConnection(ctx context.Context, clusterName, connName string) error
 
 	// GenerateCertAuthorityCRL returns an empty CRL for a CA.
 	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
@@ -248,10 +254,10 @@ type ReadProxyAccessPoint interface {
 	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error)
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error)
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
@@ -480,10 +486,10 @@ type ReadRemoteProxyAccessPoint interface {
 	ListAuthServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error)
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error)
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
@@ -1242,10 +1248,13 @@ type Cache interface {
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error)
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error)
+
+	// ListTunnelConnections returns a page of tunnel connections matching the given filter.
+	ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error)
 
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
@@ -1261,6 +1270,9 @@ type Cache interface {
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
 
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
@@ -1295,6 +1307,9 @@ type Cache interface {
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
+
 	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
 	// containers that are waiting to be created until moderated
 	// session conditions are met.
@@ -1307,6 +1322,9 @@ type Cache interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
 
 	// GetDatabases returns all database resources.
 	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
@@ -1500,9 +1518,9 @@ type Cache interface {
 
 	// GetWorkloadIdentity gets a WorkloadIdentity by name.
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
-	// ListWorkloadIdentities lists all SPIFFE Federations using Google style
-	// pagination.
-	ListWorkloadIdentities(ctx context.Context, pageSize int, lastToken string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
+	// range [start, end), ordered by the given sort field and direction.
+	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 
 	// ListStaticHostUsers lists static host users.
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
@@ -1564,6 +1582,8 @@ type Cache interface {
 	services.SummarizerServiceGetter
 	// BeamReader defines methods for reading beam resources.
 	services.BeamReader
+	// BeamsConfigGetter reads BeamsConfig.
+	services.BeamsConfigGetter
 
 	// SubCAServiceGetter reads CertAuthorityOverride resources.
 	services.SubCAServiceGetter

@@ -252,25 +252,25 @@ type ec2InstanceFetcher struct {
 }
 
 type instancesCache struct {
-	sync.Mutex
+	mu        sync.Mutex
 	instances map[cachedInstanceKey]struct{}
 }
 
 func (ic *instancesCache) add(accountID, instanceID string) {
-	ic.Lock()
-	defer ic.Unlock()
+	ic.mu.Lock()
+	defer ic.mu.Unlock()
 	ic.instances[cachedInstanceKey{accountID: accountID, instanceID: instanceID}] = struct{}{}
 }
 
 func (ic *instancesCache) clear() {
-	ic.Lock()
-	defer ic.Unlock()
+	ic.mu.Lock()
+	defer ic.mu.Unlock()
 	ic.instances = make(map[cachedInstanceKey]struct{})
 }
 
 func (ic *instancesCache) exists(accountID, instanceID string) bool {
-	ic.Lock()
-	defer ic.Unlock()
+	ic.mu.Lock()
+	defer ic.mu.Unlock()
 	_, ok := ic.instances[cachedInstanceKey{accountID: accountID, instanceID: instanceID}]
 	return ok
 }

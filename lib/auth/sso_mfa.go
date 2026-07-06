@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -175,7 +176,7 @@ type upsertMFASessionParams struct {
 	connectorType  string
 	tshRedirectURL string
 	ext            *mfav1.ChallengeExtensions
-	sip            *mfav1.SessionIdentifyingPayload
+	sip            *mfav2.SessionIdentifyingPayload
 	sourceCluster  string
 	targetCluster  string
 }

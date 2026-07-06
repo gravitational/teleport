@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/samlidp/v1/samlidp.proto
 
+//go:build !protoopaque
+
 package samlidpv1
 
 import (
@@ -28,7 +30,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -42,7 +43,7 @@ const (
 // ProcessSAMLIdPRequestRequest is a request to create and sign the SAML IdP response
 // to a SAML IdP auth request.
 type ProcessSAMLIdPRequestRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// destination is the destination of the response.
 	Destination string `protobuf:"bytes,1,opt,name=destination,proto3" json:"destination,omitempty"`
 	// request_id is the request ID.
@@ -86,11 +87,6 @@ func (x *ProcessSAMLIdPRequestRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ProcessSAMLIdPRequestRequest.ProtoReflect.Descriptor instead.
-func (*ProcessSAMLIdPRequestRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_samlidp_v1_samlidp_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ProcessSAMLIdPRequestRequest) GetDestination() string {
@@ -149,9 +145,105 @@ func (x *ProcessSAMLIdPRequestRequest) GetMfaResponse() *proto.MFAAuthenticateRe
 	return nil
 }
 
+func (x *ProcessSAMLIdPRequestRequest) SetDestination(v string) {
+	x.Destination = v
+}
+
+func (x *ProcessSAMLIdPRequestRequest) SetRequestId(v string) {
+	x.RequestId = v
+}
+
+func (x *ProcessSAMLIdPRequestRequest) SetRequestTime(v *timestamppb.Timestamp) {
+	x.RequestTime = v
+}
+
+func (x *ProcessSAMLIdPRequestRequest) SetMetadataUrl(v string) {
+	x.MetadataUrl = v
+}
+
+func (x *ProcessSAMLIdPRequestRequest) SetSignatureMethod(v string) {
+	x.SignatureMethod = v
+}
+
+func (x *ProcessSAMLIdPRequestRequest) SetAssertion(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Assertion = v
+}
+
+func (x *ProcessSAMLIdPRequestRequest) SetServiceProviderSsoDescriptor(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.ServiceProviderSsoDescriptor = v
+}
+
+func (x *ProcessSAMLIdPRequestRequest) SetMfaResponse(v *proto.MFAAuthenticateResponse) {
+	x.MfaResponse = v
+}
+
+func (x *ProcessSAMLIdPRequestRequest) HasRequestTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.RequestTime != nil
+}
+
+func (x *ProcessSAMLIdPRequestRequest) HasMfaResponse() bool {
+	if x == nil {
+		return false
+	}
+	return x.MfaResponse != nil
+}
+
+func (x *ProcessSAMLIdPRequestRequest) ClearRequestTime() {
+	x.RequestTime = nil
+}
+
+func (x *ProcessSAMLIdPRequestRequest) ClearMfaResponse() {
+	x.MfaResponse = nil
+}
+
+type ProcessSAMLIdPRequestRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// destination is the destination of the response.
+	Destination string
+	// request_id is the request ID.
+	RequestId string
+	// request_time is the time the request was made.
+	RequestTime *timestamppb.Timestamp
+	// Metadata_url is the metadata URL of the SAML IdP.
+	MetadataUrl string
+	// signature_method is the signature method to use.
+	SignatureMethod string
+	// assertion is the SAML assertion to sign.
+	Assertion []byte
+	// service_provider_sso_descriptor is the raw bytes of the service provider's SSO descriptor.
+	ServiceProviderSsoDescriptor []byte
+	// mfa_response is an mfa challenge response used to verify the user.
+	MfaResponse *proto.MFAAuthenticateResponse
+}
+
+func (b0 ProcessSAMLIdPRequestRequest_builder) Build() *ProcessSAMLIdPRequestRequest {
+	m0 := &ProcessSAMLIdPRequestRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Destination = b.Destination
+	x.RequestId = b.RequestId
+	x.RequestTime = b.RequestTime
+	x.MetadataUrl = b.MetadataUrl
+	x.SignatureMethod = b.SignatureMethod
+	x.Assertion = b.Assertion
+	x.ServiceProviderSsoDescriptor = b.ServiceProviderSsoDescriptor
+	x.MfaResponse = b.MfaResponse
+	return m0
+}
+
 // ProcessSAMLIdPRequestResponse is a response to processing the SAML IdP auth request.
 type ProcessSAMLIdPRequestResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// response is the SAML response.
 	Response      []byte `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -183,11 +275,6 @@ func (x *ProcessSAMLIdPRequestResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProcessSAMLIdPRequestResponse.ProtoReflect.Descriptor instead.
-func (*ProcessSAMLIdPRequestResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_samlidp_v1_samlidp_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ProcessSAMLIdPRequestResponse) GetResponse() []byte {
 	if x != nil {
 		return x.Response
@@ -195,9 +282,31 @@ func (x *ProcessSAMLIdPRequestResponse) GetResponse() []byte {
 	return nil
 }
 
+func (x *ProcessSAMLIdPRequestResponse) SetResponse(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Response = v
+}
+
+type ProcessSAMLIdPRequestResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// response is the SAML response.
+	Response []byte
+}
+
+func (b0 ProcessSAMLIdPRequestResponse_builder) Build() *ProcessSAMLIdPRequestResponse {
+	m0 := &ProcessSAMLIdPRequestResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Response = b.Response
+	return m0
+}
+
 // TestSAMLIdPAttributeMappingRequest is a request to test attribute mapping.
 type TestSAMLIdPAttributeMappingRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// service_provider is a SAML service provider with attribute mapping.
 	ServiceProvider *types.SAMLIdPServiceProviderV1 `protobuf:"bytes,1,opt,name=service_provider,json=serviceProvider,proto3" json:"service_provider,omitempty"`
 	// users is a list of users whose details will be used
@@ -232,11 +341,6 @@ func (x *TestSAMLIdPAttributeMappingRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestSAMLIdPAttributeMappingRequest.ProtoReflect.Descriptor instead.
-func (*TestSAMLIdPAttributeMappingRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_samlidp_v1_samlidp_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *TestSAMLIdPAttributeMappingRequest) GetServiceProvider() *types.SAMLIdPServiceProviderV1 {
 	if x != nil {
 		return x.ServiceProvider
@@ -251,9 +355,47 @@ func (x *TestSAMLIdPAttributeMappingRequest) GetUsers() []*types.UserV2 {
 	return nil
 }
 
+func (x *TestSAMLIdPAttributeMappingRequest) SetServiceProvider(v *types.SAMLIdPServiceProviderV1) {
+	x.ServiceProvider = v
+}
+
+func (x *TestSAMLIdPAttributeMappingRequest) SetUsers(v []*types.UserV2) {
+	x.Users = v
+}
+
+func (x *TestSAMLIdPAttributeMappingRequest) HasServiceProvider() bool {
+	if x == nil {
+		return false
+	}
+	return x.ServiceProvider != nil
+}
+
+func (x *TestSAMLIdPAttributeMappingRequest) ClearServiceProvider() {
+	x.ServiceProvider = nil
+}
+
+type TestSAMLIdPAttributeMappingRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// service_provider is a SAML service provider with attribute mapping.
+	ServiceProvider *types.SAMLIdPServiceProviderV1
+	// users is a list of users whose details will be used
+	// to evaluate attribute mapping.
+	Users []*types.UserV2
+}
+
+func (b0 TestSAMLIdPAttributeMappingRequest_builder) Build() *TestSAMLIdPAttributeMappingRequest {
+	m0 := &TestSAMLIdPAttributeMappingRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ServiceProvider = b.ServiceProvider
+	x.Users = b.Users
+	return m0
+}
+
 // TestSAMLIdPAttributeMappingResponse is a response to attribute mapping test request.
 type TestSAMLIdPAttributeMappingResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// mapped_attributes is the result of attribute mapping evaluation.
 	MappedAttributes []*MappedAttribute `protobuf:"bytes,1,rep,name=mapped_attributes,json=mappedAttributes,proto3" json:"mapped_attributes,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -285,11 +427,6 @@ func (x *TestSAMLIdPAttributeMappingResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestSAMLIdPAttributeMappingResponse.ProtoReflect.Descriptor instead.
-func (*TestSAMLIdPAttributeMappingResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_samlidp_v1_samlidp_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *TestSAMLIdPAttributeMappingResponse) GetMappedAttributes() []*MappedAttribute {
 	if x != nil {
 		return x.MappedAttributes
@@ -297,10 +434,29 @@ func (x *TestSAMLIdPAttributeMappingResponse) GetMappedAttributes() []*MappedAtt
 	return nil
 }
 
+func (x *TestSAMLIdPAttributeMappingResponse) SetMappedAttributes(v []*MappedAttribute) {
+	x.MappedAttributes = v
+}
+
+type TestSAMLIdPAttributeMappingResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// mapped_attributes is the result of attribute mapping evaluation.
+	MappedAttributes []*MappedAttribute
+}
+
+func (b0 TestSAMLIdPAttributeMappingResponse_builder) Build() *TestSAMLIdPAttributeMappingResponse {
+	m0 := &TestSAMLIdPAttributeMappingResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.MappedAttributes = b.MappedAttributes
+	return m0
+}
+
 // MappedAttribute is a result of attribute mapping with username
 // of a user whose username, role and traits are used for evaluation.
 type MappedAttribute struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is username of user whose detail is used for attribute mapping.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// mapped_values is a result of attribute mapping where key is requested
@@ -335,11 +491,6 @@ func (x *MappedAttribute) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MappedAttribute.ProtoReflect.Descriptor instead.
-func (*MappedAttribute) Descriptor() ([]byte, []int) {
-	return file_teleport_samlidp_v1_samlidp_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *MappedAttribute) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -352,6 +503,33 @@ func (x *MappedAttribute) GetMappedValues() map[string]*wrappers.StringValues {
 		return x.MappedValues
 	}
 	return nil
+}
+
+func (x *MappedAttribute) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *MappedAttribute) SetMappedValues(v map[string]*wrappers.StringValues) {
+	x.MappedValues = v
+}
+
+type MappedAttribute_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is username of user whose detail is used for attribute mapping.
+	Username string
+	// mapped_values is a result of attribute mapping where key is requested
+	// attribute name and value is result of evaluated predicate expression.
+	MappedValues map[string]*wrappers.StringValues
+}
+
+func (b0 MappedAttribute_builder) Build() *MappedAttribute {
+	m0 := &MappedAttribute{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.MappedValues = b.MappedValues
+	return m0
 }
 
 var File_teleport_samlidp_v1_samlidp_proto protoreflect.FileDescriptor
@@ -385,18 +563,6 @@ const file_teleport_samlidp_v1_samlidp_proto_rawDesc = "" +
 	"\x0eSAMLIdPService\x12~\n" +
 	"\x15ProcessSAMLIdPRequest\x121.teleport.samlidp.v1.ProcessSAMLIdPRequestRequest\x1a2.teleport.samlidp.v1.ProcessSAMLIdPRequestResponse\x12\x90\x01\n" +
 	"\x1bTestSAMLIdPAttributeMapping\x127.teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest\x1a8.teleport.samlidp.v1.TestSAMLIdPAttributeMappingResponseBRZPgithub.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1;samlidpv1b\x06proto3"
-
-var (
-	file_teleport_samlidp_v1_samlidp_proto_rawDescOnce sync.Once
-	file_teleport_samlidp_v1_samlidp_proto_rawDescData []byte
-)
-
-func file_teleport_samlidp_v1_samlidp_proto_rawDescGZIP() []byte {
-	file_teleport_samlidp_v1_samlidp_proto_rawDescOnce.Do(func() {
-		file_teleport_samlidp_v1_samlidp_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_samlidp_v1_samlidp_proto_rawDesc), len(file_teleport_samlidp_v1_samlidp_proto_rawDesc)))
-	})
-	return file_teleport_samlidp_v1_samlidp_proto_rawDescData
-}
 
 var file_teleport_samlidp_v1_samlidp_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_samlidp_v1_samlidp_proto_goTypes = []any{

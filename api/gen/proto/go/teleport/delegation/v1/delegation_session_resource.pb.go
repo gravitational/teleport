@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/delegation/v1/delegation_session_resource.proto
 
+//go:build !protoopaque
+
 package delegationv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // user's behalf, with a subset of their permissions, for a limited amount of
 // time.
 type DelegationSession struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented. This is always `delegation_session`.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Differentiates variations of the same kind. All resources should contain
@@ -81,11 +82,6 @@ func (x *DelegationSession) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DelegationSession.ProtoReflect.Descriptor instead.
-func (*DelegationSession) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DelegationSession) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -121,9 +117,79 @@ func (x *DelegationSession) GetSpec() *DelegationSessionSpec {
 	return nil
 }
 
+func (x *DelegationSession) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *DelegationSession) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *DelegationSession) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *DelegationSession) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *DelegationSession) SetSpec(v *DelegationSessionSpec) {
+	x.Spec = v
+}
+
+func (x *DelegationSession) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *DelegationSession) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *DelegationSession) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *DelegationSession) ClearSpec() {
+	x.Spec = nil
+}
+
+type DelegationSession_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented. This is always `delegation_session`.
+	Kind string
+	// Differentiates variations of the same kind. All resources should contain
+	// one, even if it is never populated.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	Metadata *v1.Metadata
+	// Delegation session details.
+	Spec *DelegationSessionSpec
+}
+
+func (b0 DelegationSession_builder) Build() *DelegationSession {
+	m0 := &DelegationSession{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // Delegation session details.
 type DelegationSessionSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name of the user this session belongs to.
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// Teleport Protected Resources that will be accessible in this session.
@@ -159,11 +225,6 @@ func (x *DelegationSessionSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DelegationSessionSpec.ProtoReflect.Descriptor instead.
-func (*DelegationSessionSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DelegationSessionSpec) GetUser() string {
 	if x != nil {
 		return x.User
@@ -185,10 +246,43 @@ func (x *DelegationSessionSpec) GetAuthorizedUsers() []*DelegationUserSpec {
 	return nil
 }
 
+func (x *DelegationSessionSpec) SetUser(v string) {
+	x.User = v
+}
+
+func (x *DelegationSessionSpec) SetResources(v []*DelegationResourceSpec) {
+	x.Resources = v
+}
+
+func (x *DelegationSessionSpec) SetAuthorizedUsers(v []*DelegationUserSpec) {
+	x.AuthorizedUsers = v
+}
+
+type DelegationSessionSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name of the user this session belongs to.
+	User string
+	// Teleport Protected Resources that will be accessible in this session.
+	Resources []*DelegationResourceSpec
+	// Users (i.e. bots or workloads) authorized to use this session.
+	AuthorizedUsers []*DelegationUserSpec
+}
+
+func (b0 DelegationSessionSpec_builder) Build() *DelegationSessionSpec {
+	m0 := &DelegationSessionSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.User = b.User
+	x.Resources = b.Resources
+	x.AuthorizedUsers = b.AuthorizedUsers
+	return m0
+}
+
 // DelegationUserSpec describes a bot or workload who is allowed to use a
 // delegation session.
 type DelegationUserSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind of user (currently only "bot" is supported).
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Types that are valid to be assigned to Matcher:
@@ -224,11 +318,6 @@ func (x *DelegationUserSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DelegationUserSpec.ProtoReflect.Descriptor instead.
-func (*DelegationUserSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *DelegationUserSpec) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -252,6 +341,86 @@ func (x *DelegationUserSpec) GetBotName() string {
 	return ""
 }
 
+func (x *DelegationUserSpec) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *DelegationUserSpec) SetBotName(v string) {
+	x.Matcher = &DelegationUserSpec_BotName{v}
+}
+
+func (x *DelegationUserSpec) HasMatcher() bool {
+	if x == nil {
+		return false
+	}
+	return x.Matcher != nil
+}
+
+func (x *DelegationUserSpec) HasBotName() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Matcher.(*DelegationUserSpec_BotName)
+	return ok
+}
+
+func (x *DelegationUserSpec) ClearMatcher() {
+	x.Matcher = nil
+}
+
+func (x *DelegationUserSpec) ClearBotName() {
+	if _, ok := x.Matcher.(*DelegationUserSpec_BotName); ok {
+		x.Matcher = nil
+	}
+}
+
+const DelegationUserSpec_Matcher_not_set_case case_DelegationUserSpec_Matcher = 0
+const DelegationUserSpec_BotName_case case_DelegationUserSpec_Matcher = 2
+
+func (x *DelegationUserSpec) WhichMatcher() case_DelegationUserSpec_Matcher {
+	if x == nil {
+		return DelegationUserSpec_Matcher_not_set_case
+	}
+	switch x.Matcher.(type) {
+	case *DelegationUserSpec_BotName:
+		return DelegationUserSpec_BotName_case
+	default:
+		return DelegationUserSpec_Matcher_not_set_case
+	}
+}
+
+type DelegationUserSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind of user (currently only "bot" is supported).
+	Kind string
+	// Fields of oneof Matcher:
+	// Name of the bot who may use the delegation session.
+	BotName *string
+	// -- end of Matcher
+}
+
+func (b0 DelegationUserSpec_builder) Build() *DelegationUserSpec {
+	m0 := &DelegationUserSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	if b.BotName != nil {
+		x.Matcher = &DelegationUserSpec_BotName{*b.BotName}
+	}
+	return m0
+}
+
+type case_DelegationUserSpec_Matcher protoreflect.FieldNumber
+
+func (x case_DelegationUserSpec_Matcher) String() string {
+	md := file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[2].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isDelegationUserSpec_Matcher interface {
 	isDelegationUserSpec_Matcher()
 }
@@ -266,7 +435,7 @@ func (*DelegationUserSpec_BotName) isDelegationUserSpec_Matcher() {}
 // DelegationResourceSpec describes a Teleport Protected Resource that the bot
 // or workload will be allowed to access on behalf of the user.
 type DelegationResourceSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind of resource.
 	//
 	// A wildcard (kind="*", name="*") may be specified to allow the bot or
@@ -313,11 +482,6 @@ func (x *DelegationResourceSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DelegationResourceSpec.ProtoReflect.Descriptor instead.
-func (*DelegationResourceSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *DelegationResourceSpec) GetKind() string {
@@ -377,6 +541,195 @@ func (x *DelegationResourceSpec) GetKubernetes() *DelegationKubernetesResourceCo
 	return nil
 }
 
+func (x *DelegationResourceSpec) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *DelegationResourceSpec) SetName(v string) {
+	x.Name = v
+}
+
+func (x *DelegationResourceSpec) SetMcp(v *DelegationMCPResourceConstraints) {
+	if v == nil {
+		x.Constraints = nil
+		return
+	}
+	x.Constraints = &DelegationResourceSpec_Mcp{v}
+}
+
+func (x *DelegationResourceSpec) SetDb(v *DelegationDatabaseResourceConstraints) {
+	if v == nil {
+		x.Constraints = nil
+		return
+	}
+	x.Constraints = &DelegationResourceSpec_Db{v}
+}
+
+func (x *DelegationResourceSpec) SetSsh(v *DelegationSSHResourceConstraints) {
+	if v == nil {
+		x.Constraints = nil
+		return
+	}
+	x.Constraints = &DelegationResourceSpec_Ssh{v}
+}
+
+func (x *DelegationResourceSpec) SetKubernetes(v *DelegationKubernetesResourceConstraints) {
+	if v == nil {
+		x.Constraints = nil
+		return
+	}
+	x.Constraints = &DelegationResourceSpec_Kubernetes{v}
+}
+
+func (x *DelegationResourceSpec) HasConstraints() bool {
+	if x == nil {
+		return false
+	}
+	return x.Constraints != nil
+}
+
+func (x *DelegationResourceSpec) HasMcp() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Constraints.(*DelegationResourceSpec_Mcp)
+	return ok
+}
+
+func (x *DelegationResourceSpec) HasDb() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Constraints.(*DelegationResourceSpec_Db)
+	return ok
+}
+
+func (x *DelegationResourceSpec) HasSsh() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Constraints.(*DelegationResourceSpec_Ssh)
+	return ok
+}
+
+func (x *DelegationResourceSpec) HasKubernetes() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Constraints.(*DelegationResourceSpec_Kubernetes)
+	return ok
+}
+
+func (x *DelegationResourceSpec) ClearConstraints() {
+	x.Constraints = nil
+}
+
+func (x *DelegationResourceSpec) ClearMcp() {
+	if _, ok := x.Constraints.(*DelegationResourceSpec_Mcp); ok {
+		x.Constraints = nil
+	}
+}
+
+func (x *DelegationResourceSpec) ClearDb() {
+	if _, ok := x.Constraints.(*DelegationResourceSpec_Db); ok {
+		x.Constraints = nil
+	}
+}
+
+func (x *DelegationResourceSpec) ClearSsh() {
+	if _, ok := x.Constraints.(*DelegationResourceSpec_Ssh); ok {
+		x.Constraints = nil
+	}
+}
+
+func (x *DelegationResourceSpec) ClearKubernetes() {
+	if _, ok := x.Constraints.(*DelegationResourceSpec_Kubernetes); ok {
+		x.Constraints = nil
+	}
+}
+
+const DelegationResourceSpec_Constraints_not_set_case case_DelegationResourceSpec_Constraints = 0
+const DelegationResourceSpec_Mcp_case case_DelegationResourceSpec_Constraints = 3
+const DelegationResourceSpec_Db_case case_DelegationResourceSpec_Constraints = 4
+const DelegationResourceSpec_Ssh_case case_DelegationResourceSpec_Constraints = 5
+const DelegationResourceSpec_Kubernetes_case case_DelegationResourceSpec_Constraints = 6
+
+func (x *DelegationResourceSpec) WhichConstraints() case_DelegationResourceSpec_Constraints {
+	if x == nil {
+		return DelegationResourceSpec_Constraints_not_set_case
+	}
+	switch x.Constraints.(type) {
+	case *DelegationResourceSpec_Mcp:
+		return DelegationResourceSpec_Mcp_case
+	case *DelegationResourceSpec_Db:
+		return DelegationResourceSpec_Db_case
+	case *DelegationResourceSpec_Ssh:
+		return DelegationResourceSpec_Ssh_case
+	case *DelegationResourceSpec_Kubernetes:
+		return DelegationResourceSpec_Kubernetes_case
+	default:
+		return DelegationResourceSpec_Constraints_not_set_case
+	}
+}
+
+type DelegationResourceSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind of resource.
+	//
+	// A wildcard (kind="*", name="*") may be specified to allow the bot or
+	// workload to use all of the user's permissions, including administrative
+	// permissions.
+	Kind string
+	// Name of the resource.
+	//
+	// A wildcard (kind="*", name="*") may be specified to allow the bot or
+	// workload to use all of the user's permissions, including administrative
+	// permissions.
+	Name string
+	// Fields of oneof Constraints:
+	// Constraints for MCP server resources.
+	Mcp *DelegationMCPResourceConstraints
+	// Constraints for database server resources.
+	Db *DelegationDatabaseResourceConstraints
+	// Constraints for node resources.
+	Ssh *DelegationSSHResourceConstraints
+	// Constraints for Kubernetes cluster resources.
+	Kubernetes *DelegationKubernetesResourceConstraints
+	// -- end of Constraints
+}
+
+func (b0 DelegationResourceSpec_builder) Build() *DelegationResourceSpec {
+	m0 := &DelegationResourceSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.Name = b.Name
+	if b.Mcp != nil {
+		x.Constraints = &DelegationResourceSpec_Mcp{b.Mcp}
+	}
+	if b.Db != nil {
+		x.Constraints = &DelegationResourceSpec_Db{b.Db}
+	}
+	if b.Ssh != nil {
+		x.Constraints = &DelegationResourceSpec_Ssh{b.Ssh}
+	}
+	if b.Kubernetes != nil {
+		x.Constraints = &DelegationResourceSpec_Kubernetes{b.Kubernetes}
+	}
+	return m0
+}
+
+type case_DelegationResourceSpec_Constraints protoreflect.FieldNumber
+
+func (x case_DelegationResourceSpec_Constraints) String() string {
+	md := file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[3].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isDelegationResourceSpec_Constraints interface {
 	isDelegationResourceSpec_Constraints()
 }
@@ -411,7 +764,7 @@ func (*DelegationResourceSpec_Kubernetes) isDelegationResourceSpec_Constraints()
 
 // DelegationMCPResourceConstraints constrains access to MCP server resources.
 type DelegationMCPResourceConstraints struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Tools that may be used.
 	Tools         []string `protobuf:"bytes,1,rep,name=tools,proto3" json:"tools,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -443,11 +796,6 @@ func (x *DelegationMCPResourceConstraints) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DelegationMCPResourceConstraints.ProtoReflect.Descriptor instead.
-func (*DelegationMCPResourceConstraints) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DelegationMCPResourceConstraints) GetTools() []string {
 	if x != nil {
 		return x.Tools
@@ -455,9 +803,28 @@ func (x *DelegationMCPResourceConstraints) GetTools() []string {
 	return nil
 }
 
+func (x *DelegationMCPResourceConstraints) SetTools(v []string) {
+	x.Tools = v
+}
+
+type DelegationMCPResourceConstraints_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Tools that may be used.
+	Tools []string
+}
+
+func (b0 DelegationMCPResourceConstraints_builder) Build() *DelegationMCPResourceConstraints {
+	m0 := &DelegationMCPResourceConstraints{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Tools = b.Tools
+	return m0
+}
+
 // DelegationDatabaseResourceConstraints constrains access to database resources.
 type DelegationDatabaseResourceConstraints struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Names of databases that may be accessed.
 	DbNames []string `protobuf:"bytes,1,rep,name=db_names,json=dbNames,proto3" json:"db_names,omitempty"`
 	// Names of database users that may be used.
@@ -491,11 +858,6 @@ func (x *DelegationDatabaseResourceConstraints) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DelegationDatabaseResourceConstraints.ProtoReflect.Descriptor instead.
-func (*DelegationDatabaseResourceConstraints) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *DelegationDatabaseResourceConstraints) GetDbNames() []string {
 	if x != nil {
 		return x.DbNames
@@ -510,9 +872,35 @@ func (x *DelegationDatabaseResourceConstraints) GetDbUsers() []string {
 	return nil
 }
 
+func (x *DelegationDatabaseResourceConstraints) SetDbNames(v []string) {
+	x.DbNames = v
+}
+
+func (x *DelegationDatabaseResourceConstraints) SetDbUsers(v []string) {
+	x.DbUsers = v
+}
+
+type DelegationDatabaseResourceConstraints_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Names of databases that may be accessed.
+	DbNames []string
+	// Names of database users that may be used.
+	DbUsers []string
+}
+
+func (b0 DelegationDatabaseResourceConstraints_builder) Build() *DelegationDatabaseResourceConstraints {
+	m0 := &DelegationDatabaseResourceConstraints{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DbNames = b.DbNames
+	x.DbUsers = b.DbUsers
+	return m0
+}
+
 // DelegationSSHResourceConstraints constrains access to node resources.
 type DelegationSSHResourceConstraints struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SSH logins that may be used.
 	Logins        []string `protobuf:"bytes,1,rep,name=logins,proto3" json:"logins,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -544,11 +932,6 @@ func (x *DelegationSSHResourceConstraints) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DelegationSSHResourceConstraints.ProtoReflect.Descriptor instead.
-func (*DelegationSSHResourceConstraints) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DelegationSSHResourceConstraints) GetLogins() []string {
 	if x != nil {
 		return x.Logins
@@ -556,9 +939,28 @@ func (x *DelegationSSHResourceConstraints) GetLogins() []string {
 	return nil
 }
 
+func (x *DelegationSSHResourceConstraints) SetLogins(v []string) {
+	x.Logins = v
+}
+
+type DelegationSSHResourceConstraints_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SSH logins that may be used.
+	Logins []string
+}
+
+func (b0 DelegationSSHResourceConstraints_builder) Build() *DelegationSSHResourceConstraints {
+	m0 := &DelegationSSHResourceConstraints{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Logins = b.Logins
+	return m0
+}
+
 // DelegationSSHResourceConstraints constrains access to Kubernetes cluster resources.
 type DelegationKubernetesResourceConstraints struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kubernetes resources that may be accessed.
 	Resources     []*DelegationKubernetesResource `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -590,11 +992,6 @@ func (x *DelegationKubernetesResourceConstraints) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DelegationKubernetesResourceConstraints.ProtoReflect.Descriptor instead.
-func (*DelegationKubernetesResourceConstraints) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *DelegationKubernetesResourceConstraints) GetResources() []*DelegationKubernetesResource {
 	if x != nil {
 		return x.Resources
@@ -602,10 +999,29 @@ func (x *DelegationKubernetesResourceConstraints) GetResources() []*DelegationKu
 	return nil
 }
 
+func (x *DelegationKubernetesResourceConstraints) SetResources(v []*DelegationKubernetesResource) {
+	x.Resources = v
+}
+
+type DelegationKubernetesResourceConstraints_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kubernetes resources that may be accessed.
+	Resources []*DelegationKubernetesResource
+}
+
+func (b0 DelegationKubernetesResourceConstraints_builder) Build() *DelegationKubernetesResourceConstraints {
+	m0 := &DelegationKubernetesResourceConstraints{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	return m0
+}
+
 // DelegationKubernetesResource describes a Kubernetes resource that may be
 // accessed.
 type DelegationKubernetesResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Resource API group.
@@ -643,11 +1059,6 @@ func (x *DelegationKubernetesResource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DelegationKubernetesResource.ProtoReflect.Descriptor instead.
-func (*DelegationKubernetesResource) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *DelegationKubernetesResource) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -674,6 +1085,46 @@ func (x *DelegationKubernetesResource) GetName() string {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *DelegationKubernetesResource) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *DelegationKubernetesResource) SetApiGroup(v string) {
+	x.ApiGroup = v
+}
+
+func (x *DelegationKubernetesResource) SetNamespace(v string) {
+	x.Namespace = v
+}
+
+func (x *DelegationKubernetesResource) SetName(v string) {
+	x.Name = v
+}
+
+type DelegationKubernetesResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Resource kind.
+	Kind string
+	// Resource API group.
+	ApiGroup string
+	// Kubernetes namespace (may be wildcard "*", or empty for cluster-wide resources).
+	Namespace string
+	// Name of the resource (may be wildcard "*").
+	Name string
+}
+
+func (b0 DelegationKubernetesResource_builder) Build() *DelegationKubernetesResource {
+	m0 := &DelegationKubernetesResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.ApiGroup = b.ApiGroup
+	x.Namespace = b.Namespace
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_delegation_v1_delegation_session_resource_proto protoreflect.FileDescriptor
@@ -719,18 +1170,6 @@ const file_teleport_delegation_v1_delegation_session_resource_proto_rawDesc = ""
 	"\tapi_group\x18\x02 \x01(\tR\bapiGroup\x12\x1c\n" +
 	"\tnamespace\x18\x03 \x01(\tR\tnamespace\x12\x12\n" +
 	"\x04name\x18\x04 \x01(\tR\x04nameBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1b\x06proto3"
-
-var (
-	file_teleport_delegation_v1_delegation_session_resource_proto_rawDescOnce sync.Once
-	file_teleport_delegation_v1_delegation_session_resource_proto_rawDescData []byte
-)
-
-func file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP() []byte {
-	file_teleport_delegation_v1_delegation_session_resource_proto_rawDescOnce.Do(func() {
-		file_teleport_delegation_v1_delegation_session_resource_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_delegation_v1_delegation_session_resource_proto_rawDesc), len(file_teleport_delegation_v1_delegation_session_resource_proto_rawDesc)))
-	})
-	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescData
-}
 
 var file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_delegation_v1_delegation_session_resource_proto_goTypes = []any{

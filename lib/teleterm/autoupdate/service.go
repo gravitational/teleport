@@ -104,31 +104,31 @@ func (s *Service) GetClusterVersions(ctx context.Context, _ *api.GetClusterVersi
 			ping, pingErr := s.pingCluster(groupCtx, cluster)
 			if pingErr != nil {
 				mu.Lock()
-				unreachableClusters = append(unreachableClusters, &api.UnreachableCluster{
+				unreachableClusters = append(unreachableClusters, api.UnreachableCluster_builder{
 					ClusterUri:   cluster.URI.String(),
 					ErrorMessage: pingErr.Error(),
-				})
+				}.Build())
 				mu.Unlock()
 				return nil
 			}
 
 			mu.Lock()
-			reachableClusters = append(reachableClusters, &api.ClusterVersionInfo{
+			reachableClusters = append(reachableClusters, api.ClusterVersionInfo_builder{
 				ClusterUri:      cluster.URI.String(),
 				ToolsAutoUpdate: ping.AutoUpdate.ToolsAutoUpdate,
 				ToolsVersion:    ping.AutoUpdate.ToolsVersion,
 				MinToolsVersion: ping.MinClientVersion,
-			})
+			}.Build())
 			mu.Unlock()
 			return nil
 		})
 	}
 
 	err = group.Wait()
-	return &api.GetClusterVersionsResponse{
+	return api.GetClusterVersionsResponse_builder{
 		ReachableClusters:   reachableClusters,
 		UnreachableClusters: unreachableClusters,
-	}, trace.Wrap(err)
+	}.Build(), trace.Wrap(err)
 }
 
 func (s *Service) pingCluster(ctx context.Context, cluster *clusters.Cluster) (*webclient.PingResponse, error) {
@@ -148,8 +148,8 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	toolsVersionValue := strings.TrimSpace(config.GetToolsVersion().Value)
-	toolsVersionSource := config.GetToolsVersion().Source
+	toolsVersionValue := strings.TrimSpace(config.GetToolsVersion().GetValue())
+	toolsVersionSource := config.GetToolsVersion().GetSource()
 	switch toolsVersionValue {
 	case "":
 		toolsVersionSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
@@ -161,8 +161,8 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 		}
 	}
 
-	cdnBaseUrlValue := strings.TrimSpace(config.GetCdnBaseUrl().Value)
-	cdnBaseUrlSource := config.GetCdnBaseUrl().Source
+	cdnBaseUrlValue := strings.TrimSpace(config.GetCdnBaseUrl().GetValue())
+	cdnBaseUrlSource := config.GetCdnBaseUrl().GetSource()
 	if cdnBaseUrlValue == "" {
 		cdnBaseUrlSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
 	} else {
@@ -177,10 +177,10 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 		cdnBaseUrlSource = api.ConfigSource_CONFIG_SOURCE_DEFAULT
 	}
 
-	return &api.GetConfigResponse{
-		ToolsVersion: &api.ConfigValue{Value: toolsVersionValue, Source: toolsVersionSource},
-		CdnBaseUrl:   &api.ConfigValue{Value: cdnBaseUrlValue, Source: cdnBaseUrlSource},
-	}, nil
+	return api.GetConfigResponse_builder{
+		ToolsVersion: api.ConfigValue_builder{Value: toolsVersionValue, Source: toolsVersionSource}.Build(),
+		CdnBaseUrl:   api.ConfigValue_builder{Value: cdnBaseUrlValue, Source: cdnBaseUrlSource}.Build(),
+	}.Build(), nil
 }
 
 func validateURL(raw string) error {
@@ -201,14 +201,14 @@ func readConfigFromEnvVars() (*api.GetConfigResponse, error) {
 	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
 	envTeleportToolsVersion := os.Getenv(forwardedTeleportToolsEnvVar)
 
-	return &api.GetConfigResponse{
-		CdnBaseUrl: &api.ConfigValue{
+	return api.GetConfigResponse_builder{
+		CdnBaseUrl: api.ConfigValue_builder{
 			Value:  envBaseURL,
 			Source: api.ConfigSource_CONFIG_SOURCE_ENV_VAR,
-		},
-		ToolsVersion: &api.ConfigValue{
+		}.Build(),
+		ToolsVersion: api.ConfigValue_builder{
 			Value:  envTeleportToolsVersion,
 			Source: api.ConfigSource_CONFIG_SOURCE_ENV_VAR,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }

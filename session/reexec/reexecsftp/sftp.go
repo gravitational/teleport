@@ -106,6 +106,14 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 		return nil
 	}
 
+	isDir, err := pathIsDir(req.Filepath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if isDir {
+		return trace.Errorf("destination path %s is a directory, it must be a file", req.Filepath)
+	}
+
 	cleaned := path.Clean(filepath.ToSlash(req.Filepath))
 	if s.allowed.path != cleaned {
 		return trace.Errorf("operations are only allowed on %s, not %s", s.allowed.path, cleaned)
@@ -129,6 +137,18 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 	}
 
 	return nil
+}
+
+func pathIsDir(path string) (bool, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, trace.Wrap(err)
+	}
+
+	return fi.IsDir(), nil
 }
 
 // OpenFile handles Open requests for both reading and writing. Required to

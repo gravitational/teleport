@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadcluster/v1/workloadcluster_service.proto
 
+//go:build !protoopaque
+
 package workloadcluster
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // Request for GetWorkloadCluster.
 type GetWorkloadClusterRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -69,11 +70,6 @@ func (x *GetWorkloadClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetWorkloadClusterRequest.ProtoReflect.Descriptor instead.
-func (*GetWorkloadClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *GetWorkloadClusterRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -81,9 +77,27 @@ func (x *GetWorkloadClusterRequest) GetName() string {
 	return ""
 }
 
+func (x *GetWorkloadClusterRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetWorkloadClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Name string
+}
+
+func (b0 GetWorkloadClusterRequest_builder) Build() *GetWorkloadClusterRequest {
+	m0 := &GetWorkloadClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Request for CreateWorkloadCluster.
 type CreateWorkloadClusterRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Cluster       *WorkloadCluster       `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -114,11 +128,6 @@ func (x *CreateWorkloadClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateWorkloadClusterRequest.ProtoReflect.Descriptor instead.
-func (*CreateWorkloadClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreateWorkloadClusterRequest) GetCluster() *WorkloadCluster {
 	if x != nil {
 		return x.Cluster
@@ -126,9 +135,38 @@ func (x *CreateWorkloadClusterRequest) GetCluster() *WorkloadCluster {
 	return nil
 }
 
+func (x *CreateWorkloadClusterRequest) SetCluster(v *WorkloadCluster) {
+	x.Cluster = v
+}
+
+func (x *CreateWorkloadClusterRequest) HasCluster() bool {
+	if x == nil {
+		return false
+	}
+	return x.Cluster != nil
+}
+
+func (x *CreateWorkloadClusterRequest) ClearCluster() {
+	x.Cluster = nil
+}
+
+type CreateWorkloadClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Cluster *WorkloadCluster
+}
+
+func (b0 CreateWorkloadClusterRequest_builder) Build() *CreateWorkloadClusterRequest {
+	m0 := &CreateWorkloadClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cluster = b.Cluster
+	return m0
+}
+
 // Request for UpdateWorkloadCluster.
 type UpdateWorkloadClusterRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Cluster       *WorkloadCluster       `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -159,11 +197,6 @@ func (x *UpdateWorkloadClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateWorkloadClusterRequest.ProtoReflect.Descriptor instead.
-func (*UpdateWorkloadClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpdateWorkloadClusterRequest) GetCluster() *WorkloadCluster {
 	if x != nil {
 		return x.Cluster
@@ -171,9 +204,38 @@ func (x *UpdateWorkloadClusterRequest) GetCluster() *WorkloadCluster {
 	return nil
 }
 
+func (x *UpdateWorkloadClusterRequest) SetCluster(v *WorkloadCluster) {
+	x.Cluster = v
+}
+
+func (x *UpdateWorkloadClusterRequest) HasCluster() bool {
+	if x == nil {
+		return false
+	}
+	return x.Cluster != nil
+}
+
+func (x *UpdateWorkloadClusterRequest) ClearCluster() {
+	x.Cluster = nil
+}
+
+type UpdateWorkloadClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Cluster *WorkloadCluster
+}
+
+func (b0 UpdateWorkloadClusterRequest_builder) Build() *UpdateWorkloadClusterRequest {
+	m0 := &UpdateWorkloadClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cluster = b.Cluster
+	return m0
+}
+
 // Request for UpsertWorkloadCluster.
 type UpsertWorkloadClusterRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Cluster       *WorkloadCluster       `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -204,11 +266,6 @@ func (x *UpsertWorkloadClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertWorkloadClusterRequest.ProtoReflect.Descriptor instead.
-func (*UpsertWorkloadClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UpsertWorkloadClusterRequest) GetCluster() *WorkloadCluster {
 	if x != nil {
 		return x.Cluster
@@ -216,9 +273,38 @@ func (x *UpsertWorkloadClusterRequest) GetCluster() *WorkloadCluster {
 	return nil
 }
 
+func (x *UpsertWorkloadClusterRequest) SetCluster(v *WorkloadCluster) {
+	x.Cluster = v
+}
+
+func (x *UpsertWorkloadClusterRequest) HasCluster() bool {
+	if x == nil {
+		return false
+	}
+	return x.Cluster != nil
+}
+
+func (x *UpsertWorkloadClusterRequest) ClearCluster() {
+	x.Cluster = nil
+}
+
+type UpsertWorkloadClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Cluster *WorkloadCluster
+}
+
+func (b0 UpsertWorkloadClusterRequest_builder) Build() *UpsertWorkloadClusterRequest {
+	m0 := &UpsertWorkloadClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cluster = b.Cluster
+	return m0
+}
+
 // Request for DeleteWorkloadCluster.
 type DeleteWorkloadClusterRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -249,11 +335,6 @@ func (x *DeleteWorkloadClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteWorkloadClusterRequest.ProtoReflect.Descriptor instead.
-func (*DeleteWorkloadClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeleteWorkloadClusterRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -261,9 +342,27 @@ func (x *DeleteWorkloadClusterRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteWorkloadClusterRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteWorkloadClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Name string
+}
+
+func (b0 DeleteWorkloadClusterRequest_builder) Build() *DeleteWorkloadClusterRequest {
+	m0 := &DeleteWorkloadClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Request for ListWorkloadClusters.
 type ListWorkloadClustersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the size of the page to request.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the page token.
@@ -297,11 +396,6 @@ func (x *ListWorkloadClustersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListWorkloadClustersRequest.ProtoReflect.Descriptor instead.
-func (*ListWorkloadClustersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ListWorkloadClustersRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -316,9 +410,35 @@ func (x *ListWorkloadClustersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListWorkloadClustersRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListWorkloadClustersRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListWorkloadClustersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the size of the page to request.
+	PageSize int32
+	// page_token is the page token.
+	PageToken string
+}
+
+func (b0 ListWorkloadClustersRequest_builder) Build() *ListWorkloadClustersRequest {
+	m0 := &ListWorkloadClustersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // Response for ListWorkloadClusters.
 type ListWorkloadClustersResponse struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
+	state    protoimpl.MessageState `protogen:"hybrid.v1"`
 	Clusters []*WorkloadCluster     `protobuf:"bytes,1,rep,name=clusters,proto3" json:"clusters,omitempty"`
 	// NextPageToken is the key for the next page of WorkloadClusters.
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
@@ -353,11 +473,6 @@ func (x *ListWorkloadClustersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListWorkloadClustersResponse.ProtoReflect.Descriptor instead.
-func (*ListWorkloadClustersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ListWorkloadClustersResponse) GetClusters() []*WorkloadCluster {
 	if x != nil {
 		return x.Clusters
@@ -377,6 +492,38 @@ func (x *ListWorkloadClustersResponse) GetTotalCount() int32 {
 		return x.TotalCount
 	}
 	return 0
+}
+
+func (x *ListWorkloadClustersResponse) SetClusters(v []*WorkloadCluster) {
+	x.Clusters = v
+}
+
+func (x *ListWorkloadClustersResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+func (x *ListWorkloadClustersResponse) SetTotalCount(v int32) {
+	x.TotalCount = v
+}
+
+type ListWorkloadClustersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Clusters []*WorkloadCluster
+	// NextPageToken is the key for the next page of WorkloadClusters.
+	NextPageToken string
+	// TotalCount is the total number of workloadclusters in all pages.
+	TotalCount int32
+}
+
+func (b0 ListWorkloadClustersResponse_builder) Build() *ListWorkloadClustersResponse {
+	m0 := &ListWorkloadClustersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Clusters = b.Clusters
+	x.NextPageToken = b.NextPageToken
+	x.TotalCount = b.TotalCount
+	return m0
 }
 
 var File_teleport_workloadcluster_v1_workloadcluster_service_proto protoreflect.FileDescriptor
@@ -410,18 +557,6 @@ const file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDesc = "
 	"\x15UpdateWorkloadCluster\x129.teleport.workloadcluster.v1.UpdateWorkloadClusterRequest\x1a,.teleport.workloadcluster.v1.WorkloadCluster\x12\x80\x01\n" +
 	"\x15UpsertWorkloadCluster\x129.teleport.workloadcluster.v1.UpsertWorkloadClusterRequest\x1a,.teleport.workloadcluster.v1.WorkloadCluster\x12j\n" +
 	"\x15DeleteWorkloadCluster\x129.teleport.workloadcluster.v1.DeleteWorkloadClusterRequest\x1a\x16.google.protobuf.EmptyB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1;workloadclusterb\x06proto3"
-
-var (
-	file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescOnce sync.Once
-	file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescData []byte
-)
-
-func file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescGZIP() []byte {
-	file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDesc), len(file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDesc)))
-	})
-	return file_teleport_workloadcluster_v1_workloadcluster_service_proto_rawDescData
-}
 
 var file_teleport_workloadcluster_v1_workloadcluster_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_workloadcluster_v1_workloadcluster_service_proto_goTypes = []any{

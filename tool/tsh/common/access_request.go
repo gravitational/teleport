@@ -224,11 +224,11 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 
 	printReviewBlock := func(title string, revs []types.AccessReview) error {
-		fmt.Fprint(cf.Stdout(), "------------------------------------------------")
+		fmt.Fprintln(cf.Stdout(), "------------------------------------------------")
 		fmt.Fprintf(cf.Stdout(), "%s:\n", title)
 
 		for _, rev := range revs {
-			fmt.Fprint(cf.Stdout(), "  ----------------------------------------------")
+			fmt.Fprintln(cf.Stdout(), "  ----------------------------------------------")
 
 			revReason := "[none]"
 			if rev.Reason != "" {
@@ -444,10 +444,10 @@ func searchRequestableRoles(cf *CLIConf) error {
 	var allRoles []*proto.ListRequestableRolesResponse_RequestableRole
 	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*proto.ListRequestableRolesResponse_RequestableRole, string, error) {
-			req := &proto.ListRequestableRolesRequest{
+			req := proto.ListRequestableRolesRequest_builder{
 				PageSize:  int32(pageSize),
 				PageToken: pageToken,
-			}
+			}.Build()
 
 			resp, err := clt.ListRequestableRoles(ctx, req)
 			return resp.GetRoles(), resp.GetNextPageToken(), trace.Wrap(err)
@@ -464,8 +464,8 @@ func searchRequestableRoles(cf *CLIConf) error {
 	rows := make([]requestableRoleRow, 0, len(allRoles))
 	for _, r := range allRoles {
 		rows = append(rows, requestableRoleRow{
-			Role:        r.Name,
-			Description: r.Description,
+			Role:        r.GetName(),
+			Description: r.GetDescription(),
 		})
 	}
 
@@ -540,7 +540,7 @@ func searchRequestableResources(cf *CLIConf) error {
 		if cf.kubeAPIGroup != "" {
 			resourceType = resourceType + "." + cf.kubeAPIGroup
 		}
-		req := kubeproto.ListKubernetesResourcesRequest{
+		req := kubeproto.ListKubernetesResourcesRequest_builder{
 			ResourceType:        resourceType,
 			Labels:              tc.Labels,
 			PredicateExpression: cf.PredicateExpression,
@@ -549,9 +549,9 @@ func searchRequestableResources(cf *CLIConf) error {
 			KubernetesCluster:   cf.KubernetesCluster,
 			KubernetesNamespace: cf.kubeNamespace,
 			TeleportCluster:     tc.SiteName,
-		}
+		}.Build()
 
-		resources, err := client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, &req)
+		resources, err := client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}

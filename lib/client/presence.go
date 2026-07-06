@@ -31,21 +31,24 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 )
 
+const (
+	// DefaultPresenceMaxDuration is the default max duration that a moderated session
+	// can continue between presence verifications.
+	DefaultPresenceMaxDuration = time.Minute
+)
+
 // PresenceMaintainer allows maintaining presence with the Auth service.
 type PresenceMaintainer interface {
 	MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error)
 }
 
-const mfaChallengeInterval = time.Second * 30
-
-// presenceOptions allows passing optional overrides
-// to RunPresenceTask. Mainly used by tests.
+// presenceOptions allows passing optional overrides to RunPresenceTask.
 type presenceOptions struct {
 	Clock clockwork.Clock
 }
 
-// PresenceOption a functional option for RunPresenceTask.
-type PresenceOption func(p *presenceOptions)
+// PresenceOption is a functional option for RunPresenceTask.
+type PresenceOption func(*presenceOptions)
 
 // WithPresenceClock sets the clock to be used by RunPresenceTask.
 func WithPresenceClock(clock clockwork.Clock) PresenceOption {
@@ -54,20 +57,25 @@ func WithPresenceClock(clock clockwork.Clock) PresenceOption {
 	}
 }
 
+// RunDefaultPresenceTask performs an MFA ceremony every 30 seconds to detect that a user is
+// still present and attentive.
+func RunDefaultPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, baseCeremony *mfa.Ceremony, opts ...PresenceOption) error {
+	return RunPresenceTask(ctx, term, maintainer, sessionID, baseCeremony, DefaultPresenceMaxDuration/2, opts...)
+}
+
 // RunPresenceTask periodically performs and MFA ceremony to detect that a user is
 // still present and attentive.
-func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, baseCeremony *mfa.Ceremony, opts ...PresenceOption) error {
+func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, baseCeremony *mfa.Ceremony, interval time.Duration, opts ...PresenceOption) error {
 	fmt.Fprintf(term, "\r\nTeleport > MFA presence enabled\r\n")
 
 	o := &presenceOptions{
 		Clock: clockwork.NewRealClock(),
 	}
-
 	for _, opt := range opts {
 		opt(o)
 	}
 
-	ticker := o.Clock.NewTicker(mfaChallengeInterval)
+	ticker := o.Clock.NewTicker(interval)
 	defer ticker.Stop()
 
 	stream, err := maintainer.MaintainSessionPresence(ctx)

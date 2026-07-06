@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/testutils/structfill"
 )
@@ -524,6 +525,9 @@ func TestEqualIgnoreEphemeralFields(t *testing.T) {
 		al2 := createAccessList("test1")
 		al2.Status.OwnerOf = []string{"different", "lists"}
 		al2.Status.MemberOf = []string{"other", "lists"}
+		al2.Status.OwnerDisplays = map[string]types.UserDisplay{
+			"owner1": {Primary: "Owner Name", Secondary: "owner@example.com"},
+		}
 
 		result := EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
 		require.True(t, result)

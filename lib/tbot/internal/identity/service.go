@@ -735,7 +735,7 @@ func botIdentityFromToken(
 	cfg Config,
 	authClient *apiclient.Client,
 ) (*identity.Identity, error) {
-	_, span := tracer.Start(ctx, "botIdentityFromToken")
+	ctx, span := tracer.Start(ctx, "botIdentityFromToken")
 	defer span.End()
 
 	log.InfoContext(ctx, "Fetching bot identity using token")
@@ -854,10 +854,10 @@ func botIdentityFromToken(
 // - Scoped, but tbot is not running in scoped mode.
 // - Unscoped, but tbot is running in scoped mode.
 func checkScopeCorrectness(tlsIdent *tlsca.Identity, scoped bool) (string, error) {
-	identScoped := tlsIdent.ScopePin != nil && tlsIdent.ScopePin.Scope != ""
+	identScoped := tlsIdent.ScopePin != nil && tlsIdent.ScopePin.GetScope() != ""
 	identScope := ""
 	if identScoped {
-		identScope = tlsIdent.ScopePin.Scope
+		identScope = tlsIdent.ScopePin.GetScope()
 	}
 	if identScoped && !scoped {
 		return identScope, trace.BadParameter(

@@ -1,0 +1,5 @@
+review:
+  enabled: true
+  appToken: test-app-token
+  slackUserIdTrait: "slack_uid"
+  allowEmailUsernameMatch: false

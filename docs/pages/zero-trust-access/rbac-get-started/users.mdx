@@ -1,6 +1,7 @@
 ---
 title: Local Users
 description: Learn how to manage local users in Teleport. Local users are stored on the Auth Service instead of a third-party identity provider.
+page_type: how-to
 tags:
  - conceptual
  - zero-trust
@@ -43,7 +44,7 @@ Let's look at this table:
 | - | - | - |
 | `joe` | `joe`, `root` | Teleport user `joe` can log in as user `joe` or `root` on SSH servers. |
 | `bob` | `bob` | Teleport user `bob` can log in as user `bob` on SSH servers. |
-| `kim` | | Teleport user 'kim' has no designated SSH logins.  |
+| `kim` | | Teleport user `kim` has no designated SSH logins.  |
 
 SSH logins are some of the user traits available in Teleport roles. For all supported traits, see the reference for [`tctl users add`](../../reference/cli/tctl.mdx#tctl-users-add).
 
@@ -134,6 +135,10 @@ You can also configure Teleport so that users can log in using an SSO provider.
 For more information, see:
 
 - [Single Sign-On](../sso/sso.mdx)
+
+To manage role assignments across many users with required-role gates, periodic
+reviews, and a clear audit trail, see [Getting Started with Access
+Lists](../../identity-governance/access-lists/guide.mdx).
 
 </TabItem>
 <TabItem label="Teleport Community Edition">

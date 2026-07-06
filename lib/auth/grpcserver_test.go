@@ -91,6 +91,7 @@ import (
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -976,6 +977,57 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateAppSession_routesByName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	user, _, err := authtest.CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name: "llamaapp",
+		}, types.AppSpecV3{
+			URI:        "http://localhost:8080",
+			PublicAddr: "llamaapp.example.com",
+		})
+	require.NoError(t, err)
+
+	appServer, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+
+	_, err = authServer.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	userClient, err := testServer.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+	t.Cleanup(func() { userClient.Close() })
+
+	session, err := userClient.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    user.GetName(),
+		AppName:     app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: testServer.ClusterName(),
+	})
+	require.NoError(t, err)
+
+	// Make sure that the app name is encoded into the app session cert.
+	// The app name is used to disambiguate when multiple apps share
+	// the same public address.
+	block, _ := pem.Decode(session.GetTLSCert())
+	require.NotNil(t, block, "PEM decode failed")
+	gotCert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
+
+	gotIdentity, err := tlsca.FromSubject(gotCert.Subject, gotCert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, app.GetName(), gotIdentity.RouteToApp.Name)
+	require.Equal(t, app.GetPublicAddr(), gotIdentity.RouteToApp.PublicAddr)
 }
 
 func TestCreateAppSession_allowedResourceAccessIDs(t *testing.T) {
@@ -3259,11 +3311,11 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer stream.Close()
 
-	err = stream.Send(ctx, &proto.UpstreamInventoryHello{
+	err = stream.Send(ctx, proto.UpstreamInventoryHello_builder{
 		ServerID: serverID,
 		Version:  teleport.Version,
 		Services: types.SystemRoles(roles).StringSlice(),
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	select {
@@ -3297,9 +3349,9 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	case msg := <-stream.Recv():
 		ping, ok := msg.(*proto.DownstreamInventoryPing)
 		require.True(t, ok)
-		err = stream.Send(ctx, &proto.UpstreamInventoryPong{
-			ID: ping.ID,
-		})
+		err = stream.Send(ctx, proto.UpstreamInventoryPong_builder{
+			ID: ping.GetID(),
+		}.Build())
 		require.NoError(t, err)
 	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout waiting for downstream ping")
@@ -3966,7 +4018,7 @@ func TestAppsCRUD(t *testing.T) {
 	}
 	require.Empty(t, iterOut)
 
-	err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+	_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
 		Kind: types.KindProxy,
 		Metadata: types.Metadata{
 			Name: "proxy",
@@ -4104,7 +4156,7 @@ func TestAppServersCRUD(t *testing.T) {
 	require.Empty(t, resources.Resources)
 
 	t.Run("App server with an app that has a public address matching a proxy address should fail", func(t *testing.T) {
-		err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+		_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
 			Kind: types.KindProxy,
 			Metadata: types.Metadata{
 				Name: "proxy",
@@ -4810,6 +4862,10 @@ func TestCustomRateLimiting(t *testing.T) {
 	t.Run("unauthenticated CreateAuthenticateChallenge", func(t *testing.T) {
 		synctest.Test(t, synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge)
 	})
+
+	t.Run("ResolveSSHTarget", func(t *testing.T) {
+		synctest.Test(t, synctestCustomRateLimitingResolveSSHTarget)
+	})
 }
 
 func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *testing.T) {
@@ -4873,6 +4929,68 @@ func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *tes
 		_, err := clt.CreateAuthenticateChallenge(ctx, contextUserRequest)
 		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 	}
+}
+
+func synctestCustomRateLimitingResolveSSHTarget(t *testing.T) {
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer as.Close()
+
+	unlimitedSrv, err := as.NewTestTLSServer(
+		authtest.WithBufconnListener(),
+	)
+	require.NoError(t, err)
+	defer unlimitedSrv.Close()
+
+	unlimitedClt, err := unlimitedSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer unlimitedClt.Close()
+
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	limitedSrv, err := as.NewTestTLSServer(
+		authtest.WithBufconnListener(),
+		func(c *authtest.TLSServerConfig) {
+			l := 2.0
+			c.APIConfig.ResolveSSHTargetRateLimit = &l
+		},
+	)
+	require.NoError(t, err)
+	defer limitedSrv.Close()
+
+	limitedClt, err := limitedSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer limitedClt.Close()
+
+	_, err = limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	errC := make(chan error, 1)
+	go func() {
+		_, err := limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+		errC <- err
+	}()
+
+	synctest.Wait()
+
+	require.Empty(t, errC)
+
+	time.Sleep(time.Second)
+	synctest.Wait()
+
+	require.ErrorAs(t, <-errC, new(*trace.BadParameterError))
 }
 
 type mockAuthorizer struct {
@@ -5350,14 +5468,14 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 
 			if tc.hasAgentRollout {
 				rollout, err := autoupdate.NewAutoUpdateAgentRollout(
-					&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+					autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 						StartVersion:              "1.2.3",
 						TargetVersion:             "1.2.4",
 						Schedule:                  autoupdate.AgentsScheduleImmediate,
 						AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
 						Strategy:                  autoupdate.AgentsStrategyTimeBased,
 						MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
-					})
+					}.Build())
 				require.NoError(t, err)
 				_, err = grpc.AuthServer.CreateAutoUpdateAgentRollout(ctx, rollout)
 				require.NoError(t, err)
@@ -5762,6 +5880,107 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestApplicationServerHeartbeatLowercase asserts the gRPC handler
+// plumbs NormalizeAppServerForHeartbeat through to the backend write
+// for a legacy agent's mixed-case heartbeat.
+func TestApplicationServerHeartbeatLowercase(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	server := newTestTLSServer(t)
+	agent := authtest.TestBuiltin(types.RoleApp)
+	client, err := server.NewClient(agent)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+	app, err := types.NewAppV3(types.Metadata{Name: "MixedCaseApp"}, types.AppSpecV3{
+		URI: "http://localhost:8080",
+	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+	require.NoError(t, err)
+
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	stored, err := client.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	require.Equal(t, "mixedcaseapp", stored[0].GetApp().GetName())
+	require.Equal(t, "mixedcaseapp", stored[0].GetName())
+}
+
+// TestServerUpsertApplicationServerValidates asserts
+// (*Server).UpsertApplicationServer validates rather than relying on
+// the gRPC handler. Moving validation up would re-open the
+// inventory-stream bypass.
+func TestServerUpsertApplicationServerValidates(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	bad, err := types.NewAppV3(types.Metadata{Name: "MixedCase"}, types.AppSpecV3{
+		URI: "http://localhost:8080",
+	})
+	require.NoError(t, err)
+	badServer, err := types.NewAppServerV3FromApp(bad, "localhost", "host-id-direct")
+	require.NoError(t, err)
+
+	_, err = srv.Auth().UpsertApplicationServer(ctx, badServer)
+	require.ErrorContains(t, err, "must be a valid DNS name")
+}
+
+// TestApplicationAdminPathsRejectMixedCase asserts CreateApp,
+// UpdateApp, and UpsertApplicationServer all reject mixed-case names
+// for admin callers (the heartbeat-role normalize gate does not
+// apply).
+func TestApplicationAdminPathsRejectMixedCase(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	server := newTestTLSServer(t)
+	admin := authtest.TestAdmin()
+	client, err := server.NewClient(admin)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+	t.Run("CreateApp", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		err = client.CreateApp(ctx, app)
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+
+	t.Run("UpdateApp", func(t *testing.T) {
+		seeded, err := types.NewAppV3(types.Metadata{Name: "myapp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		require.NoError(t, client.CreateApp(ctx, seeded))
+
+		bad, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		err = client.UpdateApp(ctx, bad)
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+
+	t.Run("UpsertApplicationServer", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id-admin")
+		require.NoError(t, err)
+		_, err = client.UpsertApplicationServer(ctx, appServer)
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+}
+
 func TestGetAccessGraphConfig(t *testing.T) {
 	t.Parallel()
 
@@ -5781,12 +6000,12 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	)
 	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
-	positiveResponse := &clusterconfigpb.AccessGraphConfig{
+	positiveResponse := clusterconfigpb.AccessGraphConfig_builder{
 		Enabled:           true,
 		Ca:                []byte("ca"),
 		Address:           "addr",
 		SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
-	}
+	}.Build()
 
 	tests := []struct {
 		desc      string
@@ -5841,10 +6060,10 @@ func TestGetVnetConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create newConfig.
-	newConfig, err := vnet.NewVnetConfig(&vnetv1pb.VnetConfigSpec{
+	newConfig, err := vnet.NewVnetConfig(vnetv1pb.VnetConfigSpec_builder{
 		Ipv4CidrRange:  vnet.DefaultIPv4CIDRRange,
-		CustomDnsZones: []*vnetv1pb.CustomDNSZone{{Suffix: "example.com"}},
-	})
+		CustomDnsZones: []*vnetv1pb.CustomDNSZone{vnetv1pb.CustomDNSZone_builder{Suffix: "example.com"}.Build()},
+	}.Build())
 	require.NoError(t, err)
 	createdConfig, err := server.Auth().CreateVnetConfig(t.Context(), newConfig)
 	require.NoError(t, err)
@@ -5861,17 +6080,35 @@ func TestGetVnetConfig(t *testing.T) {
 }
 
 func TestCreateAuditStreamLimit(t *testing.T) {
-	const N = 5
-	t.Setenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT", fmt.Sprintf("%d", N))
+	synctest.Test(t, synctestCreateAuditStreamLimit)
+}
+func synctestCreateAuditStreamLimit(t *testing.T) {
+	const inflightLimit = 5
 
 	ctx := t.Context()
 
-	server := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer as.Close()
+
+	server, err := as.NewTestTLSServer(
+		authtest.WithBufconnListener(),
+		func(c *authtest.TLSServerConfig) {
+			n := inflightLimit
+			c.APIConfig.CreateAuditStreamInflightLimit = &n
+		},
+	)
+	require.NoError(t, err)
+	defer server.Close()
+
 	clt, err := server.NewClient(authtest.TestServerID(types.RoleNode, uuid.NewString()))
 	require.NoError(t, err)
+	defer clt.Close()
 
 	// HACK(espadolini): we're piggybacking on the prometheus counter which
-	// can't change while this test is running (we set an envvar, so we can't be
+	// can't change while this test is running (this is a synctest test that's not
 	// running in parallel with other tests) but it's still pretty awful, and
 	// it'd be much better to actually check that the streams were accepted by
 	// the server; unfortunately, the CreateAuditStream stream doesn't actually
@@ -5884,15 +6121,14 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 	}
 	currentAcceptedTotal := getAcceptedTotal()
 
-	for range N {
+	for range inflightLimit {
 		stream, err := clt.CreateAuditStream(ctx, session.NewID())
 		require.NoError(t, err)
-		t.Cleanup(func() { stream.Close(ctx) })
+		defer stream.Close(ctx)
 	}
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.EqualValues(t, currentAcceptedTotal+N, getAcceptedTotal())
-	}, time.Second, 100*time.Millisecond)
+	synctest.Wait()
+	require.EqualValues(t, currentAcceptedTotal+inflightLimit, getAcceptedTotal())
 
 	ac := proto.NewAuthServiceClient(clt.APIClient.GetConnection())
 	stream, err := ac.CreateAuditStream(ctx)
@@ -6834,8 +7070,8 @@ func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
 }
 
 func TestGenerateUserCertsScopedBot(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
+	t.Parallel()
+	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}), withModules(&modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -6889,55 +7125,54 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := t.Context()
-			bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
-				Bot: &machineidv1.Bot{
+			bot, err := adminClient.BotServiceClient().CreateBot(ctx, machineidv1.CreateBotRequest_builder{
+				Bot: machineidv1.Bot_builder{
 					Kind:    types.KindBot,
 					Version: types.V1,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: c.botName,
-					},
+					}.Build(),
 					Scope: c.scope,
 					Spec:  &machineidv1.BotSpec{},
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.NoError(t, err)
 
 			ident := authtest.TestBot(c.botName, c.internal)
 			if c.scope != "" {
 				scopedSvc := adminClient.ScopedAccessServiceClient()
-				roleResp, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-					Role: &scopedaccessv1.ScopedRole{
+				roleResp, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+					Role: scopedaccessv1.ScopedRole_builder{
 						Kind:    scopedaccess.KindScopedRole,
 						Version: types.V1,
-						Metadata: &headerv1.Metadata{
+						Metadata: headerv1.Metadata_builder{
 							Name: c.botName + "-role",
-						},
+						}.Build(),
 						Scope: c.scope,
-						Spec: &scopedaccessv1.ScopedRoleSpec{
+						Spec: scopedaccessv1.ScopedRoleSpec_builder{
 							AssignableScopes: []string{c.scope},
-						},
-					},
-				})
+						}.Build(),
+					}.Build(),
+				}.Build())
 				require.NoError(t, err)
 
-				sra, err := testServer.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-					Assignment: &scopedaccessv1.ScopedRoleAssignment{
+				sra, err := testServer.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+					Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 						Kind:    scopedaccess.KindScopedRoleAssignment,
 						SubKind: scopedaccess.SubKindDynamic,
 						Version: types.V1,
-						Metadata: &headerv1.Metadata{
+						Metadata: headerv1.Metadata_builder{
 							Name: uuid.NewString(),
-						},
+						}.Build(),
 						Scope: c.scope,
-						Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-							BotName:  bot.GetMetadata().GetName(),
-							BotScope: c.scope,
+						Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+							Bot: scopes.QualifiedName{Scope: c.scope, Name: bot.GetMetadata().GetName()}.String(),
 							Assignments: []*scopedaccessv1.Assignment{
-								{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope},
+								scopedaccessv1.Assignment_builder{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope}.Build(),
 							},
-						},
-					},
-				})
+						}.Build(),
+					}.Build(),
+				}.Build())
 				require.NoError(t, err)
 
 				waitForSRACache(t, testServer, sra)
@@ -6962,6 +7197,71 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 				c.expect(t, err)
 			} else {
 				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestScopedWatchEvents(t *testing.T) {
+	t.Parallel()
+	ts := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+	const (
+		hostID = "test-server"
+		scope  = "/test"
+		role   = types.RoleNode
+	)
+
+	scopedClient, err := ts.NewClient(authtest.TestScopedHost(ts.ClusterName(), "scoped-host", scope, role))
+	require.NoError(t, err)
+	t.Cleanup(func() { scopedClient.Close() })
+
+	scopePinnedClient, err := ts.NewClient(authtest.TestScopePinnedHost(ts.ClusterName(), "scope-pinned-host", scope, role))
+	require.NoError(t, err)
+	t.Cleanup(func() { scopePinnedClient.Close() })
+
+	tt := []struct {
+		name          string
+		client        *authclient.Client
+		kind          string
+		expectFailure bool
+	}{
+		{
+			name:   "scoped host watching allowed kind",
+			client: scopedClient,
+			kind:   types.KindCertAuthority,
+		},
+		{
+			name:          "scoped host watching disallowed kind",
+			client:        scopedClient,
+			kind:          types.KindNode,
+			expectFailure: true,
+		},
+		{
+			name:   "scope pinned host watching allowed kind",
+			client: scopePinnedClient,
+			kind:   types.KindCertAuthority,
+		},
+		{
+			name:          "scope pinned host watching disallowed kind",
+			client:        scopePinnedClient,
+			kind:          types.KindNode,
+			expectFailure: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			w, err := tc.client.NewWatcher(t.Context(), types.Watch{Kinds: []types.WatchKind{
+				{Kind: tc.kind},
+			}})
+			require.NoError(t, err)
+
+			select {
+			case <-w.Done():
+				require.True(t, tc.expectFailure, "expected watcher to fail")
+			case <-w.Events():
+				require.False(t, tc.expectFailure, "expected watcher to succeed")
+				w.Close()
 			}
 		})
 	}

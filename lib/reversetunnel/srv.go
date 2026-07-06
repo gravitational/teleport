@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -455,7 +456,7 @@ func (s *server) periodicFunctions() {
 	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
 
-	if err := s.fetchExpectedLeafClusters(); err != nil {
+	if err := s.fetchExpectedLeafClusters(s.ctx); err != nil {
 		s.logger.WarnContext(s.Context, "Failed to fetch expected leaf cluster", "error", err)
 	}
 	for {
@@ -464,7 +465,7 @@ func (s *server) periodicFunctions() {
 			s.logger.DebugContext(s.ctx, "Closing")
 			return
 		case <-ticker.C:
-			if err := s.fetchExpectedLeafClusters(); err != nil {
+			if err := s.fetchExpectedLeafClusters(s.ctx); err != nil {
 				s.logger.WarnContext(s.ctx, "Failed to fetch expected leaf clusters", "error", err)
 			}
 
@@ -493,8 +494,8 @@ func (s *server) periodicFunctions() {
 // what was found in the previous iteration and updates the in-memory cluster
 // placeholders. This map is used later by Cluster(s) to return either local or
 // leaf cluster, or if no match, a placeholder.
-func (s *server) fetchExpectedLeafClusters() error {
-	conns, err := s.LocalAccessPoint.GetAllTunnelConnections()
+func (s *server) fetchExpectedLeafClusters(ctx context.Context) error {
+	conns, err := s.LocalAccessPoint.GetAllTunnelConnections(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -782,6 +783,7 @@ func (s *server) handleTransportChannel(sconn *ssh.ServerConn, ch ssh.Channel, r
 			s.logger.ErrorContext(s.ctx, "Failed to create signed PROXY header", "error", err)
 			fmt.Fprint(ch.Stderr(), "internal server error")
 			req.Reply(false, nil)
+			return
 		}
 		proxyHeader = h
 	}
@@ -939,7 +941,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		return nil, trace.Wrap(err)
 	}
 
-	var clusterName, certRole, certType string
+	var clusterName, certRole, certType, certScope string
 	var caType types.CertAuthType
 	switch ident.CertType {
 	case ssh.HostCert:
@@ -948,10 +950,21 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		}
 		clusterName = ident.ClusterName
 
-		if ident.SystemRole == "" {
+		if ident.SystemRole != "" {
+			// Legacy format: role and scope in separate extensions.
+			certRole = string(ident.SystemRole)
+			certScope = ident.AgentScope
+		} else if ident.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+			// Agent scope pin certs omit the legacy SystemRole and AgentScope extensions;
+			// role and scope are carried inside the pin itself.
+			certRole = ident.ScopePin.GetSystemRoles().GetPrimary()
+			if certRole == "" {
+				return nil, trace.BadParameter("agent scope pin is missing primary system role")
+			}
+			certScope = ident.ScopePin.GetScope()
+		} else {
 			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionRole)
 		}
-		certRole = string(ident.SystemRole)
 		certType = utils.ExtIntCertTypeHost
 		caType = types.HostCA
 	case ssh.UserCert:
@@ -986,7 +999,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 			utils.ExtIntCertType: certType,
 			extCertRole:          certRole,
 			extAuthority:         clusterName,
-			extScope:             ident.AgentScope,
+			extScope:             certScope, // TODO(fsparshall/scopes): should agent scoping be propagated pin-encapsulated like we do for users?
 		},
 	}, nil
 }
@@ -1366,7 +1379,7 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 	validatedMFAChallengeWatcher, err := NewValidatedMFAChallengeWatcher(
 		closeContext,
 		ValidatedMFAChallengeWatcherConfig{
-			ValidatedMFAChallengeLister: leaf.localClient.MFAServiceClient(),
+			ValidatedMFAChallengeLister: leaf.localClient.MFAServiceClientV2(),
 			ClusterName:                 leaf.GetName(),
 			ResourceWatcherConfig: &services.ResourceWatcherConfig{
 				Clock:     srv.Clock,

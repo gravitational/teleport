@@ -887,6 +887,7 @@ func (s *localCluster) removeRemoteConn(rconn *remoteConn) {
 	key := connKey{
 		uuid:     rconn.nodeID,
 		connType: types.TunnelType(rconn.tunnelType),
+		scope:    scopes.NormalizeForEquality(rconn.scope),
 	}
 
 	conns := s.remoteConns[key]

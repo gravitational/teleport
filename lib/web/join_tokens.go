@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/ui"
@@ -645,9 +646,14 @@ func (h *Handler) getJoinScript(ctx context.Context, settings scriptSettings) (s
 		return "", trace.Wrap(err, "Building install script options")
 	}
 
+	tokenName := token.GetName()
+	if secret, ok := token.GetSecret(); ok {
+		tokenName = joining.EncodeScopedToken(tokenName, secret)
+	}
+
 	nodeInstallOpts := scripts.InstallNodeScriptOptions{
 		InstallOptions: installOpts,
-		Token:          token.GetName(),
+		Token:          tokenName,
 		CAPins:         caPins,
 		// We are using the joinMethod from the script settings instead of the one from the token
 		// to reproduce the previous script behavior. I'm also afraid that using the
