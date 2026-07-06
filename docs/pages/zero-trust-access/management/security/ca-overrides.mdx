@@ -140,15 +140,18 @@ See below for CA-specific instructions.
 
 ### db_client
 
+<details>
 Most databases only need to trust the external root CA and intermediate CAs.
 It's not necessary to trust the override CA certificate directly. Those include,
 but are not limited to, MariaDB, MySQL, PostgreSQL, Redis and Oracle.
 
 We recommend checking your database documentation and verifying access after
 applying the CA override in a controlled environment.
+</details>
 
 ### windows
 
+<details>
 Your configuration depends on whether you use
 [AD](../../../enroll-resources/desktop-access/active-directory.mdx#step-37-configure-a-gpo-to-allow-teleport-connections)
 or
@@ -160,6 +163,7 @@ domain, and publish the override CA certificate directly to NTAuth.
 
 Run the following command on a domain-joined Windows host to verify that the
 NTAuth store includes the override CA certificate.
+</details>
 
 ```code
 $ certutil -viewstore -enterprise NTAuth
