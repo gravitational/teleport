@@ -677,6 +677,24 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = scopedIssuerClient.Close() })
 
+	// A user whose verb and label grants are split across two scoped roles in
+	// the same scope. Issuance requires a single role to hold both grants.
+	splitRulesRole := createScopedWorkloadIdentityRole(
+		t, adminClient, "split-rules-role", scopedScope,
+		[]string{types.VerbReadNoSecrets, types.VerbList}, nil,
+	)
+	splitLabelsRole := createScopedWorkloadIdentityRole(
+		t, adminClient, "split-labels-role", scopedScope,
+		nil, map[string][]string{"foo": {"bar"}},
+	)
+	splitGrantIssuer := createScopedWorkloadIdentityUser(
+		t, tp.srv, adminClient, "split-grant-issuer", scopedScope,
+		splitRulesRole, splitLabelsRole,
+	)
+	splitGrantClient, err := tp.srv.NewClient(authtest.TestScopedUser(splitGrantIssuer, scopedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = splitGrantClient.Close() })
+
 	// A WorkloadIdentity in the issuer's scope it can access (label match).
 	scopedWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
 		scopedWorkloadIdentityWithLabels("scoped-wi", scopedScope, scopedScope+"/_/foo", map[string]string{"foo": "bar"}))
@@ -752,6 +770,22 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
 				Name:          otherScopeWI.GetMetadata().GetName(),
 				Scope:         otherScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+			},
+		},
+		{
+			// The verb and label grants are split across two roles in the
+			// scope; scoped roles are evaluated in isolation, so a single role
+			// must hold both grants and issuance is denied.
+			name:   "scoped split-role grants denied",
+			client: splitGrantClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          scopedWI.GetMetadata().GetName(),
+				Scope:         scopedScope,
 				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
 				WorkloadAttrs: workloadAttrs(nil),
 			}.Build(),
@@ -4671,56 +4705,80 @@ func scopedWorkloadIdentityWithLabels(name, scope, spiffeID string, labels map[s
 	return wi
 }
 
-// newScopedWorkloadIdentityIssuer creates a user assigned a scoped role that
-// grants both the rules (read_no_secrets + list) and the workload_identity
-// label selector required to issue SVIDs using scoped WorkloadIdentities within
-// the given scope. It returns the username, which can be used with
-// authtest.TestScopedUser to mint a client pinned to that scope.
-func newScopedWorkloadIdentityIssuer(
+// createScopedWorkloadIdentityRole creates a scoped role assignable within the
+// given scope, granting the given rule verbs for the workload_identity kind
+// (if any) and the given workload_identity label selector (if any). Returns
+// the role name.
+func createScopedWorkloadIdentityRole(
 	t *testing.T,
-	srv *authtest.TLSServer,
 	adminClient *authclient.Client,
-	username string,
+	roleName string,
 	scope string,
+	verbs []string,
 	labels map[string][]string,
 ) string {
 	t.Helper()
 	ctx := t.Context()
 
-	wiLabels := make([]*labelv1.Label, 0, len(labels))
-	for name, values := range labels {
-		wiLabels = append(wiLabels, labelv1.Label_builder{Name: name, Values: values}.Build())
+	spec := scopedaccessv1.ScopedRoleSpec_builder{
+		AssignableScopes: []string{scope},
+	}
+	if len(verbs) > 0 {
+		spec.Rules = []*scopedaccessv1.ScopedRule{
+			scopedaccessv1.ScopedRule_builder{
+				Resources: []string{types.KindWorkloadIdentity},
+				Verbs:     verbs,
+			}.Build(),
+		}
+	}
+	if len(labels) > 0 {
+		wiLabels := make([]*labelv1.Label, 0, len(labels))
+		for labelName, values := range labels {
+			wiLabels = append(wiLabels, labelv1.Label_builder{Name: labelName, Values: values}.Build())
+		}
+		spec.WorkloadIdentity = scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+			Labels: wiLabels,
+		}.Build()
 	}
 
-	scopedSvc := adminClient.ScopedAccessServiceClient()
-	role, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+	role, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
-				Name: username + "-role",
+				Name: roleName,
 			}.Build(),
 			Scope: "/scopes",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
-				AssignableScopes: []string{scope},
-				Rules: []*scopedaccessv1.ScopedRule{
-					scopedaccessv1.ScopedRule_builder{
-						Resources: []string{types.KindWorkloadIdentity},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
-					}.Build(),
-				},
-				WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
-					Labels: wiLabels,
-				}.Build(),
-			}.Build(),
+			Spec:  spec.Build(),
 		}.Build(),
 	}.Build())
 	require.NoError(t, err)
+	return role.GetRole().GetMetadata().GetName()
+}
+
+// createScopedWorkloadIdentityUser creates a user assigned the given scoped
+// roles within the given scope, and waits for the assignment to propagate to
+// the cache used by the authorizer. It returns the username, which can be used
+// with authtest.TestScopedUser to mint a client pinned to that scope.
+func createScopedWorkloadIdentityUser(
+	t *testing.T,
+	srv *authtest.TLSServer,
+	adminClient *authclient.Client,
+	username string,
+	scope string,
+	roleNames ...string,
+) string {
+	t.Helper()
+	ctx := t.Context()
 
 	user, err := authtest.CreateUser(ctx, srv.Auth(), username)
 	require.NoError(t, err)
 
-	resp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+	assignments := make([]*scopedaccessv1.Assignment, 0, len(roleNames))
+	for _, roleName := range roleNames {
+		assignments = append(assignments, scopedaccessv1.Assignment_builder{Role: roleName, Scope: scope}.Build())
+	}
+	resp, err := adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
@@ -4730,10 +4788,8 @@ func newScopedWorkloadIdentityIssuer(
 			}.Build(),
 			Scope: "/scopes",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				User: user.GetName(),
-				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: role.GetRole().GetMetadata().GetName(), Scope: scope}.Build(),
-				},
+				User:        user.GetName(),
+				Assignments: assignments,
 			}.Build(),
 		}.Build(),
 	}.Build())
@@ -4749,4 +4805,25 @@ func newScopedWorkloadIdentityIssuer(
 	}, 10*time.Second, 100*time.Millisecond)
 
 	return user.GetName()
+}
+
+// newScopedWorkloadIdentityIssuer creates a user assigned a single scoped role
+// that grants both the rules (read_no_secrets + list) and the workload_identity
+// label selector required to issue SVIDs using scoped WorkloadIdentities within
+// the given scope. It returns the username, which can be used with
+// authtest.TestScopedUser to mint a client pinned to that scope.
+func newScopedWorkloadIdentityIssuer(
+	t *testing.T,
+	srv *authtest.TLSServer,
+	adminClient *authclient.Client,
+	username string,
+	scope string,
+	labels map[string][]string,
+) string {
+	t.Helper()
+	role := createScopedWorkloadIdentityRole(
+		t, adminClient, username+"-role", scope,
+		[]string{types.VerbReadNoSecrets, types.VerbList}, labels,
+	)
+	return createScopedWorkloadIdentityUser(t, srv, adminClient, username, scope, role)
 }

@@ -1217,29 +1217,19 @@ func (s *IssuanceService) authorizeIssuance(
 ) error {
 	ruleCtx := authCtx.RuleContext()
 	ruleCtx.Resource153 = wi
-	// Rule-based access: the caller must hold the read/list verbs in the scope.
-	if err := authCtx.CheckerContext.Decision(
+	// The caller must hold the given verbs for the workload_identity kind and
+	// match the resource via a workload_identity label selector. Both checks
+	// run within a single Decision so that, for scoped identities, a single
+	// role must carry both grants - grants do not aggregate across scoped
+	// roles.
+	return trace.Wrap(authCtx.CheckerContext.Decision(
 		ctx, wi.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, verbs...)
+			if err := checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, verbs...); err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(checker.CheckAccessToWorkloadIdentity(wi))
 		},
-	); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// TODO(strideynet): Can we merge these two decision checks into a single
-	// check? I assume yes - even better if CheckAccessToWorkloadIdentity
-	// also checks access to rules??
-
-	// Label-based issuance grant: the caller must match the resource by virtue of
-	// a workload_identity label selector in the scope.
-	if err := authCtx.CheckerContext.Decision(
-		ctx, wi.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToWorkloadIdentity(wi)
-		},
-	); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	))
 }
 
 // validateRenderedWorkloadIdentity re-validates that a scoped WorkloadIdentity's
