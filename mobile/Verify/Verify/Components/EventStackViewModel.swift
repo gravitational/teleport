@@ -31,7 +31,7 @@ final class EventStackViewModel<ID: Hashable> {
 // MARK: - Event Model
 
 extension EventStackViewModel {
-	/// A single devent to be displayed inside an EventStackView.
+	/// A single event to be displayed inside an EventStackView.
 	struct Event: Identifiable {
 		var id: ID
 		var status: Status
