@@ -367,9 +367,11 @@ func TestRun_DeadLetter_ExhaustedEventLeavesMainQueue(t *testing.T) {
 				return calls.Load() >= maxAttempts
 			}, testDefaultTimeout, 10*time.Millisecond)
 
-			// Give the run loop a few more cycles and confirm the count does not grow.
-			time.Sleep(5 * pollInterval)
-			require.Equal(t, int32(maxAttempts), calls.Load(),
+			// Confirm the handler is not called again after the event is
+			// promoted to the dead-letter queue.
+			require.Never(t, func() bool {
+				return calls.Load() > maxAttempts
+			}, 5*pollInterval, pollInterval,
 				"handler should not be called again after event is promoted to dead-letter")
 
 			cancel()
@@ -418,9 +420,15 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 			runErr := make(chan error, 1)
 			go func() { runErr <- q.Run(runCtx, handler) }()
 
-			// Wait long enough for the event to exhaust its attempts and land in
-			// the dead-letter queue, then signal recovery.
-			time.Sleep(5 * pollInterval)
+			sq, ok := q.(*sqliteQueue)
+			require.True(t, ok)
+
+			// Wait for the event to exhaust its attempts and land in the
+			// dead-letter queue, then signal recovery.
+			require.Eventually(t, func() bool {
+				dl, err := fetchDeadLetter(ctx, sq.db, 10)
+				return err == nil && len(dl) == 1
+			}, testDefaultTimeout, 10*time.Millisecond)
 			recovered.Store(true)
 
 			select {
