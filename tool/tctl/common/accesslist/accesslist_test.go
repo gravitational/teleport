@@ -24,104 +24,121 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/trait"
 )
 
-func TestApplyGrantsAndRequires_AllFieldsSet(t *testing.T) {
-	cmd := Command{
-		ownerGrantRolesSet:      true,
-		ownerGrantRoles:         "owner-grant-role",
-		ownerGrantTraitsSet:     true,
-		ownerGrantTraits:        "owner-grant=owner-grant-trait",
-		ownerRequiredRolesSet:   true,
-		ownerRequiredRoles:      "owner-required-role",
-		ownerRequiredTraitsSet:  true,
-		ownerRequiredTraits:     "owner-required=owner-required-trait",
-		memberGrantRolesSet:     true,
-		memberGrantRoles:        "member-grant-role",
-		memberGrantTraitsSet:    true,
-		memberGrantTraits:       "member-grant=member-grant-trait",
-		memberRequiredRolesSet:  true,
-		memberRequiredRoles:     "member-required-role",
-		memberRequiredTraitsSet: true,
-		memberRequiredTraits:    "member-required=member-required-trait",
-	}
-
-	al := &accesslist.AccessList{}
-	require.NoError(t, cmd.applyGrantsAndRequires(al))
-
-	require.Equal(t, []string{"owner-grant-role"}, al.Spec.OwnerGrants.Roles)
-	require.Equal(t, []string{"owner-grant-trait"}, al.Spec.OwnerGrants.Traits["owner-grant"])
-	require.Equal(t, []string{"owner-required-role"}, al.Spec.OwnershipRequires.Roles)
-	require.Equal(t, []string{"owner-required-trait"}, al.Spec.OwnershipRequires.Traits["owner-required"])
-	require.Equal(t, []string{"member-grant-role"}, al.Spec.Grants.Roles)
-	require.Equal(t, []string{"member-grant-trait"}, al.Spec.Grants.Traits["member-grant"])
-	require.Equal(t, []string{"member-required-role"}, al.Spec.MembershipRequires.Roles)
-	require.Equal(t, []string{"member-required-trait"}, al.Spec.MembershipRequires.Traits["member-required"])
-}
-
-func TestApplyGrantsAndRequires_NoFlagsSet(t *testing.T) {
-	al := dummyAccessList()
-	want := dummyAccessList()
-
-	require.NoError(t, (&Command{}).applyGrantsAndRequires(al))
-
-	require.Equal(t, want.Spec.Grants, al.Spec.Grants)
-	require.Equal(t, want.Spec.OwnerGrants, al.Spec.OwnerGrants)
-	require.Equal(t, want.Spec.MembershipRequires, al.Spec.MembershipRequires)
-	require.Equal(t, want.Spec.OwnershipRequires, al.Spec.OwnershipRequires)
-}
-
-func TestApplyGrantsAndRequires_SetToEmpty(t *testing.T) {
-	cmd := Command{
-		ownerGrantRolesSet:      true,
-		ownerGrantTraitsSet:     true,
-		ownerRequiredRolesSet:   true,
-		ownerRequiredTraitsSet:  true,
-		memberGrantRolesSet:     true,
-		memberGrantTraitsSet:    true,
-		memberRequiredRolesSet:  true,
-		memberRequiredTraitsSet: true,
-	}
-
-	al := dummyAccessList()
-	require.NoError(t, cmd.applyGrantsAndRequires(al))
-
-	require.Empty(t, al.Spec.OwnerGrants.Roles)
-	require.Empty(t, al.Spec.OwnerGrants.Traits)
-	require.Empty(t, al.Spec.OwnershipRequires.Roles)
-	require.Empty(t, al.Spec.OwnershipRequires.Traits)
-	require.Empty(t, al.Spec.Grants.Roles)
-	require.Empty(t, al.Spec.Grants.Traits)
-	require.Empty(t, al.Spec.MembershipRequires.Roles)
-	require.Empty(t, al.Spec.MembershipRequires.Traits)
-}
-
-func TestApplyGrantsAndRequires_InvalidTrait(t *testing.T) {
+func TestApplyGrantsAndRequirements(t *testing.T) {
 	tests := []struct {
-		name string
-		cmd  Command
+		name    string
+		cmd     Command
+		al      *accesslist.AccessList
+		wantErr bool
+		wantAl  *accesslist.AccessList
 	}{
 		{
-			name: "owner-grant-traits",
-			cmd:  Command{ownerGrantTraitsSet: true, ownerGrantTraits: "invalid-trait"},
+			name: "flag values gets applied",
+			al:   &accesslist.AccessList{},
+			cmd: Command{
+				ownerGrantRolesSet:      true,
+				ownerGrantRoles:         "owner-grant-role",
+				ownerGrantTraitsSet:     true,
+				ownerGrantTraits:        "owner-grant=owner-grant-trait",
+				ownerRequiredRolesSet:   true,
+				ownerRequiredRoles:      "owner-required-role",
+				ownerRequiredTraitsSet:  true,
+				ownerRequiredTraits:     "owner-required=owner-required-trait",
+				memberGrantRolesSet:     true,
+				memberGrantRoles:        "member-grant-role",
+				memberGrantTraitsSet:    true,
+				memberGrantTraits:       "member-grant=member-grant-trait",
+				memberRequiredRolesSet:  true,
+				memberRequiredRoles:     "member-required-role",
+				memberRequiredTraitsSet: true,
+				memberRequiredTraits:    "member-required=member-required-trait",
+			},
+			wantAl: &accesslist.AccessList{
+				Spec: accesslist.Spec{
+					Grants: accesslist.Grants{
+						Roles:  []string{"member-grant-role"},
+						Traits: map[string][]string{"member-grant": {"member-grant-trait"}},
+					},
+					OwnerGrants: accesslist.Grants{
+						Roles:  []string{"owner-grant-role"},
+						Traits: map[string][]string{"owner-grant": {"owner-grant-trait"}},
+					},
+					MembershipRequires: accesslist.Requires{
+						Roles:  []string{"member-required-role"},
+						Traits: map[string][]string{"member-required": {"member-required-trait"}},
+					},
+					OwnershipRequires: accesslist.Requires{
+						Roles:  []string{"owner-required-role"},
+						Traits: map[string][]string{"owner-required": {"owner-required-trait"}},
+					},
+				},
+			},
 		},
 		{
-			name: "owner-required-traits",
-			cmd:  Command{ownerRequiredTraitsSet: true, ownerRequiredTraits: "invalid-trait"},
+			name:   "no flags set, leaves existing values alone",
+			al:     dummyAccessList(),
+			cmd:    Command{},
+			wantAl: dummyAccessList(),
 		},
 		{
-			name: "member-grant-traits",
-			cmd:  Command{memberGrantTraitsSet: true, memberGrantTraits: "invalid-trait"},
+			name: "set flags to clear existing values",
+			al:   dummyAccessList(),
+			cmd: Command{
+				ownerGrantRolesSet:      true,
+				ownerGrantTraitsSet:     true,
+				ownerRequiredRolesSet:   true,
+				ownerRequiredTraitsSet:  true,
+				memberGrantRolesSet:     true,
+				memberGrantTraitsSet:    true,
+				memberRequiredRolesSet:  true,
+				memberRequiredTraitsSet: true,
+			},
+			wantAl: &accesslist.AccessList{
+				Spec: accesslist.Spec{
+					Grants:             accesslist.Grants{Roles: []string{}, Traits: trait.Traits{}},
+					OwnerGrants:        accesslist.Grants{Roles: []string{}, Traits: trait.Traits{}},
+					MembershipRequires: accesslist.Requires{Roles: []string{}, Traits: trait.Traits{}},
+					OwnershipRequires:  accesslist.Requires{Roles: []string{}, Traits: trait.Traits{}},
+				},
+			}},
+		{
+			name:    "invalid owner grant traits",
+			al:      &accesslist.AccessList{},
+			cmd:     Command{ownerGrantTraitsSet: true, ownerGrantTraits: "invalid-trait"},
+			wantErr: true,
 		},
 		{
-			name: "member-required-traits",
-			cmd:  Command{memberRequiredTraitsSet: true, memberRequiredTraits: "invalid-trait"},
+			name:    "invalid owner required traits",
+			al:      &accesslist.AccessList{},
+			cmd:     Command{ownerRequiredTraitsSet: true, ownerRequiredTraits: "invalid-trait"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid member grant traits",
+			al:      &accesslist.AccessList{},
+			cmd:     Command{memberGrantTraitsSet: true, memberGrantTraits: "invalid-trait"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid member required traits",
+			al:      &accesslist.AccessList{},
+			cmd:     Command{memberRequiredTraitsSet: true, memberRequiredTraits: "invalid-trait"},
+			wantErr: true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.cmd.applyGrantsAndRequires(&accesslist.AccessList{})
-			require.Error(t, err)
+			err := tt.cmd.applyGrantsAndRequirements(tt.al)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantAl, tt.al)
+			}
 		})
 	}
 }

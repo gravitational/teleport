@@ -164,7 +164,7 @@ func (c *Command) applySpecFlags(al *accesslist.AccessList) error {
 		al.Spec.Audit.NextAuditDate = time.Time{}
 	}
 
-	if err := c.applyGrantsAndRequires(al); err != nil {
+	if err := c.applyGrantsAndRequirements(al); err != nil {
 		return trace.Wrap(err)
 	}
 

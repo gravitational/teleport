@@ -185,7 +185,7 @@ const createHelpText = "Create an access list.\n" +
 	"\n" +
 	"Use --access-type if you want Teleport to create the supporting roles for you.\n" +
 	"It sets how members are granted access:\n" +
-	"  standing       members get ongoing access to the resources set below.\n" +
+	"  standing       members receive persistent access to the resources set below.\n" +
 	"  request-based  members must request that access; owners approve.\n" +
 	"These roles are built from the resource flags you set. Without --access-type,\n" +
 	"a plain access list is created with no roles, and you set its grants yourself.\n" +
@@ -268,7 +268,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.update.Flag("remove-access", "Remove resource access from an access-typed list. Detaches the resource-access roles from the list's grants and from the supporting reviewer/requester roles.").BoolVar(&c.removeAccess)
 
 	c.create = acl.Command("create", createHelpText)
-	c.create.Flag("access-type", "How members are granted access: 'standing' (members get ongoing access to the resources described by the resource flags) or 'request-based' (members must request access; owners review). When omitted, a plain access list is created with no auto-generated roles.").EnumVar(&c.accessType, accessTypeLongTerm, accessTypeShortTerm)
+	c.create.Flag("access-type", "How members are granted access: 'standing' (members receive persistent access to the resources described by the resource flags) or 'request-based' (members must request access; owners review). When omitted, a plain access list is created with no auto-generated roles.").EnumVar(&c.accessType, accessTypeLongTerm, accessTypeShortTerm)
 	c.create.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.create.Flag("title", "Display name for the access list.").IsSetByUser(&c.titleSet).StringVar(&c.title)
 	c.create.Flag("audit-frequency", auditFrequencyText).Default("6").PlaceHolder("6").IntVar(&c.auditFrequency)

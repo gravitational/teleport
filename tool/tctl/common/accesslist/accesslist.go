@@ -54,9 +54,9 @@ func getReviewDayOfMonth(day int) (accesslist.ReviewDayOfMonth, error) {
 	return 0, trace.BadParameter("--audit-day must be one of 1, 15, 31 (got %d)", day)
 }
 
-// applyGrantsAndRequires applies the owner/member grant and requirement flags to
+// applyGrantsAndRequirements applies the owner/member grant and requirement flags to
 // the access list spec.
-func (c *Command) applyGrantsAndRequires(al *accesslist.AccessList) error {
+func (c *Command) applyGrantsAndRequirements(al *accesslist.AccessList) error {
 	// Owner grants and requirements
 	if c.ownerGrantRolesSet {
 		al.Spec.OwnerGrants.Roles = utils.SplitIdentifiers(c.ownerGrantRoles)

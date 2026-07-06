@@ -71,7 +71,7 @@ func (c *Command) Create(ctx context.Context, client *authclient.Client) error {
 		return trace.Wrap(err)
 	}
 
-	if err := c.applyGrantsAndRequires(newAccessList); err != nil {
+	if err := c.applyGrantsAndRequirements(newAccessList); err != nil {
 		return trace.Wrap(err)
 	}
 
