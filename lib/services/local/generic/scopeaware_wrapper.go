@@ -72,6 +72,27 @@ func NewScopeAwareServiceWrapper[T ScopedResourceMetadata](cfg ScopeAwareService
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(strideynet): I'm not super keen on the way we instantiate a scoped
+	// and unscoped ServiceWrapper here. We already instantiate a scoped and
+	// unscoped service within ScopeAwareService. It feels pretty awkward that
+	// we then have a bunch of instantiated services floating around and that
+	// each one has to be used very carefully. There's just too many layers of
+	// indirection and it's not particularly cleanly layered.
+	//
+	// I see a few alternatives:
+	//
+	// 1. Re-architect ScopedAwareServiceWrapper to no longer depend on
+	//    ScopeAwareService and instead directly use the scoped and unscoped
+	//    ServiceWrappers. This effectively leaves us with ScopeAwareService
+	//    implemented twice (so a bit of duplication), but removes a layer of
+	//    indirection.
+	// 2. Remove scopedResourceMetadataAdapter and instead add GetScope directly
+	//    to resourceMetadataAdapter. This lets us directly wrap the Service
+	//    returned by ScopeAwareService.WithScopePrefix with a ServiceWrapper?
+	//    It keeps the indirection thru ScopeAwareService but avoids us forking
+	//    and instantiating ServiceWrappers here...
+	// 3. Introduce /another/ wrapper designed to wrap the Service[T] returned
+	//    by ScopeAwareService.WithScopePrefix?
 	newSingleRangeWrapper := func(prefix backend.Key) (*ServiceWrapper[T], error) {
 		return NewServiceWrapper(ServiceConfig[T]{
 			Backend:                     cfg.Backend,
