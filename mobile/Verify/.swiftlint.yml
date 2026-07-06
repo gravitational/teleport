@@ -1,0 +1,10 @@
+# These rules are enabled by default but we disable them for this repo
+disabled_rules:
+  # case statements should be indented one level deeper than their enclosing switch statement
+  - switch_case_alignment
+  # we shouldn't prohibit TODOs in code, they're useful markers for outstanding work
+  - todo
+
+# Optional values should always be explicitly initialized with '= nil' for clarity.
+implicit_optional_initialization:
+  style: never

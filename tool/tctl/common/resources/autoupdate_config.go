@@ -84,10 +84,10 @@ func createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw 
 	}
 
 	if config.GetMetadata() == nil {
-		config.Metadata = &headerv1.Metadata{}
+		config.SetMetadata(&headerv1.Metadata{})
 	}
 	if config.GetMetadata().GetName() == "" {
-		config.Metadata.Name = types.MetaNameAutoUpdateConfig
+		config.GetMetadata().SetName(types.MetaNameAutoUpdateConfig)
 	}
 
 	if opts.Force {
@@ -110,10 +110,10 @@ func updateAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw 
 	}
 
 	if config.GetMetadata() == nil {
-		config.Metadata = &headerv1.Metadata{}
+		config.SetMetadata(&headerv1.Metadata{})
 	}
 	if config.GetMetadata().GetName() == "" {
-		config.Metadata.Name = types.MetaNameAutoUpdateConfig
+		config.GetMetadata().SetName(types.MetaNameAutoUpdateConfig)
 	}
 
 	if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {

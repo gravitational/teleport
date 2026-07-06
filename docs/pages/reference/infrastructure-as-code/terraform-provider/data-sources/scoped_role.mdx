@@ -57,6 +57,7 @@ Optional:
 - `kube` (Attributes) The kubernetes specific configuration for a scoped role. (see [below for nested schema](#nested-schema-for-speckube))
 - `rules` (Attributes List) Rules describes basic resource:verb permissions (e.g. scoped_role:read). (see [below for nested schema](#nested-schema-for-specrules))
 - `ssh` (Attributes) Ssh specifies controls that govern SSH access. (see [below for nested schema](#nested-schema-for-specssh))
+- `workload_identity` (Attributes) WorkloadIdentity specifies controls that govern issuance using WorkloadIdentity resources. (see [below for nested schema](#nested-schema-for-specworkload_identity))
 
 ### Nested Schema for `spec.defaults`
 
@@ -196,4 +197,19 @@ Optional:
 Optional:
 
 - `mode` (String) Mode sets the session recording mode. Allowed values: strict or best_effort.
+
+
+
+### Nested Schema for `spec.workload_identity`
+
+Optional:
+
+- `labels` (Attributes List) Labels is the set of WorkloadIdentity labels used to dynamically select which WorkloadIdentity resources this role permits issuance with. Issuance additionally requires the caller to hold read_no_secrets (and, for the multi-issue RPC, list) rules for the workload_identity kind in the relevant scope. (see [below for nested schema](#nested-schema-for-specworkload_identitylabels))
+
+### Nested Schema for `spec.workload_identity.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
 

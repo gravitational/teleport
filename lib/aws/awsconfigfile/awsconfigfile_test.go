@@ -246,9 +246,10 @@ credential_process = credential_process
 
 		dir := filepath.Join(tmpDir, "dir")
 		require.DirExists(t, dir)
-		info, err := os.Stat(dir)
-		require.NoError(t, err)
-		require.Equal(t, os.FileMode(0700), info.Mode().Perm())
+		requireUnixPermissions(t, dir, 0o700)
+
+		require.FileExists(t, configFilePath)
+		requireUnixPermissions(t, configFilePath, 0o600)
 
 		bs, err := os.ReadFile(configFilePath)
 		require.NoError(t, err)
@@ -477,6 +478,13 @@ func TestSSORemovalGuard(t *testing.T) {
 	require.Contains(t, s, "[profile sso-profile]", "SSO profile should persist after logout")
 }
 
+func requireUnixPermissions(t *testing.T, target string, expected os.FileMode) {
+	t.Helper()
+	info, err := os.Stat(target)
+	require.NoError(t, err)
+	require.Equal(t, expected, info.Mode().Perm())
+}
+
 func TestUpdateRemoveCycle(t *testing.T) {
 	initialContents := "[profile baz]\nregion = us-east-1\n\n[default]\nregion = us-west-2\n"
 	configFilePath := filepath.Join(t.TempDir(), "config")
@@ -515,9 +523,7 @@ func TestSSOConfig(t *testing.T) {
 
 		dir := filepath.Join(tmpDir, "dir")
 		require.DirExists(t, dir)
-		info, err := os.Stat(dir)
-		require.NoError(t, err)
-		require.Equal(t, os.FileMode(0700), info.Mode().Perm())
+		requireUnixPermissions(t, dir, 0o700)
 
 		bs, err := os.ReadFile(configFilePath)
 		require.NoError(t, err)

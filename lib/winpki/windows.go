@@ -355,6 +355,11 @@ func generateDatabaseCredentials(ctx context.Context, auth AuthInterface, req *G
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
+
+	// NOTE: genResp.TrustChain is purposefully ignored here. CAs must be directly
+	// known by the NTAuth store, so there is no point in setting the trust chain.
+	// https://github.com/gravitational/teleport/blob/25f2d6c0b4e8fd6cebf5c9da014c0e344cd14fc2/rfd/0237-sub-ca-support.md?plain=1#L441-L447
+
 	certBlock, _ := pem.Decode(genResp.Cert)
 	if certBlock == nil {
 		return nil, nil, nil, trace.BadParameter("failed to decode certificate")

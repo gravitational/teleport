@@ -22,6 +22,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"iter"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -262,6 +263,19 @@ func GetTLSCerts(ca types.CertAuthority) [][]byte {
 	return out
 }
 
+// GetX509Certs returns parsed TLS certificates from CA as [x509.Certificate].
+func GetX509Certs(ca types.CertAuthority) iter.Seq2[*x509.Certificate, error] {
+	pairs := ca.GetTrustedTLSKeyPairs()
+	return func(yield func(*x509.Certificate, error) bool) {
+		for _, pair := range pairs {
+			cert, err := tlsca.ParseCertificatePEM(pair.Cert)
+			if !yield(cert, err) {
+				return
+			}
+		}
+	}
+}
+
 // GetSSHCheckingKeys returns SSH public keys from CA
 func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedSSHKeyPairs()
@@ -279,12 +293,7 @@ func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, int
 	certPool := x509.NewCertPool()
 	count := 0
 	for _, ca := range cas {
-		keyPairs := ca.GetTrustedTLSKeyPairs()
-		if len(keyPairs) == 0 {
-			continue
-		}
-		for _, keyPair := range keyPairs {
-			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+		for cert, err := range GetX509Certs(ca) {
 			if err != nil {
 				return nil, 0, trace.Wrap(err)
 			}
@@ -298,17 +307,12 @@ func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, int
 // CertPool returns certificate pools from TLS certificates
 // set up in the certificate authority
 func CertPool(ca types.CertAuthority) (*x509.CertPool, error) {
-	keyPairs := ca.GetTrustedTLSKeyPairs()
-	if len(keyPairs) == 0 {
-		return nil, trace.BadParameter("certificate authority has no TLS certificates")
+	certPool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	certPool := x509.NewCertPool()
-	for _, keyPair := range keyPairs {
-		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		certPool.AddCert(cert)
+	if count == 0 {
+		return nil, trace.BadParameter("certificate authority has no TLS certificates")
 	}
 	return certPool, nil
 }

@@ -69,6 +69,7 @@ func NewDatabaseV3Reconciler(client kclient.Client, tClient *client.Client) (con
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Database, *resourcesv1.TeleportDatabaseV3](
 		client,
 		databaseClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

@@ -47,6 +47,8 @@ export type SortItem = {
   defaultOrder?: SortOrder;
   /** Disable the sort options when this item is selected. The default sort order is still honored when the item is selected. */
   disableSort?: boolean;
+  /** Hide this item from the sort menu options. Useful if some sorting fields are conditional. */
+  hidden?: boolean;
 };
 
 export function SortMenu(props: {
@@ -66,8 +68,7 @@ export function SortMenu(props: {
   const theme = useTheme();
 
   const {
-    key,
-    label = key ?? 'No label',
+    label,
     ascendingLabel,
     descendingLabel,
     ascendingOptionLabel = 'Ascending',
@@ -80,11 +81,11 @@ export function SortMenu(props: {
 
   const handleClose = () => setAnchorEl(null);
 
-  const handleItemSelected = (key: string) => {
+  const handleItemSelected = (newKey: string) => {
     handleClose();
     onChange(
-      key,
-      items.find(f => f.key === key)?.defaultOrder ?? selectedOrder ?? 'ASC'
+      newKey,
+      items.find(f => f.key === newKey)?.defaultOrder ?? selectedOrder ?? 'ASC'
     );
   };
 
@@ -123,8 +124,8 @@ export function SortMenu(props: {
         )}
 
         {selectedOrder === 'ASC'
-          ? (ascendingLabel ?? label)
-          : (descendingLabel ?? label)}
+          ? (ascendingLabel ?? (label || selectedKey))
+          : (descendingLabel ?? (label || selectedKey))}
 
         <ChevronDown size={'small'} />
       </StyledButtonBorder>
@@ -144,16 +145,20 @@ export function SortMenu(props: {
         menuListCss={() => `padding-bottom: 8px;`}
       >
         <MenuTitle>Sort by</MenuTitle>
-        {items.map(({ key, label: optionLabel }) => (
-          <StyledMenuItem key={key} onClick={() => handleItemSelected(key)}>
-            <Tick
-              size={'small'}
-              checked={selectedKey == key}
-              color={theme.colors.text.muted}
-            />
-            {optionLabel}
-          </StyledMenuItem>
-        ))}
+        {items
+          .filter(({ key, hidden }) => !hidden || selectedKey === key)
+          .map(({ key, label: optionLabel }) => {
+            return (
+              <StyledMenuItem key={key} onClick={() => handleItemSelected(key)}>
+                <Tick
+                  size={'small'}
+                  checked={selectedKey === key}
+                  color={theme.colors.text.muted}
+                />
+                {optionLabel || key}
+              </StyledMenuItem>
+            );
+          })}
         <MenuTitle>Order</MenuTitle>
         <StyledMenuItem
           onClick={() => handleOrderSelected('ASC')}

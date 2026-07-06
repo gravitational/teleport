@@ -498,7 +498,7 @@ func (h *Handler) dbConnect(
 	databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           apidefaults.Namespace,
 		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, req.ServiceName),
+		PredicateExpression: fmt.Sprintf(`name == %q`, req.ServiceName),
 		Limit:               1,
 	})
 	if err != nil {
@@ -950,7 +950,7 @@ func fetchDatabaseServersWithName(ctx context.Context, clt resourcesAPIGetter, r
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
+		PredicateExpression: fmt.Sprintf(`name == %q`, databaseName),
 		UseSearchAsRoles:    r.URL.Query().Get("searchAsRoles") == "yes",
 	})
 	if err != nil {

@@ -104,8 +104,8 @@ build-enterprise-binaries: buildbox-centos7 webassets
 # This builds Enterprise binaries only.
 #
 .PHONY: build-binaries-fips
-build-binaries-fips: buildbox-centos7-fips webassets
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
+build-binaries-fips: buildbox-centos7 webassets
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
 		make ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) FIPS=yes clean-ent full-ent
 
 #
@@ -668,8 +668,8 @@ release-ng: webassets buildbox-ng
 # CI should not use this target, it should use named Makefile targets like release-amd64-fips.
 #
 .PHONY: release-fips
-release-fips: buildbox-centos7-fips webassets
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
+release-fips: buildbox-centos7 webassets
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/make release-ent -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes REPRODUCIBLE=yes
 
 #
@@ -699,9 +699,9 @@ release-centos7: buildbox-centos7 webassets
 # to call release-unix-preserving-webassets like we do for the non-fips release.
 #
 .PHONY: release-centos7-fips
-release-centos7-fips: buildbox-centos7-fips webassets
+release-centos7-fips: buildbox-centos7 webassets
 	$(call LOG_GROUP_START)
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make release-ent -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes REPRODUCIBLE=no'
 	$(call LOG_GROUP_END)
 

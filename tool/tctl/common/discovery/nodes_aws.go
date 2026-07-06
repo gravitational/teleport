@@ -26,8 +26,6 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 )
 
-const cloudAWS = "AWS"
-
 // awsInfo holds AWS-specific instance metadata.
 type awsInfo struct {
 	InstanceID string `json:"instance_id"`

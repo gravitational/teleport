@@ -146,10 +146,10 @@ func (s *StableUNIXUsersService) SearchFreeUID(ctx context.Context, first int32,
 
 // AppendCreateUsernameUID implements [services.StableUNIXUsersInternal].
 func (s *StableUNIXUsersService) AppendCreateStableUNIXUser(actions []backend.ConditionalAction, username string, uid int32) ([]backend.ConditionalAction, error) {
-	b, err := proto.Marshal(&stableunixusersv1.StableUNIXUser{
+	b, err := proto.Marshal(stableunixusersv1.StableUNIXUser_builder{
 		Username: username,
 		Uid:      uid,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

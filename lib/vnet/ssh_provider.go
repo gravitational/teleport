@@ -32,6 +32,7 @@ import (
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
@@ -153,10 +154,10 @@ func (p *sshProvider) userTLSConfig(
 	signer := &rpcSigner{
 		pub: parsedCert.PublicKey,
 		sendRequest: func(req *vnetv1.SignRequest) ([]byte, error) {
-			return p.cfg.clt.SignForUserTLS(ctx, &vnetv1.SignForUserTLSRequest{
+			return p.cfg.clt.SignForUserTLS(ctx, vnetv1.SignForUserTLSRequest_builder{
 				Profile: profile,
 				Sign:    req,
-			})
+			}.Build())
 		},
 	}
 	tlsCert := tls.Certificate{
@@ -180,10 +181,11 @@ func (p *sshProvider) sessionSSHConfig(
 	target dialTarget,
 	user string,
 	agent *sshAgent,
+	mode vnetv1.SessionSSHConfigCredentialMode,
 ) (apissh.ClientConfig, error) {
 	// TODO(nklaassen): cache session SSH configs so we don't have to regenerate
 	// every time.
-	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user)
+	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user, mode)
 	if err != nil {
 		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
@@ -225,7 +227,8 @@ func (p *sshProvider) sessionSSHConfig(
 	if err != nil {
 		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
-	return apissh.ClientConfig{
+
+	config := apissh.ClientConfig{
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{certSigner}, nil
@@ -233,7 +236,21 @@ func (p *sshProvider) sessionSSHConfig(
 		},
 		User:            user,
 		HostKeyCallback: hostKeyCallback,
-	}, nil
+	}
+
+	// If credential mode is direct, set AuthCallback so the client can perform in-band MFA if necessary.
+	if mode == vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT {
+		config.AuthCallback = clientssh.AuthCallback(
+			ctx,
+			clientssh.AuthCallbackConfig{
+				MFAPerformer: func(ctx context.Context, sessionID []byte) (string, error) {
+					return p.cfg.clt.PerformSessionMFACeremony(ctx, target.profile, target.leafCluster, sessionID)
+				},
+			},
+		)
+	}
+
+	return config, nil
 }
 
 func buildHostKeyCallback(trustedCAs [][]byte, clock clockwork.Clock) (ssh.HostKeyCallback, error) {

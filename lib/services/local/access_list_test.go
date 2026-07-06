@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
@@ -157,7 +158,7 @@ func TestAccessListCRUD(t *testing.T) {
 }
 
 func TestAccessListCRUDScopedRoleGrants(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
@@ -167,23 +168,29 @@ func TestAccessListCRUDScopedRoleGrants(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+	service, err := NewAccessListServiceV2(AccessListServiceConfig{
+		Backend:        backend.NewSanitizer(mem),
+		Modules:        modulestest.EnterpriseModules(),
+		ScopesFeatures: scopes.Features{Enabled: true},
+	})
+	require.NoError(t, err)
+
 	scopedAccessService := NewScopedAccessService(mem)
 
 	for _, role := range []string{"scoped-role-1", "scoped-role-2", "scoped-role-3"} {
-		_, err = scopedAccessService.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-			Role: &scopedaccessv1.ScopedRole{
+		_, err = scopedAccessService.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+			Role: scopedaccessv1.ScopedRole_builder{
 				Kind: scopedaccess.KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: role,
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/eng", "/platform", "/ops"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 

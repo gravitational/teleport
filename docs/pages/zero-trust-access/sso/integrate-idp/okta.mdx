@@ -7,12 +7,13 @@ tags:
  - how-to
  - zero-trust
  - privileged-access
+page_type: how-to
 ---
 
-This guide covers how to configure [Okta](https://www.okta.com/) to provide
+In this guide, you will configure [Okta](https://www.okta.com/) to provide
 single sign on (SSO) identities to Teleport Enterprise and Teleport Enterprise
-Cloud. When used in combination with role-based access control (RBAC), this allows
-Teleport administrators to define policies like:
+Cloud. When used in combination with role-based access control (RBAC), this
+allows Teleport administrators to define policies like:
 
 - Only members of the "DBA" group can access PostgreSQL databases.
 - Developers must never SSH into production servers.
@@ -69,9 +70,7 @@ Create two groups: "devs" and "admins".
 
 ### Create and configure an Okta app
 
-Okta Integration Network support is still in beta. If unsure please proceed with the Custom SAML 2.0 app.
-
-<Tabs groupId="saml-app" defaultValue="legacy">
+<Tabs groupId="saml-app" defaultValue="oin">
 <TabItem label="Okta Integration Network" value="oin">
 
   Add Teleport app to Okta:
@@ -209,7 +208,7 @@ spec:
   - name: groups
     roles:
     - access
-    value: dev
+    value: devs
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   cert: ""
   display: "Okta"
@@ -222,6 +221,8 @@ version: v2
 ```
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
+
+(!docs/pages/includes/sso/saml-slo.mdx!)
 
 ### Test the connector
 
@@ -256,7 +257,7 @@ Authentication details:
   value: admins
 - name: groups
   roles:
-  - dev
+  - access
   value: devs
 
 --------------------------------------------------------------------------------

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/jointest"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -96,7 +97,8 @@ func TestJoinKubernetes(t *testing.T) {
 
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -286,18 +288,18 @@ func TestJoinKubernetes(t *testing.T) {
 	for _, pt := range []types.ProvisionToken{implicitInClusterPT, explicitInClusterPT, staticJWKSPT, oidcPT, wildcardInClusterPT, wildcardStaticJWKSPT, wildcardOIDCPT, exactInClusterPT, namespaceOnlyInClusterPT, combinedInClusterPT, combinedStrictInClusterPT} {
 		ptv2, ok := pt.(*types.ProvisionTokenV2)
 		require.True(t, ok, "expected provision token to be types.ProvisionTokenSpecV2")
-		scoped, err := jointest.ScopedTokenFromProvisionTokenSpec(ptv2.Spec, &joiningv1.ScopedToken{
+		scoped, err := jointest.ScopedTokenFromProvisionTokenSpec(ptv2.Spec, joiningv1.ScopedToken_builder{
 			Scope: "/test",
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "scoped_" + pt.GetName(),
-			},
-			Spec: &joiningv1.ScopedTokenSpec{
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
 				AssignedScope: "/test/one",
 				UsageMode:     string(joining.TokenUsageModeUnlimited),
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		_, err = auth.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{Token: scoped})
+		_, err = auth.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{Token: scoped}.Build())
 		require.NoError(t, err)
 	}
 

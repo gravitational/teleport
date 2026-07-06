@@ -42,21 +42,21 @@ func (s *Handler) ListRootClusters(ctx context.Context, r *api.ListClustersReque
 		result = append(result, newAPIRootCluster(cluster))
 	}
 
-	return &api.ListClustersResponse{
+	return api.ListClustersResponse_builder{
 		Clusters: result,
-	}, nil
+	}.Build(), nil
 }
 
 // ListLeafClusters lists leaf clusters
 func (s *Handler) ListLeafClusters(ctx context.Context, req *api.ListLeafClustersRequest) (*api.ListClustersResponse, error) {
-	leaves, err := s.DaemonService.ListLeafClusters(ctx, req.ClusterUri)
+	leaves, err := s.DaemonService.ListLeafClusters(ctx, req.GetClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	response := &api.ListClustersResponse{}
 	for _, leaf := range leaves {
-		response.Clusters = append(response.Clusters, newAPILeafCluster(leaf))
+		response.SetClusters(append(response.GetClusters(), newAPILeafCluster(leaf)))
 	}
 
 	return response, nil
@@ -64,7 +64,7 @@ func (s *Handler) ListLeafClusters(ctx context.Context, req *api.ListLeafCluster
 
 // AddCluster creates a new cluster
 func (s *Handler) AddCluster(ctx context.Context, req *api.AddClusterRequest) (*api.Cluster, error) {
-	cluster, err := s.DaemonService.AddCluster(ctx, req.Name)
+	cluster, err := s.DaemonService.AddCluster(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,7 +74,7 @@ func (s *Handler) AddCluster(ctx context.Context, req *api.AddClusterRequest) (*
 
 // GetCluster returns a cluster
 func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*api.Cluster, error) {
-	cluster, _, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.GetClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,7 +86,7 @@ func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*
 
 // ClearStaleClusterClients closes root and leaf cluster clients that use outdated TLS certificates.
 func (s *Handler) ClearStaleClusterClients(_ context.Context, req *api.ClearStaleClusterClientsRequest) (*api.ClearStaleClusterClientsResponse, error) {
-	parsed, err := uri.Parse(req.RootClusterUri)
+	parsed, err := uri.Parse(req.GetRootClusterUri())
 	if err != nil {
 		return &api.ClearStaleClusterClientsResponse{}, trace.Wrap(err)
 	}
@@ -98,23 +98,23 @@ func (s *Handler) ClearStaleClusterClients(_ context.Context, req *api.ClearStal
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 	loggedInUser := cluster.GetLoggedInUser()
 
-	apiCluster := &api.Cluster{
+	apiCluster := api.Cluster_builder{
 		Uri:       cluster.URI.String(),
 		Name:      cluster.Name,
 		ProxyHost: cluster.GetProxyHost(),
 		Connected: cluster.Connected(),
-		LoggedInUser: &api.LoggedInUser{
+		LoggedInUser: api.LoggedInUser_builder{
 			Name:            loggedInUser.Name,
 			Roles:           loggedInUser.Roles,
 			ActiveRequests:  loggedInUser.ActiveRequests,
 			IsDeviceTrusted: cluster.HasDeviceTrustExtensions(),
 			ValidUntil:      timestamppb.New(loggedInUser.ValidUntil),
-		},
+		}.Build(),
 		SsoHost: cluster.SSOHost,
-	}
+	}.Build()
 
 	if cluster.GetProfileStatusError() != nil {
-		apiCluster.ProfileStatusError = cluster.GetProfileStatusError().Error()
+		apiCluster.SetProfileStatusError(cluster.GetProfileStatusError().Error())
 	}
 
 	return apiCluster
@@ -123,44 +123,44 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cluster, error) {
 	apiCluster := newAPIRootCluster(cluster.Cluster)
 
-	apiCluster.Features = &api.Features{
+	apiCluster.SetFeatures(api.Features_builder{
 		AdvancedAccessWorkflows: cluster.Features.GetAdvancedAccessWorkflows(),
 		IsUsageBasedBilling:     cluster.Features.GetIsUsageBased(),
-	}
-	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles
-	apiCluster.LoggedInUser.SuggestedReviewers = cluster.SuggestedReviewers
-	apiCluster.AuthClusterId = cluster.AuthClusterID
-	apiCluster.LoggedInUser.Acl = cluster.ACL
+	}.Build())
+	apiCluster.GetLoggedInUser().SetRequestableRoles(cluster.RequestableRoles)
+	apiCluster.GetLoggedInUser().SetSuggestedReviewers(cluster.SuggestedReviewers)
+	apiCluster.SetAuthClusterId(cluster.AuthClusterID)
+	apiCluster.GetLoggedInUser().SetAcl(cluster.ACL)
 	userType, err := clusters.UserTypeFromString(cluster.UserType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	apiCluster.LoggedInUser.UserType = userType
-	apiCluster.LoggedInUser.TrustedDeviceRequirement = cluster.TrustedDeviceRequirement
-	apiCluster.ProxyVersion = cluster.ProxyVersion
+	apiCluster.GetLoggedInUser().SetUserType(userType)
+	apiCluster.GetLoggedInUser().SetTrustedDeviceRequirement(cluster.TrustedDeviceRequirement)
+	apiCluster.SetProxyVersion(cluster.ProxyVersion)
 
 	switch cluster.ShowResources {
 	case constants.ShowResourcesaccessibleOnly:
-		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_ACCESSIBLE_ONLY
+		apiCluster.SetShowResources(api.ShowResources_SHOW_RESOURCES_ACCESSIBLE_ONLY)
 	case constants.ShowResourcesRequestable:
-		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
+		apiCluster.SetShowResources(api.ShowResources_SHOW_RESOURCES_REQUESTABLE)
 	default:
 		// If the UI config for ShowResources is not set, the default is `requestable`.
-		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
+		apiCluster.SetShowResources(api.ShowResources_SHOW_RESOURCES_REQUESTABLE)
 	}
 
 	return apiCluster, nil
 }
 
 func newAPILeafCluster(leaf clusters.LeafCluster) *api.Cluster {
-	return &api.Cluster{
+	return api.Cluster_builder{
 		Name:      leaf.Name,
 		Uri:       leaf.URI.String(),
 		Connected: leaf.Connected,
 		Leaf:      true,
-		LoggedInUser: &api.LoggedInUser{
+		LoggedInUser: api.LoggedInUser_builder{
 			Name:  leaf.LoggedInUser.Name,
 			Roles: leaf.LoggedInUser.Roles,
-		},
-	}
+		}.Build(),
+	}.Build()
 }

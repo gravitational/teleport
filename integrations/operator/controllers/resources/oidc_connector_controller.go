@@ -25,11 +25,14 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // oidcConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile oidc_connectors
@@ -66,9 +69,18 @@ func (r oidcConnectorClient) Mutate(ctx context.Context, new, _ types.OIDCConnec
 	if secretlookup.IsNeeded(secret) {
 		resolvedSecret, err := secretlookup.Try(ctx, r.kubeClient, crKey.Name, crKey.Namespace, secret)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "resolving client secret")
 		}
 		new.SetClientSecret(resolvedSecret)
+	}
+
+	gcpSA := new.GetGoogleServiceAccount()
+	if secretlookup.IsNeeded(gcpSA) {
+		resolvedSecret, err := secretlookup.Try(ctx, r.kubeClient, crKey.Name, crKey.Namespace, gcpSA)
+		if err != nil {
+			return trace.Wrap(err, "resolving google service account secret")
+		}
+		new.SetGoogleServiceAccount(resolvedSecret)
 	}
 	return nil
 }
@@ -83,6 +95,12 @@ func NewOIDCConnectorReconciler(client kclient.Client, tClient *client.Client) (
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](
 		client,
 		oidcClient,
+		reconcilers.Config{
+			CheckFeatures: func(features *proto.Features) bool {
+				oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
+				return oidc.Enabled
+			},
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

@@ -47,7 +47,7 @@ func (c *workloadIdentityX509IssuerOverrideCollection) Resources() []types.Resou
 func (c *workloadIdentityX509IssuerOverrideCollection) WriteText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"Name"})
 	for _, override := range c.items {
-		t.AddRow([]string{override.Metadata.Name})
+		t.AddRow([]string{override.GetMetadata().GetName()})
 	}
 	return trace.Wrap(t.WriteTo(w))
 }
@@ -74,9 +74,9 @@ func getWorkloadIdentityX509IssuerOverride(
 	if ref.Name != "" {
 		r, err := c.GetX509IssuerOverride(
 			ctx,
-			&workloadidentityv1pb.GetX509IssuerOverrideRequest{
+			workloadidentityv1pb.GetX509IssuerOverrideRequest_builder{
 				Name: ref.Name,
-			},
+			}.Build(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -92,10 +92,10 @@ func getWorkloadIdentityX509IssuerOverride(
 		clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*workloadidentityv1pb.X509IssuerOverride, string, error) {
 			resp, err := c.ListX509IssuerOverrides(
 				ctx,
-				&workloadidentityv1pb.ListX509IssuerOverridesRequest{
+				workloadidentityv1pb.ListX509IssuerOverridesRequest_builder{
 					PageSize:  int32(limit),
 					PageToken: pageToken,
-				},
+				}.Build(),
 			)
 
 			return resp.GetX509IssuerOverrides(), resp.GetNextPageToken(), trace.Wrap(err)
@@ -125,18 +125,18 @@ func createWorkloadIdentityX509IssuerOverride(
 	if opts.Force {
 		if _, err := c.UpsertX509IssuerOverride(
 			ctx,
-			&workloadidentityv1pb.UpsertX509IssuerOverrideRequest{
+			workloadidentityv1pb.UpsertX509IssuerOverrideRequest_builder{
 				X509IssuerOverride: r,
-			},
+			}.Build(),
 		); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
 		if _, err := c.CreateX509IssuerOverride(
 			ctx,
-			&workloadidentityv1pb.CreateX509IssuerOverrideRequest{
+			workloadidentityv1pb.CreateX509IssuerOverrideRequest_builder{
 				X509IssuerOverride: r,
-			},
+			}.Build(),
 		); err != nil {
 			return trace.Wrap(err)
 		}
@@ -163,9 +163,9 @@ func updateWorkloadIdentityX509IssuerOverride(
 	c := client.WorkloadIdentityX509OverridesClient()
 	if _, err = c.UpdateX509IssuerOverride(
 		ctx,
-		&workloadidentityv1pb.UpdateX509IssuerOverrideRequest{
+		workloadidentityv1pb.UpdateX509IssuerOverrideRequest_builder{
 			X509IssuerOverride: r,
-		},
+		}.Build(),
 	); err != nil {
 		return trace.Wrap(err)
 	}
@@ -183,9 +183,9 @@ func deleteWorkloadIdentityX509IssuerOverride(
 	c := client.WorkloadIdentityX509OverridesClient()
 	if _, err := c.DeleteX509IssuerOverride(
 		ctx,
-		&workloadidentityv1pb.DeleteX509IssuerOverrideRequest{
+		workloadidentityv1pb.DeleteX509IssuerOverrideRequest_builder{
 			Name: ref.Name,
-		},
+		}.Build(),
 	); err != nil {
 		return trace.Wrap(err)
 	}

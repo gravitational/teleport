@@ -35,6 +35,7 @@ import {
   CanvasRenderer,
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
+import { DirectoryItem } from 'shared/components/DesktopSession/DirectoryList';
 import { Latency } from 'shared/components/LatencyDiagnostic';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import {
@@ -43,21 +44,28 @@ import {
   makeSuccessAttempt,
   useAsync,
 } from 'shared/hooks/useAsync';
+import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 import {
   ButtonState,
   ScrollAxis,
   TdpClient,
   useListener,
+  MAX_SHARED_DIRECTORIES,
 } from 'shared/libs/tdp';
 import { TdpError } from 'shared/libs/tdp/client';
 
 import { InputHandler } from './InputHandler';
 import useDesktopSession, {
   clipboardSharingMessage,
+  directorySharingMessage,
   directorySharingPossible,
   isSharingClipboard,
-  isSharingDirectory,
 } from './useDesktopSession';
+
+export interface ServerCapabilities {
+  canRemoveSharedDirectories: boolean;
+  canShareMultipleDirectories: boolean;
+}
 
 export interface DesktopSessionProps {
   client: TdpClient;
@@ -86,16 +94,25 @@ export interface DesktopSessionProps {
 
 export interface DesktopSessionControlsRenderProps {
   canShareDirectory: boolean;
-  isSharingDirectory: boolean;
   isSharingClipboard: boolean;
   clipboardSharingMessage: string;
-  onShareDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
   onDisconnect: VoidFunction;
   alerts: ToastNotificationItem[];
   onRemoveAlert(id: string): void;
   isConnected: boolean;
   latencyStats: Latency;
+  hiDpiEnabled: boolean;
+  onToggleHiDpi: VoidFunction;
+  screenIsHiDpi: boolean;
+  hiDpiSupported: boolean;
+  onAddSharedDirectory: VoidFunction;
+  sharedDirectories: DirectoryItem[];
+  onRemoveSharedDirectory: (id: number) => void;
+  canRemoveSharedDirectory: boolean;
+  maxSharedDirectories: number;
+  directorySharingMessage: string;
+  canShareMultipleDirectories: boolean;
 }
 
 export function DesktopSession({
@@ -111,16 +128,44 @@ export function DesktopSession({
   const {
     directorySharingState,
     onClipboardData,
-    sendLocalClipboardToRemote,
+    onTransientUserActivation,
     clipboardSharingState,
-    clearSharing,
-    onShareDirectory,
+    sharedDirectoriesState,
+    addSharedDirectory,
+    removeSharedDirectory,
     alerts,
     onRemoveAlert,
     addAlert,
+    connect,
   } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
+  const [hiDpiSettings, setHiDpiSettings] = useLocalStorage<
+    Record<string, boolean>
+  >(
+    'grv_teleport_desktop_hidpi', // manually written here as we cannot import from teleport
+    {}
+  );
+  const isHiDpi = hiDpiSettings[desktop] ?? false;
+  const setIsHiDpi = useCallback(
+    (value: boolean) => {
+      setHiDpiSettings(prev => ({ ...prev, [desktop]: value }));
+    },
+    [desktop, setHiDpiSettings]
+  );
+
+  // Track devicePixelRatio so the HiDPI screen indicator updates
+  // when the window is dragged between displays with different DPRs.
+  const [devicePixelRatio, setDevicePixelRatio] = useState(
+    window.devicePixelRatio
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
+    const onChange = () => setDevicePixelRatio(window.devicePixelRatio);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [devicePixelRatio]);
+  const screenIsHiDpi = devicePixelRatio > 1;
 
   const inputHandler = useRef(new InputHandler());
   useEffect(() => {
@@ -156,25 +201,21 @@ export function DesktopSession({
 
   useListener(client.onClipboardData, onClipboardData);
 
-  const handleConnectionClose = useCallback(
-    (error?: Error) => {
-      clearSharing();
-      setTdpConnectionStatus({
-        status: 'disconnected',
-        fromTdpError: error instanceof TdpError,
-        message: error?.message || '',
-      });
-      initialTdpConnectionSucceeded.current = false;
-    },
-    [clearSharing]
-  );
+  const handleConnectionClose = useCallback((error?: Error) => {
+    setTdpConnectionStatus({
+      status: 'disconnected',
+      fromTdpError: error instanceof TdpError,
+      message: error?.message || '',
+    });
+    initialTdpConnectionSucceeded.current = false;
+  }, []);
   useListener(client.onError, handleConnectionClose);
   useListener(client.onTransportClose, handleConnectionClose);
 
   const addWarning = useCallback(
     (warning: string) => {
       addAlert({
-        content: warning,
+        content: { title: 'Warning', description: warning },
         severity: 'warn',
       });
     },
@@ -188,7 +229,7 @@ export function DesktopSession({
     useCallback(
       info => {
         addAlert({
-          content: info,
+          content: { title: 'Notice', description: info },
           severity: 'info',
         });
       },
@@ -238,6 +279,19 @@ export function DesktopSession({
     }, [])
   );
 
+  const [serverCapabilities, setServerCapabilities] = useState<
+    ServerCapabilities | undefined
+  >({ canRemoveSharedDirectories: false, canShareMultipleDirectories: false });
+  useListener(
+    client.onServerCapabilities,
+    useCallback(caps => {
+      setServerCapabilities({
+        canRemoveSharedDirectories: caps.directoryRemoval,
+        canShareMultipleDirectories: caps.multidirectorySharing,
+      });
+    }, [])
+  );
+
   const shouldConnect =
     aclAttempt.status === 'success' &&
     anotherDesktopActiveAttempt.status === 'success' &&
@@ -246,16 +300,32 @@ export function DesktopSession({
     if (!shouldConnect) {
       return;
     }
-    client
-      .connect({
-        keyboardLayout,
-        screenSpec: canvasRendererRef.current.getSize(),
-      })
-      .catch(handleConnectionClose);
+
+    connect({
+      keyboardLayout,
+      screenSpec: canvasRendererRef.current.getSize(),
+    }).catch(handleConnectionClose);
+
     return () => {
       client.shutdown();
     };
   }, [client, shouldConnect, keyboardLayout]);
+
+  // When the HiDPI toggle changes, send the updated scale to the server.
+  const prevIsHiDpi = useRef(isHiDpi);
+  useEffect(() => {
+    if (prevIsHiDpi.current === isHiDpi) {
+      return;
+    }
+
+    prevIsHiDpi.current = isHiDpi;
+
+    const size = canvasRendererRef.current?.getSize();
+
+    if (size) {
+      client.resize(size);
+    }
+  }, [isHiDpi, client]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     inputHandler.current.handleInputEvent({
@@ -272,7 +342,7 @@ export function DesktopSession({
       // Opportunistically sync local clipboard to remote while
       // transient user activation is in effect.
       // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-      sendLocalClipboardToRemote();
+      onTransientUserActivation();
     }
   }
 
@@ -336,7 +406,7 @@ export function DesktopSession({
     // Opportunistically sync local clipboard to remote while
     // transient user activation is in effect.
     // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-    sendLocalClipboardToRemote();
+    onTransientUserActivation();
   }
 
   function handleMouseUp(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -390,16 +460,25 @@ export function DesktopSession({
 
   const controlsProps: DesktopSessionControlsRenderProps = {
     canShareDirectory: directorySharingPossible(directorySharingState),
-    isSharingDirectory: isSharingDirectory(directorySharingState),
     isSharingClipboard: isSharingClipboard(clipboardSharingState),
     clipboardSharingMessage: clipboardSharingMessage(clipboardSharingState),
-    onShareDirectory,
     onCtrlAltDel: handleCtrlAltDel,
     onDisconnect: () => client.shutdown(),
     alerts,
     onRemoveAlert,
     isConnected: screenState.state === 'canvas-visible',
     latencyStats,
+    hiDpiEnabled: isHiDpi,
+    onToggleHiDpi: () => setIsHiDpi(!isHiDpi),
+    screenIsHiDpi,
+    hiDpiSupported: client.hidpiSupported,
+    sharedDirectories: sharedDirectoriesState,
+    onAddSharedDirectory: addSharedDirectory,
+    onRemoveSharedDirectory: removeSharedDirectory,
+    canRemoveSharedDirectory: serverCapabilities.canRemoveSharedDirectories,
+    canShareMultipleDirectories: serverCapabilities.canShareMultipleDirectories,
+    maxSharedDirectories: MAX_SHARED_DIRECTORIES,
+    directorySharingMessage: directorySharingMessage(directorySharingState),
   };
   return (
     <Flex
@@ -446,6 +525,7 @@ export function DesktopSession({
         onMouseWheel={handleMouseWheel}
         onContextMenu={handleContextMenu}
         onResize={client.resize}
+        isHiDpi={isHiDpi}
       />
     </Flex>
   );

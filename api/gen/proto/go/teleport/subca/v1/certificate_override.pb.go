@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/certificate_override.proto
 
+//go:build !protoopaque
+
 package subcav1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -42,7 +43,7 @@ const (
 // authority, effectively making the Teleport CA into a Sub CA (instead of a
 // self-signed root).
 type CertificateOverride struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SHA256(SubjectPublicKeyInfo DER) printed as hex string.
 	//
 	// Informative if certificate is present.
@@ -101,11 +102,6 @@ func (x *CertificateOverride) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CertificateOverride.ProtoReflect.Descriptor instead.
-func (*CertificateOverride) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_certificate_override_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CertificateOverride) GetPublicKey() string {
 	if x != nil {
 		return x.PublicKey
@@ -134,6 +130,67 @@ func (x *CertificateOverride) GetDisabled() bool {
 	return false
 }
 
+func (x *CertificateOverride) SetPublicKey(v string) {
+	x.PublicKey = v
+}
+
+func (x *CertificateOverride) SetCertificate(v string) {
+	x.Certificate = v
+}
+
+func (x *CertificateOverride) SetChain(v []string) {
+	x.Chain = v
+}
+
+func (x *CertificateOverride) SetDisabled(v bool) {
+	x.Disabled = v
+}
+
+type CertificateOverride_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SHA256(SubjectPublicKeyInfo DER) printed as hex string.
+	//
+	// Informative if certificate is present.
+	PublicKey string
+	// Certificate to present, in PEM form.
+	//
+	// The public key must match an existing CA certificate. It must also match
+	// the public_key field, if present.
+	//
+	// The certificate Subject must contain the cluster name, either in the "O="
+	// field or in OID "1.3.9999.4.1", as per RFD 0237.
+	//
+	// https://github.com/gravitational/teleport/blob/master/rfd/0237-sub-ca-support.md#subject-customization
+	Certificate string
+	// Certificate chain, in PEM form.
+	//
+	// The chain must be sorted from leaf to root.
+	//
+	// If present Teleport may supply the chain, along with the certificate, in
+	// appropriate situations.
+	//
+	// The chain is limited to a generous (but sensible) server-defined length.
+	Chain []string
+	// If true disables the override.
+	//
+	// A disabled override may exist for recording purposes, to be enabled later,
+	// or simply to mark a certain public key as not overridden. In the latter
+	// case the certificate may be absent.
+	Disabled bool
+}
+
+func (b0 CertificateOverride_builder) Build() *CertificateOverride {
+	m0 := &CertificateOverride{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PublicKey = b.PublicKey
+	x.Certificate = b.Certificate
+	x.Chain = b.Chain
+	x.Disabled = b.Disabled
+	return m0
+}
+
 var File_teleport_subca_v1_certificate_override_proto protoreflect.FileDescriptor
 
 const file_teleport_subca_v1_certificate_override_proto_rawDesc = "" +
@@ -145,18 +202,6 @@ const file_teleport_subca_v1_certificate_override_proto_rawDesc = "" +
 	"\vcertificate\x18\x02 \x01(\tR\vcertificate\x12\x14\n" +
 	"\x05chain\x18\x03 \x03(\tR\x05chain\x12\x1a\n" +
 	"\bdisabled\x18\x04 \x01(\bR\bdisabledBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
-
-var (
-	file_teleport_subca_v1_certificate_override_proto_rawDescOnce sync.Once
-	file_teleport_subca_v1_certificate_override_proto_rawDescData []byte
-)
-
-func file_teleport_subca_v1_certificate_override_proto_rawDescGZIP() []byte {
-	file_teleport_subca_v1_certificate_override_proto_rawDescOnce.Do(func() {
-		file_teleport_subca_v1_certificate_override_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_subca_v1_certificate_override_proto_rawDesc), len(file_teleport_subca_v1_certificate_override_proto_rawDesc)))
-	})
-	return file_teleport_subca_v1_certificate_override_proto_rawDescData
-}
 
 var file_teleport_subca_v1_certificate_override_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_subca_v1_certificate_override_proto_goTypes = []any{
