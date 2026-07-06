@@ -29,10 +29,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -108,9 +109,9 @@ func (c *Config) Validate() error {
 // Recording is fail-closed. If the initial request metadata event cannot be
 // recorded, New returns an error before anything is proxied. Once proxying has
 // started, failed request-body or response-body recording makes Read or Write
-// return an error so unrecorded bytes do not continue through the exchange.
-// Finish runs after the response is complete, so its final events are
-// best-effort and failures are logged.
+// return an error so unrecorded bytes do not continue through the exchange. A
+// header-only response has no Write to carry that error, so Finish returns it
+// instead; the caller must abort the exchange when Finish reports an error.
 func New(
 	cfg Config,
 ) (*http.Request, *ResponseWriter, error) {
@@ -217,7 +218,8 @@ func New(
 const redactedValue = "<redacted>"
 
 // sensitiveHeaders lists headers whose values should never be stored in
-// audit events.
+// audit events. Keys must be in canonical form (http.CanonicalHeaderKey), as
+// that is how filterHeaders looks them up.
 var sensitiveHeaders = map[string]struct{}{
 	"Authorization":        {},
 	"Proxy-Authorization":  {},
@@ -227,6 +229,9 @@ var sensitiveHeaders = map[string]struct{}{
 	"X-Auth-Token":         {},
 	"X-Amz-Security-Token": {},
 	"X-Csrf-Token":         {},
+	// AppJWTHeader carries the Teleport-signed JWT that the proxy injects into
+	// every app-access request; it must never be recorded verbatim.
+	http.CanonicalHeaderKey(teleport.AppJWTHeader): {},
 }
 
 // filterHeaders flattens http.Header into audit-event header entries. Repeated
@@ -357,8 +362,10 @@ type ResponseWriter struct {
 	index      int64
 	headerSent bool
 	finished   bool
-	// recordErr holds a response-head recording failure until the next Write,
-	// because WriteHeader cannot return an error.
+	// recordErr holds a response-head recording failure. Because WriteHeader
+	// cannot return an error, the failure is stashed here and surfaced through
+	// the next Write and through Finish so the caller can fail the exchange
+	// closed even for a header-only response that never calls Write.
 	recordErr error
 }
 
@@ -385,11 +392,18 @@ func (w *ResponseWriter) emitHeader(status int) error {
 }
 
 // WriteHeader records the response head before forwarding the status. If
-// recording fails, the error is returned from the next Write and the body is not
-// forwarded.
+// recording fails, the status and headers are NOT forwarded to the client and
+// the failure is stashed so the exchange can be failed closed.
+//
+// WriteHeader cannot return an error, so the failure is surfaced through the
+// next Write, and through Finish for a header-only response (a HEAD, a 204/304,
+// or a bodyless redirect) that never calls Write. The caller must abort the
+// exchange when Write or Finish reports the error. The failure itself is
+// already logged where the event is emitted.
 func (w *ResponseWriter) WriteHeader(status int) {
 	if err := w.emitHeader(status); err != nil {
 		w.recordErr = err
+		return
 	}
 	w.ResponseWriter.WriteHeader(status)
 }
@@ -408,6 +422,8 @@ func (w *ResponseWriter) Write(p []byte) (int, error) {
 	if err := w.emitHeader(http.StatusOK); err != nil {
 		return 0, err
 	}
+	// A head recorded by an earlier WriteHeader may have failed; the head was
+	// not forwarded, so refuse the body too.
 	if w.recordErr != nil {
 		return 0, w.recordErr
 	}
@@ -437,17 +453,32 @@ func (w *ResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 // Finish records response metadata if nothing wrote it yet, then records the
 // final empty chunk. Call it once after the handler returns; later calls are
-// ignored, so a deferred Finish is safe.
+// no-ops, so a deferred Finish is safe.
 //
-// Unlike Write, Finish is best-effort. It runs after the response has already
-// been sent, so recording failures are logged instead of returned.
-func (w *ResponseWriter) Finish() {
+// It returns a non-nil error when a response head the client has not yet seen
+// could not be recorded: one suppressed by a failed WriteHeader, or one that no
+// handler ever wrote. The caller must then abort the exchange (for example, by
+// resetting the connection) instead of letting an unrecorded response through.
+//
+// The trailing empty chunk is emitted after the body has already been sent, so
+// its failure cannot be undone; it is logged where the event is emitted and
+// does not fail Finish.
+func (w *ResponseWriter) Finish() error {
 	if w.finished {
-		return
+		return nil
 	}
 	w.finished = true
-	_ = w.emitHeader(http.StatusOK)
+	// A head suppressed by a failed WriteHeader never reached the client.
+	if w.recordErr != nil {
+		return w.recordErr
+	}
+	// A handler that wrote nothing leaves the head unrecorded until now; its
+	// failure is still actionable because the client has not seen it.
+	if err := w.emitHeader(http.StatusOK); err != nil {
+		return err
+	}
 	_ = w.emitChunk(nil, true)
+	return nil
 }
 
 // recordEvent prepares a session event (stamping session-related fields) and

@@ -69,7 +69,7 @@ func TestBodyNormalRead(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 5, n)
 
-	n, err = rb.Read(buf)
+	n, _ = rb.Read(buf)
 	require.Equal(t, 1, n)
 
 	require.NoError(t, rb.Close())
@@ -204,7 +204,7 @@ func TestResponseWriter(t *testing.T) {
 	require.NoError(t, err)
 	_, err = rw.Write([]byte("world"))
 	require.NoError(t, err)
-	rw.Finish()
+	require.NoError(t, rw.Finish())
 
 	// the wrapped writer should leave the client-visible response unchanged.
 	require.Equal(t, http.StatusCreated, rec.Code)
@@ -255,7 +255,7 @@ func TestResponseWriterHeaderEmittedOnce(t *testing.T) {
 		require.NoError(t, err)
 		_, err = rw.Write([]byte("b"))
 		require.NoError(t, err)
-		rw.Finish()
+		require.NoError(t, rw.Finish())
 
 		require.Equal(t, 1, calls, "header callback must fire exactly once")
 		require.Equal(t, http.StatusBadGateway, status)
@@ -279,7 +279,7 @@ func TestResponseWriterHeaderEmittedOnce(t *testing.T) {
 
 		_, err := rw.Write([]byte("body"))
 		require.NoError(t, err)
-		rw.Finish()
+		require.NoError(t, rw.Finish())
 
 		require.Equal(t, 1, calls)
 		require.Equal(t, http.StatusOK, status)
@@ -373,8 +373,8 @@ func TestFinishIdempotent(t *testing.T) {
 
 	_, err := rw.Write([]byte("body"))
 	require.NoError(t, err)
-	rw.Finish()
-	rw.Finish()
+	require.NoError(t, rw.Finish())
+	require.NoError(t, rw.Finish())
 	// a stray write after Finish should not record after the terminator.
 	_, err = rw.Write([]byte("late"))
 	require.NoError(t, err)
@@ -433,23 +433,59 @@ func TestBodyReadFailsClosed(t *testing.T) {
 	require.Zero(t, n, "no bytes must be handed downstream when recording fails")
 }
 
-// TestResponseWriteHeaderFailureFailsClosed covers the WriteHeader case, where
-// the error has to be reported by the following Write.
+// headerSpy is an http.ResponseWriter that records whether WriteHeader reached
+// the underlying writer.
+type headerSpy struct {
+	http.ResponseWriter
+	wroteHeader bool
+	status      int
+}
+
+func (s *headerSpy) WriteHeader(status int) {
+	s.wroteHeader = true
+	s.status = status
+	s.ResponseWriter.WriteHeader(status)
+}
+
+// TestResponseWriteHeaderFailureFailsClosed covers a failed response-head
+// recording. WriteHeader cannot return an error, so it must not forward the
+// un-recorded head and must surface the failure through the next Write, or
+// through Finish for a header-only response (HEAD, 204/304, a bodyless
+// redirect) that never calls Write.
 func TestResponseWriteHeaderFailureFailsClosed(t *testing.T) {
 	t.Parallel()
-	underlying := httptest.NewRecorder()
-	rw := newResponseWriter(underlying, time.Now(),
-		func(int, http.Header, int64) error { return assert.AnError },
-		func([]byte, int64, bool) error { return nil })
 
-	// a WriteHeader call cannot return an error, so the failure is saved.
-	rw.WriteHeader(http.StatusOK)
+	newFailing := func(spy *headerSpy) *ResponseWriter {
+		return newResponseWriter(spy, time.Now(),
+			func(int, http.Header, int64) error { return assert.AnError },
+			func([]byte, int64, bool) error { return nil })
+	}
 
-	// the next Write returns the saved error and writes nothing.
-	n, err := rw.Write([]byte("body"))
-	require.ErrorIs(t, err, assert.AnError)
-	require.Zero(t, n)
-	require.Empty(t, underlying.Body.String(), "un-recorded body must not reach the client")
+	t.Run("header-only response surfaces the error through Finish", func(t *testing.T) {
+		t.Parallel()
+		spy := &headerSpy{ResponseWriter: httptest.NewRecorder()}
+		rw := newFailing(spy)
+
+		rw.WriteHeader(http.StatusNoContent)
+		require.False(t, spy.wroteHeader, "un-recorded response head must not reach the client")
+
+		// with no Write to carry it, Finish reports the failure so the caller
+		// can fail the exchange closed.
+		require.ErrorIs(t, rw.Finish(), assert.AnError)
+	})
+
+	t.Run("following Write surfaces the error and writes nothing", func(t *testing.T) {
+		t.Parallel()
+		spy := &headerSpy{ResponseWriter: httptest.NewRecorder()}
+		rw := newFailing(spy)
+
+		rw.WriteHeader(http.StatusOK)
+		require.False(t, spy.wroteHeader, "un-recorded response head must not reach the client")
+
+		n, err := rw.Write([]byte("body"))
+		require.ErrorIs(t, err, assert.AnError)
+		require.Zero(t, n)
+	})
 }
 
 // errAfterFirstRecorder records the first event and fails all subsequent ones.
@@ -547,7 +583,7 @@ func TestRecordsFullExchange(t *testing.T) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer rw.Finish()
+		defer func() { assert.NoError(t, rw.Finish()) }()
 
 		// draining the request body is what records request chunks.
 		got, err := io.ReadAll(req.Body)
@@ -632,7 +668,7 @@ func TestRecordsExchangeWithoutRequestBody(t *testing.T) {
 			Logger:         slog.Default(),
 		})
 		assert.NoError(t, err)
-		defer rw.Finish()
+		defer func() { assert.NoError(t, rw.Finish()) }()
 		// the handler writes nothing; Finish still records the response metadata
 		// and final chunk.
 	})
@@ -655,7 +691,7 @@ func TestRecordsExchangeWithoutRequestBody(t *testing.T) {
 	require.Equal(t, uint32(http.StatusOK), respEvent.StatusCode)
 
 	// a handler that never writes still gets a terminating response chunk.
-	require.Equal(t, "", reassembleResponse(t, all))
+	require.Empty(t, reassembleResponse(t, all))
 }
 
 // errRecorder is a SessionRecorder whose RecordEvent always fails.
@@ -783,14 +819,14 @@ func TestEmitHeaderSkipsInformational(t *testing.T) {
 	rw.WriteHeader(http.StatusContinue)
 	rw.WriteHeader(http.StatusEarlyHints)
 	rw.WriteHeader(http.StatusOK)
-	rw.Finish()
+	require.NoError(t, rw.Finish())
 
 	require.Equal(t, 1, calls, "only the final status must be recorded")
 	require.Equal(t, http.StatusOK, status)
 }
 
 // ctxAwareRecorder behaves like SessionWriter.RecordEvent when given a
-// cancelled context.
+// canceled context.
 type ctxAwareRecorder struct{ eventstest.MockRecorderEmitter }
 
 func (c *ctxAwareRecorder) RecordEvent(ctx context.Context, e apievents.PreparedSessionEvent) error {
@@ -830,7 +866,7 @@ func TestRecordsAfterRequestContextCancelled(t *testing.T) {
 
 	_, err = wrw.Write([]byte("response"))
 	require.NoError(t, err)
-	wrw.Finish()
+	require.NoError(t, wrw.Finish())
 
 	all := inner.Events()
 	// cancellation should not drop the rest of the audit trail.
