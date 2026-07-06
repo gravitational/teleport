@@ -732,6 +732,7 @@ func TestVirtualMachineFromVirtualMachine(t *testing.T) {
 		subscriptionID  = "11111111-1111-1111-1111-111111111111"
 		resourceGroup   = "rg"
 	)
+	linuxOS := armcompute.OperatingSystemTypesLinux
 
 	for _, tc := range []struct {
 		desc        string
@@ -835,6 +836,46 @@ func TestVirtualMachineFromVirtualMachine(t *testing.T) {
 			assertError: require.Error,
 			assertVM:    require.Nil,
 		},
+		{
+			desc: "vm with operating system defined",
+			vm: &armcompute.VirtualMachine{
+				ID:       to.Ptr(validResourceID),
+				Name:     to.Ptr("vm-name"),
+				Location: to.Ptr("eastus"),
+				Properties: &armcompute.VirtualMachineProperties{
+					VMID: to.Ptr("22222222-2222-2222-2222-222222222222"),
+					StorageProfile: &armcompute.StorageProfile{
+						OSDisk: &armcompute.OSDisk{
+							OSType: &linuxOS,
+						},
+					},
+				},
+				Tags: map[string]*string{
+					"env":  to.Ptr("prod"),
+					"team": to.Ptr("infra"),
+				},
+			},
+			assertError: require.NoError,
+			assertVM: func(t require.TestingT, val any, _ ...any) {
+				require.NotNil(t, val)
+				vm, ok := val.(*VirtualMachine)
+				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
+				require.Equal(t, &VirtualMachine{
+					ID:            validResourceID,
+					VMID:          "22222222-2222-2222-2222-222222222222",
+					Name:          "vm-name",
+					Location:      "eastus",
+					Subscription:  subscriptionID,
+					ResourceGroup: resourceGroup,
+					Tags: map[string]string{
+						"env":  "prod",
+						"team": "infra",
+					},
+					operatingSystem: &linuxOS,
+				}, vm)
+				require.True(t, vm.IsLinuxOrUnknown(), "expected IsLinuxOrUnknown() to return true for Linux VM")
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			vm, err := virtualMachineFromARMComputeVirtualMachine(tc.vm)
@@ -851,6 +892,7 @@ func TestVirtualMachineFromVirtualMachineScaleSetVM(t *testing.T) {
 		resourceGroup   = "rg"
 		scaleSetName    = "vmss"
 	)
+	linuxOS := armcompute.OperatingSystemTypesLinux
 
 	for _, tc := range []struct {
 		desc           string
@@ -970,11 +1012,100 @@ func TestVirtualMachineFromVirtualMachineScaleSetVM(t *testing.T) {
 			assertError:    require.Error,
 			assertVM:       require.Nil,
 		},
+		{
+			desc: "scale set vm with all fields populated",
+			vm: &armcompute.VirtualMachineScaleSetVM{
+				ID:         to.Ptr(validResourceID),
+				Name:       to.Ptr("vmss_0"),
+				Location:   to.Ptr("eastus"),
+				InstanceID: to.Ptr("0"),
+				Properties: &armcompute.VirtualMachineScaleSetVMProperties{
+					VMID: to.Ptr("22222222-2222-2222-2222-222222222222"),
+					StorageProfile: &armcompute.StorageProfile{
+						OSDisk: &armcompute.OSDisk{
+							OSType: &linuxOS,
+						},
+					},
+				},
+				Tags: map[string]*string{
+					"env":  to.Ptr("prod"),
+					"team": to.Ptr("infra"),
+				},
+			},
+			scaleSetName:   scaleSetName,
+			resourceGroup:  resourceGroup,
+			subscriptionID: subscriptionID,
+			assertError:    require.NoError,
+			assertVM: func(t require.TestingT, val any, _ ...any) {
+				require.NotNil(t, val)
+				vm, ok := val.(*VirtualMachine)
+				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
+				require.Equal(t, &VirtualMachine{
+					ID:                          validResourceID,
+					VMID:                        "22222222-2222-2222-2222-222222222222",
+					Name:                        "vmss_0",
+					Location:                    "eastus",
+					Subscription:                subscriptionID,
+					ResourceGroup:               resourceGroup,
+					UniformScaleSetName:         scaleSetName,
+					UniformScaleSetVMInstanceID: "0",
+					Tags: map[string]string{
+						"env":  "prod",
+						"team": "infra",
+					},
+					operatingSystem: &linuxOS,
+				}, vm)
+				require.True(t, vm.IsLinuxOrUnknown(), "expected IsLinuxOrUnknown() to return true for Linux VM")
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			vm, err := virtualMachineFromARMComputeVirtualMachineScaleSetVM(tc.vm, tc.subscriptionID, tc.resourceGroup, tc.scaleSetName)
 			tc.assertError(t, err)
 			tc.assertVM(t, vm)
+		})
+	}
+}
+
+func TestVirtualMachineIsLinuxOrUnknown(t *testing.T) {
+	t.Parallel()
+	linuxOS := armcompute.OperatingSystemTypesLinux
+	windowsOS := armcompute.OperatingSystemTypesWindows
+
+	for _, tc := range []struct {
+		desc     string
+		vm       *VirtualMachine
+		want     bool
+		wantDesc string
+	}{
+		{
+			desc: "Linux VM",
+			vm: &VirtualMachine{
+				operatingSystem: &linuxOS,
+			},
+			want:     true,
+			wantDesc: "Linux",
+		},
+		{
+			desc: "Windows VM",
+			vm: &VirtualMachine{
+				operatingSystem: &windowsOS,
+			},
+			want:     false,
+			wantDesc: "Windows",
+		},
+		{
+			desc: "Unknown OSType",
+			vm: &VirtualMachine{
+				operatingSystem: nil,
+			},
+			want:     true,
+			wantDesc: "Unknown",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			got := tc.vm.IsLinuxOrUnknown()
+			require.Equal(t, tc.want, got, "expected IsLinuxOrUnknown() to return %v for %s VM, got %v", tc.want, tc.wantDesc, got)
 		})
 	}
 }

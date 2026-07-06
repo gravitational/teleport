@@ -96,6 +96,7 @@ import (
 const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
+	enableRLockCheck()
 	logtest.InitLogger(testing.Verbose)
 	modules.SetModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
@@ -108,7 +109,11 @@ func TestMain(m *testing.M) {
 			},
 		},
 	})
-	os.Exit(m.Run())
+	code := m.Run()
+	if code == 0 {
+		finalRLockCheck()
+	}
+	os.Exit(code)
 }
 
 // TestNodesDontCacheHighVolumeResources verifies that resources classified as "high volume" aren't
