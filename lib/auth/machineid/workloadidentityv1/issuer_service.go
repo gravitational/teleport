@@ -227,18 +227,12 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err, "deriving attributes")
 	}
 
-	// TODO(strideynet): Update to accept scope param and pass down here.
 	wi, err := s.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
-		Name: req.GetName(),
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// TODO(strideynet): This check will be redundant once the backend/cache
-	// supports scope namespacing.
-	if wi.GetScope() != req.GetScope() {
-		return nil, trace.NotFound("workload_identity %q not found", req.GetName())
 	}
 
 	// Check the caller is authorized to issue using this WorkloadIdentity: within

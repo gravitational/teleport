@@ -1896,7 +1896,7 @@ func TestScopedBotWorkloadIdentityX509(t *testing.T) {
 
 	clusterName := process.Config.Auth.ClusterName.GetClusterName()
 
-	// Create a scoped role granting issuance using prod-labelled
+	// Create a scoped role granting issuance using prod-labeled
 	// WorkloadIdentities within the scope: the read_no_secrets+list rules for the
 	// workload_identity kind, plus a workload_identity label selector.
 	scopedSvc := rootClient.ScopedAccessServiceClient()
