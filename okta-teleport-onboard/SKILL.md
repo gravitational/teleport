@@ -34,9 +34,12 @@ Drive this as a guided, confirm-once-then-execute flow.
   role + resource set) and require explicit approval — teardown is destructive.
 - **Bootstrap token: NEVER revoke.** The SSWS token is the user's to manage. The skill
   must never list, revoke, or delete it, and there are deliberately no helpers to do so.
-- **Formatting.** Relay the orchestrator's `==> section` / `OK` lines as a clean
-  progress log; keep a `✅/⏳/⬜` step checklist. Present created objects as a
-  `Resource | ID` table. Never print the SSWS token — refer to it as "(provided)".
+- **Formatting.** Relay each script's output VERBATIM inside a fenced code block —
+  exactly as printed: no markdown bold/headers applied to it, no re-ordering, no
+  summarizing, and no preamble (never "Getting the plan card", "Derived inputs …",
+  "Running the orchestrator"). The script output is the first and only thing shown for
+  that step. Your own prose is limited to `AskUserQuestion` prompts and error-recovery
+  when a run fails. The scripts already mask the SSWS token — never echo it yourself.
 - **No internal narration.** The user cares about the task, not the mechanics. Do NOT
   narrate tool use ("let me read the script", "running shell command", "reading file"),
   and do NOT pre-read the skill's own scripts — they are validated; run them directly.
@@ -61,29 +64,23 @@ Drive this as a guided, confirm-once-then-execute flow.
    rights), available via the creds file.
 
 ## Run
-1. **Load creds + derive inputs** (one shell block; keeps the token out of the log):
+1. **Confirm preconditions** — `tsh status` shows a **dev** cluster login and the creds
+   file targets a **dev** Okta org. The script self-sources the creds file and derives
+   PROXY / owner / filters, so you pass nothing on the happy path.
+2. **Gate A** — run this and relay its output verbatim in a code block, then confirm:
    ```
-   set -a; source ~/.okta-onboard.env; set +a      # OKTA_ORG + OKTA_SSWS
+   .claude/skills/okta-teleport-onboard/scripts/onboard.sh --plan
    ```
-   Derive `PROXY` from `tsh status`; default `SSO_GROUP=Everyone`,
-   `ACL_OWNER=<logged-in user>`, `GROUP_FILTER=*`, `APP_FILTER=*`.
-2. **Gate A** — get the deterministic plan card, relay it verbatim, then confirm:
+   `AskUserQuestion`: Proceed / Change an input / Cancel. Nothing mutates yet. To change
+   an input, re-run with an env override (e.g. `SSO_GROUP=Engineers … onboard.sh --plan`).
+3. **Execute** on "Proceed" — run this and relay its output verbatim:
    ```
-   set -a; source ~/.okta-onboard.env; set +a
-   PROXY="<host:443>" SSO_GROUP="Everyone" ACL_OWNER="<user>" \
-     .claude/skills/okta-teleport-onboard/scripts/onboard.sh --plan
+   .claude/skills/okta-teleport-onboard/scripts/onboard.sh --run
    ```
-   Then `AskUserQuestion`: Proceed / Change an input / Cancel. Nothing mutates yet.
-3. **Execute** the orchestrator and relay its progress (single call):
-   ```
-   set -a; source ~/.okta-onboard.env; set +a
-   PROXY="<host:443>" SSO_GROUP="Everyone" ACL_OWNER="<user>" \
-     .claude/skills/okta-teleport-onboard/scripts/onboard.sh
-   ```
-   It runs preflight → SAML app + group + metadata → OAuth service app + scopes →
-   scoped role + resource set + binding → Teleport validate + enroll, records the
-   created IDs to `$OKTA_ONBOARD_STATE`, and prints them. On non-zero exit, see the
-   `ERR` line and follow the on-failure protocol.
+   `--run` is the ONLY invocation that mutates; `--plan`, `--help`, a bare run, or any
+   unrecognized argument create nothing — so Gate A can't be bypassed by a stray arg.
+   Preflight → create → enroll → verify; IDs saved to `$OKTA_ONBOARD_STATE`. On non-zero
+   exit, follow the on-failure protocol.
 4. **Verify:** the orchestrator prints its own `Verify` section at the end (plugin
    status → RUNNING, connector present, synced-user count) — relay it. Do NOT hand-
    assemble verification commands; nested quotes in ad-hoc `echo "$(… "x" …)"` shell

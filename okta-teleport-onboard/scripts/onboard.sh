@@ -1,35 +1,51 @@
 #!/usr/bin/env bash
-# Orchestrated Okta -> Teleport onboarding. ALL mutation logic AND all happy-path
-# presentation live here, so the driving agent just: runs `--plan`, relays it, gets a
-# yes/no, runs without `--plan`, relays it. Output is deterministic on the happy path.
+# Orchestrated Okta -> Teleport onboarding. Self-contained: sources the creds file,
+# derives its own inputs, and owns ALL happy-path presentation.
 #
-# Prereqs: OKTA_ORG + OKTA_SSWS in the environment (source ~/.okta-onboard.env),
-# an authenticated tsh session, and this skill living inside the Teleport repo.
+# SAFETY: nothing is created unless you pass --run explicitly. A bare invocation,
+# --help, or any unrecognized argument prints usage and exits WITHOUT mutating.
+#
+# Prereqs: an authenticated tsh session; creds file with OKTA_ORG + OKTA_SSWS
+# (default ~/.okta-onboard.env, override with OKTA_ENV_FILE); skill inside the repo.
 #
 # Usage:
-#   onboard.sh --plan   print the deterministic plan card and exit (no mutations)
-#   onboard.sh          run preflight -> create -> enroll -> verify
+#   onboard.sh --plan   print the deterministic plan card; create nothing
+#   onboard.sh --run    perform the onboarding (creates Okta + Teleport objects)
+#   onboard.sh --help   show usage
 #
-# Env inputs (defaults in parens):
-#   PROXY         Teleport proxy host[:port]                     (required)
-#   SSO_GROUP     Okta group granted SSO                         (Everyone)
-#   ACL_OWNER     Access List default owner                      (logged-in tsh user)
-#   GROUP_FILTER  Okta group import filter                       (*)
-#   APP_FILTER    Okta app import filter                         (*)
+# Inputs are auto-derived; override any via env if needed:
+#   PROXY (from `tsh status`), SSO_GROUP (Everyone), ACL_OWNER (logged-in user),
+#   GROUP_FILTER (*), APP_FILTER (*)   —  comma-separated filters allowed.
 set -uo pipefail
-PLAN_ONLY=0; [[ "${1:-}" == "--plan" ]] && PLAN_ONLY=1
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../../.." && pwd)
+
+usage() { cat <<EOF
+Usage: onboard.sh <mode>
+  --plan   show the plan; creates nothing
+  --run    perform the onboarding (creates Okta + Teleport objects)
+  --help   show this message
+Nothing is created unless you pass --run explicitly.
+EOF
+}
+
+# Explicit-mode dispatch. Unknown/empty args NEVER mutate.
+MODE=usage; rc=0
+case "${1:-}" in
+  --plan) MODE=plan ;;
+  --run)  MODE=run ;;
+  -h|--help|"") MODE=usage ;;
+  *) printf 'onboard.sh: unknown argument: %s\n\n' "${1:-}" >&2; rc=2 ;;
+esac
+[[ "$MODE" == usage ]] && { usage; exit "$rc"; }
+
+# creds + helpers (only reached for --plan / --run)
+env_file=${OKTA_ENV_FILE:-$HOME/.okta-onboard.env}
+if [[ -z "${OKTA_ORG:-}" || -z "${OKTA_SSWS:-}" ]] && [[ -f "$env_file" ]]; then
+  set -a; source "$env_file"; set +a
+fi
 source "$here/okta.sh"
 set +e   # this script checks each result explicitly via || die
-
-: "${PROXY:?set PROXY to the Teleport proxy host, e.g. dev.teleport.sh:443}"
-host=${PROXY%%:*}
-SSO_GROUP=${SSO_GROUP:-Everyone}
-GROUP_FILTER=${GROUP_FILTER:-*}
-APP_FILTER=${APP_FILTER:-*}
-ACL_OWNER=${ACL_OWNER:-$(tsh status 2>/dev/null | awk '/Logged in as:/{print $4}')}
-LABEL=${LABEL:-Teleport ($host)}
 
 say() { printf '\n==> %s\n' "$1"; }
 ok()  { printf '    OK  %-14s %s\n' "$1" "${2:-}"; }
@@ -37,6 +53,15 @@ er()  { printf '    !!  %-14s %s\n' "$1" "${2:-}"; }   # non-fatal warning
 die() { printf '    ERR %s\n' "$1" >&2; exit 1; }
 idof(){ jq -r '.id // empty'; }
 err(){ jq -r '.errorSummary // .errorCode // "unknown error"'; }
+
+PROXY="${PROXY:-$(tsh status 2>/dev/null | grep -oE 'https://[^ ]+' | head -1 | sed 's#^https://##')}"
+[[ -n "$PROXY" ]] || die "could not determine PROXY from tsh (run 'tsh login', or set PROXY)"
+host=${PROXY%%:*}
+SSO_GROUP=${SSO_GROUP:-Everyone}
+GROUP_FILTER=${GROUP_FILTER:-*}
+APP_FILTER=${APP_FILTER:-*}
+ACL_OWNER=${ACL_OWNER:-$(tsh status 2>/dev/null | awk '/Logged in as:/{print $4}')}
+LABEL=${LABEL:-Teleport ($host)}
 
 print_plan() {
   cat <<EOF
@@ -63,8 +88,9 @@ Okta -> Teleport onboarding — PLAN (nothing created yet)
 EOF
 }
 
-if [[ $PLAN_ONLY == 1 ]]; then print_plan; exit 0; fi
+[[ "$MODE" == plan ]] && { print_plan; exit 0; }
 
+# ---- MODE=run: perform the onboarding ----
 say "Preflight"
 [[ "$(okta::check_token)" == 200 ]] || die "Okta token rejected (check OKTA_SSWS)"
 ok "okta token" "valid"
