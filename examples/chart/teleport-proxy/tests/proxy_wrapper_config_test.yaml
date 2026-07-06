@@ -188,6 +188,34 @@ tests:
       - failedTemplate:
           errorMessage: "joinTokenSecret.name is required when join_params.method is 'token'"
 
+  - it: fails when registration_secret_value conflicts with registration_secret_path
+    set:
+      clusterName: teleport.example.com
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: proxy-join
+        bound_keypair:
+          registration_secret_value: one-time-secret
+          registration_secret_path: /tmp/secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "join_params.bound_keypair.registration_secret_value and join_params.bound_keypair.registration_secret_path are mutually exclusive"
+
+  - it: fails when registration_secret_value conflicts with static_key_path
+    set:
+      clusterName: teleport.example.com
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: proxy-join
+        bound_keypair:
+          registration_secret_value: one-time-secret
+          static_key_path: /tmp/key
+    asserts:
+      - failedTemplate:
+          errorMessage: "join_params.bound_keypair.registration_secret_value and join_params.bound_keypair.static_key_path are mutually exclusive"
+
   - it: keeps wrapper-generated teleport settings in scratch mode
     set:
       chartMode: scratch

@@ -5,6 +5,12 @@
 {{- define "teleport-proxy.generatedTeleportConfig" -}}
 {{- $joinParams := mustDeepCopy .Values.join_params -}}
 {{- $_ := set $joinParams "token_name" (include "teleport-proxy.token_name" .) -}}
+{{- if include "teleport-proxy.uses-bound-keypair-registration-secret" . -}}
+  {{- $boundKeypair := mustDeepCopy (default (dict) (get $joinParams "bound_keypair")) -}}
+  {{- $_ := unset $boundKeypair "registration_secret_value" -}}
+  {{- $_ := set $boundKeypair "registration_secret_path" (include "teleport-proxy.bound-keypair-registration-secret-mount-path" .) -}}
+  {{- $_ := set $joinParams "bound_keypair" $boundKeypair -}}
+{{- end -}}
 teleport:
   auth_server: {{ include "teleport-proxy.auth_server" . | quote }}
   join_params:

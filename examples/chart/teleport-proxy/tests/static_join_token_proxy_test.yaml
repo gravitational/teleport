@@ -32,6 +32,12 @@ tests:
   - equal:
       path: spec.template.spec.containers[0].volumeMounts[3].name
       value: "auth-token"
+  - equal:
+      path: spec.template.spec.containers[0].volumeMounts[3].mountPath
+      value: "/etc/teleport-secrets/auth-token"
+  - equal:
+      path: spec.template.spec.containers[0].volumeMounts[3].subPath
+      value: "auth-token"
 
 - it: Sets join token to projected secret when method is 'token'
   values:
