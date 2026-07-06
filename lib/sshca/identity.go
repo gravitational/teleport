@@ -124,6 +124,9 @@ type Identity struct {
 	// BotInstanceID is the unique identifier for the bot instance, if this is a
 	// Machine ID bot. It is empty for human users.
 	BotInstanceID string
+	// BotScope is the scope of the Machine ID bot this identity was issued to,
+	// if any. Empty for unscoped bots and human users.
+	BotScope string
 	// JoinToken is the name of the join token used by the bot to join, if any.
 	JoinToken string
 	// AllowedResourceIDs lists the resources the user should be able to access.
@@ -281,6 +284,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if i.BotInstanceID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionBotInstanceID] = i.BotInstanceID
+	}
+	if i.BotScope != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionBotScope] = i.BotScope
 	}
 	if i.JoinToken != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionJoinToken] = i.JoinToken
@@ -542,6 +548,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 
 	ident.BotName = takeValue(teleport.CertExtensionBotName)
 	ident.BotInstanceID = takeValue(teleport.CertExtensionBotInstanceID)
+	ident.BotScope = takeValue(teleport.CertExtensionBotScope)
 	ident.JoinToken = takeValue(teleport.CertExtensionJoinToken)
 
 	var (
