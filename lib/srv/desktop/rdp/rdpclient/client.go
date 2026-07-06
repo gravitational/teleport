@@ -263,7 +263,20 @@ func (c *Client) Run(ctx context.Context, certDER, keyDER []byte) error {
 
 	var stderrBuf bytes.Buffer
 
-	cmd := exec.CommandContext(ctx, "./rdp-client", args...)
+	// Resolve the path to rdp-client relative to the Teleport executable.
+	execPath, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err, "failed to resolve the Teleport executable path")
+	}
+
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return trace.Wrap(err, "failed to resolve symlinks for Teleport executable path")
+	}
+
+	rdpClientPath := filepath.Join(filepath.Dir(execPath), "rdp-client")
+
+	cmd := exec.CommandContext(ctx, rdpClientPath, args...)
 	// Rust RDP client writes logs to stdout, which we redirect to the configured log writer.
 	cmd.Stdout = c.cfg.LogWriter
 	// Stderr is used to report the disconnect or failure reason from the Rust RDP client.
@@ -305,9 +318,9 @@ func (c *Client) Run(ctx context.Context, certDER, keyDER []byte) error {
 		case <-time.After(5 * time.Second):
 			// If the process doesn't exit after 5 seconds, force kill it
 			if err := cmd.Process.Kill(); err != nil {
-                c.cfg.Logger.WarnContext(ctx, "failed to kill the RDP client process", "error", err)
-            }
-            <-rustProcErrCh
+				c.cfg.Logger.WarnContext(ctx, "failed to kill the RDP client process", "error", err)
+			}
+			<-rustProcErrCh
 		case <-rustProcErrCh:
 			// Process exited gracefully
 		}

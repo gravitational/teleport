@@ -15,6 +15,9 @@ echo "Starting Teleport installation..."
 cd $(dirname $0)
 mkdir -p $VARDIR $BINDIR
 cp -f teleport tctl tsh tbot fdpass-teleport teleport-update $BINDIR/ || exit 1
+if [ -f rdp-client ]; then
+    cp -f rdp-client $BINDIR/ || exit 1
+fi
 
 #
 # What operating system is the user running?

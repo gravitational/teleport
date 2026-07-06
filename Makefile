@@ -260,6 +260,11 @@ endif
 BINS_default = teleport tctl tsh tbot fdpass-teleport teleport-update
 BINS_darwin = teleport tctl tsh tbot fdpass-teleport
 BINS_windows = tsh tctl
+# Include rdp-client in the binary list if the RDP client is built.
+ifeq ("$(with_rdpclient)", "yes")
+	BINS_default += rdp-client
+	BINS_darwin += rdp-client
+endif
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
 UPDATE_BINARIES = $(addprefix $(BUILDDIR)/,teleport-update)
@@ -1770,6 +1775,9 @@ install: build
 	cp -f $(BUILDDIR)/tbot             $(BINDIR)/
 	cp -f $(BUILDDIR)/teleport         $(BINDIR)/
 	cp -f $(BUILDDIR)/teleport-update  $(BINDIR)/
+	ifeq ("$(with_rdpclient)", "yes")
+		cp -f $(BUILDDIR)/rdp-client   $(BINDIR)/
+	endif
 	mkdir -p $(DATADIR)
 
 # Docker image build. Always build the binaries themselves within docker (see
