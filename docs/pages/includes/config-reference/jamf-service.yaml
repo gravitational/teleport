@@ -77,10 +77,19 @@ jamf_service:
     # Default is 'NOOP'.
     on_missing: NOOP
 
+    # Device type to sync. Each inventory entry syncs a single device type.
+    # Add additional entries to sync more than one.
+    # Valid options are:
+    # 'computers' - macOS computers.
+    # 'mobile_devices' - iOS & iPadOS devices.
+    # Default is 'computers'.
+    device_type: computers
+
     # Device filters forwarded to the Jamf Pro API queries.
-    # Refer to https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory
-    # for the possible filter values.
-    # Default is ''
+    # Refer to the following doc pages depending on device_type for the possible filter values:
+    # - 'computers': https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory
+    # - 'mobile_devices': https://developer.jamf.com/jamf-pro/reference/get_v2-mobile-devices-detail
+    # Default is ''.
     filter_rsql: ''
 
     # Custom page size for inventory queries.

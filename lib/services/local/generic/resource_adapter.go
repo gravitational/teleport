@@ -47,3 +47,20 @@ func (w resourceMetadataAdapter[T]) GetMetadata() *headerv1.Metadata {
 func (w resourceMetadataAdapter[T]) GetName() string {
 	return w.resource.GetMetadata().GetName()
 }
+
+// scopedResourceMetadataAdapter extends resourceMetadataAdapter for RFD 153-style
+// resources that additionally carry a scope. For inner types T which implement
+// ScopedResourceMetadata, the adapter implements ScopedResource, making the
+// resource usable with ScopeAwareService.
+type scopedResourceMetadataAdapter[T ScopedResourceMetadata] struct {
+	resourceMetadataAdapter[T]
+}
+
+func newScopedResourceMetadataAdapter[T ScopedResourceMetadata](t T) scopedResourceMetadataAdapter[T] {
+	return scopedResourceMetadataAdapter[T]{newResourceMetadataAdapter(t)}
+}
+
+// GetScope returns the scope of the inner resource. Required for ScopedResource.
+func (w scopedResourceMetadataAdapter[T]) GetScope() string {
+	return w.resource.GetScope()
+}

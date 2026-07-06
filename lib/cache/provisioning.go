@@ -53,13 +53,13 @@ func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.W
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *provisioningv1.PrincipalState {
-			return &provisioningv1.PrincipalState{
+			return provisioningv1.PrincipalState_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil

@@ -49,6 +49,20 @@ Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}{{end}}`,
 ))
 
+func MsgTitle(reqData pd.AccessRequestData) string {
+	requestBase := "Role"
+	if len(reqData.Resources) > 0 {
+		requestBase = "Resource"
+	}
+	titleText := fmt.Sprintf("You have a new %s Request", requestBase)
+	if reqData.RequestKind == types.AccessRequestKind_LONG_TERM.String() {
+		titleText += " (long-term access)"
+	}
+	titleText += ":\n"
+
+	return titleText
+}
+
 func MsgStatusText(tag pd.ResolutionTag, reason string) string {
 	var statusEmoji string
 	status := string(tag)

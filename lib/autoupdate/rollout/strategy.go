@@ -48,7 +48,7 @@ type rolloutStrategy interface {
 // inWindow checks if the time is in the group's maintenance window.
 // The maintenance window is the semi-open interval: [windowStart, windowEnd).
 func inWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, duration time.Duration) (bool, error) {
-	dayOK, err := canUpdateToday(group.ConfigDays, now)
+	dayOK, err := canUpdateToday(group.GetConfigDays(), now)
 	if err != nil {
 		return false, trace.Wrap(err, "checking the day of the week")
 	}
@@ -57,7 +57,7 @@ func inWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time
 	}
 
 	// We compute the theoretical window start and end
-	windowStart := now.Truncate(24 * time.Hour).Add(time.Duration(group.ConfigStartHour) * time.Hour)
+	windowStart := now.Truncate(24 * time.Hour).Add(time.Duration(group.GetConfigStartHour()) * time.Hour)
 	windowEnd := windowStart.Add(duration)
 
 	return !now.Before(windowStart) && now.Before(windowEnd), nil
@@ -91,30 +91,30 @@ func canUpdateToday(allowedDays []string, now time.Time) (bool, error) {
 
 func setGroupState(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, newState autoupdate.AutoUpdateAgentGroupState, reason string, now time.Time) {
 	changed := false
-	previousState := group.State
+	previousState := group.GetState()
 
 	// Check if there is a state transition
 	if previousState != newState {
-		group.State = newState
+		group.SetState(newState)
 		changed = true
 		// If we just started the group, also update the start time.
 		// If we are doing a canary -> active transition, we don't override the start date.
 		if (newState == autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE &&
 			previousState != autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY) ||
 			newState == autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY {
-			group.StartTime = timestamppb.New(now)
+			group.SetStartTime(timestamppb.New(now))
 		}
 	}
 
 	// Check if there is a reason change. Even if the state did not change, we
 	// might want to explain why.
-	if group.LastUpdateReason != reason {
-		group.LastUpdateReason = reason
+	if group.GetLastUpdateReason() != reason {
+		group.SetLastUpdateReason(reason)
 		changed = true
 	}
 
 	if changed {
-		group.LastUpdateTime = timestamppb.New(now)
+		group.SetLastUpdateTime(timestamppb.New(now))
 	}
 }
 
@@ -128,7 +128,7 @@ func computeRolloutState(groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup)
 	var doneGroups, unstartedGroups int
 
 	for _, group := range groups {
-		switch group.State {
+		switch group.GetState() {
 		// If one or more groups have been rolled back, we consider the rollout rolledback
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
 			return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ROLLEDBACK

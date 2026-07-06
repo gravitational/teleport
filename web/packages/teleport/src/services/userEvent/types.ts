@@ -30,6 +30,7 @@ export enum CaptureEvent {
   FeatureRecommendationEvent = 'tp.ui.feature.recommendation',
   UiPageViewEvent = 'tp.ui.page_view',
   UiUsageReportingAlertCtaClickEvent = 'tp.ui.usage_reporting.alert_cta_click',
+  UiInteractionEvent = 'tp.ui.interaction',
 
   // PreUserEvent types
   //   these events are unauthenticated,
@@ -455,4 +456,13 @@ export type CreateNewRoleSaveClickEventData = {
 export type CreateNewRoleSaveClickEvent = UserEventWithData<
   CaptureEvent.CreateNewRoleSaveClickEvent,
   CreateNewRoleSaveClickEventData
+>;
+
+export type UiInteractionEventRequest = UserEventWithData<
+  CaptureEvent.UiInteractionEvent,
+  {
+    path: string;
+    page_id: string;
+    params: Record<string, string>;
+  }
 >;

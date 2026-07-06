@@ -20,6 +20,7 @@ package auditqueue
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"path/filepath"
 	"sync"
@@ -120,7 +121,7 @@ func TestRun_RejectsConcurrentRun(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 
-			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
+			require.NoError(t, q.Enqueue(newTestEvent(0)))
 
 			ready := make(chan struct{})
 			first := make(chan error, 1)
@@ -143,22 +144,8 @@ func TestRun_RejectsConcurrentRun(t *testing.T) {
 			require.ErrorIs(t, q.Run(ctx, noop), ErrAlreadyRunning)
 
 			cancel()
-			require.NoError(t, <-first)
+			require.ErrorIs(t, <-first, context.Canceled)
 
-		})
-	}
-}
-
-func TestEnqueue_CanceledContext(t *testing.T) {
-	t.Parallel()
-
-	for _, kind := range allKinds {
-		t.Run(string(kind), func(t *testing.T) {
-			t.Parallel()
-			q := newTestQueue(t, kind)
-			ctx, cancel := context.WithCancel(t.Context())
-			cancel()
-			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
 		})
 	}
 }
@@ -173,7 +160,7 @@ func TestEnqueue_AfterClose(t *testing.T) {
 			q, err := New(kind, Config{Path: path})
 			require.NoError(t, err)
 			require.NoError(t, q.Close())
-			require.ErrorIs(t, q.Enqueue(t.Context(), newTestEvent(0)), ErrClosed)
+			require.ErrorIs(t, q.Enqueue(newTestEvent(0)), ErrClosed)
 		})
 	}
 }
@@ -188,7 +175,7 @@ func TestRun_DeliversEvents(t *testing.T) {
 			q := newTestQueue(t, kind)
 
 			for i := int64(0); i < 3; i++ {
-				require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+				require.NoError(t, q.Enqueue(newTestEvent(i)))
 			}
 
 			runCtx, cancel := context.WithCancel(ctx)
@@ -214,7 +201,7 @@ func TestRun_DeliversEvents(t *testing.T) {
 			}
 
 			cancel()
-			require.NoError(t, <-runErr)
+			require.ErrorIs(t, <-runErr, context.Canceled)
 		})
 	}
 }
@@ -228,8 +215,8 @@ func TestRun_AcksDeliveredEvents(t *testing.T) {
 			ctx := t.Context()
 			q := newTestQueue(t, kind)
 
-			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
-			require.NoError(t, q.Enqueue(ctx, newTestEvent(1)))
+			require.NoError(t, q.Enqueue(newTestEvent(0)))
+			require.NoError(t, q.Enqueue(newTestEvent(1)))
 
 			runCtx, cancel := context.WithCancel(ctx)
 			t.Cleanup(cancel)
@@ -251,7 +238,7 @@ func TestRun_AcksDeliveredEvents(t *testing.T) {
 				return items
 			}
 
-			require.NoError(t, q.Run(runCtx, handler))
+			require.ErrorIs(t, q.Run(runCtx, handler), context.Canceled)
 			require.GreaterOrEqual(t, calls.Load(), int32(2))
 		})
 	}
@@ -285,7 +272,7 @@ func TestRun_NormalOperation(t *testing.T) {
 				wg.Add(1)
 				go func(i int64) {
 					defer wg.Done()
-					require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+					require.NoError(t, q.Enqueue(newTestEvent(i)))
 				}(i)
 			}
 			wg.Wait()
@@ -301,7 +288,7 @@ func TestRun_NormalOperation(t *testing.T) {
 				wg.Add(1)
 				go func(i int64) {
 					defer wg.Done()
-					require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+					require.NoError(t, q.Enqueue(newTestEvent(i)))
 				}(i)
 			}
 			wg.Wait()
@@ -314,7 +301,7 @@ func TestRun_NormalOperation(t *testing.T) {
 			require.Equal(t, int32(finalBatchCount), acked.Load())
 
 			cancel()
-			require.NoError(t, <-runErr)
+			require.ErrorIs(t, <-runErr, context.Canceled)
 		})
 	}
 }
@@ -339,7 +326,7 @@ func TestRun_StopsCleanlyOnContextCancel(t *testing.T) {
 
 			select {
 			case err := <-runErr:
-				require.NoError(t, err)
+				require.ErrorIs(t, err, context.Canceled)
 			case <-time.After(time.Second):
 				t.Fatal("Run did not stop after context cancel")
 			}
@@ -361,7 +348,7 @@ func TestRun_DeadLetter_ExhaustedEventLeavesMainQueue(t *testing.T) {
 				DeadLetterSweepInterval: time.Hour, // prevent sweep from interfering
 			})
 
-			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
+			require.NoError(t, q.Enqueue(newTestEvent(0)))
 
 			var calls atomic.Int32
 			alwaysFail := func(_ context.Context, items []Item) []Item {
@@ -386,7 +373,7 @@ func TestRun_DeadLetter_ExhaustedEventLeavesMainQueue(t *testing.T) {
 				"handler should not be called again after event is promoted to dead-letter")
 
 			cancel()
-			require.NoError(t, <-runErr)
+			require.ErrorIs(t, <-runErr, context.Canceled)
 		})
 	}
 }
@@ -405,7 +392,7 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 				DeadLetterSweepInterval: sweepInterval,
 			})
 
-			require.NoError(t, q.Enqueue(ctx, newTestEvent(99)))
+			require.NoError(t, q.Enqueue(newTestEvent(99)))
 
 			var recovered atomic.Bool
 			delivered := make(chan apievents.AuditEvent, 1)
@@ -445,7 +432,7 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 			}
 
 			cancel()
-			require.NoError(t, <-runErr)
+			require.ErrorIs(t, <-runErr, context.Canceled)
 		})
 	}
 }
@@ -454,13 +441,12 @@ func BenchmarkEnqueue(b *testing.B) {
 	for _, kind := range allKinds {
 		b.Run(string(kind), func(b *testing.B) {
 			quietLogs(b)
-			ctx := b.Context()
 			q := newTestQueue(b, kind)
 
 			b.ResetTimer()
 			for i := range b.N {
 				event := newTestEvent(int64(i))
-				if err := q.Enqueue(ctx, event); err != nil {
+				if err := q.Enqueue(event); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -490,7 +476,7 @@ func BenchmarkEnqueueAndDrain(b *testing.B) {
 			b.ResetTimer()
 			for i := range b.N {
 				event := newTestEvent(int64(i))
-				if err := q.Enqueue(ctx, event); err != nil {
+				if err := q.Enqueue(event); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -501,7 +487,7 @@ func BenchmarkEnqueueAndDrain(b *testing.B) {
 			}
 
 			cancel()
-			if err := <-runErr; err != nil {
+			if err := <-runErr; err != nil && !errors.Is(err, context.Canceled) {
 				b.Fatal(err)
 			}
 		})

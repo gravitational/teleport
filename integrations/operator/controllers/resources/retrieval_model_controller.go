@@ -44,20 +44,20 @@ func (r retrievalModelClient) Get(ctx context.Context, _ string) (*summarizerv1.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp.Model, nil
+	return resp.GetModel(), nil
 }
 
 // Create creates the Teleport RetrievalModel singleton.
 func (r retrievalModelClient) Create(ctx context.Context, resource *summarizerv1.RetrievalModel) error {
 	_, err := r.teleportClient.SummarizerServiceClient().
-		CreateRetrievalModel(ctx, &summarizerv1.CreateRetrievalModelRequest{Model: resource})
+		CreateRetrievalModel(ctx, summarizerv1.CreateRetrievalModelRequest_builder{Model: resource}.Build())
 	return trace.Wrap(err)
 }
 
 // Update upserts the Teleport RetrievalModel singleton.
 func (r retrievalModelClient) Update(ctx context.Context, resource *summarizerv1.RetrievalModel) error {
 	_, err := r.teleportClient.SummarizerServiceClient().
-		UpsertRetrievalModel(ctx, &summarizerv1.UpsertRetrievalModelRequest{Model: resource})
+		UpsertRetrievalModel(ctx, summarizerv1.UpsertRetrievalModelRequest_builder{Model: resource}.Build())
 	return trace.Wrap(err)
 }
 
@@ -93,6 +93,9 @@ func NewRetrievalModelV1Reconciler(client kclient.Client, tClient *client.Client
 	](
 		client,
 		rmClient,
+		reconcilers.Config{
+			CheckFeatures: controllers.RequirePolicy,
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

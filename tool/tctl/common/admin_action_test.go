@@ -140,18 +140,18 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	ctx := context.Background()
 
 	botName := "bot"
-	botReq := &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	botReq := machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: botName,
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{teleport.PresetAccessRoleName},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	createBot := func() error {
 		_, err := s.localAdminClient.BotServiceClient().CreateBot(ctx, botReq)
@@ -159,9 +159,9 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	}
 
 	deleteBot := func() error {
-		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 			BotName: botName,
-		})
+		}.Build())
 		return trace.Wrap(err)
 	}
 
@@ -577,6 +577,21 @@ func (s *adminActionTestSuite) testOIDCConnector(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	connector2, err := types.NewOIDCConnector("oidc-2", types.OIDCConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		Display:      "OIDC",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "test",
+				Value: "test",
+				Roles: []string{"access", "editor", "auditor"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	createOIDCConnector := func() error {
 		_, err := s.authServer.CreateOIDCConnector(ctx, connector)
 		return trace.Wrap(err)
@@ -590,11 +605,30 @@ func (s *adminActionTestSuite) testOIDCConnector(t *testing.T) {
 		return s.authServer.DeleteOIDCConnector(ctx, connector.GetName())
 	}
 
+	createOIDCConnectors := func() error {
+		if _, err := s.authServer.CreateOIDCConnector(ctx, connector); err != nil {
+			return trace.Wrap(err)
+		}
+		_, err := s.authServer.CreateOIDCConnector(ctx, connector2)
+		return trace.Wrap(err)
+	}
+
+	deleteOIDCConnectors := func() error {
+		return trace.NewAggregate(
+			s.authServer.DeleteOIDCConnector(ctx, connector.GetName()),
+			s.authServer.DeleteOIDCConnector(ctx, connector2.GetName()),
+		)
+	}
+
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:        connector,
-			resourceCreate:  createOIDCConnector,
-			resourceCleanup: deleteOIDCConnector,
+			resource:         connector,
+			resourceCreate:   createOIDCConnector,
+			resourceCleanup:  deleteOIDCConnector,
+			testGetList:      true,
+			resource2:        connector2,
+			resourcesCreate:  createOIDCConnectors,
+			resourcesCleanup: deleteOIDCConnectors,
 		})
 	})
 
@@ -622,6 +656,17 @@ func (s *adminActionTestSuite) testSAMLConnector(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	connector2, err := types.NewSAMLConnector("saml-2", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+	})
+	require.NoError(t, err)
+
 	createSAMLConnector := func() error {
 		_, err := s.authServer.CreateSAMLConnector(ctx, connector)
 		return trace.Wrap(err)
@@ -635,11 +680,30 @@ func (s *adminActionTestSuite) testSAMLConnector(t *testing.T) {
 		return s.authServer.DeleteSAMLConnector(ctx, connector.GetName())
 	}
 
+	createSAMLConnectors := func() error {
+		if _, err := s.authServer.CreateSAMLConnector(ctx, connector); err != nil {
+			return trace.Wrap(err)
+		}
+		_, err := s.authServer.CreateSAMLConnector(ctx, connector2)
+		return trace.Wrap(err)
+	}
+
+	deleteSAMLConnectors := func() error {
+		return trace.NewAggregate(
+			s.authServer.DeleteSAMLConnector(ctx, connector.GetName()),
+			s.authServer.DeleteSAMLConnector(ctx, connector2.GetName()),
+		)
+	}
+
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:        connector,
-			resourceCreate:  createSAMLConnector,
-			resourceCleanup: deleteSAMLConnector,
+			resource:         connector,
+			resourceCreate:   createSAMLConnector,
+			resourceCleanup:  deleteSAMLConnector,
+			testGetList:      true,
+			resource2:        connector2,
+			resourcesCreate:  createSAMLConnectors,
+			resourcesCleanup: deleteSAMLConnectors,
 		})
 	})
 
@@ -671,6 +735,21 @@ func (s *adminActionTestSuite) testGithubConnector(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	connector2, err := types.NewGithubConnector("github-2", types.GithubConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURL:  "https://proxy.example.com/v1/webapi/github/callback",
+		Display:      "Github",
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "acme",
+				Team:         "users",
+				Roles:        []string{"access", "editor", "auditor"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	createGithubConnector := func() error {
 		_, err := s.authServer.CreateGithubConnector(ctx, connector)
 		return trace.Wrap(err)
@@ -684,11 +763,30 @@ func (s *adminActionTestSuite) testGithubConnector(t *testing.T) {
 		return s.authServer.DeleteGithubConnector(ctx, connector.GetName())
 	}
 
+	createGithubConnectors := func() error {
+		if _, err := s.authServer.CreateGithubConnector(ctx, connector); err != nil {
+			return trace.Wrap(err)
+		}
+		_, err := s.authServer.CreateGithubConnector(ctx, connector2)
+		return trace.Wrap(err)
+	}
+
+	deleteGithubConnectors := func() error {
+		return trace.NewAggregate(
+			s.authServer.DeleteGithubConnector(ctx, connector.GetName()),
+			s.authServer.DeleteGithubConnector(ctx, connector2.GetName()),
+		)
+	}
+
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:        connector,
-			resourceCreate:  createGithubConnector,
-			resourceCleanup: deleteGithubConnector,
+			resource:         connector,
+			resourceCreate:   createGithubConnector,
+			resourceCleanup:  deleteGithubConnector,
+			testGetList:      true,
+			resource2:        connector2,
+			resourcesCreate:  createGithubConnectors,
+			resourcesCleanup: deleteGithubConnectors,
 		})
 	})
 

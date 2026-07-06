@@ -21,6 +21,7 @@ package oktaassignment
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -34,6 +35,8 @@ import (
 // and make a best effort to ensuring there are no missing fields from the Okta assignment
 // that have not yet been added to this resource.
 func TestToResource(t *testing.T) {
+	now := time.Now().UTC()
+
 	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: "assignment",
 	}, types.OktaAssignmentSpecV1{
@@ -43,10 +46,17 @@ func TestToResource(t *testing.T) {
 			{
 				Id:   "1",
 				Type: types.OktaAssignmentTargetV1_APPLICATION,
+				Status: &types.OktaAssignmentTargetStatus{
+					Op:            string(constants.OktaAssignmentTargetOpProvision),
+					Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+					LastProcessed: now,
+					FailureCount:  3,
+				},
 			},
 			{
 				Id:   "2",
 				Type: types.OktaAssignmentTargetV1_GROUP,
+				// No Status field to verify it's omitted from output.
 			},
 		},
 	})
@@ -85,10 +95,18 @@ func TestToResource(t *testing.T) {
 	require.Equal(t, constants.OktaAssignmentTargetApplication, resourceTarget1["type"])
 	resourceTarget1["type"] = int(types.OktaAssignmentTargetV1_APPLICATION)
 
+	target1Status, ok := resourceTarget1["status"].(map[string]any)
+	require.True(t, ok, target1Status)
+	require.Equal(t, string(constants.OktaAssignmentTargetOpProvision), target1Status["op"])
+	require.Equal(t, string(constants.OktaAssignmentTargetOutcomeFailed), target1Status["outcome"])
+	require.Equal(t, now.Format(time.RFC3339Nano), target1Status["last_processed"])
+	require.Equal(t, 3, target1Status["failure_count"])
+
 	resourceTarget2, ok := resourceTargets[1].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentTargetGroup, resourceTarget2["type"])
 	resourceTarget2["type"] = int(types.OktaAssignmentTargetV1_GROUP)
+	require.Nil(t, resourceTarget2["status"])
 
 	require.Equal(t, assignmentMap, resourceMap)
 }

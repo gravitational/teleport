@@ -394,7 +394,7 @@ func toEvent(rec streamtypes.Record) (*backend.Event, error) {
 		}
 		var expires time.Time
 		if r.Expires != nil {
-			expires = time.Unix(*r.Expires, 0)
+			expires = time.Unix(*r.Expires, 0).UTC()
 		}
 		return &backend.Event{
 			Type: op,

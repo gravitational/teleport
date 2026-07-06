@@ -274,8 +274,7 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 	})
 	defer wg.Wait()
 
-	q.runPollLoop(ctx, handler)
-	return nil
+	return q.runPollLoop(ctx, handler)
 }
 
 func (q *sqliteQueue) orphanScanLoop(ctx context.Context, handler Handler) {

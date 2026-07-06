@@ -39,24 +39,24 @@ func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	request := &workloadidentityv1.ListWorkloadIdentitiesV2Request{
+	request := workloadidentityv1.ListWorkloadIdentitiesV2Request_builder{
 		PageSize:         20,
 		PageToken:        r.URL.Query().Get("page_token"),
 		SortField:        r.URL.Query().Get("sort_field"),
 		FilterSearchTerm: r.URL.Query().Get("search"),
-	}
+	}.Build()
 
 	if r.URL.Query().Has("page_size") {
 		pageSize, err := strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
 		if err != nil {
 			return nil, trace.BadParameter("invalid page size")
 		}
-		request.PageSize = int32(pageSize)
+		request.SetPageSize(int32(pageSize))
 	}
 
 	if r.URL.Query().Has("sort_dir") {
 		sortDir := r.URL.Query().Get("sort_dir")
-		request.SortDesc = strings.ToLower(sortDir) == "desc"
+		request.SetSortDesc(strings.ToLower(sortDir) == "desc")
 	}
 
 	result, err := clt.WorkloadIdentityResourceServiceClient().ListWorkloadIdentitiesV2(r.Context(), request)
@@ -64,12 +64,12 @@ func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	uiItems := tslices.Map(result.WorkloadIdentities, func(item *workloadidentityv1.WorkloadIdentity) WorkloadIdentity {
+	uiItems := tslices.Map(result.GetWorkloadIdentities(), func(item *workloadidentityv1.WorkloadIdentity) WorkloadIdentity {
 		uiItem := WorkloadIdentity{
-			Name:       item.Metadata.Name,
-			SpiffeID:   item.Spec.Spiffe.Id,
-			SpiffeHint: item.Spec.Spiffe.Hint,
-			Labels:     item.Metadata.Labels,
+			Name:       item.GetMetadata().GetName(),
+			SpiffeID:   item.GetSpec().GetSpiffe().GetId(),
+			SpiffeHint: item.GetSpec().GetSpiffe().GetHint(),
+			Labels:     item.GetMetadata().GetLabels(),
 		}
 
 		return uiItem
@@ -77,7 +77,7 @@ func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request,
 
 	return ListWorkloadIdentitiesResponse{
 		Items:         uiItems,
-		NextPageToken: result.NextPageToken,
+		NextPageToken: result.GetNextPageToken(),
 	}, nil
 }
 

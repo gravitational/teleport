@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/crownjewel/v1/crownjewel_service.proto
 
+//go:build !protoopaque
+
 package crownjewelv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // CrownJewelRequest is a request to create a new CrownJewel.
 type CreateCrownJewelRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	CrownJewel    *CrownJewel            `protobuf:"bytes,2,opt,name=crown_jewel,json=crownJewel,proto3" json:"crown_jewel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -69,11 +70,6 @@ func (x *CreateCrownJewelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateCrownJewelRequest.ProtoReflect.Descriptor instead.
-func (*CreateCrownJewelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateCrownJewelRequest) GetCrownJewel() *CrownJewel {
 	if x != nil {
 		return x.CrownJewel
@@ -81,9 +77,38 @@ func (x *CreateCrownJewelRequest) GetCrownJewel() *CrownJewel {
 	return nil
 }
 
+func (x *CreateCrownJewelRequest) SetCrownJewel(v *CrownJewel) {
+	x.CrownJewel = v
+}
+
+func (x *CreateCrownJewelRequest) HasCrownJewel() bool {
+	if x == nil {
+		return false
+	}
+	return x.CrownJewel != nil
+}
+
+func (x *CreateCrownJewelRequest) ClearCrownJewel() {
+	x.CrownJewel = nil
+}
+
+type CreateCrownJewelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	CrownJewel *CrownJewel
+}
+
+func (b0 CreateCrownJewelRequest_builder) Build() *CreateCrownJewelRequest {
+	m0 := &CreateCrownJewelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CrownJewel = b.CrownJewel
+	return m0
+}
+
 // GetCrownJewelRequest is a request to get a CrownJewel by name.
 type GetCrownJewelRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the CrownJewel to get.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -115,11 +140,6 @@ func (x *GetCrownJewelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetCrownJewelRequest.ProtoReflect.Descriptor instead.
-func (*GetCrownJewelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetCrownJewelRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -127,9 +147,28 @@ func (x *GetCrownJewelRequest) GetName() string {
 	return ""
 }
 
+func (x *GetCrownJewelRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetCrownJewelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the CrownJewel to get.
+	Name string
+}
+
+func (b0 GetCrownJewelRequest_builder) Build() *GetCrownJewelRequest {
+	m0 := &GetCrownJewelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // ListCrownJewelsRequest is a request to get a list of CrownJewels.
 type ListCrownJewelsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int64 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -164,11 +203,6 @@ func (x *ListCrownJewelsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListCrownJewelsRequest.ProtoReflect.Descriptor instead.
-func (*ListCrownJewelsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListCrownJewelsRequest) GetPageSize() int64 {
 	if x != nil {
 		return x.PageSize
@@ -183,9 +217,36 @@ func (x *ListCrownJewelsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListCrownJewelsRequest) SetPageSize(v int64) {
+	x.PageSize = v
+}
+
+func (x *ListCrownJewelsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListCrownJewelsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int64
+	// page_token is the next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListCrownJewelsRequest_builder) Build() *ListCrownJewelsRequest {
+	m0 := &ListCrownJewelsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListCrownJewelsResponse is a response to GetCrownJewelsRequest.
 type ListCrownJewelsResponse struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
+	state       protoimpl.MessageState `protogen:"hybrid.v1"`
 	CrownJewels []*CrownJewel          `protobuf:"bytes,1,rep,name=crown_jewels,json=crownJewels,proto3" json:"crown_jewels,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
 	// more results in the list.
@@ -219,11 +280,6 @@ func (x *ListCrownJewelsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListCrownJewelsResponse.ProtoReflect.Descriptor instead.
-func (*ListCrownJewelsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListCrownJewelsResponse) GetCrownJewels() []*CrownJewel {
 	if x != nil {
 		return x.CrownJewels
@@ -238,9 +294,35 @@ func (x *ListCrownJewelsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListCrownJewelsResponse) SetCrownJewels(v []*CrownJewel) {
+	x.CrownJewels = v
+}
+
+func (x *ListCrownJewelsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListCrownJewelsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	CrownJewels []*CrownJewel
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListCrownJewelsResponse_builder) Build() *ListCrownJewelsResponse {
+	m0 := &ListCrownJewelsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CrownJewels = b.CrownJewels
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // UpdateCrownJewelRequest is a request to update an existing CrownJewel.
 type UpdateCrownJewelRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	CrownJewel    *CrownJewel            `protobuf:"bytes,2,opt,name=crown_jewel,json=crownJewel,proto3" json:"crown_jewel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -271,11 +353,6 @@ func (x *UpdateCrownJewelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateCrownJewelRequest.ProtoReflect.Descriptor instead.
-func (*UpdateCrownJewelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateCrownJewelRequest) GetCrownJewel() *CrownJewel {
 	if x != nil {
 		return x.CrownJewel
@@ -283,9 +360,38 @@ func (x *UpdateCrownJewelRequest) GetCrownJewel() *CrownJewel {
 	return nil
 }
 
+func (x *UpdateCrownJewelRequest) SetCrownJewel(v *CrownJewel) {
+	x.CrownJewel = v
+}
+
+func (x *UpdateCrownJewelRequest) HasCrownJewel() bool {
+	if x == nil {
+		return false
+	}
+	return x.CrownJewel != nil
+}
+
+func (x *UpdateCrownJewelRequest) ClearCrownJewel() {
+	x.CrownJewel = nil
+}
+
+type UpdateCrownJewelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	CrownJewel *CrownJewel
+}
+
+func (b0 UpdateCrownJewelRequest_builder) Build() *UpdateCrownJewelRequest {
+	m0 := &UpdateCrownJewelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CrownJewel = b.CrownJewel
+	return m0
+}
+
 // UpsertCrownJewelRequest is a request to upsert a CrownJewel.
 type UpsertCrownJewelRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	CrownJewel    *CrownJewel            `protobuf:"bytes,2,opt,name=crown_jewel,json=crownJewel,proto3" json:"crown_jewel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -316,11 +422,6 @@ func (x *UpsertCrownJewelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertCrownJewelRequest.ProtoReflect.Descriptor instead.
-func (*UpsertCrownJewelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpsertCrownJewelRequest) GetCrownJewel() *CrownJewel {
 	if x != nil {
 		return x.CrownJewel
@@ -328,9 +429,38 @@ func (x *UpsertCrownJewelRequest) GetCrownJewel() *CrownJewel {
 	return nil
 }
 
+func (x *UpsertCrownJewelRequest) SetCrownJewel(v *CrownJewel) {
+	x.CrownJewel = v
+}
+
+func (x *UpsertCrownJewelRequest) HasCrownJewel() bool {
+	if x == nil {
+		return false
+	}
+	return x.CrownJewel != nil
+}
+
+func (x *UpsertCrownJewelRequest) ClearCrownJewel() {
+	x.CrownJewel = nil
+}
+
+type UpsertCrownJewelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	CrownJewel *CrownJewel
+}
+
+func (b0 UpsertCrownJewelRequest_builder) Build() *UpsertCrownJewelRequest {
+	m0 := &UpsertCrownJewelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CrownJewel = b.CrownJewel
+	return m0
+}
+
 // DeleteCrownJewelRequest is a request to delete a CrownJewel.
 type DeleteCrownJewelRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the CrownJewel to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -362,16 +492,30 @@ func (x *DeleteCrownJewelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteCrownJewelRequest.ProtoReflect.Descriptor instead.
-func (*DeleteCrownJewelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteCrownJewelRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *DeleteCrownJewelRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteCrownJewelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the CrownJewel to delete.
+	Name string
+}
+
+func (b0 DeleteCrownJewelRequest_builder) Build() *DeleteCrownJewelRequest {
+	m0 := &DeleteCrownJewelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_crownjewel_v1_crownjewel_service_proto protoreflect.FileDescriptor
@@ -406,18 +550,6 @@ const file_teleport_crownjewel_v1_crownjewel_service_proto_rawDesc = "" +
 	"\x10UpdateCrownJewel\x12/.teleport.crownjewel.v1.UpdateCrownJewelRequest\x1a\".teleport.crownjewel.v1.CrownJewel\x12g\n" +
 	"\x10UpsertCrownJewel\x12/.teleport.crownjewel.v1.UpsertCrownJewelRequest\x1a\".teleport.crownjewel.v1.CrownJewel\x12[\n" +
 	"\x10DeleteCrownJewel\x12/.teleport.crownjewel.v1.DeleteCrownJewelRequest\x1a\x16.google.protobuf.EmptyBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1;crownjewelv1b\x06proto3"
-
-var (
-	file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescOnce sync.Once
-	file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescData []byte
-)
-
-func file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescGZIP() []byte {
-	file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescOnce.Do(func() {
-		file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_crownjewel_v1_crownjewel_service_proto_rawDesc), len(file_teleport_crownjewel_v1_crownjewel_service_proto_rawDesc)))
-	})
-	return file_teleport_crownjewel_v1_crownjewel_service_proto_rawDescData
-}
 
 var file_teleport_crownjewel_v1_crownjewel_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_crownjewel_v1_crownjewel_service_proto_goTypes = []any{

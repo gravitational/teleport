@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -266,6 +267,44 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			test.errorAssertionFn(t, err)
 			require.Equal(t, test.expectedToken, actualToken)
 		})
+	}
+}
+
+func TestCloudGetAWSSigninTokenTransportErrorDoesNotLeakSession(t *testing.T) {
+	c, err := NewCloud(CloudConfig{
+		AWSConfigOptions: []awsconfig.OptionsFn{
+			awsconfig.WithBaseCredentialsProvider(credentials.NewStaticCredentialsProvider("base-access-key-id", "base-secret-access-key", "base-session-token")),
+			awsconfig.WithSTSClientProvider(mocks.NewAssumeRoleClientProviderFunc(&mocks.STSClient{})),
+		},
+		Logger: slog.New(slog.DiscardHandler),
+	})
+	require.NoError(t, err)
+
+	cloud, ok := c.(*cloud)
+	require.True(t, ok)
+
+	req := &AWSSigninRequest{
+		Identity: &tlsca.Identity{
+			RouteToApp: tlsca.RouteToApp{
+				AWSRoleARN: "arn:aws:iam::123456789012:role/test",
+			},
+			Expires: time.Now().Add(24 * time.Hour),
+		},
+		Issuer: "test",
+	}
+
+	_, err = cloud.getAWSSigninToken(t.Context(), req, "ftp://signin.aws.amazon.com/federation")
+	require.Error(t, err)
+	require.True(t, trace.IsConnectionProblem(err), "expected connection problem, got %v", err)
+	require.Contains(t, err.Error(), "failed to request AWS federation sign-in token")
+
+	errMsg := err.Error()
+	for _, sensitive := range []string{
+		"sessionId", "sessionKey", "sessionToken",
+		"FAKEACCESSKEYID",
+	} {
+		require.NotContains(t, errMsg, sensitive)
+		require.NotContains(t, errMsg, url.QueryEscape(sensitive))
 	}
 }
 

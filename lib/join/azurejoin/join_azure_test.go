@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -161,7 +162,8 @@ func TestJoinAzure(t *testing.T) {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -558,26 +560,26 @@ func TestJoinAzure(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
 				Scope: "/test",
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "scoped_" + token.GetName(),
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
+				}.Build(),
+				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/test/one",
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.NoError(t, err)
 
-			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+			_, err = a.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 				Token: scopedToken,
-			})
+			}.Build())
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, err := a.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+				_, err := a.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
 					Name: scopedToken.GetMetadata().GetName(),
-				})
+				}.Build())
 				require.NoError(t, err)
 			})
 
@@ -661,7 +663,8 @@ func TestJoinAzureClaims(t *testing.T) {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -694,14 +697,14 @@ func TestJoinAzureClaims(t *testing.T) {
 	defaultVMID := "my-vm-id"
 
 	botName := "botty"
-	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+	_, err = machineidv1.UpsertBot(ctx, a, machineidv1pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: botName,
-		},
+		}.Build(),
 		Spec: &machineidv1pb.BotSpec{},
-	}, a.GetClock().Now(), "")
+	}.Build(), a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1022,26 +1025,26 @@ func TestJoinAzureClaims(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
 				Scope: "/test",
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "scoped_" + token.GetName(),
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
+				}.Build(),
+				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/test/one",
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.NoError(t, err)
 
-			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+			_, err = a.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 				Token: scopedToken,
-			})
+			}.Build())
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, err := a.DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+				_, err := a.DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
 					Name: scopedToken.GetMetadata().GetName(),
-				})
+				}.Build())
 				require.NoError(t, err)
 			})
 
@@ -1163,8 +1166,8 @@ func TestJoinAzureClaims(t *testing.T) {
 
 				// Make sure the JoinAttributes were set.
 				require.NotNil(t, identity.JoinAttributes)
-				require.NotNil(t, identity.JoinAttributes.Azure)
-				require.Equal(t, tc.tokenSubscription, identity.JoinAttributes.Azure.Subscription)
+				require.NotNil(t, identity.JoinAttributes.GetAzure())
+				require.Equal(t, tc.tokenSubscription, identity.JoinAttributes.GetAzure().GetSubscription())
 			})
 		})
 	}
@@ -1173,7 +1176,8 @@ func TestJoinAzureClaims(t *testing.T) {
 func TestAzureIssuerCert(t *testing.T) {
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		}})
 	require.NoError(t, err)
 	a := server.Auth()
@@ -1334,7 +1338,8 @@ func TestAzureIssuerCert(t *testing.T) {
 func TestAzureJoinFetchesCompleteIntermediateChain(t *testing.T) {
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		}})
 	require.NoError(t, err)
 	a := server.Auth()

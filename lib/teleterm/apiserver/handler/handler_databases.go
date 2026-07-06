@@ -35,12 +35,12 @@ func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListDatabase
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.ListDatabaseServersResponse{
+	response := api.ListDatabaseServersResponse_builder{
 		NextKey: resp.NextKey,
-	}
+	}.Build()
 
 	for _, server := range resp.Servers {
-		response.Resources = append(response.Resources, newAPIDatabaseServer(server))
+		response.SetResources(append(response.GetResources(), newAPIDatabaseServer(server)))
 	}
 	return response, nil
 }
@@ -53,39 +53,39 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 
 	var autoUserProvisioning *api.AutoUserProvisioning
 	if db.AutoUserProvisioning != nil {
-		autoUserProvisioning = &api.AutoUserProvisioning{
+		autoUserProvisioning = api.AutoUserProvisioning_builder{
 			DatabaseRoles: db.AutoUserProvisioning.DatabaseRoles,
-		}
+		}.Build()
 	}
 
-	return &api.Database{
+	return api.Database_builder{
 		Uri:      db.URI.String(),
 		Name:     db.GetName(),
 		Desc:     db.GetDescription(),
 		Protocol: db.GetProtocol(),
 		Type:     db.GetType(),
 		Labels:   apiLabels,
-		TargetHealth: &api.TargetHealth{
+		TargetHealth: api.TargetHealth_builder{
 			Status:  db.TargetHealth.Status,
 			Error:   db.TargetHealth.TransitionError,
 			Message: db.TargetHealth.Message,
-		},
+		}.Build(),
 		GcpProjectId:         gcpProjectID,
 		DatabaseUsers:        db.DatabaseUsers,
 		WildcardUserAllowed:  db.WildcardUserAllowed,
 		AutoUserProvisioning: autoUserProvisioning,
-	}
+	}.Build()
 }
 
 func newAPIDatabaseServer(dbServer clusters.DatabaseServer) *api.DatabaseServer {
-	return &api.DatabaseServer{
+	return api.DatabaseServer_builder{
 		Uri:      dbServer.URI.String(),
 		Hostname: dbServer.GetHostname(),
 		HostId:   dbServer.GetHostID(),
-		TargetHealth: &api.TargetHealth{
+		TargetHealth: api.TargetHealth_builder{
 			Status:  dbServer.GetTargetHealth().Status,
 			Error:   dbServer.GetTargetHealth().TransitionError,
 			Message: dbServer.GetTargetHealth().Message,
-		},
-	}
+		}.Build(),
+	}.Build()
 }

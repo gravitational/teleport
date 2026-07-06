@@ -61,15 +61,27 @@ const (
 	busyTimeoutMillis = 5000
 )
 
+// A note on `AUTOINCREMENT`, to quote the SQLite docs:
+// > The AUTOINCREMENT keyword imposes extra CPU, memory, disk space, and disk
+// > I/O overhead and should be avoided if not strictly needed.
+// > It is usually not needed.
+//
+// In the context of audit_queue, AUTOINCREMENT is not strictly needed. IDs
+// cannot be re-used during the fetch-deliver-ack window, because we only call
+// delete on the rows that we have fetched from the database, and which still
+// reside in the database.
+//
+// We are including AUTOINCREMENT here as a belt-and-suspenders approach to
+// guard against potential future changes.
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS audit_queue (
-    id       INTEGER PRIMARY KEY,
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
     payload  BLOB    NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS audit_dead_letter (
-    id        INTEGER PRIMARY KEY,
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
     payload   BLOB    NOT NULL,
     failed_at INTEGER NOT NULL
 ) STRICT;
@@ -77,10 +89,24 @@ CREATE TABLE IF NOT EXISTS audit_dead_letter (
 CREATE INDEX IF NOT EXISTS idx_dead_letter_failed_at ON audit_dead_letter(failed_at);
 
 CREATE TABLE IF NOT EXISTS teleport_info (
-    id    INTEGER PRIMARY KEY,
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
     key   TEXT NOT NULL UNIQUE,
     value TEXT NOT NULL
 ) STRICT;
+
+-- We need AUTOINCREMENT here to ensure the recoveryWatermark has a
+-- monotonically incrementing id. We need to ensure that the 'id' is never
+-- re-used for this table. Other tables do not have this requirement.
+-- See: https://sqlite.org/autoinc.html
+CREATE TABLE IF NOT EXISTS corrupt_events (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    payload   BLOB    NOT NULL,
+    error     TEXT    NOT NULL,
+    source    TEXT    NOT NULL,
+    failed_at INTEGER NOT NULL
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_corrupt_events_failed_at ON corrupt_events(failed_at);
 `
 
 // writeRequest is a single Enqueue waiting on a commit result. The writer
@@ -92,8 +118,11 @@ type writeRequest struct {
 }
 
 type sqliteQueue struct {
-	db                      *sql.DB
-	path                    string
+	db   *sql.DB
+	path string
+	// runMu enforces a single consumer. Run only ever TryLocks it and returns
+	// ErrAlreadyRunning if it's held. The lock is held for the entire lifetime
+	// of Run, so a blocking Lock would hang until shutdown.
 	runMu                   sync.Mutex
 	toBeWritten             chan writeRequest
 	maxBatch                int
@@ -178,7 +207,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 // Events that are in-flight at the time of shutdown may be lost, as the queue
 // context cancellation causes both this function and writeLoop to return before
 // the commit completes.
-func (q *sqliteQueue) Enqueue(ctx context.Context, event apievents.AuditEvent) error {
+func (q *sqliteQueue) Enqueue(event apievents.AuditEvent) error {
 	// Serialize the event to bytes.
 	oneOf, err := apievents.ToOneOf(event)
 	if err != nil {
@@ -195,9 +224,8 @@ func (q *sqliteQueue) Enqueue(ctx context.Context, event apievents.AuditEvent) e
 	}
 
 	// Send the event to the write queue. The channel `toBeWritten` will be
-	// drained by the function `writeLoop`. We intentionally ignore the caller's
-	// context cancellation. We do not want to drop an audit log event even if
-	// the caller cancels their context.
+	// drained by the function `writeLoop`. We do not want to drop an audit log
+	// event, so we block the caller until the event is stored durably.
 	select {
 	case q.toBeWritten <- req:
 	case <-q.ctx.Done():
@@ -307,13 +335,16 @@ func isSQLiteFullError(err error) bool {
 	return errors.As(err, &e) && (e.Code() == sqlite3.SQLITE_FULL)
 }
 
-func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) {
+func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) error {
 	pollTimer := time.NewTimer(pollInterval)
 	defer pollTimer.Stop()
 
 	for {
-		if ctx.Err() != nil || q.ctx.Err() != nil {
-			return
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := q.ctx.Err(); err != nil {
+			return err
 		}
 
 		// This queue does not have an explicit "dequeue" method. This is
@@ -338,36 +369,78 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) {
 				"error", err,
 			)
 		}
+		progressed := false
 		if len(items) > 0 {
 			// 2. Forward those events to the inner emitter.
 			// This is done via the handler function.
 			successfullyDelivered := handler(ctx, items)
 			if len(successfullyDelivered) > 0 {
-				// 3. ACK the events that were successfully delivered, thus
-				//    deleting them from the DB.
-				if err := q.ack(successfullyDelivered); err != nil {
-					slog.ErrorContext(
-						q.ctx,
-						"Failed to ack audit events.",
-						"error", err,
-					)
+				// 3. ACK the delivered events, retrying without re-delivering
+				//    on failure.
+				if err := q.ackWithRetry(ctx, successfullyDelivered); err != nil {
+					return err
 				}
+				progressed = true
 			}
 
 			// 4. Handle delivery failures.
 			q.handleDeliveryFailures(ctx, items, successfullyDelivered)
-		} else {
-			// If we don't have any events to forward, then we'll sleep for a
-			// bit.
+		}
+
+		// Back off when we made no forward progress to prevent hammering the
+		// auth server in a hot loop.
+		if !progressed {
 			select {
 			case <-ctx.Done():
-				return
+				return ctx.Err()
 			case <-q.ctx.Done():
-				return
+				return q.ctx.Err()
 			case <-pollTimer.C:
 			}
 			pollTimer.Reset(pollInterval)
 		}
+	}
+}
+
+// ackWithRetry acks the delivered events. It intends to cover an error
+// condition where if we experience local disk errors or database errors from
+// SQLite, then we don't want to hammer the auth server with retries. In the
+// event of disk errors, the best thing we can do is continue retrying until we
+// *hopefully* succeed. It returns nil once the events are acked, or the context
+// error if it stopped because the context was canceled.
+func (q *sqliteQueue) ackWithRetry(ctx context.Context, items []Item) error {
+	firstFailure := true
+	backoff := time.NewTimer(pollInterval)
+	defer backoff.Stop()
+	for {
+		err := q.ack(items)
+		if err == nil {
+			if !firstFailure {
+				slog.InfoContext(
+					q.ctx,
+					"Recovered: ACKed previously stuck audit events.",
+					"count", len(items),
+				)
+			}
+			return nil
+		}
+		if firstFailure && ctx.Err() == nil && q.ctx.Err() == nil {
+			slog.ErrorContext(
+				q.ctx,
+				"Failed to ACK delivered audit events. Retrying without re-delivering.",
+				"error", err,
+				"count", len(items),
+			)
+			firstFailure = false
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-q.ctx.Done():
+			return q.ctx.Err()
+		case <-backoff.C:
+		}
+		backoff.Reset(pollInterval)
 	}
 }
 
@@ -403,11 +476,11 @@ func itemsNotIn(all, delivered []Item) []Item {
 	}
 	deliveredMap := make(map[int64]struct{}, len(delivered))
 	for _, it := range delivered {
-		deliveredMap[it.ID] = struct{}{}
+		deliveredMap[it.id] = struct{}{}
 	}
 	var failed []Item
 	for _, it := range all {
-		if _, ok := deliveredMap[it.ID]; !ok {
+		if _, ok := deliveredMap[it.id]; !ok {
 			failed = append(failed, it)
 		}
 	}
@@ -427,7 +500,7 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 
 	ids := make([]any, len(failed))
 	for i, item := range failed {
-		ids[i] = item.ID
+		ids[i] = item.id
 	}
 
 	rows, err := tx.QueryContext(q.ctx,
@@ -532,7 +605,7 @@ func (q *sqliteQueue) sweepDeadLetter(ctx context.Context, handler Handler) {
 			return
 		}
 
-		afterID = items[len(items)-1].ID
+		afterID = items[len(items)-1].id
 
 		delivered := handler(ctx, items)
 		if len(delivered) == 0 {
@@ -637,40 +710,7 @@ func (q *sqliteQueue) ack(items []Item) error {
 		// delivering these events.
 		eventsDelivered.Add(float64(len(items)))
 	}
-	return err
-}
-
-func scanItems(rows *sql.Rows) ([]Item, error) {
-	defer rows.Close()
-	var items []Item
-	for rows.Next() {
-		var (
-			id      int64
-			payload []byte
-		)
-		if err := rows.Scan(&id, &payload); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// TODO(kkloberdanz): What should we do about events that fail to
-		// deserialize? If an event is corrupt then we will get stuck in a loop
-		// where we cannot process any events with the corrupt on clogging up
-		// the queue.
-		//
-		// To fix this: Let's add a table called `corrupt_events` and move
-		// anything that fails to deserialize to this table. This PR is already
-		// big enough, so we will cover this in a follow up.
-		var oneOf apievents.OneOf
-		if err := oneOf.Unmarshal(payload); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		event, err := apievents.FromOneOf(oneOf)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		items = append(items, Item{ID: id, Event: event})
-	}
-	return items, trace.Wrap(rows.Err())
+	return trace.Wrap(err)
 }
 
 // fetchDB reads up to `limit` oldest items from the table `audit_queue`.
@@ -684,6 +724,30 @@ func fetchDB(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
 		return nil, trace.Wrap(err)
 	}
 	return scanItems(rows)
+}
+
+func scanItems(rows *sql.Rows) ([]Item, error) {
+	defer rows.Close()
+	var items []Item
+	for rows.Next() {
+		var (
+			id      int64
+			payload []byte
+		)
+		if err := rows.Scan(&id, &payload); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var oneOf apievents.OneOf
+		if err := oneOf.Unmarshal(payload); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		event, err := apievents.FromOneOf(oneOf)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items = append(items, Item{id: id, Event: event})
+	}
+	return items, trace.Wrap(rows.Err())
 }
 
 func placeholders(n int) string {
@@ -714,7 +778,7 @@ func deleteIDsFromTable(ctx context.Context, db *sql.DB, table string, ids []int
 func deleteByIDs(ctx context.Context, db *sql.DB, table string, items []Item) error {
 	ids := make([]int64, len(items))
 	for i, item := range items {
-		ids[i] = item.ID
+		ids[i] = item.id
 	}
 	return deleteIDsFromTable(ctx, db, table, ids)
 }

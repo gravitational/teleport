@@ -67,26 +67,28 @@ type Backend interface {
 // ServiceConfig holds configuration options for
 // the users gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      Cache
-	Backend    Backend
-	Logger     *slog.Logger
-	Emitter    apievents.Emitter
-	Reporter   usagereporter.UsageReporter
-	Clock      clockwork.Clock
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Cache            Cache
+	Backend          Backend
+	Logger           *slog.Logger
+	Emitter          apievents.Emitter
+	Reporter         usagereporter.UsageReporter
+	Clock            clockwork.Clock
 }
 
 // Service implements the teleport.users.v1.UsersService RPC service.
 type Service struct {
 	userspb.UnimplementedUsersServiceServer
 
-	authorizer authz.Authorizer
-	cache      Cache
-	backend    Backend
-	logger     *slog.Logger
-	emitter    apievents.Emitter
-	reporter   usagereporter.UsageReporter
-	clock      clockwork.Clock
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	cache            Cache
+	backend          Backend
+	logger           *slog.Logger
+	emitter          apievents.Emitter
+	reporter         usagereporter.UsageReporter
+	clock            clockwork.Clock
 }
 
 // NewService returns a new users gRPC service.
@@ -98,6 +100,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.Reporter == nil:
@@ -112,37 +116,53 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
-		backend:    cfg.Backend,
-		emitter:    cfg.Emitter,
-		reporter:   cfg.Reporter,
-		clock:      cfg.Clock,
+		logger:           cfg.Logger,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		cache:            cfg.Cache,
+		backend:          cfg.Backend,
+		emitter:          cfg.Emitter,
+		reporter:         cfg.Reporter,
+		clock:            cfg.Clock,
 	}, nil
 }
 
 // currentUserAction is a special checker that allows certain actions for users
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
-func currentUserAction(authzContext authz.Context, username string) error {
-	if authz.IsLocalUser(authzContext) && username == authzContext.User.GetName() {
+func currentUserAction(scopedCtx *authz.ScopedContext, username string) error {
+	if authz.ScopedIsCurrentUser(scopedCtx, username) {
 		return nil
 	}
-	return authzContext.Checker.CheckAccessToRule(&services.Context{User: authzContext.User},
+
+	unscopedCtx, isUnscoped := scopedCtx.UnscopedContext()
+	if !isUnscoped {
+		return trace.AccessDenied("scoped users can not create other users")
+	}
+
+	if authz.IsCurrentUser(*unscopedCtx, username) {
+		return nil
+	}
+
+	return unscopedCtx.Checker.CheckAccessToRule(&services.Context{User: unscopedCtx.User},
 		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
-func (s *Service) getCurrentUser(ctx context.Context, authCtx *authz.Context) (*types.UserV2, error) {
+func (s *Service) getCurrentUser(ctx context.Context, scopedCtx *authz.ScopedContext) (*types.UserV2, error) {
+	// scopedCtx.User can be nil in the case of a scopedCtx built on authz.ScopedBuiltinRole
+	if scopedCtx.User == nil {
+		return nil, trace.BadParameter("expected a current authenticated user, identity likely a builtin system role")
+	}
+
 	// check access to roles
-	for _, role := range authCtx.User.GetRoles() {
+	for _, role := range scopedCtx.User.GetRoles() {
 		_, err := s.cache.GetRole(ctx, role)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	withoutSecrets := authCtx.User.WithoutSecrets()
+	withoutSecrets := scopedCtx.User.WithoutSecrets()
 	user, ok := withoutSecrets.(types.User)
 	if !ok {
 		return nil, trace.BadParameter("expected types.User when fetching current user information, got %T", withoutSecrets)
@@ -157,21 +177,25 @@ func (s *Service) getCurrentUser(ctx context.Context, authCtx *authz.Context) (*
 }
 
 func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*userspb.GetUserResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	scopedCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Name == "" && req.CurrentUser {
-		user, err := s.getCurrentUser(ctx, authCtx)
-		return &userspb.GetUserResponse{User: user}, trace.Wrap(err)
+	if req.GetName() == "" && req.GetCurrentUser() {
+		user, err := s.getCurrentUser(ctx, scopedCtx)
+		return userspb.GetUserResponse_builder{User: user}.Build(), trace.Wrap(err)
 	}
 
-	if req.WithSecrets {
+	unscopedCtx, isUnscoped := scopedCtx.UnscopedContext()
+	if req.GetWithSecrets() {
+		if !isUnscoped {
+			return nil, trace.AccessDenied("this request can only be executed by an unscoped admin")
+		}
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
-		if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
-			err := trace.AccessDenied("user %q requested access to user %q with secrets", authCtx.User.GetName(), req.Name)
+		if !authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin)) {
+			err := trace.AccessDenied("user %q requested access to user %q with secrets", unscopedCtx.User.GetName(), req.GetName())
 			s.logger.WarnContext(ctx, "user does not have permission to read user with secrets", "error", err)
 			if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
@@ -187,20 +211,20 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 			}); err != nil {
 				s.logger.WarnContext(ctx, "Failed to emit local login failure event", "error", err)
 			}
-			return nil, trace.AccessDenied("this request can be only executed by an admin")
+			return nil, trace.AccessDenied("this request can only be executed by an admin")
 		}
 	} else {
 		// if secrets are not being accessed, let users always read
 		// their own info.
-		if err := currentUserAction(*authCtx, req.Name); err != nil {
-			// not current user, perform normal permission check.
-			if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbRead); err != nil {
+		if err := currentUserAction(scopedCtx, req.GetName()); err != nil {
+			ruleCtx := scopedCtx.RuleContext()
+			if err := scopedCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadUser, &ruleCtx); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
 	}
 
-	user, err := s.cache.GetUser(ctx, req.Name, req.WithSecrets)
+	user, err := s.cache.GetUser(ctx, req.GetName(), req.GetWithSecrets())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -215,7 +239,7 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
-	return &userspb.GetUserResponse{User: v2}, nil
+	return userspb.GetUserResponse_builder{User: v2}.Build(), nil
 }
 
 func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest) (*userspb.CreateUserResponse, error) {
@@ -224,7 +248,7 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.User.GetName()) > teleport.MaxUsernameLength {
+	if len(req.GetUser().GetName()) > teleport.MaxUsernameLength {
 		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 
@@ -237,26 +261,26 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err = okta.CheckOrigin(authCtx, req.User); err != nil {
+	if err = okta.CheckOrigin(authCtx, req.GetUser()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUser(req.User); err != nil {
+	if err := services.ValidateUser(req.GetUser()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
+	if err := services.ValidateUserRoles(ctx, req.GetUser(), s.cache); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.User.GetCreatedBy().IsEmpty() {
-		req.User.SetCreatedBy(types.CreatedBy{
+	if req.GetUser().GetCreatedBy().IsEmpty() {
+		req.GetUser().SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authCtx.User.GetName()},
 			Time: s.clock.Now().UTC(),
 		})
 	}
 
-	created, err := s.backend.CreateUser(ctx, req.User)
+	created, err := s.backend.CreateUser(ctx, req.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -295,7 +319,7 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
-	return &userspb.CreateUserResponse{User: v2}, nil
+	return userspb.CreateUserResponse_builder{User: v2}.Build(), nil
 }
 
 func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest) (*userspb.UpdateUserResponse, error) {
@@ -313,22 +337,22 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err = okta.CheckOrigin(authCtx, req.User); err != nil {
+	if err = okta.CheckOrigin(authCtx, req.GetUser()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// ValidateUser is called a bit later by LegacyUpdateUser. However, it's clearer
 	// to do it here like the other verbs, plus it won't break again when we'll
 	// get rid of the legacy update function.
-	if err := services.ValidateUser(req.User); err != nil {
+	if err := services.ValidateUser(req.GetUser()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
+	if err := services.ValidateUserRoles(ctx, req.GetUser(), s.cache); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	prevUser, err := s.cache.GetUser(ctx, req.User.GetName(), false)
+	prevUser, err := s.cache.GetUser(ctx, req.GetUser().GetName(), false)
 	var omitEditorEvent bool
 	if err != nil {
 		// don't return error here since this call is for event emitting purposes only
@@ -338,14 +362,14 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 
 	if prevUser != nil {
 		// Preserve the users' created by information.
-		req.User.SetCreatedBy(prevUser.GetCreatedBy())
+		req.GetUser().SetCreatedBy(prevUser.GetCreatedBy())
 	}
 
 	if err = okta.CheckAccess(authCtx, prevUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.backend.UpdateUser(ctx, req.User)
+	updated, err := s.backend.UpdateUser(ctx, req.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -386,7 +410,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
-	return &userspb.UpdateUserResponse{User: v2}, nil
+	return userspb.UpdateUserResponse_builder{User: v2}.Build(), nil
 }
 
 func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest) (*userspb.UpsertUserResponse, error) {
@@ -404,21 +428,21 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUser(req.User); err != nil {
+	if err := services.ValidateUser(req.GetUser()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
+	if err := services.ValidateUserRoles(ctx, req.GetUser(), s.cache); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if createdBy := req.User.GetCreatedBy(); createdBy.IsEmpty() {
-		req.User.SetCreatedBy(types.CreatedBy{
+	if createdBy := req.GetUser().GetCreatedBy(); createdBy.IsEmpty() {
+		req.GetUser().SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authCtx.User.GetName()},
 		})
 	}
 
-	prevUser, err := s.cache.GetUser(ctx, req.User.GetName(), false)
+	prevUser, err := s.cache.GetUser(ctx, req.GetUser().GetName(), false)
 	var omitEditorEvent bool
 	if err != nil {
 		// don't return error here since this call is for event emitting purposes only
@@ -431,7 +455,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		verb = types.VerbCreate
 	}
 
-	if err = okta.CheckOrigin(authCtx, req.User); err != nil {
+	if err = okta.CheckOrigin(authCtx, req.GetUser()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -439,7 +463,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	upserted, err := s.backend.UpsertUser(ctx, req.User)
+	upserted, err := s.backend.UpsertUser(ctx, req.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -480,7 +504,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
-	return &userspb.UpsertUserResponse{User: v2}, nil
+	return userspb.UpsertUserResponse_builder{User: v2}.Build(), nil
 }
 
 func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest) (*emptypb.Empty, error) {
@@ -497,7 +521,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	prevUser, err := s.cache.GetUser(ctx, req.Name, false)
+	prevUser, err := s.cache.GetUser(ctx, req.GetName(), false)
 	var omitEditorEvent bool
 	if err != nil && !trace.IsNotFound(err) {
 		// don't return error here, delete may still succeed
@@ -510,7 +534,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	role, err := s.cache.GetRole(ctx, services.RoleNameForUser(req.Name))
+	role, err := s.cache.GetRole(ctx, services.RoleNameForUser(req.GetName()))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return &emptypb.Empty{}, trace.Wrap(err)
@@ -523,7 +547,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		}
 	}
 
-	if err := s.backend.DeleteUser(ctx, req.Name); err != nil {
+	if err := s.backend.DeleteUser(ctx, req.GetName()); err != nil {
 		return &emptypb.Empty{}, trace.Wrap(err)
 	}
 
@@ -535,7 +559,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
@@ -543,7 +567,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 	}
 
 	if !omitEditorEvent {
-		usagereporter.EmitEditorChangeEvent(req.Name, prevUser.GetRoles(), nil, s.reporter.AnonymizeAndSubmit)
+		usagereporter.EmitEditorChangeEvent(req.GetName(), prevUser.GetRoles(), nil, s.reporter.AnonymizeAndSubmit)
 	}
 
 	return &emptypb.Empty{}, nil
@@ -555,7 +579,7 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 		return nil, trace.Wrap(err)
 	}
 
-	if req.WithSecrets {
+	if req.GetWithSecrets() {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
 		if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {

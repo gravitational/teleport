@@ -19,13 +19,16 @@
 package webauthntypes_test
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	webauthnv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/webauthn/v2"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -216,5 +219,181 @@ func TestCredPropsConversions(t *testing.T) {
 			),
 		)
 		assert.True(t, ccr.Extensions.CredProps.RK, "ccr.Extensions.CredProps.RK mismatch")
+	})
+}
+
+func TestCredentialAssertionToProtoV2(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil", func(t *testing.T) {
+		got := wantypes.CredentialAssertionToProtoV2(nil)
+		assert.Nil(t, got)
+	})
+
+	t.Run("required fields only", func(t *testing.T) {
+		got := wantypes.CredentialAssertionToProtoV2(
+			&wantypes.CredentialAssertion{
+				Response: wantypes.PublicKeyCredentialRequestOptions{
+					Challenge:      wantypes.Challenge([]byte("challenge")),
+					RelyingPartyID: "example.com",
+				},
+			},
+		)
+
+		want := webauthnv2.CredentialAssertion_builder{
+			PublicKey: webauthnv2.PublicKeyCredentialRequestOptions_builder{
+				Challenge: []byte("challenge"),
+				RpId:      "example.com",
+			}.Build(),
+		}.Build()
+
+		require.Empty(
+			t,
+			cmp.Diff(want, got, protocmp.Transform()),
+			"CredentialAssertionToProtoV2 mismatch (-want +got)",
+		)
+	})
+
+	t.Run("with credentials and extensions", func(t *testing.T) {
+		got := wantypes.CredentialAssertionToProtoV2(&wantypes.CredentialAssertion{
+			Response: wantypes.PublicKeyCredentialRequestOptions{
+				Challenge:      wantypes.Challenge([]byte("challenge")),
+				Timeout:        60000,
+				RelyingPartyID: "example.com",
+				AllowedCredentials: []wantypes.CredentialDescriptor{
+					{Type: protocol.PublicKeyCredentialType, CredentialID: []byte("cred1")},
+					{Type: protocol.PublicKeyCredentialType, CredentialID: []byte("cred2")},
+				},
+				UserVerification: protocol.VerificationDiscouraged,
+				Extensions: map[string]any{
+					wantypes.AppIDExtension:     "https://example.com",
+					wantypes.CredPropsExtension: true,
+				},
+			},
+		})
+
+		want := webauthnv2.CredentialAssertion_builder{
+			PublicKey: webauthnv2.PublicKeyCredentialRequestOptions_builder{
+				Challenge: []byte("challenge"),
+				TimeoutMs: 60000,
+				RpId:      "example.com",
+				AllowCredentials: []*webauthnv2.CredentialDescriptor{
+					webauthnv2.CredentialDescriptor_builder{
+						Type: string(protocol.PublicKeyCredentialType),
+						Id:   []byte("cred1"),
+					}.Build(),
+					webauthnv2.CredentialDescriptor_builder{
+						Type: string(protocol.PublicKeyCredentialType),
+						Id:   []byte("cred2"),
+					}.Build(),
+				},
+				UserVerification: string(protocol.VerificationDiscouraged),
+				Extensions: webauthnv2.AuthenticationExtensionsClientInputs_builder{
+					AppId:     "https://example.com",
+					CredProps: true,
+				}.Build(),
+			}.Build(),
+		}.Build()
+
+		require.Empty(
+			t,
+			cmp.Diff(want, got, protocmp.Transform()),
+			"CredentialAssertionToProtoV2 mismatch (-want +got)",
+		)
+	})
+}
+
+func TestCredentialAssertionResponseFromProtoV2(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil response", func(t *testing.T) {
+		got := wantypes.CredentialAssertionResponseFromProtoV2(nil)
+		assert.Nil(t, got)
+	})
+
+	t.Run("required fields only", func(t *testing.T) {
+		proto := webauthnv2.CredentialAssertionResponse_builder{
+			Type:  string(protocol.PublicKeyCredentialType),
+			RawId: []byte("rawid"),
+			Response: webauthnv2.AuthenticatorAssertionResponse_builder{
+				ClientDataJson:    []byte("client-data"),
+				AuthenticatorData: []byte("auth-data"),
+			}.Build(),
+		}.Build()
+
+		got := wantypes.CredentialAssertionResponseFromProtoV2(proto)
+
+		want := &wantypes.CredentialAssertionResponse{
+			PublicKeyCredential: wantypes.PublicKeyCredential{
+				Credential: wantypes.Credential{
+					ID:   base64.RawURLEncoding.EncodeToString([]byte("rawid")),
+					Type: string(protocol.PublicKeyCredentialType),
+				},
+				RawID: []byte("rawid"),
+			},
+			AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+				AuthenticatorResponse: wantypes.AuthenticatorResponse{
+					ClientDataJSON: []byte("client-data"),
+				},
+				AuthenticatorData: []byte("auth-data"),
+			},
+		}
+
+		require.Empty(
+			t,
+			cmp.Diff(want, got),
+			"CredentialAssertionResponseFromProtoV2 mismatch (-want +got)",
+		)
+	})
+
+	t.Run("with signature and extensions", func(t *testing.T) {
+		proto := webauthnv2.CredentialAssertionResponse_builder{
+			Type:  string(protocol.PublicKeyCredentialType),
+			RawId: []byte("rawid"),
+			Response: webauthnv2.AuthenticatorAssertionResponse_builder{
+				ClientDataJson:    []byte("client-data"),
+				AuthenticatorData: []byte("auth-data"),
+				Signature:         []byte("signature"),
+				UserHandle:        []byte("user-handle"),
+			}.Build(),
+			Extensions: webauthnv2.AuthenticationExtensionsClientOutputs_builder{
+				AppId: true,
+				CredProps: webauthnv2.CredentialPropertiesOutput_builder{
+					Rk: true,
+				}.Build(),
+			}.Build(),
+		}.Build()
+
+		got := wantypes.CredentialAssertionResponseFromProtoV2(proto)
+
+		want := &wantypes.CredentialAssertionResponse{
+			PublicKeyCredential: wantypes.PublicKeyCredential{
+				Credential: wantypes.Credential{
+					ID:   base64.RawURLEncoding.EncodeToString([]byte("rawid")),
+					Type: string(protocol.PublicKeyCredentialType),
+				},
+				RawID: []byte("rawid"),
+				Extensions: &wantypes.AuthenticationExtensionsClientOutputs{
+					AppID: true,
+					CredProps: &wantypes.CredentialPropertiesOutput{
+						RK: true,
+					},
+				},
+			},
+			AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+				AuthenticatorResponse: wantypes.AuthenticatorResponse{
+					ClientDataJSON: []byte("client-data"),
+				},
+				AuthenticatorData: []byte("auth-data"),
+				Signature:         []byte("signature"),
+				UserHandle:        []byte("user-handle"),
+			},
+		}
+
+		require.Empty(
+			t,
+			cmp.Diff(want, got),
+			"CredentialAssertionResponseFromProtoV2 mismatch (-want +got)",
+		)
 	})
 }

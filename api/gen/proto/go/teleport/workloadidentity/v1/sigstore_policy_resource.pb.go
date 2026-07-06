@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/sigstore_policy_resource.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 // Policy that describes the signatures and attestations that must be presented
 // in order to be issued a workload identity.
 type SigstorePolicy struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented. This is always `sigstore_policy`.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Differentiates variations of the same kind. All resources should contain
@@ -80,11 +81,6 @@ func (x *SigstorePolicy) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SigstorePolicy.ProtoReflect.Descriptor instead.
-func (*SigstorePolicy) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *SigstorePolicy) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -120,9 +116,79 @@ func (x *SigstorePolicy) GetSpec() *SigstorePolicySpec {
 	return nil
 }
 
+func (x *SigstorePolicy) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *SigstorePolicy) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *SigstorePolicy) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *SigstorePolicy) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *SigstorePolicy) SetSpec(v *SigstorePolicySpec) {
+	x.Spec = v
+}
+
+func (x *SigstorePolicy) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *SigstorePolicy) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *SigstorePolicy) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *SigstorePolicy) ClearSpec() {
+	x.Spec = nil
+}
+
+type SigstorePolicy_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented. This is always `sigstore_policy`.
+	Kind string
+	// Differentiates variations of the same kind. All resources should contain
+	// one, even if it is never populated.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	Metadata *v1.Metadata
+	// Desired Sigstore policy configuration.
+	Spec *SigstorePolicySpec
+}
+
+func (b0 SigstorePolicy_builder) Build() *SigstorePolicy {
+	m0 := &SigstorePolicy{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // Desired Sigstore policy configuration.
 type SigstorePolicySpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Authority:
 	//
 	//	*SigstorePolicySpec_Key
@@ -159,11 +225,6 @@ func (x *SigstorePolicySpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SigstorePolicySpec.ProtoReflect.Descriptor instead.
-func (*SigstorePolicySpec) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *SigstorePolicySpec) GetAuthority() isSigstorePolicySpec_Authority {
 	if x != nil {
 		return x.Authority
@@ -196,6 +257,131 @@ func (x *SigstorePolicySpec) GetRequirements() *SigstorePolicyRequirements {
 	return nil
 }
 
+func (x *SigstorePolicySpec) SetKey(v *SigstoreKeyAuthority) {
+	if v == nil {
+		x.Authority = nil
+		return
+	}
+	x.Authority = &SigstorePolicySpec_Key{v}
+}
+
+func (x *SigstorePolicySpec) SetKeyless(v *SigstoreKeylessAuthority) {
+	if v == nil {
+		x.Authority = nil
+		return
+	}
+	x.Authority = &SigstorePolicySpec_Keyless{v}
+}
+
+func (x *SigstorePolicySpec) SetRequirements(v *SigstorePolicyRequirements) {
+	x.Requirements = v
+}
+
+func (x *SigstorePolicySpec) HasAuthority() bool {
+	if x == nil {
+		return false
+	}
+	return x.Authority != nil
+}
+
+func (x *SigstorePolicySpec) HasKey() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Authority.(*SigstorePolicySpec_Key)
+	return ok
+}
+
+func (x *SigstorePolicySpec) HasKeyless() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Authority.(*SigstorePolicySpec_Keyless)
+	return ok
+}
+
+func (x *SigstorePolicySpec) HasRequirements() bool {
+	if x == nil {
+		return false
+	}
+	return x.Requirements != nil
+}
+
+func (x *SigstorePolicySpec) ClearAuthority() {
+	x.Authority = nil
+}
+
+func (x *SigstorePolicySpec) ClearKey() {
+	if _, ok := x.Authority.(*SigstorePolicySpec_Key); ok {
+		x.Authority = nil
+	}
+}
+
+func (x *SigstorePolicySpec) ClearKeyless() {
+	if _, ok := x.Authority.(*SigstorePolicySpec_Keyless); ok {
+		x.Authority = nil
+	}
+}
+
+func (x *SigstorePolicySpec) ClearRequirements() {
+	x.Requirements = nil
+}
+
+const SigstorePolicySpec_Authority_not_set_case case_SigstorePolicySpec_Authority = 0
+const SigstorePolicySpec_Key_case case_SigstorePolicySpec_Authority = 1
+const SigstorePolicySpec_Keyless_case case_SigstorePolicySpec_Authority = 2
+
+func (x *SigstorePolicySpec) WhichAuthority() case_SigstorePolicySpec_Authority {
+	if x == nil {
+		return SigstorePolicySpec_Authority_not_set_case
+	}
+	switch x.Authority.(type) {
+	case *SigstorePolicySpec_Key:
+		return SigstorePolicySpec_Key_case
+	case *SigstorePolicySpec_Keyless:
+		return SigstorePolicySpec_Keyless_case
+	default:
+		return SigstorePolicySpec_Authority_not_set_case
+	}
+}
+
+type SigstorePolicySpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Authority:
+	// Well-known trusted public key.
+	Key *SigstoreKeyAuthority
+	// Keyless signing using a Fulcio certificate authority.
+	Keyless *SigstoreKeylessAuthority
+	// -- end of Authority
+	// Requirements of the policy.
+	Requirements *SigstorePolicyRequirements
+}
+
+func (b0 SigstorePolicySpec_builder) Build() *SigstorePolicySpec {
+	m0 := &SigstorePolicySpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Key != nil {
+		x.Authority = &SigstorePolicySpec_Key{b.Key}
+	}
+	if b.Keyless != nil {
+		x.Authority = &SigstorePolicySpec_Keyless{b.Keyless}
+	}
+	x.Requirements = b.Requirements
+	return m0
+}
+
+type case_SigstorePolicySpec_Authority protoreflect.FieldNumber
+
+func (x case_SigstorePolicySpec_Authority) String() string {
+	md := file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isSigstorePolicySpec_Authority interface {
 	isSigstorePolicySpec_Authority()
 }
@@ -216,7 +402,7 @@ func (*SigstorePolicySpec_Keyless) isSigstorePolicySpec_Authority() {}
 
 // Requirements of the policy.
 type SigstorePolicyRequirements struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Whether there must be a Cosign signature for the workload "artifact"
 	// (i.e. a simple signing envelope containing the container image digest)
 	// for the policy to pass.
@@ -252,11 +438,6 @@ func (x *SigstorePolicyRequirements) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SigstorePolicyRequirements.ProtoReflect.Descriptor instead.
-func (*SigstorePolicyRequirements) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *SigstorePolicyRequirements) GetArtifactSignature() bool {
 	if x != nil {
 		return x.ArtifactSignature
@@ -271,9 +452,37 @@ func (x *SigstorePolicyRequirements) GetAttestations() []*InTotoAttestationMatch
 	return nil
 }
 
+func (x *SigstorePolicyRequirements) SetArtifactSignature(v bool) {
+	x.ArtifactSignature = v
+}
+
+func (x *SigstorePolicyRequirements) SetAttestations(v []*InTotoAttestationMatcher) {
+	x.Attestations = v
+}
+
+type SigstorePolicyRequirements_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Whether there must be a Cosign signature for the workload "artifact"
+	// (i.e. a simple signing envelope containing the container image digest)
+	// for the policy to pass.
+	ArtifactSignature bool
+	// Which in-toto attestations must be present for the policy to pass.
+	Attestations []*InTotoAttestationMatcher
+}
+
+func (b0 SigstorePolicyRequirements_builder) Build() *SigstorePolicyRequirements {
+	m0 := &SigstorePolicyRequirements{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ArtifactSignature = b.ArtifactSignature
+	x.Attestations = b.Attestations
+	return m0
+}
+
 // Configuration for a well-known trusted public key.
 type SigstoreKeyAuthority struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Public key in PEM-encoded DER format.
 	Public        string `protobuf:"bytes,1,opt,name=public,proto3" json:"public,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -305,11 +514,6 @@ func (x *SigstoreKeyAuthority) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SigstoreKeyAuthority.ProtoReflect.Descriptor instead.
-func (*SigstoreKeyAuthority) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *SigstoreKeyAuthority) GetPublic() string {
 	if x != nil {
 		return x.Public
@@ -317,9 +521,28 @@ func (x *SigstoreKeyAuthority) GetPublic() string {
 	return ""
 }
 
+func (x *SigstoreKeyAuthority) SetPublic(v string) {
+	x.Public = v
+}
+
+type SigstoreKeyAuthority_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Public key in PEM-encoded DER format.
+	Public string
+}
+
+func (b0 SigstoreKeyAuthority_builder) Build() *SigstoreKeyAuthority {
+	m0 := &SigstoreKeyAuthority{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Public = b.Public
+	return m0
+}
+
 // Configuration for keyless signing using a Fulcio certificate authority.
 type SigstoreKeylessAuthority struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Trusted signing identities.
 	Identities []*SigstoreKeylessSigningIdentity `protobuf:"bytes,1,rep,name=identities,proto3" json:"identities,omitempty"`
 	// Custom trusted roots that will be used instead of the Sigstore project's
@@ -359,11 +582,6 @@ func (x *SigstoreKeylessAuthority) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SigstoreKeylessAuthority.ProtoReflect.Descriptor instead.
-func (*SigstoreKeylessAuthority) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *SigstoreKeylessAuthority) GetIdentities() []*SigstoreKeylessSigningIdentity {
 	if x != nil {
 		return x.Identities
@@ -378,9 +596,41 @@ func (x *SigstoreKeylessAuthority) GetTrustedRoots() []string {
 	return nil
 }
 
+func (x *SigstoreKeylessAuthority) SetIdentities(v []*SigstoreKeylessSigningIdentity) {
+	x.Identities = v
+}
+
+func (x *SigstoreKeylessAuthority) SetTrustedRoots(v []string) {
+	x.TrustedRoots = v
+}
+
+type SigstoreKeylessAuthority_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Trusted signing identities.
+	Identities []*SigstoreKeylessSigningIdentity
+	// Custom trusted roots that will be used instead of the Sigstore project's
+	// public good instance, formatted as JSON.
+	//
+	// This is where you can configure custom Fulcio, Rekor and timestamp
+	// authorities.
+	//
+	// https://github.com/sigstore/protobuf-specs/blob/cac7a926e0968571d3eb2e2fc8ebd40b8ebe0d58/protos/sigstore_trustroot.proto#L92-L144
+	TrustedRoots []string
+}
+
+func (b0 SigstoreKeylessAuthority_builder) Build() *SigstoreKeylessAuthority {
+	m0 := &SigstoreKeylessAuthority{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Identities = b.Identities
+	x.TrustedRoots = b.TrustedRoots
+	return m0
+}
+
 // Configuration for a trusted signing identity.
 type SigstoreKeylessSigningIdentity struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to IssuerMatcher:
 	//
 	//	*SigstoreKeylessSigningIdentity_Issuer
@@ -418,11 +668,6 @@ func (x *SigstoreKeylessSigningIdentity) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SigstoreKeylessSigningIdentity.ProtoReflect.Descriptor instead.
-func (*SigstoreKeylessSigningIdentity) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SigstoreKeylessSigningIdentity) GetIssuerMatcher() isSigstoreKeylessSigningIdentity_IssuerMatcher {
@@ -475,6 +720,192 @@ func (x *SigstoreKeylessSigningIdentity) GetSubjectRegex() string {
 	return ""
 }
 
+func (x *SigstoreKeylessSigningIdentity) SetIssuer(v string) {
+	x.IssuerMatcher = &SigstoreKeylessSigningIdentity_Issuer{v}
+}
+
+func (x *SigstoreKeylessSigningIdentity) SetIssuerRegex(v string) {
+	x.IssuerMatcher = &SigstoreKeylessSigningIdentity_IssuerRegex{v}
+}
+
+func (x *SigstoreKeylessSigningIdentity) SetSubject(v string) {
+	x.SubjectMatcher = &SigstoreKeylessSigningIdentity_Subject{v}
+}
+
+func (x *SigstoreKeylessSigningIdentity) SetSubjectRegex(v string) {
+	x.SubjectMatcher = &SigstoreKeylessSigningIdentity_SubjectRegex{v}
+}
+
+func (x *SigstoreKeylessSigningIdentity) HasIssuerMatcher() bool {
+	if x == nil {
+		return false
+	}
+	return x.IssuerMatcher != nil
+}
+
+func (x *SigstoreKeylessSigningIdentity) HasIssuer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.IssuerMatcher.(*SigstoreKeylessSigningIdentity_Issuer)
+	return ok
+}
+
+func (x *SigstoreKeylessSigningIdentity) HasIssuerRegex() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.IssuerMatcher.(*SigstoreKeylessSigningIdentity_IssuerRegex)
+	return ok
+}
+
+func (x *SigstoreKeylessSigningIdentity) HasSubjectMatcher() bool {
+	if x == nil {
+		return false
+	}
+	return x.SubjectMatcher != nil
+}
+
+func (x *SigstoreKeylessSigningIdentity) HasSubject() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.SubjectMatcher.(*SigstoreKeylessSigningIdentity_Subject)
+	return ok
+}
+
+func (x *SigstoreKeylessSigningIdentity) HasSubjectRegex() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.SubjectMatcher.(*SigstoreKeylessSigningIdentity_SubjectRegex)
+	return ok
+}
+
+func (x *SigstoreKeylessSigningIdentity) ClearIssuerMatcher() {
+	x.IssuerMatcher = nil
+}
+
+func (x *SigstoreKeylessSigningIdentity) ClearIssuer() {
+	if _, ok := x.IssuerMatcher.(*SigstoreKeylessSigningIdentity_Issuer); ok {
+		x.IssuerMatcher = nil
+	}
+}
+
+func (x *SigstoreKeylessSigningIdentity) ClearIssuerRegex() {
+	if _, ok := x.IssuerMatcher.(*SigstoreKeylessSigningIdentity_IssuerRegex); ok {
+		x.IssuerMatcher = nil
+	}
+}
+
+func (x *SigstoreKeylessSigningIdentity) ClearSubjectMatcher() {
+	x.SubjectMatcher = nil
+}
+
+func (x *SigstoreKeylessSigningIdentity) ClearSubject() {
+	if _, ok := x.SubjectMatcher.(*SigstoreKeylessSigningIdentity_Subject); ok {
+		x.SubjectMatcher = nil
+	}
+}
+
+func (x *SigstoreKeylessSigningIdentity) ClearSubjectRegex() {
+	if _, ok := x.SubjectMatcher.(*SigstoreKeylessSigningIdentity_SubjectRegex); ok {
+		x.SubjectMatcher = nil
+	}
+}
+
+const SigstoreKeylessSigningIdentity_IssuerMatcher_not_set_case case_SigstoreKeylessSigningIdentity_IssuerMatcher = 0
+const SigstoreKeylessSigningIdentity_Issuer_case case_SigstoreKeylessSigningIdentity_IssuerMatcher = 1
+const SigstoreKeylessSigningIdentity_IssuerRegex_case case_SigstoreKeylessSigningIdentity_IssuerMatcher = 2
+
+func (x *SigstoreKeylessSigningIdentity) WhichIssuerMatcher() case_SigstoreKeylessSigningIdentity_IssuerMatcher {
+	if x == nil {
+		return SigstoreKeylessSigningIdentity_IssuerMatcher_not_set_case
+	}
+	switch x.IssuerMatcher.(type) {
+	case *SigstoreKeylessSigningIdentity_Issuer:
+		return SigstoreKeylessSigningIdentity_Issuer_case
+	case *SigstoreKeylessSigningIdentity_IssuerRegex:
+		return SigstoreKeylessSigningIdentity_IssuerRegex_case
+	default:
+		return SigstoreKeylessSigningIdentity_IssuerMatcher_not_set_case
+	}
+}
+
+const SigstoreKeylessSigningIdentity_SubjectMatcher_not_set_case case_SigstoreKeylessSigningIdentity_SubjectMatcher = 0
+const SigstoreKeylessSigningIdentity_Subject_case case_SigstoreKeylessSigningIdentity_SubjectMatcher = 3
+const SigstoreKeylessSigningIdentity_SubjectRegex_case case_SigstoreKeylessSigningIdentity_SubjectMatcher = 4
+
+func (x *SigstoreKeylessSigningIdentity) WhichSubjectMatcher() case_SigstoreKeylessSigningIdentity_SubjectMatcher {
+	if x == nil {
+		return SigstoreKeylessSigningIdentity_SubjectMatcher_not_set_case
+	}
+	switch x.SubjectMatcher.(type) {
+	case *SigstoreKeylessSigningIdentity_Subject:
+		return SigstoreKeylessSigningIdentity_Subject_case
+	case *SigstoreKeylessSigningIdentity_SubjectRegex:
+		return SigstoreKeylessSigningIdentity_SubjectRegex_case
+	default:
+		return SigstoreKeylessSigningIdentity_SubjectMatcher_not_set_case
+	}
+}
+
+type SigstoreKeylessSigningIdentity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof IssuerMatcher:
+	// Exact issuer string.
+	Issuer *string
+	// Regex that matches the issuer.
+	IssuerRegex *string
+	// -- end of IssuerMatcher
+	// Fields of oneof SubjectMatcher:
+	// Exact subject string.
+	Subject *string
+	// Regex that matches the subject.
+	SubjectRegex *string
+	// -- end of SubjectMatcher
+}
+
+func (b0 SigstoreKeylessSigningIdentity_builder) Build() *SigstoreKeylessSigningIdentity {
+	m0 := &SigstoreKeylessSigningIdentity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Issuer != nil {
+		x.IssuerMatcher = &SigstoreKeylessSigningIdentity_Issuer{*b.Issuer}
+	}
+	if b.IssuerRegex != nil {
+		x.IssuerMatcher = &SigstoreKeylessSigningIdentity_IssuerRegex{*b.IssuerRegex}
+	}
+	if b.Subject != nil {
+		x.SubjectMatcher = &SigstoreKeylessSigningIdentity_Subject{*b.Subject}
+	}
+	if b.SubjectRegex != nil {
+		x.SubjectMatcher = &SigstoreKeylessSigningIdentity_SubjectRegex{*b.SubjectRegex}
+	}
+	return m0
+}
+
+type case_SigstoreKeylessSigningIdentity_IssuerMatcher protoreflect.FieldNumber
+
+func (x case_SigstoreKeylessSigningIdentity_IssuerMatcher) String() string {
+	md := file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_msgTypes[5].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type case_SigstoreKeylessSigningIdentity_SubjectMatcher protoreflect.FieldNumber
+
+func (x case_SigstoreKeylessSigningIdentity_SubjectMatcher) String() string {
+	md := file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_msgTypes[5].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isSigstoreKeylessSigningIdentity_IssuerMatcher interface {
 	isSigstoreKeylessSigningIdentity_IssuerMatcher()
 }
@@ -514,7 +945,7 @@ func (*SigstoreKeylessSigningIdentity_SubjectRegex) isSigstoreKeylessSigningIden
 
 // Describes a required in-toto attestation.
 type InTotoAttestationMatcher struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// In-toto predicate type (e.g. `https://slsa.dev/provenance/v1`).
 	PredicateType string `protobuf:"bytes,1,opt,name=predicate_type,json=predicateType,proto3" json:"predicate_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -546,16 +977,30 @@ func (x *InTotoAttestationMatcher) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InTotoAttestationMatcher.ProtoReflect.Descriptor instead.
-func (*InTotoAttestationMatcher) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *InTotoAttestationMatcher) GetPredicateType() string {
 	if x != nil {
 		return x.PredicateType
 	}
 	return ""
+}
+
+func (x *InTotoAttestationMatcher) SetPredicateType(v string) {
+	x.PredicateType = v
+}
+
+type InTotoAttestationMatcher_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// In-toto predicate type (e.g. `https://slsa.dev/provenance/v1`).
+	PredicateType string
+}
+
+func (b0 InTotoAttestationMatcher_builder) Build() *InTotoAttestationMatcher {
+	m0 := &InTotoAttestationMatcher{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PredicateType = b.PredicateType
+	return m0
 }
 
 var File_teleport_workloadidentity_v1_sigstore_policy_resource_proto protoreflect.FileDescriptor
@@ -593,18 +1038,6 @@ const file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDesc =
 	"\x0fsubject_matcher\"A\n" +
 	"\x18InTotoAttestationMatcher\x12%\n" +
 	"\x0epredicate_type\x18\x01 \x01(\tR\rpredicateTypeBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDesc), len(file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_workloadidentity_v1_sigstore_policy_resource_proto_goTypes = []any{

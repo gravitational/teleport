@@ -105,10 +105,10 @@ func (s *Service) CreateVnetConfig(ctx context.Context, req *vnet.CreateVnetConf
 	}
 
 	if req.GetVnetConfig() == nil {
-		req.VnetConfig = &vnet.VnetConfig{}
+		req.SetVnetConfig(&vnet.VnetConfig{})
 	}
-	typesvnet.SetDefaultsVnetConfig(req.VnetConfig)
-	vnetConfig, err := s.storage.CreateVnetConfig(ctx, req.VnetConfig)
+	typesvnet.SetDefaultsVnetConfig(req.GetVnetConfig())
+	vnetConfig, err := s.storage.CreateVnetConfig(ctx, req.GetVnetConfig())
 	status := eventStatus(err)
 	s.emitAuditEvent(ctx, newCreateAuditEvent(ctx, status))
 	if err != nil {
@@ -124,10 +124,10 @@ func (s *Service) UpdateVnetConfig(ctx context.Context, req *vnet.UpdateVnetConf
 	}
 
 	if req.GetVnetConfig() == nil {
-		req.VnetConfig = &vnet.VnetConfig{}
+		req.SetVnetConfig(&vnet.VnetConfig{})
 	}
-	typesvnet.SetDefaultsVnetConfig(req.VnetConfig)
-	vnetConfig, err := s.storage.UpdateVnetConfig(ctx, req.VnetConfig)
+	typesvnet.SetDefaultsVnetConfig(req.GetVnetConfig())
+	vnetConfig, err := s.storage.UpdateVnetConfig(ctx, req.GetVnetConfig())
 	status := eventStatus(err)
 	s.emitAuditEvent(ctx, newUpdateAuditEvent(ctx, status))
 	if err != nil {
@@ -143,10 +143,10 @@ func (s *Service) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConf
 	}
 
 	if req.GetVnetConfig() == nil {
-		req.VnetConfig = &vnet.VnetConfig{}
+		req.SetVnetConfig(&vnet.VnetConfig{})
 	}
-	typesvnet.SetDefaultsVnetConfig(req.VnetConfig)
-	vnetConfig, err := s.storage.UpsertVnetConfig(ctx, req.VnetConfig)
+	typesvnet.SetDefaultsVnetConfig(req.GetVnetConfig())
+	vnetConfig, err := s.storage.UpsertVnetConfig(ctx, req.GetVnetConfig())
 	status := eventStatus(err)
 	s.emitAuditEvent(ctx, newCreateAuditEvent(ctx, status))
 	if err != nil {

@@ -6,16 +6,13 @@ tags:
  - conceptual
  - zero-trust
  - privileged-access
+page_type: reference
 ---
 
-This guide explains the way the Teleport Kubernetes Service applies role-based
-access controls when a Teleport user interacts with a Kubernetes cluster. The
-Kubernetes Service intercepts requests to a Kubernetes API server and modifies
-each request depending on the user's Teleport roles.
-
-In this guide, we will show you how to configure the fields available in a
-Teleport role to manage access to Kubernetes clusters you have connected to
-Teleport.
+This guide lists the fields that Teleport roles provide for managing access to
+Teleport-protected Kubernetes clusters. The Kubernetes Service intercepts
+requests to a Kubernetes API server and modifies each request depending on the
+user's Teleport roles.
 
 For an example of how to use Teleport roles to manage access to Kubernetes with
 a local `minikube` cluster, see our [RBAC how-to guide](./manage-access.mdx).
@@ -93,7 +90,7 @@ or more label *values* (i.e., either a string or a list).
 
 If both the key and the value of a label are wildcards, `*`, the Teleport
 Kubernetes Service allows the user to access Kubernetes clusters with all
-tags:
+labels:
 
 ```yaml
 spec:
@@ -182,7 +179,7 @@ to do this depends on how you have launched the service:
   e.g.:
 
     ```code
-    $ helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
+    $ helm upgrade teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?}\
       --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
       --set labels.env=prod --set labels.region=us-west-1
     ```
@@ -410,7 +407,7 @@ subjects:
 
 You can specify Kubernetes groups and users for each Teleport user individually,
 rather than hardcoding this information into your Teleport roles. To do so, you
-can add template variables to Teleport your roles, and the Teleport Auth Service
+can add template variables to your Teleport roles, and the Teleport Auth Service
 will populate them with information from each authenticating user.
 
 For more information on how template variable expansion works in Teleport roles,
@@ -568,9 +565,9 @@ spec:
   <Admonition type="tip">
   The full list of available resources, along with their api group can be found by running the following command:
 
-  ```bash
-  kubectl api-resources --namespaced=true -o=name
-  kubectl api-resources --namespaced=false -o=name
+  ```code
+  $ kubectl api-resources --namespaced=true -o=name
+  $ kubectl api-resources --namespaced=false -o=name
   ```
 
   - If the line has a `.`, then the kind is the first element before the `.` and the api group is everything after the first `.`.
@@ -1103,7 +1100,7 @@ version: v7
 spec:
   allow:
     kubernetes_labels:
-      - "*": "*"
+        "*": "*"
     kubernetes_resources:
       - kind: pod
         namespace: "*"

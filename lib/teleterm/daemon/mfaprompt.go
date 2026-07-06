@@ -100,6 +100,8 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 }
 
 // promptApp handles the client modal, cancellation, and TOTP.
+//
+//nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
 func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
@@ -109,12 +111,12 @@ func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateCh
 
 	var ssoChallenge *api.SSOChallenge
 	if promptSSO {
-		ssoChallenge = &api.SSOChallenge{
+		ssoChallenge = api.SSOChallenge_builder{
 			ConnectorId:   chal.SSOChallenge.Device.ConnectorId,
 			ConnectorType: chal.SSOChallenge.Device.ConnectorType,
 			DisplayName:   chal.SSOChallenge.Device.DisplayName,
 			RedirectUrl:   chal.SSOChallenge.RedirectUrl,
-		}
+		}.Build()
 	}
 
 	var browserMfaChallenge *mfav1.BrowserMFAChallenge
@@ -124,7 +126,7 @@ func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateCh
 		}
 	}
 
-	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
+	resp, err := p.promptAppMFA(ctx, api.PromptMFARequest_builder{
 		ClusterUri:    p.resourceURI.GetClusterURI().String(),
 		Reason:        p.cfg.PromptReason,
 		Totp:          promptOTP,
@@ -132,13 +134,13 @@ func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateCh
 		Sso:           ssoChallenge,
 		Browser:       browserMfaChallenge,
 		PerSessionMfa: scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{Code: resp.TotpCode},
+			TOTP: &proto.TOTPResponse{Code: resp.GetTotpCode()},
 		},
 	}, nil
 }

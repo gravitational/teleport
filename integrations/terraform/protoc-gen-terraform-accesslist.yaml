@@ -49,6 +49,7 @@ exclude_fields:
     - "Member.header.metadata.id"
     # Read only field
     - "Member.spec.ineligible_status"
+    - "Member.status"
 
 # These fields will be marked as Computed: true
 computed_fields:
