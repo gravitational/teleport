@@ -152,6 +152,21 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 				wantWindows2File: windowsCSRPEM2,
 			},
 		},
+		{
+			name: "local only",
+			flags: []string{
+				"--type", "db-client",
+				"--local-only",
+			},
+			csrPEMs: []string{
+				dbClientCSRPEM,
+			},
+			wantReq: subcav1.CreateCSRRequest_builder{
+				CaType:    string(types.DatabaseClientCA),
+				LocalOnly: true,
+			}.Build(),
+			wantStdout: dbClientCSRPEM + "\n",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
