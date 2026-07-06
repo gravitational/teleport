@@ -325,10 +325,15 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		}
 	}
 
-	// A scoped bot's identity is pinned to the bot's scope, and its instances
-	// are stored namespaced by that scope.
-	var botScope string
-	if ident.ScopePin != nil {
+	// A scoped bot's instances are stored namespaced by the bot's scope, which
+	// is encoded into the identity as BotScope. Certificates issued before the
+	// BotScope field existed lack it, so fall back to the scope pin - correct
+	// for those certs because bots are always pinned to their scope of origin.
+	// TODO(strideynet): remove the ScopePin fallback once sufficient time has
+	// passed that all bot certs carry BotScope. It must be removed before bots
+	// can be pinned to a scope other than their scope of origin.
+	botScope := ident.BotScope
+	if botScope == "" && ident.ScopePin != nil {
 		botScope = ident.ScopePin.GetScope()
 	}
 

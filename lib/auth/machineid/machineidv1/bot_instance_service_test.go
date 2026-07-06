@@ -454,6 +454,24 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			assertErr:     assert.NoError,
 			wantHeartbeat: true,
 		},
+		{
+			// BotScope determines the storage scope even when the identity is
+			// pinned to a different (narrower) scope.
+			name:              "scoped identity with BotScope preferred over pin",
+			createBotInstance: true,
+			req: machineidv1.SubmitHeartbeatRequest_builder{
+				Heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{Hostname: "llama"}.Build(),
+			}.Build(),
+			identity: tlsca.Identity{
+				BotName:       botName,
+				BotInstanceID: botInstanceID,
+				BotScope:      "/scopes/test",
+				ScopePin:      scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/scopes/test/narrowed"}.Build(),
+				BotInternal:   true,
+			},
+			assertErr:     assert.NoError,
+			wantHeartbeat: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -473,9 +491,12 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// A scoped bot's instances are stored namespaced by the scope the
-			// identity is pinned to.
-			botScope := tt.identity.ScopePin.GetScope()
+			// A scoped bot's instances are stored namespaced by the identity's
+			// BotScope, falling back to the pinned scope for older certs.
+			botScope := tt.identity.BotScope
+			if botScope == "" {
+				botScope = tt.identity.ScopePin.GetScope()
+			}
 
 			if tt.createBotInstance {
 				bi := newBotInstance(botName)
