@@ -45,14 +45,26 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.testCmd.Arg("integration", "Name of the integration to test. Use `tctl get integrations` to list integrations.").Required().StringVar(&c.testArgs.integration)
 	c.testCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.testArgs.format, teleport.Text, teleport.JSON, teleport.YAML)
 
-	if c.stdout == nil {
-		c.stdout = os.Stdout
+	awsicCmd := integrationsCmd.Command("awsic", "Operate on AWS Identity Center resources synced with the cluster.")
+	c.awsicAccountsCmd = awsicCmd.Command("accounts", "List AWS Identity Center accounts and their permission sets.")
+	c.awsicAccountsCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.awsicArgs.format, teleport.Text, teleport.JSON, teleport.YAML)
+
+	if c.Stdout == nil {
+		c.Stdout = os.Stdout
 	}
 }
 
 // TryRun executes the matched subcommand.
 func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	if cmd != c.testCmd.FullCommand() {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	switch cmd {
+	case c.testCmd.FullCommand():
+		commandFunc = func(ctx context.Context, client *authclient.Client) error {
+			return c.test(ctx, testClientAdapter{client: client})
+		}
+	case c.awsicAccountsCmd.FullCommand():
+		commandFunc = c.listAWSICAccounts
+	default:
 		return false, nil
 	}
 
@@ -61,8 +73,9 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 		return true, trace.Wrap(err)
 	}
 	defer closeFn(ctx)
+	err = commandFunc(ctx, client)
 
-	return true, trace.Wrap(c.test(ctx, testClientAdapter{client: client}))
+	return true, trace.Wrap(err)
 }
 
 func (c *Command) test(ctx context.Context, client testClient) error {
@@ -84,11 +97,11 @@ func (c *Command) test(ctx context.Context, client testClient) error {
 
 	switch c.testArgs.format {
 	case teleport.Text:
-		fmt.Fprint(c.stdout, output)
+		fmt.Fprint(c.Stdout, output)
 	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSON(c.stdout, output))
+		return trace.Wrap(utils.WriteJSON(c.Stdout, output))
 	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(c.stdout, output))
+		return trace.Wrap(utils.WriteYAML(c.Stdout, output))
 	default:
 		return trace.BadParameter("unknown value for --format flag: %s", c.testArgs.format)
 	}
@@ -98,11 +111,14 @@ func (c *Command) test(ctx context.Context, client testClient) error {
 
 // Command implements integrations helper commands.
 type Command struct {
-	testCmd *kingpin.CmdClause
-
+	testCmd  *kingpin.CmdClause
 	testArgs testArgs
 
-	stdout io.Writer
+	awsicAccountsCmd *kingpin.CmdClause
+	awsicArgs        awsicArgs
+
+	// Stdout allows to switch the standard output source. Used in tests.
+	Stdout io.Writer
 }
 
 type testArgs struct {
