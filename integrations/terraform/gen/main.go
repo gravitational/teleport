@@ -1252,7 +1252,7 @@ var (
 			PendingStates:            []string{"pending"},
 			TargetStates:             []string{"active"},
 			StatePollIntervalSeconds: 30,
-			StateTimeoutSeconds:      15 * 60,
+			StateTimeoutSeconds:      20 * 60,
 		},
 	}
 	/*
