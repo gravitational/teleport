@@ -25,15 +25,15 @@ import (
 )
 
 func NewLinuxDesktop(name string, spec *linuxdesktopv1pb.LinuxDesktopSpec) (*linuxdesktopv1pb.LinuxDesktop, error) {
-	return &linuxdesktopv1pb.LinuxDesktop{
-		Kind:    types.KindLinuxDesktop,
-		SubKind: "",
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: name,
-		},
-		Spec: spec,
-	}, nil
+	d := &linuxdesktopv1pb.LinuxDesktop{}
+	d.SetKind(types.KindLinuxDesktop)
+	d.SetSubKind("")
+	d.SetVersion(types.V1)
+	d.SetMetadata(&headerv1.Metadata{
+		Name: name,
+	})
+	d.SetSpec(spec)
+	return d, nil
 }
 
 func ValidateLinuxDesktop(desktop *linuxdesktopv1pb.LinuxDesktop) error {
