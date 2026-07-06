@@ -232,6 +232,12 @@ var sensitiveHeaders = map[string]struct{}{
 	// AppJWTHeader carries the Teleport-signed JWT that the proxy injects into
 	// every app-access request; it must never be recorded verbatim.
 	http.CanonicalHeaderKey(teleport.AppJWTHeader): {},
+	// This carries the original SigV4 Authorization header for AWS app requests
+	// signed with assumed-role credentials, before rewriteRequestByAssumedRole
+	// restores it onto Authorization. Kept in sync with the
+	// common.TeleportAWSAssumedRoleAuthorization constant (not referenced
+	// directly to avoid importing the AWS-heavy app server package here).
+	"X-Teleport-Aws-Assumed-Role-Authorization": {},
 }
 
 // filterHeaders flattens http.Header into audit-event header entries. Repeated

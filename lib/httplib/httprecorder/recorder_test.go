@@ -896,6 +896,8 @@ func TestFilterHeadersRedactsSensitive(t *testing.T) {
 	h.Set("X-Auth-Token", "tok-123")
 	h.Set("X-Amz-Security-Token", "amz-123")
 	h.Set("X-Csrf-Token", "csrf-123")
+	h.Set("Teleport-Jwt-Assertion", "jwt-123")
+	h.Set("X-Teleport-Aws-Assumed-Role-Authorization", "AWS4-HMAC-SHA256 Credential=...")
 	h.Set("X-Tenant-Secret", "extra-123")
 	h.Set("Content-Type", "application/json")
 	h.Add("X-Multi", "one")
@@ -907,6 +909,7 @@ func TestFilterHeadersRedactsSensitive(t *testing.T) {
 	for _, name := range []string{
 		"Authorization", "Proxy-Authorization", "Cookie", "Set-Cookie",
 		"X-Api-Key", "X-Auth-Token", "X-Amz-Security-Token", "X-Csrf-Token",
+		"Teleport-Jwt-Assertion", "X-Teleport-Aws-Assumed-Role-Authorization",
 	} {
 		require.Equal(t, redactedValue, headerValue(out, name), "%s must be redacted", name)
 	}
