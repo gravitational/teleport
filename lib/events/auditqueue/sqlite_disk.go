@@ -422,11 +422,11 @@ func (q *sqliteQueue) adoptOrphans(ctx context.Context, handler Handler) {
 		// If we got to this point, then we have found a directory that is not a
 		// tmp directory and is not the same directory as the one this process
 		// is already using. We are safe to attempt to adopt it.
-		q.tryAdoptOrphan(entryPath, handler)
+		q.tryAdoptOrphan(ctx, entryPath, handler)
 	}
 }
 
-func (q *sqliteQueue) tryAdoptOrphan(path string, handler Handler) {
+func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string, handler Handler) {
 	unlock, err := utils.FSTryWriteLock(filepath.Join(path, queueLockFile))
 	if err != nil {
 		// This error indicates that the lock has already been taken, hence this
@@ -463,7 +463,18 @@ func (q *sqliteQueue) tryAdoptOrphan(path string, handler Handler) {
 	}
 	db.SetMaxOpenConns(1)
 
-	drained := q.drainOrphanDB(db, handler)
+	if err := db.PingContext(ctx); err != nil {
+		orphanScanErrors.Inc()
+		slog.ErrorContext(q.ctx,
+			"Failed to connect to orphan SQLite database.",
+			"path", path,
+			"error", err,
+		)
+		_ = db.Close()
+		return
+	}
+
+	drained := q.drainOrphanDB(ctx, db, handler)
 	if err := db.Close(); err != nil {
 		slog.ErrorContext(q.ctx,
 			"Failed to close orphan SQLite database.",
@@ -494,12 +505,12 @@ func (q *sqliteQueue) tryAdoptOrphan(path string, handler Handler) {
 	slog.InfoContext(q.ctx, "Adopted orphaned audit-queue directory.", "path", path)
 }
 
-func (q *sqliteQueue) drainOrphanDB(db *sql.DB, handler Handler) bool {
+func (q *sqliteQueue) drainOrphanDB(ctx context.Context, db *sql.DB, handler Handler) bool {
 	for {
-		if q.ctx.Err() != nil {
+		if ctx.Err() != nil || q.ctx.Err() != nil {
 			return false
 		}
-		items, err := fetchDB(q.ctx, db, dequeueBatchSize)
+		items, err := fetchDB(ctx, db, dequeueBatchSize)
 		if err != nil {
 			orphanScanErrors.Inc()
 			slog.ErrorContext(q.ctx, "Failed to fetch orphan events.", "error", err)
@@ -508,7 +519,7 @@ func (q *sqliteQueue) drainOrphanDB(db *sql.DB, handler Handler) bool {
 		if len(items) == 0 {
 			break
 		}
-		successfullyDelivered := handler(q.ctx, items)
+		successfullyDelivered := handler(ctx, items)
 		if len(successfullyDelivered) == 0 {
 			return false
 		}
@@ -516,7 +527,7 @@ func (q *sqliteQueue) drainOrphanDB(db *sql.DB, handler Handler) bool {
 		// Notice: We do not want to call q.ack() here. This is because this db
 		// is an adopted db. Hence it is a different database than the one that
 		// is currently held by `q`.
-		if err := ackDB(q.ctx, db, successfullyDelivered); err != nil {
+		if err := ackDB(ctx, db, successfullyDelivered); err != nil {
 			orphanScanErrors.Inc()
 			slog.ErrorContext(q.ctx, "Failed to ack orphan events.", "error", err)
 			return false
