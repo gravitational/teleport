@@ -78,14 +78,28 @@ const (
 	defaultMaxBytes int64 = 5 * 1024 * 1024 * 1024 // 5 GiB
 
 	// staleTmpThreshold is how old an in-progress <uuid>.tmp/ directory
-	// must be before the orphan scanner removes it. Anything younger may
-	// still belong to a peer that's mid-creation.
-	staleTmpThreshold = time.Hour
+	// must be before the orphan scanner removes it. Under normal circumstances,
+	// A `.tmp` directory will only exist for a few milliseconds.
+	staleTmpThreshold       = time.Hour
+	initQueueDirMaxAttempts = 10
+	initQueueDirRetryDelay  = 50 * time.Millisecond
 )
 
+// A note on `AUTOINCREMENT`, to quote the SQLite docs:
+// > The AUTOINCREMENT keyword imposes extra CPU, memory, disk space, and disk
+// > I/O overhead and should be avoided if not strictly needed.
+// > It is usually not needed.
+//
+// In the context of audit_queue, AUTOINCREMENT is not strictly needed. IDs
+// cannot be re-used during the fetch-deliver-ack window, because we only call
+// delete on the rows that we have fetched from the database, and which still
+// reside in the database.
+//
+// We are including AUTOINCREMENT here as a belt-and-suspenders approach to
+// guard against potential future changes.
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS audit_queue (
-    id       INTEGER PRIMARY KEY,
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
     payload  BLOB    NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0
 ) STRICT;
@@ -114,8 +128,11 @@ type writeRequest struct {
 }
 
 type sqliteQueue struct {
-	db                      *sql.DB
-	path                    string
+	db   *sql.DB
+	path string
+	// runMu enforces a single consumer. Run only ever TryLocks it and returns
+	// ErrAlreadyRunning if it's held. The lock is held for the entire lifetime
+	// of Run, so a blocking Lock would hang until shutdown.
 	runMu                   sync.Mutex
 	toBeWritten             chan writeRequest
 	maxBatch                int
@@ -277,10 +294,28 @@ func initializeDb(path string, maxBytes int64) (*sql.DB, error) {
 // initQueueDir creates and initializes the directory where the audit log queue
 // will reside. It does this in a way that is safe from race conditions.
 func initQueueDir(path string) (func() error, error) {
-	// Create the tmp directory with the suffix `.tmp`
-	// This avoids a race conditions from other audit log instances attempting
-	// to claim this as an orphaned directory before it is fully initialized.
 	tmpPath := path + tmpDirSuffix
+	var err error
+	for attempt := range initQueueDirMaxAttempts {
+		var unlock func() error
+		unlock, err = tryInitQueueDir(path, tmpPath)
+		if err == nil {
+			return unlock, nil
+		}
+
+		isRetryableError := errors.Is(err, utils.ErrUnsuccessfulLockTry) || trace.IsNotFound(err)
+		if !isRetryableError {
+			return nil, trace.Wrap(err)
+		}
+
+		if attempt < initQueueDirMaxAttempts-1 {
+			time.Sleep(initQueueDirRetryDelay)
+		}
+	}
+	return nil, trace.Wrap(err, "failed to initialize audit-queue directory %q after %d attempts (is the system time set correctly?)", path, initQueueDirMaxAttempts)
+}
+
+func tryInitQueueDir(path, tmpPath string) (func() error, error) {
 	if err := os.MkdirAll(tmpPath, 0o700); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -289,14 +324,14 @@ func initQueueDir(path string) (func() error, error) {
 	// instances try to adopt this queue.
 	unlock, err := utils.FSTryWriteLock(filepath.Join(tmpPath, queueLockFile))
 	if err != nil {
-		_ = os.RemoveAll(tmpPath)
 		return nil, trace.Wrap(err)
 	}
 
 	// Remove the `.tmp` suffix, marking this as a live queue.
 	if err := os.Rename(tmpPath, path); err != nil {
-		_ = unlock()
+		// Only remove the directory if we own the flock.
 		_ = os.RemoveAll(tmpPath)
+		_ = unlock()
 		return nil, trace.ConvertSystemError(err)
 	}
 	return unlock, nil
