@@ -52,7 +52,7 @@ func (c userTasksCollection) WriteText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, item := range c {
 		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
-		rows = append(rows, []string{item.Metadata.GetName(), labels, item.Spec.TaskType, item.Spec.IssueType, item.Spec.GetIntegration()})
+		rows = append(rows, []string{item.GetMetadata().GetName(), labels, item.GetSpec().GetTaskType(), item.GetSpec().GetIssueType(), item.GetSpec().GetIntegration()})
 	}
 	t := asciitable.MakeTable(headers, rows...)
 	t.SortRowsBy([]int{0}, true)

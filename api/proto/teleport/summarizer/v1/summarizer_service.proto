@@ -66,9 +66,27 @@ service SummarizerService {
   // ListInferencePolicies lists all InferencePolicies that match the request.
   rpc ListInferencePolicies(ListInferencePoliciesRequest) returns (ListInferencePoliciesResponse);
 
+  // CreateClassifier creates a new Classifier.
+  rpc CreateClassifier(CreateClassifierRequest) returns (CreateClassifierResponse);
+  // GetClassifier retrieves an existing Classifier by name.
+  rpc GetClassifier(GetClassifierRequest) returns (GetClassifierResponse);
+  // UpdateClassifier updates an existing Classifier.
+  rpc UpdateClassifier(UpdateClassifierRequest) returns (UpdateClassifierResponse);
+  // UpsertClassifier creates a new Classifier or updates an existing one.
+  rpc UpsertClassifier(UpsertClassifierRequest) returns (UpsertClassifierResponse);
+  // DeleteClassifier deletes an existing Classifier by name.
+  rpc DeleteClassifier(DeleteClassifierRequest) returns (DeleteClassifierResponse);
+  // ListClassifiers lists all Classifiers that match the request.
+  rpc ListClassifiers(ListClassifiersRequest) returns (ListClassifiersResponse);
+
   // GetSummary retrieves the inference result for a session, which
   // contains the session summary.
   rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse);
+
+  // BatchGetSummaryMetadata retrieves lightweight summary metadata (state,
+  // risk level, and needs-further-review reasons) for multiple sessions in a
+  // single call.
+  rpc BatchGetSummaryMetadata(BatchGetSummaryMetadataRequest) returns (BatchGetSummaryMetadataResponse);
 
   // IsEnabled tells if the summarizer is enabled by the license and
   // configured. (Note that this doesn't tell anything about actual correctness
@@ -339,6 +357,85 @@ message ListInferencePoliciesResponse {
   string next_page_token = 2;
 }
 
+// Summarization classifiers
+
+// CreateClassifierRequest is a request for creating a Classifier.
+message CreateClassifierRequest {
+  // Classifier is the Classifier resource to create.
+  Classifier classifier = 1;
+}
+
+// CreateClassifierResponse is a response to creating a Classifier.
+message CreateClassifierResponse {
+  // Classifier is the Classifier resource that was created.
+  Classifier classifier = 1;
+}
+
+// GetClassifierRequest is a request for retrieving a Classifier.
+message GetClassifierRequest {
+  // Name is the resource name of the Classifier to retrieve.
+  string name = 1;
+}
+
+// GetClassifierResponse is a response to retrieving a Classifier.
+message GetClassifierResponse {
+  // Classifier is the Classifier resource that was retrieved.
+  Classifier classifier = 1;
+}
+
+// UpdateClassifierRequest is a request for updating a Classifier.
+message UpdateClassifierRequest {
+  // Classifier is the Classifier resource to update.
+  Classifier classifier = 1;
+}
+
+// UpdateClassifierResponse is a response to updating a Classifier.
+message UpdateClassifierResponse {
+  // Classifier is the Classifier resource that was updated.
+  Classifier classifier = 1;
+}
+
+// UpsertClassifierRequest is a request for creating or updating a Classifier.
+message UpsertClassifierRequest {
+  // Classifier is the Classifier resource to create or update.
+  Classifier classifier = 1;
+}
+
+// UpsertClassifierResponse is a response to creating or updating a
+// Classifier.
+message UpsertClassifierResponse {
+  // Classifier is the Classifier resource that was created or updated.
+  Classifier classifier = 1;
+}
+
+// DeleteClassifierRequest is a request for deleting a Classifier.
+message DeleteClassifierRequest {
+  // Name is the resource name of the Classifier to delete.
+  string name = 1;
+}
+
+// DeleteClassifierResponse is a response to deleting a Classifier.
+message DeleteClassifierResponse {}
+
+// ListClassifiersRequest is a request for listing Classifiers.
+message ListClassifiersRequest {
+  // PageSize is the maximum number of items to return. The server may use a
+  // different page size at its discretion.
+  int32 page_size = 1;
+  // PageToken is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// ListClassifiersResponse is the response for listing Classifiers.
+message ListClassifiersResponse {
+  // Classifiers is the page of Classifiers that matched the request.
+  repeated Classifier classifiers = 1;
+  // NextPageToken is the token to retrieve the next page of results, or empty
+  // if there are no more results in the list.
+  string next_page_token = 2;
+}
+
 // GetSummaryRequest is a request for retrieving a session recording summary.
 message GetSummaryRequest {
   // SessionId is the ID of the session whose summary is being requested.
@@ -349,6 +446,39 @@ message GetSummaryRequest {
 message GetSummaryResponse {
   // Summary is the session recording summary.
   Summary summary = 1;
+}
+
+// BatchGetSummaryMetadataRequest is a request for retrieving summary metadata
+// for multiple sessions at once.
+message BatchGetSummaryMetadataRequest {
+  // SessionIds are the IDs of the sessions whose summary metadata is being
+  // requested. At most 100 IDs may be requested in a single call.
+  repeated string session_ids = 1;
+}
+
+// BatchGetSummaryMetadataResponse is a response to retrieving summary metadata
+// for multiple sessions.
+message BatchGetSummaryMetadataResponse {
+  // Metadata contains an entry for each requested session that has a summary
+  // readable by the user. Sessions without summaries and sessions the user
+  // has no access to are omitted. The order of entries is unspecified.
+  repeated SummaryMetadata metadata = 1;
+}
+
+// SummaryMetadata is a lightweight representation of a session recording
+// summary, carrying only the fields needed to decorate session recording
+// lists.
+message SummaryMetadata {
+  // SessionID is the ID of the summarized session.
+  string session_id = 1;
+  // State is the state of the summarization process.
+  SummaryState state = 2;
+  // RiskLevel is the overall risk level computed for the session. Unspecified
+  // if the summary has no enhanced summary data.
+  RiskLevel risk_level = 3;
+  // NeedsFurtherReviewReasons lists the reasons why the session needs to be
+  // reviewed by a human, regardless of its risk level.
+  repeated NeedsReviewReason needs_further_review_reasons = 4;
 }
 
 // IsEnabledRequest is a request to tell if the summarizer is enabled.

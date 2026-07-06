@@ -17,7 +17,6 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTheme } from 'styled-components';
 
 import { Box, Indicator } from 'design';
 import {
@@ -51,6 +50,7 @@ export default function DocumentSshWrapper(props: PropTypes) {
 function DocumentSsh({ doc, visible }: PropTypes) {
   const ctx = useConsoleContext();
   const hasFileTransferAccess = ctx.storeUser.hasFileTransferAccess();
+  const disableCopy = ctx.storeUser.isWebTerminalCopyBlocked();
   const terminalRef = useRef<TerminalRef>(undefined);
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
@@ -65,8 +65,6 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   });
   const ft = useFileTransfer(tty, session, doc, mfa);
   const { openedDialog: ftOpenedDialog } = useFileTransferContext();
-
-  const theme = useTheme();
 
   function handleCloseFileTransfer() {
     terminalRef.current?.focus();
@@ -100,8 +98,7 @@ function DocumentSsh({ doc, visible }: PropTypes) {
     <Terminal
       ref={terminalRef}
       tty={tty}
-      fontFamily={theme.fonts.mono}
-      theme={theme.colors.terminal}
+      disableCopy={disableCopy}
       terminalAddons={ref => (
         <>
           <TerminalSearch

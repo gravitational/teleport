@@ -52,7 +52,7 @@ type testOAuthServer struct {
 }
 
 func (s *testOAuthServer) handler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	if grantType := r.URL.Query().Get("grant_type"); grantType == "refresh_token" {
+	if r.PostFormValue("grant_type") == "refresh_token" {
 		s.refresh(w, r)
 	} else {
 		s.exchange(w, r)
@@ -60,11 +60,12 @@ func (s *testOAuthServer) handler(w http.ResponseWriter, r *http.Request, _ http
 }
 
 func (s *testOAuthServer) exchange(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	require.Equal(s.t, s.clientID, q.Get("client_id"))
-	require.Equal(s.t, s.clientSecret, q.Get("client_secret"))
-	require.Equal(s.t, s.redirectURI, q.Get("redirect_uri"))
-	require.Equal(s.t, s.authorizationCode, q.Get("code"))
+	clientID, clientSecret, ok := r.BasicAuth()
+	require.True(s.t, ok)
+	require.Equal(s.t, s.clientID, clientID)
+	require.Equal(s.t, s.clientSecret, clientSecret)
+	require.Equal(s.t, s.redirectURI, r.PostFormValue("redirect_uri"))
+	require.Equal(s.t, s.authorizationCode, r.PostFormValue("code"))
 
 	w.Header().Add("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(s.exchangeResponse)
@@ -72,10 +73,11 @@ func (s *testOAuthServer) exchange(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *testOAuthServer) refresh(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	require.Equal(s.t, s.clientID, q.Get("client_id"))
-	require.Equal(s.t, s.clientSecret, q.Get("client_secret"))
-	require.Equal(s.t, s.refreshToken, q.Get("refresh_token"))
+	clientID, clientSecret, ok := r.BasicAuth()
+	require.True(s.t, ok)
+	require.Equal(s.t, s.clientID, clientID)
+	require.Equal(s.t, s.clientSecret, clientSecret)
+	require.Equal(s.t, s.refreshToken, r.PostFormValue("refresh_token"))
 
 	w.Header().Add("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(s.refreshResponse)

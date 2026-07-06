@@ -25,9 +25,12 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/entitlements"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // loginRuleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile login_rules
@@ -71,6 +74,14 @@ func NewLoginRuleReconciler(client kclient.Client, tClient *client.Client) (cont
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](
 		client,
 		loginRuleClient,
+		reconcilers.Config{
+			CheckFeatures: func(features *proto.Features) bool {
+				// Login Rules are enterprise-only but there is no specific feature flag for them.
+				oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
+				saml := modules.GetProtoEntitlement(features, entitlements.SAML)
+				return oidc.Enabled || saml.Enabled
+			},
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

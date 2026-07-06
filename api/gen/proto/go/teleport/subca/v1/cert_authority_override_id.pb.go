@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/cert_authority_override_id.proto
 
+//go:build !protoopaque
+
 package subcav1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // ID of a CertAuthorityOverride resource.
 type CertAuthorityOverrideID struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CA type per api/types.CertAuthType.
 	CaType        string `protobuf:"bytes,1,opt,name=ca_type,json=caType,proto3" json:"ca_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -69,16 +70,30 @@ func (x *CertAuthorityOverrideID) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CertAuthorityOverrideID.ProtoReflect.Descriptor instead.
-func (*CertAuthorityOverrideID) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_cert_authority_override_id_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CertAuthorityOverrideID) GetCaType() string {
 	if x != nil {
 		return x.CaType
 	}
 	return ""
+}
+
+func (x *CertAuthorityOverrideID) SetCaType(v string) {
+	x.CaType = v
+}
+
+type CertAuthorityOverrideID_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CA type per api/types.CertAuthType.
+	CaType string
+}
+
+func (b0 CertAuthorityOverrideID_builder) Build() *CertAuthorityOverrideID {
+	m0 := &CertAuthorityOverrideID{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaType = b.CaType
+	return m0
 }
 
 var File_teleport_subca_v1_cert_authority_override_id_proto protoreflect.FileDescriptor
@@ -88,18 +103,6 @@ const file_teleport_subca_v1_cert_authority_override_id_proto_rawDesc = "" +
 	"2teleport/subca/v1/cert_authority_override_id.proto\x12\x11teleport.subca.v1\"2\n" +
 	"\x17CertAuthorityOverrideID\x12\x17\n" +
 	"\aca_type\x18\x01 \x01(\tR\x06caTypeBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
-
-var (
-	file_teleport_subca_v1_cert_authority_override_id_proto_rawDescOnce sync.Once
-	file_teleport_subca_v1_cert_authority_override_id_proto_rawDescData []byte
-)
-
-func file_teleport_subca_v1_cert_authority_override_id_proto_rawDescGZIP() []byte {
-	file_teleport_subca_v1_cert_authority_override_id_proto_rawDescOnce.Do(func() {
-		file_teleport_subca_v1_cert_authority_override_id_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_subca_v1_cert_authority_override_id_proto_rawDesc), len(file_teleport_subca_v1_cert_authority_override_id_proto_rawDesc)))
-	})
-	return file_teleport_subca_v1_cert_authority_override_id_proto_rawDescData
-}
 
 var file_teleport_subca_v1_cert_authority_override_id_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_subca_v1_cert_authority_override_id_proto_goTypes = []any{

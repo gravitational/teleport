@@ -127,12 +127,32 @@ EOF
         example_name="$(basename "${example}")"
         info "Rendering module ${module_name} example ${example_name} reference doc"
         example_doc="${module_examples_docs_dir}/${example_name}.mdx"
+
+        case "${example_name}" in
+          management-group)
+            example_title="Example for discovering ${remote_system} resources in a management group"
+            example_description="Configure Teleport to discover resources in an ${remote_system} management group."
+            ;;
+          single-subscription)
+            example_title="Example for discovering ${remote_system} resources in a single subscription"
+            example_description="Configure Teleport to discover resources in an ${remote_system} subscription."
+            ;;
+          single-account|single-account-legacy)
+            example_title="Example for discovering ${remote_system} resources in a single account"
+            example_description="Configure Teleport to discover resources in an ${remote_system} account."
+            ;;
+          *)
+            example_title="Example for discovering ${remote_system} resources"
+            example_description="Configure Teleport to discover resources in ${remote_system}."
+            ;;
+        esac
+
         # inject header
         cat <<EOF > "${example_doc}"
 ---
-title: Example for discovering ${remote_system} resources in a single account
+title: ${example_title}
 sidebar_label: ${example_name}
-description: Configure Teleport to discover resources in a ${remote_system} account.
+description: ${example_description}
 ---
 
 {/*

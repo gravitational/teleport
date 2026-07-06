@@ -72,6 +72,9 @@ type TerraformSuiteOSSWithCache struct {
 type TerraformSuiteOSS struct {
 	TerraformBaseSuite
 }
+type TerraformSuiteOSSScopedResources struct {
+	TerraformBaseSuite
+}
 type TerraformSuiteEnterprise struct {
 	TerraformBaseSuite
 }

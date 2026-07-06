@@ -72,9 +72,9 @@ func (a *Service) GetUserPreferences(ctx context.Context, _ *userpreferences.Get
 		return nil, trace.Wrap(err)
 	}
 
-	return &userpreferences.GetUserPreferencesResponse{
+	return userpreferences.GetUserPreferencesResponse_builder{
 		Preferences: prefs,
-	}, nil
+	}.Build(), nil
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
@@ -86,5 +86,5 @@ func (a *Service) UpsertUserPreferences(ctx context.Context, req *userpreference
 
 	username := authCtx.User.GetName()
 
-	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, username, req.Preferences))
+	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, username, req.GetPreferences()))
 }

@@ -56,7 +56,6 @@ func TestSQLiteInMemoryQueue_IsInMemory(t *testing.T) {
 
 func TestSQLiteInMemoryQueue_InstancesAreIsolated(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 
 	a, err := New(KindSQLiteMemory, Config{})
 	require.NoError(t, err)
@@ -66,7 +65,7 @@ func TestSQLiteInMemoryQueue_InstancesAreIsolated(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, b.Close()) })
 
-	require.NoError(t, a.Enqueue(ctx, newTestEvent(1)))
+	require.NoError(t, a.Enqueue(newTestEvent(1)))
 
 	memA := a.(*sqliteInMemoryQueue)
 	memB := b.(*sqliteInMemoryQueue)

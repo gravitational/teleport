@@ -76,7 +76,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 		Type:          types.ProxyTunnel,
 	})
 	require.NoError(t, err)
-	require.NoError(t, a.UpsertTunnelConnection(tc1))
+	require.NoError(t, a.UpsertTunnelConnection(ctx, tc1))
 
 	lastHeartbeat = lastHeartbeat.Add(time.Minute)
 	tc2, err := types.NewTunnelConnection("conn-2", types.TunnelConnectionSpecV2{
@@ -86,7 +86,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 		Type:          types.ProxyTunnel,
 	})
 	require.NoError(t, err)
-	require.NoError(t, a.UpsertTunnelConnection(tc2))
+	require.NoError(t, a.UpsertTunnelConnection(ctx, tc2))
 
 	a.RefreshRemoteClusters(ctx)
 
@@ -99,7 +99,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete the latest connection.
-	require.NoError(t, a.DeleteTunnelConnection(tc2.GetClusterName(), tc2.GetName()))
+	require.NoError(t, a.DeleteTunnelConnection(ctx, tc2.GetClusterName(), tc2.GetName()))
 
 	a.RefreshRemoteClusters(ctx)
 
@@ -112,7 +112,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete the remaining connection
-	require.NoError(t, a.DeleteTunnelConnection(tc1.GetClusterName(), tc1.GetName()))
+	require.NoError(t, a.DeleteTunnelConnection(ctx, tc1.GetClusterName(), tc1.GetName()))
 
 	a.RefreshRemoteClusters(ctx)
 
@@ -184,7 +184,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 						Type:          types.ProxyTunnel,
 					})
 					require.NoError(t, err)
-					require.NoError(t, a.UpsertTunnelConnection(tc))
+					require.NoError(t, a.UpsertTunnelConnection(ctx, tc))
 				}
 			}
 

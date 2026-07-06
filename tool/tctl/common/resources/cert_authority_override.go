@@ -63,9 +63,9 @@ func (c *certAuthorityOverrideCollection) WriteText(w io.Writer, verbose bool) e
 		}
 
 		for _, o := range overrides {
-			pkh := o.PublicKey
+			pkh := o.GetPublicKey()
 			if pkh == "" {
-				cert, err := tlsutils.ParseCertificatePEM([]byte(o.Certificate))
+				cert, err := tlsutils.ParseCertificatePEM([]byte(o.GetCertificate()))
 				if err != nil {
 					return trace.Wrap(err, "parse CA override certificate")
 				}
@@ -114,10 +114,10 @@ func getCertAuthorityOverride(
 		caOverrides, err := stream.Collect(clientutils.Resources(
 			ctx,
 			func(ctx context.Context, pageSize int, pageToken string) ([]*subcav1.CertAuthorityOverride, string, error) {
-				resp, err := subCA.ListCertAuthorityOverride(ctx, &subcav1.ListCertAuthorityOverrideRequest{
+				resp, err := subCA.ListCertAuthorityOverride(ctx, subcav1.ListCertAuthorityOverrideRequest_builder{
 					PageSize:  int32(pageSize),
 					PageToken: pageToken,
-				})
+				}.Build())
 				return resp.GetCaOverrides(), resp.GetNextPageToken(), trace.Wrap(err)
 			},
 		))
@@ -137,18 +137,18 @@ func getCertAuthorityOverride(
 	}
 
 	// TODO(codingllama): Support cluster_name in ca_override Gets.
-	resp, err := subCA.GetCertAuthorityOverride(ctx, &subcav1.GetCertAuthorityOverrideRequest{
-		CaId: &subcav1.CertAuthorityOverrideID{
+	resp, err := subCA.GetCertAuthorityOverride(ctx, subcav1.GetCertAuthorityOverrideRequest_builder{
+		CaId: subcav1.CertAuthorityOverrideID_builder{
 			CaType: caType,
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caOverride := resp.CaOverride
+	caOverride := resp.GetCaOverride()
 
 	// Simulate a Get-by-name if the name was specified.
-	if clusterName != "" && caOverride.Metadata.Name != clusterName {
+	if clusterName != "" && caOverride.GetMetadata().GetName() != clusterName {
 		return nil, trace.NotFound("%s %s/%s not found", ref.Kind, caType, clusterName)
 	}
 
@@ -173,17 +173,17 @@ func createCertAuthorityOverride(ctx context.Context,
 	var created *subcav1.CertAuthorityOverride
 	var action string
 	if opts.Force {
-		resp, err1 := subCA.UpsertCertAuthorityOverride(ctx, &subcav1.UpsertCertAuthorityOverrideRequest{
+		resp, err1 := subCA.UpsertCertAuthorityOverride(ctx, subcav1.UpsertCertAuthorityOverrideRequest_builder{
 			CaOverride:            caOverride,
 			ForceImmediateDisable: true,
-		})
+		}.Build())
 		created = resp.GetCaOverride()
 		err = err1
 		action = "updated"
 	} else {
-		resp, err1 := subCA.CreateCertAuthorityOverride(ctx, &subcav1.CreateCertAuthorityOverrideRequest{
+		resp, err1 := subCA.CreateCertAuthorityOverride(ctx, subcav1.CreateCertAuthorityOverrideRequest_builder{
 			CaOverride: caOverride,
-		})
+		}.Build())
 		created = resp.GetCaOverride()
 		err = err1
 		action = "created"
@@ -194,8 +194,8 @@ func createCertAuthorityOverride(ctx context.Context,
 
 	fmt.Printf("%s %s/%s %s\n",
 		types.KindCertAuthorityOverride,
-		created.SubKind,
-		created.Metadata.Name,
+		created.GetSubKind(),
+		created.GetMetadata().GetName(),
 		action,
 	)
 	return nil
@@ -215,18 +215,18 @@ func updateCertAuthorityOverride(
 
 	resp, err := authClient.
 		SubCAClient().
-		UpdateCertAuthorityOverride(ctx, &subcav1.UpdateCertAuthorityOverrideRequest{
+		UpdateCertAuthorityOverride(ctx, subcav1.UpdateCertAuthorityOverrideRequest_builder{
 			CaOverride: caOverride,
-		})
+		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	updated := resp.CaOverride
+	updated := resp.GetCaOverride()
 
 	fmt.Printf("%s %s/%s updated\n",
 		types.KindCertAuthorityOverride,
-		updated.SubKind,
-		updated.Metadata.Name,
+		updated.GetSubKind(),
+		updated.GetMetadata().GetName(),
 	)
 	return nil
 }
@@ -250,11 +250,11 @@ func deleteCertAuthorityOverride(
 	// TODO(codingllama): Support cluster_name in ca_override Deletes.
 	if _, err := authClient.
 		SubCAClient().
-		DeleteCertAuthorityOverride(ctx, &subcav1.DeleteCertAuthorityOverrideRequest{
-			CaId: &subcav1.CertAuthorityOverrideID{
+		DeleteCertAuthorityOverride(ctx, subcav1.DeleteCertAuthorityOverrideRequest_builder{
+			CaId: subcav1.CertAuthorityOverrideID_builder{
 				CaType: caType,
-			},
-		}); err != nil {
+			}.Build(),
+		}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 

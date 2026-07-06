@@ -99,8 +99,8 @@ func newSQLiteInMemoryQueue(cfg Config) (*sqliteInMemoryQueue, error) {
 	}, nil
 }
 
-func (m *sqliteInMemoryQueue) Enqueue(ctx context.Context, event apievents.AuditEvent) error {
-	return m.inner.Enqueue(ctx, event)
+func (m *sqliteInMemoryQueue) Enqueue(event apievents.AuditEvent) error {
+	return m.inner.Enqueue(event)
 }
 
 // Run drains the in-memory queue.
@@ -114,8 +114,7 @@ func (m *sqliteInMemoryQueue) Run(ctx context.Context, handler Handler) error {
 	wg.Go(func() { m.inner.deadLetterSweepLoop(ctx, handler) })
 	defer wg.Wait()
 
-	m.inner.runPollLoop(ctx, handler)
-	return nil
+	return m.inner.runPollLoop(ctx, handler)
 }
 
 // Drain makes a best-effort attempt to flush pending events upstream before

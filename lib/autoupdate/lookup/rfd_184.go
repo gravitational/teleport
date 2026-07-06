@@ -79,7 +79,7 @@ func updaterIsCanary(group *autoupdatepb.AutoUpdateAgentRolloutStatusGroup, upda
 		return false
 	}
 	for _, canary := range group.GetCanaries() {
-		if canary.UpdaterId == updaterUUID {
+		if canary.GetUpdaterId() == updaterUUID {
 			return true
 		}
 	}
@@ -144,7 +144,7 @@ func getGroup(
 
 	// Try to find a group with our name
 	for _, group := range groups {
-		if group.Name == groupName {
+		if group.GetName() == groupName {
 			return group, nil
 		}
 	}

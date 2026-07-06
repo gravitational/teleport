@@ -92,7 +92,7 @@ type Config struct {
 
 // Item is an event yielded to a Handler.
 type Item struct {
-	ID    int64
+	id    int64
 	Event apievents.AuditEvent
 }
 
@@ -108,7 +108,7 @@ type Handler func(ctx context.Context, items []Item) []Item
 type Queue interface {
 	// Enqueue "enqueues" an audit log event to the queue. A `nil` error return
 	// indicates that the event has been durably written.
-	Enqueue(ctx context.Context, event apievents.AuditEvent) error
+	Enqueue(event apievents.AuditEvent) error
 	// Run is the single consumer that drains the queue and forwards the audit
 	// log events to `handler`.
 	Run(ctx context.Context, handler Handler) error

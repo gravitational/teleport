@@ -72,7 +72,7 @@ func TestTDPBMFAFlow(t *testing.T) {
 	// Send a random, non-MFA TDPB message
 	require.NoError(t, clientConn.WriteMessage(&Alert{Message: "random message!"}))
 
-	response := &mfav1.AuthenticateResponse{
+	response := &mfav1.AuthenticateResponse{ //nolint:staticcheck // TODO: Delete when Desktop has migrated to mfav2.
 		Response: &mfav1.AuthenticateResponse_Webauthn{
 			Webauthn: &webauthnpb.CredentialAssertionResponse{
 				Type:  "sometype",

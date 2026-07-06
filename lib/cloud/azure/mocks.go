@@ -538,16 +538,53 @@ func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcomput
 	}, m.GetErr
 }
 
-// ARMComputeScaleSetMock mocks armcompute.VirtualMachineScaleSetVMsClient.
-type ARMScaleSetMock struct {
+// ARMScaleSetVMsMock mocks armcompute.VirtualMachineScaleSetVMsClient.
+type ARMScaleSetVMsMock struct {
 	GetResult armcompute.VirtualMachineScaleSetVM
 	GetErr    error
+	ListErr   error
 }
 
-func (m *ARMScaleSetMock) Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error) {
+func (m *ARMScaleSetVMsMock) Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error) {
 	return armcompute.VirtualMachineScaleSetVMsClientGetResponse{
 		VirtualMachineScaleSetVM: m.GetResult,
 	}, m.GetErr
+}
+
+func (m *ARMScaleSetVMsMock) NewListPager(resourceGroupName string, virtualMachineScaleSetName string, options *armcompute.VirtualMachineScaleSetVMsClientListOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetVMsClientListResponse] {
+	return newPagerHelper(m.ListErr != nil, func() (armcompute.VirtualMachineScaleSetVMsClientListResponse, error) {
+		return armcompute.VirtualMachineScaleSetVMsClientListResponse{
+			VirtualMachineScaleSetVMListResult: armcompute.VirtualMachineScaleSetVMListResult{
+				Value: []*armcompute.VirtualMachineScaleSetVM{&m.GetResult},
+			},
+		}, m.ListErr
+	})
+}
+
+// ARMScaleSetsMock mocks armcompute.VirtualMachineScaleSetsClient.
+type ARMScaleSetsMock struct {
+	ScaleSetRecords []*armcompute.VirtualMachineScaleSet
+	ListErr         error
+}
+
+func (m *ARMScaleSetsMock) NewListPager(resourceGroupName string, options *armcompute.VirtualMachineScaleSetsClientListOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetsClientListResponse] {
+	return newPagerHelper(m.ListErr != nil, func() (armcompute.VirtualMachineScaleSetsClientListResponse, error) {
+		return armcompute.VirtualMachineScaleSetsClientListResponse{
+			VirtualMachineScaleSetListResult: armcompute.VirtualMachineScaleSetListResult{
+				Value: m.ScaleSetRecords,
+			},
+		}, m.ListErr
+	})
+}
+
+func (m *ARMScaleSetsMock) NewListAllPager(options *armcompute.VirtualMachineScaleSetsClientListAllOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetsClientListAllResponse] {
+	return newPagerHelper(m.ListErr != nil, func() (armcompute.VirtualMachineScaleSetsClientListAllResponse, error) {
+		return armcompute.VirtualMachineScaleSetsClientListAllResponse{
+			VirtualMachineScaleSetListWithLinkResult: armcompute.VirtualMachineScaleSetListWithLinkResult{
+				Value: m.ScaleSetRecords,
+			},
+		}, m.ListErr
+	})
 }
 
 // ARMSQLServerMock mocks armSQLServerClient

@@ -89,6 +89,9 @@ export function RecordingPlayer({
           sid={sessionId}
           clusterId={clusterId}
           durationMs={durationMs}
+          events={events}
+          onTimeChange={onTimeChange}
+          ref={ref}
         />
       </Container>
     );

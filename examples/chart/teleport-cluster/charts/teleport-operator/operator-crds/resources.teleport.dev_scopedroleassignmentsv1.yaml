@@ -19,6 +19,10 @@ spec:
       jsonPath: .scope
       name: scope
       type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1
     schema:
       openAPIV3Schema:
@@ -40,6 +44,10 @@ spec:
           scope:
             description: Scope is the scope of the role assignment resource.
             type: string
+            x-kubernetes-validations:
+            - message: Scope is immutable. To create the resource in a different scope
+                you must delete it first.
+              rule: self == oldSelf
           spec:
             description: ScopedRoleAssignment resource definition v1 from Teleport
             properties:
@@ -59,18 +67,15 @@ spec:
                   type: object
                 nullable: true
                 type: array
-              bot_name:
-                description: Name of the Bot to whom all contained assignments apply.
-                  Mutually exclusive with `user`.
-                type: string
-              bot_scope:
-                description: Scope of the Bot to whom all contained assignments apply.
-                  Required if `bot_name` is set. If specified, assignment scopes must
-                  be equal or descendent of this scope.
+              bot:
+                description: The Bot to whom all contained assignments apply, as a
+                  scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
+                  Mutually exclusive with `user`.  When specified, assignment scopes
+                  must be equal or descendent of the scope indicated by this field.
                 type: string
               user:
                 description: User is the user to whom all contained assignments apply.
-                  Mutually exclusive with `bot_name`.
+                  Mutually exclusive with `bot`.
                 type: string
             type: object
           status:
@@ -139,6 +144,10 @@ spec:
                 type: integer
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Scope is immutable. To create the resource in a different scope
+            you must delete it first.
+          rule: has(self.scope) == has(oldSelf.scope)
     served: true
     storage: true
     subresources:

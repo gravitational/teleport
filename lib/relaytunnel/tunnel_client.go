@@ -481,9 +481,9 @@ func (c *Client) dialOnceGrouped(log *slog.Logger) error {
 	helloDeadline, _ := helloCtx.Deadline()
 	controlStream.SetDeadline(helloDeadline)
 
-	if err := writeProto(controlStream, &relaytunnelv1alpha.ClientHello{
+	if err := writeProto(controlStream, relaytunnelv1alpha.ClientHello_builder{
 		TunnelType: string(c.tunnelType),
-	}); err != nil {
+	}.Build()); err != nil {
 		_ = controlStream.Close()
 		_ = session.Close()
 		return trace.Wrap(err)
@@ -603,19 +603,19 @@ func (c *yamuxClientConn) handleStream(stream *yamux.Stream, handleConnection fu
 	if err := readProto(stream, dialReq); err != nil {
 		return
 	}
-	src := addrFromProto(dialReq.Source)
-	dst := addrFromProto(dialReq.Destination)
+	src := addrFromProto(dialReq.GetSource())
+	dst := addrFromProto(dialReq.GetDestination())
 	if src == nil || dst == nil {
 		err := trace.BadParameter("missing source or destination address")
-		_ = writeProto(stream, &relaytunnelv1alpha.DialResponse{
+		_ = writeProto(stream, relaytunnelv1alpha.DialResponse_builder{
 			Status: status.Convert(trail.ToGRPC(err)).Proto(),
-		})
+		}.Build())
 		return
 	}
 
-	if err := writeProto(stream, &relaytunnelv1alpha.DialResponse{
+	if err := writeProto(stream, relaytunnelv1alpha.DialResponse_builder{
 		Status: nil, // i.e. status.Convert(error(nil)).Proto()
-	}); err != nil {
+	}.Build()); err != nil {
 		return
 	}
 

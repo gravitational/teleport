@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/integration/v1/awsoidc_service.proto
 
+//go:build !protoopaque
+
 package integrationv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 //
 // Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 type ListEICERequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -82,11 +83,6 @@ func (x *ListEICERequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListEICERequest.ProtoReflect.Descriptor instead.
-func (*ListEICERequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ListEICERequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -115,11 +111,56 @@ func (x *ListEICERequest) GetNextToken() string {
 	return ""
 }
 
+func (x *ListEICERequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *ListEICERequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *ListEICERequest) SetVpcIds(v []string) {
+	x.VpcIds = v
+}
+
+func (x *ListEICERequest) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
+type ListEICERequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// VPCIDs is used to filter for EICEs of those VPCs.
+	// Required.
+	VpcIds []string
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string
+}
+
+func (b0 ListEICERequest_builder) Build() *ListEICERequest {
+	m0 := &ListEICERequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.VpcIds = b.VpcIds
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // EC2InstanceConnectEndpoint is a representation of a Amazon VPC EC2 Instance Connect Endpoint.
 //
 // Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 type EC2InstanceConnectEndpoint struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the endpoint name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// State is the endpoint state.
@@ -161,11 +202,6 @@ func (x *EC2InstanceConnectEndpoint) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EC2InstanceConnectEndpoint.ProtoReflect.Descriptor instead.
-func (*EC2InstanceConnectEndpoint) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *EC2InstanceConnectEndpoint) GetName() string {
@@ -210,11 +246,68 @@ func (x *EC2InstanceConnectEndpoint) GetVpcId() string {
 	return ""
 }
 
+func (x *EC2InstanceConnectEndpoint) SetName(v string) {
+	x.Name = v
+}
+
+func (x *EC2InstanceConnectEndpoint) SetState(v string) {
+	x.State = v
+}
+
+func (x *EC2InstanceConnectEndpoint) SetStateMessage(v string) {
+	x.StateMessage = v
+}
+
+func (x *EC2InstanceConnectEndpoint) SetDashboardLink(v string) {
+	x.DashboardLink = v
+}
+
+func (x *EC2InstanceConnectEndpoint) SetSubnetId(v string) {
+	x.SubnetId = v
+}
+
+func (x *EC2InstanceConnectEndpoint) SetVpcId(v string) {
+	x.VpcId = v
+}
+
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
+type EC2InstanceConnectEndpoint_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the endpoint name.
+	Name string
+	// State is the endpoint state.
+	// Known values:
+	// create-in-progress | create-complete | create-failed | delete-in-progress | delete-complete | delete-failed
+	State string
+	// StateMessage contains a message describing the state of the EICE.
+	StateMessage string
+	// DashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
+	DashboardLink string
+	// SubnetID is the subnet used by the endpoint.
+	SubnetId string
+	// VPCID is the VPC ID where the Endpoint is created.
+	VpcId string
+}
+
+func (b0 EC2InstanceConnectEndpoint_builder) Build() *EC2InstanceConnectEndpoint {
+	m0 := &EC2InstanceConnectEndpoint{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.State = b.State
+	x.StateMessage = b.StateMessage
+	x.DashboardLink = b.DashboardLink
+	x.SubnetId = b.SubnetId
+	x.VpcId = b.VpcId
+	return m0
+}
+
 // ListEICEResponse contains a page of AWS EC2 Instance Connect Endpoints.
 //
 // Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 type ListEICEResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// EC2ICEs contains the page of EC2 Instance Connect Endpoints.
 	Ec2Ices []*EC2InstanceConnectEndpoint `protobuf:"bytes,1,rep,name=ec2ices,proto3" json:"ec2ices,omitempty"`
 	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
@@ -251,11 +344,6 @@ func (x *ListEICEResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListEICEResponse.ProtoReflect.Descriptor instead.
-func (*ListEICEResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListEICEResponse) GetEc2Ices() []*EC2InstanceConnectEndpoint {
 	if x != nil {
 		return x.Ec2Ices
@@ -277,11 +365,46 @@ func (x *ListEICEResponse) GetNextToken() string {
 	return ""
 }
 
+func (x *ListEICEResponse) SetEc2Ices(v []*EC2InstanceConnectEndpoint) {
+	x.Ec2Ices = v
+}
+
+func (x *ListEICEResponse) SetDashboardLink(v string) {
+	x.DashboardLink = v
+}
+
+func (x *ListEICEResponse) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
+type ListEICEResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// EC2ICEs contains the page of EC2 Instance Connect Endpoints.
+	Ec2Ices []*EC2InstanceConnectEndpoint
+	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
+	DashboardLink string
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string
+}
+
+func (b0 ListEICEResponse_builder) Build() *ListEICEResponse {
+	m0 := &ListEICEResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Ec2Ices = b.Ec2Ices
+	x.DashboardLink = b.DashboardLink
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // CreateEICERequest contains the required fields to create an AWS EC2 Instance Connect Endpoint.
 //
 // Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 type CreateEICERequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -320,11 +443,6 @@ func (x *CreateEICERequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateEICERequest.ProtoReflect.Descriptor instead.
-func (*CreateEICERequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *CreateEICERequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -346,11 +464,48 @@ func (x *CreateEICERequest) GetEndpoints() []*EC2ICEndpoint {
 	return nil
 }
 
+func (x *CreateEICERequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *CreateEICERequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *CreateEICERequest) SetEndpoints(v []*EC2ICEndpoint) {
+	x.Endpoints = v
+}
+
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
+type CreateEICERequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// Endpoints is is a list of EC2 Instance Connect Endpoints to be created.
+	// Required.
+	Endpoints []*EC2ICEndpoint
+}
+
+func (b0 CreateEICERequest_builder) Build() *CreateEICERequest {
+	m0 := &CreateEICERequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.Endpoints = b.Endpoints
+	return m0
+}
+
 // EC2ICEndpoint contains the information for a single Endpoint to be created.
 //
 // Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 type EC2ICEndpoint struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the endpoint name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// SubnetID is the Subnet where the Endpoint will be created.
@@ -387,11 +542,6 @@ func (x *EC2ICEndpoint) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EC2ICEndpoint.ProtoReflect.Descriptor instead.
-func (*EC2ICEndpoint) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *EC2ICEndpoint) GetName() string {
 	if x != nil {
 		return x.Name
@@ -413,11 +563,46 @@ func (x *EC2ICEndpoint) GetSecurityGroupIds() []string {
 	return nil
 }
 
+func (x *EC2ICEndpoint) SetName(v string) {
+	x.Name = v
+}
+
+func (x *EC2ICEndpoint) SetSubnetId(v string) {
+	x.SubnetId = v
+}
+
+func (x *EC2ICEndpoint) SetSecurityGroupIds(v []string) {
+	x.SecurityGroupIds = v
+}
+
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
+type EC2ICEndpoint_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the endpoint name.
+	Name string
+	// SubnetID is the Subnet where the Endpoint will be created.
+	SubnetId string
+	// SecurityGroupIDs is a list of SecurityGroups to assign to the Endpoint.
+	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
+	SecurityGroupIds []string
+}
+
+func (b0 EC2ICEndpoint_builder) Build() *EC2ICEndpoint {
+	m0 := &EC2ICEndpoint{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.SubnetId = b.SubnetId
+	x.SecurityGroupIds = b.SecurityGroupIds
+	return m0
+}
+
 // CreateEICEResponse is a request to create a VPC Endpoint of EC2 Instance Connect Endpoint type.
 //
 // Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 type CreateEICEResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the Endpoint ID.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// CreatedEndpoints contains the name of created endpoints and their Subnet.
@@ -451,11 +636,6 @@ func (x *CreateEICEResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateEICEResponse.ProtoReflect.Descriptor instead.
-func (*CreateEICEResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *CreateEICEResponse) GetName() string {
 	if x != nil {
 		return x.Name
@@ -470,9 +650,36 @@ func (x *CreateEICEResponse) GetCreatedEndpoints() []*EC2ICEndpoint {
 	return nil
 }
 
+func (x *CreateEICEResponse) SetName(v string) {
+	x.Name = v
+}
+
+func (x *CreateEICEResponse) SetCreatedEndpoints(v []*EC2ICEndpoint) {
+	x.CreatedEndpoints = v
+}
+
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
+type CreateEICEResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the Endpoint ID.
+	Name string
+	// CreatedEndpoints contains the name of created endpoints and their Subnet.
+	CreatedEndpoints []*EC2ICEndpoint
+}
+
+func (b0 CreateEICEResponse_builder) Build() *CreateEICEResponse {
+	m0 := &CreateEICEResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.CreatedEndpoints = b.CreatedEndpoints
+	return m0
+}
+
 // ListDatabasesRequest is a request for a paginated list of AWS Databases.
 type ListDatabasesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -521,11 +728,6 @@ func (x *ListDatabasesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDatabasesRequest.ProtoReflect.Descriptor instead.
-func (*ListDatabasesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ListDatabasesRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -568,9 +770,70 @@ func (x *ListDatabasesRequest) GetVpcId() string {
 	return ""
 }
 
+func (x *ListDatabasesRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *ListDatabasesRequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *ListDatabasesRequest) SetRdsType(v string) {
+	x.RdsType = v
+}
+
+func (x *ListDatabasesRequest) SetEngines(v []string) {
+	x.Engines = v
+}
+
+func (x *ListDatabasesRequest) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+func (x *ListDatabasesRequest) SetVpcId(v string) {
+	x.VpcId = v
+}
+
+type ListDatabasesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// RDSType is either instance or cluster (for Aurora DBs).
+	// Required.
+	RdsType string
+	// Engines filters the returned Databases based on their engine.
+	// Eg, mysql, postgres, mariadb, aurora, aurora-mysql, aurora-postgresql
+	// Required.
+	Engines []string
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string
+	// VPCID filters databases to only include those deployed in the VPC.
+	// If empty, no filtering is done.
+	VpcId string
+}
+
+func (b0 ListDatabasesRequest_builder) Build() *ListDatabasesRequest {
+	m0 := &ListDatabasesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.RdsType = b.RdsType
+	x.Engines = b.Engines
+	x.NextToken = b.NextToken
+	x.VpcId = b.VpcId
+	return m0
+}
+
 // ListDatabasesResponse contains a page of AWS Databases.
 type ListDatabasesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Databases contains the page of Databases.
 	Databases []*types.DatabaseV3 `protobuf:"bytes,1,rep,name=databases,proto3" json:"databases,omitempty"`
 	// NextToken is used for pagination.
@@ -605,11 +868,6 @@ func (x *ListDatabasesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDatabasesResponse.ProtoReflect.Descriptor instead.
-func (*ListDatabasesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *ListDatabasesResponse) GetDatabases() []*types.DatabaseV3 {
 	if x != nil {
 		return x.Databases
@@ -624,9 +882,36 @@ func (x *ListDatabasesResponse) GetNextToken() string {
 	return ""
 }
 
+func (x *ListDatabasesResponse) SetDatabases(v []*types.DatabaseV3) {
+	x.Databases = v
+}
+
+func (x *ListDatabasesResponse) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListDatabasesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Databases contains the page of Databases.
+	Databases []*types.DatabaseV3
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string
+}
+
+func (b0 ListDatabasesResponse_builder) Build() *ListDatabasesResponse {
+	m0 := &ListDatabasesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Databases = b.Databases
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // ListSecurityGroupsRequest is a request for a paginated list of AWS SecurityGroups.
 type ListSecurityGroupsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -668,11 +953,6 @@ func (x *ListSecurityGroupsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSecurityGroupsRequest.ProtoReflect.Descriptor instead.
-func (*ListSecurityGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *ListSecurityGroupsRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -701,9 +981,53 @@ func (x *ListSecurityGroupsRequest) GetNextToken() string {
 	return ""
 }
 
+func (x *ListSecurityGroupsRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *ListSecurityGroupsRequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *ListSecurityGroupsRequest) SetVpcId(v string) {
+	x.VpcId = v
+}
+
+func (x *ListSecurityGroupsRequest) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListSecurityGroupsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// VPCID is the VPC ID for listing SecurityGroups.
+	// Required.
+	VpcId string
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string
+}
+
+func (b0 ListSecurityGroupsRequest_builder) Build() *ListSecurityGroupsRequest {
+	m0 := &ListSecurityGroupsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.VpcId = b.VpcId
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // CIDR has a CIDR (IP Range) and a description for the value.
 type SecurityGroupRuleCIDR struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CIDR is the IP range using CIDR notation.
 	Cidr string `protobuf:"bytes,1,opt,name=cidr,proto3" json:"cidr,omitempty"`
 	// Description contains a small text describing the CIDR.
@@ -737,11 +1061,6 @@ func (x *SecurityGroupRuleCIDR) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SecurityGroupRuleCIDR.ProtoReflect.Descriptor instead.
-func (*SecurityGroupRuleCIDR) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *SecurityGroupRuleCIDR) GetCidr() string {
 	if x != nil {
 		return x.Cidr
@@ -756,10 +1075,36 @@ func (x *SecurityGroupRuleCIDR) GetDescription() string {
 	return ""
 }
 
+func (x *SecurityGroupRuleCIDR) SetCidr(v string) {
+	x.Cidr = v
+}
+
+func (x *SecurityGroupRuleCIDR) SetDescription(v string) {
+	x.Description = v
+}
+
+type SecurityGroupRuleCIDR_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CIDR is the IP range using CIDR notation.
+	Cidr string
+	// Description contains a small text describing the CIDR.
+	Description string
+}
+
+func (b0 SecurityGroupRuleCIDR_builder) Build() *SecurityGroupRuleCIDR {
+	m0 := &SecurityGroupRuleCIDR{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cidr = b.Cidr
+	x.Description = b.Description
+	return m0
+}
+
 // SecurityGroupRuleGroupID has an allowed security group ID and a description
 // for the rule.
 type SecurityGroupRuleGroupID struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// GroupID is the allowed security group ID.
 	GroupId string `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	// Description contains a small text describing the allowed security group.
@@ -793,11 +1138,6 @@ func (x *SecurityGroupRuleGroupID) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SecurityGroupRuleGroupID.ProtoReflect.Descriptor instead.
-func (*SecurityGroupRuleGroupID) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *SecurityGroupRuleGroupID) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
@@ -812,10 +1152,36 @@ func (x *SecurityGroupRuleGroupID) GetDescription() string {
 	return ""
 }
 
+func (x *SecurityGroupRuleGroupID) SetGroupId(v string) {
+	x.GroupId = v
+}
+
+func (x *SecurityGroupRuleGroupID) SetDescription(v string) {
+	x.Description = v
+}
+
+type SecurityGroupRuleGroupID_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// GroupID is the allowed security group ID.
+	GroupId string
+	// Description contains a small text describing the allowed security group.
+	Description string
+}
+
+func (b0 SecurityGroupRuleGroupID_builder) Build() *SecurityGroupRuleGroupID {
+	m0 := &SecurityGroupRuleGroupID{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.GroupId = b.GroupId
+	x.Description = b.Description
+	return m0
+}
+
 // SecurityGroupRule is a representation of a SecurityGroupRule.
 // Either for Inbound or Outbound rules.
 type SecurityGroupRule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// IPProtocol is the protocol used to describe the rule.
 	// If the rule applies to all protocols, the "all" value is used.
 	// The IP protocol name ( tcp , udp , icmp , icmpv6 ) or number (see Protocol
@@ -859,11 +1225,6 @@ func (x *SecurityGroupRule) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SecurityGroupRule.ProtoReflect.Descriptor instead.
-func (*SecurityGroupRule) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *SecurityGroupRule) GetIpProtocol() string {
 	if x != nil {
 		return x.IpProtocol
@@ -899,9 +1260,60 @@ func (x *SecurityGroupRule) GetGroupIds() []*SecurityGroupRuleGroupID {
 	return nil
 }
 
+func (x *SecurityGroupRule) SetIpProtocol(v string) {
+	x.IpProtocol = v
+}
+
+func (x *SecurityGroupRule) SetFromPort(v int32) {
+	x.FromPort = v
+}
+
+func (x *SecurityGroupRule) SetToPort(v int32) {
+	x.ToPort = v
+}
+
+func (x *SecurityGroupRule) SetCidrs(v []*SecurityGroupRuleCIDR) {
+	x.Cidrs = v
+}
+
+func (x *SecurityGroupRule) SetGroupIds(v []*SecurityGroupRuleGroupID) {
+	x.GroupIds = v
+}
+
+type SecurityGroupRule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// IPProtocol is the protocol used to describe the rule.
+	// If the rule applies to all protocols, the "all" value is used.
+	// The IP protocol name ( tcp , udp , icmp , icmpv6 ) or number (see Protocol
+	// Numbers (http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)).
+	IpProtocol string
+	// FromPort is the inclusive start of the Port range for the Rule.
+	FromPort int32
+	// ToPort is the inclusive end of the Port range for the Rule.
+	ToPort int32
+	// CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
+	Cidrs []*SecurityGroupRuleCIDR
+	// GroupIds is a list of rules that allow another security group referenced
+	// by ID.
+	GroupIds []*SecurityGroupRuleGroupID
+}
+
+func (b0 SecurityGroupRule_builder) Build() *SecurityGroupRule {
+	m0 := &SecurityGroupRule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.IpProtocol = b.IpProtocol
+	x.FromPort = b.FromPort
+	x.ToPort = b.ToPort
+	x.Cidrs = b.Cidrs
+	x.GroupIds = b.GroupIds
+	return m0
+}
+
 // SecurityGroup is a representation of a SecurityGroup
 type SecurityGroup struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the SecurityGroup name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// ID is the SecurityGroup ID.
@@ -943,11 +1355,6 @@ func (x *SecurityGroup) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SecurityGroup.ProtoReflect.Descriptor instead.
-func (*SecurityGroup) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *SecurityGroup) GetName() string {
 	if x != nil {
 		return x.Name
@@ -983,9 +1390,58 @@ func (x *SecurityGroup) GetOutboundRules() []*SecurityGroupRule {
 	return nil
 }
 
+func (x *SecurityGroup) SetName(v string) {
+	x.Name = v
+}
+
+func (x *SecurityGroup) SetId(v string) {
+	x.Id = v
+}
+
+func (x *SecurityGroup) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *SecurityGroup) SetInboundRules(v []*SecurityGroupRule) {
+	x.InboundRules = v
+}
+
+func (x *SecurityGroup) SetOutboundRules(v []*SecurityGroupRule) {
+	x.OutboundRules = v
+}
+
+type SecurityGroup_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the SecurityGroup name.
+	Name string
+	// ID is the SecurityGroup ID.
+	Id string
+	// Description is a small description of the SecurityGroup.
+	Description string
+	// InboundRules describe the Security Group Inbound Rules.
+	// The CIDR of each rule represents the source IP that the rule applies to.
+	InboundRules []*SecurityGroupRule
+	// OutboundRules describe the Security Group Outbound Rules.
+	// The CIDR of each rule represents the destination IP that the rule applies to.
+	OutboundRules []*SecurityGroupRule
+}
+
+func (b0 SecurityGroup_builder) Build() *SecurityGroup {
+	m0 := &SecurityGroup{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Id = b.Id
+	x.Description = b.Description
+	x.InboundRules = b.InboundRules
+	x.OutboundRules = b.OutboundRules
+	return m0
+}
+
 // ListSecurityGroupsResponse contains a page of AWS SecurityGroups.
 type ListSecurityGroupsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SecurityGroups contains the page of SecurityGroups.
 	SecurityGroups []*SecurityGroup `protobuf:"bytes,1,rep,name=security_groups,json=securityGroups,proto3" json:"security_groups,omitempty"`
 	// NextToken is used for pagination.
@@ -1020,11 +1476,6 @@ func (x *ListSecurityGroupsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSecurityGroupsResponse.ProtoReflect.Descriptor instead.
-func (*ListSecurityGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *ListSecurityGroupsResponse) GetSecurityGroups() []*SecurityGroup {
 	if x != nil {
 		return x.SecurityGroups
@@ -1039,9 +1490,36 @@ func (x *ListSecurityGroupsResponse) GetNextToken() string {
 	return ""
 }
 
+func (x *ListSecurityGroupsResponse) SetSecurityGroups(v []*SecurityGroup) {
+	x.SecurityGroups = v
+}
+
+func (x *ListSecurityGroupsResponse) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListSecurityGroupsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SecurityGroups contains the page of SecurityGroups.
+	SecurityGroups []*SecurityGroup
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string
+}
+
+func (b0 ListSecurityGroupsResponse_builder) Build() *ListSecurityGroupsResponse {
+	m0 := &ListSecurityGroupsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SecurityGroups = b.SecurityGroups
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // ListSubnetsRequest is a request for a paginated list of AWS VPC subnets.
 type ListSubnetsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -1083,11 +1561,6 @@ func (x *ListSubnetsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSubnetsRequest.ProtoReflect.Descriptor instead.
-func (*ListSubnetsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *ListSubnetsRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -1116,9 +1589,53 @@ func (x *ListSubnetsRequest) GetNextToken() string {
 	return ""
 }
 
+func (x *ListSubnetsRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *ListSubnetsRequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *ListSubnetsRequest) SetVpcId(v string) {
+	x.VpcId = v
+}
+
+func (x *ListSubnetsRequest) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListSubnetsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// VPCID is the VPC ID for listing subnets.
+	// Required.
+	VpcId string
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string
+}
+
+func (b0 ListSubnetsRequest_builder) Build() *ListSubnetsRequest {
+	m0 := &ListSubnetsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.VpcId = b.VpcId
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // Subnet is a representation of an AWS VPC subnet.
 type Subnet struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the subnet name. Can be empty.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// ID is the subnet ID.
@@ -1154,11 +1671,6 @@ func (x *Subnet) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Subnet.ProtoReflect.Descriptor instead.
-func (*Subnet) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *Subnet) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1180,9 +1692,42 @@ func (x *Subnet) GetAvailabilityZone() string {
 	return ""
 }
 
+func (x *Subnet) SetName(v string) {
+	x.Name = v
+}
+
+func (x *Subnet) SetId(v string) {
+	x.Id = v
+}
+
+func (x *Subnet) SetAvailabilityZone(v string) {
+	x.AvailabilityZone = v
+}
+
+type Subnet_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the subnet name. Can be empty.
+	Name string
+	// ID is the subnet ID.
+	Id string
+	// AvailabilityZone is the availability zone of the subnet.
+	AvailabilityZone string
+}
+
+func (b0 Subnet_builder) Build() *Subnet {
+	m0 := &Subnet{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Id = b.Id
+	x.AvailabilityZone = b.AvailabilityZone
+	return m0
+}
+
 // ListSubnetsResponse contains a page of AWS VPC subnets.
 type ListSubnetsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Subnets contains the page of subnets.
 	Subnets []*Subnet `protobuf:"bytes,1,rep,name=subnets,proto3" json:"subnets,omitempty"`
 	// NextToken is used for pagination.
@@ -1217,11 +1762,6 @@ func (x *ListSubnetsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSubnetsResponse.ProtoReflect.Descriptor instead.
-func (*ListSubnetsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *ListSubnetsResponse) GetSubnets() []*Subnet {
 	if x != nil {
 		return x.Subnets
@@ -1236,9 +1776,36 @@ func (x *ListSubnetsResponse) GetNextToken() string {
 	return ""
 }
 
+func (x *ListSubnetsResponse) SetSubnets(v []*Subnet) {
+	x.Subnets = v
+}
+
+func (x *ListSubnetsResponse) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListSubnetsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Subnets contains the page of subnets.
+	Subnets []*Subnet
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string
+}
+
+func (b0 ListSubnetsResponse_builder) Build() *ListSubnetsResponse {
+	m0 := &ListSubnetsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Subnets = b.Subnets
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // ListVPCsRequest is a request for a paginated list of AWS VPCs.
 type ListVPCsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -1277,11 +1844,6 @@ func (x *ListVPCsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListVPCsRequest.ProtoReflect.Descriptor instead.
-func (*ListVPCsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *ListVPCsRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -1303,9 +1865,45 @@ func (x *ListVPCsRequest) GetNextToken() string {
 	return ""
 }
 
+func (x *ListVPCsRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *ListVPCsRequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *ListVPCsRequest) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListVPCsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string
+}
+
+func (b0 ListVPCsRequest_builder) Build() *ListVPCsRequest {
+	m0 := &ListVPCsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // VPC is a representation of an AWS VPC.
 type VPC struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the VPC name. Can be empty.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// ID is the VPC ID.
@@ -1339,11 +1937,6 @@ func (x *VPC) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use VPC.ProtoReflect.Descriptor instead.
-func (*VPC) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *VPC) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1358,9 +1951,35 @@ func (x *VPC) GetId() string {
 	return ""
 }
 
+func (x *VPC) SetName(v string) {
+	x.Name = v
+}
+
+func (x *VPC) SetId(v string) {
+	x.Id = v
+}
+
+type VPC_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the VPC name. Can be empty.
+	Name string
+	// ID is the VPC ID.
+	Id string
+}
+
+func (b0 VPC_builder) Build() *VPC {
+	m0 := &VPC{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Id = b.Id
+	return m0
+}
+
 // ListVPCsResponse contains a page of AWS VPCs.
 type ListVPCsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// VPCs contains the page of VPCs.
 	Vpcs []*VPC `protobuf:"bytes,1,rep,name=vpcs,proto3" json:"vpcs,omitempty"`
 	// NextToken is used for pagination.
@@ -1395,11 +2014,6 @@ func (x *ListVPCsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListVPCsResponse.ProtoReflect.Descriptor instead.
-func (*ListVPCsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *ListVPCsResponse) GetVpcs() []*VPC {
 	if x != nil {
 		return x.Vpcs
@@ -1414,9 +2028,36 @@ func (x *ListVPCsResponse) GetNextToken() string {
 	return ""
 }
 
+func (x *ListVPCsResponse) SetVpcs(v []*VPC) {
+	x.Vpcs = v
+}
+
+func (x *ListVPCsResponse) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListVPCsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// VPCs contains the page of VPCs.
+	Vpcs []*VPC
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string
+}
+
+func (b0 ListVPCsResponse_builder) Build() *ListVPCsResponse {
+	m0 := &ListVPCsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Vpcs = b.Vpcs
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // DeployDatabaseServiceRequest is a request to deploy .
 type DeployDatabaseServiceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -1466,11 +2107,6 @@ func (x *DeployDatabaseServiceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeployDatabaseServiceRequest.ProtoReflect.Descriptor instead.
-func (*DeployDatabaseServiceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *DeployDatabaseServiceRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -1513,9 +2149,71 @@ func (x *DeployDatabaseServiceRequest) GetDeployments() []*DeployDatabaseService
 	return nil
 }
 
+func (x *DeployDatabaseServiceRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *DeployDatabaseServiceRequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *DeployDatabaseServiceRequest) SetTaskRoleArn(v string) {
+	x.TaskRoleArn = v
+}
+
+func (x *DeployDatabaseServiceRequest) SetTeleportVersion(v string) {
+	x.TeleportVersion = v
+}
+
+func (x *DeployDatabaseServiceRequest) SetDeploymentJoinTokenName(v string) {
+	x.DeploymentJoinTokenName = v
+}
+
+func (x *DeployDatabaseServiceRequest) SetDeployments(v []*DeployDatabaseServiceDeployment) {
+	x.Deployments = v
+}
+
+type DeployDatabaseServiceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// TaskRoleARN is the AWS IAM Role received by the deployed service.
+	// Required.
+	TaskRoleArn string
+	// TeleportVersion is the teleport version to be deployed.
+	// This is used to fetch the correct tag for the teleport container image.
+	// Eg, 14.3.4 (no "v" prefix)
+	// Required.
+	TeleportVersion string
+	// DeploymentJoinTokenName is the Teleport IAM Join Token to be used by the deployed
+	// service to join the cluster.
+	// Required.
+	DeploymentJoinTokenName string
+	// Deployments is a list of services that will be deployed.
+	Deployments []*DeployDatabaseServiceDeployment
+}
+
+func (b0 DeployDatabaseServiceRequest_builder) Build() *DeployDatabaseServiceRequest {
+	m0 := &DeployDatabaseServiceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.TaskRoleArn = b.TaskRoleArn
+	x.TeleportVersion = b.TeleportVersion
+	x.DeploymentJoinTokenName = b.DeploymentJoinTokenName
+	x.Deployments = b.Deployments
+	return m0
+}
+
 // DeployDatabaseServiceDeployment represents a single deployment.
 type DeployDatabaseServiceDeployment struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TeleportConfigString is the teleport.yaml configuration (base64 encoded) used by teleport.
 	// Required.
 	TeleportConfigString string `protobuf:"bytes,1,opt,name=teleport_config_string,json=teleportConfigString,proto3" json:"teleport_config_string,omitempty"`
@@ -1558,11 +2256,6 @@ func (x *DeployDatabaseServiceDeployment) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeployDatabaseServiceDeployment.ProtoReflect.Descriptor instead.
-func (*DeployDatabaseServiceDeployment) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{21}
-}
-
 func (x *DeployDatabaseServiceDeployment) GetTeleportConfigString() string {
 	if x != nil {
 		return x.TeleportConfigString
@@ -1591,9 +2284,54 @@ func (x *DeployDatabaseServiceDeployment) GetSecurityGroups() []string {
 	return nil
 }
 
+func (x *DeployDatabaseServiceDeployment) SetTeleportConfigString(v string) {
+	x.TeleportConfigString = v
+}
+
+func (x *DeployDatabaseServiceDeployment) SetVpcId(v string) {
+	x.VpcId = v
+}
+
+func (x *DeployDatabaseServiceDeployment) SetSubnetIds(v []string) {
+	x.SubnetIds = v
+}
+
+func (x *DeployDatabaseServiceDeployment) SetSecurityGroups(v []string) {
+	x.SecurityGroups = v
+}
+
+type DeployDatabaseServiceDeployment_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TeleportConfigString is the teleport.yaml configuration (base64 encoded) used by teleport.
+	// Required.
+	TeleportConfigString string
+	// VpcId is the VPCID where the service is going to be deployed.
+	// Required.
+	VpcId string
+	// SubnetIds are the subnets for the network configuration.
+	// They must belong to the VpcId above.
+	// Required.
+	SubnetIds []string
+	// SecurityGroups are the SecurityGroup IDs to associate with this particular deployment.
+	// If empty, the default security group for the VPC is going to be used.
+	SecurityGroups []string
+}
+
+func (b0 DeployDatabaseServiceDeployment_builder) Build() *DeployDatabaseServiceDeployment {
+	m0 := &DeployDatabaseServiceDeployment{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TeleportConfigString = b.TeleportConfigString
+	x.VpcId = b.VpcId
+	x.SubnetIds = b.SubnetIds
+	x.SecurityGroups = b.SecurityGroups
+	return m0
+}
+
 // DeployDatabaseServiceResponse contains information about the deployed service.
 type DeployDatabaseServiceResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClusterArn identifies the cluster where the deployment was made.
 	ClusterArn string `protobuf:"bytes,1,opt,name=cluster_arn,json=clusterArn,proto3" json:"cluster_arn,omitempty"`
 	// ClusterDashboardURL is a link to the Amazon ECS cluster dashboard or a
@@ -1628,11 +2366,6 @@ func (x *DeployDatabaseServiceResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeployDatabaseServiceResponse.ProtoReflect.Descriptor instead.
-func (*DeployDatabaseServiceResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{22}
-}
-
 func (x *DeployDatabaseServiceResponse) GetClusterArn() string {
 	if x != nil {
 		return x.ClusterArn
@@ -1647,9 +2380,36 @@ func (x *DeployDatabaseServiceResponse) GetClusterDashboardUrl() string {
 	return ""
 }
 
+func (x *DeployDatabaseServiceResponse) SetClusterArn(v string) {
+	x.ClusterArn = v
+}
+
+func (x *DeployDatabaseServiceResponse) SetClusterDashboardUrl(v string) {
+	x.ClusterDashboardUrl = v
+}
+
+type DeployDatabaseServiceResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClusterArn identifies the cluster where the deployment was made.
+	ClusterArn string
+	// ClusterDashboardURL is a link to the Amazon ECS cluster dashboard or a
+	// specific cluster service if a single deployment was requested.
+	ClusterDashboardUrl string
+}
+
+func (b0 DeployDatabaseServiceResponse_builder) Build() *DeployDatabaseServiceResponse {
+	m0 := &DeployDatabaseServiceResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClusterArn = b.ClusterArn
+	x.ClusterDashboardUrl = b.ClusterDashboardUrl
+	return m0
+}
+
 // ListDeployedDatabaseServicesRequest is a request for listing the deployed database services in Amazon ECS.
 type ListDeployedDatabaseServicesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -1688,11 +2448,6 @@ func (x *ListDeployedDatabaseServicesRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDeployedDatabaseServicesRequest.ProtoReflect.Descriptor instead.
-func (*ListDeployedDatabaseServicesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{23}
-}
-
 func (x *ListDeployedDatabaseServicesRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -1714,9 +2469,45 @@ func (x *ListDeployedDatabaseServicesRequest) GetNextToken() string {
 	return ""
 }
 
+func (x *ListDeployedDatabaseServicesRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *ListDeployedDatabaseServicesRequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *ListDeployedDatabaseServicesRequest) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListDeployedDatabaseServicesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string
+}
+
+func (b0 ListDeployedDatabaseServicesRequest_builder) Build() *ListDeployedDatabaseServicesRequest {
+	m0 := &ListDeployedDatabaseServicesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // DeployedDatabaseService contains a database service that was deployed to Amazon ECS.
 type DeployedDatabaseService struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the Amazon ECS Service name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// ServiceDashboardURL is a link to the Amazon ECS Service dashboard.
@@ -1754,11 +2545,6 @@ func (x *DeployedDatabaseService) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeployedDatabaseService.ProtoReflect.Descriptor instead.
-func (*DeployedDatabaseService) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{24}
-}
-
 func (x *DeployedDatabaseService) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1787,9 +2573,49 @@ func (x *DeployedDatabaseService) GetContainerCommand() []string {
 	return nil
 }
 
+func (x *DeployedDatabaseService) SetName(v string) {
+	x.Name = v
+}
+
+func (x *DeployedDatabaseService) SetServiceDashboardUrl(v string) {
+	x.ServiceDashboardUrl = v
+}
+
+func (x *DeployedDatabaseService) SetContainerEntryPoint(v []string) {
+	x.ContainerEntryPoint = v
+}
+
+func (x *DeployedDatabaseService) SetContainerCommand(v []string) {
+	x.ContainerCommand = v
+}
+
+type DeployedDatabaseService_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the Amazon ECS Service name.
+	Name string
+	// ServiceDashboardURL is a link to the Amazon ECS Service dashboard.
+	ServiceDashboardUrl string
+	// ContainerEntryPoint is the entry point for the container 0 that is running in the ECS Task.
+	ContainerEntryPoint []string
+	// ContainerCommand is the list of arguments that are passed into the ContainerEntryPoint.
+	ContainerCommand []string
+}
+
+func (b0 DeployedDatabaseService_builder) Build() *DeployedDatabaseService {
+	m0 := &DeployedDatabaseService{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.ServiceDashboardUrl = b.ServiceDashboardUrl
+	x.ContainerEntryPoint = b.ContainerEntryPoint
+	x.ContainerCommand = b.ContainerCommand
+	return m0
+}
+
 // ListDeployedDatabaseServicesResponse contains the list of the database services that were deployed in Amazon ECS.
 type ListDeployedDatabaseServicesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DeployedDatabaseServices contains a page of  page of EC2.
 	DeployedDatabaseServices []*DeployedDatabaseService `protobuf:"bytes,1,rep,name=deployed_database_services,json=deployedDatabaseServices,proto3" json:"deployed_database_services,omitempty"`
 	// NextToken is the token to be used to fetch the next page.
@@ -1824,11 +2650,6 @@ func (x *ListDeployedDatabaseServicesResponse) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDeployedDatabaseServicesResponse.ProtoReflect.Descriptor instead.
-func (*ListDeployedDatabaseServicesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{25}
-}
-
 func (x *ListDeployedDatabaseServicesResponse) GetDeployedDatabaseServices() []*DeployedDatabaseService {
 	if x != nil {
 		return x.DeployedDatabaseServices
@@ -1843,9 +2664,36 @@ func (x *ListDeployedDatabaseServicesResponse) GetNextToken() string {
 	return ""
 }
 
+func (x *ListDeployedDatabaseServicesResponse) SetDeployedDatabaseServices(v []*DeployedDatabaseService) {
+	x.DeployedDatabaseServices = v
+}
+
+func (x *ListDeployedDatabaseServicesResponse) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListDeployedDatabaseServicesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DeployedDatabaseServices contains a page of  page of EC2.
+	DeployedDatabaseServices []*DeployedDatabaseService
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string
+}
+
+func (b0 ListDeployedDatabaseServicesResponse_builder) Build() *ListDeployedDatabaseServicesResponse {
+	m0 := &ListDeployedDatabaseServicesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DeployedDatabaseServices = b.DeployedDatabaseServices
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // DeployServiceRequest is a request to deploy .
 type DeployServiceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -1904,11 +2752,6 @@ func (x *DeployServiceRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeployServiceRequest.ProtoReflect.Descriptor instead.
-func (*DeployServiceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *DeployServiceRequest) GetIntegration() string {
@@ -1974,9 +2817,97 @@ func (x *DeployServiceRequest) GetTeleportConfigString() string {
 	return ""
 }
 
+func (x *DeployServiceRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *DeployServiceRequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *DeployServiceRequest) SetDeploymentMode(v string) {
+	x.DeploymentMode = v
+}
+
+func (x *DeployServiceRequest) SetSecurityGroups(v []string) {
+	x.SecurityGroups = v
+}
+
+func (x *DeployServiceRequest) SetSubnetIds(v []string) {
+	x.SubnetIds = v
+}
+
+func (x *DeployServiceRequest) SetTaskRoleArn(v string) {
+	x.TaskRoleArn = v
+}
+
+func (x *DeployServiceRequest) SetTeleportVersion(v string) {
+	x.TeleportVersion = v
+}
+
+func (x *DeployServiceRequest) SetDeploymentJoinTokenName(v string) {
+	x.DeploymentJoinTokenName = v
+}
+
+func (x *DeployServiceRequest) SetTeleportConfigString(v string) {
+	x.TeleportConfigString = v
+}
+
+type DeployServiceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// DeploymentMode is the deployment name that should be applied when creating the ECS Service.
+	// Allowed modes: database-service
+	// Required.
+	DeploymentMode string
+	// SecurityGroups to apply to the service's network configuration.
+	// If empty, the default security group for the VPC is going to be used.
+	SecurityGroups []string
+	// SubnetIds are the subnets for the network configuration.
+	// Required.
+	SubnetIds []string
+	// TaskRoleARN is the AWS IAM Role received by the deployed service.
+	// Required.
+	TaskRoleArn string
+	// TeleportVersion is the teleport version to be deployed.
+	// This is used to fetch the correct tag for the teleport container image.
+	// Eg, 14.3.4 (no "v" prefix)
+	// Required.
+	TeleportVersion string
+	// DeploymentJoinTokenName is the Teleport IAM Join Token to be used by the deployed
+	// service to join the cluster.
+	// Required.
+	DeploymentJoinTokenName string
+	// TeleportConfigString is the teleport.yaml configuration (base64 encoded) used by teleport.
+	// Required.
+	TeleportConfigString string
+}
+
+func (b0 DeployServiceRequest_builder) Build() *DeployServiceRequest {
+	m0 := &DeployServiceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.DeploymentMode = b.DeploymentMode
+	x.SecurityGroups = b.SecurityGroups
+	x.SubnetIds = b.SubnetIds
+	x.TaskRoleArn = b.TaskRoleArn
+	x.TeleportVersion = b.TeleportVersion
+	x.DeploymentJoinTokenName = b.DeploymentJoinTokenName
+	x.TeleportConfigString = b.TeleportConfigString
+	return m0
+}
+
 // DeployServiceResponse contains information about the deployed service.
 type DeployServiceResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClusterArn identifies the cluster where the deployment was made.
 	ClusterArn string `protobuf:"bytes,1,opt,name=cluster_arn,json=clusterArn,proto3" json:"cluster_arn,omitempty"`
 	// ServiceARN is the Amazon ECS Cluster Service ARN created to run the task.
@@ -2014,11 +2945,6 @@ func (x *DeployServiceResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeployServiceResponse.ProtoReflect.Descriptor instead.
-func (*DeployServiceResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{27}
-}
-
 func (x *DeployServiceResponse) GetClusterArn() string {
 	if x != nil {
 		return x.ClusterArn
@@ -2047,9 +2973,49 @@ func (x *DeployServiceResponse) GetServiceDashboardUrl() string {
 	return ""
 }
 
+func (x *DeployServiceResponse) SetClusterArn(v string) {
+	x.ClusterArn = v
+}
+
+func (x *DeployServiceResponse) SetServiceArn(v string) {
+	x.ServiceArn = v
+}
+
+func (x *DeployServiceResponse) SetTaskDefinitionArn(v string) {
+	x.TaskDefinitionArn = v
+}
+
+func (x *DeployServiceResponse) SetServiceDashboardUrl(v string) {
+	x.ServiceDashboardUrl = v
+}
+
+type DeployServiceResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClusterArn identifies the cluster where the deployment was made.
+	ClusterArn string
+	// ServiceARN is the Amazon ECS Cluster Service ARN created to run the task.
+	ServiceArn string
+	// TaskDefinitionARN is the Amazon ECS Task Definition ARN created to run the Service.
+	TaskDefinitionArn string
+	// ServiceDashboardURL is a link to the service's Dashboard URL in Amazon Console.
+	ServiceDashboardUrl string
+}
+
+func (b0 DeployServiceResponse_builder) Build() *DeployServiceResponse {
+	m0 := &DeployServiceResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClusterArn = b.ClusterArn
+	x.ServiceArn = b.ServiceArn
+	x.TaskDefinitionArn = b.TaskDefinitionArn
+	x.ServiceDashboardUrl = b.ServiceDashboardUrl
+	return m0
+}
+
 // EnrollEKSClustersRequest is request to enroll EKS clusters.
 type EnrollEKSClustersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -2095,11 +3061,6 @@ func (x *EnrollEKSClustersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EnrollEKSClustersRequest.ProtoReflect.Descriptor instead.
-func (*EnrollEKSClustersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{28}
-}
-
 func (x *EnrollEKSClustersRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -2142,9 +3103,67 @@ func (x *EnrollEKSClustersRequest) GetExtraLabels() map[string]string {
 	return nil
 }
 
+func (x *EnrollEKSClustersRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *EnrollEKSClustersRequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *EnrollEKSClustersRequest) SetEksClusterNames(v []string) {
+	x.EksClusterNames = v
+}
+
+func (x *EnrollEKSClustersRequest) SetEnableAppDiscovery(v bool) {
+	x.EnableAppDiscovery = v
+}
+
+func (x *EnrollEKSClustersRequest) SetAgentVersion(v string) {
+	x.AgentVersion = v
+}
+
+func (x *EnrollEKSClustersRequest) SetExtraLabels(v map[string]string) {
+	x.ExtraLabels = v
+}
+
+type EnrollEKSClustersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// ClusterNames is names of EKS clusters to enroll.
+	// Required.
+	EksClusterNames []string
+	// EnableAppDiscovery specifies if we should enable Kubernetes App Discovery inside the enrolled EKS cluster.
+	EnableAppDiscovery bool
+	// AgentVersion is version of agent Helm chart to install on the EKS cluster.
+	// Required.
+	AgentVersion string
+	// ExtraLabels added to the enrolled clusters.
+	ExtraLabels map[string]string
+}
+
+func (b0 EnrollEKSClustersRequest_builder) Build() *EnrollEKSClustersRequest {
+	m0 := &EnrollEKSClustersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.EksClusterNames = b.EksClusterNames
+	x.EnableAppDiscovery = b.EnableAppDiscovery
+	x.AgentVersion = b.AgentVersion
+	x.ExtraLabels = b.ExtraLabels
+	return m0
+}
+
 // EnrollEKSClusterResult contains result for a single cluster enrollment.
 type EnrollEKSClusterResult struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClusterName identifies what EKS cluster this result is for.
 	EksClusterName string `protobuf:"bytes,1,opt,name=eks_cluster_name,json=eksClusterName,proto3" json:"eks_cluster_name,omitempty"`
 	// ResourceID shows what internal resource ID label was used by the Helm chart.
@@ -2190,11 +3209,6 @@ func (x *EnrollEKSClusterResult) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EnrollEKSClusterResult.ProtoReflect.Descriptor instead.
-func (*EnrollEKSClusterResult) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{29}
-}
-
 func (x *EnrollEKSClusterResult) GetEksClusterName() string {
 	if x != nil {
 		return x.EksClusterName
@@ -2223,9 +3237,57 @@ func (x *EnrollEKSClusterResult) GetIssueType() string {
 	return ""
 }
 
+func (x *EnrollEKSClusterResult) SetEksClusterName(v string) {
+	x.EksClusterName = v
+}
+
+func (x *EnrollEKSClusterResult) SetResourceId(v string) {
+	x.ResourceId = v
+}
+
+func (x *EnrollEKSClusterResult) SetError(v string) {
+	x.Error = v
+}
+
+func (x *EnrollEKSClusterResult) SetIssueType(v string) {
+	x.IssueType = v
+}
+
+type EnrollEKSClusterResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClusterName identifies what EKS cluster this result is for.
+	EksClusterName string
+	// ResourceID shows what internal resource ID label was used by the Helm chart.
+	ResourceId string
+	// Error show what error happened during enrollment. Empty if no error happened.
+	Error string
+	// IssueType contains the UserTask's issue type for well-known errors.
+	// Example of allowed values:
+	// - eks-status-not-active
+	// - eks-missing-endpoint-public-access
+	// - eks-authentication-mode-unsupported
+	// - eks-cluster-unreachable
+	// - eks-agent-not-connecting
+	// See usertasks.DiscoverEKSIssueTypes for a complete list of allowed values.
+	// Empty if no error happened, or the error is not yet handled.
+	IssueType string
+}
+
+func (b0 EnrollEKSClusterResult_builder) Build() *EnrollEKSClusterResult {
+	m0 := &EnrollEKSClusterResult{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.EksClusterName = b.EksClusterName
+	x.ResourceId = b.ResourceId
+	x.Error = b.Error
+	x.IssueType = b.IssueType
+	return m0
+}
+
 // EnrollEKSClustersResponse is a response to enrolling EKS clusters.
 type EnrollEKSClustersResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Results shows result of enrollment for each requested EKS cluster.
 	Results       []*EnrollEKSClusterResult `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2257,11 +3319,6 @@ func (x *EnrollEKSClustersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EnrollEKSClustersResponse.ProtoReflect.Descriptor instead.
-func (*EnrollEKSClustersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{30}
-}
-
 func (x *EnrollEKSClustersResponse) GetResults() []*EnrollEKSClusterResult {
 	if x != nil {
 		return x.Results
@@ -2269,11 +3326,30 @@ func (x *EnrollEKSClustersResponse) GetResults() []*EnrollEKSClusterResult {
 	return nil
 }
 
+func (x *EnrollEKSClustersResponse) SetResults(v []*EnrollEKSClusterResult) {
+	x.Results = v
+}
+
+type EnrollEKSClustersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Results shows result of enrollment for each requested EKS cluster.
+	Results []*EnrollEKSClusterResult
+}
+
+func (b0 EnrollEKSClustersResponse_builder) Build() *EnrollEKSClustersResponse {
+	m0 := &EnrollEKSClustersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Results = b.Results
+	return m0
+}
+
 // ListEC2Request is a request for a paginated list of AWS EC2 instances.
 //
 // Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 type ListEC2Request struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -2312,11 +3388,6 @@ func (x *ListEC2Request) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListEC2Request.ProtoReflect.Descriptor instead.
-func (*ListEC2Request) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{31}
-}
-
 func (x *ListEC2Request) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -2338,11 +3409,48 @@ func (x *ListEC2Request) GetNextToken() string {
 	return ""
 }
 
+func (x *ListEC2Request) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *ListEC2Request) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *ListEC2Request) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
+type ListEC2Request_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string
+}
+
+func (b0 ListEC2Request_builder) Build() *ListEC2Request {
+	m0 := &ListEC2Request{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // ListEC2Response contains a page of AWS EC2 instances represented as Nodes.
 //
 // Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 type ListEC2Response struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Servers contains the page of EC2.
 	Servers []*types.ServerV2 `protobuf:"bytes,1,rep,name=servers,proto3" json:"servers,omitempty"`
 	// NextToken is used for pagination.
@@ -2377,11 +3485,6 @@ func (x *ListEC2Response) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListEC2Response.ProtoReflect.Descriptor instead.
-func (*ListEC2Response) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{32}
-}
-
 func (x *ListEC2Response) GetServers() []*types.ServerV2 {
 	if x != nil {
 		return x.Servers
@@ -2396,9 +3499,37 @@ func (x *ListEC2Response) GetNextToken() string {
 	return ""
 }
 
+func (x *ListEC2Response) SetServers(v []*types.ServerV2) {
+	x.Servers = v
+}
+
+func (x *ListEC2Response) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
+type ListEC2Response_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Servers contains the page of EC2.
+	Servers []*types.ServerV2
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string
+}
+
+func (b0 ListEC2Response_builder) Build() *ListEC2Response {
+	m0 := &ListEC2Response{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Servers = b.Servers
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // ListEKSClustersRequest is a request for a paginated list of AWS EKS Clusters.
 type ListEKSClustersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -2437,11 +3568,6 @@ func (x *ListEKSClustersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListEKSClustersRequest.ProtoReflect.Descriptor instead.
-func (*ListEKSClustersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{33}
-}
-
 func (x *ListEKSClustersRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -2463,9 +3589,45 @@ func (x *ListEKSClustersRequest) GetNextToken() string {
 	return ""
 }
 
+func (x *ListEKSClustersRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *ListEKSClustersRequest) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *ListEKSClustersRequest) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListEKSClustersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+	// Region is the AWS Region
+	// Required.
+	Region string
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string
+}
+
+func (b0 ListEKSClustersRequest_builder) Build() *ListEKSClustersRequest {
+	m0 := &ListEKSClustersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Region = b.Region
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // EKSCluster represents an Amazon EKS Cluster.
 type EKSCluster struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of AWS EKS cluster.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Region is an AWS region.
@@ -2515,11 +3677,6 @@ func (x *EKSCluster) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EKSCluster.ProtoReflect.Descriptor instead.
-func (*EKSCluster) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *EKSCluster) GetName() string {
@@ -2578,9 +3735,83 @@ func (x *EKSCluster) GetAuthenticationMode() string {
 	return ""
 }
 
+func (x *EKSCluster) SetName(v string) {
+	x.Name = v
+}
+
+func (x *EKSCluster) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *EKSCluster) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *EKSCluster) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+func (x *EKSCluster) SetJoinLabels(v map[string]string) {
+	x.JoinLabels = v
+}
+
+func (x *EKSCluster) SetStatus(v string) {
+	x.Status = v
+}
+
+func (x *EKSCluster) SetEndpointPublicAccess(v bool) {
+	x.EndpointPublicAccess = v
+}
+
+func (x *EKSCluster) SetAuthenticationMode(v string) {
+	x.AuthenticationMode = v
+}
+
+type EKSCluster_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of AWS EKS cluster.
+	Name string
+	// Region is an AWS region.
+	Region string
+	// Arn is an AWS ARN identification of the EKS cluster.
+	Arn string
+	// Labels are labels of a EKS cluster.
+	Labels map[string]string
+	// JoinLabels are Teleport labels that should be injected into kube agent
+	// if the cluster will be enrolled into Teleport (agent installed on it).
+	JoinLabels map[string]string
+	// Status is a current status of an EKS cluster in AWS.
+	// Known values are:
+	// CREATING | ACTIVE | DELETING | FAILED | UPDATING | PENDING
+	Status string
+	// EndpointPublicAccess indicates whether this EKS Cluster is accessible publicly.
+	// If only private access is available, then the EKS Cluster can't be enrolled from Teleport Cloud.
+	EndpointPublicAccess bool
+	// AuthenticationMode is the allowed authentication mode for the cluster.
+	// Known values are:
+	// API | API_AND_CONFIG_MAP | CONFIG_MAP
+	AuthenticationMode string
+}
+
+func (b0 EKSCluster_builder) Build() *EKSCluster {
+	m0 := &EKSCluster{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Region = b.Region
+	x.Arn = b.Arn
+	x.Labels = b.Labels
+	x.JoinLabels = b.JoinLabels
+	x.Status = b.Status
+	x.EndpointPublicAccess = b.EndpointPublicAccess
+	x.AuthenticationMode = b.AuthenticationMode
+	return m0
+}
+
 // ListEKSClustersResponse contains a page of AWS EKS Clusters.
 type ListEKSClustersResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Clusters contains the page of EKS Clusters.
 	Clusters []*EKSCluster `protobuf:"bytes,1,rep,name=clusters,proto3" json:"clusters,omitempty"`
 	// NextToken is used for pagination.
@@ -2615,11 +3846,6 @@ func (x *ListEKSClustersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListEKSClustersResponse.ProtoReflect.Descriptor instead.
-func (*ListEKSClustersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{35}
-}
-
 func (x *ListEKSClustersResponse) GetClusters() []*EKSCluster {
 	if x != nil {
 		return x.Clusters
@@ -2634,9 +3860,36 @@ func (x *ListEKSClustersResponse) GetNextToken() string {
 	return ""
 }
 
+func (x *ListEKSClustersResponse) SetClusters(v []*EKSCluster) {
+	x.Clusters = v
+}
+
+func (x *ListEKSClustersResponse) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListEKSClustersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Clusters contains the page of EKS Clusters.
+	Clusters []*EKSCluster
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string
+}
+
+func (b0 ListEKSClustersResponse_builder) Build() *ListEKSClustersResponse {
+	m0 := &ListEKSClustersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Clusters = b.Clusters
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // PingRequest is a request for doing an health check against the configured integration.
 type PingRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS OIDC Integration name.
 	// Required if ARN is empty.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -2673,11 +3926,6 @@ func (x *PingRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PingRequest.ProtoReflect.Descriptor instead.
-func (*PingRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{36}
-}
-
 func (x *PingRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -2692,9 +3940,38 @@ func (x *PingRequest) GetRoleArn() string {
 	return ""
 }
 
+func (x *PingRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *PingRequest) SetRoleArn(v string) {
+	x.RoleArn = v
+}
+
+type PingRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS OIDC Integration name.
+	// Required if ARN is empty.
+	Integration string
+	// The AWS Role ARN to be used when generating the token.
+	// This is used to test another ARN before saving the Integration.
+	// Required if integration is empty.
+	RoleArn string
+}
+
+func (b0 PingRequest_builder) Build() *PingRequest {
+	m0 := &PingRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.RoleArn = b.RoleArn
+	return m0
+}
+
 // PingResponse contains the response for the Ping operation.
 type PingResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The AWS account ID number of the account that owns or contains the calling entity.
 	AccountId string `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	// The AWS ARN associated with the calling entity.
@@ -2730,11 +4007,6 @@ func (x *PingResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PingResponse.ProtoReflect.Descriptor instead.
-func (*PingResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP(), []int{37}
-}
-
 func (x *PingResponse) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
@@ -2754,6 +4026,39 @@ func (x *PingResponse) GetUserId() string {
 		return x.UserId
 	}
 	return ""
+}
+
+func (x *PingResponse) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *PingResponse) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *PingResponse) SetUserId(v string) {
+	x.UserId = v
+}
+
+type PingResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The AWS account ID number of the account that owns or contains the calling entity.
+	AccountId string
+	// The AWS ARN associated with the calling entity.
+	Arn string
+	// The unique identifier of the calling entity.
+	UserId string
+}
+
+func (b0 PingResponse_builder) Build() *PingResponse {
+	m0 := &PingResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AccountId = b.AccountId
+	x.Arn = b.Arn
+	x.UserId = b.UserId
+	return m0
 }
 
 var File_teleport_integration_v1_awsoidc_service_proto protoreflect.FileDescriptor
@@ -2983,18 +4288,6 @@ const file_teleport_integration_v1_awsoidc_service_proto_rawDesc = "" +
 	"\aListEC2\x12'.teleport.integration.v1.ListEC2Request\x1a(.teleport.integration.v1.ListEC2Response\"\x03\x88\x02\x01\x12t\n" +
 	"\x0fListEKSClusters\x12/.teleport.integration.v1.ListEKSClustersRequest\x1a0.teleport.integration.v1.ListEKSClustersResponse\x12S\n" +
 	"\x04Ping\x12$.teleport.integration.v1.PingRequest\x1a%.teleport.integration.v1.PingResponseBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1b\x06proto3"
-
-var (
-	file_teleport_integration_v1_awsoidc_service_proto_rawDescOnce sync.Once
-	file_teleport_integration_v1_awsoidc_service_proto_rawDescData []byte
-)
-
-func file_teleport_integration_v1_awsoidc_service_proto_rawDescGZIP() []byte {
-	file_teleport_integration_v1_awsoidc_service_proto_rawDescOnce.Do(func() {
-		file_teleport_integration_v1_awsoidc_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_integration_v1_awsoidc_service_proto_rawDesc), len(file_teleport_integration_v1_awsoidc_service_proto_rawDesc)))
-	})
-	return file_teleport_integration_v1_awsoidc_service_proto_rawDescData
-}
 
 var file_teleport_integration_v1_awsoidc_service_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_teleport_integration_v1_awsoidc_service_proto_goTypes = []any{

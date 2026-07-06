@@ -160,13 +160,13 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 		return nil, trail.ToGRPC(err)
 	}
 
-	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
+	if req.GetUseSearchAsRoles() || req.GetUsePreviewAsRoles() {
 		var extraRoles []string
-		if req.UseSearchAsRoles {
-			allowedSearchAsRoles := userContext.Checker.GetAllowedSearchAsRolesForKubeResourceKind(req.ResourceType)
+		if req.GetUseSearchAsRoles() {
+			allowedSearchAsRoles := userContext.Checker.GetAllowedSearchAsRolesForKubeResourceKind(req.GetResourceType())
 			extraRoles = append(extraRoles, allowedSearchAsRoles...)
 		}
-		if req.UsePreviewAsRoles {
+		if req.GetUsePreviewAsRoles() {
 			extraRoles = append(extraRoles, userContext.Checker.GetAllowedPreviewAsRoles()...)
 		}
 
@@ -185,20 +185,20 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 	// the forwarding of the request to the correct leaf cluster if that's the case
 	// and it handles the mapping of the identity to the leaf cluster.
 	identity := userContext.UnmappedIdentity.GetIdentity()
-	identity.KubernetesCluster = req.KubernetesCluster
+	identity.KubernetesCluster = req.GetKubernetesCluster()
 	identity.Groups = userContext.Checker.RoleNames()
-	identity.RouteToCluster = req.TeleportCluster
+	identity.RouteToCluster = req.GetTeleportCluster()
 	ctx = authz.ContextWithUser(ctx, authz.WrapIdentity(identity)) // wrap the identity in the context
 
 	switch {
 	case requiresFakePagination(req):
 		rsp, err := s.listResourcesUsingFakePagination(ctx, req)
 		return rsp, trail.ToGRPC(err)
-	case slices.Contains(types.KubernetesResourcesKinds, req.ResourceType) || strings.HasPrefix(req.ResourceType, types.AccessRequestPrefixKindKube):
+	case slices.Contains(types.KubernetesResourcesKinds, req.GetResourceType()) || strings.HasPrefix(req.GetResourceType(), types.AccessRequestPrefixKindKube):
 		rsp, err := s.listKubernetesResources(ctx, true, req)
 		return rsp, trail.ToGRPC(err)
 	default:
-		return nil, trail.ToGRPC(trace.BadParameter("unsupported resource type %q", req.ResourceType))
+		return nil, trail.ToGRPC(trace.BadParameter("unsupported resource type %q", req.GetResourceType()))
 	}
 }
 
@@ -223,11 +223,11 @@ func (s *Server) emitAuditEvent(ctx context.Context, userContext *authz.Context,
 			},
 			UserMetadata:        authz.ClientUserMetadata(ctx),
 			SearchAsRoles:       userContext.Checker.RoleNames(),
-			ResourceType:        req.ResourceType,
+			ResourceType:        req.GetResourceType(),
 			Namespace:           defaults.Namespace,
-			Labels:              req.Labels,
-			PredicateExpression: req.PredicateExpression,
-			SearchKeywords:      req.SearchKeywords,
+			Labels:              req.GetLabels(),
+			PredicateExpression: req.GetPredicateExpression(),
+			SearchKeywords:      req.GetSearchKeywords(),
 		})
 	return trace.Wrap(err)
 }
@@ -243,22 +243,22 @@ func (s *Server) listKubernetesResources(
 	respectLimit bool,
 	req *proto.ListKubernetesResourcesRequest,
 ) (*proto.ListKubernetesResourcesResponse, error) {
-	if req.KubernetesCluster == "" {
+	if req.GetKubernetesCluster() == "" {
 		return nil, trace.BadParameter("missing parameter KubernetesCluster")
 	}
-	if req.TeleportCluster == "" {
+	if req.GetTeleportCluster() == "" {
 		return nil, trace.BadParameter("missing parameter TeleportCluster")
 	}
 
-	limit := int(req.Limit)
+	limit := int(req.GetLimit())
 	filter := services.MatchResourceFilter{
-		ResourceKind:   req.ResourceType,
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
+		ResourceKind:   req.GetResourceType(),
+		Labels:         req.GetLabels(),
+		SearchKeywords: req.GetSearchKeywords(),
 	}
 
-	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceExpression(req.PredicateExpression)
+	if req.GetPredicateExpression() != "" {
+		expression, err := services.NewResourceExpression(req.GetPredicateExpression())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -271,16 +271,16 @@ func (s *Server) listKubernetesResources(
 		func(r *types.KubernetesResourceV1, continueKey string) (int, error) {
 			switch match, err := services.MatchResourceByFilters(r, filter, nil /* ignore dup matches  */); {
 			case err != nil:
-				return len(rsp.Resources), trace.Wrap(err)
+				return len(rsp.GetResources()), trace.Wrap(err)
 			case match:
-				rsp.Resources = append(rsp.Resources, r)
+				rsp.SetResources(append(rsp.GetResources(), r))
 			}
 			// repectLimit is true only if we do not require the fake pagination field.
-			if len(rsp.Resources) == limit && respectLimit {
-				rsp.NextKey = continueKey
-				return len(rsp.Resources), errDone
+			if len(rsp.GetResources()) == limit && respectLimit {
+				rsp.SetNextKey(continueKey)
+				return len(rsp.GetResources()), errDone
 			}
-			return len(rsp.Resources), nil
+			return len(rsp.GetResources()), nil
 		},
 	)
 	return rsp, trace.Wrap(err)
@@ -377,11 +377,11 @@ func (s *Server) iterateKubernetesResources(
 	kubeDynamicClient := s.kubeDynamicClient
 
 	// Pagination.
-	continueKey := req.StartKey
+	continueKey := req.GetStartKey()
 	itemsAppended := 0
 
 	// Unknown resources.
-	resourceType := req.ResourceType
+	resourceType := req.GetResourceType()
 	apiGroup := ""
 	version := ""
 
@@ -392,29 +392,29 @@ func (s *Server) iterateKubernetesResources(
 			items           []kObject
 			nextContinueKey string
 			listOpts        = metav1.ListOptions{
-				Limit:    decideLimit(int64(req.Limit), int64(itemsAppended), respectLimit),
+				Limit:    decideLimit(int64(req.GetLimit()), int64(itemsAppended), respectLimit),
 				Continue: continueKey,
 			}
 		)
 
 		// TODO(@creack): DELETE IN v20.0.0 when we no longer support tsh v18.
-		switch req.ResourceType {
+		switch req.GetResourceType() {
 		case types.KindKubePod:
-			lItems, err := kubeClient.CoreV1().Pods(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().Pods(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeSecret:
-			lItems, err := kubeClient.CoreV1().Secrets(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().Secrets(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeConfigmap:
-			lItems, err := kubeClient.CoreV1().ConfigMaps(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().ConfigMaps(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -429,14 +429,14 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeService:
-			lItems, err := kubeClient.CoreV1().Services(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().Services(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeServiceAccount:
-			lItems, err := kubeClient.CoreV1().ServiceAccounts(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().ServiceAccounts(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -459,35 +459,35 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubePersistentVolumeClaim:
-			lItems, err := kubeClient.CoreV1().PersistentVolumeClaims(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().PersistentVolumeClaims(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeDeployment:
-			lItems, err := kubeClient.AppsV1().Deployments(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.AppsV1().Deployments(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeReplicaSet:
-			lItems, err := kubeClient.AppsV1().ReplicaSets(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.AppsV1().ReplicaSets(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeStatefulset:
-			lItems, err := kubeClient.AppsV1().StatefulSets(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.AppsV1().StatefulSets(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeDaemonSet:
-			lItems, err := kubeClient.AppsV1().DaemonSets(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.AppsV1().DaemonSets(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -502,7 +502,7 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeRole:
-			lItems, err := kubeClient.RbacV1().Roles(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.RbacV1().Roles(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -517,21 +517,21 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeRoleBinding:
-			lItems, err := kubeClient.RbacV1().RoleBindings(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.RbacV1().RoleBindings(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeCronjob:
-			lItems, err := kubeClient.BatchV1().CronJobs(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.BatchV1().CronJobs(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeJob:
-			lItems, err := kubeClient.BatchV1().Jobs(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.BatchV1().Jobs(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -546,7 +546,7 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeIngress:
-			lItems, err := kubeClient.NetworkingV1().Ingresses(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.NetworkingV1().Ingresses(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -554,7 +554,7 @@ func (s *Server) iterateKubernetesResources(
 			nextContinueKey = lItems.Continue
 		default:
 			// If we don't have a known legacy value, we expect a 'kube:' prefix.
-			if !strings.HasPrefix(req.ResourceType, types.AccessRequestPrefixKindKube) {
+			if !strings.HasPrefix(req.GetResourceType(), types.AccessRequestPrefixKindKube) {
 				return trace.BadParameter("unsupported resource type %q", resourceType)
 			}
 
@@ -565,7 +565,7 @@ func (s *Server) iterateKubernetesResources(
 				// TODO(@creack): Consider caching the discovery. Needs to be periodically invalidated.
 				// As it is only for the access request search, it is likely not heavily used and the request
 				// is between us and kube_proxy which is likely on the same host.
-				gk := schema.ParseGroupKind(strings.TrimPrefix(req.ResourceType, types.AccessRequestPrefixKindKube))
+				gk := schema.ParseGroupKind(strings.TrimPrefix(req.GetResourceType(), types.AccessRequestPrefixKindKube))
 				resourceType = gk.Kind
 				g, versions, err := lookupAPIGroupVersions(ctx, kubeClient, gk)
 				if err != nil {
@@ -579,15 +579,15 @@ func (s *Server) iterateKubernetesResources(
 			}
 
 			// NOTE: The CLI sends the 'default' namespace regardless of the kind. Make sure to clear it out for globals.
-			if req.KubernetesNamespace == defaults.Namespace && isClusterWide {
-				req.KubernetesNamespace = ""
+			if req.GetKubernetesNamespace() == defaults.Namespace && isClusterWide {
+				req.SetKubernetesNamespace("")
 			}
 
 			lItems, err := kubeDynamicClient.Resource(schema.GroupVersionResource{
 				Group:    apiGroup,
 				Version:  version,
 				Resource: resourceType,
-			}).Namespace(req.KubernetesNamespace).List(ctx, listOpts)
+			}).Namespace(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -596,7 +596,7 @@ func (s *Server) iterateKubernetesResources(
 		}
 
 		for _, resource := range items {
-			resource, err := getKubernetesResourceFromKObject(resource, !isClusterWide, req.ResourceType)
+			resource, err := getKubernetesResourceFromKObject(resource, !isClusterWide, req.GetResourceType())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -689,33 +689,33 @@ func (s *Server) listResourcesUsingFakePagination(
 		err error
 	)
 	switch {
-	case slices.Contains(types.KubernetesResourcesKinds, req.ResourceType) || strings.HasPrefix(req.ResourceType, types.AccessRequestPrefixKindKube):
+	case slices.Contains(types.KubernetesResourcesKinds, req.GetResourceType()) || strings.HasPrefix(req.GetResourceType(), types.AccessRequestPrefixKindKube):
 		rsp, err = s.listKubernetesResources(ctx, false /* do not respect the limit value */, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
-		return nil, trace.BadParameter("unsupported resource type %q", req.ResourceType)
+		return nil, trace.BadParameter("unsupported resource type %q", req.GetResourceType())
 	}
 
-	sortedClusters := types.KubeResources(rsp.Resources)
-	if req.SortBy != nil {
-		if err := sortedClusters.SortByCustom(*req.SortBy); err != nil {
+	sortedClusters := types.KubeResources(rsp.GetResources())
+	if req.HasSortBy() {
+		if err := sortedClusters.SortByCustom(*req.GetSortBy()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	// map the request to the fake pagination request.
 	params := local.FakePaginateParams{
-		StartKey:       req.StartKey,
-		Limit:          req.Limit,
-		ResourceType:   req.ResourceType,
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
+		StartKey:       req.GetStartKey(),
+		Limit:          req.GetLimit(),
+		ResourceType:   req.GetResourceType(),
+		Labels:         req.GetLabels(),
+		SearchKeywords: req.GetSearchKeywords(),
 	}
 
-	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceExpression(req.PredicateExpression)
+	if req.GetPredicateExpression() != "" {
+		expression, err := services.NewResourceExpression(req.GetPredicateExpression())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -731,16 +731,16 @@ func (s *Server) listResourcesUsingFakePagination(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &proto.ListKubernetesResourcesResponse{
+	return proto.ListKubernetesResourcesResponse_builder{
 		Resources:  resources,
 		NextKey:    fakeRsp.NextKey,
 		TotalCount: int32(fakeRsp.TotalCount),
-	}, nil
+	}.Build(), nil
 }
 
 // requiresFakePagination returns true if the request requires the fake pagination.
 func requiresFakePagination(req *proto.ListKubernetesResourcesRequest) bool {
-	return req.SortBy != nil && req.SortBy.Field != "" || req.NeedTotalCount
+	return req.HasSortBy() && req.GetSortBy().Field != "" || req.GetNeedTotalCount()
 }
 
 // resourcesToKubeResources converts a list of resources to a list of Kubernetes resources.

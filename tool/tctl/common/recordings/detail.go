@@ -23,13 +23,12 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 
 	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
 const fieldLabelWidth = 20
@@ -39,120 +38,7 @@ const fieldLabelWidth = 20
 // external data (session metadata, resource names, command summaries, etc.) to
 // prevent terminal injection.
 func sanitize(s string) string {
-	var b strings.Builder
-	b.Grow(len(s))
-
-	for i := 0; i < len(s); {
-		r, size := utf8.DecodeRuneInString(s[i:])
-		if r == utf8.RuneError && size == 1 {
-			c := s[i]
-			switch {
-			case c == '\x1b':
-				i = consumeEscapeSequence(s, i+1)
-			case c == '\x90' || c == '\x98' || c == '\x9d' || c == '\x9e' || c == '\x9f':
-				i = consumeStringControl(s, i+1)
-			case c == '\x9b':
-				i = consumeCSISequence(s, i+1)
-			case c == '\n' || c == '\t':
-				b.WriteByte(c)
-				i++
-			case c < ' ' || c == '\x7f' || (c >= '\x80' && c <= '\x9f'):
-				i++
-			default:
-				b.WriteByte(c)
-				i++
-			}
-			continue
-		}
-
-		switch r {
-		case '\x1b':
-			i = consumeEscapeSequence(s, i+size)
-			continue
-		case '\u0090', '\u0098', '\u009d', '\u009e', '\u009f':
-			i = consumeStringControl(s, i+size)
-			continue
-		case '\u009b':
-			i = consumeCSISequence(s, i+size)
-			continue
-		}
-
-		if unicode.IsControl(r) && r != '\n' && r != '\t' {
-			i += size
-			continue
-		}
-
-		b.WriteString(s[i : i+size])
-		i += size
-	}
-
-	return b.String()
-}
-
-func consumeEscapeSequence(s string, i int) int {
-	if i >= len(s) {
-		return i
-	}
-
-	switch s[i] {
-	case '[':
-		return consumeCSISequence(s, i+1)
-	case ']', 'P', 'X', '^', '_':
-		return consumeStringControl(s, i+1)
-	case '(', ')', '*', '+', '-', '.', '/', '#':
-		if i+1 < len(s) {
-			return i + 2
-		}
-		return i + 1
-	}
-
-	for i < len(s) {
-		c := s[i]
-		i++
-		if c >= '\x30' && c <= '\x7e' {
-			return i
-		}
-		if c < ' ' || c > '\x7e' {
-			return i
-		}
-	}
-	return i
-}
-
-func consumeCSISequence(s string, i int) int {
-	for i < len(s) {
-		c := s[i]
-		i++
-		if c >= '\x40' && c <= '\x7e' {
-			return i
-		}
-	}
-	return i
-}
-
-func consumeStringControl(s string, i int) int {
-	for i < len(s) {
-		if s[i] == '\a' {
-			return i + 1
-		}
-		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '\\' {
-			return i + 2
-		}
-
-		r, size := utf8.DecodeRuneInString(s[i:])
-		if r == utf8.RuneError && size == 1 {
-			if s[i] == '\x9c' {
-				return i + 1
-			}
-			i++
-			continue
-		}
-		if r == '\u009c' {
-			return i + size
-		}
-		i += size
-	}
-	return i
+	return toolcommon.StripTerminalControlSequences(s)
 }
 
 // renderDetail builds the scrollable content string for the right-side detail
@@ -190,6 +76,13 @@ func renderDetail(s *sessionsearchv1pb.SessionSummary, p palette) string {
 		}
 	}
 	field("Severity", formatSeverityColored(s.GetSeverity()))
+	if reasons := s.GetNeedsFurtherReviewReasons(); len(reasons) > 0 {
+		labels := make([]string, len(reasons))
+		for i, r := range reasons {
+			labels[i] = formatReviewReason(r)
+		}
+		field("Needs Review", strings.Join(labels, "; "))
+	}
 	b.WriteString("\n")
 
 	section("User")
@@ -228,18 +121,18 @@ func renderDetail(s *sessionsearchv1pb.SessionSummary, p palette) string {
 
 	if props := s.GetResourceProperties(); props != nil {
 		b.WriteString("\n")
-		switch t := props.Type.(type) {
-		case *sessionsearchv1pb.ResourceProperties_Ssh:
+		switch props.WhichType() {
+		case sessionsearchv1pb.ResourceProperties_Ssh_case:
 			section("SSH Properties")
-			field("Hostname", t.Ssh.GetServerHostname())
-			field("Address", t.Ssh.GetServerAddr())
-		case *sessionsearchv1pb.ResourceProperties_Kubernetes:
+			field("Hostname", props.GetSsh().GetServerHostname())
+			field("Address", props.GetSsh().GetServerAddr())
+		case sessionsearchv1pb.ResourceProperties_Kubernetes_case:
 			section("Kubernetes Properties")
-			field("Namespace", t.Kubernetes.GetPodNamespace())
-			field("Pod", t.Kubernetes.GetPodName())
-		case *sessionsearchv1pb.ResourceProperties_Database:
+			field("Namespace", props.GetKubernetes().GetPodNamespace())
+			field("Pod", props.GetKubernetes().GetPodName())
+		case sessionsearchv1pb.ResourceProperties_Database_case:
 			section("Database Properties")
-			field("Database", t.Database.GetDatabaseName())
+			field("Database", props.GetDatabase().GetDatabaseName())
 		}
 	}
 
@@ -259,6 +152,24 @@ func severityColor(level summarizerv1pb.RiskLevel) lipgloss.TerminalColor {
 		return lipgloss.Color("196") // bright red
 	default:
 		return lipgloss.NoColor{}
+	}
+}
+
+// formatReviewReason converts a NeedsReviewReason to a human-readable string.
+func formatReviewReason(r summarizerv1pb.NeedsReviewReason) string {
+	switch r {
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE:
+		return "too large to fully analyze"
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED:
+		return "command analysis failed"
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST:
+		return "failed to fetch access request"
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH:
+		return "access request resource mismatch"
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED:
+		return "output not fully captured"
+	default:
+		return strings.ToLower(strings.TrimPrefix(r.String(), "NEEDS_REVIEW_REASON_"))
 	}
 }
 

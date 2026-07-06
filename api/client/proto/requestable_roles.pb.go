@@ -21,13 +21,14 @@
 // buf:lint:ignore PACKAGE_DIRECTORY_MATCH
 // buf:lint:ignore PACKAGE_VERSION_SUFFIX
 
+//go:build !protoopaque
+
 package proto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // ListRequestableRolesRequest is the request message for AuthService.ListRequestableRoles
 type ListRequestableRolesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the maximum number of requestable roles to return per page.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the next_page_token value returned from a previous List request, if any.
@@ -76,11 +77,6 @@ func (x *ListRequestableRolesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRequestableRolesRequest.ProtoReflect.Descriptor instead.
-func (*ListRequestableRolesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_requestable_roles_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ListRequestableRolesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -102,9 +98,53 @@ func (x *ListRequestableRolesRequest) GetFilter() *ListRequestableRolesRequest_F
 	return nil
 }
 
+func (x *ListRequestableRolesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListRequestableRolesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListRequestableRolesRequest) SetFilter(v *ListRequestableRolesRequest_Filter) {
+	x.Filter = v
+}
+
+func (x *ListRequestableRolesRequest) HasFilter() bool {
+	if x == nil {
+		return false
+	}
+	return x.Filter != nil
+}
+
+func (x *ListRequestableRolesRequest) ClearFilter() {
+	x.Filter = nil
+}
+
+type ListRequestableRolesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the maximum number of requestable roles to return per page.
+	PageSize int32
+	// page_token is the next_page_token value returned from a previous List request, if any.
+	PageToken string
+	// filter is the filtering options for the returned roles.
+	Filter *ListRequestableRolesRequest_Filter
+}
+
+func (b0 ListRequestableRolesRequest_builder) Build() *ListRequestableRolesRequest {
+	m0 := &ListRequestableRolesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.Filter = b.Filter
+	return m0
+}
+
 // ListRequestableRolesResponse is the response message for AuthService.ListRequestableRoles
 type ListRequestableRolesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// roles is the requestable roles.
 	Roles []*ListRequestableRolesResponse_RequestableRole `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
 	// next_page_token is the next page token. If there are no more results, it will be empty.
@@ -138,11 +178,6 @@ func (x *ListRequestableRolesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRequestableRolesResponse.ProtoReflect.Descriptor instead.
-func (*ListRequestableRolesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_requestable_roles_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ListRequestableRolesResponse) GetRoles() []*ListRequestableRolesResponse_RequestableRole {
 	if x != nil {
 		return x.Roles
@@ -157,9 +192,35 @@ func (x *ListRequestableRolesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListRequestableRolesResponse) SetRoles(v []*ListRequestableRolesResponse_RequestableRole) {
+	x.Roles = v
+}
+
+func (x *ListRequestableRolesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListRequestableRolesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// roles is the requestable roles.
+	Roles []*ListRequestableRolesResponse_RequestableRole
+	// next_page_token is the next page token. If there are no more results, it will be empty.
+	NextPageToken string
+}
+
+func (b0 ListRequestableRolesResponse_builder) Build() *ListRequestableRolesResponse {
+	m0 := &ListRequestableRolesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Roles = b.Roles
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Filter is the type for the filtering options for the returned roles.
 type ListRequestableRolesRequest_Filter struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// a list of search keywords to match against resource field values, if specified
 	SearchKeywords []string `protobuf:"bytes,1,rep,name=search_keywords,json=searchKeywords,proto3" json:"search_keywords,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -191,11 +252,6 @@ func (x *ListRequestableRolesRequest_Filter) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRequestableRolesRequest_Filter.ProtoReflect.Descriptor instead.
-func (*ListRequestableRolesRequest_Filter) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_requestable_roles_proto_rawDescGZIP(), []int{0, 0}
-}
-
 func (x *ListRequestableRolesRequest_Filter) GetSearchKeywords() []string {
 	if x != nil {
 		return x.SearchKeywords
@@ -203,9 +259,28 @@ func (x *ListRequestableRolesRequest_Filter) GetSearchKeywords() []string {
 	return nil
 }
 
+func (x *ListRequestableRolesRequest_Filter) SetSearchKeywords(v []string) {
+	x.SearchKeywords = v
+}
+
+type ListRequestableRolesRequest_Filter_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// a list of search keywords to match against resource field values, if specified
+	SearchKeywords []string
+}
+
+func (b0 ListRequestableRolesRequest_Filter_builder) Build() *ListRequestableRolesRequest_Filter {
+	m0 := &ListRequestableRolesRequest_Filter{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SearchKeywords = b.SearchKeywords
+	return m0
+}
+
 // RequestableRole is the type of a requestable role, containing only its name and description.
 type ListRequestableRolesResponse_RequestableRole struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -237,11 +312,6 @@ func (x *ListRequestableRolesResponse_RequestableRole) ProtoReflect() protorefle
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRequestableRolesResponse_RequestableRole.ProtoReflect.Descriptor instead.
-func (*ListRequestableRolesResponse_RequestableRole) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_requestable_roles_proto_rawDescGZIP(), []int{1, 0}
-}
-
 func (x *ListRequestableRolesResponse_RequestableRole) GetName() string {
 	if x != nil {
 		return x.Name
@@ -254,6 +324,30 @@ func (x *ListRequestableRolesResponse_RequestableRole) GetDescription() string {
 		return x.Description
 	}
 	return ""
+}
+
+func (x *ListRequestableRolesResponse_RequestableRole) SetName(v string) {
+	x.Name = v
+}
+
+func (x *ListRequestableRolesResponse_RequestableRole) SetDescription(v string) {
+	x.Description = v
+}
+
+type ListRequestableRolesResponse_RequestableRole_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Name        string
+	Description string
+}
+
+func (b0 ListRequestableRolesResponse_RequestableRole_builder) Build() *ListRequestableRolesResponse_RequestableRole {
+	m0 := &ListRequestableRolesResponse_RequestableRole{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Description = b.Description
+	return m0
 }
 
 var File_teleport_legacy_client_proto_requestable_roles_proto protoreflect.FileDescriptor
@@ -274,18 +368,6 @@ const file_teleport_legacy_client_proto_requestable_roles_proto_rawDesc = "" +
 	"\x0fRequestableRole\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescriptionB4Z2github.com/gravitational/teleport/api/client/protob\x06proto3"
-
-var (
-	file_teleport_legacy_client_proto_requestable_roles_proto_rawDescOnce sync.Once
-	file_teleport_legacy_client_proto_requestable_roles_proto_rawDescData []byte
-)
-
-func file_teleport_legacy_client_proto_requestable_roles_proto_rawDescGZIP() []byte {
-	file_teleport_legacy_client_proto_requestable_roles_proto_rawDescOnce.Do(func() {
-		file_teleport_legacy_client_proto_requestable_roles_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_legacy_client_proto_requestable_roles_proto_rawDesc), len(file_teleport_legacy_client_proto_requestable_roles_proto_rawDesc)))
-	})
-	return file_teleport_legacy_client_proto_requestable_roles_proto_rawDescData
-}
 
 var file_teleport_legacy_client_proto_requestable_roles_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_legacy_client_proto_requestable_roles_proto_goTypes = []any{

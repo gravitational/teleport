@@ -70,20 +70,20 @@ func TestGetUserLoginStates(t *testing.T) {
 
 	getResp, err := svc.GetUserLoginStates(ctx, &userloginstatepb.GetUserLoginStatesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, getResp.UserLoginStates)
+	require.Empty(t, getResp.GetUserLoginStates())
 
 	uls1 := newUserLoginState(t, "1", nil, stRoles, stTraits, stRoles, stTraits)
 	uls2 := newUserLoginState(t, "2", nil, stRoles, stTraits, stRoles, stTraits)
 
-	_, err = svc.UpsertUserLoginState(ctx, &userloginstatepb.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
+	_, err = svc.UpsertUserLoginState(ctx, userloginstatepb.UpsertUserLoginStateRequest_builder{UserLoginState: conv.ToProto(uls1)}.Build())
 	require.NoError(t, err)
 
-	_, err = svc.UpsertUserLoginState(ctx, &userloginstatepb.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls2)})
+	_, err = svc.UpsertUserLoginState(ctx, userloginstatepb.UpsertUserLoginStateRequest_builder{UserLoginState: conv.ToProto(uls2)}.Build())
 	require.NoError(t, err)
 
 	getResp, err = svc.GetUserLoginStates(ctx, &userloginstatepb.GetUserLoginStatesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*userloginstate.UserLoginState{uls1, uls2}, mustFromProtoAll(t, getResp.UserLoginStates...), cmpOpts...))
+	require.Empty(t, cmp.Diff([]*userloginstate.UserLoginState{uls1, uls2}, mustFromProtoAll(t, getResp.GetUserLoginStates()...), cmpOpts...))
 
 	_, err = svc.GetUserLoginStates(noAccessCtx, &userloginstatepb.GetUserLoginStatesRequest{})
 	require.True(t, trace.IsAccessDenied(err))
@@ -96,20 +96,20 @@ func TestUpsertUserLoginStates(t *testing.T) {
 
 	getResp, err := svc.GetUserLoginStates(ctx, &userloginstatepb.GetUserLoginStatesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, getResp.UserLoginStates)
+	require.Empty(t, getResp.GetUserLoginStates())
 
 	uls1 := newUserLoginState(t, "1", nil, stRoles, stTraits, stRoles, stTraits)
 	uls2 := newUserLoginState(t, "2", nil, stRoles, stTraits, stRoles, stTraits)
 
-	_, err = svc.UpsertUserLoginState(ctx, &userloginstatepb.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
+	_, err = svc.UpsertUserLoginState(ctx, userloginstatepb.UpsertUserLoginStateRequest_builder{UserLoginState: conv.ToProto(uls1)}.Build())
 	require.NoError(t, err)
 
-	_, err = svc.UpsertUserLoginState(noAccessCtx, &userloginstatepb.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls2)})
+	_, err = svc.UpsertUserLoginState(noAccessCtx, userloginstatepb.UpsertUserLoginStateRequest_builder{UserLoginState: conv.ToProto(uls2)}.Build())
 	require.True(t, trace.IsAccessDenied(err))
 
 	getResp, err = svc.GetUserLoginStates(ctx, &userloginstatepb.GetUserLoginStatesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*userloginstate.UserLoginState{uls1}, mustFromProtoAll(t, getResp.UserLoginStates...), cmpOpts...))
+	require.Empty(t, cmp.Diff([]*userloginstate.UserLoginState{uls1}, mustFromProtoAll(t, getResp.GetUserLoginStates()...), cmpOpts...))
 }
 
 func TestGetUserLoginState(t *testing.T) {
@@ -119,22 +119,22 @@ func TestGetUserLoginState(t *testing.T) {
 
 	getResp, err := svc.GetUserLoginStates(ctx, &userloginstatepb.GetUserLoginStatesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, getResp.UserLoginStates)
+	require.Empty(t, getResp.GetUserLoginStates())
 
 	uls1 := newUserLoginState(t, "1", nil, stRoles, stTraits, stRoles, stTraits)
 
-	_, err = svc.UpsertUserLoginState(ctx, &userloginstatepb.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
+	_, err = svc.UpsertUserLoginState(ctx, userloginstatepb.UpsertUserLoginStateRequest_builder{UserLoginState: conv.ToProto(uls1)}.Build())
 	require.NoError(t, err)
 
-	get, err := svc.GetUserLoginState(ctx, &userloginstatepb.GetUserLoginStateRequest{
+	get, err := svc.GetUserLoginState(ctx, userloginstatepb.GetUserLoginStateRequest_builder{
 		Name: uls1.GetName(),
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(uls1, mustFromProto(t, get), cmpOpts...))
 
-	_, err = svc.GetUserLoginState(noAccessCtx, &userloginstatepb.GetUserLoginStateRequest{
+	_, err = svc.GetUserLoginState(noAccessCtx, userloginstatepb.GetUserLoginStateRequest_builder{
 		Name: uls1.GetName(),
-	})
+	}.Build())
 	require.True(t, trace.IsAccessDenied(err))
 }
 
@@ -145,23 +145,23 @@ func TestDeleteUserLoginState(t *testing.T) {
 
 	getResp, err := svc.GetUserLoginStates(ctx, &userloginstatepb.GetUserLoginStatesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, getResp.UserLoginStates)
+	require.Empty(t, getResp.GetUserLoginStates())
 
 	uls1 := newUserLoginState(t, "1", nil, stRoles, stTraits, stRoles, stTraits)
 
-	_, err = svc.UpsertUserLoginState(ctx, &userloginstatepb.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
+	_, err = svc.UpsertUserLoginState(ctx, userloginstatepb.UpsertUserLoginStateRequest_builder{UserLoginState: conv.ToProto(uls1)}.Build())
 	require.NoError(t, err)
 
-	get, err := svc.GetUserLoginState(ctx, &userloginstatepb.GetUserLoginStateRequest{
+	get, err := svc.GetUserLoginState(ctx, userloginstatepb.GetUserLoginStateRequest_builder{
 		Name: uls1.GetName(),
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(uls1, mustFromProto(t, get), cmpOpts...))
 
-	_, err = svc.DeleteUserLoginState(ctx, &userloginstatepb.DeleteUserLoginStateRequest{Name: uls1.GetName()})
+	_, err = svc.DeleteUserLoginState(ctx, userloginstatepb.DeleteUserLoginStateRequest_builder{Name: uls1.GetName()}.Build())
 	require.NoError(t, err)
 
-	_, err = svc.GetUserLoginState(ctx, &userloginstatepb.GetUserLoginStateRequest{Name: uls1.GetName()})
+	_, err = svc.GetUserLoginState(ctx, userloginstatepb.GetUserLoginStateRequest_builder{Name: uls1.GetName()}.Build())
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -172,27 +172,27 @@ func TestDeleteAllAccessLists(t *testing.T) {
 
 	getResp, err := svc.GetUserLoginStates(ctx, &userloginstatepb.GetUserLoginStatesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, getResp.UserLoginStates)
+	require.Empty(t, getResp.GetUserLoginStates())
 
 	uls1 := newUserLoginState(t, "1", nil, stRoles, stTraits, stRoles, stTraits)
 	uls2 := newUserLoginState(t, "2", nil, stRoles, stTraits, stRoles, stTraits)
 
-	_, err = svc.UpsertUserLoginState(ctx, &userloginstatepb.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
+	_, err = svc.UpsertUserLoginState(ctx, userloginstatepb.UpsertUserLoginStateRequest_builder{UserLoginState: conv.ToProto(uls1)}.Build())
 	require.NoError(t, err)
 
-	_, err = svc.UpsertUserLoginState(ctx, &userloginstatepb.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls2)})
+	_, err = svc.UpsertUserLoginState(ctx, userloginstatepb.UpsertUserLoginStateRequest_builder{UserLoginState: conv.ToProto(uls2)}.Build())
 	require.NoError(t, err)
 
 	getResp, err = svc.GetUserLoginStates(ctx, &userloginstatepb.GetUserLoginStatesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*userloginstate.UserLoginState{uls1, uls2}, mustFromProtoAll(t, getResp.UserLoginStates...), cmpOpts...))
+	require.Empty(t, cmp.Diff([]*userloginstate.UserLoginState{uls1, uls2}, mustFromProtoAll(t, getResp.GetUserLoginStates()...), cmpOpts...))
 
 	_, err = svc.DeleteAllUserLoginStates(ctx, &userloginstatepb.DeleteAllUserLoginStatesRequest{})
 	require.NoError(t, err)
 
 	getResp, err = svc.GetUserLoginStates(ctx, &userloginstatepb.GetUserLoginStatesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, getResp.UserLoginStates)
+	require.Empty(t, getResp.GetUserLoginStates())
 }
 
 type testClient struct {

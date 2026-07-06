@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
+import "google/protobuf/struct.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
 
 // The collection of attributes that result from the join process.
@@ -51,6 +53,8 @@ message JoinAttrs {
   JoinAttrsAzureDevops azure_devops = 14;
   // Attributes that are specific to the Env0 (`env0`) join method.
   JoinAttrsEnv0 env0 = 15;
+  // Attributes that are specific to the generic OIDC (`generic_oidc`) join method.
+  JoinAttrsGenericOIDC generic_oidc = 16;
 }
 
 // The collection of attributes that result from the join process but are not
@@ -406,4 +410,10 @@ message JoinAttrsEnv0 {
   string deployer_email = 12;
   // A custom tag value corresponding to `env0Tag` when `ENV0_OIDC_TAG` is set.
   string env0_tag = 13;
+}
+
+// Attributes that are specific to the generic OIDC (`generic_oidc`) join method.
+message JoinAttrsGenericOIDC {
+  // A complete set of token claims.
+  google.protobuf.Struct claims = 1;
 }

@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -141,8 +142,10 @@ func TestJoinIAM(t *testing.T) {
 
 	allowedOrgIDUsingAmbientCredentials := "o-allowedorg"
 	allowedOrgIDUsingIntegrationCredentials := "o-allowedorg-integration"
+	allowedOU := "ou-1234"
 
 	exampleIntegrationName := "my-integration"
+	integrationNameWithoutAccess := "integration-without-access"
 	organizationsClientGetter := &mockAWSOrganizationsClientGetter{
 		ambientCredentialsOrgsAPI: &mockAWSOrganizationsClient{
 			getAccountOutput: &organizations.DescribeAccountOutput{
@@ -155,9 +158,13 @@ func TestJoinIAM(t *testing.T) {
 			exampleIntegrationName: &mockAWSOrganizationsClient{
 				getAccountOutput: &organizations.DescribeAccountOutput{
 					Account: &organizationstypes.Account{
-						Arn: aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgIDUsingIntegrationCredentials + "/1234"),
+						Arn:   aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgIDUsingIntegrationCredentials + "/1234"),
+						Paths: []string{allowedOrgIDUsingIntegrationCredentials + "/rootid/" + allowedOU + "/ou-1234-123/1234"},
 					},
 				},
+			},
+			integrationNameWithoutAccess: &mockAWSOrganizationsClient{
+				getAccountError: trace.NotFound("AccountNotFoundException"),
 			},
 		},
 	}
@@ -166,6 +173,7 @@ func TestJoinIAM(t *testing.T) {
 		Auth: authtest.AuthServerConfig{
 			Dir:                          t.TempDir(),
 			AWSOrganizationsClientGetter: organizationsClientGetter,
+			ScopesFeatures:               scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -173,8 +181,9 @@ func TestJoinIAM(t *testing.T) {
 
 	fipsServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:  t.TempDir(),
-			FIPS: true,
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
+			FIPS:           true,
 		},
 	})
 	require.NoError(t, err)
@@ -246,6 +255,60 @@ func TestJoinIAM(t *testing.T) {
 				Allow: []*types.TokenRule{
 					{
 						AWSOrganizationID: allowedOrgIDUsingIntegrationCredentials,
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "with integration and rule with organization, but access is granted with explicit account id",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Integration: integrationNameWithoutAccess,
+				Roles:       []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: allowedOrgIDUsingIntegrationCredentials,
+					},
+					{
+						AWSAccount: "1234",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "using organizations and organizational units matcherwith integration credentials",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Integration: exampleIntegrationName,
+				Roles:       []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: allowedOrgIDUsingIntegrationCredentials,
+						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Include: []string{allowedOU},
+						},
 					},
 				},
 				JoinMethod: types.JoinMethodIAM,
@@ -806,26 +869,26 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 		assert.NoError(t, tc.authServer.Auth().DeleteToken(ctx, token.GetName()))
 	})
 
-	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
 		Scope: "/test",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "scoped_" + token.GetName(),
-		},
-		Spec: &joiningv1.ScopedTokenSpec{
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
 			AssignedScope: "/test/one",
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = tc.authServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+	_, err = tc.authServer.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 		Token: scopedToken,
-	})
+	}.Build())
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, err := tc.authServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+		_, err := tc.authServer.Auth().DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
 			Name: scopedToken.GetMetadata().GetName(),
-		})
+		}.Build())
 		require.NoError(t, err)
 	})
 
@@ -906,6 +969,7 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 						RemoteAddr: "127.0.0.1",
 					},
 					Role:      "Instance",
+					Roles:     []string{types.RoleNode.String()},
 					Method:    "iam",
 					NodeName:  "test-node",
 					TokenName: "test-token",
@@ -959,6 +1023,8 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 					Method:    "iam",
 					NodeName:  "test-node",
 					TokenName: "scoped_test-token",
+					Scope:     "/test/one",
+					Roles:     []string{types.RoleNode.String()},
 				},
 				evt,
 				protocmp.Transform(),

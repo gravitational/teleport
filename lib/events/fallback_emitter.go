@@ -148,7 +148,7 @@ func (f *FallbackEmitter) EmitAuditEvent(ctx context.Context, event apievents.Au
 		"event_code", event.GetCode(),
 		"error", err,
 	)
-	if qerr := f.queue.Enqueue(ctx, event); qerr != nil {
+	if qerr := f.queue.Enqueue(event); qerr != nil {
 		slog.ErrorContext(ctx,
 			"Failed to enqueue audit event to the local fallback queue.",
 			"event_type", event.GetType(),

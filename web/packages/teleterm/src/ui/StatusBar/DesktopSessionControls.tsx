@@ -24,6 +24,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import ActionMenu from 'shared/components/DesktopSession/ActionMenu';
 import { AlertDropdown } from 'shared/components/DesktopSession/AlertDropdown';
 import type { DesktopSessionControlsRenderProps } from 'shared/components/DesktopSession/DesktopSession';
+import { SessionSettings } from 'shared/components/DesktopSession/SessionSettings';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 
 import { statusBarHeight } from './constants';
@@ -38,6 +39,8 @@ export function DesktopSessionControls({
   const iconColor = (active: boolean) =>
     active ? theme.colors.text.main : theme.colors.text.muted;
 
+  const isSharingDirectory = controls.sharedDirectories.length > 0;
+
   return (
     <Inset>
       <Box mx={2}>
@@ -49,14 +52,14 @@ export function DesktopSessionControls({
       <HoverTooltip
         tipContent={directorySharingTooltip(
           controls.canShareDirectory,
-          controls.isSharingDirectory
+          isSharingDirectory
         )}
         placement="top"
       >
         <FolderShared
           size="small"
           padding="8px"
-          color={iconColor(controls.isSharingDirectory)}
+          color={iconColor(isSharingDirectory)}
         />
       </HoverTooltip>
       <HoverTooltip
@@ -79,11 +82,16 @@ export function DesktopSessionControls({
         />
       )}
       <Divider />
+      <SessionSettings
+        hiDpiEnabled={controls.hiDpiEnabled}
+        onToggleHiDpi={controls.onToggleHiDpi}
+        screenIsHiDpi={controls.screenIsHiDpi}
+        hiDpiSupported={controls.hiDpiSupported}
+        openUpward
+      />
       <ActionMenu
-        showShareDirectory={
-          controls.canShareDirectory && !controls.isSharingDirectory
-        }
-        onShareDirectory={controls.onShareDirectory}
+        showShareDirectory={controls.canShareDirectory && !isSharingDirectory}
+        onShareDirectory={controls.onAddSharedDirectory}
         onCtrlAltDel={controls.onCtrlAltDel}
         onDisconnect={controls.onDisconnect}
         openUpward

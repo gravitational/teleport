@@ -219,11 +219,12 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
 	setAppSessionCookies(w, ws, 0)
 
+	// TODO (avatus) re-enable dbsc after spec change is in https://github.com/gravitational/teleport/pull/68354
 	// Set DBSC registration header to trigger device-bound session credentials.
 	// The browser will generate a key pair and POST to the registration endpoint.
-	if err := h.setDBSCRegistrationHeader(r.Context(), w, req.CookieValue); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to set DBSC registration header", "error", err)
-	}
+	// if err := h.setDBSCRegistrationHeader(r.Context(), w, req.CookieValue); err != nil {
+	// 	h.logger.DebugContext(r.Context(), "Failed to set DBSC registration header", "error", err)
+	// }
 
 	requiredApps := strings.Split(req.RequiredApps, ",")
 	if len(requiredApps) <= 1 {

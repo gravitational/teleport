@@ -154,6 +154,9 @@ type Request struct {
 	// BotInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any.
 	BotInstanceID string
+	// BotScope is the scope of the bot requesting this cert, if any. Empty for
+	// unscoped bots and non-bot identities.
+	BotScope string
 	// BotInternal is a flag that indicates an identity is specifically a bot
 	// internal identity, rather than output certificates intended for direct
 	// consumption by users or user-facing bot services.
@@ -176,6 +179,9 @@ type Request struct {
 	// DelegationSessionID is the ID of the Delegation Session this certificate
 	// is being generated for.
 	DelegationSessionID string
+	// BeamID is the identifier of the Beam this certificate is being generated
+	// for, derived from the delegation session's types.BeamIDLabel label.
+	BeamID string
 	// HeadlessAuthenticationID is the ID of the headless authentication
 	// resource this certificate is being generated for.
 	HeadlessAuthenticationID string

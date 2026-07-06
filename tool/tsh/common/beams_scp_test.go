@@ -112,7 +112,7 @@ func TestBeamsSCPCommandRun(t *testing.T) {
 						time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
 						nil,
 					)
-					beam.Status.NodeId = nodeID
+					beam.GetStatus().SetNodeId(nodeID)
 					return beam, nil
 				},
 				withClusterFn: func(_ context.Context, _ *client.TeleportClient, fn func(authclient.ClientI) error) error {

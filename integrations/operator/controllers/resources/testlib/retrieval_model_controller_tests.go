@@ -42,15 +42,13 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
-var retrievalModelSpec = &summarizerv1.RetrievalModelSpec{
-	EmbeddingsProvider: &summarizerv1.RetrievalModelSpec_Bedrock{
-		Bedrock: &summarizerv1.BedrockProvider{
-			Region:         "us-west-2",
-			BedrockModelId: "amazon.titan-embed-text-v2:0",
-		},
-	},
+var retrievalModelSpec = summarizerv1.RetrievalModelSpec_builder{
+	Bedrock: summarizerv1.BedrockProvider_builder{
+		Region:         "us-west-2",
+		BedrockModelId: "amazon.titan-embed-text-v2:0",
+	}.Build(),
 	InferenceModelName: "test-inference-model",
-}
+}.Build()
 
 type retrievalModelTestingPrimitives struct {
 	setup *TestSetup
@@ -62,32 +60,32 @@ func (p *retrievalModelTestingPrimitives) Init(setup *TestSetup) {
 }
 
 func (p *retrievalModelTestingPrimitives) SetupTeleportFixtures(ctx context.Context) error {
-	model := &summarizerv1.InferenceModel{
+	model := summarizerv1.InferenceModel_builder{
 		Kind:    types.KindInferenceModel,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: retrievalModelSpec.InferenceModelName,
-		},
+		Metadata: headerv1.Metadata_builder{
+			Name: retrievalModelSpec.GetInferenceModelName(),
+		}.Build(),
 		Spec: inferenceModelSpec,
-	}
+	}.Build()
 	_, err := p.setup.TeleportClient.SummarizerClient().UpsertInferenceModel(ctx, model)
 	return trace.Wrap(err)
 }
 
 func (p *retrievalModelTestingPrimitives) CreateTeleportResource(ctx context.Context, _ string) error {
-	model := &summarizerv1.RetrievalModel{
+	model := summarizerv1.RetrievalModel_builder{
 		Kind:    types.KindRetrievalModel,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameRetrievalModel,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		},
+		}.Build(),
 		Spec: retrievalModelSpec,
-	}
+	}.Build()
 	_, err := p.setup.TeleportClient.SummarizerServiceClient().
-		CreateRetrievalModel(ctx, &summarizerv1.CreateRetrievalModelRequest{Model: model})
+		CreateRetrievalModel(ctx, summarizerv1.CreateRetrievalModelRequest_builder{Model: model}.Build())
 	return trace.Wrap(err)
 }
 
@@ -99,7 +97,7 @@ func (p *retrievalModelTestingPrimitives) GetTeleportResource(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp.Model, nil
+	return resp.GetModel(), nil
 }
 
 func (p *retrievalModelTestingPrimitives) DeleteTeleportResource(ctx context.Context, _ string) error {
@@ -147,10 +145,10 @@ func (p *retrievalModelTestingPrimitives) ModifyKubernetesResource(ctx context.C
 		return trace.Wrap(err)
 	}
 	model.Spec.EmbeddingsProvider = &summarizerv1.RetrievalModelSpec_Bedrock{
-		Bedrock: &summarizerv1.BedrockProvider{
+		Bedrock: summarizerv1.BedrockProvider_builder{
 			Region:         "us-west-1",
 			BedrockModelId: "amazon.titan-embed-text-v2:0",
-		},
+		}.Build(),
 	}
 	return trace.Wrap(p.setup.K8sClient.Update(ctx, model))
 }

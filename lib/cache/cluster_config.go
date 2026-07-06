@@ -379,13 +379,13 @@ func newAccessGraphSettingsCollection(upstream services.ClusterConfiguration, w 
 			return []*clusterconfigv1.AccessGraphSettings{set}, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *clusterconfigv1.AccessGraphSettings {
-			return &clusterconfigv1.AccessGraphSettings{
+			return clusterconfigv1.AccessGraphSettings_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
