@@ -2013,52 +2013,60 @@ func TestScopedBotWorkloadIdentity(t *testing.T) {
 
 	expectedSPIFFEID := "spiffe://" + clusterName + scopeName + "/_/" + wiName
 
-	// The x509 output should write an SVID with a SPIFFE ID inside the bot's
-	// scope.
-	var svid *x509svid.SVID
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		var err error
-		svid, err = x509svid.Load(
-			filepath.Join(tmpDir, internal.SVIDPEMPath),
-			filepath.Join(tmpDir, internal.SVIDKeyPEMPath),
-		)
-		require.NoError(t, err)
-	}, 10*time.Second, 100*time.Millisecond)
-	require.Equal(t, expectedSPIFFEID, svid.ID.String())
-
-	// The same WorkloadIdentity should be fetchable over the workload API
-	// socket.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := os.Stat(listenURL.Path)
-		require.NoError(t, err)
-	}, 10*time.Second, 100*time.Millisecond)
-	apiClient, err := workloadapi.New(ctx, workloadapi.WithAddr(listenURL.String()))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = apiClient.Close() })
-	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClient(apiClient))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = source.Close() })
-	apiSVID, err := source.GetX509SVID()
-	require.NoError(t, err)
-	require.Equal(t, expectedSPIFFEID, apiSVID.ID.String())
-
-	// The jwt output should write a JWT SVID with the same scoped SPIFFE ID.
-	var jwt *jwtsvid.SVID
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		jwtBytes, err := os.ReadFile(filepath.Join(jwtDir, internal.JWTSVIDPath))
-		require.NoError(t, err)
-		jwt, err = jwtsvid.ParseInsecure(string(jwtBytes), []string{audience})
-		require.NoError(t, err)
-	}, 10*time.Second, 100*time.Millisecond)
-	require.Equal(t, expectedSPIFFEID, jwt.ID.String())
-
-	// JWT SVIDs fetched over the workload API socket should also carry the
-	// scoped SPIFFE ID.
-	apiJWTSVID, err := apiClient.FetchJWTSVID(ctx, jwtsvid.Params{
-		Audience: audience,
+	t.Run("x509 output", func(t *testing.T) {
+		// The x509 output should write an SVID with a SPIFFE ID inside the
+		// bot's scope.
+		var svid *x509svid.SVID
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			var err error
+			svid, err = x509svid.Load(
+				filepath.Join(tmpDir, internal.SVIDPEMPath),
+				filepath.Join(tmpDir, internal.SVIDKeyPEMPath),
+			)
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		require.Equal(t, expectedSPIFFEID, svid.ID.String())
 	})
-	require.NoError(t, err)
-	require.Equal(t, expectedSPIFFEID, apiJWTSVID.ID.String())
+
+	t.Run("jwt output", func(t *testing.T) {
+		// The jwt output should write a JWT SVID with the same scoped SPIFFE
+		// ID.
+		var jwt *jwtsvid.SVID
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			jwtBytes, err := os.ReadFile(filepath.Join(jwtDir, internal.JWTSVIDPath))
+			require.NoError(t, err)
+			jwt, err = jwtsvid.ParseInsecure(string(jwtBytes), []string{audience})
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		require.Equal(t, expectedSPIFFEID, jwt.ID.String())
+	})
+
+	t.Run("workload api", func(t *testing.T) {
+		ctx := t.Context()
+
+		// X.509 and JWT SVIDs fetched over the workload API socket should
+		// carry the same scoped SPIFFE ID.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err := os.Stat(listenURL.Path)
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		apiClient, err := workloadapi.New(ctx, workloadapi.WithAddr(listenURL.String()))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = apiClient.Close() })
+
+		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClient(apiClient))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = source.Close() })
+		apiSVID, err := source.GetX509SVID()
+		require.NoError(t, err)
+		require.Equal(t, expectedSPIFFEID, apiSVID.ID.String())
+
+		apiJWTSVID, err := apiClient.FetchJWTSVID(ctx, jwtsvid.Params{
+			Audience: audience,
+		})
+		require.NoError(t, err)
+		require.Equal(t, expectedSPIFFEID, apiJWTSVID.ID.String())
+	})
 }
 
 func waitForSRACache(t *testing.T, authServer *auth.Server, resps ...*scopedaccessv1.CreateScopedRoleAssignmentResponse) {
