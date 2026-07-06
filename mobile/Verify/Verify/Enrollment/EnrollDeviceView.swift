@@ -30,6 +30,8 @@ struct EnrollDeviceView: View {
 						.padding(.bottom, .small)
 						.padding(.top, .xxlarge)
 					titleBlock
+					EventStackView(viewModel: viewModel.eventStackViewModel)
+						.padding(.vertical, .medium)
 				}
 				.multilineTextAlignment(.center)
 				.frame(maxHeight: .infinity, alignment: .center)
@@ -41,14 +43,6 @@ struct EnrollDeviceView: View {
 		.padding()
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
 		.background(Color.Background.depth3)
-
-		// MARK: Navigation
-
-		.navigationDestination(item: $viewModel.destination.loadingSheet) {
-			EnrollRequestStatusView(attempt: viewModel.loadingState, onDismiss: {})
-				.presentationDetents([.medium])
-				.interactiveDismissDisabled(viewModel.loadingState.isLoading)
-		}
 	}
 }
 
