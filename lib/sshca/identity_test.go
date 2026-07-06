@@ -84,6 +84,7 @@ func TestIdentityConversion(t *testing.T) {
 		Generation:    3,
 		BotName:       "bot",
 		BotInstanceID: "instance",
+		BotScope:      "/foo",
 		JoinToken:     "join-token",
 		AllowedResourceAccessIDs: []types.ResourceAccessID{{
 			Id: types.ResourceID{

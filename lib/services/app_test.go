@@ -195,6 +195,39 @@ func TestValidateApp(t *testing.T) {
 			proxyAddrs: []string{"example.com:443", "example.com:80"},
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
+		{
+			name: "valid aws region",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{
+					AWS: &types.AppAWS{
+						Region: "us-west-2",
+					},
+					LLM: &types.LLM{
+						Format:   types.LLMFormatAnthropic,
+						Provider: types.LLMProviderAWSBedrock,
+					},
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+		},
+		{
+			name: "invalid aws region",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{
+					AWS: &types.AppAWS{
+						Region: "random",
+					},
+					LLM: &types.LLM{
+						Format:   types.LLMFormatAnthropic,
+						Provider: types.LLMProviderAWSBedrock,
+					},
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+			wantErr: "invalid AWS region",
+		},
 	}
 
 	for _, tt := range tests {

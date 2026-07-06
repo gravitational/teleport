@@ -1510,6 +1510,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	require.Equal(t, "/test", ident.ScopePin.GetScope())
 	require.True(t, ident.BotInternal)
 	require.Equal(t, "example-token", ident.JoinToken)
+	require.Equal(t, "/test", ident.BotScope)
 
 	botClient := authClientForRegisterResult(t, ctx, addr, result)
 

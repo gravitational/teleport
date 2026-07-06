@@ -57,6 +57,10 @@ export const eventCodes = {
   APP_SESSION_START_FAILURE: 'T2007E',
   APP_SESSION_END: 'T2011I',
   APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
+  APP_SESSION_HTTP_REQUEST: 'T2015I',
+  APP_SESSION_HTTP_REQUEST_BODY_CHUNK: 'T2016I',
+  APP_SESSION_HTTP_RESPONSE: 'T2017I',
+  APP_SESSION_HTTP_RESPONSE_BODY_CHUNK: 'T2018I',
   APP_CREATED: 'TAP03I',
   APP_UPDATED: 'TAP04I',
   APP_DELETED: 'TAP05I',
@@ -232,6 +236,8 @@ export const eventCodes = {
   USER_UPDATED: 'T1003I',
   X11_FORWARD: 'T3008I',
   X11_FORWARD_FAILURE: 'T3008W',
+  AGENT_FORWARD: 'T3013I',
+  AGENT_FORWARD_FAILURE: 'T3013W',
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
   ENVIRONMENT_PROFILE_UPDATED: 'TEP01I',
@@ -694,6 +700,31 @@ export type RawEvents = {
     {
       sid: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_HTTP_REQUEST]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_REQUEST,
+    {
+      method: string;
+      url: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK,
+    {
+      request_id: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_HTTP_RESPONSE]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_RESPONSE,
+    {
+      status_code: number;
+    }
+  >;
+  [eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK,
+    {
+      request_id: string;
     }
   >;
   [eventCodes.APP_SESSION_CHUNK]: RawEvent<
@@ -1379,6 +1410,10 @@ export type RawEvents = {
   [eventCodes.X11_FORWARD]: RawEvent<typeof eventCodes.X11_FORWARD>;
   [eventCodes.X11_FORWARD_FAILURE]: RawEvent<
     typeof eventCodes.X11_FORWARD_FAILURE
+  >;
+  [eventCodes.AGENT_FORWARD]: RawEvent<typeof eventCodes.AGENT_FORWARD>;
+  [eventCodes.AGENT_FORWARD_FAILURE]: RawEvent<
+    typeof eventCodes.AGENT_FORWARD_FAILURE
   >;
   [eventCodes.SESSION_CONNECT]: RawEvent<
     typeof eventCodes.SESSION_CONNECT,

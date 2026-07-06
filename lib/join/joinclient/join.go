@@ -22,14 +22,11 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"os"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -49,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
@@ -58,6 +54,7 @@ type (
 	JoinResult   = authjoin.RegisterResult
 	AzureParams  = authjoin.AzureParams
 	GitlabParams = authjoin.GitlabParams
+	VersionInfo  = authjoin.VersionInfo
 )
 
 // Join is used to join a cluster. A host or bot calls this with the name of a
@@ -171,14 +168,18 @@ func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	return nil, trace.NewAggregate(errs...)
 }
 
-// checkClientVersionSupported verifies this client is compatible with the cluster
-// using the proxy's web API. It returns a [ClientTooOldError] when this client
-// is older than the advertised minimum client version, and a [ClientTooNewError]
-// when this client's major version is ahead of the cluster's. It is best-effort
-// and fails open, returning nil when the versions can't be determined. It is
-// bypassed with a warning on incompatibility when [JoinParams.SkipVersionCheck]
-// is set, which is generally set by the --skip-version-check CLI flag.
-func checkClientVersionSupported(ctx context.Context, version string, params JoinParams, proxyAddr string) error {
+// invokeVersionCallback fetches the cluster's version information using the
+// proxy's web API and passes it to the caller's callback, configured via the
+// [JoinParams.OnVersionCallback] field. It is best-effort and fails open if
+// the version information can't be fetched. It exits early, skipping the
+// fetch, if no version callback is configured.
+func invokeVersionCallback(ctx context.Context, params JoinParams, proxyAddr string) error {
+	if params.OnVersionCallback == nil {
+		params.Log.DebugContext(ctx,
+			"No version callback configured, skipping version information fetch.")
+		return nil
+	}
+
 	resp, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: proxyAddr,
@@ -186,83 +187,21 @@ func checkClientVersionSupported(ctx context.Context, version string, params Joi
 	})
 	if err != nil {
 		params.Log.WarnContext(ctx,
-			"Could not fetch the cluster's version information from the proxy's web API, skipping version check.",
+			"Could not fetch the cluster's version information from the proxy's web API, skipping version callback.",
 			"proxy_addr", proxyAddr,
 			"error", err,
 		)
 		return nil
 	}
 
-	for _, err := range []error{
-		checkClientMeetsMinVersion(version, resp.MinClientVersion),
-		checkClientMeetsMaxVersion(version, resp.ServerVersion),
-	} {
-		if err == nil {
-			continue
-		}
-		// Only a confirmed version mismatch is fatal. Parsing problems fail open so a
-		// malformed version advertised by the proxy can't block joining.
-		if !IsVersionIncompatible(err) {
-			params.Log.WarnContext(ctx,
-				"Could not determine version compatibility with the cluster, skipping check.",
-				"error", err,
-				"min_client_version", resp.MinClientVersion,
-				"server_version", resp.ServerVersion,
-				"client_version", version,
-			)
-			continue
-		}
-		if params.SkipVersionCheck {
-			params.Log.WarnContext(ctx,
-				"This client is not compatible with the cluster's version, ignoring the version check because --skip-version-check is set.",
-				"error", err,
-				"min_client_version", resp.MinClientVersion,
-				"server_version", resp.ServerVersion,
-				"client_version", version,
-			)
-			continue
-		}
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func checkClientMeetsMinVersion(clientVersion, minVersion string) error {
-	if minVersion == "" {
-		return nil
-	}
-	// Stripping the pre-release both validates the advertised minimum and yields a
-	// clean version for the user-facing error message.
-	minWithoutPreRelease, err := utils.VersionWithoutPreRelease(minVersion)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !utils.MeetsMinVersion(clientVersion, minVersion) {
-		return &ClientTooOldError{ClientVersion: clientVersion, MinVersion: minWithoutPreRelease}
-	}
-	return nil
-}
-
-func checkClientMeetsMaxVersion(clientVersion, serverVersion string) error {
-	if serverVersion == "" {
-		return nil
-	}
-	client, err := semver.NewVersion(clientVersion)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	server, err := semver.NewVersion(serverVersion)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if server.Major < client.Major {
-		return &ClientTooNewError{LocalMajorVersion: client.Major, ClusterMajorVersion: server.Major}
-	}
-	return nil
+	return trace.Wrap(params.OnVersionCallback(ctx, VersionInfo{
+		ServerVersion:    resp.ServerVersion,
+		MinClientVersion: resp.MinClientVersion,
+	}))
 }
 
 func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*JoinResult, error) {
-	if err := checkClientVersionSupported(ctx, teleport.Version, params, proxyAddr); err != nil {
+	if err := invokeVersionCallback(ctx, params, proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -667,33 +606,4 @@ func (e *LegacyJoinError) Error() string {
 
 func (e *LegacyJoinError) Unwrap() error {
 	return e.wrapped
-}
-
-// ClientTooOldError indicates this client is older than the cluster's minimum
-// client version.
-type ClientTooOldError struct {
-	ClientVersion string
-	MinVersion    string
-}
-
-func (e *ClientTooOldError) Error() string {
-	return fmt.Sprintf("this client is older than the minimum supported version required by the cluster and will not be able to connect until it is upgraded (client v%s, minimum v%s). To connect anyway pass the --skip-version-check flag.", e.ClientVersion, e.MinVersion)
-}
-
-// ClientTooNewError indicates this client is a newer major version than the cluster.
-type ClientTooNewError struct {
-	LocalMajorVersion   int64
-	ClusterMajorVersion int64
-}
-
-func (e *ClientTooNewError) Error() string {
-	return fmt.Sprintf("this client is running v%d, but the cluster is running v%d and only supports clients on v%d or v%d. To connect anyway pass the --skip-version-check flag.", e.LocalMajorVersion, e.ClusterMajorVersion, e.ClusterMajorVersion, e.ClusterMajorVersion-1)
-}
-
-// IsVersionIncompatible reports whether err indicates this client's version is
-// incompatible with the cluster, either a [ClientTooOldError] or [ClientTooNewError].
-func IsVersionIncompatible(err error) bool {
-	var tooOld *ClientTooOldError
-	var tooNew *ClientTooNewError
-	return errors.As(err, &tooOld) || errors.As(err, &tooNew)
 }

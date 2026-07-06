@@ -112,6 +112,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_X11Forward{
 			X11Forward: e,
 		}
+	case *AgentForward:
+		out.Event = &OneOf_AgentForward{
+			AgentForward: e,
+		}
 	case *Subsystem:
 		out.Event = &OneOf_Subsystem{
 			Subsystem: e,
@@ -239,6 +243,22 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *AppSessionLLMRequest:
 		out.Event = &OneOf_AppSessionLLMRequest{
 			AppSessionLLMRequest: e,
+		}
+	case *AppSessionHTTPRequest:
+		out.Event = &OneOf_AppSessionHTTPRequest{
+			AppSessionHTTPRequest: e,
+		}
+	case *AppSessionHTTPRequestBodyChunk:
+		out.Event = &OneOf_AppSessionHTTPRequestBodyChunk{
+			AppSessionHTTPRequestBodyChunk: e,
+		}
+	case *AppSessionHTTPResponse:
+		out.Event = &OneOf_AppSessionHTTPResponse{
+			AppSessionHTTPResponse: e,
+		}
+	case *AppSessionHTTPResponseBodyChunk:
+		out.Event = &OneOf_AppSessionHTTPResponseBodyChunk{
+			AppSessionHTTPResponseBodyChunk: e,
 		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{

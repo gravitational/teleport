@@ -250,6 +250,7 @@ type SSHIdentity struct {
 	xxx_hidden_DelegationSessionId      string                     `protobuf:"bytes,39,opt,name=delegation_session_id,json=delegationSessionId,proto3"`
 	xxx_hidden_HeadlessAuthenticationId string                     `protobuf:"bytes,40,opt,name=headless_authentication_id,json=headlessAuthenticationId,proto3"`
 	xxx_hidden_BeamId                   string                     `protobuf:"bytes,41,opt,name=beam_id,json=beamId,proto3"`
+	xxx_hidden_BotScope                 string                     `protobuf:"bytes,42,opt,name=bot_scope,json=botScope,proto3"`
 	unknownFields                       protoimpl.UnknownFields
 	sizeCache                           protoimpl.SizeCache
 }
@@ -574,6 +575,13 @@ func (x *SSHIdentity) GetBeamId() string {
 	return ""
 }
 
+func (x *SSHIdentity) GetBotScope() string {
+	if x != nil {
+		return x.xxx_hidden_BotScope
+	}
+	return ""
+}
+
 func (x *SSHIdentity) SetValidAfter(v uint64) {
 	x.xxx_hidden_ValidAfter = v
 }
@@ -738,6 +746,10 @@ func (x *SSHIdentity) SetBeamId(v string) {
 	x.xxx_hidden_BeamId = v
 }
 
+func (x *SSHIdentity) SetBotScope(v string) {
+	x.xxx_hidden_BotScope = v
+}
+
 func (x *SSHIdentity) HasPreviousIdentityExpires() bool {
 	if x == nil {
 		return false
@@ -874,6 +886,9 @@ type SSHIdentity_builder struct {
 	// Beam this SSH identity is associated with, derived from the delegation
 	// session's beam ID label.
 	BeamId string
+	// BotScope is the scope of the Machine ID bot this identity was issued to,
+	// if any. Empty for unscoped bots and non-bot identities.
+	BotScope string
 }
 
 func (b0 SSHIdentity_builder) Build() *SSHIdentity {
@@ -921,6 +936,7 @@ func (b0 SSHIdentity_builder) Build() *SSHIdentity {
 	x.xxx_hidden_DelegationSessionId = b.DelegationSessionId
 	x.xxx_hidden_HeadlessAuthenticationId = b.HeadlessAuthenticationId
 	x.xxx_hidden_BeamId = b.BeamId
+	x.xxx_hidden_BotScope = b.BotScope
 	return m0
 }
 
@@ -1040,7 +1056,7 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"X\n" +
 	"\fSSHAuthority\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12%\n" +
-	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\xa5\x0e\n" +
+	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\xc2\x0e\n" +
 	"\vSSHIdentity\x12\x1f\n" +
 	"\vvalid_after\x18\x01 \x01(\x04R\n" +
 	"validAfter\x12!\n" +
@@ -1091,7 +1107,8 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"\x14immutable_label_hash\x18& \x01(\tR\x12immutableLabelHash\x122\n" +
 	"\x15delegation_session_id\x18' \x01(\tR\x13delegationSessionId\x12<\n" +
 	"\x1aheadless_authentication_id\x18( \x01(\tR\x18headlessAuthenticationId\x12\x17\n" +
-	"\abeam_id\x18) \x01(\tR\x06beamId\"\xbf\x01\n" +
+	"\abeam_id\x18) \x01(\tR\x06beamId\x12\x1b\n" +
+	"\tbot_scope\x18* \x01(\tR\bbotScope\"\xbf\x01\n" +
 	"\rCertExtension\x12A\n" +
 	"\x04type\x18\x01 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionTypeR\x04type\x12A\n" +
 	"\x04mode\x18\x02 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionModeR\x04mode\x12\x12\n" +

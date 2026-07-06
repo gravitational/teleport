@@ -149,6 +149,14 @@ $ tctl create -f awsoidc-integration.yaml
 integration '<Var name="my-integration"/>' has been created
 ```
 
+To validate the integration without making a mutating AWS change, run:
+
+```code
+$ tctl integrations test <Var name="my-integration"/>
+```
+
+If the integration is working, the command returns the AWS account ID and caller ARN from AWS STS `GetCallerIdentity`.
+
 After the set up is complete, you can now use the "Enroll New Resource" flow in Teleport Web UI, or other integration dependent features.
 
 ## Next steps
