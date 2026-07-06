@@ -3033,6 +3033,38 @@ func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	})
 }
 
+func (m *AppSessionHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.Url, &out.Url),
+			newStrTrimmer(m.RawQuery, &out.RawQuery),
+			newHTTPHeadersTrimmer(m.Headers, &out.Headers),
+		}
+	})
+}
+
+func (m *AppSessionHTTPRequestBodyChunk) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPRequestBodyChunk) fieldTrimmer {
+		return newBytesTrimmer(m.Data, &out.Data)
+	})
+}
+
+func (m *AppSessionHTTPResponse) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPResponse) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.StatusText, &out.StatusText),
+			newHTTPHeadersTrimmer(m.Headers, &out.Headers),
+		}
+	})
+}
+
+func (m *AppSessionHTTPResponseBodyChunk) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPResponseBodyChunk) fieldTrimmer {
+		return newBytesTrimmer(m.Data, &out.Data)
+	})
+}
+
 func (m *BeamsConfigCreate) TrimToMaxSize(int) AuditEvent {
 	return m
 }
