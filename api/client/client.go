@@ -75,6 +75,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -6263,6 +6264,51 @@ func (c *Client) CreateAppSessionWithJWT(ctx context.Context, req *appauthconfig
 // WorkloadClustersClient returns an [workloadclusterv1.WorkloadClusterServiceClient].
 func (c *Client) WorkloadClustersClient() workloadclusterv1.WorkloadClusterServiceClient {
 	return workloadclusterv1.NewWorkloadClusterServiceClient(c.conn)
+}
+
+// ClientIPRestrictionClient returns a [clientiprestrictionv1.ClientIPRestrictionServiceClient].
+func (c *Client) ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient {
+	return clientiprestrictionv1.NewClientIPRestrictionServiceClient(c.conn)
+}
+
+// GetClientIPRestriction returns the ClientIPRestriction singleton. The name is
+// resolved server-side, so no name needs to be provided.
+func (c *Client) GetClientIPRestriction(ctx context.Context) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	resp, err := c.ClientIPRestrictionClient().GetClientIPRestriction(ctx, &clientiprestrictionv1.GetClientIPRestrictionRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
+}
+
+// CreateClientIPRestriction creates the ClientIPRestriction singleton. It fails if
+// one already exists.
+func (c *Client) CreateClientIPRestriction(ctx context.Context, cir *clientiprestrictionv1.ClientIPRestriction) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	req := &clientiprestrictionv1.CreateClientIPRestrictionRequest{}
+	req.SetClientIpRestriction(cir)
+	resp, err := c.ClientIPRestrictionClient().CreateClientIPRestriction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
+}
+
+// UpsertClientIPRestriction creates or replaces the ClientIPRestriction singleton.
+func (c *Client) UpsertClientIPRestriction(ctx context.Context, cir *clientiprestrictionv1.ClientIPRestriction) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	req := &clientiprestrictionv1.UpsertClientIPRestrictionRequest{}
+	req.SetClientIpRestriction(cir)
+	resp, err := c.ClientIPRestrictionClient().UpsertClientIPRestriction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
+}
+
+// DeleteClientIPRestriction deletes the ClientIPRestriction singleton. The name is
+// resolved server-side, so no name needs to be provided.
+func (c *Client) DeleteClientIPRestriction(ctx context.Context) error {
+	_, err := c.ClientIPRestrictionClient().DeleteClientIPRestriction(ctx, &clientiprestrictionv1.DeleteClientIPRestrictionRequest{})
+	return trace.Wrap(err)
 }
 
 // ListWorkloadClusters returns a list of WorkloadClusters.
