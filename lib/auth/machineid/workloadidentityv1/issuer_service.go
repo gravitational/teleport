@@ -177,13 +177,19 @@ func (s *IssuanceService) deriveAttrs(
 	user types.User,
 	workloadAttrs *workloadidentityv1pb.WorkloadAttrs,
 ) (*workloadidentityv1pb.Attrs, error) {
+	// user is nil for non-user identities (e.g. scoped agents); in that case,
+	// no user labels are exposed.
+	var userLabels map[string]string
+	if user != nil {
+		userLabels = user.GetAllLabels()
+	}
 	attrs := workloadidentityv1pb.Attrs_builder{
 		Workload: workloadAttrs,
 		User: workloadidentityv1pb.UserAttrs_builder{
 			Name:    identity.GetIdentity().Username,
 			IsBot:   identity.GetIdentity().BotName != "",
 			BotName: identity.GetIdentity().BotName,
-			Labels:  user.GetAllLabels(),
+			Labels:  userLabels,
 		}.Build(),
 		Join: identity.GetIdentity().JoinAttributes,
 	}.Build()
