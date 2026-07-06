@@ -71,7 +71,59 @@ func NewScopeAwareServiceWrapper[T ScopedResourceMetadata](cfg ScopeAwareService
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &ScopeAwareServiceWrapper[T]{service: service}, nil
+
+	// TODO(strideynet): I'm not super keen on the way we instantiate a scoped
+	// and unscoped ServiceWrapper here. We already instantiate a scoped and
+	// unscoped service within ScopeAwareService. It feels pretty awkward that
+	// we then have a bunch of instantiated services floating around and that
+	// each one has to be used very carefully. There's just too many layers of
+	// indirection and it's not particularly cleanly layered.
+	//
+	// I see a few alternatives:
+	//
+	// 1. Re-architect ScopedAwareServiceWrapper to no longer depend on
+	//    ScopeAwareService and instead directly use the scoped and unscoped
+	//    ServiceWrappers. This effectively leaves us with ScopeAwareService
+	//    implemented twice (so a bit of duplication), but removes a layer of
+	//    indirection.
+	// 2. Remove scopedResourceMetadataAdapter and instead add GetScope directly
+	//    to resourceMetadataAdapter. This lets us directly wrap the Service
+	//    returned by ScopeAwareService.WithScopePrefix with a ServiceWrapper?
+	//    It keeps the indirection thru ScopeAwareService but avoids us forking
+	//    and instantiating ServiceWrappers here...
+	// 3. Introduce /another/ wrapper designed to wrap the Service[T] returned
+	//    by ScopeAwareService.WithScopePrefix?
+	newSingleRangeWrapper := func(prefix backend.Key) (*ServiceWrapper[T], error) {
+		return NewServiceWrapper(ServiceConfig[T]{
+			Backend:                     cfg.Backend,
+			ResourceKind:                cfg.ResourceKind,
+			PageLimit:                   cfg.PageLimit,
+			BackendPrefix:               prefix,
+			MarshalFunc:                 cfg.MarshalFunc,
+			UnmarshalFunc:               cfg.UnmarshalFunc,
+			ValidateFunc:                cfg.ValidateFunc,
+			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		})
+	}
+
+	scopedWrapper, err := newSingleRangeWrapper(cfg.ScopedBackendPrefix)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var unscopedWrapper *ServiceWrapper[T]
+	if !cfg.ScopedOnly {
+		unscopedWrapper, err = newSingleRangeWrapper(cfg.UnscopedBackendPrefix)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &ScopeAwareServiceWrapper[T]{
+		service:         service,
+		unscopedWrapper: unscopedWrapper,
+		scopedWrapper:   scopedWrapper,
+	}, nil
 }
 
 // ScopeAwareServiceWrapperConfig holds configuration options for a
@@ -111,6 +163,34 @@ type ScopeAwareServiceWrapperConfig[T ScopedResourceMetadata] struct {
 // exported; additional methods may be exported in the future as needed.
 type ScopeAwareServiceWrapper[T ScopedResourceMetadata] struct {
 	service *ScopeAwareService[scopedResourceMetadataAdapter[T]]
+
+	// unscopedWrapper and scopedWrapper are single-range ServiceWrapper views
+	// over the same key ranges as service's unscoped and scoped halves. They
+	// exist because WithScopePrefix must return a *ServiceWrapper[T], and
+	// service's inner services are generic over the scoped adapter type rather
+	// than T. unscopedWrapper is nil when the service is scoped-only.
+	unscopedWrapper *ServiceWrapper[T]
+	scopedWrapper   *ServiceWrapper[T]
+}
+
+// WithScopePrefix returns a single-range ServiceWrapper routed by the given
+// scope: the unscoped range when the scope is empty, otherwise the scoped
+// range namespaced by the encoded scope. It is the ServiceWrapper analog of
+// ScopeAwareService.WithScopePrefix, for callers that need to address one
+// scope's key range directly — e.g. to key dependent resources under a
+// sub-prefix via WithPrefix on the returned wrapper.
+func (s *ScopeAwareServiceWrapper[T]) WithScopePrefix(scope string) (*ServiceWrapper[T], error) {
+	if scope == "" {
+		if s.unscopedWrapper == nil {
+			return nil, trace.BadParameter("scoped-only storage service received an empty scope")
+		}
+		return s.unscopedWrapper, nil
+	}
+	encodedScope, err := scopes.EncodeForKey(scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.scopedWrapper.WithPrefix(encodedScope), nil
 }
 
 // CreateResource creates the given resource if it doesn't already exist. The
