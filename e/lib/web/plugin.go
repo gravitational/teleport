@@ -445,6 +445,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	p.registerCloudHandlers()
 	p.registerSCIMHandlers()
 	p.registerSummarizerHandlers()
+	p.registerSessionSearchHandlers()
 	p.registerInferenceHandlers()
 	p.registerBeamHandlers()
 
