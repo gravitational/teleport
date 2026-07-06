@@ -94,6 +94,10 @@ okta::create_resource_set() { _okta POST /api/v1/iam/resource-sets "$1"; }   # b
 # The service-app principal is its OAuth client URL. Args: appId roleId resourceSetId
 okta::assign_role()         { _okta POST "/api/v1/iam/resource-sets/$3/bindings" \
   "$(jq -n --arg r "$2" --arg m "${OKTA_ORG}/oauth2/v1/clients/$1" '{role:$r, members:[$m]}')"; }
+# Teardown (validated): delete in dependency order binding -> resource set -> role.
+okta::delete_binding()      { _okta DELETE "/api/v1/iam/resource-sets/$1/bindings/$2"; }  # rsId roleId
+okta::delete_resource_set() { _okta DELETE "/api/v1/iam/resource-sets/$1"; }               # rsId
+okta::delete_role()         { _okta DELETE "/api/v1/iam/roles/$1"; }                        # roleId
 
 # OK — deactivate is required before delete
 okta::deactivate_app() { _okta POST "/api/v1/apps/$1/lifecycle/deactivate" ''; }
