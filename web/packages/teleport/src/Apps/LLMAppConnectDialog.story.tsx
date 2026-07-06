@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025 Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,56 +18,31 @@
 import { Meta } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router';
 
-import {
-  OverrideUserAgent,
-  UserAgent,
-} from 'shared/components/OverrideUserAgent';
-
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
-import { tcpApp, tlsApp } from './fixtures';
-import { TcpAppConnectDialog as Component } from './TcpAppConnectDialog';
+import { llmApp, llmOpenAIApp } from './fixtures';
+import { LLMAppConnectDialog as Component } from './LLMAppConnectDialog';
 
-type StoryProps = {
-  doesPlatformSupportVnet: boolean;
-};
-
-const meta: Meta<StoryProps> = {
-  title: 'Teleport/Apps/TcpAppConnectDialog',
-  decorators: (Story, { args }) => {
+const meta: Meta = {
+  title: 'Teleport/Apps/LLMAppConnectDialog',
+  decorators: Story => {
     const ctx = createTeleportContext();
     return (
       <MemoryRouter>
         <ContextProvider ctx={ctx}>
-          <OverrideUserAgent
-            userAgent={
-              args.doesPlatformSupportVnet ? UserAgent.macOS : UserAgent.Linux
-            }
-          >
-            <Story />
-          </OverrideUserAgent>
+          <Story />
         </ContextProvider>
       </MemoryRouter>
     );
   },
-  argTypes: {
-    doesPlatformSupportVnet: {
-      control: 'boolean',
-    },
-  },
-  args: {
-    doesPlatformSupportVnet: true,
-  },
 };
 export default meta;
 
-export function TcpAppConnectDialog() {
-  return <Component app={tcpApp} onClose={() => {}} />;
+export function Anthropic() {
+  return <Component app={llmApp} onClose={() => {}} />;
 }
 
-// Tls shows that a `tls://` app renders through the same dialog as a `tcp://`
-// app - from the client's perspective they are identical.
-export function Tls() {
-  return <Component app={tlsApp} onClose={() => {}} />;
+export function OpenAI() {
+  return <Component app={llmOpenAIApp} onClose={() => {}} />;
 }

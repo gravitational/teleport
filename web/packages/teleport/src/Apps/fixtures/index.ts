@@ -94,6 +94,49 @@ export const tcpApp = makeApp({
   clusterId: 'one',
 });
 
+export const llmApp = makeApp({
+  name: 'anthropic',
+  subKind: 'llm',
+  description: 'Company’s default Anthropic endpoint',
+  uri: 'llm://',
+  publicAddr: 'anthropic.teleport.example.com',
+  fqdn: 'anthropic.teleport.example.com',
+  llm: { format: 'anthropic', provider: 'anthropic' },
+  labels: [
+    { name: 'env', value: 'prod' },
+    { name: 'cluster', value: 'one' },
+  ],
+  clusterId: 'one',
+});
+
+export const llmOpenAIApp = makeApp({
+  name: 'openai',
+  subKind: 'llm',
+  description: 'Company’s default OpenAI endpoint',
+  uri: 'llm://',
+  publicAddr: 'openai.teleport.example.com',
+  fqdn: 'openai.teleport.example.com',
+  llm: { format: 'openai', provider: 'openai' },
+  labels: [
+    { name: 'env', value: 'prod' },
+    { name: 'cluster', value: 'one' },
+  ],
+  clusterId: 'one',
+});
+
+export const tlsApp = makeApp({
+  name: 'tls-grpc-app',
+  uri: 'tls://localhost:9443',
+  publicAddr: 'tls-grpc-app.teleport.example.com',
+  fqdn: 'tls-grpc-app.teleport.example.com',
+  description: 'A gRPC service requiring mTLS',
+  labels: [
+    { name: 'env', value: 'dev' },
+    { name: 'cluster', value: 'one' },
+  ],
+  clusterId: 'one',
+});
+
 export const mcpApp = makeApp({
   name: 'mcp-everything',
   subKind: 'mcp',
