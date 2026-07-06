@@ -219,6 +219,7 @@ func (s *Service) IssueScopedBotCerts(
 		LoginIP:        currentIdentity.LoginIP,
 		BotName:        currentIdentity.BotName,
 		BotInstanceID:  currentIdentity.BotInstanceID,
+		BotScope:       currentIdentity.BotScope,
 		JoinToken:      currentIdentity.JoinToken,
 	}
 
