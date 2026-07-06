@@ -306,6 +306,97 @@ func TestInferenceModelCRUD(t *testing.T) {
 	})
 }
 
+// TestRetrievalModelCRUD tests get, upsert, and delete operations for the
+// singleton retrieval model. The subtests run sequentially because they all
+// operate on the single cluster-wide resource.
+func TestRetrievalModelCRUD(t *testing.T) {
+	s := newWebSuite(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy:           {Enabled: true},
+				entitlements.SessionSummaries: {Enabled: true},
+			},
+		},
+	}))
+	authClient := s.newAdminAuthClient(s.ctx, t)
+	webPack := s.newAuthWebPack(t, "foo")
+	ctx := t.Context()
+	clusterName := s.testAuthServer.ClusterName()
+
+	createInferenceSecret(t, ctx, authClient, "test-secret")
+	createInferenceModel(t, ctx, authClient, "search-model")
+
+	endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "retrieval", "model")
+
+	t.Run("GetNotFound", func(t *testing.T) {
+		_, err := webPack.clt.Get(ctx, endpoint, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		model := ui.RetrievalModel{
+			Description:        "Test retrieval model",
+			InferenceModelName: "search-model",
+			OpenAI: &ui.OpenAIModelConfig{
+				ModelID:         "text-embedding-3-small",
+				APIKeySecretRef: "test-secret",
+			},
+		}
+
+		resp, err := webPack.clt.PostJSON(ctx, endpoint, model)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+
+		var created ui.RetrievalModel
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &created))
+		require.Equal(t, "search-model", created.InferenceModelName)
+		require.NotNil(t, created.OpenAI)
+		require.Equal(t, "text-embedding-3-small", created.OpenAI.ModelID)
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		resp, err := webPack.clt.Get(ctx, endpoint, nil)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+
+		var model ui.RetrievalModel
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &model))
+		require.Equal(t, "Test retrieval model", model.Description)
+		require.Equal(t, "search-model", model.InferenceModelName)
+	})
+
+	t.Run("Update", func(t *testing.T) {
+		updated := ui.RetrievalModel{
+			Description:        "Updated retrieval model",
+			InferenceModelName: "search-model",
+			OpenAI: &ui.OpenAIModelConfig{
+				ModelID:         "text-embedding-3-large",
+				APIKeySecretRef: "test-secret",
+			},
+		}
+
+		resp, err := webPack.clt.PutJSON(ctx, endpoint, updated)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+
+		var result ui.RetrievalModel
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
+		require.Equal(t, "Updated retrieval model", result.Description)
+		require.Equal(t, "text-embedding-3-large", result.OpenAI.ModelID)
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		resp, err := webPack.clt.Delete(ctx, endpoint)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+
+		// Verify it's deleted.
+		_, err = webPack.clt.Get(ctx, endpoint, nil)
+		require.Error(t, err)
+	})
+}
+
 // TestInferenceSecretCRUD tests create, get, update, and delete operations for inference secrets.
 func TestInferenceSecretCRUD(t *testing.T) {
 	s := newWebSuite(t, withModules(&modulestest.Modules{
@@ -684,6 +775,93 @@ func TestTestInferenceModel(t *testing.T) {
 			var result ui.TestInferenceModelResponse
 			err = json.Unmarshal(resp.Bytes(), &result)
 			require.NoError(t, err)
+
+			require.Equal(t, tt.expectSuccess, result.Success)
+			if tt.messageContains != "" {
+				require.Contains(t, result.Message, tt.messageContains)
+			}
+		})
+	}
+}
+
+func TestTestRetrievalModel(t *testing.T) {
+	s := newWebSuite(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy:           {Enabled: true},
+				entitlements.SessionSummaries: {Enabled: true},
+			},
+		},
+	}))
+	webPack := s.newAuthWebPack(t, "foo")
+	ctx := t.Context()
+	clusterName := s.testAuthServer.ClusterName()
+
+	// Create a mock OpenAI server that returns a successful embeddings response.
+	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{
+			"object": "list",
+			"model":  "text-embedding-3-small",
+			"data": []map[string]any{
+				{
+					"object":    "embedding",
+					"index":     0,
+					"embedding": []float64{0.1, 0.2, 0.3},
+				},
+			},
+		})
+	}))
+	t.Cleanup(mockOpenAI.Close)
+
+	tests := []struct {
+		name            string
+		req             ui.TestRetrievalModelRequest
+		expectSuccess   bool
+		messageContains string
+	}{
+		{
+			name: "missing inference model name",
+			req: ui.TestRetrievalModelRequest{
+				OpenAI: &ui.OpenAIModelConfig{
+					ModelID:         "text-embedding-3-small",
+					APIKeySecretRef: "test-secret",
+				},
+			},
+			expectSuccess:   false,
+			messageContains: "invalid model spec: spec.inference_model_name is required",
+		},
+		{
+			name: "OpenAI with valid mock server",
+			req: ui.TestRetrievalModelRequest{
+				OpenAI: &ui.OpenAIModelConfig{
+					ModelID: "text-embedding-3-small",
+					BaseURL: mockOpenAI.URL,
+					// api_key_secret_ref is required for the retrieval model spec
+					// to pass validation; the inline Secret is used as the key.
+					APIKeySecretRef: "test-secret",
+				},
+				InferenceModelName: "search-model",
+				Secret:             "test-api-key",
+			},
+			expectSuccess:   true,
+			messageContains: "Successfully connected",
+		},
+	}
+
+	endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "retrieval", "test-model")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			resp, err := webPack.clt.PostJSON(ctx, endpoint, tt.req)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var result ui.TestRetrievalModelResponse
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
 
 			require.Equal(t, tt.expectSuccess, result.Success)
 			if tt.messageContains != "" {

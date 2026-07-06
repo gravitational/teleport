@@ -597,6 +597,7 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 		types.NewRule(types.KindInferenceModel, services.RW()),
 		types.NewRule(types.KindInferenceSecret, services.RW()),
 		types.NewRule(types.KindInferencePolicy, services.RW()),
+		types.NewRule(types.KindRetrievalModel, services.RW()),
 		types.NewRule(types.KindBeam, services.RW()),
 	}
 	rules = append(rules, extraRules...)

@@ -37,6 +37,16 @@ func (p *Plugin) registerInferenceHandlers() {
 	p.h.POST("/webapi/sites/:site/inference/policies", p.h.WithClusterAuth(p.createInferencePolicy))
 	p.h.PUT("/webapi/sites/:site/inference/policies/:name", p.h.WithClusterAuth(p.updateInferencePolicy))
 	p.h.DELETE("/webapi/sites/:site/inference/policies/:name", p.h.WithClusterAuth(p.deleteInferencePolicy))
+
+	// Retrieval Model handlers. The retrieval model is a singleton resource, so
+	// the routes do not take a name.
+	p.h.GET("/webapi/sites/:site/retrieval/model", p.h.WithClusterAuth(p.getRetrievalModel))
+	p.h.POST("/webapi/sites/:site/retrieval/model", p.h.WithClusterAuth(p.createRetrievalModel))
+	p.h.PUT("/webapi/sites/:site/retrieval/model", p.h.WithClusterAuth(p.updateRetrievalModel))
+	p.h.DELETE("/webapi/sites/:site/retrieval/model", p.h.WithClusterAuth(p.deleteRetrievalModel))
+
+	// Test retrieval model endpoint
+	p.h.POST("/webapi/sites/:site/retrieval/test-model", p.h.WithClusterAuth(p.testRetrievalModel))
 }
 
 // listInferenceModels lists all inference models.
@@ -491,4 +501,121 @@ func (h *Plugin) testInferenceModel(
 	}
 
 	return ui.MakeTestInferenceModelResponse(response), nil
+}
+
+// getRetrievalModel retrieves the singleton retrieval model.
+func (h *Plugin) getRetrievalModel(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().GetRetrievalModel(
+		r.Context(),
+		summarizerv1.GetRetrievalModelRequest_builder{}.Build(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeRetrievalModel(response.GetModel()), nil
+}
+
+// createRetrievalModel creates the singleton retrieval model.
+func (h *Plugin) createRetrievalModel(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	var uiModel ui.RetrievalModel
+	if err := httplib.ReadJSON(r, &uiModel); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().CreateRetrievalModel(
+		r.Context(),
+		summarizerv1.CreateRetrievalModelRequest_builder{Model: uiModel.ToProto()}.Build(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeRetrievalModel(response.GetModel()), nil
+}
+
+// updateRetrievalModel updates the singleton retrieval model.
+func (h *Plugin) updateRetrievalModel(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	var uiModel ui.RetrievalModel
+	if err := httplib.ReadJSON(r, &uiModel); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Use Upsert rather than the conditional Update RPC: the UI representation
+	// does not carry a resource revision, mirroring updateInferenceModel.
+	response, err := clt.SummarizerServiceClient().UpsertRetrievalModel(
+		r.Context(),
+		summarizerv1.UpsertRetrievalModelRequest_builder{Model: uiModel.ToProto()}.Build(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeRetrievalModel(response.GetModel()), nil
+}
+
+// deleteRetrievalModel deletes the singleton retrieval model.
+func (h *Plugin) deleteRetrievalModel(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt.SummarizerServiceClient().DeleteRetrievalModel(
+		r.Context(),
+		summarizerv1.DeleteRetrievalModelRequest_builder{}.Build(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return web.OK(), nil
+}
+
+// testRetrievalModel tests a retrieval model configuration by making a test request.
+func (h *Plugin) testRetrievalModel(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	var testReq ui.TestRetrievalModelRequest
+	if err := httplib.ReadJSON(r, &testReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().TestRetrievalModel(
+		r.Context(),
+		testReq.ToProto(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeTestRetrievalModelResponse(response), nil
 }

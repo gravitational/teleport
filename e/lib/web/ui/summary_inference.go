@@ -65,6 +65,20 @@ type InferencePolicy struct {
 	Filter      string            `json:"filter,omitempty"`
 }
 
+// RetrievalModel is a UI representation of the singleton retrieval model. It
+// configures the embeddings provider and the inference model used for
+// session summary search.
+type RetrievalModel struct {
+	Description string              `json:"description,omitempty"`
+	Labels      map[string]string   `json:"labels,omitempty"`
+	OpenAI      *OpenAIModelConfig  `json:"openai,omitempty"`
+	Bedrock     *BedrockModelConfig `json:"bedrock,omitempty"`
+	// InferenceModelName is the name of the inference model used to convert
+	// natural language search queries into API requests and generate prose from
+	// a session summary.
+	InferenceModelName string `json:"inferenceModelName,omitempty"`
+}
+
 // MakeInferenceModel converts a protobuf InferenceModel to UI representation.
 func MakeInferenceModel(model *summarizerv1.InferenceModel) InferenceModel {
 	if model == nil {
@@ -205,6 +219,76 @@ func (p *InferencePolicy) ToProto() *summarizerv1.InferencePolicy {
 	}.Build()
 }
 
+// MakeRetrievalModel converts a protobuf RetrievalModel to UI representation.
+func MakeRetrievalModel(model *summarizerv1.RetrievalModel) RetrievalModel {
+	if model == nil {
+		return RetrievalModel{}
+	}
+
+	ui := RetrievalModel{
+		Description: model.GetMetadata().GetDescription(),
+		Labels:      model.GetMetadata().GetLabels(),
+	}
+
+	spec := model.GetSpec()
+
+	ui.InferenceModelName = spec.GetInferenceModelName()
+	switch spec.WhichEmbeddingsProvider() {
+	case summarizerv1.RetrievalModelSpec_Openai_case:
+		ui.OpenAI = &OpenAIModelConfig{
+			ModelID:         spec.GetOpenai().GetOpenaiModelId(),
+			Temperature:     spec.GetOpenai().GetTemperature(),
+			APIKeySecretRef: spec.GetOpenai().GetApiKeySecretRef(),
+			BaseURL:         spec.GetOpenai().GetBaseUrl(),
+		}
+	case summarizerv1.RetrievalModelSpec_Bedrock_case:
+		ui.Bedrock = &BedrockModelConfig{
+			ModelID:     spec.GetBedrock().GetBedrockModelId(),
+			Region:      spec.GetBedrock().GetRegion(),
+			Temperature: spec.GetBedrock().GetTemperature(),
+			Integration: spec.GetBedrock().GetIntegration(),
+		}
+	}
+
+	return ui
+}
+
+// ToProto converts a UI RetrievalModel to protobuf representation. The metadata
+// name is always set to the singleton name.
+func (m *RetrievalModel) ToProto() *summarizerv1.RetrievalModel {
+	model := summarizerv1.RetrievalModel_builder{
+		Kind:    types.KindRetrievalModel,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name:        types.MetaNameRetrievalModel,
+			Description: m.Description,
+			Labels:      m.Labels,
+		}.Build(),
+		Spec: summarizerv1.RetrievalModelSpec_builder{
+			InferenceModelName: m.InferenceModelName,
+		}.Build(),
+	}.Build()
+
+	switch {
+	case m.OpenAI != nil:
+		model.GetSpec().SetOpenai(summarizerv1.OpenAIProvider_builder{
+			OpenaiModelId:   m.OpenAI.ModelID,
+			Temperature:     m.OpenAI.Temperature,
+			ApiKeySecretRef: m.OpenAI.APIKeySecretRef,
+			BaseUrl:         m.OpenAI.BaseURL,
+		}.Build())
+	case m.Bedrock != nil:
+		model.GetSpec().SetBedrock(summarizerv1.BedrockProvider_builder{
+			BedrockModelId: m.Bedrock.ModelID,
+			Region:         m.Bedrock.Region,
+			Temperature:    m.Bedrock.Temperature,
+			Integration:    m.Bedrock.Integration,
+		}.Build())
+	}
+
+	return model
+}
+
 // ListInferenceModelsResponse is the response for listing inference models.
 type ListInferenceModelsResponse struct {
 	// Items is the list of inference models in this page.
@@ -282,6 +366,70 @@ func (r *TestInferenceModelRequest) ToProto() *summarizerv1.TestInferenceModelRe
 // MakeTestInferenceModelResponse converts a protobuf TestInferenceModelResponse to UI representation.
 func MakeTestInferenceModelResponse(resp *summarizerv1.TestInferenceModelResponse) TestInferenceModelResponse {
 	return TestInferenceModelResponse{
+		Success: resp.GetSuccess(),
+		Message: resp.GetMessage(),
+	}
+}
+
+// TestRetrievalModelRequest is the request for testing a retrieval model.
+type TestRetrievalModelRequest struct {
+	// OpenAI contains OpenAI embeddings provider configuration to test.
+	OpenAI *OpenAIModelConfig `json:"openai,omitempty"`
+	// Bedrock contains AWS Bedrock embeddings provider configuration to test.
+	Bedrock *BedrockModelConfig `json:"bedrock,omitempty"`
+	// InferenceModelName is the name of the inference model referenced by the
+	// retrieval model spec. It is required for the spec to pass validation, even
+	// though the test only exercises the embeddings provider connection.
+	InferenceModelName string `json:"inferenceModelName,omitempty"`
+	// Secret is the API key or credentials to test with.
+	Secret string `json:"secret,omitempty"`
+}
+
+// TestRetrievalModelResponse is the response from testing a retrieval model.
+type TestRetrievalModelResponse struct {
+	// Success indicates whether the test was successful.
+	Success bool `json:"success"`
+	// Message provides details about the test result.
+	Message string `json:"message"`
+}
+
+// ToProto converts a UI TestRetrievalModelRequest to protobuf representation.
+func (r *TestRetrievalModelRequest) ToProto() *summarizerv1.TestRetrievalModelRequest {
+	req := summarizerv1.TestRetrievalModelRequest_builder{
+		Model: summarizerv1.RetrievalModelSpec_builder{
+			InferenceModelName: r.InferenceModelName,
+		}.Build(),
+	}.Build()
+
+	switch {
+	case r.OpenAI != nil:
+		req.GetModel().SetOpenai(summarizerv1.OpenAIProvider_builder{
+			OpenaiModelId:   r.OpenAI.ModelID,
+			Temperature:     r.OpenAI.Temperature,
+			ApiKeySecretRef: r.OpenAI.APIKeySecretRef,
+			BaseUrl:         r.OpenAI.BaseURL,
+		}.Build())
+	case r.Bedrock != nil:
+		req.GetModel().SetBedrock(summarizerv1.BedrockProvider_builder{
+			BedrockModelId: r.Bedrock.ModelID,
+			Region:         r.Bedrock.Region,
+			Temperature:    r.Bedrock.Temperature,
+			Integration:    r.Bedrock.Integration,
+		}.Build())
+	}
+
+	if r.Secret != "" {
+		req.SetSecret(summarizerv1.InferenceSecretSpec_builder{
+			Value: r.Secret,
+		}.Build())
+	}
+
+	return req
+}
+
+// MakeTestRetrievalModelResponse converts a protobuf TestRetrievalModelResponse to UI representation.
+func MakeTestRetrievalModelResponse(resp *summarizerv1.TestRetrievalModelResponse) TestRetrievalModelResponse {
+	return TestRetrievalModelResponse{
 		Success: resp.GetSuccess(),
 		Message: resp.GetMessage(),
 	}
