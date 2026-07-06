@@ -577,6 +577,10 @@ var (
 		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/loginrule/v1",
 		IsPlainStruct:         true,
 		TerraformResourceType: "teleport_login_rule",
+		// The default implementation of ModifyPlan expects that the `spec` field
+		// is present within the resource. `login_rule` does not contain a `spec`
+		// field and results in a panic.
+		WithoutModifyPlan: true,
 	}
 
 	deviceTrust = payload{
