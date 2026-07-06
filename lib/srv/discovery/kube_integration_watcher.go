@@ -67,8 +67,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	}
 	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
 
-	var versionGetter version.Getter
-	if proxyPublicAddr == "" {
+	versionGetter := s.kubeAgentVersionGetter
+	if versionGetter == nil && proxyPublicAddr == "" {
 		// If there are no proxy services running, we might fail to get the proxy URL and build a client.
 		// In this case we "gracefully" fallback to our own version.
 		// This is not supposed to happen outside of tests as the discovery service must join via a proxy.
@@ -79,7 +79,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		if err != nil {
 			return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
 		}
-	} else {
+	} else if versionGetter == nil {
 		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
 		if err != nil {
 			s.Log.WarnContext(s.ctx,
@@ -117,6 +117,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			resourcesFoundByGroup := make(map[awsResourceGroup]int)
 			resourcesEnrolledByGroup := make(map[awsResourceGroup]int)
 			iterationDiscoveryConfigs := make(map[string]struct{})
+
+			inflightInstallations := sync.WaitGroup{}
 
 			select {
 			case resources := <-watcher.ResourcesC():
@@ -197,7 +199,9 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 				for key, val := range clustersByRegionAndIntegration {
 					key, val := key, val
-					go s.enrollEKSClusters(key.region, key.integration, key.discoveryConfigName, val, agentVersion, &mu, enrollingClusters)
+					inflightInstallations.Go(func() {
+						s.enrollEKSClusters(key.region, key.integration, key.discoveryConfigName, val, agentVersion, &mu, enrollingClusters)
+					})
 				}
 
 			case <-s.ctx.Done():
@@ -207,6 +211,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			for group, count := range resourcesEnrolledByGroup {
 				s.awsEKSResourcesStatus.incrementEnrolled(group, count)
 			}
+
+			inflightInstallations.Wait()
 
 			s.updateDiscoveryConfigStatus(slices.Collect(maps.Keys(iterationDiscoveryConfigs))...)
 		}
@@ -279,13 +285,13 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 			continue
 		}
 
-		rsp, err := s.AccessPoint.EnrollEKSClusters(ctx, &integrationv1.EnrollEKSClustersRequest{
+		rsp, err := s.AccessPoint.EnrollEKSClusters(ctx, integrationv1.EnrollEKSClustersRequest_builder{
 			Integration:        integration,
 			Region:             region,
 			EksClusterNames:    clusterNames,
 			EnableAppDiscovery: kubeAppDiscovery,
 			AgentVersion:       agentVersion.String(),
-		})
+		}.Build())
 		if err != nil {
 			s.awsEKSResourcesStatus.incrementFailed(awsResourceGroup{
 				discoveryConfigName: discoveryConfigName,
@@ -295,41 +301,41 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 			continue
 		}
 
-		for _, r := range rsp.Results {
-			if r.Error != "" {
+		for _, r := range rsp.GetResults() {
+			if r.GetError() != "" {
 				s.awsEKSResourcesStatus.incrementFailed(awsResourceGroup{
 					discoveryConfigName: discoveryConfigName,
 					integration:         integration,
 				}, 1)
-				if !strings.Contains(r.Error, "teleport-kube-agent is already installed on the cluster") {
-					s.Log.ErrorContext(ctx, "Failed to enroll EKS cluster", "cluster_name", r.EksClusterName, "issue_type", r.IssueType, "error", r.Error)
+				if !strings.Contains(r.GetError(), "teleport-kube-agent is already installed on the cluster") {
+					s.Log.ErrorContext(ctx, "Failed to enroll EKS cluster", "cluster_name", r.GetEksClusterName(), "issue_type", r.GetIssueType(), "error", r.GetError())
 				} else {
-					s.Log.DebugContext(ctx, "EKS cluster already has installed kube agent", "cluster_name", r.EksClusterName)
+					s.Log.DebugContext(ctx, "EKS cluster already has installed kube agent", "cluster_name", r.GetEksClusterName())
 				}
 
-				cluster, ok := clustersByName[r.EksClusterName]
+				cluster, ok := clustersByName[r.GetEksClusterName()]
 				if !ok {
-					s.Log.WarnContext(ctx, "Received an EnrollEKSCluster result for a cluster which was not part of the requested clusters", "cluster_name", r.EksClusterName, "clusters_install_request", clusterNames)
+					s.Log.WarnContext(ctx, "Received an EnrollEKSCluster result for a cluster which was not part of the requested clusters", "cluster_name", r.GetEksClusterName(), "clusters_install_request", clusterNames)
 					continue
 				}
 				s.awsEKSTasks.addFailedEnrollment(
 					awsEKSTaskKey{
 						integration:     integration,
-						issueType:       r.IssueType,
+						issueType:       r.GetIssueType(),
 						accountID:       cluster.GetAWSConfig().AccountID,
 						region:          cluster.GetAWSConfig().Region,
 						appAutoDiscover: kubeAppDiscovery,
 					},
-					&usertasksv1.DiscoverEKSCluster{
+					usertasksv1.DiscoverEKSCluster_builder{
 						DiscoveryConfig: discoveryConfigName,
 						DiscoveryGroup:  s.DiscoveryGroup,
 						SyncTime:        timestamppb.New(s.clock.Now()),
 						Name:            cluster.GetAWSConfig().Name,
-					},
+					}.Build(),
 				)
 				s.upsertTasksForAWSEKSFailedEnrollments()
 			} else {
-				s.Log.InfoContext(ctx, "Successfully enrolled EKS cluster", "cluster_name", r.EksClusterName)
+				s.Log.InfoContext(ctx, "Successfully enrolled EKS cluster", "cluster_name", r.GetEksClusterName())
 			}
 		}
 	}

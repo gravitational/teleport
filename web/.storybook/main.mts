@@ -43,15 +43,9 @@ const config: StorybookConfig = {
     options: { builder: { viteConfigPath: 'web/.storybook/vite.config.mts' } },
   },
   staticDirs: ['public'],
-  addons: [],
-  viteFinal(config) {
-    return {
-      ...config,
-      server: {
-        ...config.server,
-        allowedHosts: resolveAllowedHosts(),
-      },
-    };
+  addons: ['@storybook/addon-vitest'],
+  core: {
+    allowedHosts: resolveAllowedHosts(),
   },
 };
 

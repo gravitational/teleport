@@ -108,9 +108,9 @@ func (s *Server) handleTPMJoin(
 		&tpmInit.ClientParams,
 		provisionToken,
 		validatedEK,
-		&workloadidentityv1.JoinAttrs{
+		workloadidentityv1.JoinAttrs_builder{
 			Tpm: validatedEK.JoinAttrs(),
-		},
+		}.Build(),
 	)
 	return result, trace.Wrap(err)
 }

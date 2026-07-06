@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/grpcclientconfig/v1/grpcclientconfig.proto
 
+//go:build !protoopaque
+
 package grpcclientconfigv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -83,15 +84,10 @@ func (x Mode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use Mode.Descriptor instead.
-func (Mode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescGZIP(), []int{0}
-}
-
 // DiscoverRequest is the request used by grpc clients to discover a services
 // desired grpc service configuration.
 type GetServiceConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -121,14 +117,21 @@ func (x *GetServiceConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetServiceConfigRequest.ProtoReflect.Descriptor instead.
-func (*GetServiceConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescGZIP(), []int{0}
+type GetServiceConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetServiceConfigRequest_builder) Build() *GetServiceConfigRequest {
+	m0 := &GetServiceConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // DiscoverResponse returns the desired client-side grpc service configuration.
 type GetServiceConfigResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ServiceConfig contains all grpc-service configuration.
 	Config        *ServiceConfig `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -160,11 +163,6 @@ func (x *GetServiceConfigResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetServiceConfigResponse.ProtoReflect.Descriptor instead.
-func (*GetServiceConfigResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetServiceConfigResponse) GetConfig() *ServiceConfig {
 	if x != nil {
 		return x.Config
@@ -172,9 +170,39 @@ func (x *GetServiceConfigResponse) GetConfig() *ServiceConfig {
 	return nil
 }
 
+func (x *GetServiceConfigResponse) SetConfig(v *ServiceConfig) {
+	x.Config = v
+}
+
+func (x *GetServiceConfigResponse) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *GetServiceConfigResponse) ClearConfig() {
+	x.Config = nil
+}
+
+type GetServiceConfigResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ServiceConfig contains all grpc-service configuration.
+	Config *ServiceConfig
+}
+
+func (b0 GetServiceConfigResponse_builder) Build() *GetServiceConfigResponse {
+	m0 := &GetServiceConfigResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Config = b.Config
+	return m0
+}
+
 // ServiceConfig contains all grpc-service configuration.
 type ServiceConfig struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Each entry represents a different load balance strategy ordered
 	// by priority. A client should use the first supported configuration.
 	LoadBalancingConfig []*LoadBalancerConfig `protobuf:"bytes,1,rep,name=load_balancing_config,json=loadBalancingConfig,proto3" json:"load_balancing_config,omitempty"`
@@ -208,11 +236,6 @@ func (x *ServiceConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ServiceConfig.ProtoReflect.Descriptor instead.
-func (*ServiceConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ServiceConfig) GetLoadBalancingConfig() []*LoadBalancerConfig {
 	if x != nil {
 		return x.LoadBalancingConfig
@@ -227,10 +250,47 @@ func (x *ServiceConfig) GetHealthCheckConfig() *HealthCheckConfig {
 	return nil
 }
 
+func (x *ServiceConfig) SetLoadBalancingConfig(v []*LoadBalancerConfig) {
+	x.LoadBalancingConfig = v
+}
+
+func (x *ServiceConfig) SetHealthCheckConfig(v *HealthCheckConfig) {
+	x.HealthCheckConfig = v
+}
+
+func (x *ServiceConfig) HasHealthCheckConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.HealthCheckConfig != nil
+}
+
+func (x *ServiceConfig) ClearHealthCheckConfig() {
+	x.HealthCheckConfig = nil
+}
+
+type ServiceConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Each entry represents a different load balance strategy ordered
+	// by priority. A client should use the first supported configuration.
+	LoadBalancingConfig []*LoadBalancerConfig
+	HealthCheckConfig   *HealthCheckConfig
+}
+
+func (b0 ServiceConfig_builder) Build() *ServiceConfig {
+	m0 := &ServiceConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LoadBalancingConfig = b.LoadBalancingConfig
+	x.HealthCheckConfig = b.HealthCheckConfig
+	return m0
+}
+
 // LoadBalancerConfig contains one of the supported load balancing policy
 // configurations.
 type LoadBalancerConfig struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Config:
 	//
 	//	*LoadBalancerConfig_TeleportPickHealthy
@@ -264,11 +324,6 @@ func (x *LoadBalancerConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use LoadBalancerConfig.ProtoReflect.Descriptor instead.
-func (*LoadBalancerConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *LoadBalancerConfig) GetConfig() isLoadBalancerConfig_Config {
 	if x != nil {
 		return x.Config
@@ -285,6 +340,82 @@ func (x *LoadBalancerConfig) GetTeleportPickHealthy() *TeleportPickHealthyConfig
 	return nil
 }
 
+func (x *LoadBalancerConfig) SetTeleportPickHealthy(v *TeleportPickHealthyConfig) {
+	if v == nil {
+		x.Config = nil
+		return
+	}
+	x.Config = &LoadBalancerConfig_TeleportPickHealthy{v}
+}
+
+func (x *LoadBalancerConfig) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *LoadBalancerConfig) HasTeleportPickHealthy() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Config.(*LoadBalancerConfig_TeleportPickHealthy)
+	return ok
+}
+
+func (x *LoadBalancerConfig) ClearConfig() {
+	x.Config = nil
+}
+
+func (x *LoadBalancerConfig) ClearTeleportPickHealthy() {
+	if _, ok := x.Config.(*LoadBalancerConfig_TeleportPickHealthy); ok {
+		x.Config = nil
+	}
+}
+
+const LoadBalancerConfig_Config_not_set_case case_LoadBalancerConfig_Config = 0
+const LoadBalancerConfig_TeleportPickHealthy_case case_LoadBalancerConfig_Config = 1
+
+func (x *LoadBalancerConfig) WhichConfig() case_LoadBalancerConfig_Config {
+	if x == nil {
+		return LoadBalancerConfig_Config_not_set_case
+	}
+	switch x.Config.(type) {
+	case *LoadBalancerConfig_TeleportPickHealthy:
+		return LoadBalancerConfig_TeleportPickHealthy_case
+	default:
+		return LoadBalancerConfig_Config_not_set_case
+	}
+}
+
+type LoadBalancerConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Config:
+	TeleportPickHealthy *TeleportPickHealthyConfig
+	// -- end of Config
+}
+
+func (b0 LoadBalancerConfig_builder) Build() *LoadBalancerConfig {
+	m0 := &LoadBalancerConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.TeleportPickHealthy != nil {
+		x.Config = &LoadBalancerConfig_TeleportPickHealthy{b.TeleportPickHealthy}
+	}
+	return m0
+}
+
+type case_LoadBalancerConfig_Config protoreflect.FieldNumber
+
+func (x case_LoadBalancerConfig_Config) String() string {
+	md := file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_msgTypes[3].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isLoadBalancerConfig_Config interface {
 	isLoadBalancerConfig_Config()
 }
@@ -298,7 +429,7 @@ func (*LoadBalancerConfig_TeleportPickHealthy) isLoadBalancerConfig_Config() {}
 // TeleportPickHealthyConfig represents the teleport_pick_health load balancing
 // policy.
 type TeleportPickHealthyConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Mode          Mode                   `protobuf:"varint,1,opt,name=mode,proto3,enum=teleport.grpcclientconfig.v1.Mode" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -329,11 +460,6 @@ func (x *TeleportPickHealthyConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TeleportPickHealthyConfig.ProtoReflect.Descriptor instead.
-func (*TeleportPickHealthyConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *TeleportPickHealthyConfig) GetMode() Mode {
 	if x != nil {
 		return x.Mode
@@ -341,9 +467,27 @@ func (x *TeleportPickHealthyConfig) GetMode() Mode {
 	return Mode_MODE_UNSPECIFIED
 }
 
+func (x *TeleportPickHealthyConfig) SetMode(v Mode) {
+	x.Mode = v
+}
+
+type TeleportPickHealthyConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Mode Mode
+}
+
+func (b0 TeleportPickHealthyConfig_builder) Build() *TeleportPickHealthyConfig {
+	m0 := &TeleportPickHealthyConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Mode = b.Mode
+	return m0
+}
+
 // HealthCheckConfig represents a gRPC clients health check configuration.
 type HealthCheckConfig struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Service name to use in the health-checking request.
 	ServiceName   *string `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3,oneof" json:"service_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -375,16 +519,41 @@ func (x *HealthCheckConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HealthCheckConfig.ProtoReflect.Descriptor instead.
-func (*HealthCheckConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *HealthCheckConfig) GetServiceName() string {
 	if x != nil && x.ServiceName != nil {
 		return *x.ServiceName
 	}
 	return ""
+}
+
+func (x *HealthCheckConfig) SetServiceName(v string) {
+	x.ServiceName = &v
+}
+
+func (x *HealthCheckConfig) HasServiceName() bool {
+	if x == nil {
+		return false
+	}
+	return x.ServiceName != nil
+}
+
+func (x *HealthCheckConfig) ClearServiceName() {
+	x.ServiceName = nil
+}
+
+type HealthCheckConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Service name to use in the health-checking request.
+	ServiceName *string
+}
+
+func (b0 HealthCheckConfig_builder) Build() *HealthCheckConfig {
+	m0 := &HealthCheckConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ServiceName = b.ServiceName
+	return m0
 }
 
 var File_teleport_grpcclientconfig_v1_grpcclientconfig_proto protoreflect.FileDescriptor
@@ -410,18 +579,6 @@ const file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDesc = "" +
 	"\x10MODE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fMODE_PICK_FIRST\x10\x01\x12\x12\n" +
 	"\x0eMODE_RECONNECT\x10\x02BdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/grpcclientconfig/v1;grpcclientconfigv1b\x06proto3"
-
-var (
-	file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescOnce sync.Once
-	file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescData []byte
-)
-
-func file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescGZIP() []byte {
-	file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescOnce.Do(func() {
-		file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDesc), len(file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDesc)))
-	})
-	return file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_rawDescData
-}
 
 var file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_grpcclientconfig_v1_grpcclientconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 6)

@@ -71,10 +71,10 @@ func (a *SystemdAttestor) Attest(ctx context.Context, pid int) (*workloadidentit
 		return nil, trace.Errorf("unit %q is not a service", unit)
 	}
 
-	return &workloadidentityv1pb.WorkloadAttrsSystemd{
+	return workloadidentityv1pb.WorkloadAttrsSystemd_builder{
 		Attested: true,
 		Service:  service,
-	}, nil
+	}.Build(), nil
 }
 
 type dbusConn interface {

@@ -198,7 +198,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 
 	roleSet := services.NewRoleSet(roles...)
 	userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
-	acl := &api.ACL{
+	acl := api.ACL_builder{
 		RecordedSessions:        convertToAPIResourceAccess(userACL.RecordedSessions),
 		ActiveSessions:          convertToAPIResourceAccess(userACL.ActiveSessions),
 		AuthConnectors:          convertToAPIResourceAccess(userACL.AuthConnectors),
@@ -215,7 +215,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		ReviewRequests:          userACL.ReviewRequests,
 		DirectorySharingEnabled: userACL.DirectorySharing,
 		ClipboardSharingEnabled: userACL.Clipboard,
-	}
+	}.Build()
 
 	withDetails := &ClusterWithDetails{
 		Cluster:                  c,
@@ -234,14 +234,14 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 }
 
 func convertToAPIResourceAccess(access services.ResourceAccess) *api.ResourceAccess {
-	return &api.ResourceAccess{
+	return api.ResourceAccess_builder{
 		List:   access.List,
 		Read:   access.Read,
 		Edit:   access.Edit,
 		Create: access.Create,
 		Delete: access.Delete,
 		Use:    access.Use,
-	}
+	}.Build()
 }
 
 // GetRoles returns currently logged-in user roles
@@ -286,10 +286,10 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 	resourceIds := make([]types.ResourceID, 0, len(req.GetResourceIds()))
 	for _, r := range req.GetResourceIds() {
 		resourceIds = append(resourceIds, types.ResourceID{
-			ClusterName:     r.ClusterName,
-			Kind:            r.Kind,
-			Name:            r.Name,
-			SubResourceName: r.SubResourceName,
+			ClusterName:     r.GetClusterName(),
+			Kind:            r.GetKind(),
+			Name:            r.GetName(),
+			SubResourceName: r.GetSubResourceName(),
 		})
 	}
 

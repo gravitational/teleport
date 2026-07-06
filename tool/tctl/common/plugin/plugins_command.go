@@ -145,7 +145,7 @@ func (p *PluginsCommand) initEdit(parent *kingpin.CmdClause) {
 func (p *PluginsCommand) Delete(ctx context.Context, args pluginServices) error {
 	log := p.config.Logger.With("plugin", p.delete.name)
 
-	req := &pluginsv1.DeletePluginRequest{Name: p.delete.name}
+	req := pluginsv1.DeletePluginRequest_builder{Name: p.delete.name}.Build()
 	if _, err := args.plugins.DeletePlugin(ctx, req); err != nil {
 		if trace.IsNotFound(err) {
 			log.InfoContext(ctx, "Plugin not found")
@@ -159,19 +159,19 @@ func (p *PluginsCommand) Delete(ctx context.Context, args pluginServices) error 
 
 // Cleanup cleans up the given plugin.
 func (p *PluginsCommand) Cleanup(ctx context.Context, args pluginServices) error {
-	needsCleanup, err := args.plugins.NeedsCleanup(ctx, &pluginsv1.NeedsCleanupRequest{
+	needsCleanup, err := args.plugins.NeedsCleanup(ctx, pluginsv1.NeedsCleanupRequest_builder{
 		Type: p.pluginType,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if needsCleanup.PluginActive {
+	if needsCleanup.GetPluginActive() {
 		fmt.Printf("Plugin of type %q is currently active, can't cleanup!\n", p.pluginType)
 		return nil
 	}
 
-	if !needsCleanup.NeedsCleanup {
+	if !needsCleanup.GetNeedsCleanup() {
 		fmt.Printf("Plugin of type %q doesn't need a cleanup!\n", p.pluginType)
 		return nil
 	}
@@ -182,7 +182,7 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, args pluginServices) error
 		fmt.Println("Deleting the following resources:")
 	}
 
-	for _, resource := range needsCleanup.ResourcesToCleanup {
+	for _, resource := range needsCleanup.GetResourcesToCleanup() {
 		fmt.Printf("- %s\n", resource)
 	}
 
@@ -191,9 +191,9 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, args pluginServices) error
 		return nil
 	}
 
-	if _, err := args.plugins.Cleanup(ctx, &pluginsv1.CleanupRequest{
+	if _, err := args.plugins.Cleanup(ctx, pluginsv1.CleanupRequest_builder{
 		Type: p.pluginType,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/beams/v1/beam_service.proto
 
+//go:build !protoopaque
+
 package beamsv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -91,11 +92,6 @@ func (x BeamSortField) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use BeamSortField.Descriptor instead.
-func (BeamSortField) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{0}
-}
-
 // BeamSortOrder specifies the sort order for listing.
 type BeamSortOrder int32
 
@@ -143,14 +139,9 @@ func (x BeamSortOrder) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use BeamSortOrder.Descriptor instead.
-func (BeamSortOrder) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{1}
-}
-
 // CreateBeamRequest contains the parameters to the CreateBeam RPC.
 type CreateBeamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Configures outgoing network connectivity from the beam.
 	Egress EgressMode `protobuf:"varint,1,opt,name=egress,proto3,enum=teleport.beams.v1.EgressMode" json:"egress,omitempty"`
 	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
@@ -185,11 +176,6 @@ func (x *CreateBeamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateBeamRequest.ProtoReflect.Descriptor instead.
-func (*CreateBeamRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateBeamRequest) GetEgress() EgressMode {
 	if x != nil {
 		return x.Egress
@@ -204,9 +190,36 @@ func (x *CreateBeamRequest) GetAllowedDomains() []string {
 	return nil
 }
 
+func (x *CreateBeamRequest) SetEgress(v EgressMode) {
+	x.Egress = v
+}
+
+func (x *CreateBeamRequest) SetAllowedDomains(v []string) {
+	x.AllowedDomains = v
+}
+
+type CreateBeamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Configures outgoing network connectivity from the beam.
+	Egress EgressMode
+	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
+	// be provided when EGRESS_MODE_RESTRICTED is set.
+	AllowedDomains []string
+}
+
+func (b0 CreateBeamRequest_builder) Build() *CreateBeamRequest {
+	m0 := &CreateBeamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Egress = b.Egress
+	x.AllowedDomains = b.AllowedDomains
+	return m0
+}
+
 // CreateBeamResponse contains the results of the CreateBeam RPC.
 type CreateBeamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Beam that was created.
 	Beam          *Beam `protobuf:"bytes,1,opt,name=beam,proto3" json:"beam,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -238,11 +251,6 @@ func (x *CreateBeamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateBeamResponse.ProtoReflect.Descriptor instead.
-func (*CreateBeamResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreateBeamResponse) GetBeam() *Beam {
 	if x != nil {
 		return x.Beam
@@ -250,9 +258,39 @@ func (x *CreateBeamResponse) GetBeam() *Beam {
 	return nil
 }
 
+func (x *CreateBeamResponse) SetBeam(v *Beam) {
+	x.Beam = v
+}
+
+func (x *CreateBeamResponse) HasBeam() bool {
+	if x == nil {
+		return false
+	}
+	return x.Beam != nil
+}
+
+func (x *CreateBeamResponse) ClearBeam() {
+	x.Beam = nil
+}
+
+type CreateBeamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Beam that was created.
+	Beam *Beam
+}
+
+func (b0 CreateBeamResponse_builder) Build() *CreateBeamResponse {
+	m0 := &CreateBeamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Beam = b.Beam
+	return m0
+}
+
 // UpdateBeamRequest contains the parameters to the UpdateBeam RPC.
 type UpdateBeamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Beam to be updated. See the UpdateBeam RPC docs for details of which
 	// fields can be updated.
 	Beam          *Beam `protobuf:"bytes,1,opt,name=beam,proto3" json:"beam,omitempty"`
@@ -285,11 +323,6 @@ func (x *UpdateBeamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateBeamRequest.ProtoReflect.Descriptor instead.
-func (*UpdateBeamRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpdateBeamRequest) GetBeam() *Beam {
 	if x != nil {
 		return x.Beam
@@ -297,9 +330,40 @@ func (x *UpdateBeamRequest) GetBeam() *Beam {
 	return nil
 }
 
+func (x *UpdateBeamRequest) SetBeam(v *Beam) {
+	x.Beam = v
+}
+
+func (x *UpdateBeamRequest) HasBeam() bool {
+	if x == nil {
+		return false
+	}
+	return x.Beam != nil
+}
+
+func (x *UpdateBeamRequest) ClearBeam() {
+	x.Beam = nil
+}
+
+type UpdateBeamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Beam to be updated. See the UpdateBeam RPC docs for details of which
+	// fields can be updated.
+	Beam *Beam
+}
+
+func (b0 UpdateBeamRequest_builder) Build() *UpdateBeamRequest {
+	m0 := &UpdateBeamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Beam = b.Beam
+	return m0
+}
+
 // UpdateBeamResponse contains the results of the UpdateBeam RPC.
 type UpdateBeamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Beam that was updated.
 	Beam          *Beam `protobuf:"bytes,1,opt,name=beam,proto3" json:"beam,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -331,11 +395,6 @@ func (x *UpdateBeamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateBeamResponse.ProtoReflect.Descriptor instead.
-func (*UpdateBeamResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UpdateBeamResponse) GetBeam() *Beam {
 	if x != nil {
 		return x.Beam
@@ -343,9 +402,39 @@ func (x *UpdateBeamResponse) GetBeam() *Beam {
 	return nil
 }
 
+func (x *UpdateBeamResponse) SetBeam(v *Beam) {
+	x.Beam = v
+}
+
+func (x *UpdateBeamResponse) HasBeam() bool {
+	if x == nil {
+		return false
+	}
+	return x.Beam != nil
+}
+
+func (x *UpdateBeamResponse) ClearBeam() {
+	x.Beam = nil
+}
+
+type UpdateBeamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Beam that was updated.
+	Beam *Beam
+}
+
+func (b0 UpdateBeamResponse_builder) Build() *UpdateBeamResponse {
+	m0 := &UpdateBeamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Beam = b.Beam
+	return m0
+}
+
 // DeleteBeamRequest contains the parameters to the DeleteBeam RPC.
 type DeleteBeamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the UUID name of the beam that will be deleted.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -377,11 +466,6 @@ func (x *DeleteBeamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteBeamRequest.ProtoReflect.Descriptor instead.
-func (*DeleteBeamRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeleteBeamRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -389,9 +473,28 @@ func (x *DeleteBeamRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteBeamRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteBeamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the UUID name of the beam that will be deleted.
+	Name string
+}
+
+func (b0 DeleteBeamRequest_builder) Build() *DeleteBeamRequest {
+	m0 := &DeleteBeamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // GetBeamRequest contains the parameters to the GetBeam RPC.
 type GetBeamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Id:
 	//
 	//	*GetBeamRequest_Name
@@ -426,11 +529,6 @@ func (x *GetBeamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetBeamRequest.ProtoReflect.Descriptor instead.
-func (*GetBeamRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *GetBeamRequest) GetId() isGetBeamRequest_Id {
 	if x != nil {
 		return x.Id
@@ -456,6 +554,105 @@ func (x *GetBeamRequest) GetAlias() string {
 	return ""
 }
 
+func (x *GetBeamRequest) SetName(v string) {
+	x.Id = &GetBeamRequest_Name{v}
+}
+
+func (x *GetBeamRequest) SetAlias(v string) {
+	x.Id = &GetBeamRequest_Alias{v}
+}
+
+func (x *GetBeamRequest) HasId() bool {
+	if x == nil {
+		return false
+	}
+	return x.Id != nil
+}
+
+func (x *GetBeamRequest) HasName() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Id.(*GetBeamRequest_Name)
+	return ok
+}
+
+func (x *GetBeamRequest) HasAlias() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Id.(*GetBeamRequest_Alias)
+	return ok
+}
+
+func (x *GetBeamRequest) ClearId() {
+	x.Id = nil
+}
+
+func (x *GetBeamRequest) ClearName() {
+	if _, ok := x.Id.(*GetBeamRequest_Name); ok {
+		x.Id = nil
+	}
+}
+
+func (x *GetBeamRequest) ClearAlias() {
+	if _, ok := x.Id.(*GetBeamRequest_Alias); ok {
+		x.Id = nil
+	}
+}
+
+const GetBeamRequest_Id_not_set_case case_GetBeamRequest_Id = 0
+const GetBeamRequest_Name_case case_GetBeamRequest_Id = 1
+const GetBeamRequest_Alias_case case_GetBeamRequest_Id = 2
+
+func (x *GetBeamRequest) WhichId() case_GetBeamRequest_Id {
+	if x == nil {
+		return GetBeamRequest_Id_not_set_case
+	}
+	switch x.Id.(type) {
+	case *GetBeamRequest_Name:
+		return GetBeamRequest_Name_case
+	case *GetBeamRequest_Alias:
+		return GetBeamRequest_Alias_case
+	default:
+		return GetBeamRequest_Id_not_set_case
+	}
+}
+
+type GetBeamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Id:
+	// Name is the UUID name of the beam.
+	Name *string
+	// Alias is the human-friendly handle of the beam.
+	Alias *string
+	// -- end of Id
+}
+
+func (b0 GetBeamRequest_builder) Build() *GetBeamRequest {
+	m0 := &GetBeamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Name != nil {
+		x.Id = &GetBeamRequest_Name{*b.Name}
+	}
+	if b.Alias != nil {
+		x.Id = &GetBeamRequest_Alias{*b.Alias}
+	}
+	return m0
+}
+
+type case_GetBeamRequest_Id protoreflect.FieldNumber
+
+func (x case_GetBeamRequest_Id) String() string {
+	md := file_teleport_beams_v1_beam_service_proto_msgTypes[5].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isGetBeamRequest_Id interface {
 	isGetBeamRequest_Id()
 }
@@ -476,7 +673,7 @@ func (*GetBeamRequest_Alias) isGetBeamRequest_Id() {}
 
 // GetBeamResponse contains the results of the GetBeam RPC.
 type GetBeamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Beam that was retrieved.
 	Beam          *Beam `protobuf:"bytes,1,opt,name=beam,proto3" json:"beam,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -508,11 +705,6 @@ func (x *GetBeamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetBeamResponse.ProtoReflect.Descriptor instead.
-func (*GetBeamResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *GetBeamResponse) GetBeam() *Beam {
 	if x != nil {
 		return x.Beam
@@ -520,9 +712,39 @@ func (x *GetBeamResponse) GetBeam() *Beam {
 	return nil
 }
 
+func (x *GetBeamResponse) SetBeam(v *Beam) {
+	x.Beam = v
+}
+
+func (x *GetBeamResponse) HasBeam() bool {
+	if x == nil {
+		return false
+	}
+	return x.Beam != nil
+}
+
+func (x *GetBeamResponse) ClearBeam() {
+	x.Beam = nil
+}
+
+type GetBeamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Beam that was retrieved.
+	Beam *Beam
+}
+
+func (b0 GetBeamResponse_builder) Build() *GetBeamResponse {
+	m0 := &GetBeamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Beam = b.Beam
+	return m0
+}
+
 // ListBeamsRequest contains the parameters to the ListBeams RPC.
 type ListBeamsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return. The server may impose a different
 	// page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -565,11 +787,6 @@ func (x *ListBeamsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBeamsRequest.ProtoReflect.Descriptor instead.
-func (*ListBeamsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *ListBeamsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -605,9 +822,70 @@ func (x *ListBeamsRequest) GetSortOrder() BeamSortOrder {
 	return BeamSortOrder_BEAM_SORT_ORDER_UNSPECIFIED
 }
 
+func (x *ListBeamsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListBeamsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListBeamsRequest) SetFilters(v *ListBeamsRequest_Filters) {
+	x.Filters = v
+}
+
+func (x *ListBeamsRequest) SetSortField(v BeamSortField) {
+	x.SortField = v
+}
+
+func (x *ListBeamsRequest) SetSortOrder(v BeamSortOrder) {
+	x.SortOrder = v
+}
+
+func (x *ListBeamsRequest) HasFilters() bool {
+	if x == nil {
+		return false
+	}
+	return x.Filters != nil
+}
+
+func (x *ListBeamsRequest) ClearFilters() {
+	x.Filters = nil
+}
+
+type ListBeamsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return. The server may impose a different
+	// page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+	// Filters that will be applied to filter the list of results.
+	Filters *ListBeamsRequest_Filters
+	// The sort field to use for the results. If unspecified, the default sort
+	// field is used.
+	SortField BeamSortField
+	// The sort order to use for the results. If unspecified, the default sort
+	// order is used.
+	SortOrder BeamSortOrder
+}
+
+func (b0 ListBeamsRequest_builder) Build() *ListBeamsRequest {
+	m0 := &ListBeamsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.Filters = b.Filters
+	x.SortField = b.SortField
+	x.SortOrder = b.SortOrder
+	return m0
+}
+
 // ListBeamsResponse contains the results of the ListBeams RPC.
 type ListBeamsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of beams that matched the request.
 	Beams []*Beam `protobuf:"bytes,1,rep,name=beams,proto3" json:"beams,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no more
@@ -642,11 +920,6 @@ func (x *ListBeamsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBeamsResponse.ProtoReflect.Descriptor instead.
-func (*ListBeamsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *ListBeamsResponse) GetBeams() []*Beam {
 	if x != nil {
 		return x.Beams
@@ -661,10 +934,37 @@ func (x *ListBeamsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListBeamsResponse) SetBeams(v []*Beam) {
+	x.Beams = v
+}
+
+func (x *ListBeamsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListBeamsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of beams that matched the request.
+	Beams []*Beam
+	// Token to retrieve the next page of results, or empty if there are no more
+	// results in the list.
+	NextPageToken string
+}
+
+func (b0 ListBeamsResponse_builder) Build() *ListBeamsResponse {
+	m0 := &ListBeamsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Beams = b.Beams
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Filters contains fields that will be used to filter the results. When
 // multiple filters are provided, they will be combined with AND.
 type ListBeamsRequest_Filters struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Users filters the list of beams to those belonging only to the given
 	// users.
 	Users         []string `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
@@ -697,16 +997,31 @@ func (x *ListBeamsRequest_Filters) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBeamsRequest_Filters.ProtoReflect.Descriptor instead.
-func (*ListBeamsRequest_Filters) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{7, 0}
-}
-
 func (x *ListBeamsRequest_Filters) GetUsers() []string {
 	if x != nil {
 		return x.Users
 	}
 	return nil
+}
+
+func (x *ListBeamsRequest_Filters) SetUsers(v []string) {
+	x.Users = v
+}
+
+type ListBeamsRequest_Filters_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Users filters the list of beams to those belonging only to the given
+	// users.
+	Users []string
+}
+
+func (b0 ListBeamsRequest_Filters_builder) Build() *ListBeamsRequest_Filters {
+	m0 := &ListBeamsRequest_Filters{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Users = b.Users
+	return m0
 }
 
 var File_teleport_beams_v1_beam_service_proto protoreflect.FileDescriptor
@@ -764,18 +1079,6 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"DeleteBeam\x12$.teleport.beams.v1.DeleteBeamRequest\x1a\x16.google.protobuf.Empty\x12P\n" +
 	"\aGetBeam\x12!.teleport.beams.v1.GetBeamRequest\x1a\".teleport.beams.v1.GetBeamResponse\x12V\n" +
 	"\tListBeams\x12#.teleport.beams.v1.ListBeamsRequest\x1a$.teleport.beams.v1.ListBeamsResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
-
-var (
-	file_teleport_beams_v1_beam_service_proto_rawDescOnce sync.Once
-	file_teleport_beams_v1_beam_service_proto_rawDescData []byte
-)
-
-func file_teleport_beams_v1_beam_service_proto_rawDescGZIP() []byte {
-	file_teleport_beams_v1_beam_service_proto_rawDescOnce.Do(func() {
-		file_teleport_beams_v1_beam_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_service_proto_rawDesc), len(file_teleport_beams_v1_beam_service_proto_rawDesc)))
-	})
-	return file_teleport_beams_v1_beam_service_proto_rawDescData
-}
 
 var file_teleport_beams_v1_beam_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_beams_v1_beam_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)

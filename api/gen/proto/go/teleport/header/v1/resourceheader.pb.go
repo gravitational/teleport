@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/header/v1/resourceheader.proto
 
+//go:build !protoopaque
+
 package headerv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // ResourceHeader is a shared resource header.
 type ResourceHeader struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// kind is a resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// sub_kind is an optional resource sub kind, used in some resources.
@@ -78,11 +79,6 @@ func (x *ResourceHeader) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResourceHeader.ProtoReflect.Descriptor instead.
-func (*ResourceHeader) Descriptor() ([]byte, []int) {
-	return file_teleport_header_v1_resourceheader_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ResourceHeader) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -111,6 +107,60 @@ func (x *ResourceHeader) GetMetadata() *Metadata {
 	return nil
 }
 
+func (x *ResourceHeader) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *ResourceHeader) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *ResourceHeader) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *ResourceHeader) SetMetadata(v *Metadata) {
+	x.Metadata = v
+}
+
+func (x *ResourceHeader) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *ResourceHeader) ClearMetadata() {
+	x.Metadata = nil
+}
+
+type ResourceHeader_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is a resource kind.
+	Kind string
+	// sub_kind is an optional resource sub kind, used in some resources.
+	SubKind string
+	// Version is the API version used to create the resource. It must be
+	// specified. Based on this version, Teleport will apply different defaults on
+	// resource creation or deletion. It must be an integer prefixed by "v".
+	// For example: `v1`
+	Version string
+	// metadata is resource metadata.
+	Metadata *Metadata
+}
+
+func (b0 ResourceHeader_builder) Build() *ResourceHeader {
+	m0 := &ResourceHeader{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	return m0
+}
+
 var File_teleport_header_v1_resourceheader_proto protoreflect.FileDescriptor
 
 const file_teleport_header_v1_resourceheader_proto_rawDesc = "" +
@@ -121,18 +171,6 @@ const file_teleport_header_v1_resourceheader_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadataBPZNgithub.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1;headerv1b\x06proto3"
-
-var (
-	file_teleport_header_v1_resourceheader_proto_rawDescOnce sync.Once
-	file_teleport_header_v1_resourceheader_proto_rawDescData []byte
-)
-
-func file_teleport_header_v1_resourceheader_proto_rawDescGZIP() []byte {
-	file_teleport_header_v1_resourceheader_proto_rawDescOnce.Do(func() {
-		file_teleport_header_v1_resourceheader_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_header_v1_resourceheader_proto_rawDesc), len(file_teleport_header_v1_resourceheader_proto_rawDesc)))
-	})
-	return file_teleport_header_v1_resourceheader_proto_rawDescData
-}
 
 var file_teleport_header_v1_resourceheader_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_header_v1_resourceheader_proto_goTypes = []any{

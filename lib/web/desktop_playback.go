@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/desktop"
 )
 
@@ -45,6 +46,11 @@ func (h *Handler) desktopPlaybackHandle(
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
+	sessionID, err := session.ParseID(sID)
+	if err != nil {
+		return nil, trace.BadParameter("invalid session ID in request URL - %v", err)
+	}
+
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -53,7 +59,7 @@ func (h *Handler) desktopPlaybackHandle(
 	player, err := player.New(&player.Config{
 		Clock:     h.clock,
 		Log:       h.logger,
-		SessionID: session.ID(sID),
+		SessionID: *sessionID,
 		Streamer:  clt,
 		Context:   r.Context(),
 	})
@@ -71,13 +77,20 @@ func (h *Handler) desktopPlaybackHandle(
 
 	go func() {
 		defer cancel()
-		desktop.ReceivePlaybackActions(ctx, h.logger, ws, player)
+		err := desktop.ReceivePlaybackActions(ctx, h.logger, ws, player)
+		// Connection close errors are expected if the user closes the tab.
+		// Only log unexpected errors to avoid cluttering the logs.
+		if !utils.IsOKNetworkError(err) {
+			h.logger.WarnContext(ctx, "websocket read error", "error", err)
+		}
 	}()
 
 	go func() {
 		defer cancel()
 		defer ws.Close()
-		desktop.PlayRecording(ctx, h.logger, ws, player)
+
+		player.Play()
+		desktop.StreamRecording(ctx, h.logger, ws, player)
 	}()
 
 	<-ctx.Done()

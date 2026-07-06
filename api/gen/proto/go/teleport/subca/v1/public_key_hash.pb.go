@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/public_key_hash.proto
 
+//go:build !protoopaque
+
 package subcav1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 // A certificate public key hash. SHA256(SubjectPublicKeyInfo DER) printed as a
 // hex string.
 type PublicKeyHash struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Value         string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -69,16 +70,29 @@ func (x *PublicKeyHash) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PublicKeyHash.ProtoReflect.Descriptor instead.
-func (*PublicKeyHash) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_public_key_hash_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *PublicKeyHash) GetValue() string {
 	if x != nil {
 		return x.Value
 	}
 	return ""
+}
+
+func (x *PublicKeyHash) SetValue(v string) {
+	x.Value = v
+}
+
+type PublicKeyHash_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Value string
+}
+
+func (b0 PublicKeyHash_builder) Build() *PublicKeyHash {
+	m0 := &PublicKeyHash{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Value = b.Value
+	return m0
 }
 
 var File_teleport_subca_v1_public_key_hash_proto protoreflect.FileDescriptor
@@ -88,18 +102,6 @@ const file_teleport_subca_v1_public_key_hash_proto_rawDesc = "" +
 	"'teleport/subca/v1/public_key_hash.proto\x12\x11teleport.subca.v1\"%\n" +
 	"\rPublicKeyHash\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05valueBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
-
-var (
-	file_teleport_subca_v1_public_key_hash_proto_rawDescOnce sync.Once
-	file_teleport_subca_v1_public_key_hash_proto_rawDescData []byte
-)
-
-func file_teleport_subca_v1_public_key_hash_proto_rawDescGZIP() []byte {
-	file_teleport_subca_v1_public_key_hash_proto_rawDescOnce.Do(func() {
-		file_teleport_subca_v1_public_key_hash_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_subca_v1_public_key_hash_proto_rawDesc), len(file_teleport_subca_v1_public_key_hash_proto_rawDesc)))
-	})
-	return file_teleport_subca_v1_public_key_hash_proto_rawDescData
-}
 
 var file_teleport_subca_v1_public_key_hash_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_subca_v1_public_key_hash_proto_goTypes = []any{

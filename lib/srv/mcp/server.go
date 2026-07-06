@@ -29,11 +29,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -43,12 +45,19 @@ import (
 type AccessPoint interface {
 	services.AuthPreferenceGetter
 	services.ClusterNameGetter
+
+	// GetCertAuthority returns cert authority by id.
+	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
 }
 
 // AuthClient defines functions that the MCP server requires from the auth
 // client.
 type AuthClient interface {
 	appcommon.AppTokenGenerator
+
+	// WorkloadIdentityIssuanceClient returns an unadorned client for the
+	// workload identity service.
+	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
 }
 
 // ServerConfig is the config for the MCP forward server.
@@ -257,8 +266,17 @@ func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx *SessionCtx)
 }
 
 func (s *Server) getSessionHandlerWithJWT(ctx context.Context, sessionCtx *SessionCtx) (*sessionHandler, error) {
+	key := sessionKey{
+		Username:  sessionCtx.Identity.Username,
+		SessionID: sessionCtx.sessionID,
+	}
 	ttl := min(sessionCtx.Identity.Expires.Sub(s.cfg.clock.Now()), appcommon.MaxSessionChunkDuration)
-	return utils.FnCacheGetWithTTL(ctx, s.sessionCache, sessionCtx.sessionID, ttl, func(ctx context.Context) (*sessionHandler, error) {
+	return utils.FnCacheGetWithTTL(ctx, s.sessionCache, key, ttl, func(ctx context.Context) (*sessionHandler, error) {
 		return s.makeSessionHandler(ctx, sessionCtx)
 	})
+}
+
+type sessionKey struct {
+	Username  string
+	SessionID session.ID
 }

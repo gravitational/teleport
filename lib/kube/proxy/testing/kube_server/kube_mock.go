@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -46,6 +47,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
@@ -186,7 +188,8 @@ type KubeMockServer struct {
 	KubePortforward      KubeUpgradeRequests
 	supportsTunneledSPDY bool
 
-	nsList *corev1.NamespaceList
+	nsList  *corev1.NamespaceList
+	objects map[storedResourceKey]*unstructured.Unstructured
 
 	crds map[GVP]*CRD
 }
@@ -207,10 +210,29 @@ func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 			Minor:      "20",
 			GitVersion: "1.20.0",
 		},
-		nsList: defaultNamespaceList.DeepCopy(),
+		nsList:  defaultNamespaceList.DeepCopy(),
+		objects: map[storedResourceKey]*unstructured.Unstructured{},
 	}
 	for _, o := range opts {
 		o(s)
+	}
+
+	// Seed core objects into the store.
+	for _, secret := range secretList.Items {
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "Secret"})
+		obj.SetName(secret.Name)
+		obj.SetNamespace(secret.Namespace)
+		obj.SetLabels(secret.Labels)
+		obj.SetUID(types.UID(filepath.Join("secrets", secret.Namespace, secret.Name)))
+		s.objects[storedResource{version: "v1", resource: "secrets", namespaced: true}.key(secret.Namespace, secret.Name)] = obj
+	}
+	for _, name := range []string{"cr-nginx-1", "cr-nginx-2", "cr-test"} {
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "ClusterRole"})
+		obj.SetName(name)
+		obj.SetUID(types.UID(filepath.Join("clusterroles", name)))
+		s.objects[storedResource{group: "rbac.authorization.k8s.io", version: "v1", resource: "clusterroles"}.key("", name)] = obj
 	}
 
 	s.setup()
@@ -242,9 +264,6 @@ func (s *KubeMockServer) setup() {
 	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(s.portforward))
 	router.Handle("POST /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(s.portforward))
 
-	router.Handle("GET /apis/rbac.authorization.k8s.io/{ver}/clusterroles", s.withWriter(s.listClusterRoles))
-	router.Handle("GET /apis/rbac.authorization.k8s.io/{ver}/clusterroles/{name}", s.withWriter(s.getClusterRole))
-	router.Handle("DELETE /apis/rbac.authorization.k8s.io/{ver}/clusterroles/{name}", s.withWriter(s.deleteClusterRole))
 	router.Handle("GET /apis/rbac.authorization.k8s.io/{ver}", s.withWriter(s.discoveryEndpoint))
 
 	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods", s.withWriter(s.listPods))
@@ -252,18 +271,34 @@ func (s *KubeMockServer) setup() {
 	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}", s.withWriter(s.getPod))
 	router.Handle("DELETE /api/{ver}/namespaces/{namespace}/pods/{name}", s.withWriter(s.deletePod))
 
+	s.registerStoredResource(router, storedResource{version: "v1", resource: "serviceaccounts", kind: "ServiceAccount", listKind: "ServiceAccountList", namespaced: true})
+	s.registerStoredResource(router, storedResource{version: "v1", resource: "configmaps", kind: "ConfigMap", listKind: "ConfigMapList", namespaced: true})
+	s.registerStoredResource(router, storedResource{version: "v1", resource: "secrets", kind: "Secret", listKind: "SecretList", namespaced: true})
+	s.registerStoredResource(router, storedResource{version: "v1", resource: "services", kind: "Service", listKind: "ServiceList", namespaced: true})
+
 	router.Handle("GET /api/{ver}/namespaces", s.withWriter(s.listNamespaces))
 	router.Handle("GET /api/{ver}/namespaces/{name}", s.withWriter(s.getNamespace))
 	router.Handle("DELETE /api/v1/namespaces/{name}", s.withWriter(s.deleteNamespace))
 	router.Handle("POST /api/{ver}/namespaces", s.withWriter(s.createNamespace))
 
-	router.Handle("GET /api/{ver}/namespaces/{namespace}/secrets", s.withWriter(s.listSecrets))
-	router.Handle("GET /api/{ver}/secrets", s.withWriter(s.listSecrets))
-	router.Handle("GET /api/{ver}/namespaces/{namespace}/secrets/{name}", s.withWriter(s.getSecret))
-	router.Handle("DELETE /api/{ver}/namespaces/{namespace}/secrets/{name}", s.withWriter(s.deleteSecret))
-
 	router.Handle("POST /apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
 	router.Handle("GET /apis/authorization.k8s.io/{ver}", s.withWriter(s.discoveryEndpoint))
+	router.Handle("GET /apis/apps/{ver}", s.withWriter(s.discoveryEndpoint))
+	router.Handle("GET /apis/batch/{ver}", s.withWriter(s.discoveryEndpoint))
+	router.Handle("GET /apis/networking.k8s.io/{ver}", s.withWriter(s.discoveryEndpoint))
+	router.Handle("GET /apis/policy/{ver}", s.withWriter(s.discoveryEndpoint))
+
+	s.registerStoredResource(router, storedResource{group: "rbac.authorization.k8s.io", version: "v1", resource: "clusterroles", kind: "ClusterRole", listKind: "ClusterRoleList"})
+	s.registerStoredResource(router, storedResource{group: "rbac.authorization.k8s.io", version: "v1", resource: "clusterrolebindings", kind: "ClusterRoleBinding", listKind: "ClusterRoleBindingList"})
+	s.registerStoredResource(router, storedResource{group: "rbac.authorization.k8s.io", version: "v1", resource: "roles", kind: "Role", listKind: "RoleList", namespaced: true})
+	s.registerStoredResource(router, storedResource{group: "rbac.authorization.k8s.io", version: "v1", resource: "rolebindings", kind: "RoleBinding", listKind: "RoleBindingList", namespaced: true})
+	s.registerStoredResource(router, storedResource{group: "apps", version: "v1", resource: "deployments", kind: "Deployment", listKind: "DeploymentList", namespaced: true})
+	s.registerStoredResource(router, storedResource{group: "apps", version: "v1", resource: "statefulsets", kind: "StatefulSet", listKind: "StatefulSetList", namespaced: true})
+	s.registerStoredResource(router, storedResource{group: "apps", version: "v1", resource: "daemonsets", kind: "DaemonSet", listKind: "DaemonSetList", namespaced: true})
+	s.registerStoredResource(router, storedResource{group: "apps", version: "v1", resource: "replicasets", kind: "ReplicaSet", listKind: "ReplicaSetList", namespaced: true})
+	s.registerStoredResource(router, storedResource{group: "batch", version: "v1", resource: "jobs", kind: "Job", listKind: "JobList", namespaced: true})
+	s.registerStoredResource(router, storedResource{group: "networking.k8s.io", version: "v1", resource: "networkpolicies", kind: "NetworkPolicy", listKind: "NetworkPolicyList", namespaced: true})
+	s.registerStoredResource(router, storedResource{group: "policy", version: "v1", resource: "poddisruptionbudgets", kind: "PodDisruptionBudget", listKind: "PodDisruptionBudgetList", namespaced: true})
 
 	for k, crd := range s.crds {
 		router.Handle("GET /apis/"+k.group+"/"+k.version+"/namespaces/{namespace}/"+k.plural, s.withWriter(s.listCRDs(crd)))
@@ -337,6 +372,14 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 		// low-level to be useful.
 		Message: respErr.Error(),
 		Code:    int32(trace.ErrorToCode(respErr)),
+	}
+	switch {
+	case trace.IsAlreadyExists(respErr):
+		status.Reason = metav1.StatusReasonAlreadyExists
+	case trace.IsNotFound(respErr):
+		status.Reason = metav1.StatusReasonNotFound
+	case trace.IsBadParameter(respErr):
+		status.Reason = metav1.StatusReasonBadRequest
 	}
 	s.writeResponseError(rw, respErr, status)
 }
@@ -809,7 +852,10 @@ func (*v4ProtocolHandler) supportsTerminalResizing() bool { return true }
 func waitStreamReply(ctx context.Context, replySent <-chan struct{}, notify chan<- struct{}) {
 	select {
 	case <-replySent:
-		notify <- struct{}{}
+		select {
+		case notify <- struct{}{}:
+		case <-ctx.Done():
+		}
 	case <-ctx.Done():
 	}
 }

@@ -16,12 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import {
+  createThemeSystem,
+  TELEPORT_THEME,
+  ThemeProvider as NewThemeProvider,
+} from '@gravitational/design-system';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ThemeProvider as StyledThemeProvider,
   StyleSheetManager,
 } from 'styled-components';
 
+import { resolveTheme } from 'design/theme';
 import { Theme } from 'design/theme/themes/types';
 import { shouldForwardProp } from 'design/ThemeProvider';
 
@@ -29,6 +35,8 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { GlobalStyle } from './globals';
 import { darkTheme, lightTheme } from './theme';
+
+const themeSystem = createThemeSystem(TELEPORT_THEME.config);
 
 export const ThemeProvider = (props: React.PropsWithChildren<unknown>) => {
   // Listening to Electron's nativeTheme.on('updated') is a workaround.
@@ -56,8 +64,13 @@ export const ThemeProvider = (props: React.PropsWithChildren<unknown>) => {
     return cleanup;
   }, [ctx.mainProcessClient]);
 
+  const legacyTheme: Theme = useMemo(
+    () => resolveTheme(activeTheme),
+    [activeTheme]
+  );
+
   return (
-    <StaticThemeProvider theme={activeTheme}>
+    <StaticThemeProvider theme={legacyTheme}>
       {props.children}
     </StaticThemeProvider>
   );
@@ -68,13 +81,18 @@ export const StaticThemeProvider = (
   props: React.PropsWithChildren<{ theme?: Theme }>
 ) => {
   return (
-    <StyledThemeProvider theme={props.theme}>
-      <StyleSheetManager shouldForwardProp={shouldForwardProp}>
-        <React.Fragment>
-          <GlobalStyle />
-          {props.children}
-        </React.Fragment>
-      </StyleSheetManager>
-    </StyledThemeProvider>
+    <NewThemeProvider
+      system={themeSystem}
+      forcedTheme={props.theme?.type === 'light' ? 'light' : 'dark'}
+    >
+      <StyledThemeProvider theme={props.theme}>
+        <StyleSheetManager shouldForwardProp={shouldForwardProp}>
+          <React.Fragment>
+            <GlobalStyle />
+            {props.children}
+          </React.Fragment>
+        </StyleSheetManager>
+      </StyledThemeProvider>
+    </NewThemeProvider>
   );
 };

@@ -95,10 +95,10 @@ func TestOSConfigProvider(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			targetOSConfigGetter := &fakeTargetOSConfigGetter{
-				targetOSConfig: &vnetv1.TargetOSConfiguration{
+				targetOSConfig: vnetv1.TargetOSConfiguration_builder{
 					DnsZones:       tc.dnsZones,
 					Ipv4CidrRanges: tc.ipv4CIDRRanges,
-				},
+				}.Build(),
 				err: tc.getTargetOSConfigErr,
 			}
 			// Keep track of new DNS addresses the osConfigProvider tried to add.

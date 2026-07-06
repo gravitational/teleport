@@ -730,7 +730,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/GetKey")
+	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/GetKey")
 	// Try loading existing keys.
 	k, err := tc.LocalAgent().GetKeyRing(c.teleportCluster, client.WithKubeCerts{})
 	span.End()
@@ -741,14 +741,14 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeX509Cert")
+		_, span := tc.Tracer.Start(ctx, "tsh.kubeCredentials/KubeX509Cert")
 		crt, err := k.KubeX509Cert(c.kubeCluster)
 		span.End()
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			logger.DebugContext(cf.Context, "Re-using existing TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
+			logger.DebugContext(ctx, "Re-using existing TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
 
 			return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
 		}
@@ -756,7 +756,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		// a new one.
 	}
 
-	logger.DebugContext(cf.Context, "Requesting TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
+	logger.DebugContext(ctx, "Requesting TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
 	var unlockKubeCred func(bool)
 	deleteKubeCredsLock := false
 	defer func() {
@@ -765,7 +765,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		}
 	}()
 
-	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
+	ctx, span = tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
 	err = client.RetryWithRelogin(
 		ctx,
 		tc,
@@ -803,7 +803,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 				if proxy == "" {
 					proxy = tc.WebProxyAddr
 				}
-				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, proxy, lockTimeout)
+				unlockKubeCred, err = takeKubeCredLock(ctx, cf.HomePath, proxy, lockTimeout)
 				return trace.Wrap(err)
 			},
 		),

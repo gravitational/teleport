@@ -18,7 +18,7 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Route, Routes } from 'react-router';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -164,13 +164,14 @@ function Wrapper(props?: {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[cfg.routes.instances]}>
-        <TeleportProviderBasic teleportCtx={ctx}>
-          <Routes>
-            <Route path={cfg.routes.instances} element={<Instances />} />
-          </Routes>
-        </TeleportProviderBasic>
-      </MemoryRouter>
+      <TeleportProviderBasic
+        teleportCtx={ctx}
+        initialEntries={[cfg.routes.instances]}
+      >
+        <Routes>
+          <Route path={cfg.routes.instances} element={<Instances />} />
+        </Routes>
+      </TeleportProviderBasic>
     </QueryClientProvider>
   );
 }

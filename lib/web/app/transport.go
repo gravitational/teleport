@@ -455,6 +455,7 @@ func dialAppServer(ctx context.Context, clusterClient reversetunnelclient.Cluste
 		ServerID:              server.GetHostID() + "." + clusterClient.GetName(),
 		ConnType:              server.GetTunnelType(),
 		ProxyIDs:              server.GetProxyIDs(),
+		TargetScope:           server.GetScope(),
 	})
 	return conn, trace.Wrap(err)
 }

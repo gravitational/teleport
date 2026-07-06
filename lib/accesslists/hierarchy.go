@@ -45,9 +45,13 @@ const (
 
 // AccessListAndMembersGetter is a minimal interface for fetching AccessLists by name, and AccessListMembers for an Access List.
 type AccessListAndMembersGetter interface {
-	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	AccessListMembersLister
+}
+
+type AccessListMembersLister interface {
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
 
 // lockGetter is a service that gets locks.
@@ -62,11 +66,11 @@ type lockGetter interface {
 //
 // Returned Members are not validated for expiration or other requirements – use IsAccessListMember
 // to validate a Member's membership status.
-func GetMembersFor(ctx context.Context, accessListName string, g AccessListAndMembersGetter) ([]*accesslist.AccessListMember, error) {
+func GetMembersFor(ctx context.Context, accessListName string, g AccessListMembersLister) ([]*accesslist.AccessListMember, error) {
 	return getMembersFor(ctx, accessListName, g, make(map[string]struct{}))
 }
 
-func getMembersFor(ctx context.Context, accessListName string, g AccessListAndMembersGetter, visited map[string]struct{}) ([]*accesslist.AccessListMember, error) {
+func getMembersFor(ctx context.Context, accessListName string, g AccessListMembersLister, visited map[string]struct{}) ([]*accesslist.AccessListMember, error) {
 	if _, ok := visited[accessListName]; ok {
 		return nil, nil
 	}
@@ -94,7 +98,7 @@ func getMembersFor(ctx context.Context, accessListName string, g AccessListAndMe
 }
 
 // fetchMembers is a simple helper to fetch all top-level AccessListMembers for an AccessList.
-func fetchMembers(ctx context.Context, accessListName string, g AccessListAndMembersGetter) ([]*accesslist.AccessListMember, error) {
+func fetchMembers(ctx context.Context, accessListName string, g AccessListMembersLister) ([]*accesslist.AccessListMember, error) {
 	var allMembers []*accesslist.AccessListMember
 	pageToken := ""
 	for {
@@ -116,7 +120,7 @@ func fetchMembers(ctx context.Context, accessListName string, g AccessListAndMem
 }
 
 // collectOwners is a helper to recursively collect all Owners for an Access List, including inherited Owners.
-func collectOwners(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter, owners map[string]*accesslist.Owner, visited map[string]struct{}) error {
+func collectOwners(ctx context.Context, accessList *accesslist.AccessList, g AccessListMembersLister, owners map[string]*accesslist.Owner, visited map[string]struct{}) error {
 	if _, ok := visited[accessList.GetName()]; ok {
 		return nil
 	}
@@ -143,7 +147,7 @@ func collectOwners(ctx context.Context, accessList *accesslist.AccessList, g Acc
 }
 
 // collectMembersAsOwners is a helper to collect all nested members of an AccessList and return them cast as Owners.
-func collectMembersAsOwners(ctx context.Context, accessListName string, g AccessListAndMembersGetter, visited map[string]struct{}) ([]*accesslist.Owner, error) {
+func collectMembersAsOwners(ctx context.Context, accessListName string, g AccessListMembersLister, visited map[string]struct{}) ([]*accesslist.Owner, error) {
 	owners := make([]*accesslist.Owner, 0)
 	if _, ok := visited[accessListName]; ok {
 		return owners, nil
@@ -171,7 +175,7 @@ func collectMembersAsOwners(ctx context.Context, accessListName string, g Access
 //
 // Returned Owners are not validated for expiration or other requirements – use IsAccessListOwner
 // to validate an Owner's ownership status.
-func GetOwnersFor(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) ([]*accesslist.Owner, error) {
+func GetOwnersFor(ctx context.Context, accessList *accesslist.AccessList, g AccessListMembersLister) ([]*accesslist.Owner, error) {
 	ownersMap := make(map[string]*accesslist.Owner)
 	if err := collectOwners(ctx, accessList, g, ownersMap, make(map[string]struct{})); err != nil {
 		return nil, trace.Wrap(err)

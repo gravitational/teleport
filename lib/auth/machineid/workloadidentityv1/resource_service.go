@@ -18,7 +18,10 @@ package workloadidentityv1
 
 import (
 	"context"
+	"iter"
 	"log/slog"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -31,12 +34,14 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 type workloadIdentityReader interface {
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
-	ListWorkloadIdentities(ctx context.Context, pageSize int, token string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 }
 
 type workloadIdentityReadWriter interface {
@@ -113,11 +118,11 @@ func (s *ResourceService) GetWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	resource, err := s.cache.GetWorkloadIdentity(ctx, req.Name)
+	resource, err := s.cache.GetWorkloadIdentity(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -131,10 +136,10 @@ func (s *ResourceService) GetWorkloadIdentity(
 func (s *ResourceService) ListWorkloadIdentities(
 	ctx context.Context, req *workloadidentityv1pb.ListWorkloadIdentitiesRequest,
 ) (*workloadidentityv1pb.ListWorkloadIdentitiesResponse, error) {
-	return s.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
+	return s.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
 		PageSize:  req.GetPageSize(),
 		PageToken: req.GetPageToken(),
-	})
+	}.Build())
 }
 
 // ListWorkloadIdentitiesV2 returns a list of WorkloadIdentity resources. It
@@ -152,24 +157,38 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 		return nil, trace.Wrap(err)
 	}
 
-	resources, nextToken, err := s.cache.ListWorkloadIdentities(
-		ctx,
-		int(req.PageSize),
-		req.PageToken,
-		&services.ListWorkloadIdentitiesRequestOptions{
-			SortField:        req.GetSortField(),
-			SortDesc:         req.GetSortDesc(),
-			FilterSearchTerm: req.GetFilterSearchTerm(),
-		},
-	)
+	sortField := services.WorkloadIdentitySortField(req.GetSortField())
+	keyFn, err := services.WorkloadIdentityKey(sortField)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &workloadidentityv1pb.ListWorkloadIdentitiesResponse{
+	// Iterate the cache in sorted order, applying any filtering here at the gRPC
+	// layer rather than pushing it down, then collect a single page.
+	items := s.cache.RangeWorkloadIdentities(ctx, req.GetPageToken(), "", sortField, req.GetSortDesc())
+	if searchTerm := req.GetFilterSearchTerm(); searchTerm != "" {
+		items = stream.FilterMap(items, func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
+			values := []string{
+				wi.GetMetadata().GetName(),
+				wi.GetSpec().GetSpiffe().GetId(),
+				wi.GetSpec().GetSpiffe().GetHint(),
+			}
+
+			return wi, slices.ContainsFunc(values, func(val string) bool {
+				return strings.Contains(strings.ToLower(val), strings.ToLower(searchTerm))
+			})
+		})
+	}
+
+	resources, nextToken, err := generic.CollectPageAndCursor(items, int(req.GetPageSize()), keyFn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return workloadidentityv1pb.ListWorkloadIdentitiesResponse_builder{
 		WorkloadIdentities: resources,
 		NextPageToken:      nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // DeleteWorkloadIdentity deletes a WorkloadIdentity by name.
@@ -188,11 +207,11 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	if err := s.backend.DeleteWorkloadIdentity(ctx, req.Name); err != nil {
+	if err := s.backend.DeleteWorkloadIdentity(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -204,7 +223,7 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 	}); err != nil {
 		s.logger.ErrorContext(
@@ -232,7 +251,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.CreateWorkloadIdentity(ctx, req.WorkloadIdentity)
+	created, err := s.backend.CreateWorkloadIdentity(ctx, req.GetWorkloadIdentity())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -245,7 +264,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.WorkloadIdentity.Metadata.Name,
+			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
 		},
 	}
 	evt.WorkloadIdentityData, err = resourceToStruct(created)
@@ -282,7 +301,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.UpdateWorkloadIdentity(ctx, req.WorkloadIdentity)
+	created, err := s.backend.UpdateWorkloadIdentity(ctx, req.GetWorkloadIdentity())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -295,7 +314,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.WorkloadIdentity.Metadata.Name,
+			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
 		},
 	}
 	evt.WorkloadIdentityData, err = resourceToStruct(created)
@@ -334,7 +353,7 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.UpsertWorkloadIdentity(ctx, req.WorkloadIdentity)
+	created, err := s.backend.UpsertWorkloadIdentity(ctx, req.GetWorkloadIdentity())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -347,7 +366,7 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.WorkloadIdentity.Metadata.Name,
+			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
 		},
 	}
 	evt.WorkloadIdentityData, err = resourceToStruct(created)

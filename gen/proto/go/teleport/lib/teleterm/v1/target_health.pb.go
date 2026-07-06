@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/target_health.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -41,7 +42,7 @@ const (
 // TargetHealth describes the health status of network connectivity between
 // an agent and a resource.
 type TargetHealth struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// status is the health status, one of "", "unknown", "healthy", "unhealthy".
 	Status string `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
 	// error is the health check error observed, when
@@ -78,11 +79,6 @@ func (x *TargetHealth) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TargetHealth.ProtoReflect.Descriptor instead.
-func (*TargetHealth) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_target_health_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *TargetHealth) GetStatus() string {
 	if x != nil {
 		return x.Status
@@ -104,6 +100,40 @@ func (x *TargetHealth) GetMessage() string {
 	return ""
 }
 
+func (x *TargetHealth) SetStatus(v string) {
+	x.Status = v
+}
+
+func (x *TargetHealth) SetError(v string) {
+	x.Error = v
+}
+
+func (x *TargetHealth) SetMessage(v string) {
+	x.Message = v
+}
+
+type TargetHealth_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// status is the health status, one of "", "unknown", "healthy", "unhealthy".
+	Status string
+	// error is the health check error observed, when
+	// "status" field != "healthy".
+	Error string
+	// message is additional information meant for a user.
+	Message string
+}
+
+func (b0 TargetHealth_builder) Build() *TargetHealth {
+	m0 := &TargetHealth{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	x.Error = b.Error
+	x.Message = b.Message
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_target_health_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_target_health_proto_rawDesc = "" +
@@ -113,18 +143,6 @@ const file_teleport_lib_teleterm_v1_target_health_proto_rawDesc = "" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessageBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_target_health_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_target_health_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_target_health_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_target_health_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_target_health_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_target_health_proto_rawDesc), len(file_teleport_lib_teleterm_v1_target_health_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_target_health_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_v1_target_health_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_lib_teleterm_v1_target_health_proto_goTypes = []any{

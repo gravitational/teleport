@@ -265,8 +265,8 @@ func (m *consumeRecoveryMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.RecoveryCount += 1
-	status.LastRecoveredAt = timestamppb.New(m.now)
+	status.SetRecoveryCount(status.GetRecoveryCount() + 1)
+	status.SetLastRecoveredAt(timestamppb.New(m.now))
 }
 
 // mutateStatusConsumeRecovery consumes a "hard" join on the backend, incrementing
@@ -310,7 +310,7 @@ func (m *boundPublicKeyMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.BoundPublicKey = m.newPublicKey
+	status.SetBoundPublicKey(m.newPublicKey)
 }
 
 // mutateStatusBoundPublicKey is a mutator that updates the bound public key
@@ -355,7 +355,7 @@ func (m *boundBotInstanceMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.BoundBotInstanceId = m.newBotInstance
+	status.SetBoundBotInstanceId(m.newBotInstance)
 }
 
 // mutateStatusBoundBotInstance updates the bot instance ID currently bound to
@@ -400,7 +400,7 @@ func (m *boundHostIDMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.BoundHostId = m.newHostID
+	status.SetBoundHostId(m.newHostID)
 }
 
 // mutateStatusBoundHostID updates the host ID currently bound to this token. It
@@ -458,9 +458,9 @@ func (m *lastRotatedAtMutator) mutateScopedToken(
 	status *joiningv1.BoundKeypairStatus,
 ) {
 	if m.newValue == nil {
-		status.LastRotatedAt = nil
+		status.ClearLastRotatedAt()
 	} else {
-		status.LastRotatedAt = timestamppb.New(*m.newValue)
+		status.SetLastRotatedAt(timestamppb.New(*m.newValue))
 	}
 }
 
@@ -500,7 +500,7 @@ func (m *clearRegistrationSecretMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.RegistrationSecret = ""
+	status.SetRegistrationSecret("")
 }
 
 // mutateStatusClearRegistrationSecret clears the registration secret field to
@@ -610,6 +610,9 @@ func emitBoundKeypairRecoveryEvent(
 		}
 	}
 
+	// TODO(strideynet): When bots become scope namespaced, ensure this call
+	// site reflects scopedness.
+	botName, _ := token.GetBot()
 	if err := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairRecovery{
 		Metadata: apievents.Metadata{
 			Type: events.BoundKeypairRecovery,
@@ -620,7 +623,7 @@ func emitBoundKeypairRecoveryEvent(
 			RemoteAddr: params.Diag.Get().RemoteAddr,
 		},
 		TokenName:     token.GetName(),
-		BotName:       token.GetBotName(),
+		BotName:       botName,
 		PublicKey:     boundPublicKey,
 		RecoveryCount: recoveryCount,
 		RecoveryMode:  token.GetBoundKeypair().Recovery.Mode,
@@ -650,6 +653,9 @@ func emitBoundKeypairRotationEvent(
 		}
 	}
 
+	// TODO(strideynet): When bots become scope namespaced, ensure this call
+	// site reflects scopedness.
+	botName, _ := token.GetBot()
 	if err := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairRotation{
 		Metadata: apievents.Metadata{
 			Type: events.BoundKeypairRotation,
@@ -660,7 +666,7 @@ func emitBoundKeypairRotationEvent(
 			RemoteAddr: params.Diag.Get().RemoteAddr,
 		},
 		TokenName:         token.GetName(),
-		BotName:           token.GetBotName(),
+		BotName:           botName,
 		PreviousPublicKey: prevPublicKey,
 		NewPublicKey:      newPublicKey,
 	}); err != nil {
@@ -676,6 +682,9 @@ func tryLockTokenInvalidJoinState(
 ) {
 	log := params.Logger.With("join_token", token.GetName(), "validation_error", validationError)
 
+	// TODO(strideynet): When bots become scope namespaced, ensure this call
+	// site reflects scopedness.
+	botName, _ := token.GetBot()
 	if auditErr := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairJoinStateVerificationFailed{
 		Metadata: apievents.Metadata{
 			Type: events.BoundKeypairJoinStateVerificationFailed,
@@ -689,7 +698,7 @@ func tryLockTokenInvalidJoinState(
 			RemoteAddr: params.Diag.Get().RemoteAddr,
 		},
 		TokenName: token.GetName(),
-		BotName:   token.GetBotName(),
+		BotName:   botName,
 	}); auditErr != nil {
 		log.WarnContext(ctx, "Failed to emit failed join state verification event", "error", auditErr)
 	}
@@ -700,7 +709,7 @@ func tryLockTokenInvalidJoinState(
 			"The join token %q has been locked by bot %q after a client "+
 				"failed to verify its join state, possibly indicating a "+
 				"stolen keypair.",
-			token.GetName(), token.GetBotName(),
+			token.GetName(), botName,
 		)
 	} else {
 		message = fmt.Sprintf(

@@ -841,7 +841,7 @@ func (s *ClusterConfigurationService) CreateAccessGraphSettings(ctx context.Cont
 		return nil, trace.Wrap(err)
 	}
 
-	set.Metadata.Revision = lease.Revision
+	set.GetMetadata().SetRevision(lease.Revision)
 	return set, nil
 }
 
@@ -865,7 +865,7 @@ func (s *ClusterConfigurationService) UpdateAccessGraphSettings(ctx context.Cont
 		return nil, trace.Wrap(err)
 	}
 
-	set.Metadata.Revision = lease.Revision
+	set.GetMetadata().SetRevision(lease.Revision)
 	return set, nil
 }
 
@@ -888,7 +888,7 @@ func (s *ClusterConfigurationService) UpsertAccessGraphSettings(ctx context.Cont
 		return nil, trace.Wrap(err)
 	}
 
-	set.Metadata.Revision = lease.Revision
+	set.GetMetadata().SetRevision(lease.Revision)
 	return set, nil
 }
 

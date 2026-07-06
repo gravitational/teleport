@@ -10,7 +10,10 @@ locals {
   apply_teleport_resource_labels = merge(var.apply_teleport_resource_labels, {
     "teleport.dev/iac-tool" = "terraform",
   })
-  apply_teleport_integration_labels = merge(local.apply_teleport_resource_labels, {
+  apply_teleport_management_group_label = var.azure_management_group_id != null ? {
+    "teleport.dev/azure-management-group-id" = var.azure_management_group_id
+  } : {}
+  apply_teleport_integration_labels = merge(local.apply_teleport_resource_label, local.apply_teleport_management_group_labels, {
     "teleport.dev/azure-managed-identity-region"         = var.azure_managed_identity_location
     "teleport.dev/azure-managed-identity-resource-group" = var.azure_resource_group_name
   })

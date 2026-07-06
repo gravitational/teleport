@@ -216,7 +216,7 @@ func (s *KubeSession) handleMFA(ctx context.Context, authFn func(context.Context
 
 		go func() {
 			defer auth.Close()
-			if err := RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), ceremony); err != nil {
+			if err := RunDefaultPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), ceremony); err != nil {
 				slog.DebugContext(ctx, "Presence check terminated unexpectedly", "error", err)
 			}
 		}()

@@ -245,18 +245,18 @@ func MakeGitHubSigner(ctx context.Context, config GitHubSignerConfig) (ssh.Signe
 	if err != nil {
 		return nil, trace.Wrap(err, "generating SSH key")
 	}
-	resp, err := config.GitHubUserCertGenerator.GenerateGitHubUserCert(ctx, &integrationv1.GenerateGitHubUserCertRequest{
+	resp, err := config.GitHubUserCertGenerator.GenerateGitHubUserCert(ctx, integrationv1.GenerateGitHubUserCertRequest_builder{
 		Integration: config.Server.GetGitHub().Integration,
 		PublicKey:   sshKey.MarshalSSHPublicKey(),
 		UserId:      config.GitHubUserID,
 		KeyId:       config.TeleportUser,
 		Ttl:         durationpb.New(config.certTTL()),
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	signer, err := sshutils.NewSigner(sshKey.PrivateKeyPEM(), resp.AuthorizedKey)
+	signer, err := sshutils.NewSigner(sshKey.PrivateKeyPEM(), resp.GetAuthorizedKey())
 	return signer, trace.Wrap(err)
 }
 

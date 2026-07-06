@@ -118,7 +118,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFl
 
 	c.usersList = users.Command("ls", "List users that are members of an Access List.")
 	c.usersList.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
-	c.usersList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.JSON, teleport.Text)
+	c.usersList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.JSON, teleport.YAML, teleport.Text)
 
 	reviews := acl.Command("reviews", "Manage access list reviews.")
 
@@ -320,6 +320,8 @@ func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) e
 	switch c.format {
 	case teleport.JSON:
 		return trace.Wrap(utils.WriteJSONArray(c.Stdout, allMembers))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(c.Stdout, allMembers))
 	case teleport.Text:
 		if len(allMembers) == 0 {
 			fmt.Fprintf(c.Stdout, "No members found for access list %s", c.accessListName)

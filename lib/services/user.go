@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -152,4 +153,37 @@ func UsernameForCluster(cfg UsernameForClusterConfig) string {
 		return cfg.User
 	}
 	return UsernameForRemoteCluster(cfg.User, cfg.OriginClusterName)
+}
+
+// ResolveUserDisplays resolves usernames to display values keyed by username,
+// reading each unique name once through getter via types.User.GetDisplay.
+//
+// Missing users are absent from the result. A user with no distinct display is
+// present with a zero-value types.UserDisplay. Blank usernames are skipped, and
+// any non-NotFound error aborts with no partial map.
+func ResolveUserDisplays(ctx context.Context, getter UserGetter, usernames []string) (map[string]types.UserDisplay, error) {
+	displays := make(map[string]types.UserDisplay)
+	seen := make(map[string]struct{})
+
+	for _, username := range usernames {
+		if strings.TrimSpace(username) == "" {
+			continue // skipping whitespace-only username
+		}
+
+		if _, ok := seen[username]; ok {
+			continue // skipping duplicate username
+		}
+		seen[username] = struct{}{}
+
+		user, err := getter.GetUser(ctx, username, false)
+		if trace.IsNotFound(err) {
+			continue // skipping missing user
+		}
+		if err != nil {
+			return nil, trace.Wrap(err, "resolving display for user %q", username)
+		}
+		displays[username] = user.GetDisplay()
+	}
+
+	return displays, nil
 }

@@ -19,7 +19,7 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-import { makeTraits } from './makeUser';
+import makeUser, { makeTraits } from './makeUser';
 import { Acl, ExcludeUserField, PasswordState, User } from './types';
 import user from './user';
 
@@ -296,6 +296,7 @@ test('undefined values in context response gives proper default values', async (
     desktopSessionRecordingEnabled: true,
     directorySharingEnabled: true,
     fileTransferAccess: true,
+    webTerminalClipboardMode: '',
     gitServers: {
       list: false,
       read: false,
@@ -387,6 +388,9 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    mobileDevice: {
+      createEnrollToken: false,
+    },
   };
 
   expect(response).toEqual({
@@ -427,6 +431,8 @@ test('fetch users, null response values gives empty array', async () => {
   expect(response).toStrictEqual([
     {
       authType: '',
+      displayPrimary: undefined,
+      displaySecondary: undefined,
       isBot: undefined,
       isLocal: false,
       name: '',
@@ -444,6 +450,43 @@ test('fetch users, null response values gives empty array', async () => {
       },
     },
   ]);
+});
+
+test('makeUser maps display name fields when present', () => {
+  expect(
+    makeUser({
+      name: 'alice',
+      roles: ['access'],
+      displayPrimary: 'Alice Jones',
+      displaySecondary: 'alice@example.com',
+    })
+  ).toMatchObject({
+    name: 'alice',
+    displayPrimary: 'Alice Jones',
+    displaySecondary: 'alice@example.com',
+  });
+
+  expect(makeUser({ name: 'bob', roles: [] })).toMatchObject({
+    displayPrimary: undefined,
+    displaySecondary: undefined,
+  });
+});
+
+test('makeUser labels local users as "local user"', () => {
+  expect(
+    makeUser({ name: 'alice', roles: [], authType: 'local' })
+  ).toMatchObject({
+    authType: 'local user',
+    isLocal: true,
+  });
+
+  // Non-local auth types pass through unchanged.
+  expect(
+    makeUser({ name: 'bob', roles: [], authType: 'github' })
+  ).toMatchObject({
+    authType: 'github',
+    isLocal: false,
+  });
 });
 
 test('createResetPasswordToken', async () => {

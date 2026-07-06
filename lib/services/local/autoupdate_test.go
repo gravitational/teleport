@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -50,21 +49,21 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	config := &autoupdatev1pb.AutoUpdateConfig{
+	config := autoupdatev1pb.AutoUpdateConfig_builder{
 		Kind:     types.KindAutoUpdateConfig,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateConfig},
-		Spec: &autoupdatev1pb.AutoUpdateConfigSpec{
-			Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+		Metadata: headerv1.Metadata_builder{Name: types.MetaNameAutoUpdateConfig}.Build(),
+		Spec: autoupdatev1pb.AutoUpdateConfigSpec_builder{
+			Tools: autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
 				Mode: autoupdate.ToolsUpdateModeEnabled,
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	created, err := service.CreateAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 	diff := cmp.Diff(config, created,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -73,15 +72,15 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	got, err := service.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(config, got,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
-	config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{
+	config.GetSpec().SetTools(autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
 		Mode: autoupdate.ToolsUpdateModeDisabled,
-	}
+	}.Build())
 	updated, err := service.UpdateAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 	require.NotEqual(t, got.GetSpec().GetTools(), updated.GetSpec().GetTools())
@@ -115,21 +114,21 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	version := &autoupdatev1pb.AutoUpdateVersion{
+	version := autoupdatev1pb.AutoUpdateVersion_builder{
 		Kind:     types.KindAutoUpdateVersion,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateVersion},
-		Spec: &autoupdatev1pb.AutoUpdateVersionSpec{
-			Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+		Metadata: headerv1.Metadata_builder{Name: types.MetaNameAutoUpdateVersion}.Build(),
+		Spec: autoupdatev1pb.AutoUpdateVersionSpec_builder{
+			Tools: autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
 				TargetVersion: "1.2.3",
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	created, err := service.CreateAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 	diff := cmp.Diff(version, created,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -138,15 +137,15 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	got, err := service.GetAutoUpdateVersion(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(version, got,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
-	version.Spec.Tools = &autoupdatev1pb.AutoUpdateVersionSpecTools{
+	version.GetSpec().SetTools(autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
 		TargetVersion: "3.2.1",
-	}
+	}.Build())
 	updated, err := service.UpdateAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 	require.NotEqual(t, got.GetSpec().GetTools().GetTargetVersion(), updated.GetSpec().GetTools().GetTargetVersion())
@@ -184,32 +183,32 @@ func TestAutoUpdateServiceAgentReportCRUD(t *testing.T) {
 	newDate := time.Now().Add(2 * time.Minute)
 
 	ctx := context.Background()
-	report := &autoupdatev1pb.AutoUpdateAgentReport{
+	report := autoupdatev1pb.AutoUpdateAgentReport_builder{
 		Kind:     types.KindAutoUpdateAgentReport,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: authID.String()},
-		Spec: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+		Metadata: headerv1.Metadata_builder{Name: authID.String()}.Build(),
+		Spec: autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
 			Timestamp: timestamppb.New(oldDate),
 			Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
-				"": {
+				"": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 					Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-						"1.2.3": {Count: 10},
-						"1.2.4": {Count: 2},
+						"1.2.3": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 10}.Build(),
+						"1.2.4": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 2}.Build(),
 					},
-				},
-				"prod": {
+				}.Build(),
+				"prod": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 					Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-						"1.2.3": {Count: 5},
+						"1.2.3": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
 					},
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	created, err := service.CreateAutoUpdateAgentReport(ctx, report)
 	require.NoError(t, err)
 	diff := cmp.Diff(report, created,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -218,13 +217,13 @@ func TestAutoUpdateServiceAgentReportCRUD(t *testing.T) {
 	got, err := service.GetAutoUpdateAgentReport(ctx, authID.String())
 	require.NoError(t, err)
 	diff = cmp.Diff(report, got,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
-	report.Spec.Timestamp = timestamppb.New(newDate)
+	report.GetSpec().SetTimestamp(timestamppb.New(newDate))
 
 	updated, err := service.UpdateAutoUpdateAgentReport(ctx, report)
 	require.NoError(t, err)
@@ -259,31 +258,31 @@ func TestAutoUpdateServiceInvalidNameCreate(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	config := &autoupdatev1pb.AutoUpdateConfig{
+	config := autoupdatev1pb.AutoUpdateConfig_builder{
 		Kind:     types.KindAutoUpdateConfig,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-config-name"},
-		Spec: &autoupdatev1pb.AutoUpdateConfigSpec{
-			Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+		Metadata: headerv1.Metadata_builder{Name: "invalid-auto-update-config-name"}.Build(),
+		Spec: autoupdatev1pb.AutoUpdateConfigSpec_builder{
+			Tools: autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
 				Mode: autoupdate.ToolsUpdateModeEnabled,
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	createdConfig, err := service.CreateAutoUpdateConfig(ctx, config)
 	require.Error(t, err)
 	require.Nil(t, createdConfig)
 
-	version := &autoupdatev1pb.AutoUpdateVersion{
+	version := autoupdatev1pb.AutoUpdateVersion_builder{
 		Kind:     types.KindAutoUpdateVersion,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-version-name"},
-		Spec: &autoupdatev1pb.AutoUpdateVersionSpec{
-			Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+		Metadata: headerv1.Metadata_builder{Name: "invalid-auto-update-version-name"}.Build(),
+		Spec: autoupdatev1pb.AutoUpdateVersionSpec_builder{
+			Tools: autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
 				TargetVersion: "1.2.3",
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	createdVersion, err := service.CreateAutoUpdateVersion(ctx, version)
 	require.Error(t, err)
@@ -304,34 +303,34 @@ func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	// Validate the config update restriction.
-	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+	config, err := autoupdate.NewAutoUpdateConfig(autoupdatev1pb.AutoUpdateConfigSpec_builder{
+		Tools: autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
 			Mode: autoupdate.ToolsUpdateModeEnabled,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	createdConfig, err := service.UpsertAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 
-	createdConfig.GetMetadata().Name = "invalid-auto-update-config-name"
+	createdConfig.GetMetadata().SetName("invalid-auto-update-config-name")
 
 	createdConfig, err = service.UpdateAutoUpdateConfig(ctx, createdConfig)
 	require.Error(t, err)
 	require.Nil(t, createdConfig)
 
 	// Validate the version update restriction.
-	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
-		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+	version, err := autoupdate.NewAutoUpdateVersion(autoupdatev1pb.AutoUpdateVersionSpec_builder{
+		Tools: autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
 			TargetVersion: "1.2.3",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	createdVersion, err := service.UpsertAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 
-	createdVersion.GetMetadata().Name = "invalid-auto-update-version-name"
+	createdVersion.GetMetadata().SetName("invalid-auto-update-version-name")
 
 	createdVersion, err = service.UpdateAutoUpdateVersion(ctx, createdVersion)
 	require.Error(t, err)

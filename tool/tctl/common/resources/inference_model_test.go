@@ -25,13 +25,11 @@ import (
 )
 
 func makeInferenceModel(name, modelSuffix string) *summarizerv1.InferenceModel {
-	return summarizer.NewInferenceModel(name, &summarizerv1.InferenceModelSpec{
-		Provider: &summarizerv1.InferenceModelSpec_Openai{
-			Openai: &summarizerv1.OpenAIProvider{
-				OpenaiModelId: "gpt-4o" + modelSuffix,
-			},
-		},
-	})
+	return summarizer.NewInferenceModel(name, summarizerv1.InferenceModelSpec_builder{
+		Openai: summarizerv1.OpenAIProvider_builder{
+			OpenaiModelId: "gpt-4o" + modelSuffix,
+		}.Build(),
+	}.Build())
 }
 
 func TestInferenceModelCollection_writeText(t *testing.T) {

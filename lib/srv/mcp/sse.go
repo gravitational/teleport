@@ -28,8 +28,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
@@ -55,7 +56,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	defer session.close()
 
 	// Use custom transport that adds extra headers including JWT.
-	httpTransport, err := s.makeSSEHTTPTransport(session)
+	httpTransport, err := s.makeSSEHTTPTransport(ctx, session)
 	if err != nil {
 		return trace.Wrap(err, "creating HTTP transport")
 	}
@@ -114,9 +115,9 @@ func makeSSEBaseURI(app types.Application) (*url.URL, error) {
 		return nil, trace.Wrap(err, "parsing SSE URI")
 	}
 	switch {
-	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTP):
+	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTP+"://"):
 		baseURL.Scheme = "http"
-	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTPS):
+	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTPS+"://"):
 		baseURL.Scheme = "https"
 	default:
 		return nil, trace.BadParameter("unknown scheme type: %v", baseURL.Scheme)
@@ -124,9 +125,14 @@ func makeSSEBaseURI(app types.Application) (*url.URL, error) {
 	return baseURL, nil
 }
 
-func (s *Server) makeBasicHTTPTransport(app types.Application) (http.RoundTripper, error) {
+func (s *Server) makeBasicHTTPTransport(ctx context.Context, app types.Application) (http.RoundTripper, error) {
 	// Use similar settings from lib/srv/app/transport.go.
 	tr, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.cfg.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,8 +140,31 @@ func (s *Server) makeBasicHTTPTransport(app types.Application) (http.RoundTrippe
 	// Add a timeout to control how long it takes to (start) getting a response
 	// from the target server.
 	tr.ResponseHeaderTimeout = time.Minute
-	tr.TLSClientConfig = utils.TLSConfig(s.cfg.CipherSuites)
-	tr.TLSClientConfig.InsecureSkipVerify = s.cfg.InsecureMode || app.GetInsecureSkipVerify()
+
+	// Use app TLS options.
+	//
+	// Note: For non-TLS apps (like `mcp+http`) this won't affect the
+	// connections as the transport won't make used of it.
+	tr.TLSClientConfig, err = upstreamtls.Configure(ctx, upstreamtls.Options{
+		Logger:                       s.cfg.Log,
+		AccessPoint:                  s.cfg.AccessPoint,
+		Clock:                        s.cfg.clock,
+		WorkloadIdentityClientGetter: s.cfg.AuthClient,
+		ClusterName:                  clusterName.GetClusterName(),
+		App:                          app,
+		CipherSuites:                 s.cfg.CipherSuites,
+		InsecureMode:                 s.cfg.InsecureMode,
+		GetUserCertFunc: func() ([]byte, error) {
+			userCert, err := authz.UserCertificateFromContext(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return userCert.Raw, nil
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return tr, nil
 }
 
@@ -151,8 +180,8 @@ func (t *sseHTTPTransport) RoundTrip(r *http.Request) (resp *http.Response, err 
 	return t.targetTransport.RoundTrip(r)
 }
 
-func (s *Server) makeSSEHTTPTransport(session *sessionHandler) (http.RoundTripper, error) {
-	targetTransport, err := s.makeBasicHTTPTransport(session.App)
+func (s *Server) makeSSEHTTPTransport(ctx context.Context, session *sessionHandler) (http.RoundTripper, error) {
+	targetTransport, err := s.makeBasicHTTPTransport(ctx, session.App)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

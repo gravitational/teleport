@@ -40,47 +40,49 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 	}
 
 	return &tlsca.Identity{
-		Username:                id.Username,
-		ScopePin:                id.ScopePin,
-		Impersonator:            id.Impersonator,
-		Groups:                  id.Groups,
-		SystemRoles:             id.SystemRoles,
-		Usage:                   id.Usage,
-		Principals:              id.Principals,
-		KubernetesGroups:        id.KubernetesGroups,
-		KubernetesUsers:         id.KubernetesUsers,
-		Expires:                 timestampToGoTime(id.Expires),
-		RouteToCluster:          id.RouteToCluster,
-		KubernetesCluster:       id.KubernetesCluster,
-		Traits:                  traitToWrappers(id.Traits),
-		RouteToApp:              routeToAppFromProto(id.RouteToApp),
-		TeleportCluster:         id.TeleportCluster,
-		OriginClusterName:       id.TeleportCluster,
-		RouteToDatabase:         routeToDatabaseFromProto(id.RouteToDatabase),
-		DatabaseNames:           id.DatabaseNames,
-		DatabaseUsers:           id.DatabaseUsers,
-		MFAVerified:             id.MfaVerified,
-		PreviousIdentityExpires: timestampToGoTime(id.PreviousIdentityExpires),
-		LoginIP:                 id.LoginIp,
-		PinnedIP:                id.PinnedIp,
-		AWSRoleARNs:             id.AwsRoleArns,
-		AzureIdentities:         id.AzureIdentities,
-		GCPServiceAccounts:      id.GcpServiceAccounts,
-		ActiveRequests:          id.ActiveRequests,
-		DisallowReissue:         id.DisallowReissue,
-		Renewable:               id.Renewable,
-		Generation:              id.Generation,
-		BotName:                 id.BotName,
-		BotInstanceID:           id.BotInstanceId,
-		JoinToken:               id.JoinToken,
+		Username:                id.GetUsername(),
+		ScopePin:                id.GetScopePin(),
+		Impersonator:            id.GetImpersonator(),
+		Groups:                  id.GetGroups(),
+		SystemRoles:             id.GetSystemRoles(),
+		Usage:                   id.GetUsage(),
+		Principals:              id.GetPrincipals(),
+		KubernetesGroups:        id.GetKubernetesGroups(),
+		KubernetesUsers:         id.GetKubernetesUsers(),
+		Expires:                 timestampToGoTime(id.GetExpires()),
+		RouteToCluster:          id.GetRouteToCluster(),
+		KubernetesCluster:       id.GetKubernetesCluster(),
+		Traits:                  traitToWrappers(id.GetTraits()),
+		RouteToApp:              routeToAppFromProto(id.GetRouteToApp()),
+		TeleportCluster:         id.GetTeleportCluster(),
+		OriginClusterName:       id.GetTeleportCluster(),
+		RouteToDatabase:         routeToDatabaseFromProto(id.GetRouteToDatabase()),
+		DatabaseNames:           id.GetDatabaseNames(),
+		DatabaseUsers:           id.GetDatabaseUsers(),
+		MFAVerified:             id.GetMfaVerified(),
+		PreviousIdentityExpires: timestampToGoTime(id.GetPreviousIdentityExpires()),
+		LoginIP:                 id.GetLoginIp(),
+		PinnedIP:                id.GetPinnedIp(),
+		AWSRoleARNs:             id.GetAwsRoleArns(),
+		AzureIdentities:         id.GetAzureIdentities(),
+		GCPServiceAccounts:      id.GetGcpServiceAccounts(),
+		ActiveRequests:          id.GetActiveRequests(),
+		DisallowReissue:         id.GetDisallowReissue(),
+		Renewable:               id.GetRenewable(),
+		Generation:              id.GetGeneration(),
+		BotName:                 id.GetBotName(),
+		BotInstanceID:           id.GetBotInstanceId(),
+		BotScope:                id.GetBotScope(),
+		JoinToken:               id.GetJoinToken(),
 		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
-		AllowedResourceIDs:       resourceIDsToTypes(id.AllowedResourceIds),
-		AllowedResourceAccessIDs: resourceAccessIDPointersToValues(id.AllowedResourceAccessIds),
-		PrivateKeyPolicy:         keys.PrivateKeyPolicy(id.PrivateKeyPolicy),
-		ConnectionDiagnosticID:   id.ConnectionDiagnosticId,
-		DeviceExtensions:         deviceExtensionsFromProto(id.DeviceExtensions),
-		UserType:                 types.UserType(id.UserType),
-		DelegationSessionID:      id.DelegationSessionId,
+		AllowedResourceIDs:       resourceIDsToTypes(id.GetAllowedResourceIds()),
+		AllowedResourceAccessIDs: resourceAccessIDPointersToValues(id.GetAllowedResourceAccessIds()),
+		PrivateKeyPolicy:         keys.PrivateKeyPolicy(id.GetPrivateKeyPolicy()),
+		ConnectionDiagnosticID:   id.GetConnectionDiagnosticId(),
+		DeviceExtensions:         deviceExtensionsFromProto(id.GetDeviceExtensions()),
+		UserType:                 types.UserType(id.GetUserType()),
+		DelegationSessionID:      id.GetDelegationSessionId(),
+		BeamID:                   id.GetBeamId(),
 	}
 }
 
@@ -92,7 +94,7 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 		return nil
 	}
 
-	return &decisionpb.TLSIdentity{
+	return decisionpb.TLSIdentity_builder{
 		Username:                id.Username,
 		ScopePin:                id.ScopePin,
 		Impersonator:            id.Impersonator,
@@ -124,6 +126,7 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 		Generation:              id.Generation,
 		BotName:                 id.BotName,
 		BotInstanceId:           id.BotInstanceID,
+		BotScope:                id.BotScope,
 		JoinToken:               id.JoinToken,
 		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIds:       resourceIDsFromTypes(id.AllowedResourceIDs),
@@ -133,7 +136,8 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 		DeviceExtensions:         deviceExtensionsToProto(&id.DeviceExtensions),
 		UserType:                 string(id.UserType),
 		DelegationSessionId:      id.DelegationSessionID,
-	}
+		BeamId:                   id.BeamID,
+	}.Build()
 }
 
 func timestampToGoTime(t *timestamppb.Timestamp) time.Time {
@@ -172,16 +176,16 @@ func routeToAppFromProto(routeToApp *decisionpb.RouteToApp) tlsca.RouteToApp {
 	}
 
 	return tlsca.RouteToApp{
-		SessionID:                       routeToApp.SessionId,
-		PublicAddr:                      routeToApp.PublicAddr,
-		ClusterName:                     routeToApp.ClusterName,
-		Name:                            routeToApp.Name,
-		AWSRoleARN:                      routeToApp.AwsRoleArn,
-		AWSCredentialProcessCredentials: routeToApp.AwsCredentialprocessCredentials,
-		AzureIdentity:                   routeToApp.AzureIdentity,
-		GCPServiceAccount:               routeToApp.GcpServiceAccount,
-		URI:                             routeToApp.Uri,
-		TargetPort:                      int(routeToApp.TargetPort),
+		SessionID:                       routeToApp.GetSessionId(),
+		PublicAddr:                      routeToApp.GetPublicAddr(),
+		ClusterName:                     routeToApp.GetClusterName(),
+		Name:                            routeToApp.GetName(),
+		AWSRoleARN:                      routeToApp.GetAwsRoleArn(),
+		AWSCredentialProcessCredentials: routeToApp.GetAwsCredentialprocessCredentials(),
+		AzureIdentity:                   routeToApp.GetAzureIdentity(),
+		GCPServiceAccount:               routeToApp.GetGcpServiceAccount(),
+		URI:                             routeToApp.GetUri(),
+		TargetPort:                      int(routeToApp.GetTargetPort()),
 	}
 }
 
@@ -190,7 +194,7 @@ func routeToAppToProto(routeToApp *tlsca.RouteToApp) *decisionpb.RouteToApp {
 		return nil
 	}
 
-	return &decisionpb.RouteToApp{
+	return decisionpb.RouteToApp_builder{
 		SessionId:                       routeToApp.SessionID,
 		PublicAddr:                      routeToApp.PublicAddr,
 		ClusterName:                     routeToApp.ClusterName,
@@ -201,7 +205,7 @@ func routeToAppToProto(routeToApp *tlsca.RouteToApp) *decisionpb.RouteToApp {
 		GcpServiceAccount:               routeToApp.GCPServiceAccount,
 		Uri:                             routeToApp.URI,
 		TargetPort:                      int32(routeToApp.TargetPort),
-	}
+	}.Build()
 }
 
 func routeToDatabaseFromProto(routeToDatabase *decisionpb.RouteToDatabase) tlsca.RouteToDatabase {
@@ -210,11 +214,11 @@ func routeToDatabaseFromProto(routeToDatabase *decisionpb.RouteToDatabase) tlsca
 	}
 
 	return tlsca.RouteToDatabase{
-		ServiceName: routeToDatabase.ServiceName,
-		Protocol:    routeToDatabase.Protocol,
-		Username:    routeToDatabase.Username,
-		Database:    routeToDatabase.Database,
-		Roles:       routeToDatabase.Roles,
+		ServiceName: routeToDatabase.GetServiceName(),
+		Protocol:    routeToDatabase.GetProtocol(),
+		Username:    routeToDatabase.GetUsername(),
+		Database:    routeToDatabase.GetDatabase(),
+		Roles:       routeToDatabase.GetRoles(),
 	}
 }
 
@@ -223,13 +227,13 @@ func routeToDatabaseToProto(routeToDatabase *tlsca.RouteToDatabase) *decisionpb.
 		return nil
 	}
 
-	return &decisionpb.RouteToDatabase{
+	return decisionpb.RouteToDatabase_builder{
 		ServiceName: routeToDatabase.ServiceName,
 		Protocol:    routeToDatabase.Protocol,
 		Username:    routeToDatabase.Username,
 		Database:    routeToDatabase.Database,
 		Roles:       routeToDatabase.Roles,
-	}
+	}.Build()
 }
 
 func resourceAccessIDPointersToValues(resourceAccessIDs []*types.ResourceAccessID) []types.ResourceAccessID {
@@ -280,10 +284,10 @@ func resourceIDsToTypes(resourceIDs []*decisionpb.ResourceId) []types.ResourceID
 	ret := make([]types.ResourceID, len(resourceIDs))
 	for i, r := range resourceIDs {
 		ret[i] = types.ResourceID{
-			ClusterName:     r.ClusterName,
-			Kind:            r.Kind,
-			Name:            r.Name,
-			SubResourceName: r.SubResourceName,
+			ClusterName:     r.GetClusterName(),
+			Kind:            r.GetKind(),
+			Name:            r.GetName(),
+			SubResourceName: r.GetSubResourceName(),
 		}
 	}
 	return ret
@@ -296,12 +300,12 @@ func resourceIDsFromTypes(resourceIDs []types.ResourceID) []*decisionpb.Resource
 
 	ret := make([]*decisionpb.ResourceId, len(resourceIDs))
 	for i, r := range resourceIDs {
-		ret[i] = &decisionpb.ResourceId{
+		ret[i] = decisionpb.ResourceId_builder{
 			ClusterName:     r.ClusterName,
 			Kind:            r.Kind,
 			Name:            r.Name,
 			SubResourceName: r.SubResourceName,
-		}
+		}.Build()
 	}
 	return ret
 }
@@ -312,9 +316,9 @@ func deviceExtensionsFromProto(exts *decisionpb.DeviceExtensions) tlsca.DeviceEx
 	}
 
 	return tlsca.DeviceExtensions{
-		DeviceID:     exts.DeviceId,
-		AssetTag:     exts.AssetTag,
-		CredentialID: exts.CredentialId,
+		DeviceID:     exts.GetDeviceId(),
+		AssetTag:     exts.GetAssetTag(),
+		CredentialID: exts.GetCredentialId(),
 	}
 }
 
@@ -323,9 +327,9 @@ func deviceExtensionsToProto(exts *tlsca.DeviceExtensions) *decisionpb.DeviceExt
 		return nil
 	}
 
-	return &decisionpb.DeviceExtensions{
+	return decisionpb.DeviceExtensions_builder{
 		DeviceId:     exts.DeviceID,
 		AssetTag:     exts.AssetTag,
 		CredentialId: exts.CredentialID,
-	}
+	}.Build()
 }

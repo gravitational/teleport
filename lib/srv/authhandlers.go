@@ -31,7 +31,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -39,7 +38,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -52,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
+	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -78,12 +77,6 @@ var (
 )
 
 var errRoleFileCopyingNotPermitted = trace.AccessDenied("file copying via SCP or SFTP is not permitted")
-
-// ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
-// completed MFA.
-type ValidatedMFAChallengeVerifier interface {
-	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav1.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav1.VerifyValidatedMFAChallengeResponse, error)
-}
 
 // AuthHandlerConfig is the configuration for an application handler.
 type AuthHandlerConfig struct {
@@ -117,7 +110,7 @@ type AuthHandlerConfig struct {
 	OnRBACFailure func(conn ssh.ConnMetadata, ident *sshca.Identity, err error)
 
 	// ValidatedMFAChallengeVerifier is used to verify that a validated MFA challenge resource exists.
-	ValidatedMFAChallengeVerifier ValidatedMFAChallengeVerifier
+	ValidatedMFAChallengeVerifier srvssh.ValidatedMFAChallengeVerifier
 }
 
 func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
@@ -289,6 +282,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		Renewable:                           unmappedIdentity.Renewable,
 		BotName:                             unmappedIdentity.BotName,
 		BotInstanceID:                       unmappedIdentity.BotInstanceID,
+		BeamID:                              unmappedIdentity.BeamID,
 		JoinToken:                           unmappedIdentity.JoinToken,
 		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
 		OriginClusterName:                   certAuthority.GetClusterName(),
@@ -299,7 +293,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 
 // CheckAgentForward checks if agent forwarding is allowed for the users RoleSet.
 func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
-	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.ForwardAgent {
+	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.GetForwardAgent() {
 		return nil
 	}
 
@@ -315,7 +309,7 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 
 // CheckX11Forward checks if X11 forwarding is permitted for the user's RoleSet.
 func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
-	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.X11Forwarding {
+	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.GetX11Forwarding() {
 		return nil
 	}
 
@@ -334,7 +328,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 		return trace.AccessDenied("port forwarding not permitted")
 	}
 
-	allowedMode := ctx.Identity.AccessPermit.PortForwardMode
+	allowedMode := ctx.Identity.AccessPermit.GetPortForwardMode()
 	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON {
 		return nil
 	}
@@ -495,6 +489,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 				Login:         principal,
 				User:          ident.Username,
 				TrustedDevice: ident.GetDeviceMetadata(),
+				BeamID:        ident.BeamID,
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
@@ -609,7 +604,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 	case teleport.ComponentForwardingGit:
 		gitForwardingPermit, err = h.evaluateGitForwarding(ident, ca, clusterName.GetClusterName(), h.c.TargetServer)
 	case teleport.ComponentProxy:
-		proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName())
+		proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 	case teleport.ComponentForwardingNode:
 		diagnosticTracing = true
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
@@ -618,7 +613,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 				accessPermit, err = h.evaluateScopedSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 			}
 		} else {
-			proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName())
+			proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 		}
 	case teleport.ComponentNode:
 		diagnosticTracing = true
@@ -948,7 +943,7 @@ type scopedLoginChecker interface {
 type proxyingChecker interface {
 	// evaluateProxying evaluates the capabilities/constraints related to a user's
 	// attempt to access proxy forwarding.
-	evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string) (*proxyingPermit, error)
+	evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*proxyingPermit, error)
 }
 
 type gitForwardingChecker interface {
@@ -975,7 +970,7 @@ type proxyingPermit struct {
 	PinSourceIP           bool
 }
 
-func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string) (*proxyingPermit, error) {
+func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*proxyingPermit, error) {
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
@@ -986,9 +981,49 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
+	// Build context — scoped or unscoped-wrapping.
+	var checkerContext *services.ScopedAccessCheckerContext
+	if accessInfo.ScopePin != nil {
+		checkerContext, err = services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName, a.c.AccessPoint.ScopedRoleReader())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		unscoped, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		checkerContext = services.NewScopedAccessCheckerContextFromUnscoped(unscoped)
+	}
+
+	if accessInfo.ScopePin != nil && target == nil {
+		return nil, trace.AccessDenied("scoped proxying without a target is not supported")
+	}
+
+	agentScope := ""
+	if target != nil && target.GetScope() != "" {
+		agentScope = target.GetScope()
+	}
+
+	state, err := checkerContext.AccessStateFromSSHIdentity(ctx, ident, a.c.AccessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var checker *services.ScopedAccessChecker
+	if err := checkerContext.Decision(ctx, agentScope, func(c *services.ScopedAccessChecker) error {
+		// Clients are able to dial nodes as an SSH subsystem (ComponentProxy), and the target server is not known at this time.
+		// We do not support this mode for scopes right now.
+		if target != nil {
+			if err := c.SSH().CheckAccessToSSHServer(target, state, osUser); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		checker = c
+		return nil
+	}); err != nil {
+		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
 	}
 
 	netConfig, err := a.c.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -1002,24 +1037,28 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		return nil, trace.Wrap(err)
 	}
 
-	privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	privateKeyPolicy, err := checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	lockTargets := services.ProxyingLockTargets(clusterName, a.c.Server.HostUUID() /* id of underlying proxy */, accessInfo, ident)
+	clientIdleTimeout, err := checker.SSH().AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	lockTargets := services.ProxyingLockTargets(clusterName, a.c.Server.HostUUID(), accessInfo, ident)
 	return &proxyingPermit{
-		ClientIdleTimeout:     accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		LockingMode:           accessChecker.LockingMode(authPref.GetLockingMode()),
+		ClientIdleTimeout:     clientIdleTimeout,
+		LockingMode:           checker.SSH().LockingMode(authPref.GetLockingMode()),
 		PrivateKeyPolicy:      privateKeyPolicy,
 		LockTargets:           lockTargets,
-		MaxConnections:        accessChecker.MaxConnections(),
-		SSHFileCopy:           accessChecker.CanCopyFiles(),
-		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident),
+		MaxConnections:        checker.SSH().MaxConnections(),
+		SSHFileCopy:           checker.SSH().CanCopyFiles(),
+		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentityScoped(checker.SSH(), authPref, ident),
 		MappedRoles:           accessInfo.Roles,
-		SessionRecordingMode:  accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH),
-		PinSourceIP:           accessChecker.PinSourceIP(),
+		SessionRecordingMode:  checker.SSH().SessionRecordingMode(),
+		PinSourceIP:           checker.PinSourceIP(),
 	}, nil
 }
 
@@ -1172,7 +1211,7 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		return nil, trace.Wrap(err)
 	}
 
-	permit := &decisionpb.SSHAccessPermit{
+	permit := decisionpb.SSHAccessPermit_builder{
 		ForwardAgent:          checker.SSH().CheckAgentForward(osUser) == nil,
 		X11Forwarding:         checker.SSH().PermitX11Forwarding(),
 		MaxConnections:        checker.SSH().MaxConnections(),
@@ -1189,16 +1228,16 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersDecision.Info,
-		DecisionContext: &decisionpb.SSHAccessPermitContext{
+		DecisionContext: decisionpb.SSHAccessPermitContext_builder{
 			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
 			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	if checker.PinSourceIP() {
-		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+		permit.SetPreconditions(append(permit.GetPreconditions(), decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-		})
+		}.Build()))
 	}
 
 	return permit, nil
@@ -1294,12 +1333,12 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 	}
 
 	if accessChecker.PinSourceIP() {
-		preconds = append(preconds, &decisionpb.Precondition{
+		preconds = append(preconds, decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-		})
+		}.Build())
 	}
 
-	return &decisionpb.SSHAccessPermit{
+	return decisionpb.SSHAccessPermit_builder{
 		ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
 		X11Forwarding:         accessChecker.PermitX11Forwarding(),
 		MaxConnections:        accessChecker.MaxConnections(),
@@ -1317,11 +1356,11 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersDecision.Info,
 		Preconditions:         preconds,
-		DecisionContext: &decisionpb.SSHAccessPermitContext{
+		DecisionContext: decisionpb.SSHAccessPermitContext_builder{
 			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
 			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 // fetchAccessInfo fetches the services.AccessChecker (after role mapping)
