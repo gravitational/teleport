@@ -20,6 +20,28 @@ _okta() { # _okta METHOD PATH [json-body]
   curl "${args[@]}" "${OKTA_ORG}${path}"
 }
 
+# --- onboarding state: create helpers record their .id here for teardown ---
+: "${OKTA_ONBOARD_STATE:=$HOME/.okta-onboard.state}"
+
+okta::state_set() { # KEY VALUE — idempotent upsert into the state file (no mv: some
+  local key="$1" val="$2" rest=""              # environments alias mv/cp to interactive)
+  if [[ -f "$OKTA_ONBOARD_STATE" ]]; then
+    rest=$(grep -v "^${key}=" "$OKTA_ONBOARD_STATE" || true)
+  fi
+  { if [[ -n "$rest" ]]; then printf '%s\n' "$rest"; fi
+    printf '%s=%s\n' "$key" "$val"; } > "$OKTA_ONBOARD_STATE"
+  chmod 600 "$OKTA_ONBOARD_STATE"
+}
+
+# Read JSON on stdin, record its .id under KEY, pass the JSON through unchanged.
+okta::_emit_id() { # KEY
+  local key="$1" json id
+  json=$(cat)
+  printf '%s' "$json"
+  id=$(printf '%s' "$json" | jq -r '.id // empty' 2>/dev/null || true)
+  if [[ -n "$id" ]]; then okta::state_set "$key" "$id"; fi
+}
+
 # OK — auth check
 okta::check_token() {
   curl -sS -o /dev/null -w '%{http_code}\n' \
@@ -45,7 +67,7 @@ okta::create_saml_app() { # label acsUrl
         {type:"GROUP", name:"groups",
          namespace:"urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified",
          filterType:"REGEX", filterValue:".*"}
-      ]}}}')"
+      ]}}}')" | okta::_emit_id OKTA_SAML_APP_ID
 }
 
 # OK — derive the PUBLIC SAML metadata URL that Teleport fetches unauthenticated.
@@ -78,7 +100,7 @@ okta::create_service_app() { # label jwksUri
       application_type:"service",
       grant_types:["client_credentials"],
       response_types:["token"],
-      jwks_uri:$j }}}')"
+      jwks_uri:$j }}}')" | okta::_emit_id OKTA_SVC_APP_ID
   # DPoP: after creation, PUT the app with
   # settings.oauthClient.dpop_bound_access_tokens=false (field name unverified).
 }
@@ -88,8 +110,8 @@ okta::create_admin_role()   { _okta POST /api/v1/iam/roles '{
   "label":"Teleport Sync","description":"Teleport Okta integration",
   "permissions":["okta.users.read","okta.users.appAssignment.manage",
     "okta.groups.read","okta.groups.members.manage",
-    "okta.apps.read","okta.apps.assignment.manage"]}'; }
-okta::create_resource_set() { _okta POST /api/v1/iam/resource-sets "$1"; }   # body
+    "okta.apps.read","okta.apps.assignment.manage"]}' | okta::_emit_id OKTA_ROLE_ID; }
+okta::create_resource_set() { _okta POST /api/v1/iam/resource-sets "$1" | okta::_emit_id OKTA_RSET_ID; }   # body
 # Assign a custom role over a resource set to the service app, via a binding.
 # The service-app principal is its OAuth client URL. Args: appId roleId resourceSetId
 okta::assign_role()         { _okta POST "/api/v1/iam/resource-sets/$3/bindings" \

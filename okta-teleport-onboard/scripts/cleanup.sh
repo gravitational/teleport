@@ -12,8 +12,12 @@
 #   okta-origin resources); the ids identify the Okta objects this skill created.
 source "$(dirname "$0")/okta.sh"
 set +e   # teardown is best-effort; do not abort on an already-gone resource
+# Load IDs recorded by onboarding (OKTA_ONBOARD_STATE default is set in okta.sh).
+[[ -f "$OKTA_ONBOARD_STATE" ]] && source "$OKTA_ONBOARD_STATE"
 
-SAML_APP="${1:-}"; SVC_APP="${2:-}"; ROLE_ID="${3:-}"; RSET_ID="${4:-}"
+# Positional args override state-file values.
+SAML_APP="${1:-${OKTA_SAML_APP_ID:-}}"; SVC_APP="${2:-${OKTA_SVC_APP_ID:-}}"
+ROLE_ID="${3:-${OKTA_ROLE_ID:-}}";       RSET_ID="${4:-${OKTA_RSET_ID:-}}"
 
 echo "== Teleport: delete plugin (stops bidirectional sync first) =="
 tctl plugins delete okta
@@ -41,4 +45,6 @@ for app in "$SVC_APP" "$SAML_APP"; do
   okta::delete_app "$app" >/dev/null 2>&1
 done
 
+# State file is stale once the resources are deleted; drop it for a clean next run.
+rm -f "$OKTA_ONBOARD_STATE"
 echo "Teardown complete. Revoke the bootstrap SSWS token (okta::revoke_token) when done."

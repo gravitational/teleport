@@ -107,8 +107,10 @@ longer needed. `okta::revoke_token` (or delete it in the Okta admin UI). Confirm
 sync still succeeds afterward.
 
 ## Teardown / offboarding
-`scripts/cleanup.sh <saml-app-id> <service-app-id> <role-id> <resource-set-id>`
-(validated end-to-end). Enforced order, because bidirectional sync is on:
+`scripts/cleanup.sh` — no args needed. Onboarding auto-records the created Okta
+object IDs to `$OKTA_ONBOARD_STATE` (default `~/.okta-onboard.state`) and cleanup
+reads them; pass `<saml-app-id> <service-app-id> <role-id> <resource-set-id>` to
+override. Validated end-to-end. Enforced order, because bidirectional sync is on:
 1. `tctl plugins delete okta` — delete the plugin FIRST so later deletions don't
    propagate back into Okta.
 2. `tctl plugins cleanup okta --no-dry-run` — remove Okta-sourced Access Lists +
