@@ -919,7 +919,8 @@ func deriveTeleportEqual_43(this, that *AppAWS) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.ExternalID == that.ExternalID &&
-			deriveTeleportEqual_81(this.RolesAnywhereProfile, that.RolesAnywhereProfile)
+			deriveTeleportEqual_81(this.RolesAnywhereProfile, that.RolesAnywhereProfile) &&
+			this.Region == that.Region
 }
 
 // deriveTeleportEqual_44 returns whether this and that are equal.

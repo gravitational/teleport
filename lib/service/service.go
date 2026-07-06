@@ -6941,6 +6941,7 @@ func (process *TeleportProcess) initApps() {
 			if app.AWS != nil {
 				aws = &types.AppAWS{
 					ExternalID: app.AWS.ExternalID,
+					Region:     app.AWS.Region,
 				}
 			}
 
