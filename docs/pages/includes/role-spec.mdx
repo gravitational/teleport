@@ -381,6 +381,9 @@ spec:
       # the reviewer can preview details about resources accessible by any roles
       # listed in preview_as_roles when reviewing Resource Access Requests
       preview_as_roles: ['dbadmin']
+      # the reviewer can submit reviews on behalf of other users;
+      # only to be used by Access Request plugins (eg. Slack plugin)
+      submit_for_users: ['*']
 
     # request allows a user to request roles matching
     # expressions below
