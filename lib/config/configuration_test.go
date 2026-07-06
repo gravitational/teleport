@@ -459,7 +459,7 @@ func TestConfigReading(t *testing.T) {
 					},
 				},
 				{
-					Name:         "anthropic",
+					Name:         "anthropic-bedrock",
 					StaticLabels: Labels,
 					LLM: &LLM{
 						Format:   "anthropic",
@@ -471,6 +471,17 @@ func TestConfigReading(t *testing.T) {
 							},
 						},
 						FallbackModel: "claude-opus-4-6",
+					},
+					AWS: &AppAWS{
+						Region: "us-west-2",
+					},
+				},
+				{
+					Name:         "anthropic",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "anthropic",
 					},
 				},
 				{
@@ -1694,7 +1705,7 @@ func makeConfigFixture() string {
 			},
 		},
 		{
-			Name:         "anthropic",
+			Name:         "anthropic-bedrock",
 			StaticLabels: Labels,
 			LLM: &LLM{
 				Format:   "anthropic",
@@ -1706,6 +1717,17 @@ func makeConfigFixture() string {
 					},
 				},
 				FallbackModel: "claude-opus-4-6",
+			},
+			AWS: &AppAWS{
+				Region: "us-west-2",
+			},
+		},
+		{
+			Name:         "anthropic",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "anthropic",
 			},
 		},
 		{
@@ -2737,6 +2759,21 @@ app_service:
 `,
 			name:   "App TLS configuration fails to read file",
 			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-llm-bedrock
+      inference:
+        format: anthropic
+        provider: bedrock
+      aws:
+        region: us-west-2
+`,
+			name:   "App configuration with valid AWS region",
+			outErr: require.NoError,
 		},
 	}
 
