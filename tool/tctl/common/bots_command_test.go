@@ -737,6 +737,120 @@ func TestListBotInstances(t *testing.T) {
 	})
 }
 
+// TestBotInstancesScoped exercises "tctl bots instances list/show" against
+// instances of scoped bots, which are addressed by prefixing the bot's name
+// with its scope: <scope>::<bot name>.
+func TestBotInstancesScoped(t *testing.T) {
+	t.Parallel()
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	ctx := t.Context()
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	// An unscoped and a scoped bot sharing a name, to prove reads and filters
+	// are scope-strict.
+	unscopedInstance := createBotInstance(t, ctx, process)
+	scopedInstance := createBotInstance(t, ctx, process, func(instance *machineidv1pb.BotInstance) {
+		instance.SetScope("/staging")
+	})
+
+	// Give the auth cache a chance to catch-up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, _, err := process.GetAuthServer().ListBotInstances(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, res, 2)
+	}, time.Second*10, time.Millisecond*50)
+
+	t.Run("list filter by scope-qualified bot name", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.JSON,
+			botName: "/staging::test-bot-1",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 1)
+		assertContainsInstance(t, res, scopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("list filter by bare bot name excludes scoped bots", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.JSON,
+			botName: "test-bot-1",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 1)
+		assertContainsInstance(t, res, unscopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("list text output shows scope-qualified id", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout: &buf,
+			format: teleport.Text,
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		out := buf.String()
+		require.Contains(t, out, "/staging::test-bot-1/"+scopedInstance.GetSpec().GetInstanceId())
+		require.Contains(t, out, "test-bot-1/"+unscopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("show scoped instance", func(t *testing.T) {
+		cmd := BotsCommand{
+			instanceID: "/staging::test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		require.NoError(t, cmd.ShowBotInstance(ctx, client))
+	})
+
+	t.Run("show scoped instance without scope is not found", func(t *testing.T) {
+		cmd := BotsCommand{
+			instanceID: "test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		err := cmd.ShowBotInstance(ctx, client)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got: %v", err)
+	})
+
+	t.Run("show scoped instance with wrong scope is not found", func(t *testing.T) {
+		cmd := BotsCommand{
+			instanceID: "/prod::test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		err := cmd.ShowBotInstance(ctx, client)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got: %v", err)
+	})
+}
+
 func assertContainsInstance(t *testing.T, res []*machineidv1pb.BotInstance, instanceId string) {
 	assert.True(t, slices.ContainsFunc(res, func(in *machineidv1pb.BotInstance) bool {
 		return in.GetSpec().GetInstanceId() == instanceId
@@ -819,6 +933,19 @@ func TestListBotInstancesFallback(t *testing.T) {
 		err := cmd.ListBotInstances(ctx, authClient)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "fallback not supported for requests with a query")
+	})
+
+	t.Run("fallback not allowed for bot scope", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout: ptr(strings.Builder{}),
+			format: teleport.JSON,
+			// The bot scope filter is only available in ListBotInstancesV2.
+			botName: "/staging::test-bot-1",
+		}
+
+		err := cmd.ListBotInstances(ctx, authClient)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "fallback not supported for requests with a bot scope")
 	})
 }
 

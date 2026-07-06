@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
@@ -185,10 +186,10 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsInstances = bots.Command("instances", "Manage bot instances.").Alias("instance")
 
 	c.botsInstancesShow = c.botsInstances.Command("show", "Shows information about a specific bot instance.").Alias("get").Alias("describe")
-	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]").Required().StringVar(&c.instanceID)
+	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]. For an instance of a scoped bot, prefix the ID with the bot's scope: [scope]::[bot name]/[uuid].").Required().StringVar(&c.instanceID)
 
 	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
-	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
+	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. For a scoped bot, provide a scope-qualified name of the form '<scope>::<name>'. If unset, lists instances from all bots.").StringVar(&c.botName)
 	c.botsInstancesList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
 	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
@@ -740,6 +741,22 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 
 // ListBotInstances lists bot instances, possibly filtering for a specific bot
 func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandClient) error {
+	// The bot may be given as a scope-qualified name (<scope>::<bot name>) to
+	// list instances of a scoped bot; a bare name lists instances of an
+	// unscoped bot.
+	botName := c.botName
+	var botScope string
+	if strings.Contains(botName, scopes.QualifiedNameSeparator) {
+		qn, err := scopes.ParseQualifiedName(botName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := qn.StrongValidate(); err != nil {
+			return trace.Wrap(err)
+		}
+		botScope, botName = qn.Scope, qn.Name
+	}
+
 	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, machineidv1pb.ListBotInstancesV2Request_builder{
 			PageSize:  int32(pageSize),
@@ -747,7 +764,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			SortField: c.sortIndex,
 			SortDesc:  c.sortOrder == "descending",
 			Filter: machineidv1pb.ListBotInstancesV2Request_Filters_builder{
-				BotName:    c.botName,
+				BotName:    botName,
+				BotScope:   botScope,
 				SearchTerm: c.search,
 				Query:      c.query,
 			}.Build(),
@@ -759,11 +777,14 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		if c.query != "" {
 			return nil, trace.NotImplemented("fallback not supported for requests with a query")
 		}
+		if botScope != "" {
+			return nil, trace.NotImplemented("fallback not supported for requests with a bot scope")
+		}
 		fallbackPageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 			// Needed for backwards compatibility
 			//nolint:staticcheck // SA1019
 			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, machineidv1pb.ListBotInstancesRequest_builder{
-				FilterBotName:    c.botName,
+				FilterBotName:    botName,
 				PageSize:         int32(pageSize),
 				PageToken:        pageToken,
 				FilterSearchTerm: c.search,
@@ -872,8 +893,15 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			healthStatus = formatStatus(status, false) // Disable color, it messes with the table layout
 		}
 
+		// Instances of scoped bots are identified by the bot's scope-qualified
+		// name; instances of unscoped bots by the bot's bare name.
+		id := fmt.Sprintf("%s/%s", i.GetSpec().GetBotName(), i.GetSpec().GetInstanceId())
+		if scope := i.GetScope(); scope != "" {
+			id = scope + scopes.QualifiedNameSeparator + id
+		}
+
 		t.AddRow([]string{
-			fmt.Sprintf("%s/%s", i.GetSpec().GetBotName(), i.GetSpec().GetInstanceId()), joinMethod,
+			id, joinMethod,
 			version, hostname, healthStatus, lastSeen.Format(time.RFC3339),
 		})
 	}
@@ -992,7 +1020,7 @@ To onboard a new instance for this bot, run:
 `))
 
 func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandClient) error {
-	botName, instanceID, err := parseInstanceID(c.instanceID)
+	botScope, botName, instanceID, err := parseInstanceID(c.instanceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1000,6 +1028,7 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 	instance, err := client.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
 		BotName:    botName,
 		InstanceId: instanceID,
+		BotScope:   botScope,
 	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
@@ -1310,14 +1339,23 @@ func formatStatus(status machineidv1pb.BotInstanceHealthStatus, useColor bool) s
 }
 
 // parseInstanceID converts an instance ID string in the form of
-// '[bot name]/[uuid]' to separate bot name and UUID strings.
-func parseInstanceID(s string) (name string, uuid string, err error) {
-	name, uuid, ok := strings.Cut(s, "/")
-	if !ok {
-		return "", "", trace.BadParameter("invalid bot instance syntax, must be: [bot name]/[uuid]")
+// [scope::][bot name]/[uuid] into its component parts. The scope prefix
+// addresses an instance of a scoped bot; scope is empty when the prefix is
+// absent.
+func parseInstanceID(s string) (scope string, name string, uuid string, err error) {
+	if before, after, ok := strings.Cut(s, scopes.QualifiedNameSeparator); ok {
+		if err := scopes.StrongValidate(before); err != nil {
+			return "", "", "", trace.Wrap(err)
+		}
+		scope, s = before, after
 	}
 
-	return
+	name, uuid, ok := strings.Cut(s, "/")
+	if !ok {
+		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
+	}
+
+	return scope, name, uuid, nil
 }
 
 // indentString prefixes each line (ending with \n) with the provided prefix.
