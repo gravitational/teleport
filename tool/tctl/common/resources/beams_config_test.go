@@ -19,6 +19,7 @@
 package resources
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -27,22 +28,23 @@ import (
 	"google.golang.org/grpc"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
-	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestBeamsConfigCollection_WriteText(t *testing.T) {
 	config := services.DefaultBeamsConfig()
+	collection := &beamsConfigCollection{config: config}
 
-	table := asciitable.MakeTable(
-		[]string{"Anthropic App", "OpenAI App"},
-		[]string{"anthropic", "openai"},
-	)
-	formatted := table.AsBuffer().String()
+	var buf bytes.Buffer
+	require.NoError(t, collection.WriteText(&buf, false))
 
-	collectionFormatTest(t, &beamsConfigCollection{config: config}, formatted, formatted)
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
 }
 
 type mockBeamsConfigServiceServer struct {

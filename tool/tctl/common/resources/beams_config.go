@@ -80,7 +80,7 @@ func updateBeamsConfig(ctx context.Context, client *authclient.Client, raw servi
 	}
 
 	if opts.Force {
-		config.GetMetadata().Revision = existing.GetBeamsConfig().GetMetadata().GetRevision()
+		config.GetMetadata().SetRevision(existing.GetBeamsConfig().GetMetadata().GetRevision())
 	}
 	if _, err := client.BeamsConfigServiceClient().UpdateBeamsConfig(ctx, beamsv1.UpdateBeamsConfigRequest_builder{
 		BeamsConfig: config,
