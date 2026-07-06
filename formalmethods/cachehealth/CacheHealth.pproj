@@ -1,0 +1,7 @@
+<Project>
+  <ProjectName>CacheHealth</ProjectName>
+  <InputFiles>
+    <PFile>./PSrc/</PFile>
+    <PFile>./PTst/</PFile>
+  </InputFiles>
+</Project>
