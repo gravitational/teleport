@@ -1,56 +1,78 @@
 #!/usr/bin/env bash
-# Orchestrated Okta -> Teleport onboarding. Self-contained: sources the creds file,
+# Orchestrated Okta -> Teleport onboarding. Self-contained: resolves credentials,
 # derives its own inputs, and owns ALL happy-path presentation.
 #
 # SAFETY: nothing is created unless you pass --run explicitly. A bare invocation,
 # --help, or any unrecognized argument prints usage and exits WITHOUT mutating.
 #
-# Prereqs: an authenticated tsh session; creds file with OKTA_ORG + OKTA_SSWS
-# (default ~/.okta-onboard.env, override with OKTA_ENV_FILE); skill inside the repo.
+# Credentials (OKTA_ORG, OKTA_SSWS) resolve in this order — there is NO default file:
+#   1. already set in the environment
+#   2. --env-file PATH  (or OKTA_ENV_FILE=PATH)
+#   3. interactive prompt — TERMINAL ONLY (read -s for the token). No TTY (e.g. run by
+#      an agent) => fail fast with a clear message; the caller supplies creds instead.
+#
+# Prereqs: an authenticated tsh session; this skill living inside the Teleport repo.
 #
 # Usage:
-#   onboard.sh --plan   print the deterministic plan card; create nothing
-#   onboard.sh --run    perform the onboarding (creates Okta + Teleport objects)
-#   onboard.sh --help   show usage
+#   onboard.sh --plan  [--env-file PATH]   print the plan; create nothing
+#   onboard.sh --run   [--env-file PATH]   perform the onboarding
+#   onboard.sh --help
 #
-# Inputs are auto-derived; override any via env if needed:
-#   PROXY (from `tsh status`), SSO_GROUP (Everyone), ACL_OWNER (logged-in user),
-#   GROUP_FILTER (*), APP_FILTER (*)   —  comma-separated filters allowed.
+# Inputs auto-derived; override via env: PROXY (from tsh), SSO_GROUP (Everyone),
+# ACL_OWNER (logged-in user), GROUP_FILTER (*), APP_FILTER (*). Filters take commas.
 set -uo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../../.." && pwd)
 
 usage() { cat <<EOF
-Usage: onboard.sh <mode>
-  --plan   show the plan; creates nothing
-  --run    perform the onboarding (creates Okta + Teleport objects)
-  --help   show this message
-Nothing is created unless you pass --run explicitly.
+Usage: onboard.sh <mode> [--env-file PATH]
+  --plan            show the plan; creates nothing
+  --run             perform the onboarding (creates Okta + Teleport objects)
+  --help            show this message
+  --env-file PATH   read OKTA_ORG / OKTA_SSWS from PATH
+
+Credentials come from: the environment; --env-file PATH; otherwise you are prompted
+(interactive terminals only). There is no default env file. Nothing is created
+unless --run is given explicitly.
 EOF
 }
 
-# Explicit-mode dispatch. Unknown/empty args NEVER mutate.
-MODE=usage; rc=0
-case "${1:-}" in
-  --plan) MODE=plan ;;
-  --run)  MODE=run ;;
-  -h|--help|"") MODE=usage ;;
-  *) printf 'onboard.sh: unknown argument: %s\n\n' "${1:-}" >&2; rc=2 ;;
-esac
+MODE=usage; rc=0; ENV_FILE="${OKTA_ENV_FILE:-}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --plan) MODE=plan ;;
+    --run)  MODE=run ;;
+    -h|--help) MODE=usage ;;
+    --env-file) ENV_FILE="${2:-}"; shift ;;
+    *) printf 'onboard.sh: unknown argument: %s\n\n' "$1" >&2; MODE=usage; rc=2 ;;
+  esac
+  shift
+done
 [[ "$MODE" == usage ]] && { usage; exit "$rc"; }
-
-# creds + helpers (only reached for --plan / --run)
-env_file=${OKTA_ENV_FILE:-$HOME/.okta-onboard.env}
-if [[ -z "${OKTA_ORG:-}" || -z "${OKTA_SSWS:-}" ]] && [[ -f "$env_file" ]]; then
-  set -a; source "$env_file"; set +a
-fi
-source "$here/okta.sh"
-set +e   # this script checks each result explicitly via || die
 
 say() { printf '\n==> %s\n' "$1"; }
 ok()  { printf '    OK  %-14s %s\n' "$1" "${2:-}"; }
 er()  { printf '    !!  %-14s %s\n' "$1" "${2:-}"; }   # non-fatal warning
 die() { printf '    ERR %s\n' "$1" >&2; exit 1; }
+
+# --- credentials (no default file) ---
+if [[ -z "${OKTA_ORG:-}" || -z "${OKTA_SSWS:-}" ]] && [[ -n "$ENV_FILE" ]]; then
+  ENV_FILE="${ENV_FILE/#\~\//$HOME/}"   # expand a leading ~/ (the arg may arrive unexpanded)
+  [[ -f "$ENV_FILE" ]] || die "env file not found: $ENV_FILE"
+  set -a; source "$ENV_FILE"; set +a
+fi
+if [[ -z "${OKTA_ORG:-}" ]]; then
+  [[ -t 0 ]] || die "OKTA_ORG not set — pass --env-file PATH, export it, or run in a terminal"
+  read -rp "Okta org URL (e.g. https://dev-123.okta.com): " OKTA_ORG
+fi
+if [[ -z "${OKTA_SSWS:-}" ]]; then
+  [[ -t 0 ]] || die "OKTA_SSWS not set — pass --env-file PATH, export it, or run in a terminal"
+  read -rsp "Okta SSWS API token: " OKTA_SSWS; echo
+fi
+export OKTA_ORG OKTA_SSWS
+
+source "$here/okta.sh"
+set +e   # this script checks each result explicitly via || die
 idof(){ jq -r '.id // empty'; }
 err(){ jq -r '.errorSummary // .errorCode // "unknown error"'; }
 

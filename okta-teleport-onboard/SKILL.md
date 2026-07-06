@@ -60,17 +60,24 @@ Drive this as a guided, confirm-once-then-execute flow.
    sync writes back into Okta and can remove users from Okta groups.
 3. The cluster proxy is reachable from Okta over the public internet (Okta must fetch
    the JWKS URL).
-4. A bootstrap **SSWS** token exists (Okta admin with app-management + IAM-admin
-   rights), available via the creds file.
+4. A bootstrap **SSWS** token (Okta admin with app-management + IAM-admin rights),
+   supplied via the environment, `--env-file PATH`, or entered when asked. There is
+   no default creds file.
 
 ## Run
-1. **Confirm preconditions** — `tsh status` shows a **dev** cluster login and the creds
-   file targets a **dev** Okta org. The script self-sources the creds file and derives
-   PROXY / owner / filters, so you pass nothing on the happy path.
+1. **Confirm preconditions + resolve credentials** — `tsh status` shows a **dev** cluster
+   login and a **dev** Okta org is the target. The script derives PROXY / owner / filters,
+   so you pass no inputs on the happy path. For creds (`OKTA_ORG` / `OKTA_SSWS`), in order:
+   already-exported env → the user names a file, so pass `--env-file PATH` → otherwise ASK
+   the user for the Okta org URL and SSWS token and export them for the run. (The script's
+   own prompt works only in a human terminal, not when you drive it over the Bash tool —
+   so you do the asking. Prefer `--env-file` to keep the token out of the transcript.)
 2. **Gate A** — run this and relay its output verbatim in a code block, then confirm:
    ```
    .claude/skills/okta-teleport-onboard/scripts/onboard.sh --plan
    ```
+   If the output is an `ERR …` line (or has no `PLAN` block), relay THAT and stop — never
+   claim a plan was shown, and do not proceed. Only on a real plan card do you continue:
    `AskUserQuestion`: Proceed / Change an input / Cancel. Nothing mutates yet. To change
    an input, re-run with an env override (e.g. `SSO_GROUP=Engineers … onboard.sh --plan`).
 3. **Execute** on "Proceed" — run this and relay its output verbatim:
@@ -89,8 +96,9 @@ Drive this as a guided, confirm-once-then-execute flow.
    Do not author an additional summary.
 
 ## Teardown / offboarding
-Confirm via Gate C first — destructive. `scripts/cleanup.sh` needs **no args**:
-onboarding recorded the object IDs to `$OKTA_ONBOARD_STATE` (default
+Confirm via Gate C first — destructive. `scripts/cleanup.sh` takes credentials the same
+way as onboard (env / `--env-file PATH` / ask — no default file) and needs **no object
+args**: onboarding recorded the IDs to `$OKTA_ONBOARD_STATE` (default
 `~/.okta-onboard.state`) and cleanup reads them (positional
 `<saml-app> <svc-app> <role> <rset>` override). Enforced order, because bidirectional
 sync is on:
