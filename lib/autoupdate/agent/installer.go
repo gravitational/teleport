@@ -30,6 +30,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -327,7 +328,24 @@ func (li *LocalInstaller) getChecksum(ctx context.Context, url string) ([]byte, 
 }
 
 func isStagingCDN(baseURL string) bool {
-	return strings.TrimRight(baseURL, "/") == stagingCDNBaseURL
+	ok, err := sameHostname(baseURL, stagingCDNBaseURL)
+	return err == nil && ok
+}
+
+func sameHostname(rawURL, wantURL string) (bool, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	w, err := url.Parse(wantURL)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	got := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+	want := strings.TrimSuffix(strings.ToLower(w.Hostname()), ".")
+
+	return got == want, nil
 }
 
 func newArtifactSignatureVerifier() (signature.Verifier, error) {
@@ -408,7 +426,7 @@ func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, url strin
 	// https://github.com/sigstore/sigstore/blob/v1.10.5/pkg/signature/options/digest.go#L29
 	// Here the digest is computed locally from the downloaded artifact, not
 	// supplied by an untrusted source.
-	if err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte{}), sigopts.WithDigest(digest)); err != nil {
+	if err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader(nil), sigopts.WithDigest(digest)); err != nil {
 		return trace.Wrap(err, "artifact signature verification failed")
 	}
 	return nil

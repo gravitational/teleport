@@ -203,6 +203,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 						*clone.URL = *r.URL
 						clone.URL.Scheme = serverURL.Scheme
 						clone.URL.Host = serverURL.Host
+						clone.Host = serverURL.Host
 						return baseTransport.RoundTrip(clone)
 					}),
 				}
@@ -299,6 +300,66 @@ func TestLocalInstaller_Install_MismatchedChecksumMetadata(t *testing.T) {
 
 	_, err = os.ReadFile(filepath.Join(installDir, version, checksumType))
 	require.Error(t, err)
+}
+
+func TestIsStagingCDN(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		baseURL string
+		want    bool
+	}{
+		{
+			name:    "exact match",
+			baseURL: stagingCDNBaseURL,
+			want:    true,
+		},
+		{
+			name:    "trailing slash",
+			baseURL: stagingCDNBaseURL + "/",
+			want:    true,
+		},
+		{
+			name:    "uppercase host",
+			baseURL: "https://CDN.CLOUD.GRAVITATIONAL.IO",
+			want:    true,
+		},
+		{
+			name:    "hostname trailing dot",
+			baseURL: "https://cdn.cloud.gravitational.io.",
+			want:    true,
+		},
+		{
+			name:    "port preserved",
+			baseURL: "https://cdn.cloud.gravitational.io:443",
+			want:    true,
+		},
+		{
+			name:    "path ignored",
+			baseURL: "https://cdn.cloud.gravitational.io/releases",
+			want:    true,
+		},
+		{
+			name:    "default prod cdn",
+			baseURL: autoupdate.DefaultBaseURL,
+			want:    false,
+		},
+		{
+			name:    "different dev host",
+			baseURL: "https://cdn.dev-blue.cloud.teleportinfra.dev",
+			want:    false,
+		},
+		{
+			name:    "invalid url",
+			baseURL: "://bad-url",
+			want:    false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, isStagingCDN(tt.baseURL))
+		})
+	}
 }
 
 func TestNewArtifactSignatureVerifier(t *testing.T) {
