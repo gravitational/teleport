@@ -26,7 +26,8 @@ Drive this as a guided, confirm-once-then-execute flow.
 - **Gate A — confirm the plan (BLOCKING, before running the orchestrator).** Present a
   summary card and use `AskUserQuestion` for explicit approval. The card shows: target
   cluster + proxy, Okta org, SSO group(s), Access List owner(s), import filters, and
-  the objects that will be created on each side — plus the warning that app/group sync
+  a prospective "Will create" list for each side — phrase it in FUTURE tense, never
+  "Objects created" / past tense (nothing has run at Gate A) — plus the warning that app/group sync
   is **bidirectional and writes back into Okta**. Options: "Proceed", "Change an input",
   "Cancel". Run nothing that mutates until "Proceed". (Preflight is the orchestrator's
   first, read-only phase and aborts safely on its own.)
