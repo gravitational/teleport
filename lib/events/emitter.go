@@ -96,6 +96,12 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 		slog.InfoContext(context.TODO(), "Using default in-memory audit event channel. Audit queue is disabled.")
 	} else {
 		slog.InfoContext(context.TODO(), "Audit queue is enabled.")
+		if _, ok := cfg.Inner.(apievents.BatchEmitter); !ok {
+			slog.WarnContext(context.TODO(),
+				"Audit queue inner emitter does not support batched delivery. Events will be forwarded one at a time.",
+				"inner_type", fmt.Sprintf("%T", cfg.Inner),
+			)
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -215,14 +221,24 @@ func (a *AsyncEmitter) forward() {
 // all of the events it was able to successfully deliver when forwarding the
 // event.
 func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []auditqueue.Item {
-	var successfullyDelivered []auditqueue.Item
+	// Fast path: if the inner emitter supports the batch interface, then emit
+	// a batch of events.
+	if be, ok := a.cfg.Inner.(apievents.BatchEmitter); ok {
+		events := make([]apievents.AuditEvent, 0, len(items))
+		for _, item := range items {
+			events = append(events, item.Event)
+		}
+		if err := be.EmitAuditEvents(ctx, events); err == nil {
+			return items
+		} else if ctx.Err() != nil {
+			return nil
+		} else {
+			slog.WarnContext(ctx, "Failed to emit audit events as a batch, falling back to per-event delivery.", "error", err)
+		}
+	}
 
-	// TODO(kkloberdanz): We plan to update the Emitter interface such that
-	// EmitAuditEvent will take a slice of events rather than a single event at
-	// a time. This will allow us to add batching as a native feature of this
-	// interface. I suspect that having first-class batching will have a greater
-	// improvement on performance over parallelism alone. It will also have less
-	// overhead than parallelism over multiple events.
+	// Slow path: emit one event at a time.
+	var successfullyDelivered []auditqueue.Item
 	for _, item := range items {
 		if ctx.Err() != nil {
 			return successfullyDelivered
@@ -323,6 +339,26 @@ func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Au
 	if err := r.Inner.EmitAuditEvent(ctx, event); err != nil {
 		AuditFailedEmit.Inc()
 		slog.ErrorContext(ctx, "Failed to emit audit event of type", "event_type", event.GetType(), "error", err)
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// EmitAuditEvents emits a batch of audit events
+func (r *CheckingEmitter) EmitAuditEvents(ctx context.Context, events []apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
+	for _, event := range events {
+		auditEmitEvent.Inc()
+		auditEmitEventSizes.Observe(float64(event.Size()))
+		if err := checkAndSetEventFields(event, r.Clock, r.UIDGenerator, r.ClusterName); err != nil {
+			slog.ErrorContext(ctx, "Failed to emit audit event.", "error", err)
+			AuditFailedEmit.Inc()
+			return trace.Wrap(err)
+		}
+	}
+	if err := EmitAuditEvents(ctx, r.Inner, events); err != nil {
+		AuditFailedEmit.Inc()
+		slog.ErrorContext(ctx, "Failed to emit audit events.", "error", err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -482,6 +518,19 @@ func (l *LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Aud
 	return nil
 }
 
+// EmitAuditEvents emits a batch of audit events to e.
+func EmitAuditEvents(ctx context.Context, e apievents.Emitter, events []apievents.AuditEvent) error {
+	if be, ok := e.(apievents.BatchEmitter); ok {
+		return trace.Wrap(be.EmitAuditEvents(ctx, events))
+	}
+	for _, event := range events {
+		if err := e.EmitAuditEvent(ctx, event); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 // NewMultiEmitter returns emitter that writes
 // events to all emitters
 func NewMultiEmitter(emitters ...apievents.Emitter) *MultiEmitter {
@@ -507,6 +556,23 @@ func (m *MultiEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 	}
 	return trace.NewAggregate(errors...)
 }
+
+// EmitAuditEvents emits a batch of audit events to all emitters.
+func (m *MultiEmitter) EmitAuditEvents(ctx context.Context, events []apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
+	var errors []error
+	for i := range m.emitters {
+		if err := EmitAuditEvents(ctx, m.emitters[i], events); err != nil {
+			errors = append(errors, err)
+		}
+	}
+	return trace.NewAggregate(errors...)
+}
+
+var (
+	_ apievents.BatchEmitter = (*MultiEmitter)(nil)
+	_ apievents.BatchEmitter = (*CheckingEmitter)(nil)
+)
 
 // StreamerAndEmitter combines streamer and emitter to create stream emitter
 type StreamerAndEmitter struct {

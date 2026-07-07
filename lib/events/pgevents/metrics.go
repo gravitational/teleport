@@ -88,6 +88,16 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
+	batchWriteLatencies = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "postgres_events_backend_batch_write_seconds",
+			Help:      "Latency for postgres events batch write operations, in seconds.",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+	)
 	batchDeleteLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: teleport.MetricNamespace,
@@ -109,6 +119,6 @@ var (
 	prometheusCollectors = []prometheus.Collector{
 		writeRequests, batchReadRequests, batchDeleteRequests,
 		writeRequestsDeduped, eventIDCollisions,
-		writeLatencies, batchReadLatencies, batchDeleteLatencies,
+		writeLatencies, batchWriteLatencies, batchReadLatencies, batchDeleteLatencies,
 	}
 )
