@@ -2170,6 +2170,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	disableRoleVisualizer, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER"))
 
+	println("================ custom icon", string(clusterFeatures.GetCustomIcon()))
+
 	webCfg := webclient.WebConfig{
 		Edition:                        h.cfg.Modules.BuildType(),
 		Auth:                           authSettings,
@@ -2185,6 +2187,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
 		CustomColors:                   json.RawMessage(clusterFeatures.GetCustomColors()),
+		CustomIcon:                     string(clusterFeatures.GetCustomIcon()),
 		Questionnaire:                  clusterFeatures.GetQuestionnaire(),
 		IsStripeManaged:                clusterFeatures.GetIsStripeManaged(),
 		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,

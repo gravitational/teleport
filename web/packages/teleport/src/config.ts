@@ -244,6 +244,7 @@ const cfg = {
   hideInaccessibleFeatures: false,
   customTheme: '',
   customColors: undefined as any,
+  customIcon: '',
   isStripeManaged: false,
   hasQuestionnaire: false,
   premiumSupport: false,

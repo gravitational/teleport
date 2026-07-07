@@ -76,6 +76,8 @@ type WebConfig struct {
 	CustomTheme string `json:"customTheme"`
 	// CustomColors contains custom theme colors that the WebUI should use.
 	CustomColors json.RawMessage `json:"customColors,omitempty"`
+	// CustomIcon contains a custom SVG icon that the WebUI should use.
+	CustomIcon string `json:"customIcon,omitempty"`
 	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
 	Questionnaire bool `json:"questionnaire"`
 	// IsStripeManaged indicates if the cluster billing & lifecycle is managed via Stripe

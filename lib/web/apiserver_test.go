@@ -2201,8 +2201,10 @@ func TestUIConfig(t *testing.T) {
 		ShowResources:   constants.ShowResourcesaccessibleOnly,
 	}
 	customColors := []byte(`{"name":"test"}`)
+	customIcon := []byte(`<svg>test</svg>`)
 	testModules := modulestest.OSSModules()
 	testModules.TestFeatures.CustomColors = customColors
+	testModules.TestFeatures.CustomIcon = customIcon
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -2225,6 +2227,7 @@ func TestUIConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uiConfig, cfg.UI)
 	require.JSONEq(t, string(customColors), string(cfg.CustomColors))
+	require.Equal(t, string(customIcon), cfg.CustomIcon)
 }
 
 func TestResizeTerminal(t *testing.T) {

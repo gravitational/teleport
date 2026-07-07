@@ -643,6 +643,8 @@ message Features {
   bool BeamsUI = 40 [(gogoproto.jsontag) = "beams_ui,omitempty"];
   // CustomColors holds custom WebUI theme colors.
   bytes CustomColors = 41 [(gogoproto.jsontag) = "custom_colors,omitempty"];
+  // CustomIcon holds a custom WebUI SVG icon.
+  bytes CustomIcon = 42 [(gogoproto.jsontag) = "custom_icon,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
