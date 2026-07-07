@@ -135,7 +135,7 @@ export function UserMenuNav() {
     setOpen(false);
   };
 
-  const initial = (displayPrimary.trim() || username.trim())
+  const initial = (displayPrimary?.trim() || username.trim())
     .charAt(0)
     .toUpperCase();
 
