@@ -5681,10 +5681,6 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 	downstreamHello := proto.DownstreamInventoryHello_builder{
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
-		// TODO(Joerger): DELETE IN v20.0.0 - Node, App, Database, and Kuberenetes
-		// heartbeats have been supported since v17. v19+ clients no longer check
-		// these capability fields, so v20 servers will not need to send them and
-		// proto fields can be deprecated.
 		Capabilities: proto.DownstreamInventoryHello_SupportedCapabilities_builder{
 			NodeHeartbeats:                true,
 			AppHeartbeats:                 true,
