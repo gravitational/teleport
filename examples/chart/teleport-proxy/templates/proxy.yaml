@@ -1,3 +1,9 @@
+{{/* We explicitly validate top-level values only, not the merged $proxy nor the
+generated/overridden teleportConfig. This allows users to inject otherwise
+disallowed values, but forces them to acknowledge that they're unsupported by
+putting something in the top-level fields we do validate.
+*/}}
+{{- include "teleport-proxy.validate" . -}}
 {{- $proxy := mustDeepCopy . -}}
 
 {{/* Merge .Values.proxy into .Values because teleport-proxy-lib templates
@@ -10,7 +16,6 @@
 {{- $_ := unset $proxy.Values "serviceAccountTokenExpirationSeconds" -}}
 {{- end -}}
 
-{{- include "teleport-proxy.validate" $proxy -}}
 {{- $_ := set $proxy.Values "teleportConfig" (include "teleport-proxy.teleportConfig" $proxy | fromYaml) -}}
 {{- $_ := set $proxy.Values.serviceAccount "name" (include "teleport-proxy.serviceAccountName" $proxy) -}}
 {{- $_ := set $proxy.Values "forceHAReplicas" (not (empty (get (default (dict) .Values.proxy.highAvailability) "replicaCount"))) -}}
