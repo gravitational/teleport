@@ -198,6 +198,10 @@ type networkStack struct {
 	// state holds all mutable state for the networkStack.
 	state state
 
+	// processResolver identifies the local process that opened an intercepted
+	// connection. It is platform-specific and best-effort.
+	processResolver processResolver
+
 	slog *slog.Logger
 }
 
@@ -302,6 +306,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		tcpHandlerResolver: cfg.tcpHandlerResolver,
 		destroyed:          make(chan struct{}),
 		state:              newState(),
+		processResolver:    newProcessResolver(logger),
 		slog:               logger,
 	}
 
@@ -463,6 +468,17 @@ func (ns *networkStack) handleTCP(req *tcp.ForwarderRequest) {
 	slog := ns.slog.With("request", id)
 	slog.DebugContext(ctx, "Handling TCP connection.")
 	defer slog.DebugContext(ctx, "Finished handling TCP connection.")
+
+	// Identify the local program that opened this connection. id.RemotePort is
+	// the client's ephemeral source port and id.LocalPort is the VNet virtual
+	// port it connected to; together they pin down a single host socket.
+	if peer, err := ns.processResolver.resolveTCP(id.RemotePort, id.LocalPort); err != nil {
+		slog.DebugContext(ctx, "Could not identify the local process for this connection.", "error", err)
+	} else {
+		slog = slog.With("peer_process", peer)
+		//TODO: report the path to the Electron app.
+		slog.InfoContext(ctx, "Local process opened a VNet connection.")
+	}
 
 	handler, ok := ns.getTCPHandler(id.LocalAddress)
 	if !ok {
