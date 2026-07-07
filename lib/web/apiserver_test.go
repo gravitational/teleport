@@ -2200,10 +2200,16 @@ func TestUIConfig(t *testing.T) {
 		ScrollbackLines: 555,
 		ShowResources:   constants.ShowResourcesaccessibleOnly,
 	}
+	customColors := []byte(`{"name":"test"}`)
+	testModules := modulestest.OSSModules()
+	testModules.TestFeatures.CustomColors = customColors
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	s := newWebSuiteWithConfig(t, webSuiteConfig{uiConfig: uiConfig})
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		uiConfig: uiConfig,
+		modules:  testModules,
+	})
 	clt := s.client(t)
 	endpoint := clt.Endpoint("web", "config.js")
 	re, err := clt.Get(ctx, endpoint, nil)
@@ -2218,6 +2224,7 @@ func TestUIConfig(t *testing.T) {
 	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
 	require.NoError(t, err)
 	require.Equal(t, uiConfig, cfg.UI)
+	require.JSONEq(t, string(customColors), string(cfg.CustomColors))
 }
 
 func TestResizeTerminal(t *testing.T) {
@@ -5355,7 +5362,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			IsUsageBasedBilling:            false,
 			AutomaticUpgradesTargetVersion: "",
 			CustomTheme:                    "",
-			CustomColors:                   customColors,
 			Questionnaire:                  false,
 			IsStripeManaged:                false,
 			PremiumSupport:                 false,

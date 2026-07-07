@@ -641,6 +641,8 @@ message Features {
   bool ClientIPRestrictions = 39 [(gogoproto.jsontag) = "client_ip_restrictions,omitempty"];
   // BeamsUI enables the Beams lite-mode UI
   bool BeamsUI = 40 [(gogoproto.jsontag) = "beams_ui,omitempty"];
+  // CustomColors holds custom WebUI theme colors.
+  bytes CustomColors = 41 [(gogoproto.jsontag) = "custom_colors,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement

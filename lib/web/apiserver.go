@@ -21,11 +21,9 @@
 package web
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"crypto/tls"
-	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -153,28 +151,6 @@ const (
 	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
 	DefaultAgentUpdateJitterSeconds = 60
 )
-
-//go:embed customColors.json
-var customColorsJSON []byte
-
-var customColors = mustParseCustomColors(customColorsJSON)
-
-func mustParseCustomColors(data []byte) json.RawMessage {
-	var object map[string]json.RawMessage
-	if err := json.Unmarshal(data, &object); err != nil {
-		panic(fmt.Sprintf("invalid embedded custom colors JSON: %v", err))
-	}
-	if object == nil {
-		panic("embedded custom colors JSON must be an object")
-	}
-
-	var compacted bytes.Buffer
-	if err := json.Compact(&compacted, data); err != nil {
-		panic(fmt.Sprintf("invalid embedded custom colors JSON: %v", err))
-	}
-
-	return json.RawMessage(compacted.Bytes())
-}
 
 // healthCheckAppServerFunc defines a function used to perform a health check
 // to AppServer that can handle application requests (based on cluster name and
@@ -2208,7 +2184,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
-		CustomColors:                   customColors,
+		CustomColors:                   json.RawMessage(clusterFeatures.GetCustomColors()),
 		Questionnaire:                  clusterFeatures.GetQuestionnaire(),
 		IsStripeManaged:                clusterFeatures.GetIsStripeManaged(),
 		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,

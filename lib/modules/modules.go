@@ -52,6 +52,8 @@ type Features struct {
 	Cloud bool
 	// CustomTheme holds the name of WebUI custom theme.
 	CustomTheme string
+	// CustomColors holds custom WebUI theme colors.
+	CustomColors []byte
 	// IsStripeManaged indicates if the cluster billing is managed via Stripe
 	IsStripeManaged bool
 	// IsUsageBasedBilling enables some usage-based billing features
@@ -122,6 +124,7 @@ func (f Features) ToProto() *proto.Features {
 	return &proto.Features{
 		Cloud:                      f.Cloud,
 		CustomTheme:                f.CustomTheme,
+		CustomColors:               f.CustomColors,
 		IsStripeManaged:            f.IsStripeManaged,
 		IsUsageBased:               f.IsUsageBasedBilling,
 		Questionnaire:              f.Questionnaire,
