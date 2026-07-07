@@ -96,7 +96,7 @@ func (h *appHandler) getOrInitializeLocalProxy(ctx context.Context, localPort ui
 	middleware := &localProxyMiddleware{
 		certChecker: certChecker,
 		onNewConnection: func(ctx context.Context) error {
-			return h.cfg.appProvider.OnNewAppConnection(ctx, h.cfg.appInfo.GetAppKey())
+			return h.cfg.appProvider.OnNewAppConnection(ctx, h.cfg.appInfo.GetAppKey(), h.cfg.appInfo.GetApp().GetPublicAddr())
 		},
 	}
 	h.log.DebugContext(ctx, "Creating local proxy", "target_port", localPort, "protocol", h.cfg.protocol)

@@ -531,7 +531,7 @@ func (p *clientApplication) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.Da
 
 // OnNewDBConnection is part of the [vnet.ClientApplication] interface. See
 // the note on ReissueDBCert above; this is a no-op in Connect.
-func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error {
+func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey, fqdn string) error {
 	return nil
 }
 
@@ -592,7 +592,7 @@ func (p *clientApplication) GetDialOptions(ctx context.Context, profileName stri
 }
 
 // OnNewSSHSession submits a usage event for a new SSH session.
-func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, targetClusterName string) {
+func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, targetClusterName, leafClusterName, address string) {
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {
@@ -609,7 +609,7 @@ func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, ta
 // That is, if a user makes multiple connections to a single app, OnNewAppConnection submits a single
 // event. This is to mimic how Connect submits events for its app gateways. This lets us compare
 // popularity of VNet and app gateways.
-func (p *clientApplication) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+func (p *clientApplication) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey, publicAddr string) error {
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {

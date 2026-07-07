@@ -138,9 +138,10 @@ func (c *clientApplicationServiceClient) SignForApp(ctx context.Context, req *vn
 }
 
 // OnNewAppConnection reports a new TCP connection to the target app.
-func (c *clientApplicationServiceClient) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+func (c *clientApplicationServiceClient) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey, publicAddr string) error {
 	_, err := c.clt.OnNewAppConnection(ctx, vnetv1.OnNewAppConnectionRequest_builder{
-		AppKey: appKey,
+		AppKey:     appKey,
+		PublicAddr: publicAddr,
 	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "calling OnNewAppConnection rpc")
@@ -283,9 +284,10 @@ func (c *clientApplicationServiceClient) SignForDB(ctx context.Context, req *vne
 }
 
 // OnNewDBConnection reports a new database connection for observability.
-func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error {
+func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey, fqdn string) error {
 	_, err := c.clt.OnNewDBConnection(ctx, vnetv1.OnNewDBConnectionRequest_builder{
 		DatabaseKey: dbKey,
+		Fqdn:        fqdn,
 	}.Build())
 	return trace.Wrap(err, "calling OnNewDBConnection rpc")
 }

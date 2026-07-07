@@ -227,7 +227,7 @@ func (s *clientApplicationService) getSignerForApp(appKey *vnetv1.AppKey, target
 // OnNewAppConnection gets called whenever a new app connection is about to be
 // established through VNet for observability.
 func (s *clientApplicationService) OnNewAppConnection(ctx context.Context, req *vnetv1.OnNewAppConnectionRequest) (*vnetv1.OnNewAppConnectionResponse, error) {
-	s.cfg.clientApplication.OnNewAppConnection(ctx, req.GetAppKey())
+	s.cfg.clientApplication.OnNewAppConnection(ctx, req.GetAppKey(), req.GetPublicAddr())
 	return &vnetv1.OnNewAppConnectionResponse{}, nil
 }
 
@@ -399,7 +399,7 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 	// logical SSH connection already reported by the direct attempt and should
 	// not be reported as a separate connection.
 	if req.GetCredentialMode() == vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT {
-		s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster())
+		s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster(), req.GetLeafCluster(), req.GetAddress())
 	}
 
 	return vnetv1.SessionSSHConfigResponse_builder{
@@ -601,7 +601,7 @@ func (s *clientApplicationService) SignForDB(ctx context.Context, req *vnetv1.Si
 // OnNewDBConnection gets called whenever a new database connection is about to
 // be established through VNet for observability.
 func (s *clientApplicationService) OnNewDBConnection(ctx context.Context, req *vnetv1.OnNewDBConnectionRequest) (*vnetv1.OnNewDBConnectionResponse, error) {
-	if err := s.cfg.clientApplication.OnNewDBConnection(ctx, req.GetDatabaseKey()); err != nil {
+	if err := s.cfg.clientApplication.OnNewDBConnection(ctx, req.GetDatabaseKey(), req.GetFqdn()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &vnetv1.OnNewDBConnectionResponse{}, nil

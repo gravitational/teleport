@@ -66,8 +66,8 @@ func (p *dbProvider) newDBCertSigner(cert []byte, dbInfo *vnetv1.DatabaseInfo) (
 }
 
 // OnNewDBConnection reports a new TCP connection to the target database.
-func (p *dbProvider) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error {
-	if err := p.clt.OnNewDBConnection(ctx, dbKey); err != nil {
+func (p *dbProvider) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey, fqdn string) error {
+	if err := p.clt.OnNewDBConnection(ctx, dbKey, fqdn); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

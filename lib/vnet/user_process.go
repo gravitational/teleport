@@ -55,16 +55,17 @@ type ClientApplication interface {
 	GetDialOptions(ctx context.Context, profileName string) (*vnetv1.DialOptions, error)
 
 	// OnNewSSHSession should be called whenever a new SSH session is about to be
-	// started, after getting the user SSH certificate for the session.
-	OnNewSSHSession(ctx context.Context, profileName, rootClusterName string)
+	// started, after getting the user SSH certificate for the session. address is
+	// the address of the SSH host the session is for.
+	OnNewSSHSession(ctx context.Context, profileName, rootClusterName, leafClusterName, address string)
 
 	// OnNewAppConnection gets called whenever a new app connection is about to be established through VNet.
 	// By the time OnNewAppConnection, VNet has already verified that the user holds a valid cert for the
-	// app.
+	// app. publicAddr is the public address of the app.
 	//
 	// The connection won't be established until OnNewAppConnection returns. Returning an error prevents
 	// the connection from being made.
-	OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey) error
+	OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey, publicAddr string) error
 
 	// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
 	// because the provided port does not match any of the TCP ports in the app spec.
@@ -78,8 +79,8 @@ type ClientApplication interface {
 	// holds a valid cert for the database.
 	//
 	// The connection won't be established until OnNewDBConnection returns. Returning an error prevents
-	// the connection from being made.
-	OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error
+	// the connection from being made. fqdn is the fully-qualified domain name the database was reached at.
+	OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey, fqdn string) error
 }
 
 // ClusterClient is an interface defining the subset of [client.ClusterClient]

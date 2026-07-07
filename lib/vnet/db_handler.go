@@ -88,7 +88,7 @@ func (h *dbHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnproxy.L
 	middleware := &localProxyMiddleware{
 		certChecker: certChecker,
 		onNewConnection: func(ctx context.Context) error {
-			return h.cfg.dbProvider.OnNewDBConnection(ctx, h.cfg.dbInfo.GetDatabaseKey())
+			return h.cfg.dbProvider.OnNewDBConnection(ctx, h.cfg.dbInfo.GetDatabaseKey(), h.cfg.dbInfo.GetFqdn())
 		},
 	}
 
