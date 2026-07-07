@@ -33,6 +33,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -241,6 +242,21 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		&ruleCtx, types.KindBotInstance, types.VerbReadNoSecrets, types.VerbList,
 	); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if filterBotScope := req.GetFilter().GetBotScope(); filterBotScope != "" {
+		// bot_scope is only designed to scope-qualify bot_name. If we want to
+		// introduce actual scope-filtering down the line, we'll introduce a
+		// new field with more control (i.e. exact, descendent)
+		if req.GetFilter().GetBotName() == "" {
+			return nil, trace.BadParameter(
+				"bot_scope filter requires bot_name",
+			)
+		}
+
+		if err := scopes.StrongValidate(filterBotScope); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	botInstances, nextToken, err := b.cache.ListBotInstances(

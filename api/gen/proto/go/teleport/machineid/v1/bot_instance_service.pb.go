@@ -740,11 +740,12 @@ type ListBotInstancesV2Request_Filters struct {
 	SearchTerm string `protobuf:"bytes,2,opt,name=search_term,json=searchTerm,proto3" json:"search_term,omitempty"`
 	// A Teleport predicate language query used to filter the results.
 	Query string `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
-	// The scope of the bot to list BotInstances for. Combined with bot_name
-	// to uniquely identify a scoped bot. If bot_name or bot_scope is
-	// non-empty, only BotInstances whose bot's scope matches bot_scope
-	// exactly will be listed (an empty bot_scope with a non-empty bot_name
-	// selects instances of the unscoped bot with that name).
+	// The scope of the bot to list BotInstances for. Only valid alongside a
+	// non-empty bot_name, which it qualifies to uniquely identify a scoped bot
+	// (a scoped bot is identified by the pair (scope, name)); setting bot_scope
+	// without bot_name is an error. An empty bot_scope with a non-empty bot_name
+	// selects the unscoped bot with that name. This is not a standalone scope
+	// filter for listing all of a scope's instances.
 	BotScope      string `protobuf:"bytes,4,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -830,11 +831,12 @@ type ListBotInstancesV2Request_Filters_builder struct {
 	SearchTerm string
 	// A Teleport predicate language query used to filter the results.
 	Query string
-	// The scope of the bot to list BotInstances for. Combined with bot_name
-	// to uniquely identify a scoped bot. If bot_name or bot_scope is
-	// non-empty, only BotInstances whose bot's scope matches bot_scope
-	// exactly will be listed (an empty bot_scope with a non-empty bot_name
-	// selects instances of the unscoped bot with that name).
+	// The scope of the bot to list BotInstances for. Only valid alongside a
+	// non-empty bot_name, which it qualifies to uniquely identify a scoped bot
+	// (a scoped bot is identified by the pair (scope, name)); setting bot_scope
+	// without bot_name is an error. An empty bot_scope with a non-empty bot_name
+	// selects the unscoped bot with that name. This is not a standalone scope
+	// filter for listing all of a scope's instances.
 	BotScope string
 }
 
