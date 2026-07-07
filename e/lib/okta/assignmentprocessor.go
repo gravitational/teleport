@@ -66,6 +66,19 @@ type accessListService interface {
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*ossaccesslist.AccessListMember, error)
 }
 
+// targetsProcessingResult stores the result of processing an assignment's targets.
+type targetsProcessingResult struct {
+	processedCount int
+	errs           []error
+}
+
+// reportable returns true when the result of processing an assignment's targets
+// contains something to be reported on, i.e. targets were processed or errors
+// were encountered.
+func (r *targetsProcessingResult) reportable() bool {
+	return r.processedCount > 0 || len(r.errs) != 0
+}
+
 // assignmentProcessor will process an Okta assignment, updating its status along the way.
 type assignmentProcessor struct {
 	logger      *slog.Logger
@@ -102,6 +115,13 @@ type assignmentProcessor struct {
 	appFilters []*regexp.Regexp
 	// groupFilters are used to determine which Okta groups assignments to process.
 	groupFilters []*regexp.Regexp
+
+	// targetProcessingBackoffStep is the step value for linear backoff when processing
+	// Okta assignment targets.
+	targetProcessingBackoffStep time.Duration
+	// targetProcessingBackoffMax is the max duration for linear backoff when processing
+	// Okta assignment targets.
+	targetProcessingBackoffMax time.Duration
 }
 
 func newAssignmentProcessor(svc *Service) *assignmentProcessor {
@@ -124,6 +144,8 @@ func newAssignmentProcessor(svc *Service) *assignmentProcessor {
 		stopCh:                            make(chan struct{}, 1),
 		userTargetCounter:                 map[string]map[string]struct{}{},
 		timeBetweenAssignmentProcessLoops: svc.timeBetweenAssignmentProcessLoops,
+		targetProcessingBackoffStep:       svc.targetProcessingBackoffStep,
+		targetProcessingBackoffMax:        svc.targetProcessingBackoffMax,
 	}
 }
 
@@ -306,9 +328,10 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 	if needsCleanup {
 		op = constants.OktaAssignmentTargetOpCleanup
 	}
-	processErrs := a.processTargets(ctx, logger, assignmentClient, assignment, op)
+	result := a.processTargets(ctx, logger, assignmentClient, assignment, op)
 
-	if len(processErrs) == 0 {
+	assignmentSuccessful := len(result.errs) == 0 && !assignmentHasFailedTargets(assignment)
+	if assignmentSuccessful {
 		err = assignment.SetStatus(constants.OktaAssignmentStatusSuccessful)
 	} else {
 		err = assignment.SetStatus(constants.OktaAssignmentStatusFailed)
@@ -317,9 +340,9 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 		logger.ErrorContext(ctx, "Illegal assignment status transition after processing the assignment (this is a bug)", "error", err)
 		return processAssignmentFailed
 	}
-	assignment.SetLastTransition(a.clock.Now())
-	assignment.SetFinalized(len(processErrs) == 0 && needsCleanup)
 
+	assignment.SetLastTransition(a.clock.Now())
+	assignment.SetFinalized(assignmentSuccessful && needsCleanup)
 	maybeStripTargetStatuses(ctx, logger, assignment, largeAssignmentTargetThreshold)
 	if _, err := a.accessPoint.ConditionalUpdateOktaAssignment(ctx, assignment); err != nil {
 		if trace.IsCompareFailed(err) {
@@ -330,20 +353,20 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 		return processAssignmentFailed
 	}
 
-	// Errors are logged while processing the assignment, so log success only when there are no
-	// processing errors.
-	if len(processErrs) == 0 {
+	// Errors and skipped targets are logged while processing the assignment, so log success only when there are no
+	// processing errors or skipped targets.
+	if assignmentSuccessful {
 		logger.DebugContext(ctx, "Successfully processed assignment", assignmentDetailsSlogGroup(assignment))
 	}
 
 	// Emit the event if there was a processing error or cleanup was needed, or the starting and ending status aren't
-	// both successful.
-	emitEvent := len(processErrs) != 0 ||
-		needsCleanup ||
-		startStatus != constants.OktaAssignmentStatusSuccessful ||
-		assignment.GetStatus() != constants.OktaAssignmentStatusSuccessful
+	// both successful, and at least one target was processed or returned an error.
+	emitEvent := result.reportable() &&
+		(needsCleanup ||
+			startStatus != constants.OktaAssignmentStatusSuccessful ||
+			assignment.GetStatus() != constants.OktaAssignmentStatusSuccessful)
 	if emitEvent {
-		a.emitAuditEvent(ctx, assignment, startStatus, assignment.GetStatus(), needsCleanup, trace.NewAggregate(processErrs...))
+		a.emitAuditEvent(ctx, assignment, startStatus, assignment.GetStatus(), needsCleanup, trace.NewAggregate(result.errs...))
 	}
 
 	return processAssignmentProcessed
@@ -372,11 +395,19 @@ func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Lo
 		// Otherwise, we should only retry successful objects if the time between loops has
 		// passed since it last became successful
 		if sinceTransition < a.timeBetweenAssignmentProcessLoops {
+			logger.DebugContext(ctx,
+				"Successful assignment skipped within time between assignment process loops",
+				"time_between_assignment_process_loops", a.timeBetweenAssignmentProcessLoops,
+				"since_transition", sinceTransition)
 			return false
 		}
 	case constants.OktaAssignmentStatusFailed:
 		// Only process this if enough time has passed since the failure state.
 		if sinceTransition < a.timeBetweenAssignmentProcessLoops {
+			logger.DebugContext(ctx,
+				"Failed assignment skipped within time between assignment process loops",
+				"time_between_assignment_process_loops", a.timeBetweenAssignmentProcessLoops,
+				"since_transition", sinceTransition)
 			return false
 		}
 	default:
@@ -387,19 +418,42 @@ func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Lo
 	return true
 }
 
+// shouldProcessTarget determines whether a target should be processed.
+// Failed targets within the calculated backoff period should not be processed.
+func (a *assignmentProcessor) shouldProcessTarget(ctx context.Context, logger *slog.Logger, target types.OktaAssignmentTarget, op constants.OktaAssignmentTargetOp) bool {
+	status := target.GetStatus()
+	if status == nil || op != constants.OktaAssignmentTargetOp(status.Op) {
+		return true
+	}
+
+	if constants.OktaAssignmentTargetOutcome(status.Outcome) != constants.OktaAssignmentTargetOutcomeFailed {
+		return true
+	}
+
+	backoff := calculateBackoff(status.FailureCount, a.targetProcessingBackoffStep, a.targetProcessingBackoffMax)
+	if a.clock.Since(status.LastProcessed) < backoff {
+		logger.DebugContext(ctx, "Target skipped within backoff time", "backoff", logutils.StringerAttr(backoff), "last_processed", status.LastProcessed)
+		return false
+	}
+
+	return true
+}
+
 // processTargets will try to provision/cleanup targets. It returns the updates assignment status
 // and errors that should be reported in the audit event if any.
-func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, op constants.OktaAssignmentTargetOp) []error {
+func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, op constants.OktaAssignmentTargetOp) *targetsProcessingResult {
+	result := &targetsProcessingResult{}
+
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentTargetsTimeout)
 	defer cancel()
 
 	// If we can't find the user in Okta, skip trying to process any of the targets.
 	if _, err := client.userID(ctx, userName(assignment.GetUser())); err != nil {
 		logger.WarnContext(ctx, "Okta user for the assignment not found (was the user deleted/deactivated in Okta?). Skipping")
-		return []error{trace.NotFound("Okta user for the assignment not found (was the user deleted/deactivated in Okta?)")}
+		result.errs = append(result.errs, trace.NotFound("Okta user for the assignment not found (was the user deleted/deactivated in Okta?)"))
+		return result
 	}
 
-	var errs []error
 	targets := assignment.GetTargets()
 	for i, target := range targets {
 		logger := logger.With(
@@ -408,14 +462,20 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.L
 			"target_op", op,
 		)
 
+		if !a.shouldProcessTarget(ctx, logger, target, op) {
+			continue
+		}
+
 		outcome := constants.OktaAssignmentTargetOutcomeSuccessful
 		if err := a.processTarget(ctx, logger, client, assignment, target, op); err != nil {
 			outcome = constants.OktaAssignmentTargetOutcomeFailed
-			errs = append(errs, trace.Wrap(err))
+			result.errs = append(result.errs, trace.Wrap(err))
 		}
 		if err := target.RecordStatus(a.clock.Now(), op, outcome); err != nil {
 			logger.ErrorContext(ctx, "Failed to record target status", "target_outcome", outcome, "error", err)
 		}
+
+		result.processedCount++
 
 		// If context timed out, break the loop, otherwise we can log a lot of confusing
 		// "context deadline exceeded" errors for the remaining targets.
@@ -423,13 +483,13 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.L
 			// In case context is canceled just after a.processTarget call, we don't
 			// want the okta_assignment status to be marked as "successful".
 			logger.ErrorContext(ctx, "Assignment targets processing timed out")
-			errs = append(errs, trace.Errorf("assignment targets processing timed out after %s; processed %d of %d targets", processAssignmentTargetsTimeout, i+1, len(targets)))
-			return errs
+			result.errs = append(result.errs, trace.Errorf("assignment targets processing timed out after %s; processed %d of %d targets", processAssignmentTargetsTimeout, i+1, len(targets)))
+			return result
 		}
 
 		logger.DebugContext(ctx, "Processed assignment target", "target_outcome", outcome)
 	}
-	return errs
+	return result
 }
 
 func (a *assignmentProcessor) processTarget(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, target types.OktaAssignmentTarget, op constants.OktaAssignmentTargetOp) error {
@@ -788,6 +848,23 @@ type timeAttrT struct{ v time.Time }
 
 func (a *timeAttrT) LogValue() slog.Value {
 	return slog.StringValue(a.v.UTC().Format(time.RFC3339Nano))
+}
+
+// calculateBackoff calculates the linear backoff for processing Okta assignment targets.
+func calculateBackoff(failureCount int32, step, maxBackoff time.Duration) time.Duration {
+	if failureCount <= 0 {
+		return 0
+	}
+	return min(time.Duration(failureCount)*step, maxBackoff)
+}
+
+// assignmentHasFailedTargets returns true if any of the targets on the assignment have
+// a failed outcome.
+func assignmentHasFailedTargets(assignment types.OktaAssignment) bool {
+	return slices.ContainsFunc(assignment.GetTargets(), func(t types.OktaAssignmentTarget) bool {
+		status := t.GetStatus()
+		return status != nil && constants.OktaAssignmentTargetOutcome(status.Outcome) == constants.OktaAssignmentTargetOutcomeFailed
+	})
 }
 
 // maybeStripTargetStatuses removes the target statuses from an Okta assignment if the number

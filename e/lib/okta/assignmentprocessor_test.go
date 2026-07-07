@@ -137,18 +137,18 @@ func TestProcessAssignments(t *testing.T) {
 				)),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime.Add(10*time.Minute), false,
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime.Add((2*oktaplugin.DefaultTargetProcessingBackoffStep)+10*time.Minute), false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
-					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(10*time.Minute), 0),
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add((2*oktaplugin.DefaultTargetProcessingBackoffStep)+10*time.Minute), 0),
 				)),
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2"), withStatus(
-					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(10*time.Minute), 0),
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add((2*oktaplugin.DefaultTargetProcessingBackoffStep)+10*time.Minute), 0),
 				)),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
-					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(10*time.Minute), 1),
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add((2*oktaplugin.DefaultTargetProcessingBackoffStep)+10*time.Minute), 1),
 				)),
 			)},
-			incrementTimeDuration: 10 * time.Minute,
+			incrementTimeDuration: (2 * oktaplugin.DefaultTargetProcessingBackoffStep) + 10*time.Minute,
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
 				"app1": set.New(oktaapi.AppAssignment{UserID: string(testOktaUserID), Scope: oktaapi.UserScope}),
 				"app2": set.New(oktaapi.AppAssignment{UserID: string(testOktaUserID), Scope: oktaapi.UserScope}),
@@ -549,15 +549,15 @@ func TestProcessAssignments(t *testing.T) {
 					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(time.Minute), 7),
 				)),
 			)},
-			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), false,
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime.Add((7*oktaplugin.DefaultTargetProcessingBackoffStep)+time.Minute), false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
-					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), 4),
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add((7*oktaplugin.DefaultTargetProcessingBackoffStep)+time.Minute), 4),
 				)),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
-					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), 8),
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add((7*oktaplugin.DefaultTargetProcessingBackoffStep)+time.Minute), 8),
 				)),
 			)},
-			incrementTimeDuration: oktaplugin.DefaultTimeBetweenAssignmentProcessLoops,
+			incrementTimeDuration: (7 * oktaplugin.DefaultTargetProcessingBackoffStep) + time.Minute,
 			expectedAuditEvents: []auditEventInfo{
 				{
 					name:           "assignment1",
@@ -784,8 +784,9 @@ func Test_assignmentProcessor_GetAccessListMember_error(t *testing.T) {
 		err: trace.NotFound("NotFound should be handled as a happy path"),
 	}
 	// We need to advance clock so the failed assignment is processed, otherwise
-	// assignmentProcessor.shouldProcess() will return false.
-	clock.Advance(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops)
+	// assignmentProcessor.shouldProcess() will return false and failed targets
+	// will be skipped due to backoff.
+	clock.Advance(oktaplugin.DefaultTargetProcessingBackoffStep)
 	_ = processor.processAssignment(ctx, processor.logger, assignment1)
 
 	assignment1, err = ap.GetOktaAssignment(ctx, assignment1.GetName())
@@ -1109,6 +1110,204 @@ func Test_assignmentProcessor_sync_back_filters(t *testing.T) {
 	requireOktaSideGroupAssignments(t, oktaClient, "product-group", []string{})
 	requireOktaSideApplicationAssignments(t, oktaClient, "dev-app", []string{"test-user"})
 	requireOktaSideApplicationAssignments(t, oktaClient, "admin-app", []string{})
+}
+
+func TestAssignmentProcessorTargetProcessingBackoff(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	startTime := time.Now().UTC()
+	clock := clockwork.NewFakeClockAt(startTime)
+
+	ap := newTestAccessPoint(t, clock)
+	oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)
+	oktaClient.OrgURLFunc = func(t *testing.T) string { return oktaapitest.TestOrgURL }
+	svc, emitter := newTestService(t, ap, oktaClient, withClock(clock))
+
+	const groupName = "test-group"
+	const testUser = "test-user@test.user"
+	const testUserOktaID = "okta-user-id"
+
+	oktaData.UpsertUserForId(testUser, testUserOktaID)
+	oktaData.UpsertGroupForId(groupName)
+
+	require.NoError(t, svc.synchronize(ctx))
+	collectAllEvents(t, emitter, new([]apievents.AuditEvent))
+
+	processor := svc.assignmentReconciler.assignmentProcessor
+
+	testAssignment, err := ap.CreateOktaAssignment(ctx, assignment(t, "test-assignment", testUser, time.Time{}, constants.OktaAssignmentStatusPending, clock.Now(), false,
+		// Create a fresh target.
+		target(types.OktaAssignmentTargetV1_GROUP, groupName),
+		// Create a previously processed successful target.
+		target(types.OktaAssignmentTargetV1_GROUP, groupName, withStatus(status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, clock.Now().Add(-10*time.Minute), 0))),
+	))
+	require.NoError(t, err)
+
+	// assertAssignmentTargetStatus asserts that the status of the targets matches the expected status.
+	assertAssignmentTargetStatus := func(target1Status, target2Status *types.OktaAssignmentTargetStatus) {
+		t.Helper()
+
+		gotAssignment, err := ap.GetOktaAssignment(ctx, testAssignment.GetName())
+		require.NoError(t, err)
+
+		targets := gotAssignment.GetTargets()
+		require.Len(t, targets, 2)
+		require.Empty(t, cmp.Diff(targets[0].GetStatus(), target1Status))
+		require.Empty(t, cmp.Diff(targets[1].GetStatus(), target2Status))
+	}
+
+	// When any other error than NotFound is encountered while checking AccessList membership,
+	// it's a failure.
+	processor.accessPoint.accessListService = &failingAccessListService{
+		err: trace.Errorf("test access list service error"),
+	}
+
+	// First processing.
+	_ = processor.processAssignment(ctx, processor.logger, testAssignment)
+	collectAllEvents(t, emitter, new([]apievents.AuditEvent))
+
+	assertAssignmentTargetStatus(
+		// Processed. Fresh targets with no prior status are always processed.
+		&types.OktaAssignmentTargetStatus{
+			Op:            string(constants.OktaAssignmentTargetOpProvision),
+			Outcome:       string(constants.OktaAssignmentStatusFailed),
+			LastProcessed: startTime,
+			FailureCount:  1,
+		},
+		// Processed. Successful targets within a processing assignment are always processed.
+		&types.OktaAssignmentTargetStatus{
+			Op:            string(constants.OktaAssignmentTargetOpProvision),
+			Outcome:       string(constants.OktaAssignmentStatusFailed),
+			LastProcessed: startTime,
+			FailureCount:  1,
+		},
+	)
+
+	// 10m since start.
+	clock.Advance(10 * time.Minute)
+	require.Less(t, clock.Now().Sub(startTime), oktaplugin.DefaultTargetProcessingBackoffStep)
+
+	_ = processor.processAssignment(ctx, processor.logger, testAssignment)
+	collectAllEvents(t, emitter, new([]apievents.AuditEvent))
+
+	// Not processed. Failed and within 15m (first step) backoff.
+	assertAssignmentTargetStatus(
+		&types.OktaAssignmentTargetStatus{
+			Op:            string(constants.OktaAssignmentTargetOpProvision),
+			Outcome:       string(constants.OktaAssignmentStatusFailed),
+			LastProcessed: startTime,
+			FailureCount:  1,
+		},
+		&types.OktaAssignmentTargetStatus{
+			Op:            string(constants.OktaAssignmentTargetOpProvision),
+			Outcome:       string(constants.OktaAssignmentStatusFailed),
+			LastProcessed: startTime,
+			FailureCount:  1,
+		},
+	)
+
+	// 20m since start.
+	clock.Advance(10 * time.Minute)
+	require.GreaterOrEqual(t, clock.Now().Sub(startTime), oktaplugin.DefaultTargetProcessingBackoffStep)
+
+	_ = processor.processAssignment(ctx, processor.logger, testAssignment)
+	collectAllEvents(t, emitter, new([]apievents.AuditEvent))
+
+	// Processed. Failed and outside 15m (first step) backoff.
+	assertAssignmentTargetStatus(
+		&types.OktaAssignmentTargetStatus{
+			Op:            string(constants.OktaAssignmentTargetOpProvision),
+			Outcome:       string(constants.OktaAssignmentStatusFailed),
+			LastProcessed: startTime.Add(20 * time.Minute),
+			FailureCount:  2,
+		},
+		&types.OktaAssignmentTargetStatus{
+			Op:            string(constants.OktaAssignmentTargetOpProvision),
+			Outcome:       string(constants.OktaAssignmentStatusFailed),
+			LastProcessed: startTime.Add(20 * time.Minute),
+			FailureCount:  2,
+		},
+	)
+
+	// 40m since start.
+	clock.Advance(20 * time.Minute)
+	require.Less(t, clock.Now().Sub(startTime.Add(20*time.Minute)), 2*oktaplugin.DefaultTargetProcessingBackoffStep)
+
+	_ = processor.processAssignment(ctx, processor.logger, testAssignment)
+	collectAllEvents(t, emitter, new([]apievents.AuditEvent))
+
+	// Not processed. Within 30m (second step) backoff.
+	assertAssignmentTargetStatus(
+		&types.OktaAssignmentTargetStatus{
+			Op:            string(constants.OktaAssignmentTargetOpProvision),
+			Outcome:       string(constants.OktaAssignmentStatusFailed),
+			LastProcessed: startTime.Add(20 * time.Minute),
+			FailureCount:  2,
+		},
+		&types.OktaAssignmentTargetStatus{
+			Op:            string(constants.OktaAssignmentTargetOpProvision),
+			Outcome:       string(constants.OktaAssignmentStatusFailed),
+			LastProcessed: startTime.Add(20 * time.Minute),
+			FailureCount:  2,
+		},
+	)
+
+	// 60m since start.
+	clock.Advance(20 * time.Minute)
+	require.GreaterOrEqual(t, clock.Now().Sub(startTime.Add(20*time.Minute)), 2*oktaplugin.DefaultTargetProcessingBackoffStep)
+
+	_ = processor.processAssignment(ctx, processor.logger, testAssignment)
+	collectAllEvents(t, emitter, new([]apievents.AuditEvent))
+
+	// Processed. Outside 30m (second step) backoff.
+	assertAssignmentTargetStatus(
+		&types.OktaAssignmentTargetStatus{
+			Op:            string(constants.OktaAssignmentTargetOpProvision),
+			Outcome:       string(constants.OktaAssignmentStatusFailed),
+			LastProcessed: startTime.Add(60 * time.Minute),
+			FailureCount:  3,
+		},
+		&types.OktaAssignmentTargetStatus{
+			Op:            string(constants.OktaAssignmentTargetOpProvision),
+			Outcome:       string(constants.OktaAssignmentStatusFailed),
+			LastProcessed: startTime.Add(60 * time.Minute),
+			FailureCount:  3,
+		},
+	)
+}
+
+func TestCalculateBackoff(t *testing.T) {
+	const (
+		minutes15 = 15 * time.Minute
+		minutes60 = 60 * time.Minute
+	)
+
+	tests := []struct {
+		name     string
+		failures int32
+		step     time.Duration
+		max      time.Duration
+		expected time.Duration
+	}{
+		{name: "single failure", failures: 1, step: minutes15, max: minutes60, expected: minutes15},
+		{name: "multiple failures", failures: 2, step: minutes15, max: minutes60, expected: minutes15 * 2},
+		{name: "limit failures", failures: 4, step: minutes15, max: minutes60, expected: minutes60},
+		{name: "excess failures", failures: 5, step: minutes15, max: minutes60, expected: minutes60},
+		{name: "negative failures", failures: -1, step: minutes15, max: minutes60, expected: 0},
+		{name: "zero failures", failures: 0, step: minutes15, max: minutes60, expected: 0},
+		{name: "max less than step", failures: 1, step: minutes60, max: minutes15, expected: minutes15},
+		{name: "zero step", failures: 1, step: 0, max: minutes15, expected: 0},
+		{name: "zero max", failures: 0, step: minutes15, max: 0, expected: 0},
+		{name: "zero step and max", failures: 1, step: 0, max: 0, expected: 0},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, calculateBackoff(test.failures, test.step, test.max))
+		})
+	}
 }
 
 func TestAssignmentProcessorStripsStatuses(t *testing.T) {

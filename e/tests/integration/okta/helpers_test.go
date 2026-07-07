@@ -320,6 +320,8 @@ func mustUpdateOktaIntegration(ctx context.Context, t *testing.T, client oktav1.
 type delays struct {
 	timeBetweenImports                time.Duration
 	timeBetweenAssignmentProcessLoops time.Duration
+	targetProcessingBackoffStep       time.Duration
+	targetProcessingBackoffMax        time.Duration
 }
 
 func updateOktaDelays(t *testing.T, sut *common.SUT, delays delays) {
@@ -328,6 +330,8 @@ func updateOktaDelays(t *testing.T, sut *common.SUT, delays delays) {
 	updateOktaPlugin(t, authServer, func(p *types.PluginV1) {
 		p.Spec.GetOkta().SyncSettings.TimeBetweenImports = delays.timeBetweenImports.String()
 		p.Spec.GetOkta().SyncSettings.TimeBetweenAssignmentProcessLoops = delays.timeBetweenAssignmentProcessLoops.String()
+		p.Spec.GetOkta().SyncSettings.TargetProcessingBackoffStep = delays.targetProcessingBackoffStep.String()
+		p.Spec.GetOkta().SyncSettings.TargetProcessingBackoffMax = delays.targetProcessingBackoffMax.String()
 	})
 }
 
@@ -441,6 +445,25 @@ func mustGetOktaUsers(t *testing.T, sut *common.SUT) []types.User {
 	return slices.DeleteFunc(users, func(u types.User) bool {
 		return u.Origin() != types.OriginOkta
 	})
+}
+
+// mustGetAssignmentForUser requires exactly one assignment to be found for the user and returns it.
+func mustGetAssignmentForUser(t require.TestingT, sut *common.SUT, user string) types.OktaAssignment {
+	callHelper(t)
+	ctx := getContextOrBackground(t)
+
+	services := sut.Teleport.Process.GetAuthServer().Services
+
+	var assignments []types.OktaAssignment
+	for assignment, err := range clientutils.Resources(ctx, services.Okta.ListOktaAssignments) {
+		require.NoError(t, err)
+		if assignment.GetUser() == user {
+			assignments = append(assignments, assignment)
+		}
+	}
+	require.Len(t, assignments, 1)
+
+	return assignments[0]
 }
 
 func callHelper(t require.TestingT) {

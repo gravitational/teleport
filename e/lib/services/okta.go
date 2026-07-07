@@ -169,6 +169,16 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		return trace.Wrap(err)
 	}
 
+	targetProcessingBackoffStep, err := oktaplugin.GetTargetProcessingBackoffStep(&settings.syncSettings)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	targetProcessingBackoffMax, err := oktaplugin.GetTargetProcessingBackoffMax(&settings.syncSettings)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var clt *http.Client
 	if process.Config.Testing.HTTPTransport != nil {
 		clt = &http.Client{Transport: process.Config.Testing.HTTPTransport}
@@ -197,6 +207,8 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		Backend:                           process.GetAuthServer().Services,
 		TestHTTPClient:                    clt,
 		Plugin:                            settings.plugin,
+		TargetProcessingBackoffStep:       targetProcessingBackoffStep,
+		TargetProcessingBackoffMax:        targetProcessingBackoffMax,
 	})
 	if err != nil {
 		return trace.Wrap(err)

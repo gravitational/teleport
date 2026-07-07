@@ -302,6 +302,20 @@ func (oktaPluginHandler) validatePlugin(_ context.Context, input pluginValidatio
 		return trace.BadParameter("time_between_assignment_process_loops cannot be longer than time_between_imports")
 	}
 
+	targetProcessingBackoffStep, err := oktaplugin.GetTargetProcessingBackoffStep(oktaSettings.GetSyncSettings())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	targetProcessingBackoffMax, err := oktaplugin.GetTargetProcessingBackoffMax(oktaSettings.GetSyncSettings())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if targetProcessingBackoffStep > targetProcessingBackoffMax {
+		return trace.BadParameter("target_processing_backoff_max %q must be longer than target_processing_backoff_step %q", targetProcessingBackoffMax, targetProcessingBackoffStep)
+	}
+
 	return nil
 }
 

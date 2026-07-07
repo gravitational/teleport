@@ -140,6 +140,14 @@ type Config struct {
 
 	// Plugin is the Plugin object.
 	Plugin types.Plugin
+
+	// TargetProcessingBackoffStep is the step value for linear backoff when processing
+	// Okta assignment targets.
+	TargetProcessingBackoffStep time.Duration
+
+	// TargetProcessingBackoffMax is the max duration for linear backoff when processing
+	// Okta assignment targets.
+	TargetProcessingBackoffMax time.Duration
 }
 
 // Backend groups the service interfaces backed by auth.Server.Services
@@ -239,6 +247,13 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.AuthProvider == nil {
 		return trace.BadParameter("auth provider is missing")
+	}
+
+	if c.TargetProcessingBackoffStep == 0 {
+		return trace.BadParameter("TargetProcessingBackoffStep not set")
+	}
+	if c.TargetProcessingBackoffMax == 0 {
+		return trace.BadParameter("TargetProcessingBackoffMax not set")
 	}
 
 	return nil
@@ -375,6 +390,13 @@ type Service struct {
 	// accessListSyncGroupFilters limits which Okta groups will have Access List memberships
 	// synced back to Okta.
 	accessListSyncGroupFilters []*regexp.Regexp
+
+	// targetProcessingBackoffStep is the step value for linear backoff when processing
+	// Okta assignment targets.
+	targetProcessingBackoffStep time.Duration
+	// targetProcessingBackoffMax is the max duration for linear backoff when processing
+	// Okta assignment targets.
+	targetProcessingBackoffMax time.Duration
 }
 
 // New will create a new Okta service.
@@ -497,6 +519,8 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		serviceStatus:                     serviceStatus,
 		accessListSyncAppFilters:          config.accessListSyncAppFilters,
 		accessListSyncGroupFilters:        config.accessListSyncGroupFilters,
+		targetProcessingBackoffStep:       config.TargetProcessingBackoffStep,
+		targetProcessingBackoffMax:        config.TargetProcessingBackoffMax,
 	}
 	s.tlsConfig = app.CopyAndConfigureTLSForCluster(s.logger, s.accessPoint, config.ClusterName, config.TLSConfig)
 

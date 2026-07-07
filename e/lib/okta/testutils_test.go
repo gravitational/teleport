@@ -284,6 +284,8 @@ func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt)
 		OktaAPIEndpoint:                   "dummy",
 		TimeBetweenImports:                oktaplugin.DefaultTimeBetweenImports,
 		TimeBetweenAssignmentProcessLoops: oktaplugin.DefaultTimeBetweenAssignmentProcessLoops,
+		TargetProcessingBackoffStep:       oktaplugin.DefaultTargetProcessingBackoffStep,
+		TargetProcessingBackoffMax:        oktaplugin.DefaultTargetProcessingBackoffMax,
 		ConnectorService:                  ap,
 		AuthProvider:                      oktaapi.NewSSWSAuthProvider("dummy"),
 		SyncSettings: types.PluginOktaSyncSettings{

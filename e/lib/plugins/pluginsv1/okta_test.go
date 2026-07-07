@@ -338,6 +338,57 @@ func Test_oktaHandler_validatePlugin(t *testing.T) {
 			errMatcher:  trace.IsBadParameter,
 			errContains: "time_between_assignment_process_loops cannot be longer than time_between_imports",
 		},
+		{
+			name: "malformed TargetProcessingBackoffStep",
+			oktaSettings: &types.PluginOktaSettings{
+				SyncSettings: &types.PluginOktaSyncSettings{
+					TargetProcessingBackoffStep: "not_a_duration",
+				},
+			},
+			errMatcher:  trace.IsBadParameter,
+			errContains: "target_processing_backoff_step is not valid",
+		},
+		{
+			name: "negative TargetProcessingBackoffStep",
+			oktaSettings: &types.PluginOktaSettings{
+				SyncSettings: &types.PluginOktaSyncSettings{
+					TargetProcessingBackoffStep: "-5m",
+				},
+			},
+			errMatcher:  trace.IsBadParameter,
+			errContains: "target_processing_backoff_step \"-5m\" cannot be a negative value",
+		},
+		{
+			name: "malformed TargetProcessingBackoffMax",
+			oktaSettings: &types.PluginOktaSettings{
+				SyncSettings: &types.PluginOktaSyncSettings{
+					TargetProcessingBackoffMax: "not_a_duration",
+				},
+			},
+			errMatcher:  trace.IsBadParameter,
+			errContains: "target_processing_backoff_max is not valid",
+		},
+		{
+			name: "negative TargetProcessingBackoffMax",
+			oktaSettings: &types.PluginOktaSettings{
+				SyncSettings: &types.PluginOktaSyncSettings{
+					TargetProcessingBackoffMax: "-5m",
+				},
+			},
+			errMatcher:  trace.IsBadParameter,
+			errContains: "target_processing_backoff_max \"-5m\" cannot be a negative value",
+		},
+		{
+			name: "TargetProcessingBackoffStep longer than TargetProcessingBackoffMax",
+			oktaSettings: &types.PluginOktaSettings{
+				SyncSettings: &types.PluginOktaSyncSettings{
+					TargetProcessingBackoffStep: "15m",
+					TargetProcessingBackoffMax:  "5m",
+				},
+			},
+			errMatcher:  trace.IsBadParameter,
+			errContains: "target_processing_backoff_max \"5m0s\" must be longer than target_processing_backoff_step \"15m0s\"",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			plugin := newTestOktaPlugin(tt.oktaSettings)
@@ -410,7 +461,6 @@ func newAccessList(t *testing.T, name, origin string) *accesslist.AccessList {
 		},
 		Owners: []accesslist.Owner{
 			{
-
 				Name: "some-owner",
 			},
 		},
@@ -568,7 +618,6 @@ func newRole(t *testing.T, name, origin string) types.Role {
 		role.SetStaticLabels(map[string]string{
 			types.OriginLabel: origin,
 		})
-
 	}
 	return role
 }

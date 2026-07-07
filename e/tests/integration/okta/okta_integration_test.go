@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -907,6 +908,14 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 		return trace.LimitExceeded("rate limited")
 	})
 
+	// Effectively disable backoff for failed targets.
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                time.Second,
+		timeBetweenAssignmentProcessLoops: time.Second,
+		targetProcessingBackoffStep:       time.Second,
+		targetProcessingBackoffMax:        time.Second,
+	})
+
 	// Remove user from the access list in Teleport. This triggers the user monitor
 	// to set cleanup_time on the OktaAssignment.
 	err := auth.AccessListsInternal.DeleteAccessListMember(ctx, groupID, memberLogin)
@@ -1039,4 +1048,116 @@ func TestOktaAssignmentFailedCleanupProcessing(t *testing.T) {
 		require.GreaterOrEqual(t, len(cleanupEvents), 2, "len(cleanupEvents) = %d", len(cleanupEvents))
 		require.LessOrEqual(t, len(cleanupEvents), 4, "len(cleanupEvents) = %d", len(cleanupEvents))
 	}, 1*time.Minute, 500*time.Millisecond)
+}
+
+// TestOktaAssignmentTargetReprocessingBackoff verifies that target reprocessing backoff is applied for failed targets.
+func TestOktaAssignmentTargetReprocessingBackoff(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	fakeOkta := newFakeOktaServer(withUserCount(2), withGroupCount(1))
+	t.Cleanup(fakeOkta.Stop)
+
+	owner := fakeOkta.provisionedUsers[0]
+	ownerLogin := oktaUserLogin(owner)
+
+	user := fakeOkta.provisionedUsers[1]
+	userLogin := oktaUserLogin(user)
+
+	group := fakeOkta.provisionedGroups[0].Id
+	fakeOkta.AddUserToGroup(group, owner.Id)
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+	)
+
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+
+	tctlCmd := sut.GetTCTL(t)
+	require.NoError(t, tctlCmd.Run(
+		t.Context(),
+		`plugins`, `install`, `okta`,
+		`--org`, fakeOkta.URL(),
+		`--saml-connector`, `okta-pre-created-test`,
+		`--group-filter=*`,
+		`--app-filter=*`,
+		`--api-token="secret-okta-api-token`,
+		"--owner="+ownerLogin,
+	))
+
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                time.Hour,
+		timeBetweenAssignmentProcessLoops: time.Second,
+		targetProcessingBackoffStep:       5 * time.Second,
+		targetProcessingBackoffMax:        5 * time.Second,
+	})
+
+	waitForOktaSync(t, sut, withTimeout(time.Minute), withStep(time.Millisecond*100), withTimePoint(time.Now()))
+	waitForPerUserOktaAssignments(t, assignmentWatcher, 1)
+	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), ownerLogin)
+
+	fakeOkta.setAssignUserToGroupOverwrite(func(_, _ string) error {
+		return trace.LimitExceeded("rate limited")
+	})
+
+	require.NoError(t, tctlCmd.Run(ctx, `acl`, `users`, `add`, group, userLogin))
+
+	var initialAssignmentTransition time.Time
+	var initialTargetProcessed time.Time
+
+	// Initial assignment processing.
+	require.EventuallyWithT(t, func(tc *assert.CollectT) {
+		assignment := mustGetAssignmentForUser(tc, sut, userLogin)
+		require.NotEqual(tc, constants.OktaAssignmentStatusProcessing, assignment.GetStatus())
+
+		targets := assignment.GetTargets()
+		require.Len(tc, targets, 1)
+
+		status := targets[0].GetStatus()
+		require.NotNil(tc, status)
+		require.Equal(tc, int32(1), status.FailureCount)
+
+		initialAssignmentTransition = assignment.GetLastTransition()
+		initialTargetProcessed = status.LastProcessed
+	}, time.Minute, 100*time.Millisecond)
+
+	// Wait for the assignment to be reprocessed while the target isn't reprocessed,
+	// i.e. target skipped reprocessing within backoff.
+	require.EventuallyWithT(t, func(tc *assert.CollectT) {
+		assignment := mustGetAssignmentForUser(tc, sut, userLogin)
+		require.Equal(tc, constants.OktaAssignmentStatusFailed, assignment.GetStatus())
+
+		targets := assignment.GetTargets()
+		require.Len(tc, targets, 1)
+
+		status := targets[0].GetStatus()
+		require.NotNil(tc, status)
+
+		// If the last transition time of the assignment is after the initial failed assignment transition time,
+		// and the last processed time of the target is the same as the initial failed processed time,
+		// then the assignment has been reprocessed but skipped reprocessing the target, indicating it's in backoff.
+		require.True(tc, assignment.GetLastTransition().After(initialAssignmentTransition))
+		require.True(tc, status.LastProcessed.Equal(initialTargetProcessed))
+	}, time.Minute, 100*time.Millisecond)
+
+	// Wait for the assignment to be reprocessed and the target to be reprocessed,
+	// i.e. target reprocessed outside of backoff.
+	require.EventuallyWithT(t, func(tc *assert.CollectT) {
+		assignment := mustGetAssignmentForUser(tc, sut, userLogin)
+		require.Equal(tc, constants.OktaAssignmentStatusFailed, assignment.GetStatus())
+
+		targets := assignment.GetTargets()
+		require.Len(tc, targets, 1)
+
+		status := targets[0].GetStatus()
+		require.NotNil(tc, status)
+
+		// If the last transition time of the assignment is after the initial failed assignment transition time,
+		// and the last processed time of the target is after the initial failed processed time,
+		// then the assignment has been reprocessed and the target has been reprocessed, indicating backoff has expired.
+		require.True(tc, assignment.GetLastTransition().After(initialAssignmentTransition))
+		require.True(tc, status.LastProcessed.After(initialTargetProcessed))
+	}, time.Minute, 100*time.Millisecond)
 }
