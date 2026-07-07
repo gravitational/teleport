@@ -34,11 +34,13 @@ func newNetworkStackConfig(ctx context.Context, tun TUNDevice, clt *clientApplic
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	connStats := newStatsCollector(clock)
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:         clt,
 		appProvider: newAppProvider(clt),
 		dbProvider:  newDBProvider(clt),
 		sshProvider: sshProvider,
+		connStats:   connStats,
 		clock:       clock,
 		parentCtx:   ctx,
 	})
@@ -52,5 +54,6 @@ func newNetworkStackConfig(ctx context.Context, tun TUNDevice, clt *clientApplic
 		ipv6Prefix:         ipv6Prefix,
 		dnsIPv6:            dnsIPv6,
 		tcpHandlerResolver: tcpHandlerResolver,
+		connStats:          connStats,
 	}, nil
 }

@@ -51,6 +51,7 @@ type appHandlerConfig struct {
 	protocol alpncommon.Protocol
 
 	appProvider *appProvider
+	connStats   *statsCollector
 	clock       clockwork.Clock
 	// alwaysTrustRootClusterCA can be set in tests so that TLS dials to the
 	// proxy always trust the root cluster CA rather than the system cert pool,
@@ -118,6 +119,13 @@ func (h *appHandler) getOrInitializeLocalProxy(ctx context.Context, localPort ui
 // handleTCPConnector handles an incoming TCP connection from VNet by passing it to the local alpn proxy,
 // which is set up with middleware to automatically handle certificate renewal and re-logins.
 func (h *appHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
+	att := h.cfg.connStats.begin(h.statsKey(localPort))
+	err := h.handleTCPConnectorInner(ctx, localPort, att.instrument(connector))
+	att.finish(err)
+	return trace.Wrap(err)
+}
+
+func (h *appHandler) handleTCPConnectorInner(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
 	app := h.cfg.appInfo.GetApp()
 	if len(app.GetTCPPorts()) > 0 {
 		if !app.GetTCPPorts().Contains(int(localPort)) {
@@ -131,6 +139,25 @@ func (h *appHandler) handleTCPConnector(ctx context.Context, localPort uint16, c
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(lp.HandleTCPConnector(ctx, connector), "handling TCP connector")
+}
+
+// statsKey returns the connection statistics aggregation key for the app. The
+// port is only part of the key for multi-port apps, single-port apps
+// aggregate into a single entry no matter the port dialed.
+func (h *appHandler) statsKey(localPort uint16) statsKey {
+	appKey := h.cfg.appInfo.GetAppKey()
+	app := h.cfg.appInfo.GetApp()
+	var port uint16
+	if len(app.GetTCPPorts()) > 0 {
+		port = localPort
+	}
+	return statsKey{
+		kind:        vnetv1.ConnectionKind_CONNECTION_KIND_APP,
+		profile:     appKey.GetProfile(),
+		leafCluster: appKey.GetLeafCluster(),
+		displayName: statsDisplayName(app.GetPublicAddr(), appKey.GetName()),
+		port:        port,
+	}
 }
 
 // appCertIssuer implements [client.CertIssuer].

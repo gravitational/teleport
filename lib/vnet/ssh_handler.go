@@ -40,6 +40,7 @@ type sshHandler struct {
 
 type sshHandlerConfig struct {
 	sshProvider *sshProvider
+	connStats   *statsCollector
 	target      dialTarget
 }
 
@@ -53,18 +54,22 @@ func newSSHHandler(cfg sshHandlerConfig) *sshHandler {
 // the connection to a target SSH node.
 func (h *sshHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
 	if localPort != 22 {
+		// Not counted as a failed connection in the stats, VNet only ever
+		// advertises SSH on port 22 so connections to other ports are just
+		// port probes, not real attempts to reach the target.
 		return trace.BadParameter("SSH is only handled on port 22")
 	}
 	agent := newSSHAgent()
 	targetConn, err := h.cfg.sshProvider.dial(ctx, h.cfg.target, agent)
 	if err != nil {
+		h.cfg.connStats.begin(h.statsKey()).finish(err)
 		return trace.Wrap(err)
 	}
 	defer targetConn.Close()
 	return trace.Wrap(h.handleTCPConnectorWithTargetConn(ctx, connector, targetConn, agent))
 }
 
-// handleTCPConnectorWithTargetTCPConn handles an incoming TCP connection from
+// handleTCPConnectorWithTargetConn handles an incoming TCP connection from
 // VNet when a TCP connection to the target host has already been established.
 func (h *sshHandler) handleTCPConnectorWithTargetConn(
 	ctx context.Context,
@@ -72,6 +77,24 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 	targetConn net.Conn,
 	agent *sshAgent,
 ) error {
+	att := h.cfg.connStats.begin(h.statsKey())
+	err := h.handleTCPConnectorWithTargetConnInner(ctx, att, connector, targetConn, agent)
+	att.finish(err)
+	return trace.Wrap(err)
+}
+
+// handleTCPConnectorWithTargetConnInner proxies the incoming connection to the
+// target host. att is used to report the outcome of the connection attempt: a
+// connection only counts as successfully established once the SSH handshake
+// with the client completes, which includes SSH authentication to the target.
+func (h *sshHandler) handleTCPConnectorWithTargetConnInner(
+	ctx context.Context,
+	att *connAttempt,
+	connector func() (net.Conn, error),
+	targetConn net.Conn,
+	agent *sshAgent,
+) error {
+	connector = att.track(connector)
 	target := h.cfg.target
 	hostCert, err := newHostCert(target.fqdn, h.cfg.sshProvider.hostCASigner)
 	if err != nil {
@@ -141,6 +164,7 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 		}
 		return trace.Wrap(err, "accepting incoming SSH connection")
 	}
+	att.success()
 	log.DebugContext(ctx, "Accepted incoming SSH connection",
 		"profile", target.profile,
 		"cluster", target.cluster,
@@ -295,6 +319,16 @@ func newHostCert(fqdn string, ca ssh.Signer) (ssh.Signer, error) {
 	}
 	certSigner, err := ssh.NewCertSigner(cert, hostSigner)
 	return certSigner, trace.Wrap(err)
+}
+
+// statsKey returns the connection statistics aggregation key for the SSH host.
+func (h *sshHandler) statsKey() statsKey {
+	return statsKey{
+		kind:        vnetv1.ConnectionKind_CONNECTION_KIND_SSH,
+		profile:     h.cfg.target.profile,
+		leafCluster: h.cfg.target.leafCluster,
+		displayName: h.cfg.target.addr,
+	}
 }
 
 func formatBannerMessage(msg string) string {

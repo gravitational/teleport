@@ -118,11 +118,13 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 		overrideNodeDialer: cfg.fakeClientApp.dialSSHNode,
 	})
 	require.NoError(t, err)
+	connStats := newStatsCollector(cfg.clock)
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:                      clt,
 		appProvider:              appProvider,
 		dbProvider:               newDBProvider(clt),
 		sshProvider:              sshProvider,
+		connStats:                connStats,
 		clock:                    cfg.clock,
 		alwaysTrustRootClusterCA: true,
 		parentCtx:                ctx,
@@ -134,6 +136,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 		ipv6Prefix:               vnetIPv6Prefix,
 		dnsIPv6:                  dnsIPv6,
 		tcpHandlerResolver:       tcpHandlerResolver,
+		connStats:                connStats,
 		upstreamNameserverSource: noUpstreamNameservers{},
 	})
 	require.NoError(t, err)

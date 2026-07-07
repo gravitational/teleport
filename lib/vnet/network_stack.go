@@ -69,6 +69,10 @@ type networkStackConfig struct {
 	// tcpHandlerResolver will be used to resolve all DNS queries that VNet may
 	// need to handle.
 	tcpHandlerResolver *tcpHandlerResolver
+	// connStats aggregates per-target connection statistics. It must be the
+	// same collector the TCP handlers report to, the network stack only runs
+	// its sampling loop.
+	connStats *statsCollector
 
 	// upstreamNameserverSource, if set, overrides the default OS UpstreamNameserverSource which provides the
 	// IP addresses that unmatched DNS queries should be forwarded to. It is used in tests.
@@ -85,6 +89,9 @@ func (c *networkStackConfig) checkAndSetDefaults() error {
 	}
 	if c.tcpHandlerResolver == nil {
 		return trace.BadParameter("tcpHandlerResolver is required")
+	}
+	if c.connStats == nil {
+		return trace.BadParameter("connStats is required")
 	}
 	return nil
 }
@@ -202,6 +209,10 @@ type networkStack struct {
 	// connection. It is platform-specific and best-effort.
 	processResolver processResolver
 
+	// connStats aggregates per-target connection statistics reported by the
+	// TCP handlers. The network stack runs its sampling loop.
+	connStats *statsCollector
+
 	slog *slog.Logger
 }
 
@@ -307,6 +318,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		destroyed:          make(chan struct{}),
 		state:              newState(),
 		processResolver:    newProcessResolver(logger),
+		connStats:          cfg.connStats,
 		slog:               logger,
 	}
 
@@ -411,6 +423,12 @@ func (ns *networkStack) run(ctx context.Context) error {
 		err := forwardBetweenTunAndNetstack(ctx, ns.tun, ns.linkEndpoint)
 		allErrors <- err
 		return err
+	})
+	g.Go(func() error {
+		// Periodically sample active connections to keep the aggregated
+		// connection statistics up to date, until ctx is canceled on shutdown.
+		ns.connStats.run(ctx)
+		return nil
 	})
 	g.Go(func() error {
 		// When the context is canceled for any reason (the caller or one of the other concurrent tasks may

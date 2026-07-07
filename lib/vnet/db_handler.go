@@ -48,6 +48,7 @@ type dbHandler struct {
 type dbHandlerConfig struct {
 	dbInfo     *vnetv1.DatabaseInfo
 	dbProvider *dbProvider
+	connStats  *statsCollector
 	clock      clockwork.Clock
 	// alwaysTrustRootClusterCA can be set in tests so that TLS dials to the
 	// proxy always trust the root cluster CA rather than the system cert pool,
@@ -115,11 +116,29 @@ func (h *dbHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnproxy.L
 // localPort is part of the tcpHandler interface contract but is unused here
 // the local ALPN proxy ignores it for database connections.
 func (h *dbHandler) handleTCPConnector(ctx context.Context, _ uint16, connector func() (net.Conn, error)) error {
+	att := h.cfg.connStats.begin(h.statsKey())
+	err := h.handleTCPConnectorInner(ctx, att.instrument(connector))
+	att.finish(err)
+	return trace.Wrap(err)
+}
+
+func (h *dbHandler) handleTCPConnectorInner(ctx context.Context, connector func() (net.Conn, error)) error {
 	lp, err := h.getOrInitializeLocalProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(lp.HandleTCPConnector(ctx, connector), "handling TCP connector")
+}
+
+// statsKey returns the connection statistics aggregation key for the database.
+func (h *dbHandler) statsKey() statsKey {
+	dbKey := h.cfg.dbInfo.GetDatabaseKey()
+	return statsKey{
+		kind:        vnetv1.ConnectionKind_CONNECTION_KIND_DATABASE,
+		profile:     dbKey.GetProfile(),
+		leafCluster: dbKey.GetLeafCluster(),
+		displayName: statsDisplayName(h.cfg.dbInfo.GetFqdn(), dbKey.GetName()),
+	}
 }
 
 // dbCertIssuer implements [client.CertIssuer] for VNet database access.

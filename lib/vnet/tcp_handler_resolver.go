@@ -43,6 +43,7 @@ type tcpHandlerResolverConfig struct {
 	appProvider              *appProvider
 	dbProvider               *dbProvider
 	sshProvider              *sshProvider
+	connStats                *statsCollector
 	clock                    clockwork.Clock
 	alwaysTrustRootClusterCA bool
 	parentCtx                context.Context
@@ -76,6 +77,7 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 				protocol:                 alpncommon.ProtocolTCP,
 				appInfo:                  appInfo,
 				appProvider:              r.cfg.appProvider,
+				connStats:                r.cfg.connStats,
 				clock:                    r.cfg.clock,
 				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
 			}),
@@ -89,6 +91,7 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 				protocol:                 alpncommon.ProtocolAppHTTPS,
 				appInfo:                  appInfo,
 				appProvider:              r.cfg.appProvider,
+				connStats:                r.cfg.connStats,
 				clock:                    r.cfg.clock,
 				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
 			}),
@@ -104,6 +107,7 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 			tcpHandler: newDBHandler(&dbHandlerConfig{
 				dbInfo:                   dbInfo,
 				dbProvider:               r.cfg.dbProvider,
+				connStats:                r.cfg.connStats,
 				clock:                    r.cfg.clock,
 				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
 				parentCtx:                r.cfg.parentCtx,
@@ -244,6 +248,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 			protocol:                 alpncommon.ProtocolTCP,
 			appInfo:                  matchedTCPApp.GetAppInfo(),
 			appProvider:              h.cfg.appProvider,
+			connStats:                h.cfg.connStats,
 			clock:                    h.cfg.clock,
 			alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
 		})
@@ -256,6 +261,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 			protocol:                 alpncommon.ProtocolAppHTTPS,
 			appInfo:                  matchedHTTPSTunnelApp.GetAppInfo(),
 			appProvider:              h.cfg.appProvider,
+			connStats:                h.cfg.connStats,
 			clock:                    h.cfg.clock,
 			alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
 		})
@@ -269,6 +275,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		dbHandler := newDBHandler(&dbHandlerConfig{
 			dbInfo:                   matchedDB.GetDatabaseInfo(),
 			dbProvider:               h.cfg.dbProvider,
+			connStats:                h.cfg.connStats,
 			clock:                    h.cfg.clock,
 			alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
 			parentCtx:                h.cfg.parentCtx,
@@ -316,6 +323,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		// queries on subsequent connections.
 		sshHandler := newSSHHandler(sshHandlerConfig{
 			sshProvider: h.cfg.sshProvider,
+			connStats:   h.cfg.connStats,
 			target:      target,
 		})
 		h.setDecidedHandler(sshHandler)
