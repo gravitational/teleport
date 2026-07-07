@@ -97,7 +97,8 @@ PROTOS = \
 	teleport/accessmonitoringrules/v1/access_monitoring_rules.proto \
 	teleport/scopes/joining/v1/token.proto \
 	teleport/scopes/access/v1/role.proto \
-	teleport/scopes/access/v1/assignment.proto
+	teleport/scopes/access/v1/assignment.proto \
+	teleport/foo/v1/foo.proto
 
 .PHONY: crd-manifests
 crd-manifests: crdgen ## Generates CRD manifests using crdgen.
@@ -175,13 +176,13 @@ $(TEST_LOG_DIR):
 
 .PHONY: test
 test: generate | $(TEST_LOG_DIR) ## Run tests.
-	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-operator.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-operator.json
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-operator.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-operator.json -- -tags=teleport_protohybrid ./...
 
 ##@ Build
 
 .PHONY: build
 build: generate ## Build manager binary.
-	go build -trimpath -tags "kustomize_disable_go_plugin_support" -o bin/manager main.go namespace.go config.go
+	go build -trimpath -tags "kustomize_disable_go_plugin_support,teleport_protohybrid" -o bin/manager main.go namespace.go config.go
 
 .PHONY: docker-build
 docker-build: OS = linux

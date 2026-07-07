@@ -46,6 +46,7 @@ var supportedReconcilers = []ReconcilerFactory{
 	NewAutoUpdateVersionV1Reconciler,
 	NewBotV1Reconciler,
 	NewDatabaseV3Reconciler,
+	NewFooV1Reconciler,
 	NewGithubConnectorReconciler,
 	NewInferenceModelReconciler,
 	NewInferencePolicyReconciler,

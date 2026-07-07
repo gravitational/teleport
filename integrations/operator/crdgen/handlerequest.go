@@ -301,6 +301,13 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withScope(),
 			},
 		},
+		{
+			name: "Foo",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withScope(),
+			},
+		},
 	}
 
 	for _, resource := range resources {
