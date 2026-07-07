@@ -258,22 +258,6 @@ const (
 )
 
 var (
-	app = payload{
-		Name:                   "App",
-		TypeName:               "AppV3",
-		VarName:                "app",
-		IfaceName:              "Application",
-		GetMethod:              "GetApp",
-		CreateMethod:           "CreateApp",
-		UpdateMethod:           "UpdateApp",
-		DeleteMethod:           "DeleteApp",
-		ID:                     `app.Metadata.Name`,
-		Kind:                   "app",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_app",
-		HasCheckAndSetDefaults: true,
-	}
-
 	authPreference = payload{
 		Name:                   "AuthPreference",
 		TypeName:               "AuthPreferenceV2",
@@ -605,28 +589,6 @@ var (
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_okta_import_rule",
 		HasCheckAndSetDefaults: true,
-	}
-
-	accessList = payload{
-		Name:                   "AccessList",
-		TypeName:               "AccessList",
-		VarName:                "accessList",
-		GetMethod:              "AccessListClient().GetAccessList",
-		CreateMethod:           "AccessListClient().UpsertAccessList",
-		UpsertMethodArity:      2,
-		UpdateMethod:           "AccessListClient().UpsertAccessList",
-		DeleteMethod:           "AccessListClient().DeleteAccessList",
-		ID:                     "accessList.Header.Metadata.Name",
-		Kind:                   "access_list",
-		HasStaticID:            false,
-		SchemaPackage:          "schemav1",
-		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1",
-		ProtoPackage:           "accesslist",
-		ProtoPackagePath:       "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1",
-		TerraformResourceType:  "teleport_access_list",
-		ConvertPackagePath:     "github.com/gravitational/teleport/api/types/accesslist/convert/v1",
-		HasCheckAndSetDefaults: true,
-		PropagatedFields:       []string{"Spec.Audit.NextAuditDate"},
 	}
 
 	accessListMember = payload{
@@ -1130,29 +1092,6 @@ var (
 		DefaultSubKind: "\"dynamic\"",
 	}
 
-	scopedToken = payload{
-		Name:                  "ScopedToken",
-		TypeName:              "ScopedToken",
-		VarName:               "scopedToken",
-		GetMethod:             "GetScopedToken",
-		CreateMethod:          "CreateScopedToken",
-		UpdateMethod:          "UpsertScopedToken",
-		UpsertMethodArity:     2,
-		DeleteMethod:          "DeleteScopedToken",
-		ID:                    "scopedToken.Metadata.Name",
-		Kind:                  "scoped_token",
-		WithSecrets:           "true",
-		HasStaticID:           false,
-		ProtoPackage:          "joiningv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/joining/v1",
-		TerraformResourceType: "teleport_scoped_token",
-		IsPlainStruct:         true,
-		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind:          "apitypes.KindScopedToken",
-	}
-
 	workloadCluster = payload{
 		Name:                  "WorkloadCluster",
 		TypeName:              "WorkloadCluster",
@@ -1256,8 +1195,6 @@ func main() {
 }
 
 func genTFSchema() {
-	generateResource(app, pluralResource)
-	generateDataSource(app, pluralDataSource)
 	generateResource(authPreference, singularResource)
 	generateDataSource(authPreference, singularDataSource)
 	generateResource(clusterMaintenance, singularResource)
@@ -1298,8 +1235,6 @@ func genTFSchema() {
 	generateDataSource(deviceTrust, pluralDataSource)
 	generateResource(oktaImportRule, pluralResource)
 	generateDataSource(oktaImportRule, pluralDataSource)
-	generateResource(accessList, pluralResource)
-	generateDataSource(accessList, pluralDataSource)
 	generateResource(accessListMember, pluralResource)
 	generateDataSource(accessListMember, pluralDataSource)
 	generateResource(server, pluralResource)
@@ -1340,8 +1275,6 @@ func genTFSchema() {
 	generateDataSource(scopedRole, pluralDataSource)
 	generateResource(scopedRoleAssignment, pluralResource)
 	generateDataSource(scopedRoleAssignment, pluralDataSource)
-	generateResource(scopedToken, pluralResource)
-	generateDataSource(scopedToken, pluralDataSource)
 	generateResource(workloadCluster, pluralResource)
 	generateDataSource(workloadCluster, pluralDataSource)
 	generateResource(databaseObjectImportRule, pluralResource)

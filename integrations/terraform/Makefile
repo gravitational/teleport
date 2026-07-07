@@ -253,7 +253,7 @@ release: build
 	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz $(BINARY_NAME)
 endif
 
-TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
+TERRAFORM_EXISTS := $(shell tofu -version 2>/dev/null | grep 'OpenTofu v1.')
 CURRENT_ULIMIT := $(shell ulimit -n)
 
 TEST_ARGS?=
@@ -266,11 +266,11 @@ $(TEST_LOG_DIR):
 test: install | $(TEST_LOG_DIR)
 ifndef TERRAFORM_EXISTS
 	@echo "Terraform v1.4+ is not installed (tfenv install 1.5.6 && tfenv use 1.5.6)."
-	terraform -version
+	tofu -version
 	@exit -1
 endif
 
-	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v -count=1 $(TEST_ARGS)
 
 testlib/plugin_ent_test.go:
 	go generate testlib/plugin_test.go
@@ -280,15 +280,15 @@ test-ent: testlib/plugin_ent_test.go test
 
 .PHONY: apply
 apply: install
-	terraform -chdir=$(TFDIR) init && terraform -chdir=$(TFDIR) apply -auto-approve
+	tofu -chdir=$(TFDIR) init && tofu -chdir=$(TFDIR) apply -auto-approve
 
 .PHONY: reapply
 reapply:
-	terraform -chdir=$(TFDIR) apply
+	tofu -chdir=$(TFDIR) apply
 
 .PHONY: destroy
 destroy:
-	terraform -chdir=$(TFDIR) destroy -auto-approve
+	tofu -chdir=$(TFDIR) destroy -auto-approve
 
 .PHONY: lint
 lint:
@@ -296,7 +296,7 @@ lint:
 
 .PHONY: fmt
 fmt:
-	terraform fmt -no-color -recursive
+	tofu fmt -no-color -recursive
 
 .PHONY: docs
 docs: gen-tfschema install fmt

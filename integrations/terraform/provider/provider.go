@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"google.golang.org/grpc"
@@ -35,8 +36,17 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	accesslistconvertv1 "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+
+	"github.com/gravitational/teleport/integrations/terraform/tfschema"
+	accesslistv1schema "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1"
+	joiningv1schema "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/joining/v1"
 )
 
 const (
@@ -543,7 +553,31 @@ func (p *Provider) configureLog() {
 // GetResources returns the map of provider resources
 func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
 	return map[string]tfsdk.ResourceType{
-		"teleport_app":                        resourceTeleportAppType{},
+		"teleport_app": resourceTeleportType[*apitypes.AppV3]{
+			newResourceClient: func(c *client.Client) resourceClient[*apitypes.AppV3] {
+				return appClient{client: c}
+			},
+			kind:        apitypes.KindApp,
+			schema:      tfschema.GenSchemaAppV3,
+			toTerraform: tfschema.CopyAppV3ToTerraform,
+			fromTerraform: func(ctx context.Context, object types.Object, app *apitypes.AppV3) diag.Diagnostics {
+				d := tfschema.CopyAppV3FromTerraform(ctx, object, app)
+				if d.HasError() {
+					return d
+				}
+
+				if err := app.CheckAndSetDefaults(); err != nil {
+					d.Append(diagFromWrappedErr(fmt.Sprintf("Error updating %q", apitypes.KindApp), err, apitypes.KindApp))
+				}
+				return d
+			},
+			resourceName: func(st *apitypes.AppV3) string {
+				return st.GetMetadata().Name
+			},
+			resourceRevision: func(st *apitypes.AppV3) string {
+				return st.GetMetadata().Revision
+			},
+		},
 		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            resourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
@@ -567,35 +601,105 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_login_rule":                 resourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
-		"teleport_access_list":                resourceTeleportAccessListType{},
-		"teleport_access_list_member":         resourceTeleportMemberType{},
-		"teleport_server":                     resourceTeleportServerType{},
-		"teleport_installer":                  resourceTeleportInstallerType{},
-		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
-		"teleport_static_host_user":           resourceTeleportStaticHostUserType{},
-		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
-		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
-		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
-		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
-		"teleport_vnet_config":                resourceTeleportVnetConfigType{},
-		"teleport_integration":                resourceTeleportIntegrationType{},
-		"teleport_inference_model":            resourceTeleportInferenceModelType{},
-		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
-		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
-		"teleport_classifier":                 resourceTeleportClassifierType{},
-		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
-		"teleport_scoped_token":               resourceTeleportScopedTokenType{},
-		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
-		"teleport_scoped_role":                resourceTeleportScopedRoleType{},
-		"teleport_scoped_role_assignment":     resourceTeleportScopedRoleAssignmentType{},
-		"teleport_db_object_import_rule":      resourceTeleportDatabaseObjectImportRuleType{},
+		"teleport_access_list": resourceTeleportType[*accesslist.AccessList]{
+			newResourceClient: func(c *client.Client) resourceClient[*accesslist.AccessList] {
+				return accessListClient{client: c}
+			},
+			kind:           apitypes.KindAccessList,
+			schema:         accesslistv1schema.GenSchemaAccessList,
+			identifierPath: path.Root("header").AtName("metadata").AtName("name"),
+			toTerraform: func(ctx context.Context, list *accesslist.AccessList, object *types.Object) diag.Diagnostics {
+				accessList := accesslistconvertv1.ToProto(list)
+				return accesslistv1schema.CopyAccessListToTerraform(ctx, accessList, object)
+			},
+			fromTerraform: func(ctx context.Context, object types.Object, list *accesslist.AccessList) diag.Diagnostics {
+				var accessList accesslistv1.AccessList
+				d := accesslistv1schema.CopyAccessListFromTerraform(ctx, object, &accessList)
+				if d.HasError() {
+					return d
+				}
+
+				converted, err := accesslistconvertv1.FromProto(&accessList)
+				if err != nil {
+					d.Append(diagFromWrappedErr(fmt.Sprintf("Error reading %q", apitypes.KindAccessList), trace.Errorf("Cannot convert %T to AccessList: %s", &accessList, err), apitypes.KindAccessList))
+					return d
+				}
+
+				if err := converted.CheckAndSetDefaults(); err != nil {
+					d.Append(diagFromWrappedErr(fmt.Sprintf("Error updating %q", apitypes.KindAccessList), err, apitypes.KindAccessList))
+					return d
+				}
+
+				*list = *converted
+				return d
+			},
+			resourceName: func(st *accesslist.AccessList) string {
+				return st.GetMetadata().Name
+			},
+			resourceRevision: func(st *accesslist.AccessList) string {
+				return st.GetMetadata().Revision
+			},
+			propagateFields: func(previous *accesslist.AccessList, current *accesslist.AccessList) {
+				current.Spec.Audit.NextAuditDate = previous.Spec.Audit.NextAuditDate
+			},
+		},
+		"teleport_access_list_member":     resourceTeleportMemberType{},
+		"teleport_server":                 resourceTeleportServerType{},
+		"teleport_installer":              resourceTeleportInstallerType{},
+		"teleport_access_monitoring_rule": resourceTeleportAccessMonitoringRuleType{},
+		"teleport_static_host_user":       resourceTeleportStaticHostUserType{},
+		"teleport_workload_identity":      resourceTeleportWorkloadIdentityType{},
+		"teleport_autoupdate_version":     resourceTeleportAutoUpdateVersionType{},
+		"teleport_autoupdate_config":      resourceTeleportAutoUpdateConfigType{},
+		"teleport_health_check_config":    resourceTeleportHealthCheckConfigType{},
+		"teleport_vnet_config":            resourceTeleportVnetConfigType{},
+		"teleport_integration":            resourceTeleportIntegrationType{},
+		"teleport_inference_model":        resourceTeleportInferenceModelType{},
+		"teleport_inference_secret":       resourceTeleportInferenceSecretType{},
+		"teleport_inference_policy":       resourceTeleportInferencePolicyType{},
+		"teleport_classifier":             resourceTeleportClassifierType{},
+		"teleport_retrieval_model":        resourceTeleportRetrievalModelType{},
+		"teleport_scoped_token": resourceTeleportType[*joiningv1.ScopedToken]{
+			newResourceClient: func(c *client.Client) resourceClient[*joiningv1.ScopedToken] {
+				return scopedTokenClient{client: c}
+			},
+			kind:        apitypes.KindScopedToken,
+			schema:      joiningv1schema.GenSchemaScopedToken,
+			toTerraform: joiningv1schema.CopyScopedTokenToTerraform,
+			fromTerraform: func(ctx context.Context, object types.Object, token *joiningv1.ScopedToken) diag.Diagnostics {
+				d := joiningv1schema.CopyScopedTokenFromTerraform(ctx, object, token)
+				if d.HasError() {
+					return d
+				}
+				token.SetKind(apitypes.KindScopedToken)
+				return d
+			},
+			resourceName: func(st *joiningv1.ScopedToken) string {
+				return st.GetMetadata().GetName()
+			},
+			resourceRevision: func(st *joiningv1.ScopedToken) string {
+				return st.GetMetadata().GetRevision()
+			},
+		},
+		"teleport_workload_cluster":       resourceTeleportWorkloadClusterType{},
+		"teleport_scoped_role":            resourceTeleportScopedRoleType{},
+		"teleport_scoped_role_assignment": resourceTeleportScopedRoleAssignmentType{},
+		"teleport_db_object_import_rule":  resourceTeleportDatabaseObjectImportRuleType{},
 	}, nil
 }
 
 // GetDataSources returns the map of provider data sources
 func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
-		"teleport_app":                        dataSourceTeleportAppType{},
+		"teleport_app": dataSourceTeleportType[*apitypes.AppV3]{
+			newDataSourceClient: func(c *client.Client) dataSourceClient[*apitypes.AppV3] {
+				return appClient{client: c}
+			},
+			RetryConfig: p.RetryConfig,
+			kind:        apitypes.KindApp,
+			schema:      tfschema.GenSchemaAppV3,
+			toTerraform: tfschema.CopyAppV3ToTerraform,
+		},
 		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            dataSourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
@@ -618,22 +722,42 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_login_rule":                 dataSourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
-		"teleport_access_list":                dataSourceTeleportAccessListType{},
-		"teleport_access_list_member":         dataSourceTeleportMemberType{},
-		"teleport_installer":                  dataSourceTeleportInstallerType{},
-		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
-		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
-		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
-		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
-		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
-		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
-		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
-		"teleport_integration":                dataSourceTeleportIntegrationType{},
-		"teleport_scoped_token":               dataSourceTeleportScopedTokenType{},
-		"teleport_scoped_role":                dataSourceTeleportScopedRoleType{},
-		"teleport_scoped_role_assignment":     dataSourceTeleportScopedRoleAssignmentType{},
-		"teleport_db_object_import_rule":      dataSourceTeleportDatabaseObjectImportRuleType{},
-		"teleport_classifier":                 dataSourceTeleportClassifierType{},
+		"teleport_access_list": dataSourceTeleportType[*accesslist.AccessList]{
+			newDataSourceClient: func(c *client.Client) dataSourceClient[*accesslist.AccessList] {
+				return accessListClient{client: c}
+			},
+			RetryConfig:    p.RetryConfig,
+			kind:           apitypes.KindAccessList,
+			identifierPath: path.Root("header").AtName("metadata").AtName("name"),
+			schema:         accesslistv1schema.GenSchemaAccessList,
+			toTerraform: func(ctx context.Context, list *accesslist.AccessList, object *types.Object) diag.Diagnostics {
+				accessList := accesslistconvertv1.ToProto(list)
+				return accesslistv1schema.CopyAccessListToTerraform(ctx, accessList, object)
+			},
+		},
+		"teleport_access_list_member":     dataSourceTeleportMemberType{},
+		"teleport_installer":              dataSourceTeleportInstallerType{},
+		"teleport_access_monitoring_rule": dataSourceTeleportAccessMonitoringRuleType{},
+		"teleport_static_host_user":       dataSourceTeleportStaticHostUserType{},
+		"teleport_workload_identity":      dataSourceTeleportWorkloadIdentityType{},
+		"teleport_autoupdate_version":     dataSourceTeleportAutoUpdateVersionType{},
+		"teleport_autoupdate_config":      dataSourceTeleportAutoUpdateConfigType{},
+		"teleport_health_check_config":    dataSourceTeleportHealthCheckConfigType{},
+		"teleport_vnet_config":            dataSourceTeleportVnetConfigType{},
+		"teleport_integration":            dataSourceTeleportIntegrationType{},
+		"teleport_scoped_token": dataSourceTeleportType[*joiningv1.ScopedToken]{
+			newDataSourceClient: func(c *client.Client) dataSourceClient[*joiningv1.ScopedToken] {
+				return scopedTokenClient{client: c}
+			},
+			RetryConfig: p.RetryConfig,
+			kind:        apitypes.KindScopedToken,
+			schema:      joiningv1schema.GenSchemaScopedToken,
+			toTerraform: joiningv1schema.CopyScopedTokenToTerraform,
+		},
+		"teleport_scoped_role":            dataSourceTeleportScopedRoleType{},
+		"teleport_scoped_role_assignment": dataSourceTeleportScopedRoleAssignmentType{},
+		"teleport_db_object_import_rule":  dataSourceTeleportDatabaseObjectImportRuleType{},
+		"teleport_classifier":             dataSourceTeleportClassifierType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting
