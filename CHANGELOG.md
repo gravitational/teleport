@@ -1,5 +1,9 @@
 # Changelog
 
+## 18.9.3 (07/07/26)
+
+Re-release of 18.9.2 to resolve an internal build artifact synchronization issue. Functionally identical to the previous version.
+
 ## 18.9.2 (06/26/26)
 
 * Fixed HTTP application access connections returning repeated 403 errors after certificate renewal. When the certificate behind a long-lived connection expires, the proxy now sends `Connection: close` so the client reestablishes the connection with a renewed certificate instead of reusing a dead one. [#68099](https://github.com/gravitational/teleport/pull/68099)
