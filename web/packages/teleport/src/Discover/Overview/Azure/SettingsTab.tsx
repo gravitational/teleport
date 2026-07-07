@@ -45,6 +45,7 @@ import {
 import {
   IntegrationAzureOidc,
   IntegrationDiscoveryRule,
+  IntegrationKind,
   IntegrationWithSummary,
   integrationService,
   AzureRegion,
@@ -53,6 +54,21 @@ import {
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from '../DeleteIntegrationSection';
+
+// check rules are representable by the settings tab
+const isRepresentable = (rules: IntegrationDiscoveryRule[] = []): boolean => {
+  if (rules.length === 0) return true;
+
+  const subs = (r: IntegrationDiscoveryRule) =>
+    [...(r.subscriptions || [])].sort().join();
+  const rgs = (r: IntegrationDiscoveryRule) =>
+    [...(r.resourceGroups || [])].sort().join();
+
+  // all rules must have the same subscriptions and resource groups
+  const sub = subs(rules[0]);
+  const rg = rgs(rules[0]);
+  return rules.every(r => subs(r) === sub && rgs(r) === rg);
+};
 
 const vmConfigFromRules = (rules?: IntegrationDiscoveryRule[]): VmConfig => {
   const regions: (AzureRegion | '*')[] =
@@ -83,11 +99,17 @@ const vmConfigFromRules = (rules?: IntegrationDiscoveryRule[]): VmConfig => {
 
 const managedIdentityFromIntegration = (
   integration?: IntegrationAzureOidc
-): AzureManagedIdentity => ({
-  resourceGroup: integration?.spec?.managedIdentity?.resourceGroup || '',
-  region: (integration?.spec?.managedIdentity?.region ||
-    'eastus') as AzureRegion,
-});
+): AzureManagedIdentity => {
+  const managementGroupId =
+    integration?.spec?.managedIdentity?.managementGroupId || undefined;
+  return {
+    resourceGroup: integration?.spec?.managedIdentity?.resourceGroup || '',
+    region: (integration?.spec?.managedIdentity?.region ||
+      'eastus') as AzureRegion,
+    scope: managementGroupId ? 'managementGroup' : 'subscription',
+    managementGroupId,
+  };
+};
 
 export function SettingsTab({
   stats,
@@ -142,17 +164,12 @@ export function SettingsTab({
     return <Danger>Failed to load the integration settings.</Danger>;
   }
 
-  const hasWildcardSubscription =
-    vmRules?.rules?.some(r => r.subscriptions?.includes('*')) ?? false;
-
-  // relax uuid validation if wildcard subscription returned in rules
-  const allowWildcardSubscriptions = updatedVmConfig
-    ? false
-    : hasWildcardSubscription;
-
   const vmConfig = updatedVmConfig ?? vmConfigFromRules(vmRules?.rules);
   const managedIdentity =
     updatedManagedIdentity ?? managedIdentityFromIntegration(integration);
+
+  const isManagementGroupScope = managedIdentity.scope === 'managementGroup';
+  const hasTerraformOnlyConfiguration = !isRepresentable(vmRules?.rules);
 
   const terraformConfig = buildTerraformConfig({
     integrationName,
@@ -166,11 +183,10 @@ export function SettingsTab({
       {({ validator }) => (
         <Flex>
           <Box flex="1">
-            {hasWildcardSubscription && (
+            {hasTerraformOnlyConfiguration && (
               <Info mb={3}>
-                This integration was configured with a wildcard subscription
-                matcher in Terraform, which is currently unsupported by this
-                form. Please update your Terraform configuration directly.
+                This integration has a configuration which is unsupported by
+                this form. Please update your Terraform configuration directly.
               </Info>
             )}
             <Card p={4} mb={3}>
@@ -186,6 +202,8 @@ export function SettingsTab({
                 <ManagedIdentitySection
                   managedIdentity={managedIdentity}
                   onChange={setManagedIdentity}
+                  vmConfig={vmConfig}
+                  onVmChange={setVmConfig}
                   disabled={false}
                 />
               </Box>
@@ -193,7 +211,7 @@ export function SettingsTab({
               <ResourcesSection
                 vmConfig={vmConfig}
                 onVmChange={setVmConfig}
-                allowWildcardSubscriptions={allowWildcardSubscriptions}
+                allowWildcardSubscriptions={isManagementGroupScope}
               />
               <Divider />
               <ApplyTerraformSection
@@ -207,7 +225,10 @@ export function SettingsTab({
               />
             </Card>
 
-            <DeleteIntegrationSection integrationName={integrationName} />
+            <DeleteIntegrationSection
+              integrationName={integrationName}
+              kind={IntegrationKind.AzureOidc}
+            />
           </Box>
 
           <TerraformInfoGuideSidePanel
