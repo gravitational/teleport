@@ -27,8 +27,7 @@ func TestResourceCursor(t *testing.T) {
 	t.Parallel()
 
 	t.Run("unscoped", func(t *testing.T) {
-		cursor, err := MakeResourceCursor("", "name")
-		require.NoError(t, err)
+		cursor := MakeResourceCursor("", "name")
 		require.Equal(t, "name", cursor)
 		require.False(t, IsScopedResourceCursor(cursor))
 
@@ -38,8 +37,7 @@ func TestResourceCursor(t *testing.T) {
 	})
 
 	t.Run("scoped", func(t *testing.T) {
-		cursor, err := MakeResourceCursor("/aa/bb", "name")
-		require.NoError(t, err)
+		cursor := MakeResourceCursor("/aa/bb", "name")
 		require.True(t, IsScopedResourceCursor(cursor))
 		require.Contains(t, cursor, ResourceCursorPrefix)
 
@@ -71,6 +69,28 @@ func TestParseResourceCursorErrors(t *testing.T) {
 	}
 }
 
+func TestResourceCursorInvalidScope(t *testing.T) {
+	t.Parallel()
+
+	// A scope that cannot be encoded safely, e.g. read from invalid stored
+	// data. The cursor is degraded but still deterministic and unique.
+	badScope := "/foo bar"
+	cursor := MakeResourceCursor(badScope, "name")
+
+	// Degraded cursors sort after all valid cursors so the affected resource
+	// ranges at the end of the logical resource stream.
+	require.Greater(t, cursor, MakeResourceCursor("", "zzzz"))
+	require.Greater(t, cursor, MakeResourceCursor("/zz/zz", "zzzz"))
+
+	// Unique per scope and name.
+	require.NotEqual(t, cursor, MakeResourceCursor(badScope, "other"))
+	require.NotEqual(t, cursor, MakeResourceCursor("/other bad scope", "name"))
+
+	// Degraded cursors cannot be parsed back into a scope-qualified name.
+	_, err := ParseResourceCursor(cursor)
+	require.Error(t, err)
+}
+
 func TestResourceCursorSort(t *testing.T) {
 	t.Parallel()
 
@@ -85,9 +105,7 @@ func TestResourceCursorSort(t *testing.T) {
 
 	cursors := make([]string, 0, len(resources))
 	for _, resource := range resources {
-		cursor, err := MakeResourceCursor(resource.Scope, resource.Name)
-		require.NoError(t, err)
-		cursors = append(cursors, cursor)
+		cursors = append(cursors, MakeResourceCursor(resource.Scope, resource.Name))
 	}
 
 	slices.Sort(cursors)
