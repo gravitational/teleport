@@ -51,9 +51,14 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
 
   const selectedTheme = useMemo(() => {
-    const theme =
+    const theme = structuredClone(
       THEMES.find(t => t.name === cfg.customTheme) ??
-      THEMES.find(t => t.name === TELEPORT_THEME.name);
+        THEMES.find(t => t.name === TELEPORT_THEME.name)
+    );
+
+    if (cfg.customColors) {
+      theme.config.theme.semanticTokens.colors = cfg.customColors.colors;
+    }
 
     return {
       ...theme,

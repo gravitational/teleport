@@ -243,6 +243,7 @@ const cfg = {
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
+  customColors: undefined as any,
   isStripeManaged: false,
   hasQuestionnaire: false,
   premiumSupport: false,

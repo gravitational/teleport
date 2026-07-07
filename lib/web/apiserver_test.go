@@ -5355,6 +5355,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			IsUsageBasedBilling:            false,
 			AutomaticUpgradesTargetVersion: "",
 			CustomTheme:                    "",
+			CustomColors:                   customColors,
 			Questionnaire:                  false,
 			IsStripeManaged:                false,
 			PremiumSupport:                 false,

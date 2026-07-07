@@ -17,6 +17,8 @@ limitations under the License.
 package webclient
 
 import (
+	"encoding/json"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -72,6 +74,8 @@ type WebConfig struct {
 	AutomaticUpgradesTargetVersion string `json:"automaticUpgradesTargetVersion,omitempty"`
 	// CustomTheme is a string that represents the name of the custom theme that the WebUI should use.
 	CustomTheme string `json:"customTheme"`
+	// CustomColors contains custom theme colors that the WebUI should use.
+	CustomColors json.RawMessage `json:"customColors,omitempty"`
 	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
 	Questionnaire bool `json:"questionnaire"`
 	// IsStripeManaged indicates if the cluster billing & lifecycle is managed via Stripe
