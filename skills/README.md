@@ -12,6 +12,9 @@ Gemini CLI, and others) using Vercel's [`skills`](https://github.com/vercel-labs
 CLI, which discovers and installs skills straight from this repository:
 
 ```bash
+# Auto-discover and enroll cloud infrastructure
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-discovery
+
 # Session recording review
 npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-session-review
 
@@ -76,12 +79,14 @@ Example invocations:
 
 ### teleport-discovery
 
-Enroll cloud resources (Azure VMs) into Teleport using Auto-Discovery. Provides
-a guided workflow to generate a Terraform configuration to create an OIDC
-integration. Use for checking status of the Discovery Service or troubleshooting
-resource enrollment.
+Enroll cloud resources (AWS EC2 instances, AWS EKS clusters, and Azure VMs) into
+Teleport using Auto-Discovery. Provides a guided workflow to generate a Terraform
+configuration to create an OIDC integration. Use for checking status of the
+Discovery Service or troubleshooting resource enrollment.
 
 Example invocations:
 
-- Enroll my Azure resources into Teleport
-- Why are my VMs not enrolling into teleport?
+- Enroll my AWS EC2 instances into Teleport
+- Set up auto-discovery for my EKS clusters
+- Enroll my Azure VMs into Teleport
+- Why are my resources not enrolling into Teleport?

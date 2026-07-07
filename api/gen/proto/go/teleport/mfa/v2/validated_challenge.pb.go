@@ -422,7 +422,7 @@ type SessionIdentifyingPayload_builder struct {
 	// SSH session hash computed from session state. For example, in Go this is the value from
 	// crypto/ssh#ConnMetadata.SessionID().
 	SshSessionId []byte
-	// TLS session ID derived from the TLS connection using RFC 5705 exportable keying material. For example, in Go
+	// TLS session hash derived from the TLS connection using RFC 5705 exportable keying material. For example, in Go
 	// this is the value from crypto/tls#ConnectionState.ExportKeyingMaterial().
 	TlsSessionId []byte
 	// -- end of xxx_hidden_Payload
@@ -462,7 +462,7 @@ type sessionIdentifyingPayload_SshSessionId struct {
 }
 
 type sessionIdentifyingPayload_TlsSessionId struct {
-	// TLS session ID derived from the TLS connection using RFC 5705 exportable keying material. For example, in Go
+	// TLS session hash derived from the TLS connection using RFC 5705 exportable keying material. For example, in Go
 	// this is the value from crypto/tls#ConnectionState.ExportKeyingMaterial().
 	TlsSessionId []byte `protobuf:"bytes,2,opt,name=tls_session_id,json=tlsSessionId,proto3,oneof"`
 }

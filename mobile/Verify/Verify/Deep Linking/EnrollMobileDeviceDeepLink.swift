@@ -16,7 +16,7 @@
 
 import Foundation
 
-struct EnrollMobileDeviceDeepLink {
+struct EnrollMobileDeviceDeepLink: Equatable {
 	var hostname: String
 	var port: Int? = nil
 	var enrollPairingToken: String
@@ -39,5 +39,14 @@ extension EnrollMobileDeviceDeepLink {
 			port: components.port,
 			enrollPairingToken: enrollPairingToken,
 		)
+	}
+}
+
+// MARK: - CustomDebugStringConvertible
+
+extension EnrollMobileDeviceDeepLink: CustomDebugStringConvertible {
+	var debugDescription: String {
+		let portString = if let port { "\(port)" } else { "(nil)" }
+		return "\(hostname):\(portString)?enroll_pairing_token=\(enrollPairingToken)"
 	}
 }

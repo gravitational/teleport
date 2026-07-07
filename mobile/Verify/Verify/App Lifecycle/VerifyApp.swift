@@ -69,6 +69,7 @@ struct VerifyApp: App {
 	var body: some Scene {
 		WindowGroup {
 			LandingView(viewModel: appModel.landingViewModel)
+				.tint(.teleport)
 				.onOpenURL { url in
 					appModel.openDeepLink(url)
 				}

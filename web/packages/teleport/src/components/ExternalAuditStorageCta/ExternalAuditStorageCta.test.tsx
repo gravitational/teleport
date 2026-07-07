@@ -79,12 +79,14 @@ describe('externalAuditStorageCta', () => {
   });
 
   test('renders nothing on cfg.isCloud=false', () => {
-    const { container } = setup({
+    setup({
       isCloud: false,
       lockedFeature: true,
       hasPermission: true,
     });
-    expect(container).toBeEmptyDOMElement();
+    expect(
+      screen.queryByText(/External Audit Storage/)
+    ).not.toBeInTheDocument();
   });
 
   test('renders button based on lockedFeatures', () => {

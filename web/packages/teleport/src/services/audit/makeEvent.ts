@@ -636,6 +636,26 @@ export const formatters: Formatters = {
       return `User [${user}] has disconnected from application [${app_name}]`;
     },
   },
+  [eventCodes.APP_SESSION_HTTP_REQUEST]: {
+    type: 'http.request',
+    desc: 'App HTTP Request',
+    format: ({ method, url }) => `HTTP request recorded: ${method} ${url}`,
+  },
+  [eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK]: {
+    type: 'http.request.body_chunk',
+    desc: 'App HTTP Request Body',
+    format: () => 'HTTP request body chunk recorded',
+  },
+  [eventCodes.APP_SESSION_HTTP_RESPONSE]: {
+    type: 'http.response',
+    desc: 'App HTTP Response',
+    format: ({ status_code }) => `HTTP response recorded: ${status_code}`,
+  },
+  [eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK]: {
+    type: 'http.response.body_chunk',
+    desc: 'App HTTP Response Body',
+    format: () => 'HTTP response body chunk recorded',
+  },
   [eventCodes.APP_SESSION_CHUNK]: {
     type: 'app.session.chunk',
     desc: 'App Session Data',
@@ -1431,6 +1451,18 @@ export const formatters: Formatters = {
     desc: 'X11 Forwarding Request Failed',
     format: ({ user }) =>
       `User [${user}] was denied x11 forwarding for a session`,
+  },
+  [eventCodes.AGENT_FORWARD]: {
+    type: 'agent-forward',
+    desc: 'Agent Forwarding Requested',
+    format: ({ user }) =>
+      `User [${user}] has requested SSH agent forwarding for a session`,
+  },
+  [eventCodes.AGENT_FORWARD_FAILURE]: {
+    type: 'agent-forward',
+    desc: 'Agent Forwarding Request Failed',
+    format: ({ user }) =>
+      `User [${user}] was denied SSH agent forwarding for a session`,
   },
   [eventCodes.SESSION_CONNECT]: {
     type: 'session.connect',

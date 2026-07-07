@@ -317,11 +317,12 @@ func (b0 EnrollPairingSpec_builder) Build() *EnrollPairingSpec {
 
 // EnrollPairingStatus holds the runtime state of an EnrollPairing.
 type EnrollPairingStatus struct {
-	state            protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_State EnrollPairingState     `protobuf:"varint,1,opt,name=state,proto3,enum=teleport.devicetrust.v1.EnrollPairingState"`
-	xxx_hidden_Token string                 `protobuf:"bytes,2,opt,name=token,proto3"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_State  EnrollPairingState     `protobuf:"varint,1,opt,name=state,proto3,enum=teleport.devicetrust.v1.EnrollPairingState"`
+	xxx_hidden_Token  string                 `protobuf:"bytes,2,opt,name=token,proto3"`
+	xxx_hidden_Device *EnrollPairingDevice   `protobuf:"bytes,3,opt,name=device,proto3"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *EnrollPairingStatus) Reset() {
@@ -363,12 +364,34 @@ func (x *EnrollPairingStatus) GetToken() string {
 	return ""
 }
 
+func (x *EnrollPairingStatus) GetDevice() *EnrollPairingDevice {
+	if x != nil {
+		return x.xxx_hidden_Device
+	}
+	return nil
+}
+
 func (x *EnrollPairingStatus) SetState(v EnrollPairingState) {
 	x.xxx_hidden_State = v
 }
 
 func (x *EnrollPairingStatus) SetToken(v string) {
 	x.xxx_hidden_Token = v
+}
+
+func (x *EnrollPairingStatus) SetDevice(v *EnrollPairingDevice) {
+	x.xxx_hidden_Device = v
+}
+
+func (x *EnrollPairingStatus) HasDevice() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Device != nil
+}
+
+func (x *EnrollPairingStatus) ClearDevice() {
+	x.xxx_hidden_Device = nil
 }
 
 type EnrollPairingStatus_builder struct {
@@ -378,6 +401,13 @@ type EnrollPairingStatus_builder struct {
 	State EnrollPairingState
 	// Pairing token to be encoded into a QR code by the Web UI.
 	Token string
+	// Identifying data about the device, submitted by the mobile app with
+	// CreatePairedDeviceEnrollToken and persisted on the transition to
+	// ENROLL_PAIRING_STATE_AWAITING_APPROVAL. The Web UI uses it to show the user
+	// which device is being enrolled before they approve. os_type and
+	// serial_number also gate retries of CreatePairedDeviceEnrollToken so that
+	// only the original device can retry the request.
+	Device *EnrollPairingDevice
 }
 
 func (b0 EnrollPairingStatus_builder) Build() *EnrollPairingStatus {
@@ -386,6 +416,100 @@ func (b0 EnrollPairingStatus_builder) Build() *EnrollPairingStatus {
 	_, _ = b, x
 	x.xxx_hidden_State = b.State
 	x.xxx_hidden_Token = b.Token
+	x.xxx_hidden_Device = b.Device
+	return m0
+}
+
+// EnrollPairingDevice is a client-submitted description of the device. It is
+// presented to the user in the Web UI before they approve enroll pairing.
+// os_type and serial_number are also used to gate retries of
+// CreatePairedDeviceEnrollToken.
+type EnrollPairingDevice struct {
+	state                   protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_OsType       OSType                 `protobuf:"varint,1,opt,name=os_type,json=osType,proto3,enum=teleport.devicetrust.v1.OSType"`
+	xxx_hidden_SerialNumber string                 `protobuf:"bytes,2,opt,name=serial_number,json=serialNumber,proto3"`
+	xxx_hidden_OsVersion    string                 `protobuf:"bytes,3,opt,name=os_version,json=osVersion,proto3"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *EnrollPairingDevice) Reset() {
+	*x = EnrollPairingDevice{}
+	mi := &file_teleport_devicetrust_v1_enroll_pairing_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollPairingDevice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollPairingDevice) ProtoMessage() {}
+
+func (x *EnrollPairingDevice) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_v1_enroll_pairing_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EnrollPairingDevice) GetOsType() OSType {
+	if x != nil {
+		return x.xxx_hidden_OsType
+	}
+	return OSType_OS_TYPE_UNSPECIFIED
+}
+
+func (x *EnrollPairingDevice) GetSerialNumber() string {
+	if x != nil {
+		return x.xxx_hidden_SerialNumber
+	}
+	return ""
+}
+
+func (x *EnrollPairingDevice) GetOsVersion() string {
+	if x != nil {
+		return x.xxx_hidden_OsVersion
+	}
+	return ""
+}
+
+func (x *EnrollPairingDevice) SetOsType(v OSType) {
+	x.xxx_hidden_OsType = v
+}
+
+func (x *EnrollPairingDevice) SetSerialNumber(v string) {
+	x.xxx_hidden_SerialNumber = v
+}
+
+func (x *EnrollPairingDevice) SetOsVersion(v string) {
+	x.xxx_hidden_OsVersion = v
+}
+
+type EnrollPairingDevice_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Device operating system.
+	OsType OSType
+	// Device serial number.
+	SerialNumber string
+	// OS version number, without the leading 'v'.
+	// Example: "13.2.1".
+	OsVersion string
+}
+
+func (b0 EnrollPairingDevice_builder) Build() *EnrollPairingDevice {
+	m0 := &EnrollPairingDevice{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_OsType = b.OsType
+	x.xxx_hidden_SerialNumber = b.SerialNumber
+	x.xxx_hidden_OsVersion = b.OsVersion
 	return m0
 }
 
@@ -393,7 +517,7 @@ var File_teleport_devicetrust_v1_enroll_pairing_proto protoreflect.FileDescripto
 
 const file_teleport_devicetrust_v1_enroll_pairing_proto_rawDesc = "" +
 	"\n" +
-	",teleport/devicetrust/v1/enroll_pairing.proto\x12\x17teleport.devicetrust.v1\x1a!teleport/header/v1/metadata.proto\"\x98\x02\n" +
+	",teleport/devicetrust/v1/enroll_pairing.proto\x12\x17teleport.devicetrust.v1\x1a%teleport/devicetrust/v1/os_type.proto\x1a!teleport/header/v1/metadata.proto\"\x98\x02\n" +
 	"\rEnrollPairing\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -401,10 +525,16 @@ const file_teleport_devicetrust_v1_enroll_pairing_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12>\n" +
 	"\x04spec\x18\x05 \x01(\v2*.teleport.devicetrust.v1.EnrollPairingSpecR\x04spec\x12D\n" +
 	"\x06status\x18\x06 \x01(\v2,.teleport.devicetrust.v1.EnrollPairingStatusR\x06status\"\x13\n" +
-	"\x11EnrollPairingSpec\"n\n" +
+	"\x11EnrollPairingSpec\"\xb4\x01\n" +
 	"\x13EnrollPairingStatus\x12A\n" +
 	"\x05state\x18\x01 \x01(\x0e2+.teleport.devicetrust.v1.EnrollPairingStateR\x05state\x12\x14\n" +
-	"\x05token\x18\x02 \x01(\tR\x05token*\xb3\x01\n" +
+	"\x05token\x18\x02 \x01(\tR\x05token\x12D\n" +
+	"\x06device\x18\x03 \x01(\v2,.teleport.devicetrust.v1.EnrollPairingDeviceR\x06device\"\x93\x01\n" +
+	"\x13EnrollPairingDevice\x128\n" +
+	"\aos_type\x18\x01 \x01(\x0e2\x1f.teleport.devicetrust.v1.OSTypeR\x06osType\x12#\n" +
+	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\x12\x1d\n" +
+	"\n" +
+	"os_version\x18\x03 \x01(\tR\tosVersion*\xb3\x01\n" +
 	"\x12EnrollPairingState\x12$\n" +
 	" ENROLL_PAIRING_STATE_UNSPECIFIED\x10\x00\x12(\n" +
 	"$ENROLL_PAIRING_STATE_AWAITING_DEVICE\x10\x01\x12*\n" +
@@ -412,24 +542,28 @@ const file_teleport_devicetrust_v1_enroll_pairing_proto_rawDesc = "" +
 	"\x1dENROLL_PAIRING_STATE_APPROVED\x10\x03BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
 
 var file_teleport_devicetrust_v1_enroll_pairing_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_devicetrust_v1_enroll_pairing_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_devicetrust_v1_enroll_pairing_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_devicetrust_v1_enroll_pairing_proto_goTypes = []any{
 	(EnrollPairingState)(0),     // 0: teleport.devicetrust.v1.EnrollPairingState
 	(*EnrollPairing)(nil),       // 1: teleport.devicetrust.v1.EnrollPairing
 	(*EnrollPairingSpec)(nil),   // 2: teleport.devicetrust.v1.EnrollPairingSpec
 	(*EnrollPairingStatus)(nil), // 3: teleport.devicetrust.v1.EnrollPairingStatus
-	(*v1.Metadata)(nil),         // 4: teleport.header.v1.Metadata
+	(*EnrollPairingDevice)(nil), // 4: teleport.devicetrust.v1.EnrollPairingDevice
+	(*v1.Metadata)(nil),         // 5: teleport.header.v1.Metadata
+	(OSType)(0),                 // 6: teleport.devicetrust.v1.OSType
 }
 var file_teleport_devicetrust_v1_enroll_pairing_proto_depIdxs = []int32{
-	4, // 0: teleport.devicetrust.v1.EnrollPairing.metadata:type_name -> teleport.header.v1.Metadata
+	5, // 0: teleport.devicetrust.v1.EnrollPairing.metadata:type_name -> teleport.header.v1.Metadata
 	2, // 1: teleport.devicetrust.v1.EnrollPairing.spec:type_name -> teleport.devicetrust.v1.EnrollPairingSpec
 	3, // 2: teleport.devicetrust.v1.EnrollPairing.status:type_name -> teleport.devicetrust.v1.EnrollPairingStatus
 	0, // 3: teleport.devicetrust.v1.EnrollPairingStatus.state:type_name -> teleport.devicetrust.v1.EnrollPairingState
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	4, // 4: teleport.devicetrust.v1.EnrollPairingStatus.device:type_name -> teleport.devicetrust.v1.EnrollPairingDevice
+	6, // 5: teleport.devicetrust.v1.EnrollPairingDevice.os_type:type_name -> teleport.devicetrust.v1.OSType
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_devicetrust_v1_enroll_pairing_proto_init() }
@@ -437,13 +571,14 @@ func file_teleport_devicetrust_v1_enroll_pairing_proto_init() {
 	if File_teleport_devicetrust_v1_enroll_pairing_proto != nil {
 		return
 	}
+	file_teleport_devicetrust_v1_os_type_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_enroll_pairing_proto_rawDesc), len(file_teleport_devicetrust_v1_enroll_pairing_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

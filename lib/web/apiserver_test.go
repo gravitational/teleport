@@ -143,6 +143,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -5320,11 +5321,43 @@ func TestGetAppDetails(t *testing.T) {
 
 	clientFQDN := "client.example.com"
 
+	const scope = "/staging/west"
+	const proxyDNS = "localhost"
+
+	scopedApp, err := types.NewAppV3(types.Metadata{
+		Name: "scoped-app",
+	}, types.AppSpecV3{
+		URI:                   "http://127.0.0.1:8080",
+		PublicAddr:            scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
+		UseAnyProxyPublicAddr: true,
+		RequiredAppNames:      []string{},
+	}, scope)
+	require.NoError(t, err)
+	scopedClientServer, err := types.NewAppServerV3FromApp(scopedApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, scopedClientServer)
+	require.NoError(t, err)
+
+	scopedAppWithRequiredApp, err := types.NewAppV3(types.Metadata{
+		Name: "bad-app",
+	}, types.AppSpecV3{
+		URI:                   "http://127.0.0.1:8080",
+		PublicAddr:            scopedapp.ScopedAppPublicAddr(scope, "bad-app", proxyDNS),
+		UseAnyProxyPublicAddr: true,
+		RequiredAppNames:      []string{"scoped-dependency"},
+	}, scope)
+	require.NoError(t, err)
+	scopedClientServer2, err := types.NewAppServerV3FromApp(scopedAppWithRequiredApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, scopedClientServer2)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name             string
 		endpoint         string
 		fqdn             string
 		expectedResponse GetAppDetailsResponse
+		wantErr          string
 	}{
 		{
 			name:     "request app details with clientName and publicAddr",
@@ -5358,6 +5391,19 @@ func TestGetAppDetails(t *testing.T) {
 				RequiredAppFQDNs: []string{"client.web.localhost"},
 			},
 		},
+		{
+			name:     "scoped app derives hash FQDNs for itself",
+			endpoint: pack.clt.Endpoint("webapi", "apps", scopedApp.GetPublicAddr(), s.server.ClusterName(), scopedApp.GetPublicAddr()),
+			expectedResponse: GetAppDetailsResponse{
+				FQDN:             scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
+				RequiredAppFQDNs: []string{scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS)},
+			},
+		},
+		{
+			name:     "scoped app with required apps fails",
+			endpoint: pack.clt.Endpoint("webapi", "apps", scopedAppWithRequiredApp.GetPublicAddr(), s.server.ClusterName(), scopedAppWithRequiredApp.GetPublicAddr()),
+			wantErr:  "scoped apps do not support required app redirects",
+		},
 	}
 
 	for _, tc := range tests {
@@ -5365,6 +5411,10 @@ func TestGetAppDetails(t *testing.T) {
 			t.Parallel()
 
 			re, err := pack.clt.Get(ctx, tc.endpoint, url.Values{})
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			resp := GetAppDetailsResponse{}
 

@@ -544,6 +544,9 @@ const (
 	// Machine ID bot instance, if any. This identifier is persisted through
 	// certificate renewals.
 	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
+	// CertExtensionBotScope indicates the scope of the Machine ID bot this
+	// certificate was issued to, if any.
+	CertExtensionBotScope = "bot-scope@goteleport.com"
 	// CertExtensionJoinToken is the name of the join token used to join this
 	// bot, if any.
 	CertExtensionJoinToken = "join-token@goteleport.com"

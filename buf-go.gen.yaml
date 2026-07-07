@@ -49,6 +49,8 @@ plugins:
       - apilevelMteleport/backendinfo/v1/backendinfo.proto=API_HYBRID
       - apilevelMteleport/beams/v1/beam.proto=API_HYBRID
       - apilevelMteleport/beams/v1/beam_service.proto=API_HYBRID
+      - apilevelMteleport/clientiprestriction/v1/clientiprestriction.proto=API_HYBRID
+      - apilevelMteleport/clientiprestriction/v1/clientiprestriction_service.proto=API_HYBRID
       - apilevelMteleport/clusterconfig/v1/access_graph.proto=API_HYBRID
       - apilevelMteleport/clusterconfig/v1/access_graph_settings.proto=API_HYBRID
       - apilevelMteleport/clusterconfig/v1/clusterconfig_service.proto=API_HYBRID

@@ -16,7 +16,8 @@ A Teleport role manages access by having two lists of rules: `allow` rules and
 
 - Nothing is allowed by default.
 - Deny rules get evaluated first and take priority.
-- Deny rules should be avoided on roles granted through Access Lists.
+- Deny rules should be avoided on roles granted through [Access
+Lists](./access-lists.mdx#access-lists-and-deny-rules).
 
 You can use any of the following to manage Teleport roles and other dynamic
 resources:
@@ -58,6 +59,7 @@ user:
 | `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
 | `ssh_port_forwarding` | Allow TCP port forwarding | Logical "AND" i.e. if any role denies port forwarding, it's denied |
 | `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
+| `web_terminal_clipboard_mode` | Whether users can copy text from an SSH session to the clipboard in the Web UI terminal (`unrestricted` or `no-copy`) | If any of the user's role's is set to `no-copy`, copying is restricted. |
 | `client_idle_timeout` | Forcefully terminate active sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
 | `disconnect_expired_cert` | Forcefully terminate active sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | The lowest value takes precedence. |
@@ -289,7 +291,7 @@ allow:
 If this rule was declared in the `deny` section of a role definition, it would
 prohibit users from getting a list of active sessions. If a role does not allow
 access to list a resource, the user will not be able to view it in the Web UI
-or remotely with `tctl`.  The only exception is that a user can always view their 
+or remotely with `tctl`.  The only exception is that a user can always view their
 assigned roles and their own user information with `tctl`.  You can see all of the
 available resources and verbs under the `allow` section in the example role
 configuration below.
@@ -524,8 +526,8 @@ spec:
     - resources: [session]
       verbs: [list, read]
       where: >
-        (contains(session.participants, user.metadata.name) || 
-         contains(user.spec.traits["team"], session.server_labels["team"])) && 
+        (contains(session.participants, user.metadata.name) ||
+         contains(user.spec.traits["team"], session.server_labels["team"])) &&
         session.proto == "ssh"
 ```
 
@@ -724,10 +726,11 @@ Requests, and like `request`, can fall under `allow` or `deny`:
 
 |Role Field|Description|Further Information|
 |---|---|---|
-|`review_requests.roles`|Allows or denies the ability to review requests for particular roles.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.where`|Configures conditions in which a user with the role may review an Access Request|[`where` expressions](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.preview_as_roles`|Allows or denies the ability to list resources that a user with the requested role can access|[Inspecting requested resources](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.claims_to_roles`|Teleport roles that a user can or cannot review requests for based on their traits.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx)|
+|`review_requests.roles`|Allows or denies the ability to review requests for particular roles.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx#roles-that-a-reviewer-can-grant-access-to)|
+|`review_requests.where`|Configures conditions in which a user with the role may review an Access Request|[`where` expressions](../../identity-governance/access-requests/access-request-configuration.mdx#where-expressions)|
+|`review_requests.preview_as_roles`|Allows or denies the ability to list resources that a user with the requested role can access|[Inspecting requested resources](../../identity-governance/access-requests/access-request-configuration.mdx#inspecting-requested-resources)|
+|`review_requests.claims_to_roles`|Teleport roles that a user can or cannot review requests for based on their traits.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx#roles-that-a-reviewer-can-grant-access-to)|
+|`review_requests.submit_for_users`|Allows or denies the ability to submit reviews on behalf of other users. Ignores all other `review_requests` conditions if matched. Only to be used by Teleport Access Request plugins.|[Submitting reviews for other users](../../identity-governance/access-requests/access-request-configuration.mdx#submitting-for-other-users)|
 
 ### Client options
 

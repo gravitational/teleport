@@ -124,4 +124,6 @@ type NewAppSessionRequest struct {
 	BotName string
 	// BotInstanceID is the ID of the bot instance that is creating this session.
 	BotInstanceID string
+	// BotScope is the scope of the bot that is creating this session, if any.
+	BotScope string
 }

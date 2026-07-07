@@ -3602,6 +3602,431 @@ func (b0 Ping_builder) Build() *Ping {
 	return m0
 }
 
+// Sent by the server to request authentication from the client before session establishment.
+type AuthPrompt struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Types that are valid to be assigned to Prompt:
+	//
+	//	*AuthPrompt_MfaPrompt
+	Prompt        isAuthPrompt_Prompt `protobuf_oneof:"prompt"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthPrompt) Reset() {
+	*x = AuthPrompt{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthPrompt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthPrompt) ProtoMessage() {}
+
+func (x *AuthPrompt) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AuthPrompt) GetPrompt() isAuthPrompt_Prompt {
+	if x != nil {
+		return x.Prompt
+	}
+	return nil
+}
+
+func (x *AuthPrompt) GetMfaPrompt() *MFAPrompt {
+	if x != nil {
+		if x, ok := x.Prompt.(*AuthPrompt_MfaPrompt); ok {
+			return x.MfaPrompt
+		}
+	}
+	return nil
+}
+
+func (x *AuthPrompt) SetMfaPrompt(v *MFAPrompt) {
+	if v == nil {
+		x.Prompt = nil
+		return
+	}
+	x.Prompt = &AuthPrompt_MfaPrompt{v}
+}
+
+func (x *AuthPrompt) HasPrompt() bool {
+	if x == nil {
+		return false
+	}
+	return x.Prompt != nil
+}
+
+func (x *AuthPrompt) HasMfaPrompt() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Prompt.(*AuthPrompt_MfaPrompt)
+	return ok
+}
+
+func (x *AuthPrompt) ClearPrompt() {
+	x.Prompt = nil
+}
+
+func (x *AuthPrompt) ClearMfaPrompt() {
+	if _, ok := x.Prompt.(*AuthPrompt_MfaPrompt); ok {
+		x.Prompt = nil
+	}
+}
+
+const AuthPrompt_Prompt_not_set_case case_AuthPrompt_Prompt = 0
+const AuthPrompt_MfaPrompt_case case_AuthPrompt_Prompt = 1
+
+func (x *AuthPrompt) WhichPrompt() case_AuthPrompt_Prompt {
+	if x == nil {
+		return AuthPrompt_Prompt_not_set_case
+	}
+	switch x.Prompt.(type) {
+	case *AuthPrompt_MfaPrompt:
+		return AuthPrompt_MfaPrompt_case
+	default:
+		return AuthPrompt_Prompt_not_set_case
+	}
+}
+
+type AuthPrompt_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Prompt:
+	MfaPrompt *MFAPrompt
+	// -- end of Prompt
+}
+
+func (b0 AuthPrompt_builder) Build() *AuthPrompt {
+	m0 := &AuthPrompt{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.MfaPrompt != nil {
+		x.Prompt = &AuthPrompt_MfaPrompt{b.MfaPrompt}
+	}
+	return m0
+}
+
+type case_AuthPrompt_Prompt protoreflect.FieldNumber
+
+func (x case_AuthPrompt_Prompt) String() string {
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[26].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isAuthPrompt_Prompt interface {
+	isAuthPrompt_Prompt()
+}
+
+type AuthPrompt_MfaPrompt struct {
+	MfaPrompt *MFAPrompt `protobuf:"bytes,1,opt,name=mfa_prompt,json=mfaPrompt,proto3,oneof"`
+}
+
+func (*AuthPrompt_MfaPrompt) isAuthPrompt_Prompt() {}
+
+// Indicates MFA is required for the session. The client performs the MFA ceremony and responds with
+// MFAPromptResponse.
+type MFAPrompt struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MFAPrompt) Reset() {
+	*x = MFAPrompt{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MFAPrompt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MFAPrompt) ProtoMessage() {}
+
+func (x *MFAPrompt) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type MFAPrompt_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 MFAPrompt_builder) Build() *MFAPrompt {
+	m0 := &MFAPrompt{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
+// Client response to an AuthPrompt containing MFAPrompt.
+type MFAPromptResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Types that are valid to be assigned to Response:
+	//
+	//	*MFAPromptResponse_Reference
+	Response      isMFAPromptResponse_Response `protobuf_oneof:"response"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MFAPromptResponse) Reset() {
+	*x = MFAPromptResponse{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MFAPromptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MFAPromptResponse) ProtoMessage() {}
+
+func (x *MFAPromptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *MFAPromptResponse) GetResponse() isMFAPromptResponse_Response {
+	if x != nil {
+		return x.Response
+	}
+	return nil
+}
+
+func (x *MFAPromptResponse) GetReference() *MFAPromptResponseReference {
+	if x != nil {
+		if x, ok := x.Response.(*MFAPromptResponse_Reference); ok {
+			return x.Reference
+		}
+	}
+	return nil
+}
+
+func (x *MFAPromptResponse) SetReference(v *MFAPromptResponseReference) {
+	if v == nil {
+		x.Response = nil
+		return
+	}
+	x.Response = &MFAPromptResponse_Reference{v}
+}
+
+func (x *MFAPromptResponse) HasResponse() bool {
+	if x == nil {
+		return false
+	}
+	return x.Response != nil
+}
+
+func (x *MFAPromptResponse) HasReference() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Response.(*MFAPromptResponse_Reference)
+	return ok
+}
+
+func (x *MFAPromptResponse) ClearResponse() {
+	x.Response = nil
+}
+
+func (x *MFAPromptResponse) ClearReference() {
+	if _, ok := x.Response.(*MFAPromptResponse_Reference); ok {
+		x.Response = nil
+	}
+}
+
+const MFAPromptResponse_Response_not_set_case case_MFAPromptResponse_Response = 0
+const MFAPromptResponse_Reference_case case_MFAPromptResponse_Response = 1
+
+func (x *MFAPromptResponse) WhichResponse() case_MFAPromptResponse_Response {
+	if x == nil {
+		return MFAPromptResponse_Response_not_set_case
+	}
+	switch x.Response.(type) {
+	case *MFAPromptResponse_Reference:
+		return MFAPromptResponse_Reference_case
+	default:
+		return MFAPromptResponse_Response_not_set_case
+	}
+}
+
+type MFAPromptResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Response:
+	Reference *MFAPromptResponseReference
+	// -- end of Response
+}
+
+func (b0 MFAPromptResponse_builder) Build() *MFAPromptResponse {
+	m0 := &MFAPromptResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Reference != nil {
+		x.Response = &MFAPromptResponse_Reference{b.Reference}
+	}
+	return m0
+}
+
+type case_MFAPromptResponse_Response protoreflect.FieldNumber
+
+func (x case_MFAPromptResponse_Response) String() string {
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[28].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isMFAPromptResponse_Response interface {
+	isMFAPromptResponse_Response()
+}
+
+type MFAPromptResponse_Reference struct {
+	Reference *MFAPromptResponseReference `protobuf:"bytes,1,opt,name=reference,proto3,oneof"`
+}
+
+func (*MFAPromptResponse_Reference) isMFAPromptResponse_Response() {}
+
+// Instructs the server to verify the MFA challenge with the MFA service.
+type MFAPromptResponseReference struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The name of the MFA challenge created by the client.
+	ChallengeName string `protobuf:"bytes,1,opt,name=challenge_name,json=challengeName,proto3" json:"challenge_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MFAPromptResponseReference) Reset() {
+	*x = MFAPromptResponseReference{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MFAPromptResponseReference) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MFAPromptResponseReference) ProtoMessage() {}
+
+func (x *MFAPromptResponseReference) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *MFAPromptResponseReference) GetChallengeName() string {
+	if x != nil {
+		return x.ChallengeName
+	}
+	return ""
+}
+
+func (x *MFAPromptResponseReference) SetChallengeName(v string) {
+	x.ChallengeName = v
+}
+
+type MFAPromptResponseReference_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the MFA challenge created by the client.
+	ChallengeName string
+}
+
+func (b0 MFAPromptResponseReference_builder) Build() *MFAPromptResponseReference {
+	m0 := &MFAPromptResponseReference{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ChallengeName = b.ChallengeName
+	return m0
+}
+
+// Sent by the server to indicate the session backend is being established and no additional authentication is required.
+type SessionEstablishing struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionEstablishing) Reset() {
+	*x = SessionEstablishing{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionEstablishing) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionEstablishing) ProtoMessage() {}
+
+func (x *SessionEstablishing) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type SessionEstablishing_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SessionEstablishing_builder) Build() *SessionEstablishing {
+	m0 := &SessionEstablishing{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 // Envelope wraps all messages that are allowed to be sent on the wire.
 type Envelope struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -6000,7 +6425,20 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x11client_latency_ms\x18\x01 \x01(\rR\x0fclientLatencyMs\x12*\n" +
 	"\x11server_latency_ms\x18\x02 \x01(\rR\x0fserverLatencyMs\"\x1a\n" +
 	"\x04Ping\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\fR\x04uuid\"\xc4\x0f\n" +
+	"\x04uuid\x18\x01 \x01(\fR\x04uuid\"W\n" +
+	"\n" +
+	"AuthPrompt\x12?\n" +
+	"\n" +
+	"mfa_prompt\x18\x01 \x01(\v2\x1e.teleport.desktop.v1.MFAPromptH\x00R\tmfaPromptB\b\n" +
+	"\x06prompt\"\v\n" +
+	"\tMFAPrompt\"p\n" +
+	"\x11MFAPromptResponse\x12O\n" +
+	"\treference\x18\x01 \x01(\v2/.teleport.desktop.v1.MFAPromptResponseReferenceH\x00R\treferenceB\n" +
+	"\n" +
+	"\bresponse\"C\n" +
+	"\x1aMFAPromptResponseReference\x12%\n" +
+	"\x0echallenge_name\x18\x01 \x01(\tR\rchallengeName\"\x15\n" +
+	"\x13SessionEstablishing\"\xc4\x0f\n" +
 	"\bEnvelope\x12E\n" +
 	"\fclient_hello\x18\x01 \x01(\v2 .teleport.desktop.v1.ClientHelloH\x00R\vclientHello\x12E\n" +
 	"\fserver_hello\x18\x02 \x01(\v2 .teleport.desktop.v1.ServerHelloH\x00R\vserverHello\x12<\n" +
@@ -6076,19 +6514,19 @@ var file_teleport_desktop_v1_tdpb_proto_goTypes = []any{
 	(*MouseWheel)(nil),                       // 19: teleport.desktop.v1.MouseWheel
 	(*ClipboardData)(nil),                    // 20: teleport.desktop.v1.ClipboardData
 	(*MFA)(nil),                              // 21: teleport.desktop.v1.MFA
-	(*AuthPrompt)(nil),                       // 22: teleport.desktop.v1.AuthPrompt
-	(*MFAPrompt)(nil),                        // 23: teleport.desktop.v1.MFAPrompt
-	(*MFAPromptResponse)(nil),                // 24: teleport.desktop.v1.MFAPromptResponse
-	(*MFAPromptResponseReference)(nil),       // 25: teleport.desktop.v1.MFAPromptResponseReference
-	(*SessionEstablishing)(nil),              // 26: teleport.desktop.v1.SessionEstablishing
-	(*SharedDirectoryAnnounce)(nil),          // 27: teleport.desktop.v1.SharedDirectoryAnnounce
-	(*SharedDirectoryRemove)(nil),            // 28: teleport.desktop.v1.SharedDirectoryRemove
-	(*SharedDirectoryAcknowledge)(nil),       // 29: teleport.desktop.v1.SharedDirectoryAcknowledge
-	(*SharedDirectoryRequest)(nil),           // 30: teleport.desktop.v1.SharedDirectoryRequest
-	(*SharedDirectoryResponse)(nil),          // 31: teleport.desktop.v1.SharedDirectoryResponse
-	(*FileSystemObject)(nil),                 // 32: teleport.desktop.v1.FileSystemObject
-	(*LatencyStats)(nil),                     // 33: teleport.desktop.v1.LatencyStats
-	(*Ping)(nil),                             // 34: teleport.desktop.v1.Ping
+	(*SharedDirectoryAnnounce)(nil),          // 22: teleport.desktop.v1.SharedDirectoryAnnounce
+	(*SharedDirectoryRemove)(nil),            // 23: teleport.desktop.v1.SharedDirectoryRemove
+	(*SharedDirectoryAcknowledge)(nil),       // 24: teleport.desktop.v1.SharedDirectoryAcknowledge
+	(*SharedDirectoryRequest)(nil),           // 25: teleport.desktop.v1.SharedDirectoryRequest
+	(*SharedDirectoryResponse)(nil),          // 26: teleport.desktop.v1.SharedDirectoryResponse
+	(*FileSystemObject)(nil),                 // 27: teleport.desktop.v1.FileSystemObject
+	(*LatencyStats)(nil),                     // 28: teleport.desktop.v1.LatencyStats
+	(*Ping)(nil),                             // 29: teleport.desktop.v1.Ping
+	(*AuthPrompt)(nil),                       // 30: teleport.desktop.v1.AuthPrompt
+	(*MFAPrompt)(nil),                        // 31: teleport.desktop.v1.MFAPrompt
+	(*MFAPromptResponse)(nil),                // 32: teleport.desktop.v1.MFAPromptResponse
+	(*MFAPromptResponseReference)(nil),       // 33: teleport.desktop.v1.MFAPromptResponseReference
+	(*SessionEstablishing)(nil),              // 34: teleport.desktop.v1.SessionEstablishing
 	(*Envelope)(nil),                         // 35: teleport.desktop.v1.Envelope
 	(*SharedDirectoryRequest_Info)(nil),      // 36: teleport.desktop.v1.SharedDirectoryRequest.Info
 	(*SharedDirectoryRequest_Create)(nil),    // 37: teleport.desktop.v1.SharedDirectoryRequest.Create
@@ -6121,24 +6559,24 @@ var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
 	3,  // 8: teleport.desktop.v1.MFA.type:type_name -> teleport.desktop.v1.MFAType
 	52, // 9: teleport.desktop.v1.MFA.challenge:type_name -> teleport.mfa.v1.AuthenticateChallenge
 	53, // 10: teleport.desktop.v1.MFA.authentication_response:type_name -> teleport.mfa.v1.AuthenticateResponse
-	23, // 11: teleport.desktop.v1.AuthPrompt.mfa_prompt:type_name -> teleport.desktop.v1.MFAPrompt
-	25, // 12: teleport.desktop.v1.MFAPromptResponse.reference:type_name -> teleport.desktop.v1.MFAPromptResponseReference
-	36, // 13: teleport.desktop.v1.SharedDirectoryRequest.info:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Info
-	37, // 14: teleport.desktop.v1.SharedDirectoryRequest.create:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Create
-	38, // 15: teleport.desktop.v1.SharedDirectoryRequest.delete:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Delete
-	39, // 16: teleport.desktop.v1.SharedDirectoryRequest.list:type_name -> teleport.desktop.v1.SharedDirectoryRequest.List
-	40, // 17: teleport.desktop.v1.SharedDirectoryRequest.read:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Read
-	41, // 18: teleport.desktop.v1.SharedDirectoryRequest.write:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Write
-	42, // 19: teleport.desktop.v1.SharedDirectoryRequest.move:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Move
-	43, // 20: teleport.desktop.v1.SharedDirectoryRequest.truncate:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Truncate
-	44, // 21: teleport.desktop.v1.SharedDirectoryResponse.info:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Info
-	45, // 22: teleport.desktop.v1.SharedDirectoryResponse.create:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Create
-	46, // 23: teleport.desktop.v1.SharedDirectoryResponse.delete:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Delete
-	47, // 24: teleport.desktop.v1.SharedDirectoryResponse.list:type_name -> teleport.desktop.v1.SharedDirectoryResponse.List
-	48, // 25: teleport.desktop.v1.SharedDirectoryResponse.read:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Read
-	49, // 26: teleport.desktop.v1.SharedDirectoryResponse.write:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Write
-	50, // 27: teleport.desktop.v1.SharedDirectoryResponse.move:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Move
-	51, // 28: teleport.desktop.v1.SharedDirectoryResponse.truncate:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Truncate
+	36, // 11: teleport.desktop.v1.SharedDirectoryRequest.info:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Info
+	37, // 12: teleport.desktop.v1.SharedDirectoryRequest.create:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Create
+	38, // 13: teleport.desktop.v1.SharedDirectoryRequest.delete:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Delete
+	39, // 14: teleport.desktop.v1.SharedDirectoryRequest.list:type_name -> teleport.desktop.v1.SharedDirectoryRequest.List
+	40, // 15: teleport.desktop.v1.SharedDirectoryRequest.read:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Read
+	41, // 16: teleport.desktop.v1.SharedDirectoryRequest.write:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Write
+	42, // 17: teleport.desktop.v1.SharedDirectoryRequest.move:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Move
+	43, // 18: teleport.desktop.v1.SharedDirectoryRequest.truncate:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Truncate
+	44, // 19: teleport.desktop.v1.SharedDirectoryResponse.info:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Info
+	45, // 20: teleport.desktop.v1.SharedDirectoryResponse.create:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Create
+	46, // 21: teleport.desktop.v1.SharedDirectoryResponse.delete:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Delete
+	47, // 22: teleport.desktop.v1.SharedDirectoryResponse.list:type_name -> teleport.desktop.v1.SharedDirectoryResponse.List
+	48, // 23: teleport.desktop.v1.SharedDirectoryResponse.read:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Read
+	49, // 24: teleport.desktop.v1.SharedDirectoryResponse.write:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Write
+	50, // 25: teleport.desktop.v1.SharedDirectoryResponse.move:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Move
+	51, // 26: teleport.desktop.v1.SharedDirectoryResponse.truncate:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Truncate
+	31, // 27: teleport.desktop.v1.AuthPrompt.mfa_prompt:type_name -> teleport.desktop.v1.MFAPrompt
+	33, // 28: teleport.desktop.v1.MFAPromptResponse.reference:type_name -> teleport.desktop.v1.MFAPromptResponseReference
 	4,  // 29: teleport.desktop.v1.Envelope.client_hello:type_name -> teleport.desktop.v1.ClientHello
 	5,  // 30: teleport.desktop.v1.Envelope.server_hello:type_name -> teleport.desktop.v1.ServerHello
 	9,  // 31: teleport.desktop.v1.Envelope.png_frame:type_name -> teleport.desktop.v1.PNGFrame
@@ -6153,20 +6591,20 @@ var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
 	19, // 40: teleport.desktop.v1.Envelope.mouse_wheel:type_name -> teleport.desktop.v1.MouseWheel
 	20, // 41: teleport.desktop.v1.Envelope.clipboard_data:type_name -> teleport.desktop.v1.ClipboardData
 	21, // 42: teleport.desktop.v1.Envelope.mfa:type_name -> teleport.desktop.v1.MFA
-	27, // 43: teleport.desktop.v1.Envelope.shared_directory_announce:type_name -> teleport.desktop.v1.SharedDirectoryAnnounce
-	29, // 44: teleport.desktop.v1.Envelope.shared_directory_acknowledge:type_name -> teleport.desktop.v1.SharedDirectoryAcknowledge
-	30, // 45: teleport.desktop.v1.Envelope.shared_directory_request:type_name -> teleport.desktop.v1.SharedDirectoryRequest
-	31, // 46: teleport.desktop.v1.Envelope.shared_directory_response:type_name -> teleport.desktop.v1.SharedDirectoryResponse
-	33, // 47: teleport.desktop.v1.Envelope.latency_stats:type_name -> teleport.desktop.v1.LatencyStats
-	34, // 48: teleport.desktop.v1.Envelope.ping:type_name -> teleport.desktop.v1.Ping
-	28, // 49: teleport.desktop.v1.Envelope.shared_directory_remove:type_name -> teleport.desktop.v1.SharedDirectoryRemove
+	22, // 43: teleport.desktop.v1.Envelope.shared_directory_announce:type_name -> teleport.desktop.v1.SharedDirectoryAnnounce
+	24, // 44: teleport.desktop.v1.Envelope.shared_directory_acknowledge:type_name -> teleport.desktop.v1.SharedDirectoryAcknowledge
+	25, // 45: teleport.desktop.v1.Envelope.shared_directory_request:type_name -> teleport.desktop.v1.SharedDirectoryRequest
+	26, // 46: teleport.desktop.v1.Envelope.shared_directory_response:type_name -> teleport.desktop.v1.SharedDirectoryResponse
+	28, // 47: teleport.desktop.v1.Envelope.latency_stats:type_name -> teleport.desktop.v1.LatencyStats
+	29, // 48: teleport.desktop.v1.Envelope.ping:type_name -> teleport.desktop.v1.Ping
+	23, // 49: teleport.desktop.v1.Envelope.shared_directory_remove:type_name -> teleport.desktop.v1.SharedDirectoryRemove
 	7,  // 50: teleport.desktop.v1.Envelope.session_selection:type_name -> teleport.desktop.v1.SessionSelection
-	22, // 51: teleport.desktop.v1.Envelope.auth_prompt:type_name -> teleport.desktop.v1.AuthPrompt
-	24, // 52: teleport.desktop.v1.Envelope.mfa_prompt_response:type_name -> teleport.desktop.v1.MFAPromptResponse
-	26, // 53: teleport.desktop.v1.Envelope.session_establishing:type_name -> teleport.desktop.v1.SessionEstablishing
-	32, // 54: teleport.desktop.v1.SharedDirectoryResponse.Info.fso:type_name -> teleport.desktop.v1.FileSystemObject
-	32, // 55: teleport.desktop.v1.SharedDirectoryResponse.Create.fso:type_name -> teleport.desktop.v1.FileSystemObject
-	32, // 56: teleport.desktop.v1.SharedDirectoryResponse.List.fso_list:type_name -> teleport.desktop.v1.FileSystemObject
+	30, // 51: teleport.desktop.v1.Envelope.auth_prompt:type_name -> teleport.desktop.v1.AuthPrompt
+	32, // 52: teleport.desktop.v1.Envelope.mfa_prompt_response:type_name -> teleport.desktop.v1.MFAPromptResponse
+	34, // 53: teleport.desktop.v1.Envelope.session_establishing:type_name -> teleport.desktop.v1.SessionEstablishing
+	27, // 54: teleport.desktop.v1.SharedDirectoryResponse.Info.fso:type_name -> teleport.desktop.v1.FileSystemObject
+	27, // 55: teleport.desktop.v1.SharedDirectoryResponse.Create.fso:type_name -> teleport.desktop.v1.FileSystemObject
+	27, // 56: teleport.desktop.v1.SharedDirectoryResponse.List.fso_list:type_name -> teleport.desktop.v1.FileSystemObject
 	57, // [57:57] is the sub-list for method output_type
 	57, // [57:57] is the sub-list for method input_type
 	57, // [57:57] is the sub-list for extension type_name
@@ -6204,6 +6642,12 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*SharedDirectoryResponse_Write_)(nil),
 		(*SharedDirectoryResponse_Move_)(nil),
 		(*SharedDirectoryResponse_Truncate_)(nil),
+	}
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[26].OneofWrappers = []any{
+		(*AuthPrompt_MfaPrompt)(nil),
+	}
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[28].OneofWrappers = []any{
+		(*MFAPromptResponse_Reference)(nil),
 	}
 	file_teleport_desktop_v1_tdpb_proto_msgTypes[31].OneofWrappers = []any{
 		(*Envelope_ClientHello)(nil),
