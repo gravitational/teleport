@@ -135,6 +135,17 @@ export class MockVnetClient implements VnetClient {
     });
   }
   autoConfigureSSH = () => new MockedUnaryCall({});
+  // getRecentConnections returns an open stream that emits nothing. Tests and
+  // stories that need connections can override it.
+  getRecentConnections = (() => ({
+    responses: {
+      onMessage: () => () => {},
+      onNext: () => () => {},
+      onComplete: () => () => {},
+      onError: () => () => {},
+    },
+    then: () => Promise.resolve(),
+  })) as unknown as VnetClient['getRecentConnections'];
 }
 
 export class MockAutoUpdateClient implements AutoUpdateClient {

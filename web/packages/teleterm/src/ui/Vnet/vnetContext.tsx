@@ -32,6 +32,7 @@ import { Action } from 'design/Alert';
 import {
   BackgroundItemStatus,
   GetServiceInfoResponse,
+  RecentConnection,
   WindowsServiceStatus,
   type CheckInstallTimeRequirementsResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
@@ -43,6 +44,7 @@ import { statusOneOfIsWindowsServiceStatus } from 'teleterm/helpers';
 import { cloneAbortSignal, isTshdRpcError } from 'teleterm/services/tshd';
 import { hasReportFoundIssues } from 'teleterm/services/vnet/diag';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
@@ -75,6 +77,12 @@ export type VnetContext = {
    * Refreshes serviceInfoAttempt by making a new gRPC call to the service.
    */
   refreshServiceInfoAttempt: () => Promise<[GetServiceInfoResponse, Error]>;
+  /**
+   * The targets recently connected to through VNet, deduplicated per target and
+   * ordered most-recently-connected first. Populated by a stream that is open
+   * while VNet is running and cleared when it stops.
+   */
+  recentConnections: RecentConnection[];
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
   /**
@@ -155,6 +163,7 @@ export const VnetContextProvider: FC<
     value: 'stopped',
     reason: { value: 'regular-shutdown-or-not-started' },
   });
+  const logger = useLogger('VnetContext');
   const appCtx = useAppContext();
   const { vnet, mainProcessClient, notificationsService, workspacesService } =
     appCtx;
@@ -286,6 +295,10 @@ export const VnetContextProvider: FC<
   );
   const [serviceInfoAttempt, refreshServiceInfoAttempt] =
     useAsync(currentServiceInfo);
+
+  const [recentConnections, setRecentConnections] = useState<
+    RecentConnection[]
+  >([]);
 
   /**
    * Calculates whether the button for running diagnostics should be disabled. If it should be
@@ -515,6 +528,40 @@ export const VnetContextProvider: FC<
     ]
   );
 
+  useEffect(
+    function subscribeToRecentConnections() {
+      if (status.value !== 'running') {
+        return;
+      }
+
+      const abortController = new AbortController();
+      // aborted distinguishes the error the stream emits when we abort it on
+      // cleanup from a genuine stream error.
+      let aborted = false;
+      const stream = vnet.getRecentConnections(
+        {},
+        { abort: cloneAbortSignal(abortController.signal) }
+      );
+      stream.responses.onMessage(({ connections }) => {
+        setRecentConnections(connections);
+      });
+      stream.responses.onError(error => {
+        if (aborted) {
+          return;
+        }
+        // Keep the last-known list rather than clearing it on a transient error.
+        logger.error('Error while streaming recent VNet connections', error);
+      });
+
+      return () => {
+        aborted = true;
+        abortController.abort();
+        setRecentConnections([]);
+      };
+    },
+    [status.value, vnet, logger]
+  );
+
   const autoConfigureSSH = useCallback(async (): Promise<void> => {
     await vnet.autoConfigureSSH({});
     // Refresh the service info and diagnostic attempts because SSH is now configured.
@@ -551,6 +598,7 @@ export const VnetContextProvider: FC<
         currentServiceInfo,
         serviceInfoAttempt,
         refreshServiceInfoAttempt,
+        recentConnections,
         runDiagnostics,
         diagnosticsAttempt,
         getDisabledDiagnosticsReason,

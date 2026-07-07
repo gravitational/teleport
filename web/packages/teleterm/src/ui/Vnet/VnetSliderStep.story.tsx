@@ -19,7 +19,12 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 import { useEffect } from 'react';
 
 import { Box } from 'design';
-import { WindowsServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import {
+  RecentConnection,
+  RecentConnectionKind,
+  WindowsServiceStatus,
+} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
@@ -41,6 +46,7 @@ type StoryProps = {
   autoStart: boolean;
   appDnsZones: string[];
   clusters: string[];
+  recentConnections: RecentConnection[];
   sshConfigured: boolean;
   fetchStatus:
     | 'success'
@@ -62,6 +68,7 @@ const defaultArgs: StoryProps = {
   autoStart: true,
   appDnsZones: ['teleport.example.com', 'company.test'],
   clusters: ['teleport.example.com'],
+  recentConnections: [],
   sshConfigured: false,
   fetchStatus: 'success',
   runDiagnostics: 'success',
@@ -223,6 +230,21 @@ function VnetSliderStep(props: StoryProps) {
     };
   }
 
+  appContext.vnet.getRecentConnections = (() => ({
+    responses: {
+      onMessage: (
+        callback: (response: { connections: RecentConnection[] }) => void
+      ) => {
+        callback({ connections: props.recentConnections });
+        return () => {};
+      },
+      onNext: () => () => {},
+      onComplete: () => () => {},
+      onError: () => () => {},
+    },
+    then: () => Promise.resolve(),
+  })) as unknown as typeof appContext.vnet.getRecentConnections;
+
   if (props.runDiagnostics === 'processing') {
     appContext.vnet.runDiagnostics = () => pendingPromise;
   } else {
@@ -325,6 +347,37 @@ export const SelfHostedWithEqualNameAndCustomDNSZones: StoryObj<StoryProps> = {
     ...defaultArgs,
     appDnsZones: ['teleport.example.com', 'company.com', 'apps.company'],
     clusters: ['teleport.example.com'],
+  },
+};
+
+export const WithRecentConnections: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    recentConnections: [
+      {
+        kind: RecentConnectionKind.APP,
+        cluster: 'teleport.example.com',
+        leafCluster: '',
+        displayName: 'grafana.teleport.example.com',
+        lastConnected: Timestamp.fromDate(new Date(Date.now() - 15 * 1000)),
+      },
+      {
+        kind: RecentConnectionKind.SSH,
+        cluster: 'teleport.example.com',
+        leafCluster: '',
+        displayName: 'node-01.teleport.example.com',
+        lastConnected: Timestamp.fromDate(new Date(Date.now() - 5 * 60 * 1000)),
+      },
+      {
+        kind: RecentConnectionKind.DATABASE,
+        cluster: 'teleport.example.com',
+        leafCluster: 'leaf.example.com',
+        displayName: 'postgres-main.leaf.example.com',
+        lastConnected: Timestamp.fromDate(
+          new Date(Date.now() - 42 * 60 * 1000)
+        ),
+      },
+    ],
   },
 };
 

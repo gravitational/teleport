@@ -16,11 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { formatDistanceToNow } from 'date-fns';
 import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
 
 import { Box, ButtonSecondary, Flex, Text } from 'design';
 import { ActionButton } from 'design/Alert';
 import { StepComponentProps } from 'design/StepSlider';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import {
+  RecentConnection,
+  RecentConnectionKind,
+} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 import { mergeRefs } from 'shared/libs/mergeRefs';
@@ -151,7 +157,12 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           ))}
       </Flex>
 
-      {status.value === 'running' && <VnetStatus />}
+      {status.value === 'running' && (
+        <>
+          <VnetStatus />
+          <RecentConnectionsList />
+        </>
+      )}
 
       <DiagnosticsAlert
         runDiagnosticsFromVnetPanel={runDiagnosticsFromVnetPanel}
@@ -324,3 +335,88 @@ const VnetStatus = () => {
     </Box>
   );
 };
+
+/**
+ * RecentConnectionsList shows the targets recently connected to through VNet,
+ * deduplicated per target and ordered most-recently-connected first. The list
+ * is streamed from the VNet service and cleared whenever VNet stops.
+ */
+const RecentConnectionsList = () => {
+  const { recentConnections } = useVnetContext();
+
+  return (
+    <Box p={textSpacing}>
+      <Text typography="body3" color="text.slightlyMuted" mb={1}>
+        Recent connections
+      </Text>
+      {recentConnections.length === 0 ? (
+        <Text typography="body2" color="text.muted">
+          No connections yet.
+        </Text>
+      ) : (
+        <Flex flexDirection="column" gap={1}>
+          {recentConnections.map(connection => (
+            <RecentConnectionRow
+              key={[
+                connection.kind,
+                connection.cluster,
+                connection.leafCluster,
+                connection.displayName,
+              ].join('/')}
+              connection={connection}
+            />
+          ))}
+        </Flex>
+      )}
+    </Box>
+  );
+};
+
+const RecentConnectionRow = (props: { connection: RecentConnection }) => {
+  const { kind, displayName, lastConnected } = props.connection;
+  const lastConnectedDate = lastConnected && Timestamp.toDate(lastConnected);
+
+  return (
+    <Flex alignItems="center" gap={1} minWidth={0}>
+      <ConnectionKindIndicator>{kindLabel(kind)}</ConnectionKindIndicator>
+      <Text
+        typography="body2"
+        title={displayName}
+        css={`
+          flex: 1;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        `}
+      >
+        {displayName}
+      </Text>
+      {lastConnectedDate && (
+        <Text
+          typography="body3"
+          color="text.muted"
+          title={lastConnectedDate.toLocaleString()}
+          css={`
+            white-space: nowrap;
+          `}
+        >
+          {formatDistanceToNow(lastConnectedDate, { addSuffix: true })}
+        </Text>
+      )}
+    </Flex>
+  );
+};
+
+function kindLabel(kind: RecentConnectionKind): string {
+  switch (kind) {
+    case RecentConnectionKind.APP:
+      return 'TCP';
+    case RecentConnectionKind.SSH:
+      return 'SSH';
+    case RecentConnectionKind.DATABASE:
+      return 'DB';
+    default:
+      return '';
+  }
+}
