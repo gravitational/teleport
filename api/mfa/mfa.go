@@ -33,6 +33,13 @@ import (
 // ResponseMetadataKey is the context metadata key for an MFA response in a gRPC request.
 const ResponseMetadataKey = "mfa_challenge_response"
 
+// ForceInBandEnvVar is the environment variable that, when set to "yes", disables the legacy out-of-band MFA flow and
+// forces all connections to use in-band MFA. When unset or empty, both flows are supported during the transition
+// period.
+//
+// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed and in-band MFA is the default.
+const ForceInBandEnvVar = "TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA"
+
 var (
 	// ErrAdminActionMFARequired is an error indicating that an admin-level
 	// API request failed due to missing MFA verification.
