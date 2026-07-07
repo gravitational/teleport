@@ -1165,9 +1165,11 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	// on the unmapped identity for all scoped identities.
 	var scopePin *scopesv1.Pin
 	var beamID string
+	var botScope string
 	if id.UnmappedIdentity != nil {
 		scopePin = id.UnmappedIdentity.ScopePin
 		beamID = id.UnmappedIdentity.BeamID
+		botScope = id.UnmappedIdentity.BotScope
 	}
 
 	return apievents.UserMetadata{
@@ -1179,6 +1181,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		UserKind:        userKind,
 		BotName:         id.BotName,
 		BotInstanceID:   id.BotInstanceID,
+		BotScope:        botScope,
 		UserClusterName: id.OriginClusterName,
 		UserRoles:       slices.Clone(id.MappedRoles),
 		UserTraits:      id.Traits.Clone(),

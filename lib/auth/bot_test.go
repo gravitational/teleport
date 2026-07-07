@@ -1439,6 +1439,9 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	ctx := t.Context()
 
 	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
+	// Inject mockEmitter to capture audit events
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv.Auth().SetEmitter(mockEmitter)
 	addr := utils.MustParseAddr(srv.Addr().String())
 
 	// Initial setup, create a bot and join token.
@@ -1511,6 +1514,17 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	require.True(t, ident.BotInternal)
 	require.Equal(t, "example-token", ident.JoinToken)
 	require.Equal(t, "/test", ident.BotScope)
+
+	var certIssueEvent *events.CertificateCreate
+	for _, event := range mockEmitter.Events() {
+		if evt, ok := event.(*events.CertificateCreate); ok {
+			certIssueEvent = evt
+			break
+		}
+	}
+	require.NotNil(t, certIssueEvent)
+	require.Equal(t, "test-scoped", certIssueEvent.Identity.BotName)
+	require.Equal(t, "/test", certIssueEvent.Identity.BotScope)
 
 	botClient := authClientForRegisterResult(t, ctx, addr, result)
 

@@ -799,6 +799,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				Username:      "bot-alpaca",
 				BotName:       "alpaca",
 				BotInstanceID: "123-123",
+				BotScope:      "/staging",
 				ScopePin: scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/staging",
@@ -816,6 +817,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				UserKind:      apievents.UserKind_USER_KIND_BOT,
 				BotName:       "alpaca",
 				BotInstanceID: "123-123",
+				BotScope:      "/staging",
 				ScopePin: &apievents.ScopePin{
 					Scope: "/staging",
 					Assignments: map[string]*apievents.ScopePinnedAssignments{
