@@ -934,6 +934,9 @@ const (
 	// AzureManagedIdentityResourceGroupLabel is the label key for the Azure resource
 	// group for the managed identity created by the Azure discovery Terraform module.
 	AzureManagedIdentityResourceGroupLabel = TeleportNamespace + "/azure-managed-identity-resource-group"
+	// AzureManagementGroupIDLabel is the label key for the Azure management group ID
+	// used for tenant-wide discovery scoping.
+	AzureManagementGroupIDLabel = TeleportNamespace + "/azure-management-group-id"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.

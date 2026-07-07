@@ -44,6 +44,7 @@ import {
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import {
   IntegrationDiscoveryRule,
+  IntegrationKind,
   integrationService,
   IntegrationWithSummary,
   Regions,
@@ -173,7 +174,10 @@ export function SettingsTab({
               />
             </Card>
 
-            <DeleteIntegrationSection integrationName={integrationName} />
+            <DeleteIntegrationSection
+              integrationName={integrationName}
+              kind={IntegrationKind.AwsOidc}
+            />
           </Box>
 
           <TerraformInfoGuideSidePanel
