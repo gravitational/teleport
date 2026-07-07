@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -69,6 +70,10 @@ type Service struct {
 	vnetProcess        *vnet.UserProcess
 	clusterConfigCache *vnet.ClusterConfigCache
 	networkStackInfo   *vnetv1.NetworkStackInfo
+	// recentConnections tracks targets connected to through VNet so they can be
+	// streamed to the UI. Its pointer is stable for the lifetime of the Service;
+	// it is activated on Start and deactivated on stop.
+	recentConnections *recentConnectionsStore
 }
 
 // New creates an instance of Service.
@@ -80,6 +85,7 @@ func New(cfg Config) (*Service, error) {
 	return &Service{
 		cfg:                cfg,
 		clusterConfigCache: vnet.NewClusterConfigCache(cfg.Clock),
+		recentConnections:  newRecentConnectionsStore(cfg.Clock),
 	}, nil
 }
 
@@ -140,6 +146,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		daemonService:      s.cfg.DaemonService,
 		insecureSkipVerify: s.cfg.InsecureSkipVerify,
 		usageReporter:      &disabledTelemetryUsageReporter{},
+		recentConnections:  s.recentConnections,
 	}
 
 	// Generally, the usage reporting setting cannot be changed without restarting the app, so
@@ -191,6 +198,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		// unexpectedly shut down rather than stopped through the Stop RPC.
 		if s.status == statusRunning {
 			s.status = statusNotRunning
+			s.recentConnections.CloseSession()
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -205,6 +213,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	s.vnetProcess = vnetProcess
 	s.networkStackInfo = vnetProcess.NetworkStackInfo()
 	s.usageReporter = clientApplication.usageReporter
+	s.recentConnections.Reset()
 	s.status = statusRunning
 	return &api.StartResponse{}, nil
 }
@@ -376,6 +385,41 @@ func (s *Service) AutoConfigureSSH(ctx context.Context, _ *api.AutoConfigureSSHR
 	return nil, trace.Wrap(err)
 }
 
+// GetRecentConnections streams the list of recent connections proxied by VNet.
+// It sends the current list immediately, then a new list whenever it changes,
+// until the stream is canceled or VNet stops.
+func (s *Service) GetRecentConnections(_ *api.GetRecentConnectionsRequest, stream grpc.ServerStreamingServer[api.GetRecentConnectionsResponse]) error {
+	s.mu.Lock()
+	if s.status != statusRunning {
+		s.mu.Unlock()
+		return trace.CompareFailed("VNet is not running")
+	}
+	store := s.recentConnections
+	s.mu.Unlock()
+
+	sub, snapshot := store.Subscribe()
+	defer store.Unsubscribe(sub)
+
+	if err := stream.Send(api.GetRecentConnectionsResponse_builder{Connections: snapshot}.Build()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case snapshot, ok := <-sub.updates:
+			if !ok {
+				// VNet stopped and the session was closed.
+				return nil
+			}
+			if err := stream.Send(api.GetRecentConnectionsResponse_builder{Connections: snapshot}.Build()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+}
+
 func (s *Service) stopLocked() error {
 	if s.status == statusClosed {
 		return trace.CompareFailed("VNet service has been closed")
@@ -391,6 +435,7 @@ func (s *Service) stopLocked() error {
 		return trace.Wrap(err)
 	}
 	s.usageReporter.Stop()
+	s.recentConnections.CloseSession()
 
 	s.status = statusNotRunning
 	return nil
@@ -446,6 +491,7 @@ type clientApplication struct {
 	daemonService      *daemon.Service
 	usageReporter      usageReporter
 	insecureSkipVerify bool
+	recentConnections  *recentConnectionsStore
 }
 
 func (p *clientApplication) ListProfiles() ([]string, error) {
@@ -532,6 +578,7 @@ func (p *clientApplication) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.Da
 // OnNewDBConnection is part of the [vnet.ClientApplication] interface. See
 // the note on ReissueDBCert above; this is a no-op in Connect.
 func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey, fqdn string) error {
+	p.recentConnections.RecordDatabase(dbKey, fqdn)
 	return nil
 }
 
@@ -593,6 +640,8 @@ func (p *clientApplication) GetDialOptions(ctx context.Context, profileName stri
 
 // OnNewSSHSession submits a usage event for a new SSH session.
 func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, targetClusterName, leafClusterName, address string) {
+	p.recentConnections.RecordSSH(profileName, leafClusterName, address)
+
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {
@@ -610,6 +659,8 @@ func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, ta
 // event. This is to mimic how Connect submits events for its app gateways. This lets us compare
 // popularity of VNet and app gateways.
 func (p *clientApplication) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey, publicAddr string) error {
+	p.recentConnections.RecordApp(appKey, publicAddr)
+
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {
