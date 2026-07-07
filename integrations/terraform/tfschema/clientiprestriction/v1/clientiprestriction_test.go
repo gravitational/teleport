@@ -38,13 +38,18 @@ func TestGenSchemaClientIPRestriction(t *testing.T) {
 	schema, diags := GenSchemaClientIPRestriction(ctx)
 	require.False(t, diags.HasError(), "unexpected diagnostics: %v", diags)
 
-	// The name is fixed and the rest of the metadata/status is set by the
-	// server, so these must be computed (the user never provides them).
-	for _, name := range []string{"kind", "sub_kind", "version", "metadata", "status"} {
+	// The name is fixed and the rest of the metadata is set by the server, so
+	// these must be computed (the user never provides them).
+	for _, name := range []string{"kind", "sub_kind", "version", "metadata"} {
 		attribute, ok := schema.Attributes[name]
 		require.True(t, ok, "missing attribute %q", name)
 		require.True(t, attribute.Computed, "attribute %q should be computed", name)
 	}
+
+	// status is server-managed enforcement state; per RFD 153 the provider must
+	// not track it, so it is excluded from the schema entirely.
+	_, ok := schema.Attributes["status"]
+	require.False(t, ok, "status should be excluded from the schema")
 
 	// spec holds allowed_cidrs and is the only user-configurable part.
 	spec, ok := schema.Attributes["spec"]
@@ -54,7 +59,8 @@ func TestGenSchemaClientIPRestriction(t *testing.T) {
 
 // TestCopyClientIPRestrictionRoundTrip ensures a ClientIPRestriction survives a
 // proto -> Terraform -> proto round trip through the generated copy functions,
-// covering the user spec as well as the computed metadata/status fields.
+// covering the user spec and the computed metadata. The server-managed status
+// is excluded from the schema, so it must not survive the round trip.
 func TestCopyClientIPRestrictionRoundTrip(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -90,5 +96,6 @@ func TestCopyClientIPRestrictionRoundTrip(t *testing.T) {
 	require.Equal(t, want.GetVersion(), got.GetVersion())
 	require.Equal(t, want.GetMetadata().GetName(), got.GetMetadata().GetName())
 	require.Equal(t, want.GetSpec().GetAllowedCidrs(), got.GetSpec().GetAllowedCidrs())
-	require.Equal(t, want.GetStatus().GetState(), got.GetStatus().GetState())
+	// status is excluded from the schema, so it is dropped on the round trip.
+	require.Empty(t, got.GetStatus().GetState())
 }

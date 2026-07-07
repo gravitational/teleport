@@ -34,6 +34,10 @@ exclude_fields:
   # ClientIPRestriction is a singleton, only name and revision are supported on
   # its metadata. Revision is not needed as updates use upsert semantics.
   - "ClientIPRestriction.metadata.revision"
+  # Status is server-managed enforcement state; per RFD 153 the provider must
+  # not track it. The Create/Update poll reads it from the live resource, not
+  # from Terraform state.
+  - "ClientIPRestriction.status"
 
 # These fields will be marked as Computed: true
 computed_fields:
@@ -45,9 +49,6 @@ computed_fields:
   - "ClientIPRestriction.kind"
   - "ClientIPRestriction.sub_kind"
   - "ClientIPRestriction.version"
-  # Status reflects the enforcement state and is set by the server.
-  - "ClientIPRestriction.status"
-  - "ClientIPRestriction.status.state"
 
 # This must be defined for the generator to be happy, but in reality all time
 # fields are overridden (because the protobuf timestamps contain locks and the

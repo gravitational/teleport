@@ -103,19 +103,6 @@ func GenSchemaClientIPRestriction(ctx context.Context) (github_com_hashicorp_ter
 			Description: "User-configurable parts of the resource settings.",
 			Optional:    true,
 		},
-		"status": {
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"state": {
-				Computed:      true,
-				Description:   "state is the current enforcement state of the restrictions at the ingress layer. Possible values: \"pending\", \"active\".",
-				Optional:      true,
-				PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-				Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-			}}),
-			Computed:      true,
-			Description:   "User-immutable status of the ClientIPRestriction and its supporting resources.",
-			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-		},
 		"sub_kind": {
 			Computed:      true,
 			Description:   "The sub_kind of the resource. Always \"\".",
@@ -328,41 +315,6 @@ func CopyClientIPRestrictionFromTerraform(_ context.Context, tf github_com_hashi
 										}
 									}
 								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	{
-		a, ok := tf.Attrs["status"]
-		if !ok {
-			diags.Append(attrReadMissingDiag{"ClientIPRestriction.status"})
-		} else {
-			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
-			if !ok {
-				diags.Append(attrReadConversionFailureDiag{"ClientIPRestriction.status", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
-			} else {
-				obj.Status = nil
-				if !v.Null && !v.Unknown {
-					tf := v
-					obj.Status = &github_com_gravitational_teleport_api_gen_proto_go_teleport_clientiprestriction_v1.ClientIPRestrictionStatus{}
-					obj := obj.Status
-					{
-						a, ok := tf.Attrs["state"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"ClientIPRestriction.status.state"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"ClientIPRestriction.status.state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.State = t
 							}
 						}
 					}
@@ -686,60 +638,6 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 				}
 				v.Unknown = false
 				tf.Attrs["spec"] = v
-			}
-		}
-	}
-	{
-		a, ok := tf.AttrTypes["status"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"ClientIPRestriction.status"})
-		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-			if !ok {
-				diags.Append(attrWriteConversionFailureDiag{"ClientIPRestriction.status", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
-			} else {
-				v, ok := tf.Attrs["status"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Status == nil {
-					v.Null = true
-				} else {
-					obj := obj.Status
-					tf := &v
-					{
-						t, ok := tf.AttrTypes["state"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"ClientIPRestriction.status.state"})
-						} else {
-							v, ok := tf.Attrs["state"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"ClientIPRestriction.status.state", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"ClientIPRestriction.status.state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.State) == ""
-							}
-							v.Value = string(obj.State)
-							v.Unknown = false
-							tf.Attrs["state"] = v
-						}
-					}
-				}
-				v.Unknown = false
-				tf.Attrs["status"] = v
 			}
 		}
 	}

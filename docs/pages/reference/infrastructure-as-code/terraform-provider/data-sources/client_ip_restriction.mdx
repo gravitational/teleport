@@ -25,7 +25,6 @@ Teleport Terraform provider.
 
 - `metadata` (Attributes) Metadata about the client IP restrictions. (see [below for nested schema](#nested-schema-for-metadata))
 - `spec` (Attributes) User-configurable parts of the resource settings. (see [below for nested schema](#nested-schema-for-spec))
-- `status` (Attributes) User-immutable status of the ClientIPRestriction and its supporting resources. (see [below for nested schema](#nested-schema-for-status))
 - `sub_kind` (String) The sub_kind of the resource. Always "".
 - `version` (String) The version of the resource. Always "v1".
 
@@ -44,11 +43,4 @@ Optional:
 Optional:
 
 - `allowed_cidrs` (List of String) allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster. An empty list disables restrictions and allows all traffic.
-
-
-### Nested Schema for `status`
-
-Optional:
-
-- `state` (String) state is the current enforcement state of the restrictions at the ingress layer. Possible values: "pending", "active".
 
