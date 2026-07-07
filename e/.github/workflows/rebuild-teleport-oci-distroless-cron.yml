@@ -190,7 +190,7 @@ jobs:
             major_branch="branch/${teleport_release_tag%%.*}"
             echo "Triggering rebuild of kube-agent-updater images for $teleport_release_tag"
 
-            gh workflow run rebuild-kube-agent-updater-oci-distroless.yml \
+            gh workflow run rebuild-teleport-kube-agent-updater-oci.yml \
               --repo "$GITHUB_REPOSITORY" \
               --ref "$major_branch" \
               --raw-field oss-teleport-repo="gravitational/$repo" \
