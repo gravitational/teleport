@@ -34,10 +34,10 @@ are supported by this chart. This **excludes** the `token` and `bound_keypair`
 join methods.
 
 See also:
-* [Join Methods and Tokens](../deployment/join-methods.mdx)
-* [Teleport Config Reference](../deployment/config.mdx#instance-wide-settings).
+* [Join Methods and Tokens](../../reference/deployment/join-methods.mdx)
+* [Teleport Config Reference](../../reference/deployment/config.mdx#instance-wide-settings).
 
-To create the token, see docs ([Terraform](../infrastructure-as-code/terraform-provider/resources/provision_token.mdx) or [tctl](../../reference/cli/tctl.mdx#tctl-tokens-add)):
+To create the token, see docs ([Terraform](../../reference/infrastructure-as-code/terraform-provider/resources/provision_token.mdx) or [tctl](../../reference/cli/tctl.mdx#tctl-tokens-add)):
       `tctl tokens add --type=proxy ...`
 
 ### `join_params.method`
@@ -49,9 +49,9 @@ To create the token, see docs ([Terraform](../infrastructure-as-code/terraform-p
 `join_params.method` How to join the cluster.
 
 Running on eks/aks/gke? Consider cloud-specific Workload Identity instead of Kubernetes:
-* [AWS](../deployment/join-methods.mdx#aws-iam-role-iam)
-* [Azure](../deployment/join-methods.mdx)#azure-managed-identity-azure
-* [GCP](../deployment/join-methods.mdx#gcp-service-account-gcp)
+* [AWS](../../reference/deployment/join-methods.mdx#aws-iam-role-iam)
+* [Azure](../../reference/deployment/join-methods.mdx)#azure-managed-identity-azure
+* [GCP](../../reference/deployment/join-methods.mdx#gcp-service-account-gcp)
 
 ### `join_params.token_name`
 
@@ -914,7 +914,7 @@ loadBalancerIP: "1.2.3.4"
 If you set `ingress.enabled` to true, service.type MUST also be set to something other than "LoadBalancer" to prevent
 additional unnecessary load balancers from being created. Ingress controllers should provision their own load balancer.
 Using an Ingress also requires that you use the `tsh` client to connect to Kubernetes clusters and databases behind Teleport.
-See [TLS Routing](../architecture/tls-routing.mdx#working-with-layer-7-load-balancers-or-reverse-proxies-preview) for details.
+See [TLS Routing](../../architecture/tls-routing.mdx#working-with-layer-7-load-balancers-or-reverse-proxies-preview) for details.
 
 ### `ingress.enabled`
 
