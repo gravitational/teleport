@@ -322,7 +322,7 @@ export function buildSections(args: {
                 'To view output or end the task, open a shell in your Beam to attach to the session.',
               blocks: [
                 { kind: 'text', body: 'Open a shell in your Beam:' },
-                { kind: 'code', cmd: 'tsh beams console <beam-id>' },
+                { kind: 'code', cmd: 'tsh beams ssh <beam-id>' },
                 {
                   kind: 'text',
                   body: (
@@ -457,7 +457,7 @@ export function buildSections(args: {
               blocks: [
                 {
                   kind: 'code',
-                  cmd: 'tsh beams cp --recursive <beam-id>:/home/beams/calc-app ./calc-app',
+                  cmd: 'tsh beams scp --recursive <beam-id>:/home/beams/calc-app ./calc-app',
                 },
               ],
             },
@@ -598,10 +598,10 @@ const FAQS: Array<{ q: string; a: ReactNode }> = [
     a: (
       <>
         <P2>
-          Yes, <InlineCode>tsh beams cp</InlineCode> works in both directions.
+          Yes, <InlineCode>tsh beams scp</InlineCode> works in both directions.
           To pull generated code back to your machine before deleting the Beam:
         </P2>
-        <CodeBlock command="tsh beams cp --recursive <beam-id>:/home/beams/app ./app" />
+        <CodeBlock command="tsh beams scp --recursive <beam-id>:/home/beams/app ./app" />
       </>
     ),
   },
@@ -610,7 +610,7 @@ const FAQS: Array<{ q: string; a: ReactNode }> = [
     a: (
       <>
         <P2>Use the CLI to open a shell in a running Beam by its ID:</P2>
-        <CodeBlock command="tsh beams console <beam-id>" />
+        <CodeBlock command="tsh beams ssh <beam-id>" />
       </>
     ),
   },
@@ -620,7 +620,7 @@ const FAQS: Array<{ q: string; a: ReactNode }> = [
       <P2>
         Everything inside a Beam is wiped on delete or after the 24-hour TTL. If
         you want to keep generated code, copy it out with{' '}
-        <InlineCode>tsh beams cp</InlineCode> before running{' '}
+        <InlineCode>tsh beams scp</InlineCode> before running{' '}
         <InlineCode>tsh beams rm</InlineCode>.
       </P2>
     ),
