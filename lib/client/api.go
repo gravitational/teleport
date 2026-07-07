@@ -682,7 +682,7 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 	return vars
 }
 
-// Relogin attempts to relogin as a recovery from the given fnErr
+// Relogin attempts to relogin and runs before/after login hooks.
 func Relogin(ctx context.Context, tc *TeleportClient, opts ...RetryWithReloginOption) error {
 	opt := defaultRetryWithReloginOptions()
 	for _, o := range opts {
@@ -737,11 +737,11 @@ func Relogin(ctx context.Context, tc *TeleportClient, opts ...RetryWithReloginOp
 // 'IsErrorResolvableWithRelogin' by checking if the client is non-interactive or if a predicate error occurred.
 // Returns the original error (possibly wrapped with additional context) and a boolean indicating whether or not
 // relogin should be attempted.
-func ShouldRetryWithRelogin(ctx context.Context, tc *TeleportClient, fnErr error) (error, bool) {
+func ShouldRetryWithRelogin(ctx context.Context, tc *TeleportClient, fnErr error) (bool, error) {
 	if keys.IsPrivateKeyPolicyError(fnErr) {
 		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
 		if err != nil {
-			return trace.Wrap(err), false
+			return false, trace.Wrap(err)
 		}
 
 		tc.updatePrivateKeyPolicy(privateKeyPolicy)
@@ -749,9 +749,9 @@ func ShouldRetryWithRelogin(ctx context.Context, tc *TeleportClient, fnErr error
 
 	switch {
 	case utils.IsPredicateError(fnErr):
-		return trace.Wrap(utils.PredicateError{Err: fnErr}), false
+		return false, trace.Wrap(utils.PredicateError{Err: fnErr})
 	case tc.NonInteractive:
-		return trace.Wrap(fnErr, "cannot relogin in non-interactive session"), false
+		return false, trace.Wrap(fnErr, "cannot relogin in non-interactive session")
 	case !IsErrorResolvableWithRelogin(fnErr):
 		// If the connection to Auth was unexpectedly cut, see if the client is too
 		// old to interact with the cluster.
@@ -761,9 +761,9 @@ func ShouldRetryWithRelogin(ctx context.Context, tc *TeleportClient, fnErr error
 			_, _ = tc.Ping(ctx)
 		}
 
-		return trace.Wrap(fnErr), false
+		return false, trace.Wrap(fnErr)
 	}
-	return fnErr, true
+	return true, fnErr
 }
 
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
@@ -775,7 +775,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	}
 
 	var shouldRetry bool
-	if fnErr, shouldRetry = ShouldRetryWithRelogin(ctx, tc, fnErr); !shouldRetry {
+	if shouldRetry, fnErr = ShouldRetryWithRelogin(ctx, tc, fnErr); !shouldRetry {
 		return fnErr
 	}
 

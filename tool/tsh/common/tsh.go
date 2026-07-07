@@ -2395,6 +2395,17 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// On successful login, try to remove the tsh proxy ssh lockfile.
+	// This is just a safeguard in case a tsh process somehow hangs while
+	// holding the lock.
+	defer func() {
+		if err == nil {
+			if rmErr := os.Remove(GetProxySSHRetryerLockfilePath(cf.HomePath, tc.WebProxyHost())); rmErr != nil && !os.IsNotExist(rmErr) {
+				logger.WarnContext(cf.Context, "Failed to remove proxy ssh lockfile", "error", rmErr)
+			}
+		}
+	}()
+
 	// If the user requested tracing and the login succeeds (even if the user
 	// was already logged in) report the tracing client to the trace provider
 	// to that spans can be exported.
