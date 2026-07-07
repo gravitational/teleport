@@ -48,7 +48,7 @@ func testStatsKey(displayName string) statsKey {
 func nopConnector() (net.Conn, error) { return nopConn{}, nil }
 
 func TestStatsCollector_successfulAndFailedConnections(t *testing.T) {
-	c := newStatsCollector(clockwork.NewFakeClock())
+	c := newStatsCollector(clockwork.NewFakeClock(), nil)
 	key := testStatsKey("app.root.example.com")
 
 	// A connection that establishes and later ends without an error.
@@ -80,7 +80,7 @@ func TestStatsCollector_successfulAndFailedConnections(t *testing.T) {
 }
 
 func TestStatsCollector_trackWithExplicitSuccess(t *testing.T) {
-	c := newStatsCollector(clockwork.NewFakeClock())
+	c := newStatsCollector(clockwork.NewFakeClock(), nil)
 	key := testStatsKey("ssh.root.example.com")
 
 	// track alone does not count establishment, an error after the downstream
@@ -104,7 +104,7 @@ func TestStatsCollector_trackWithExplicitSuccess(t *testing.T) {
 }
 
 func TestStatsCollector_bytesAndThroughput(t *testing.T) {
-	c := newStatsCollector(clockwork.NewFakeClock())
+	c := newStatsCollector(clockwork.NewFakeClock(), nil)
 	key := testStatsKey("app.root.example.com")
 
 	att := c.begin(key)
@@ -150,8 +150,54 @@ func TestStatsCollector_bytesAndThroughput(t *testing.T) {
 	require.Equal(t, uint64(1), c.snapshot()[0].GetSuccessfulConnections())
 }
 
+func TestStatsCollector_push(t *testing.T) {
+	var reports [][]*vnetv1.ConnectionStat
+	var reportErr error
+	c := newStatsCollector(clockwork.NewFakeClock(), func(_ context.Context, stats []*vnetv1.ConnectionStat, _ time.Time) error {
+		if reportErr != nil {
+			return reportErr
+		}
+		reports = append(reports, stats)
+		return nil
+	})
+	ctx := context.Background()
+	key := testStatsKey("app.root.example.com")
+
+	// Nothing to report yet.
+	c.push(ctx)
+	require.Empty(t, reports)
+
+	att := c.begin(key)
+	_, err := att.instrument(nopConnector)()
+	require.NoError(t, err)
+	att.finish(nil)
+
+	c.push(ctx)
+	require.Len(t, reports, 1)
+
+	// Unchanged statistics are not re-reported.
+	c.push(ctx)
+	require.Len(t, reports, 1)
+
+	// A failed report is retried on the next push, snapshots carry absolute
+	// values so nothing is lost.
+	att = c.begin(key)
+	_, err = att.instrument(nopConnector)()
+	require.NoError(t, err)
+	att.finish(nil)
+
+	reportErr = trace.Errorf("client application unavailable")
+	c.push(ctx)
+	require.Len(t, reports, 1)
+
+	reportErr = nil
+	c.push(ctx)
+	require.Len(t, reports, 2)
+	require.Equal(t, uint64(2), reports[1][0].GetSuccessfulConnections())
+}
+
 func TestStatsCollector_aggregatesPerTarget(t *testing.T) {
-	c := newStatsCollector(clockwork.NewFakeClock())
+	c := newStatsCollector(clockwork.NewFakeClock(), nil)
 	key := testStatsKey("app.root.example.com")
 	otherKey := testStatsKey("other.root.example.com")
 

@@ -118,7 +118,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 		overrideNodeDialer: cfg.fakeClientApp.dialSSHNode,
 	})
 	require.NoError(t, err)
-	connStats := newStatsCollector(cfg.clock)
+	connStats := newStatsCollector(cfg.clock, clt.ReportConnectionStats)
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:                      clt,
 		appProvider:              appProvider,

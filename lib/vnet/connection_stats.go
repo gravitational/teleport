@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/utils"
@@ -72,13 +73,24 @@ type trackedConn struct {
 	lastRead    uint64
 }
 
+// reportStatsFunc reports a snapshot of the aggregated connection statistics
+// to the client application.
+type reportStatsFunc func(ctx context.Context, stats []*vnetv1.ConnectionStat, collectedAt time.Time) error
+
 // statsCollector aggregates per-target connection statistics for all
 // connections handled by VNet in the admin process. TCP handlers report
 // connection attempts through [statsCollector.begin], and a sampler
 // periodically folds bytes transferred over active connections into the
-// cumulative counters via [statsCollector.run].
+// cumulative counters via [statsCollector.run] and reports fresh snapshots to
+// the client application.
 type statsCollector struct {
 	clock clockwork.Clock
+	// report, if set, is called with a fresh snapshot whenever the statistics
+	// changed since the last successful report.
+	report reportStatsFunc
+	// lastReported is the last successfully reported snapshot. It is only
+	// accessed from the [statsCollector.run] goroutine.
+	lastReported []*vnetv1.ConnectionStat
 
 	// mu guards agg and active.
 	mu     sync.Mutex
@@ -86,9 +98,10 @@ type statsCollector struct {
 	active map[*trackedConn]struct{}
 }
 
-func newStatsCollector(clock clockwork.Clock) *statsCollector {
+func newStatsCollector(clock clockwork.Clock, report reportStatsFunc) *statsCollector {
 	return &statsCollector{
 		clock:  clock,
+		report: report,
 		agg:    make(map[statsKey]*targetAgg),
 		active: make(map[*trackedConn]struct{}),
 	}
@@ -272,7 +285,8 @@ func (c *statsCollector) snapshot() []*vnetv1.ConnectionStat {
 }
 
 // run periodically samples all active connections to keep the cumulative
-// counters and throughput up to date. It returns when ctx is canceled.
+// counters and throughput up to date, and reports fresh snapshots to the
+// client application. It returns when ctx is canceled.
 func (c *statsCollector) run(ctx context.Context) {
 	ticker := c.clock.NewTicker(statsSamplingInterval)
 	defer ticker.Stop()
@@ -282,8 +296,27 @@ func (c *statsCollector) run(ctx context.Context) {
 			return
 		case <-ticker.Chan():
 			c.sample(statsSamplingInterval)
+			c.push(ctx)
 		}
 	}
+}
+
+// push reports the current snapshot if the statistics changed since the last
+// successful report. Snapshots carry absolute values so a failed report loses
+// no data, the next successful one catches the client application up.
+func (c *statsCollector) push(ctx context.Context) {
+	if c.report == nil {
+		return
+	}
+	stats := c.snapshot()
+	if slices.EqualFunc(stats, c.lastReported, func(a, b *vnetv1.ConnectionStat) bool { return proto.Equal(a, b) }) {
+		return
+	}
+	if err := c.report(ctx, stats, c.clock.Now()); err != nil {
+		log.DebugContext(ctx, "Failed to report connection stats to the client application", "error", err)
+		return
+	}
+	c.lastReported = stats
 }
 
 // statsConn wraps a tracked conn to stop tracking it when it's closed.
