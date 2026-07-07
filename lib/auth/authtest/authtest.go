@@ -1153,8 +1153,8 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 			Username: userName,
 			Identity: tlsca.Identity{
 				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
+				// GenerateUserTestCertsWithContext will inject BotName,
+				// BotInstanceID and BotScope.
 				BotInternal: botInternal,
 			},
 		},
@@ -1169,8 +1169,8 @@ func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity 
 			Username: userName,
 			Identity: tlsca.Identity{
 				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
+				// GenerateUserTestCertsWithContext will inject BotName,
+				// BotInstanceID and BotScope.
 				BotInternal: botInternal,
 			},
 		},

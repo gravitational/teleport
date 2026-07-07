@@ -3827,6 +3827,17 @@ func getBotName(user services.UserState) string {
 	return ""
 }
 
+// getBotScope returns the scope of the bot embedded in the user metadata, if
+// any. For unscoped bots and non-bot users, returns "".
+func getBotScope(user services.UserState) string {
+	scope, ok := user.GetLabel(types.BotScopeLabel)
+	if ok {
+		return scope
+	}
+
+	return ""
+}
+
 func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
 	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
@@ -4160,7 +4171,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
 
-			BotName: getBotName(user),
+			BotName:  getBotName(user),
+			BotScope: getBotScope(user),
 			// Always pass through a bot instance ID if available. Legacy bots
 			// joining without an instance ID may have one generated when
 			// `updateBotInstance()` is called below, and this (empty) value will be
@@ -4216,6 +4228,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		ActiveRequests:         req.AccessRequests,
 		ConnectionDiagnosticID: req.ConnectionDiagnosticID,
 		BotName:                getBotName(user),
+		BotScope:               getBotScope(user),
 
 		// Always pass through a bot instance ID if available. Legacy bots
 		// joining without an instance ID may have one generated when
