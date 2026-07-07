@@ -30,6 +30,7 @@ import type { IBinaryReader } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { Timestamp } from "../../../../../google/protobuf/timestamp_pb";
 import { Report } from "../../../vnet/diag/v1/diag_pb";
 /**
  * Request for Start.
@@ -177,6 +178,65 @@ export interface AutoConfigureSSHRequest {
 export interface AutoConfigureSSHResponse {
 }
 /**
+ * Request for GetRecentConnections.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest
+ */
+export interface GetRecentConnectionsRequest {
+}
+/**
+ * Response for GetRecentConnections, containing the full list of recent
+ * connections deduplicated per target and ordered most-recently-connected
+ * first.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse
+ */
+export interface GetRecentConnectionsResponse {
+    /**
+     * @generated from protobuf field: repeated teleport.lib.teleterm.vnet.v1.RecentConnection connections = 1;
+     */
+    connections: RecentConnection[];
+}
+/**
+ * RecentConnection describes a single target recently connected to through VNet.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.RecentConnection
+ */
+export interface RecentConnection {
+    /**
+     * kind is the kind of the target (TCP app, SSH host, or database).
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.vnet.v1.RecentConnectionKind kind = 1;
+     */
+    kind: RecentConnectionKind;
+    /**
+     * cluster is the profile (root cluster) the target is found in.
+     *
+     * @generated from protobuf field: string cluster = 2;
+     */
+    cluster: string;
+    /**
+     * leaf_cluster is the leaf cluster the target is found in. Empty if the target
+     * is in the root cluster.
+     *
+     * @generated from protobuf field: string leaf_cluster = 3;
+     */
+    leafCluster: string;
+    /**
+     * display_name is the address shown to the user, e.g. the app public address,
+     * the database FQDN, or the SSH host address.
+     *
+     * @generated from protobuf field: string display_name = 4;
+     */
+    displayName: string;
+    /**
+     * last_connected is the time of the most recent connection to the target.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp last_connected = 5;
+     */
+    lastConnected?: Timestamp;
+}
+/**
  * BackgroundItemStatus maps to SMAppServiceStatus of the Service Management framework in macOS.
  * https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
  *
@@ -235,6 +295,29 @@ export enum WindowsServiceStatus {
      * @generated from protobuf enum value: WINDOWS_SERVICE_STATUS_VERSION_MISMATCH = 3;
      */
     VERSION_MISMATCH = 3
+}
+/**
+ * RecentConnectionKind is the kind of target a recent connection was made to.
+ *
+ * @generated from protobuf enum teleport.lib.teleterm.vnet.v1.RecentConnectionKind
+ */
+export enum RecentConnectionKind {
+    /**
+     * @generated from protobuf enum value: RECENT_CONNECTION_KIND_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: RECENT_CONNECTION_KIND_APP = 1;
+     */
+    APP = 1,
+    /**
+     * @generated from protobuf enum value: RECENT_CONNECTION_KIND_SSH = 2;
+     */
+    SSH = 2,
+    /**
+     * @generated from protobuf enum value: RECENT_CONNECTION_KIND_DATABASE = 3;
+     */
+    DATABASE = 3
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StartRequest$Type extends MessageType<StartRequest> {
@@ -700,6 +783,156 @@ class AutoConfigureSSHResponse$Type extends MessageType<AutoConfigureSSHResponse
  * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
  */
 export const AutoConfigureSSHResponse = new AutoConfigureSSHResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetRecentConnectionsRequest$Type extends MessageType<GetRecentConnectionsRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest", []);
+    }
+    create(value?: PartialMessage<GetRecentConnectionsRequest>): GetRecentConnectionsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetRecentConnectionsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetRecentConnectionsRequest): GetRecentConnectionsRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetRecentConnectionsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest
+ */
+export const GetRecentConnectionsRequest = new GetRecentConnectionsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetRecentConnectionsResponse$Type extends MessageType<GetRecentConnectionsResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse", [
+            { no: 1, name: "connections", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => RecentConnection }
+        ]);
+    }
+    create(value?: PartialMessage<GetRecentConnectionsResponse>): GetRecentConnectionsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.connections = [];
+        if (value !== undefined)
+            reflectionMergePartial<GetRecentConnectionsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetRecentConnectionsResponse): GetRecentConnectionsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.lib.teleterm.vnet.v1.RecentConnection connections */ 1:
+                    message.connections.push(RecentConnection.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetRecentConnectionsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.lib.teleterm.vnet.v1.RecentConnection connections = 1; */
+        for (let i = 0; i < message.connections.length; i++)
+            RecentConnection.internalBinaryWrite(message.connections[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse
+ */
+export const GetRecentConnectionsResponse = new GetRecentConnectionsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RecentConnection$Type extends MessageType<RecentConnection> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.RecentConnection", [
+            { no: 1, name: "kind", kind: "enum", T: () => ["teleport.lib.teleterm.vnet.v1.RecentConnectionKind", RecentConnectionKind, "RECENT_CONNECTION_KIND_"] },
+            { no: 2, name: "cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "leaf_cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "display_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "last_connected", kind: "message", T: () => Timestamp }
+        ]);
+    }
+    create(value?: PartialMessage<RecentConnection>): RecentConnection {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.kind = 0;
+        message.cluster = "";
+        message.leafCluster = "";
+        message.displayName = "";
+        if (value !== undefined)
+            reflectionMergePartial<RecentConnection>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RecentConnection): RecentConnection {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.teleterm.vnet.v1.RecentConnectionKind kind */ 1:
+                    message.kind = reader.int32();
+                    break;
+                case /* string cluster */ 2:
+                    message.cluster = reader.string();
+                    break;
+                case /* string leaf_cluster */ 3:
+                    message.leafCluster = reader.string();
+                    break;
+                case /* string display_name */ 4:
+                    message.displayName = reader.string();
+                    break;
+                case /* google.protobuf.Timestamp last_connected */ 5:
+                    message.lastConnected = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.lastConnected);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RecentConnection, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.teleterm.vnet.v1.RecentConnectionKind kind = 1; */
+        if (message.kind !== 0)
+            writer.tag(1, WireType.Varint).int32(message.kind);
+        /* string cluster = 2; */
+        if (message.cluster !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.cluster);
+        /* string leaf_cluster = 3; */
+        if (message.leafCluster !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.leafCluster);
+        /* string display_name = 4; */
+        if (message.displayName !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.displayName);
+        /* google.protobuf.Timestamp last_connected = 5; */
+        if (message.lastConnected)
+            Timestamp.internalBinaryWrite(message.lastConnected, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.RecentConnection
+ */
+export const RecentConnection = new RecentConnection$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.vnet.v1.VnetService
  */
@@ -710,5 +943,6 @@ export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetSe
     { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
     { name: "CheckInstallTimeRequirements", options: {}, I: CheckInstallTimeRequirementsRequest, O: CheckInstallTimeRequirementsResponse },
     { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse },
-    { name: "AutoConfigureSSH", options: {}, I: AutoConfigureSSHRequest, O: AutoConfigureSSHResponse }
+    { name: "AutoConfigureSSH", options: {}, I: AutoConfigureSSHRequest, O: AutoConfigureSSHResponse },
+    { name: "GetRecentConnections", serverStreaming: true, options: {}, I: GetRecentConnectionsRequest, O: GetRecentConnectionsResponse }
 ]);

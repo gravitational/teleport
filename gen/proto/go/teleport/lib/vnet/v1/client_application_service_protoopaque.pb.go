@@ -2059,10 +2059,11 @@ func (b0 SignForAppResponse_builder) Build() *SignForAppResponse {
 
 // OnNewAppConnectionRequest is a request for OnNewAppConnection.
 type OnNewAppConnectionRequest struct {
-	state             protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_AppKey *AppKey                `protobuf:"bytes,1,opt,name=app_key,json=appKey,proto3"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_AppKey     *AppKey                `protobuf:"bytes,1,opt,name=app_key,json=appKey,proto3"`
+	xxx_hidden_PublicAddr string                 `protobuf:"bytes,2,opt,name=public_addr,json=publicAddr,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *OnNewAppConnectionRequest) Reset() {
@@ -2097,8 +2098,19 @@ func (x *OnNewAppConnectionRequest) GetAppKey() *AppKey {
 	return nil
 }
 
+func (x *OnNewAppConnectionRequest) GetPublicAddr() string {
+	if x != nil {
+		return x.xxx_hidden_PublicAddr
+	}
+	return ""
+}
+
 func (x *OnNewAppConnectionRequest) SetAppKey(v *AppKey) {
 	x.xxx_hidden_AppKey = v
+}
+
+func (x *OnNewAppConnectionRequest) SetPublicAddr(v string) {
+	x.xxx_hidden_PublicAddr = v
 }
 
 func (x *OnNewAppConnectionRequest) HasAppKey() bool {
@@ -2117,6 +2129,9 @@ type OnNewAppConnectionRequest_builder struct {
 
 	// AppKey identifies the app the connection is being made for.
 	AppKey *AppKey
+	// PublicAddr is the public address of the app, used as its display address in
+	// the list of recent VNet connections.
+	PublicAddr string
 }
 
 func (b0 OnNewAppConnectionRequest_builder) Build() *OnNewAppConnectionRequest {
@@ -2124,6 +2139,7 @@ func (b0 OnNewAppConnectionRequest_builder) Build() *OnNewAppConnectionRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_AppKey = b.AppKey
+	x.xxx_hidden_PublicAddr = b.PublicAddr
 	return m0
 }
 
@@ -3526,6 +3542,7 @@ type DatabaseInfo struct {
 	xxx_hidden_Protocol      string                 `protobuf:"bytes,3,opt,name=protocol,proto3"`
 	xxx_hidden_Ipv4CidrRange string                 `protobuf:"bytes,4,opt,name=ipv4_cidr_range,json=ipv4CidrRange,proto3"`
 	xxx_hidden_DialOptions   *DialOptions           `protobuf:"bytes,5,opt,name=dial_options,json=dialOptions,proto3"`
+	xxx_hidden_Fqdn          string                 `protobuf:"bytes,6,opt,name=fqdn,proto3"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -3590,6 +3607,13 @@ func (x *DatabaseInfo) GetDialOptions() *DialOptions {
 	return nil
 }
 
+func (x *DatabaseInfo) GetFqdn() string {
+	if x != nil {
+		return x.xxx_hidden_Fqdn
+	}
+	return ""
+}
+
 func (x *DatabaseInfo) SetDatabaseKey(v *DatabaseKey) {
 	x.xxx_hidden_DatabaseKey = v
 }
@@ -3608,6 +3632,10 @@ func (x *DatabaseInfo) SetIpv4CidrRange(v string) {
 
 func (x *DatabaseInfo) SetDialOptions(v *DialOptions) {
 	x.xxx_hidden_DialOptions = v
+}
+
+func (x *DatabaseInfo) SetFqdn(v string) {
+	x.xxx_hidden_Fqdn = v
 }
 
 func (x *DatabaseInfo) HasDatabaseKey() bool {
@@ -3648,6 +3676,8 @@ type DatabaseInfo_builder struct {
 	// DialOptions holds options that should be used when dialing the root cluster
 	// of the database.
 	DialOptions *DialOptions
+	// Fqdn is the fully-qualified domain name the database was resolved from.
+	Fqdn string
 }
 
 func (b0 DatabaseInfo_builder) Build() *DatabaseInfo {
@@ -3659,6 +3689,7 @@ func (b0 DatabaseInfo_builder) Build() *DatabaseInfo {
 	x.xxx_hidden_Protocol = b.Protocol
 	x.xxx_hidden_Ipv4CidrRange = b.Ipv4CidrRange
 	x.xxx_hidden_DialOptions = b.DialOptions
+	x.xxx_hidden_Fqdn = b.Fqdn
 	return m0
 }
 
@@ -4051,6 +4082,7 @@ func (b0 SignForDBResponse_builder) Build() *SignForDBResponse {
 type OnNewDBConnectionRequest struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_DatabaseKey *DatabaseKey           `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3"`
+	xxx_hidden_Fqdn        string                 `protobuf:"bytes,2,opt,name=fqdn,proto3"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -4087,8 +4119,19 @@ func (x *OnNewDBConnectionRequest) GetDatabaseKey() *DatabaseKey {
 	return nil
 }
 
+func (x *OnNewDBConnectionRequest) GetFqdn() string {
+	if x != nil {
+		return x.xxx_hidden_Fqdn
+	}
+	return ""
+}
+
 func (x *OnNewDBConnectionRequest) SetDatabaseKey(v *DatabaseKey) {
 	x.xxx_hidden_DatabaseKey = v
+}
+
+func (x *OnNewDBConnectionRequest) SetFqdn(v string) {
+	x.xxx_hidden_Fqdn = v
 }
 
 func (x *OnNewDBConnectionRequest) HasDatabaseKey() bool {
@@ -4107,6 +4150,9 @@ type OnNewDBConnectionRequest_builder struct {
 
 	// DatabaseKey identifies the database the connection is being made for.
 	DatabaseKey *DatabaseKey
+	// Fqdn is the fully-qualified domain name the database is reached at, used as
+	// its display address in the list of recent VNet connections.
+	Fqdn string
 }
 
 func (b0 OnNewDBConnectionRequest_builder) Build() *OnNewDBConnectionRequest {
@@ -4114,6 +4160,7 @@ func (b0 OnNewDBConnectionRequest_builder) Build() *OnNewDBConnectionRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_DatabaseKey = b.DatabaseKey
+	x.xxx_hidden_Fqdn = b.Fqdn
 	return m0
 }
 
@@ -4233,9 +4280,11 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x0fpss_salt_length\x18\x03 \x01(\x05H\x00R\rpssSaltLength\x88\x01\x01B\x12\n" +
 	"\x10_pss_salt_length\"2\n" +
 	"\x12SignForAppResponse\x12\x1c\n" +
-	"\tsignature\x18\x01 \x01(\fR\tsignature\"R\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"s\n" +
 	"\x19OnNewAppConnectionRequest\x125\n" +
-	"\aapp_key\x18\x01 \x01(\v2\x1c.teleport.lib.vnet.v1.AppKeyR\x06appKey\"\x1c\n" +
+	"\aapp_key\x18\x01 \x01(\v2\x1c.teleport.lib.vnet.v1.AppKeyR\x06appKey\x12\x1f\n" +
+	"\vpublic_addr\x18\x02 \x01(\tR\n" +
+	"publicAddr\"\x1c\n" +
 	"\x1aOnNewAppConnectionResponse\"v\n" +
 	"\x19OnInvalidLocalPortRequest\x128\n" +
 	"\bapp_info\x18\x01 \x01(\v2\x1d.teleport.lib.vnet.v1.AppInfoR\aappInfo\x12\x1f\n" +
@@ -4288,13 +4337,14 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"!PerformSessionMFACeremonyResponse\x12%\n" +
 	"\x0echallenge_name\x18\x01 \x01(\tR\rchallengeName\"Z\n" +
 	"\x0fMatchedDatabase\x12G\n" +
-	"\rdatabase_info\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.DatabaseInfoR\fdatabaseInfo\"\xf8\x01\n" +
+	"\rdatabase_info\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.DatabaseInfoR\fdatabaseInfo\"\x8c\x02\n" +
 	"\fDatabaseInfo\x12D\n" +
 	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x12\x18\n" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12\x1a\n" +
 	"\bprotocol\x18\x03 \x01(\tR\bprotocol\x12&\n" +
 	"\x0fipv4_cidr_range\x18\x04 \x01(\tR\ripv4CidrRange\x12D\n" +
-	"\fdial_options\x18\x05 \x01(\v2!.teleport.lib.vnet.v1.DialOptionsR\vdialOptions\"^\n" +
+	"\fdial_options\x18\x05 \x01(\v2!.teleport.lib.vnet.v1.DialOptionsR\vdialOptions\x12\x12\n" +
+	"\x04fqdn\x18\x06 \x01(\tR\x04fqdn\"^\n" +
 	"\vDatabaseKey\x12\x18\n" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\x12!\n" +
 	"\fleaf_cluster\x18\x02 \x01(\tR\vleafCluster\x12\x12\n" +
@@ -4307,9 +4357,10 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x125\n" +
 	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\"1\n" +
 	"\x11SignForDBResponse\x12\x1c\n" +
-	"\tsignature\x18\x01 \x01(\fR\tsignature\"`\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"t\n" +
 	"\x18OnNewDBConnectionRequest\x12D\n" +
-	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\"\x1b\n" +
+	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x12\x12\n" +
+	"\x04fqdn\x18\x02 \x01(\tR\x04fqdn\"\x1b\n" +
 	"\x19OnNewDBConnectionResponse*<\n" +
 	"\x04Hash\x12\x14\n" +
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +

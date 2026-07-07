@@ -23,6 +23,9 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { VnetService } from "./vnet_service_pb";
+import type { GetRecentConnectionsResponse } from "./vnet_service_pb";
+import type { GetRecentConnectionsRequest } from "./vnet_service_pb";
+import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
 import type { AutoConfigureSSHResponse } from "./vnet_service_pb";
 import type { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import type { RunDiagnosticsResponse } from "./vnet_service_pb";
@@ -92,6 +95,15 @@ export interface IVnetServiceClient {
      * @generated from protobuf rpc: AutoConfigureSSH(teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest) returns (teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse);
      */
     autoConfigureSSH(input: AutoConfigureSSHRequest, options?: RpcOptions): UnaryCall<AutoConfigureSSHRequest, AutoConfigureSSHResponse>;
+    /**
+     * GetRecentConnections streams the list of recent connections proxied by the
+     * running VNet service. The server sends the current list immediately and
+     * then a new list whenever it changes, until the stream is canceled or VNet
+     * stops. Requires VNet to be started.
+     *
+     * @generated from protobuf rpc: GetRecentConnections(teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse);
+     */
+    getRecentConnections(input: GetRecentConnectionsRequest, options?: RpcOptions): ServerStreamingCall<GetRecentConnectionsRequest, GetRecentConnectionsResponse>;
 }
 /**
  * VnetService provides methods to manage a VNet instance.
@@ -170,5 +182,17 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
     autoConfigureSSH(input: AutoConfigureSSHRequest, options?: RpcOptions): UnaryCall<AutoConfigureSSHRequest, AutoConfigureSSHResponse> {
         const method = this.methods[6], opt = this._transport.mergeOptions(options);
         return stackIntercept<AutoConfigureSSHRequest, AutoConfigureSSHResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * GetRecentConnections streams the list of recent connections proxied by the
+     * running VNet service. The server sends the current list immediately and
+     * then a new list whenever it changes, until the stream is canceled or VNet
+     * stops. Requires VNet to be started.
+     *
+     * @generated from protobuf rpc: GetRecentConnections(teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse);
+     */
+    getRecentConnections(input: GetRecentConnectionsRequest, options?: RpcOptions): ServerStreamingCall<GetRecentConnectionsRequest, GetRecentConnectionsResponse> {
+        const method = this.methods[7], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetRecentConnectionsRequest, GetRecentConnectionsResponse>("serverStreaming", this._transport, method, opt, input);
     }
 }

@@ -20,6 +20,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { GetRecentConnectionsResponse } from "./vnet_service_pb";
+import { GetRecentConnectionsRequest } from "./vnet_service_pb";
 import { AutoConfigureSSHResponse } from "./vnet_service_pb";
 import { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import { RunDiagnosticsResponse } from "./vnet_service_pb";
@@ -87,6 +89,15 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: AutoConfigureSSH(teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest) returns (teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse);
      */
     autoConfigureSSH: grpc.handleUnaryCall<AutoConfigureSSHRequest, AutoConfigureSSHResponse>;
+    /**
+     * GetRecentConnections streams the list of recent connections proxied by the
+     * running VNet service. The server sends the current list immediately and
+     * then a new list whenever it changes, until the stream is canceled or VNet
+     * stops. Requires VNet to be started.
+     *
+     * @generated from protobuf rpc: GetRecentConnections(teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse);
+     */
+    getRecentConnections: grpc.handleServerStreamingCall<GetRecentConnectionsRequest, GetRecentConnectionsResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.vnet.v1.VnetService.
@@ -169,5 +180,15 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         requestDeserialize: bytes => AutoConfigureSSHRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(AutoConfigureSSHResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(AutoConfigureSSHRequest.toBinary(value))
+    },
+    getRecentConnections: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetRecentConnections",
+        originalName: "GetRecentConnections",
+        requestStream: false,
+        responseStream: true,
+        responseDeserialize: bytes => GetRecentConnectionsResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetRecentConnectionsRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetRecentConnectionsResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetRecentConnectionsRequest.toBinary(value))
     }
 };

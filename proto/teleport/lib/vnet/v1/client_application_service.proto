@@ -292,6 +292,9 @@ message SignForAppResponse {
 message OnNewAppConnectionRequest {
   // AppKey identifies the app the connection is being made for.
   AppKey app_key = 1;
+  // PublicAddr is the public address of the app, used as its display address in
+  // the list of recent VNet connections.
+  string public_addr = 2;
 }
 
 // OnNewAppConnectionResponse is a response for OnNewAppConnection.
@@ -474,6 +477,8 @@ message DatabaseInfo {
   // DialOptions holds options that should be used when dialing the root cluster
   // of the database.
   DialOptions dial_options = 5;
+  // Fqdn is the fully-qualified domain name the database was resolved from.
+  string fqdn = 6;
 }
 
 // DatabaseKey uniquely identifies a database in a specific profile and cluster.
@@ -522,6 +527,9 @@ message SignForDBResponse {
 message OnNewDBConnectionRequest {
   // DatabaseKey identifies the database the connection is being made for.
   DatabaseKey database_key = 1;
+  // Fqdn is the fully-qualified domain name the database is reached at, used as
+  // its display address in the list of recent VNet connections.
+  string fqdn = 2;
 }
 
 // OnNewDBConnectionResponse is a response for OnNewDBConnection.

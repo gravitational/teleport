@@ -42,6 +42,7 @@ const (
 	VnetService_CheckInstallTimeRequirements_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/CheckInstallTimeRequirements"
 	VnetService_RunDiagnostics_FullMethodName               = "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics"
 	VnetService_AutoConfigureSSH_FullMethodName             = "/teleport.lib.teleterm.vnet.v1.VnetService/AutoConfigureSSH"
+	VnetService_GetRecentConnections_FullMethodName         = "/teleport.lib.teleterm.vnet.v1.VnetService/GetRecentConnections"
 )
 
 // VnetServiceClient is the client API for VnetService service.
@@ -68,6 +69,11 @@ type VnetServiceClient interface {
 	// AutoConfigureSSH automatically configures OpenSSH-compatible clients for
 	// connections to Teleport SSH hosts.
 	AutoConfigureSSH(ctx context.Context, in *AutoConfigureSSHRequest, opts ...grpc.CallOption) (*AutoConfigureSSHResponse, error)
+	// GetRecentConnections streams the list of recent connections proxied by the
+	// running VNet service. The server sends the current list immediately and
+	// then a new list whenever it changes, until the stream is canceled or VNet
+	// stops. Requires VNet to be started.
+	GetRecentConnections(ctx context.Context, in *GetRecentConnectionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetRecentConnectionsResponse], error)
 }
 
 type vnetServiceClient struct {
@@ -148,6 +154,25 @@ func (c *vnetServiceClient) AutoConfigureSSH(ctx context.Context, in *AutoConfig
 	return out, nil
 }
 
+func (c *vnetServiceClient) GetRecentConnections(ctx context.Context, in *GetRecentConnectionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetRecentConnectionsResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &VnetService_ServiceDesc.Streams[0], VnetService_GetRecentConnections_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[GetRecentConnectionsRequest, GetRecentConnectionsResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type VnetService_GetRecentConnectionsClient = grpc.ServerStreamingClient[GetRecentConnectionsResponse]
+
 // VnetServiceServer is the server API for VnetService service.
 // All implementations must embed UnimplementedVnetServiceServer
 // for forward compatibility.
@@ -172,6 +197,11 @@ type VnetServiceServer interface {
 	// AutoConfigureSSH automatically configures OpenSSH-compatible clients for
 	// connections to Teleport SSH hosts.
 	AutoConfigureSSH(context.Context, *AutoConfigureSSHRequest) (*AutoConfigureSSHResponse, error)
+	// GetRecentConnections streams the list of recent connections proxied by the
+	// running VNet service. The server sends the current list immediately and
+	// then a new list whenever it changes, until the stream is canceled or VNet
+	// stops. Requires VNet to be started.
+	GetRecentConnections(*GetRecentConnectionsRequest, grpc.ServerStreamingServer[GetRecentConnectionsResponse]) error
 	mustEmbedUnimplementedVnetServiceServer()
 }
 
@@ -202,6 +232,9 @@ func (UnimplementedVnetServiceServer) RunDiagnostics(context.Context, *RunDiagno
 }
 func (UnimplementedVnetServiceServer) AutoConfigureSSH(context.Context, *AutoConfigureSSHRequest) (*AutoConfigureSSHResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AutoConfigureSSH not implemented")
+}
+func (UnimplementedVnetServiceServer) GetRecentConnections(*GetRecentConnectionsRequest, grpc.ServerStreamingServer[GetRecentConnectionsResponse]) error {
+	return status.Error(codes.Unimplemented, "method GetRecentConnections not implemented")
 }
 func (UnimplementedVnetServiceServer) mustEmbedUnimplementedVnetServiceServer() {}
 func (UnimplementedVnetServiceServer) testEmbeddedByValue()                     {}
@@ -350,6 +383,17 @@ func _VnetService_AutoConfigureSSH_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VnetService_GetRecentConnections_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetRecentConnectionsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(VnetServiceServer).GetRecentConnections(m, &grpc.GenericServerStream[GetRecentConnectionsRequest, GetRecentConnectionsResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type VnetService_GetRecentConnectionsServer = grpc.ServerStreamingServer[GetRecentConnectionsResponse]
+
 // VnetService_ServiceDesc is the grpc.ServiceDesc for VnetService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -386,6 +430,12 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _VnetService_AutoConfigureSSH_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "GetRecentConnections",
+			Handler:       _VnetService_GetRecentConnections_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "teleport/lib/teleterm/vnet/v1/vnet_service.proto",
 }

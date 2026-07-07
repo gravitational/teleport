@@ -18,6 +18,7 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.vnet.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/lib/vnet/diag/v1/diag.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1";
@@ -48,6 +49,12 @@ service VnetService {
   // AutoConfigureSSH automatically configures OpenSSH-compatible clients for
   // connections to Teleport SSH hosts.
   rpc AutoConfigureSSH(AutoConfigureSSHRequest) returns (AutoConfigureSSHResponse);
+
+  // GetRecentConnections streams the list of recent connections proxied by the
+  // running VNet service. The server sends the current list immediately and
+  // then a new list whenever it changes, until the stream is canceled or VNet
+  // stops. Requires VNet to be started.
+  rpc GetRecentConnections(GetRecentConnectionsRequest) returns (stream GetRecentConnectionsResponse);
 }
 
 // Request for Start.
@@ -133,3 +140,37 @@ message AutoConfigureSSHRequest {}
 
 // Response for AutoConfigureSSH.
 message AutoConfigureSSHResponse {}
+
+// Request for GetRecentConnections.
+message GetRecentConnectionsRequest {}
+
+// Response for GetRecentConnections, containing the full list of recent
+// connections deduplicated per target and ordered most-recently-connected
+// first.
+message GetRecentConnectionsResponse {
+  repeated RecentConnection connections = 1;
+}
+
+// RecentConnectionKind is the kind of target a recent connection was made to.
+enum RecentConnectionKind {
+  RECENT_CONNECTION_KIND_UNSPECIFIED = 0;
+  RECENT_CONNECTION_KIND_APP = 1;
+  RECENT_CONNECTION_KIND_SSH = 2;
+  RECENT_CONNECTION_KIND_DATABASE = 3;
+}
+
+// RecentConnection describes a single target recently connected to through VNet.
+message RecentConnection {
+  // kind is the kind of the target (TCP app, SSH host, or database).
+  RecentConnectionKind kind = 1;
+  // cluster is the profile (root cluster) the target is found in.
+  string cluster = 2;
+  // leaf_cluster is the leaf cluster the target is found in. Empty if the target
+  // is in the root cluster.
+  string leaf_cluster = 3;
+  // display_name is the address shown to the user, e.g. the app public address,
+  // the database FQDN, or the SSH host address.
+  string display_name = 4;
+  // last_connected is the time of the most recent connection to the target.
+  google.protobuf.Timestamp last_connected = 5;
+}

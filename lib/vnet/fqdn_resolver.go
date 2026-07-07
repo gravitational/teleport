@@ -450,6 +450,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		Protocol:      protocol,
 		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
 		DialOptions:   dialOpts,
+		Fqdn:          fqdn,
 	}.Build()
 	return vnetv1.ResolveFQDNResponse_builder{
 		MatchedDatabase: vnetv1.MatchedDatabase_builder{
