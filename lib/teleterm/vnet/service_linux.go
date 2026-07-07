@@ -20,9 +20,9 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
-func (s *Service) platformRouteConflictDiag() (diag.DiagCheck, error) {
+func (s *Service) platformRouteConflictDiag(vnetIfaceName string) (diag.DiagCheck, error) {
 	return diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
-		VnetIfaceName: s.networkStackInfo.GetInterfaceName(),
+		VnetIfaceName: vnetIfaceName,
 		Routing:       &diag.LinuxRouting{},
 		Interfaces:    &diag.NetInterfaces{},
 	})

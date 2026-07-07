@@ -269,22 +269,28 @@ func (s *Service) GetServiceInfo(ctx context.Context, _ *api.GetServiceInfoReque
 // on the device. It requires VNet to be started.
 func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsRequest) (*api.RunDiagnosticsResponse, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if s.status != statusRunning {
+		s.mu.Unlock()
 		return nil, trace.CompareFailed("VNet is not running")
 	}
+	// Capture the state the checks need, then release the lock before running
+	// them. The checks perform network I/O (for example, building cluster
+	// clients, which can block on an unresponsive SSH agent); holding s.mu
+	// across them would wedge every other VNet RPC behind this call.
+	networkStackInfo := s.networkStackInfo
+	vnetProcess := s.vnetProcess
+	s.mu.Unlock()
 
-	if s.networkStackInfo.GetInterfaceName() == "" {
+	if networkStackInfo.GetInterfaceName() == "" {
 		return nil, trace.BadParameter("no interface name, this is a bug")
 	}
 
-	if s.networkStackInfo.GetIpv6Prefix() == "" {
+	if networkStackInfo.GetIpv6Prefix() == "" {
 		return nil, trace.BadParameter("no IPv6 prefix, this is a bug")
 	}
 
 	nsa := &diagv1.NetworkStackAttempt{}
-	if ns, err := s.getNetworkStack(ctx); err != nil {
+	if ns, err := getNetworkStack(ctx, vnetProcess, networkStackInfo); err != nil {
 		nsa.SetStatus(diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR)
 		nsa.SetError(err.Error())
 	} else {
@@ -295,7 +301,7 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 	var diagChecks []diag.DiagCheck
 
 	//nolint:staticcheck // SA4023. routeConflictDiag may be nil on unsupported platforms (see service_other.go).
-	routeConflictDiag, err := s.platformRouteConflictDiag()
+	routeConflictDiag, err := s.platformRouteConflictDiag(networkStackInfo.GetInterfaceName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -320,7 +326,7 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 	}
 	diagChecks = append(diagChecks, sshDiag)
 
-	// TODO(tangyatsu): release s.mu before diag checks and cancel them on Stop.
+	// TODO(tangyatsu): cancel diagnostic checks when VNet stops.
 	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
 		Clock:               s.cfg.Clock,
 		NetworkStackAttempt: nsa,
@@ -365,14 +371,14 @@ func (s *Service) dnsDiag(ns *diagv1.NetworkStack) (diag.DiagCheck, error) {
 	return dnsDiag, trace.Wrap(err, "constructing DNS diag check")
 }
 
-func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, error) {
-	unifiedClusterConfig, err := s.vnetProcess.GetUnifiedClusterConfigProvider().GetUnifiedClusterConfig(ctx)
+func getNetworkStack(ctx context.Context, vnetProcess *vnet.UserProcess, networkStackInfo *vnetv1.NetworkStackInfo) (*diagv1.NetworkStack, error) {
+	unifiedClusterConfig, err := vnetProcess.GetUnifiedClusterConfigProvider().GetUnifiedClusterConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return diagv1.NetworkStack_builder{
-		InterfaceName:  s.networkStackInfo.GetInterfaceName(),
-		Ipv6Prefix:     s.networkStackInfo.GetIpv6Prefix(),
+		InterfaceName:  networkStackInfo.GetInterfaceName(),
+		Ipv6Prefix:     networkStackInfo.GetIpv6Prefix(),
 		Ipv4CidrRanges: unifiedClusterConfig.IPv4CidrRanges,
 		DnsZones:       unifiedClusterConfig.AllDNSZones(),
 	}.Build(), nil

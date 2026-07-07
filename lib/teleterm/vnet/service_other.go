@@ -22,6 +22,6 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
-func (s *Service) platformRouteConflictDiag() (diag.DiagCheck, error) {
+func (s *Service) platformRouteConflictDiag(vnetIfaceName string) (diag.DiagCheck, error) {
 	return nil, nil
 }
