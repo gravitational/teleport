@@ -41,7 +41,7 @@ test('correct formatting of apps fetch response', async () => {
         fqdn: 'app-name.example.com',
         friendlyName: '',
         launchUrl:
-          '/web/launch/app-name.example.com/cluster-id/app-name.example.com',
+          '/web/launch/app-name.example.com/cluster-id/app-name.example.com?app_name=app-name',
         awsRoles: [],
         awsConsole: false,
         isCloud: false,
@@ -215,7 +215,8 @@ test('correct formatting of apps fetch response', async () => {
         clusterId: 'cluster-id',
         fqdn: 'app-with-other-proxy-addr.localhost',
         friendlyName: '',
-        launchUrl: '/web/launch/app-with-other-proxy-addr.localhost',
+        launchUrl:
+          '/web/launch/app-with-other-proxy-addr.localhost?app_name=app-with-other-proxy-addr',
         awsRoles: [],
         awsConsole: false,
         isCloud: false,

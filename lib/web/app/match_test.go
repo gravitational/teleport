@@ -154,17 +154,17 @@ func TestPickAppServer(t *testing.T) {
 
 	t.Run("prefers the accessible app", func(t *testing.T) {
 		for range 100 {
-			require.Equal(t, "dup-app-1", pickAppServer(servers, onlyApp1).GetApp().GetName())
+			require.Equal(t, "dup-app-1", PickAppServer(servers, onlyApp1).GetApp().GetName())
 		}
 	})
 
 	t.Run("nil filter picks among all (legacy behavior)", func(t *testing.T) {
-		got := pickAppServer(servers, nil)
+		got := PickAppServer(servers, nil)
 		require.Contains(t, []string{"dup-app-1", "dup-app-2"}, got.GetApp().GetName())
 	})
 
 	t.Run("no accessible match falls back to all", func(t *testing.T) {
-		got := pickAppServer(servers, none)
+		got := PickAppServer(servers, none)
 		require.NotNil(t, got)
 		require.Contains(t, []string{"dup-app-1", "dup-app-2"}, got.GetApp().GetName())
 	})

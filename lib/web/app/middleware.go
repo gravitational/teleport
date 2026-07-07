@@ -180,6 +180,10 @@ type launcherURLParams struct {
 	publicAddr string
 	// arn is the AWS role name, defined only when accessing AWS management console.
 	arn string
+	// appName is the name of this application. It disambiguates apps that share a
+	// public address so the session is pinned to the app the user selected, rather
+	// than resolved at random.
+	appName string
 	// stateToken if defined means initiating an app access auth exchange.
 	stateToken string
 	// path is the application URL path.

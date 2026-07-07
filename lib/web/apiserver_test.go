@@ -5154,6 +5154,77 @@ func (l *listenerAddrOverride) Accept() (net.Conn, error) {
 	return &connRemoteAddrOverride{Conn: conn}, nil
 }
 
+func TestCreateAppSessionRBACAwareWebUI(t *testing.T) {
+	s := newWebSuite(t)
+
+	const sharedPublicAddr = "dup.example.com"
+
+	for _, appName := range []string{"dup-app-1", "dup-app-2"} {
+		a, err := types.NewAppV3(
+			types.Metadata{
+				Name:   appName,
+				Labels: map[string]string{"app_name": appName},
+			},
+			types.AppSpecV3{
+				URI:        "http://127.0.0.1:8080",
+				PublicAddr: sharedPublicAddr,
+			})
+		require.NoError(t, err)
+
+		server, err := types.NewAppServerV3FromApp(a, "host-"+appName, uuid.New().String())
+		require.NoError(t, err)
+
+		_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+		require.NoError(t, err)
+	}
+
+	// The default user role grants wildcard app access, so deny dup-app-2 to
+	// ensure the user can reach dup-app-1 but not dup-app-2.
+	denyRole, err := types.NewRole("deny-dup-app-2-by-cluster", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			AppLabels: types.Labels{"app_name": []string{"dup-app-2"}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertRole(s.ctx, denyRole)
+	require.NoError(t, err)
+
+	pack := s.authPack(t, "bar@example.com", denyRole.GetName())
+
+	// The web launcher used to send cluster name + public address (but no app name).
+	// When multiple apps share a public address, the session must be pinned to the app
+	// the user can access.
+	//
+	// Note: The web launcher does attach the app name nowadays, but this test serves
+	// as a helpful check for both regressions and backwards compatibility.
+	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+	for range 20 {
+		resp, err := pack.clt.PostJSON(s.ctx, endpoint, &CreateAppSessionRequest{
+			ResolveAppParams: ResolveAppParams{
+				ClusterName: s.server.ClusterName(),
+				PublicAddr:  sharedPublicAddr,
+			},
+		})
+		require.NoError(t, err)
+
+		var response CreateAppSessionResponse
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &response))
+
+		sess, err := s.server.Auth().GetAppSession(s.ctx, types.GetAppSessionRequest{
+			SessionID: response.CookieValue,
+		})
+		require.NoError(t, err)
+
+		certificate, err := tlsca.ParseCertificatePEM(sess.GetTLSCert())
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+		require.NoError(t, err)
+
+		require.Equal(t, "dup-app-1", identity.RouteToApp.Name)
+		require.Equal(t, sharedPublicAddr, identity.RouteToApp.PublicAddr)
+	}
+}
+
 // TODO(tross): move this functionality into modulestest.Modules
 // once modulestest.SetTestModules is removed.
 type safeModules struct {

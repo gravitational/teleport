@@ -24,7 +24,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -250,10 +249,13 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
 	switch {
 	case params.ClusterName != "" && (params.AppName != "" || params.PublicAddr != ""):
-		server, appClusterName, err = h.resolveAppForCluster(ctx, proxy, params.AppName, params.PublicAddr, params.ClusterName)
+		// Multiple apps can have the same public address, so filter based
+		// on those the user has access to.
+		var canAccess func(types.Application) bool
+		if canAccess, err = h.userAppAccessFilter(ctx, scx); err == nil {
+			server, appClusterName, err = h.resolveAppForCluster(ctx, proxy, params.AppName, params.PublicAddr, params.ClusterName, canAccess)
+		}
 	case params.FQDNHint != "":
-		// Multiple apps can have the same FQDN - prefer those the user
-		// can actually access.
 		var canAccess func(types.Application) bool
 		if canAccess, err = h.userAppAccessFilter(ctx, scx); err == nil {
 			server, appClusterName, err = app.ResolveFQDN(ctx, proxy, h.auth.clusterName, h.proxyDNSNames(), params.FQDNHint, canAccess)
@@ -310,6 +312,7 @@ func (h *Handler) resolveAppForCluster(
 	ctx context.Context,
 	clusterGetter reversetunnelclient.ClusterGetter,
 	appName, publicAddr, clusterName string,
+	canAccess func(types.Application) bool,
 ) (types.AppServer, string, error) {
 	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
@@ -325,7 +328,7 @@ func (h *Handler) resolveAppForCluster(
 		return nil, "", trace.NotFound("failed to match applications with addr %s and name %q", publicAddr, appName)
 	}
 
-	return servers[rand.N(len(servers))], clusterName, nil
+	return app.PickAppServer(servers, canAccess), clusterName, nil
 }
 
 // proxyDNSName is a DNS name the HTTP proxy is available at, where

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
 
 import { Flex, Indicator } from 'design';
@@ -142,6 +142,7 @@ export function AppLauncher({
             path,
             params,
             requiredApps,
+            appName: queryParams.get('app_name') || undefined,
           });
           // Pass the fragment to the second leg via the URL hash
           // so it stays client-side. Skip on a required-apps chain
@@ -168,6 +169,8 @@ export function AppLauncher({
           fqdn: params.fqdn,
           cluster_name: params.clusterId,
           public_addr: params.publicAddr,
+          // When the param is absent, return undefined, not the null that get() returns.
+          app_name: queryParams.get('app_name') || undefined,
           arn: params.arn,
           mfaResponse: await mfa.getChallengeResponse(),
         };
@@ -306,6 +309,7 @@ function getNewAuthExchangeUrl({
   params,
   path,
   requiredApps,
+  appName,
 }: {
   fqdn: string;
   port: string;
@@ -323,6 +327,7 @@ function getNewAuthExchangeUrl({
   // only builds the path and query parts.
   path: string;
   requiredApps: string[];
+  appName?: string;
 }) {
   const url = getXTeleportAuthUrl({ fqdn, port });
 
@@ -349,6 +354,9 @@ function getNewAuthExchangeUrl({
   }
   if (params.arn) {
     url.searchParams.set('arn', params.arn);
+  }
+  if (appName) {
+    url.searchParams.set('app_name', appName);
   }
 
   return url;
