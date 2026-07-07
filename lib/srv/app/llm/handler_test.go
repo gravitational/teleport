@@ -60,7 +60,7 @@ func TestHandleRequest(t *testing.T) {
 	}{
 		"success request": {
 			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
+				return func(_ types.Application, _ *http.Request) (*http.Request, RequestInfo, error) {
 					req, err := http.NewRequest(http.MethodPost, s.URL, nil)
 					if err != nil {
 						return nil, nil, trace.Wrap(err)
@@ -95,7 +95,7 @@ func TestHandleRequest(t *testing.T) {
 		},
 		"new request error": {
 			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
+				return func(_ types.Application, _ *http.Request) (*http.Request, RequestInfo, error) {
 					return nil, nil, trace.BadParameter("invalid request")
 				}
 			},
@@ -117,7 +117,7 @@ func TestHandleRequest(t *testing.T) {
 		},
 		"new request error with partial info": {
 			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
+				return func(_ types.Application, _ *http.Request) (*http.Request, RequestInfo, error) {
 					return nil, &mockRequestInfo{
 						requestedModel: "requested",
 						providerModel:  "provider",
@@ -142,7 +142,7 @@ func TestHandleRequest(t *testing.T) {
 		},
 		"successful request with recorder error": {
 			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
+				return func(_ types.Application, _ *http.Request) (*http.Request, RequestInfo, error) {
 					req, err := http.NewRequest(http.MethodPost, s.URL, nil)
 					if err != nil {
 						return nil, nil, trace.Wrap(err)
@@ -176,7 +176,7 @@ func TestHandleRequest(t *testing.T) {
 		// This case covers scenarios where upstream is not reachable.
 		"upstream forward error": {
 			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
+				return func(_ types.Application, _ *http.Request) (*http.Request, RequestInfo, error) {
 					req, err := http.NewRequest(http.MethodPost, s.URL, nil)
 					if err != nil {
 						return nil, nil, trace.Wrap(err)

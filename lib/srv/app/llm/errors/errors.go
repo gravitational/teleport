@@ -39,6 +39,8 @@ var (
 	ErrUnsupported = errors.New("teleport doesn't support the requested endpoint, please check the list of supported endpoints in the documentation")
 	// ErrBadResponse returned when the provider replied the request with an unsupported message or format.
 	ErrBadResponse = errors.New("the inference provider returned an unexpected response. Contact your Teleport administrator")
+	// ErrConfig returned when the app or app service are misconfigured, requiring admin intervention.
+	ErrConfig = errors.New("unable to serve request due to an app configuration error. Contact your Teleport administrator")
 	// ErrUnknown returned when the handler could not identify the error.
 	ErrUnknown = errors.New("the inference provider returned an unexpected error. Contact your Teleport administrator")
 )
