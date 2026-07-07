@@ -35,10 +35,14 @@ type searchRequest struct {
 	ResourceName     string            `json:"resourceName,omitempty"`
 	ResourceLabels   map[string]string `json:"resourceLabels,omitempty"`
 	Severity         string            `json:"severity,omitempty"`
-	SearchQueries    []string          `json:"searchQueries,omitempty"`
-	MaxResults       uint32            `json:"maxResults,omitempty"`
-	BatchToken       string            `json:"batchToken,omitempty"`
-	SearchMode       string            `json:"searchMode,omitempty"`
+	// NeedsFurtherReviewReasons restricts results to sessions flagged as needing
+	// further review for at least one of the given reasons, as web UI tokens
+	// (e.g. "too_large"). Empty or unknown tokens are ignored.
+	NeedsFurtherReviewReasons []string `json:"needsFurtherReviewReasons,omitempty"`
+	SearchQueries             []string `json:"searchQueries,omitempty"`
+	MaxResults                uint32   `json:"maxResults,omitempty"`
+	BatchToken                string   `json:"batchToken,omitempty"`
+	SearchMode                string   `json:"searchMode,omitempty"`
 }
 
 // toProto converts the inbound JSON request into the gRPC request message.
@@ -79,7 +83,25 @@ func (req searchRequest) toProto() (*sessionsearchv1.SearchSessionSummariesReque
 	if sev := sessionsearch.SeverityFromString(req.Severity); sev != summarizerv1.RiskLevel_RISK_LEVEL_UNSPECIFIED {
 		b.Severity = &sev
 	}
+	if reasons := needsFurtherReviewReasonsFromStrings(req.NeedsFurtherReviewReasons); len(reasons) > 0 {
+		b.FilterNeedsFurtherReviewReasons = reasons
+	}
 	return b.Build(), nil
+}
+
+// needsFurtherReviewReasonsFromStrings converts web UI needs-further-review
+// tokens into their proto enums, dropping any that are empty or unknown.
+func needsFurtherReviewReasonsFromStrings(tokens []string) []summarizerv1.NeedsReviewReason {
+	if len(tokens) == 0 {
+		return nil
+	}
+	reasons := make([]summarizerv1.NeedsReviewReason, 0, len(tokens))
+	for _, t := range tokens {
+		if r := sessionsearch.NeedsReviewReasonFromString(t); r != summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED {
+			reasons = append(reasons, r)
+		}
+	}
+	return reasons
 }
 
 // Search modes as accepted from the web UI. These are short, meaningful tokens

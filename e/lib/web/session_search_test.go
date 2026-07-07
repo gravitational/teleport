@@ -33,20 +33,21 @@ func TestSearchRequestToProto(t *testing.T) {
 		{
 			name: "all fields",
 			req: searchRequest{
-				StartTime:        "2026-01-01T00:00:00Z",
-				EndTime:          "2026-01-02T00:00:00Z",
-				Kinds:            []string{"ssh"},
-				Username:         "alice",
-				UserRoles:        []string{"dev"},
-				AccessRequestIDs: []string{"req-1"},
-				ResourceKind:     "node",
-				ResourceName:     "host-1",
-				ResourceLabels:   map[string]string{"env": "prod"},
-				Severity:         "high",
-				SearchQueries:    []string{"rm -rf"},
-				MaxResults:       50,
-				BatchToken:       "tok",
-				SearchMode:       "keyword",
+				StartTime:                 "2026-01-01T00:00:00Z",
+				EndTime:                   "2026-01-02T00:00:00Z",
+				Kinds:                     []string{"ssh"},
+				Username:                  "alice",
+				UserRoles:                 []string{"dev"},
+				AccessRequestIDs:          []string{"req-1"},
+				ResourceKind:              "node",
+				ResourceName:              "host-1",
+				ResourceLabels:            map[string]string{"env": "prod"},
+				Severity:                  "high",
+				NeedsFurtherReviewReasons: []string{"too_large", "garbage", "classifier_matched"},
+				SearchQueries:             []string{"rm -rf"},
+				MaxResults:                50,
+				BatchToken:                "tok",
+				SearchMode:                "keyword",
 			},
 			assert: func(t *testing.T, got *sessionsearchv1.SearchSessionSummariesRequest) {
 				require.Equal(t, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), got.GetStartTime().AsTime())
@@ -59,6 +60,11 @@ func TestSearchRequestToProto(t *testing.T) {
 				require.Equal(t, "host-1", got.GetResourceName())
 				require.Equal(t, map[string]string{"env": "prod"}, got.GetResourceLabels())
 				require.Equal(t, summarizerv1.RiskLevel_RISK_LEVEL_HIGH, got.GetSeverity())
+				// Unknown tokens ("garbage") are dropped.
+				require.Equal(t, []summarizerv1.NeedsReviewReason{
+					summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+					summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED,
+				}, got.GetFilterNeedsFurtherReviewReasons())
 				require.Equal(t, []string{"rm -rf"}, got.GetSearchQueries())
 				require.Equal(t, uint32(50), got.GetMaxResults())
 				require.Equal(t, "tok", got.GetBatchToken())
@@ -76,6 +82,7 @@ func TestSearchRequestToProto(t *testing.T) {
 				require.Empty(t, got.GetResourceKind())
 				require.Empty(t, got.GetResourceName())
 				require.Equal(t, summarizerv1.RiskLevel_RISK_LEVEL_UNSPECIFIED, got.GetSeverity())
+				require.Empty(t, got.GetFilterNeedsFurtherReviewReasons())
 				require.Equal(t, sessionsearchv1.SearchMode_SEARCH_MODE_UNSPECIFIED, got.GetSearchMode())
 			},
 		},

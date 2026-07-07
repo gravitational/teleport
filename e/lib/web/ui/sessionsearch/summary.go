@@ -3,6 +3,7 @@
 package sessionsearch
 
 import (
+	"fmt"
 	"time"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -57,6 +58,67 @@ func SeverityFromString(s string) summarizerv1.RiskLevel {
 	}
 }
 
+// Needs-further-review reasons as exposed to the web UI. These are short,
+// lowercase tokens rather than the raw proto enum names (e.g. "too_large" not
+// "NEEDS_REVIEW_REASON_TOO_LARGE"). An unspecified reason maps to the empty
+// string so it is omitted from the JSON response.
+const (
+	NeedsReviewReasonTooLarge                      = "too_large"
+	NeedsReviewReasonCommandAnalysisFailed         = "command_analysis_failed"
+	NeedsReviewReasonFailedToFetchAccessRequest    = "failed_to_fetch_access_request"
+	NeedsReviewReasonAccessRequestResourceMismatch = "access_request_resource_mismatch"
+	NeedsReviewReasonOutputNotFullyCaptured        = "output_not_fully_captured"
+	NeedsReviewReasonClassifierMatched             = "classifier_matched"
+)
+
+// NeedsReviewReasonString converts a NeedsReviewReason proto enum into its web
+// UI token. An unspecified reason (the zero value) returns the empty string so
+// it is dropped from results. A reason that has no known token — e.g. one added
+// to the proto after this code was built — returns an "unknown(<value>)"
+// placeholder so it is still surfaced rather than silently swallowed.
+func NeedsReviewReasonString(reason summarizerv1.NeedsReviewReason) string {
+	switch reason {
+	case summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED:
+		return ""
+	case summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE:
+		return NeedsReviewReasonTooLarge
+	case summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED:
+		return NeedsReviewReasonCommandAnalysisFailed
+	case summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST:
+		return NeedsReviewReasonFailedToFetchAccessRequest
+	case summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH:
+		return NeedsReviewReasonAccessRequestResourceMismatch
+	case summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED:
+		return NeedsReviewReasonOutputNotFullyCaptured
+	case summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED:
+		return NeedsReviewReasonClassifierMatched
+	default:
+		return fmt.Sprintf("unknown(%s)", reason)
+	}
+}
+
+// NeedsReviewReasonFromString converts a web UI needs-further-review token into
+// its NeedsReviewReason proto enum. Empty or unknown tokens return
+// NEEDS_REVIEW_REASON_UNSPECIFIED.
+func NeedsReviewReasonFromString(s string) summarizerv1.NeedsReviewReason {
+	switch s {
+	case NeedsReviewReasonTooLarge:
+		return summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE
+	case NeedsReviewReasonCommandAnalysisFailed:
+		return summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED
+	case NeedsReviewReasonFailedToFetchAccessRequest:
+		return summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST
+	case NeedsReviewReasonAccessRequestResourceMismatch:
+		return summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH
+	case NeedsReviewReasonOutputNotFullyCaptured:
+		return summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED
+	case NeedsReviewReasonClassifierMatched:
+		return summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED
+	default:
+		return summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED
+	}
+}
+
 // SessionSummary is the web API representation of a single session search result.
 type SessionSummary struct {
 	SessionID          string              `json:"sessionId"`
@@ -75,6 +137,10 @@ type SessionSummary struct {
 	ResourceProperties *ResourceProperties `json:"resourceProperties,omitempty"`
 	Severity           string              `json:"severity,omitempty"`
 	HostID             string              `json:"hostId,omitempty"`
+	// NeedsFurtherReviewReasons lists the reasons this session was flagged as
+	// needing further review, as web UI tokens (e.g. "too_large"). Empty when
+	// the session does not need further review.
+	NeedsFurtherReviewReasons []string `json:"needsFurtherReviewReasons,omitempty"`
 }
 
 // ResourceProperties holds session-kind-specific properties.
@@ -135,7 +201,25 @@ func MakeSessionSummary(s *sessionsearchv1.SessionSummary) SessionSummary {
 		ResourceProperties: makeResourceProperties(s.GetResourceProperties()),
 		Severity:           SeverityString(s.GetSeverity()),
 		HostID:             s.GetHostId(),
+
+		NeedsFurtherReviewReasons: makeNeedsFurtherReviewReasons(s.GetNeedsFurtherReviewReasons()),
 	}
+}
+
+// makeNeedsFurtherReviewReasons converts NeedsReviewReason proto enums into
+// their web UI tokens, dropping any that are unspecified. Reasons with no known
+// token are surfaced as "unknown(<value>)" placeholders by NeedsReviewReasonString.
+func makeNeedsFurtherReviewReasons(reasons []summarizerv1.NeedsReviewReason) []string {
+	if len(reasons) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(reasons))
+	for _, r := range reasons {
+		if s := NeedsReviewReasonString(r); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func makeResourceProperties(p *sessionsearchv1.ResourceProperties) *ResourceProperties {

@@ -1,6 +1,7 @@
 package sessionsearch
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -42,6 +43,10 @@ func TestMakeSessionSummary(t *testing.T) {
 				ResourceName:     "host-1",
 				Severity:         summarizerv1.RiskLevel_RISK_LEVEL_HIGH,
 				HostId:           "host-id-1",
+				NeedsFurtherReviewReasons: []summarizerv1.NeedsReviewReason{
+					summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+					summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED,
+				},
 				ResourceProperties: sessionsearchv1.ResourceProperties_builder{
 					Ssh: sessionsearchv1.SSHProperties_builder{
 						ServerHostname: proto.String("host-1"),
@@ -65,6 +70,7 @@ func TestMakeSessionSummary(t *testing.T) {
 				require.Equal(t, "host-1", got.ResourceName)
 				require.Equal(t, "high", got.Severity)
 				require.Equal(t, "host-id-1", got.HostID)
+				require.Equal(t, []string{"too_large", "classifier_matched"}, got.NeedsFurtherReviewReasons)
 				require.NotNil(t, got.ResourceProperties)
 				require.NotNil(t, got.ResourceProperties.SSH)
 				require.Equal(t, "host-1", got.ResourceProperties.SSH.ServerHostname)
@@ -82,6 +88,7 @@ func TestMakeSessionSummary(t *testing.T) {
 				require.Nil(t, got.SessionEnd)
 				require.Nil(t, got.UserTraits)
 				require.Nil(t, got.ResourceProperties)
+				require.Nil(t, got.NeedsFurtherReviewReasons)
 			},
 		},
 	}
@@ -127,6 +134,56 @@ func TestSeverity(t *testing.T) {
 			summarizerv1.RiskLevel_RISK_LEVEL_CRITICAL,
 		} {
 			require.Equal(t, level, SeverityFromString(SeverityString(level)))
+		}
+	})
+}
+
+func TestNeedsReviewReason(t *testing.T) {
+	t.Run("NeedsReviewReasonString", func(t *testing.T) {
+		cases := map[summarizerv1.NeedsReviewReason]string{
+			summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE:                        "too_large",
+			summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED:          "command_analysis_failed",
+			summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST:   "failed_to_fetch_access_request",
+			summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH: "access_request_resource_mismatch",
+			summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED:        "output_not_fully_captured",
+			summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED:               "classifier_matched",
+			summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED:                      "",
+			// A value with no known token surfaces as an "unknown(<value>)"
+			// placeholder rather than being dropped.
+			summarizerv1.NeedsReviewReason(9999): "unknown(9999)",
+		}
+		for in, want := range cases {
+			require.Equal(t, want, NeedsReviewReasonString(in))
+		}
+	})
+
+	t.Run("NeedsReviewReasonFromString", func(t *testing.T) {
+		cases := map[string]summarizerv1.NeedsReviewReason{
+			"too_large":          summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+			"classifier_matched": summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED,
+			"":                   summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED,
+			"garbage":            summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED,
+		}
+		for in, want := range cases {
+			require.Equal(t, want, NeedsReviewReasonFromString(in))
+		}
+	})
+
+	// Exhaustive walks every value the proto enum defines so that adding a new
+	// NeedsReviewReason without a corresponding web UI token fails this test:
+	// such a value would fall through to the "unknown(<value>)" placeholder and
+	// would not round-trip back to itself.
+	t.Run("Exhaustive", func(t *testing.T) {
+		for value, name := range summarizerv1.NeedsReviewReason_name {
+			reason := summarizerv1.NeedsReviewReason(value)
+			if reason == summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED {
+				continue
+			}
+			token := NeedsReviewReasonString(reason)
+			require.False(t, strings.HasPrefix(token, "unknown("),
+				"proto enum %s has no web UI token (got placeholder %q)", name, token)
+			require.Equal(t, reason, NeedsReviewReasonFromString(token),
+				"token %q does not round-trip back to proto enum %s", token, name)
 		}
 	})
 }
