@@ -430,12 +430,15 @@ func (s *Service) stopLocked() error {
 	}
 
 	s.vnetProcess.Close()
+	// Always close the recent connections session so subscribed streams
+	// disconnect, even if the process fails to shut down cleanly below.
+	defer s.recentConnections.CloseSession()
+
 	err := s.vnetProcess.Wait()
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return trace.Wrap(err)
 	}
 	s.usageReporter.Stop()
-	s.recentConnections.CloseSession()
 
 	s.status = statusNotRunning
 	return nil
