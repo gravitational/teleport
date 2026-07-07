@@ -36,6 +36,26 @@ func CredentialAssertionV2ToV1(v2 *webauthnv2.CredentialAssertion) *CredentialAs
 	}
 }
 
+// CredentialAssertionV1ToV2 converts a v1 CredentialAssertion to v2.
+func CredentialAssertionV1ToV2(v1 *CredentialAssertion) *webauthnv2.CredentialAssertion {
+	if v1 == nil {
+		return nil
+	}
+
+	pubKey := v1.GetPublicKey()
+
+	return webauthnv2.CredentialAssertion_builder{
+		PublicKey: webauthnv2.PublicKeyCredentialRequestOptions_builder{
+			Challenge:        pubKey.GetChallenge(),
+			TimeoutMs:        pubKey.GetTimeoutMs(),
+			RpId:             pubKey.GetRpId(),
+			AllowCredentials: credentialDescriptorsV1ToV2(pubKey.GetAllowCredentials()),
+			UserVerification: pubKey.GetUserVerification(),
+			Extensions:       inputExtensionsV1ToV2(pubKey.GetExtensions()),
+		}.Build(),
+	}.Build()
+}
+
 // CredentialAssertionResponseV1ToV2 converts a v1 CredentialAssertionResponse to v2.
 func CredentialAssertionResponseV1ToV2(v1 *CredentialAssertionResponse) *webauthnv2.CredentialAssertionResponse {
 	if v1 == nil {
@@ -57,6 +77,27 @@ func CredentialAssertionResponseV1ToV2(v1 *CredentialAssertionResponse) *webauth
 	}.Build()
 }
 
+// CredentialAssertionResponseV2ToV1 converts a v2 CredentialAssertionResponse to v1.
+func CredentialAssertionResponseV2ToV1(v2 *webauthnv2.CredentialAssertionResponse) *CredentialAssertionResponse {
+	if v2 == nil {
+		return nil
+	}
+
+	resp := v2.GetResponse()
+
+	return &CredentialAssertionResponse{
+		Type:  v2.GetType(),
+		RawId: v2.GetRawId(),
+		Response: &AuthenticatorAssertionResponse{
+			ClientDataJson:    resp.GetClientDataJson(),
+			AuthenticatorData: resp.GetAuthenticatorData(),
+			Signature:         resp.GetSignature(),
+			UserHandle:        resp.GetUserHandle(),
+		},
+		Extensions: outputExtensionsV2ToV1(v2.GetExtensions()),
+	}
+}
+
 func credentialDescriptorsV2ToV1(v2 []*webauthnv2.CredentialDescriptor) []*CredentialDescriptor {
 	if len(v2) == 0 {
 		return nil
@@ -74,6 +115,23 @@ func credentialDescriptorsV2ToV1(v2 []*webauthnv2.CredentialDescriptor) []*Crede
 	return v1
 }
 
+func credentialDescriptorsV1ToV2(v1 []*CredentialDescriptor) []*webauthnv2.CredentialDescriptor {
+	if len(v1) == 0 {
+		return nil
+	}
+
+	v2 := make([]*webauthnv2.CredentialDescriptor, len(v1))
+
+	for i, c := range v1 {
+		v2[i] = webauthnv2.CredentialDescriptor_builder{
+			Type: c.GetType(),
+			Id:   c.GetId(),
+		}.Build()
+	}
+
+	return v2
+}
+
 func inputExtensionsV2ToV1(v2 *webauthnv2.AuthenticationExtensionsClientInputs) *AuthenticationExtensionsClientInputs {
 	if v2 == nil {
 		return nil
@@ -83,6 +141,17 @@ func inputExtensionsV2ToV1(v2 *webauthnv2.AuthenticationExtensionsClientInputs) 
 		AppId:     v2.GetAppId(),
 		CredProps: v2.GetCredProps(),
 	}
+}
+
+func inputExtensionsV1ToV2(v1 *AuthenticationExtensionsClientInputs) *webauthnv2.AuthenticationExtensionsClientInputs {
+	if v1 == nil {
+		return nil
+	}
+
+	return webauthnv2.AuthenticationExtensionsClientInputs_builder{
+		AppId:     v1.GetAppId(),
+		CredProps: v1.GetCredProps(),
+	}.Build()
 }
 
 func outputExtensionsV1ToV2(v1 *AuthenticationExtensionsClientOutputs) *webauthnv2.AuthenticationExtensionsClientOutputs {
@@ -103,4 +172,22 @@ func outputExtensionsV1ToV2(v1 *AuthenticationExtensionsClientOutputs) *webauthn
 	}
 
 	return v2
+}
+
+func outputExtensionsV2ToV1(v2 *webauthnv2.AuthenticationExtensionsClientOutputs) *AuthenticationExtensionsClientOutputs {
+	if v2 == nil {
+		return nil
+	}
+
+	v1 := AuthenticationExtensionsClientOutputs{
+		AppId: v2.GetAppId(),
+	}
+
+	if credProps := v2.GetCredProps(); credProps != nil {
+		v1.CredProps = &CredentialPropertiesOutput{
+			Rk: credProps.GetRk(),
+		}
+	}
+
+	return &v1
 }

@@ -4,7 +4,7 @@ inputs:
   - directory: .
     paths:
       - api/proto/teleport/userpreferences/
-      - api/proto/teleport/desktop/
+      - api/proto/teleport/desktop/v1/tdpb.proto
       - proto/prehog/
       - proto/teleport/lib/teleterm/
       - proto/teleport/lib/vnet/diag/

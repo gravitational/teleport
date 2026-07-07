@@ -260,6 +260,11 @@ endif
 BINS_default = teleport tctl tsh tbot fdpass-teleport teleport-update
 BINS_darwin = teleport tctl tsh tbot fdpass-teleport
 BINS_windows = tsh tctl
+# Include rdp-client in the binary list if the RDP client is built.
+ifeq ("$(with_rdpclient)", "yes")
+	BINS_default += rdp-client
+	BINS_darwin += rdp-client
+endif
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
 UPDATE_BINARIES = $(addprefix $(BUILDDIR)/,teleport-update)
@@ -404,7 +409,7 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "grpcnotrace $(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets rdpclient session/reexec/embed/sessionhelper
+$(BUILDDIR)/teleport: ensure-webassets rdpclient rdpdecoder session/reexec/embed/sessionhelper
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "grpcnotrace webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/sessionhelper
@@ -525,11 +530,13 @@ update-vmlinux-h:
 RDPCLIENT_SKIP_CARGO ?= 0
 
 .PHONY: rdpclient
-rdpclient: rustup-toolchain-warning
+rdpclient: rustup-toolchain-warning ensure-protoc
 ifeq ("$(with_rdpclient)", "yes")
 ifneq ($(RDPCLIENT_SKIP_CARGO),1)
-	$(RDPCLIENT_ENV) \
+	$(RDPCLIENT_ENV) PROTOC=$(shell command -v protoc 2>/dev/null || echo $(PROTOC_INSTALL_DIR)/protoc) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+		mkdir -p $(BUILDDIR)
+		install target/${RUST_TARGET_ARCH}/release/rdp-client $(BUILDDIR)/
 else
 	@echo "Skipping rdp-client cargo build (RDPCLIENT_SKIP_CARGO=1)"
 endif
@@ -1605,6 +1612,20 @@ ifeq (, $(shell command -v $(BUF)))
 	go install github.com/bufbuild/buf/cmd/buf@$(NEED_VERSION)
 endif
 
+PROTOC_INSTALL_DIR ?= $(HOME)/.local/bin
+
+#
+# Install protoc to generate code from protobuf files. Used by `tonic-prost-build` Rust crate.
+#
+.PHONY: ensure-protoc
+ensure-protoc: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-protoc-version)
+ensure-protoc: CURRENT_VERSION = $(shell $(PROTOC_INSTALL_DIR)/protoc --version 2>/dev/null | sed 's/^libprotoc //')
+# Install protoc if it's not already installed or the version is not correct.
+ensure-protoc:
+	@if [ "$(CURRENT_VERSION)" != "$(NEED_VERSION)" ]; then \
+		build.assets/install-protoc.sh "$(PROTOC_INSTALL_DIR)" "$(NEED_VERSION)"; \
+	fi
+
 # protos/all runs build, lint and format on all protos.
 # Use `make grpc` to regenerate protos inside buildbox.
 .PHONY: protos/all
@@ -1754,6 +1775,9 @@ install: build
 	cp -f $(BUILDDIR)/tbot             $(BINDIR)/
 	cp -f $(BUILDDIR)/teleport         $(BINDIR)/
 	cp -f $(BUILDDIR)/teleport-update  $(BINDIR)/
+	ifeq ("$(with_rdpclient)", "yes")
+		cp -f $(BUILDDIR)/rdp-client   $(BINDIR)/
+	endif
 	mkdir -p $(DATADIR)
 
 # Docker image build. Always build the binaries themselves within docker (see

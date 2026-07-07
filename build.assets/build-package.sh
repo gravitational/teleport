@@ -282,6 +282,14 @@ TARBALL_DIRECTORY="$(dirname "$tarout")"
 TARBALL_FILENAME="$(basename "$tarout")" # for consistency, shouldn't change
 echo "Found ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} - using it"
 
+# conditionally include rdp-client if it was built for this platform.
+if tar -tzf "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}" "${TAR_PATH}/rdp-client" >/dev/null 2>&1; then
+    FILE_LIST="${FILE_LIST} ${TAR_PATH}/rdp-client"
+    if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
+        LINUX_BINARY_FILE_LIST="${LINUX_BINARY_FILE_LIST} ${TAR_PATH}/rdp-client"
+    fi
+fi
+
 # extract necessary files from tarball
 tar -C "$(pwd)" -xvzf ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} ${FILE_LIST}
 

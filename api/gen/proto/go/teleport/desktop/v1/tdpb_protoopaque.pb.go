@@ -23,7 +23,7 @@
 package tdpbv1
 
 import (
-	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	v2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	_ "google.golang.org/protobuf/types/descriptorpb"
@@ -1617,8 +1617,8 @@ type MFA struct {
 	state                             protoimpl.MessageState    `protogen:"opaque.v1"`
 	xxx_hidden_Type                   MFAType                   `protobuf:"varint,1,opt,name=type,proto3,enum=teleport.desktop.v1.MFAType"`
 	xxx_hidden_ChannelId              string                    `protobuf:"bytes,2,opt,name=channel_id,json=channelId,proto3"`
-	xxx_hidden_Challenge              *v1.AuthenticateChallenge `protobuf:"bytes,3,opt,name=challenge,proto3"`
-	xxx_hidden_AuthenticationResponse *v1.AuthenticateResponse  `protobuf:"bytes,4,opt,name=authentication_response,json=authenticationResponse,proto3"`
+	xxx_hidden_Challenge              *v2.AuthenticateChallenge `protobuf:"bytes,3,opt,name=challenge,proto3"`
+	xxx_hidden_AuthenticationResponse *v2.AuthenticateResponse  `protobuf:"bytes,4,opt,name=authentication_response,json=authenticationResponse,proto3"`
 	unknownFields                     protoimpl.UnknownFields
 	sizeCache                         protoimpl.SizeCache
 }
@@ -1662,14 +1662,14 @@ func (x *MFA) GetChannelId() string {
 	return ""
 }
 
-func (x *MFA) GetChallenge() *v1.AuthenticateChallenge {
+func (x *MFA) GetChallenge() *v2.AuthenticateChallenge {
 	if x != nil {
 		return x.xxx_hidden_Challenge
 	}
 	return nil
 }
 
-func (x *MFA) GetAuthenticationResponse() *v1.AuthenticateResponse {
+func (x *MFA) GetAuthenticationResponse() *v2.AuthenticateResponse {
 	if x != nil {
 		return x.xxx_hidden_AuthenticationResponse
 	}
@@ -1684,11 +1684,11 @@ func (x *MFA) SetChannelId(v string) {
 	x.xxx_hidden_ChannelId = v
 }
 
-func (x *MFA) SetChallenge(v *v1.AuthenticateChallenge) {
+func (x *MFA) SetChallenge(v *v2.AuthenticateChallenge) {
 	x.xxx_hidden_Challenge = v
 }
 
-func (x *MFA) SetAuthenticationResponse(v *v1.AuthenticateResponse) {
+func (x *MFA) SetAuthenticationResponse(v *v2.AuthenticateResponse) {
 	x.xxx_hidden_AuthenticationResponse = v
 }
 
@@ -1719,8 +1719,8 @@ type MFA_builder struct {
 
 	Type                   MFAType
 	ChannelId              string
-	Challenge              *v1.AuthenticateChallenge
-	AuthenticationResponse *v1.AuthenticateResponse
+	Challenge              *v2.AuthenticateChallenge
+	AuthenticationResponse *v2.AuthenticateResponse
 }
 
 func (b0 MFA_builder) Build() *MFA {
@@ -5204,7 +5204,7 @@ var File_teleport_desktop_v1_tdpb_proto protoreflect.FileDescriptor
 
 const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\n" +
-	"\x1eteleport/desktop/v1/tdpb.proto\x12\x13teleport.desktop.v1\x1a google/protobuf/descriptor.proto\x1a\x1fteleport/mfa/v1/challenge.proto\"\x9a\x01\n" +
+	"\x1eteleport/desktop/v1/tdpb.proto\x12\x13teleport.desktop.v1\x1a google/protobuf/descriptor.proto\x1a\x1fteleport/mfa/v2/challenge.proto\"\x9a\x01\n" +
 	"\vClientHello\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +
@@ -5269,8 +5269,8 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x04type\x18\x01 \x01(\x0e2\x1c.teleport.desktop.v1.MFATypeR\x04type\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x02 \x01(\tR\tchannelId\x12D\n" +
-	"\tchallenge\x18\x03 \x01(\v2&.teleport.mfa.v1.AuthenticateChallengeR\tchallenge\x12^\n" +
-	"\x17authentication_response\x18\x04 \x01(\v2%.teleport.mfa.v1.AuthenticateResponseR\x16authenticationResponse\"P\n" +
+	"\tchallenge\x18\x03 \x01(\v2&.teleport.mfa.v2.AuthenticateChallengeR\tchallenge\x12^\n" +
+	"\x17authentication_response\x18\x04 \x01(\v2%.teleport.mfa.v2.AuthenticateResponseR\x16authenticationResponse\"P\n" +
 	"\x17SharedDirectoryAnnounce\x12!\n" +
 	"\fdirectory_id\x18\x01 \x01(\rR\vdirectoryId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\":\n" +
@@ -5452,8 +5452,8 @@ var file_teleport_desktop_v1_tdpb_proto_goTypes = []any{
 	(*SharedDirectoryResponse_Write)(nil),    // 44: teleport.desktop.v1.SharedDirectoryResponse.Write
 	(*SharedDirectoryResponse_Move)(nil),     // 45: teleport.desktop.v1.SharedDirectoryResponse.Move
 	(*SharedDirectoryResponse_Truncate)(nil), // 46: teleport.desktop.v1.SharedDirectoryResponse.Truncate
-	(*v1.AuthenticateChallenge)(nil),         // 47: teleport.mfa.v1.AuthenticateChallenge
-	(*v1.AuthenticateResponse)(nil),          // 48: teleport.mfa.v1.AuthenticateResponse
+	(*v2.AuthenticateChallenge)(nil),         // 47: teleport.mfa.v2.AuthenticateChallenge
+	(*v2.AuthenticateResponse)(nil),          // 48: teleport.mfa.v2.AuthenticateResponse
 }
 var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
 	17, // 0: teleport.desktop.v1.ClientHello.screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
@@ -5465,8 +5465,8 @@ var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
 	1,  // 6: teleport.desktop.v1.Alert.severity:type_name -> teleport.desktop.v1.AlertSeverity
 	2,  // 7: teleport.desktop.v1.MouseWheel.axis:type_name -> teleport.desktop.v1.MouseWheelAxis
 	3,  // 8: teleport.desktop.v1.MFA.type:type_name -> teleport.desktop.v1.MFAType
-	47, // 9: teleport.desktop.v1.MFA.challenge:type_name -> teleport.mfa.v1.AuthenticateChallenge
-	48, // 10: teleport.desktop.v1.MFA.authentication_response:type_name -> teleport.mfa.v1.AuthenticateResponse
+	47, // 9: teleport.desktop.v1.MFA.challenge:type_name -> teleport.mfa.v2.AuthenticateChallenge
+	48, // 10: teleport.desktop.v1.MFA.authentication_response:type_name -> teleport.mfa.v2.AuthenticateResponse
 	31, // 11: teleport.desktop.v1.SharedDirectoryRequest.info:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Info
 	32, // 12: teleport.desktop.v1.SharedDirectoryRequest.create:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Create
 	33, // 13: teleport.desktop.v1.SharedDirectoryRequest.delete:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Delete

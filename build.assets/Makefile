@@ -755,6 +755,13 @@ print-buf-version:
 	@echo $(BUF_VERSION)
 
 #
+# Print the Protoc version used by Teleport.
+#
+.PHONY: print-protoc-version
+print-protoc-version:
+	@echo $(PROTOC_VERSION)
+
+#
 # Print the Rust version used to build Teleport.
 #
 .PHONY: print-rust-version

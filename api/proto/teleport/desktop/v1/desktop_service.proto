@@ -1,0 +1,68 @@
+/*
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.desktop.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+import "teleport/desktop/v1/tdpb.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1;tdpbv1";
+
+// Defines the IPC interface between the Go Teleport desktop proxy and the Rust RDP client.
+service DesktopService {
+  // Bidirectional streaming RPC that serves as the primary communication channel
+  // for exchanging TDPB messages during a session.
+  rpc Session(stream Envelope) returns (stream Envelope) {}
+
+  // Returns the cached RDP license for the given metadata.
+  // If no license exists, returns an empty response.
+  rpc ReadRdpLicense(LicenseMetadata) returns (ReadRdpLicenseResponse) {}
+  // Persists the RDP license in the cache.
+  rpc WriteRdpLicense(License) returns (google.protobuf.Empty) {}
+
+  // Returns the certificate and the key used for authentication with the Windows Desktop Service.
+  rpc GetCertificateAndKey(google.protobuf.Empty) returns (CertificateAndKey) {}
+}
+
+// Metadata for an RDP license.
+message LicenseMetadata {
+  uint32 version = 1;
+  string issuer = 2;
+  string company = 3;
+  string product_id = 4;
+}
+
+// Response message for ReadRdpLicense RPC. Contains the cached RDP license information if it exists.
+message ReadRdpLicenseResponse {
+  google.protobuf.BytesValue license_info = 1;
+}
+
+// Represents an RDP license.
+message License {
+  LicenseMetadata metadata = 1;
+  bytes license_info = 2;
+}
+
+// TLS certificate and private key used for authentication with the Windows Desktop Service.
+message CertificateAndKey {
+  bytes cert = 1;
+  bytes key = 2;
+}

@@ -14,71 +14,54 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{
-    cgo_free_rdp_license, cgo_read_rdp_license, cgo_write_rdp_license, CGOErrCode,
-    CGOLicenseRequest, CgoHandle,
-};
-use ironrdp_connector::{custom_err, general_err, ConnectorError, ConnectorResult, LicenseCache};
+use crate::ipc::IpcClient;
+use ironrdp_connector::{custom_err, ConnectorResult, LicenseCache};
 use ironrdp_pdu::rdp::server_license::LicenseInformation;
-use std::ffi::{CString, NulError};
-use std::{ptr, slice};
+use rdp_client_proto::desktop;
+use std::sync::Mutex;
 
 #[derive(Debug)]
 pub(crate) struct GoLicenseCache {
-    pub(crate) cgo_handle: CgoHandle,
-}
-
-fn conversion_error(e: NulError) -> ConnectorError {
-    custom_err!("conversion error", e)
+    pub(crate) ipc_client: Mutex<IpcClient>,
 }
 
 impl LicenseCache for GoLicenseCache {
     fn get_license(&self, license_info: LicenseInformation) -> ConnectorResult<Option<Vec<u8>>> {
-        let issuer = CString::new(license_info.scope).map_err(conversion_error)?;
-        let company = CString::new(license_info.company_name).map_err(conversion_error)?;
-        let product_id = CString::new(license_info.product_id).map_err(conversion_error)?;
-        let mut req = CGOLicenseRequest {
-            version: license_info.version,
-            issuer: issuer.as_ptr(),
-            company: company.as_ptr(),
-            product_id: product_id.as_ptr(),
-        };
-        let mut data: *mut u8 = ptr::null_mut();
-        let mut size = 0usize;
-        unsafe {
-            match cgo_read_rdp_license(self.cgo_handle, &mut req, &mut data, &mut size) {
-                CGOErrCode::ErrCodeSuccess => {
-                    let license = slice::from_raw_parts_mut(data, size).to_vec();
-                    cgo_free_rdp_license(data);
-                    Ok(Some(license))
-                }
-                CGOErrCode::ErrCodeFailure => Err(general_err!("error retrieving license")),
-                CGOErrCode::ErrCodeClientPtr => Err(general_err!("invalid client pointer")),
-                CGOErrCode::ErrCodeNotFound => Ok(None),
-            }
-        }
+        let mut ipc_client = self
+            .ipc_client
+            .lock()
+            .expect("license cache mutex poisoned");
+
+        let response = tokio::runtime::Handle::current()
+            .block_on(ipc_client.read_rdp_license(desktop::LicenseMetadata {
+                version: license_info.version,
+                issuer: license_info.scope,
+                company: license_info.company_name,
+                product_id: license_info.product_id,
+            }))
+            .map_err(|e| custom_err!("error retrieving license", e))?;
+
+        Ok(response.into_inner().license_info)
     }
 
-    fn store_license(&self, mut license_info: LicenseInformation) -> ConnectorResult<()> {
-        let issuer = CString::new(license_info.scope).map_err(conversion_error)?;
-        let company = CString::new(license_info.company_name).map_err(conversion_error)?;
-        let product_id = CString::new(license_info.product_id).map_err(conversion_error)?;
-        let mut req = CGOLicenseRequest {
-            version: license_info.version,
-            issuer: issuer.as_ptr(),
-            company: company.as_ptr(),
-            product_id: product_id.as_ptr(),
-        };
-        unsafe {
-            match cgo_write_rdp_license(
-                self.cgo_handle,
-                &mut req,
-                license_info.license_info.as_mut_ptr(),
-                license_info.license_info.len(),
-            ) {
-                CGOErrCode::ErrCodeSuccess => Ok(()),
-                _ => Err(general_err!("error storing license")),
-            }
-        }
+    fn store_license(&self, license_info: LicenseInformation) -> ConnectorResult<()> {
+        let mut ipc_client = self
+            .ipc_client
+            .lock()
+            .expect("license cache mutex poisoned");
+
+        tokio::runtime::Handle::current()
+            .block_on(ipc_client.write_rdp_license(desktop::License {
+                metadata: Some(desktop::LicenseMetadata {
+                    version: license_info.version,
+                    issuer: license_info.scope,
+                    company: license_info.company_name,
+                    product_id: license_info.product_id,
+                }),
+                license_info: license_info.license_info,
+            }))
+            .map_err(|e| custom_err!("error storing license", e))?;
+
+        Ok(())
     }
 }

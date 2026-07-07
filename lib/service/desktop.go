@@ -224,6 +224,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		DataDir:      process.Config.DataDir,
 		LicenseStore: process.storage,
 		Logger:       process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		LogWriter:    cfg.LogWriter,
 		Clock:        process.Clock,
 		Authorizer:   authorizer,
 		Emitter:      conn.Client,

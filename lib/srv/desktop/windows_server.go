@@ -26,6 +26,7 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"net"
@@ -170,6 +171,8 @@ type WindowsService struct {
 type WindowsServiceConfig struct {
 	// Logger is the logger for the service.
 	Logger *slog.Logger
+	// LogWriter is the underlying log writer for the Logger.
+	LogWriter io.Writer
 	// Clock provides current time.
 	Clock        clockwork.Clock
 	DataDir      string
@@ -927,6 +930,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		LicenseStore:          s.cfg.LicenseStore,
 		HostID:                s.cfg.Heartbeat.HostUUID,
 		Logger:                log,
+		LogWriter:             s.cfg.LogWriter,
 		Addr:                  addr.String(),
 		ComputerName:          computerName,
 		KDCAddr:               kdcAddr,

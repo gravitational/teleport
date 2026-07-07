@@ -24,7 +24,9 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"image/png"
+	"io"
 	"log/slog"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -77,6 +79,9 @@ type Config struct {
 	// Logger is the logger for status messages.
 	Logger *slog.Logger
 
+	// LogWriter is the underlying log writer for RDP session logs.
+	LogWriter io.Writer
+
 	// ComputerName is the name used to communicate with KDC.
 	// Used for NLA support when AD is true.
 	ComputerName string
@@ -106,6 +111,9 @@ func (c *Config) checkAndSetDefaults() error {
 		c.Encoder = tdp.PNGEncoder()
 	}
 	c.Logger = c.Logger.With("rdp_addr", c.Addr)
+	if c.LogWriter == nil {
+		c.LogWriter = os.Stderr
+	}
 	return nil
 }
 

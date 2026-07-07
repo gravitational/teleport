@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::error::{ClientError, ClientResult};
 use ironrdp_pdu::pdu_other_err;
 use ironrdp_pdu::PduResult;
-use std::ffi::CStr;
-use std::os::raw::c_char;
-use std::slice;
+use std::fmt::Debug;
 use utf16string::{WString, LE};
 
 /// According to [MS-RDPEFS] 1.1 Glossary:
@@ -64,32 +63,13 @@ pub fn str_debug(s: &str) -> String {
     format!("&str of length {}", s.len())
 }
 
-/// # Safety
-///
-/// s must be a C-style null terminated string.
-/// s is cloned here, and the caller is responsible for
-/// ensuring its memory is freed.
-pub unsafe fn from_c_string(s: *const c_char) -> String {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-    CStr::from_ptr(s).to_string_lossy().into_owned()
-}
-
-/// Creates a Vec from a Go (C) array without a copy.
-///
-/// # Safety
-///
-/// See https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html
-pub unsafe fn from_go_array<T: Clone>(data: *const T, len: u32) -> Vec<T> {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-    slice::from_raw_parts(data, len as usize).to_vec()
+pub(crate) fn cast_length<T, S: TryInto<T, Error: Debug>>(
+    ctx: &str,
+    field: &str,
+    s: S,
+) -> ClientResult<T> {
+    s.try_into()
+        .map_err(|e| ClientError::Internal(format!("{}: can't convert {}: {:?}", ctx, field, e)))
 }
 
 #[cfg(test)]

@@ -74,6 +74,7 @@ plugins:
       - apilevelMteleport/delegation/v1/delegation_session_resource.proto=API_HYBRID
       - apilevelMteleport/delegation/v1/delegation_session_service.proto=API_HYBRID
       - apilevelMteleport/desktop/v1/tdpb.proto=API_HYBRID
+      - apilevelMteleport/desktop/v1/tdpb_service.proto=API_HYBRID
       - apilevelMteleport/devicetrust/v1/assert.proto=API_HYBRID
       - apilevelMteleport/devicetrust/v1/authenticate_challenge.proto=API_HYBRID
       - apilevelMteleport/devicetrust/v1/device.proto=API_HYBRID

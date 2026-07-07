@@ -14,18 +14,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{
-    path::UnixPath,
-    tdp::{self, TdpErrCode},
-};
-use crate::client::{ClientError, ClientResult};
-use crate::{
-    cgo_tdp_sd_acknowledge, cgo_tdp_sd_create_request, cgo_tdp_sd_delete_request,
-    cgo_tdp_sd_info_request, cgo_tdp_sd_list_request, cgo_tdp_sd_move_request,
-    cgo_tdp_sd_read_request, cgo_tdp_sd_truncate_request, cgo_tdp_sd_write_request,
-    client::ClientHandle, rdpdr::tdp::SharedDirectoryRemove, CGOErrCode, CgoHandle,
-};
-use ironrdp_core::{cast_length, EncodeError};
+use crate::client::ClientHandle;
+use crate::ipc::IpcTdpbSender;
+use crate::util::cast_length;
 use ironrdp_pdu::PduResult;
 use ironrdp_pdu::{pdu_other_err, PduError, PduErrorExt};
 use ironrdp_rdpdr::pdu::{
@@ -34,19 +25,11 @@ use ironrdp_rdpdr::pdu::{
     esc, RdpdrPdu,
 };
 use log::{debug, trace, warn};
-use std::convert::TryInto;
+use rdp_client_common::path::UnixPath;
+use rdp_client_proto::tdpb;
+use rdp_client_proto::tdpb::{to_windows_time, SharedDirectoryRemove};
 use std::fmt::Debug;
 use std::{collections::HashMap, vec};
-
-pub(crate) fn cast_length<T, S: TryInto<T, Error: Debug>>(
-    ctx: &str,
-    field: &str,
-    s: S,
-) -> ClientResult<T> {
-    s.try_into().map_err(|e| {
-        ClientError::InternalError(format!("{}: can't convert {}: {:?}", ctx, field, e))
-    })
-}
 
 #[derive(Debug)]
 struct DirectoryContext {
@@ -72,7 +55,7 @@ impl DirectoryContext {
     }
 
     fn insert_file(&mut self, file: FileCacheObject) -> Result<u32, FilesystemBackendError> {
-        let path = file.fso.path.path.clone();
+        let path = file.fso.path.clone();
         self.file_cache.insert(file).inspect(|id| {
             debug!(
                 "inserted file id: {}, path: {} file_entries {}",
@@ -232,16 +215,16 @@ impl DirectoryCache {
 /// [RFD 0067]: https://github.com/gravitational/teleport/blob/master/rfd/0067-desktop-access-file-system-sharing.md
 #[derive(Debug)]
 pub struct FilesystemBackend {
-    cgo_handle: CgoHandle,
     client_handle: ClientHandle,
+    ipc_tdpb_sender: IpcTdpbSender,
     cache: DirectoryCache,
 }
 
 impl FilesystemBackend {
-    pub fn new(cgo_handle: CgoHandle, client_handle: ClientHandle) -> Self {
+    pub fn new(client_handle: ClientHandle, ipc_tdpb_sender: IpcTdpbSender) -> Self {
         Self {
-            cgo_handle,
             client_handle,
+            ipc_tdpb_sender,
             cache: DirectoryCache::new(),
         }
     }
@@ -298,19 +281,19 @@ impl FilesystemBackend {
         // TODO(zmb3): send the underlying NTSTATUS code instead
         // of converting everything to 0 or 1.
         let err_code = match res.result_code {
-            NtStatus::SUCCESS => TdpErrCode::Nil,
-            _ => TdpErrCode::Failed,
+            NtStatus::SUCCESS => tdpb::ErrCode::Nil,
+            _ => tdpb::ErrCode::Failed,
         };
 
-        if err_code == TdpErrCode::Failed {
+        if err_code == tdpb::ErrCode::Failed {
             warn!(
                 "Directory sharing failed, server sent error {:?}",
                 res.result_code
             )
         }
 
-        self.send_tdp_sd_acknowledge(tdp::SharedDirectoryAcknowledge {
-            err_code,
+        self.send_shared_dir_acknowledge(tdpb::SharedDirectoryAcknowledge {
+            error_code: err_code as u32,
             directory_id: res.device_id,
         })
     }
@@ -356,7 +339,7 @@ impl FilesystemBackend {
                     // the client to process which will attempt to remove the device/directory again.
                     let _ = self
                         .client_handle
-                        .handle_tdp_sd_remove(SharedDirectoryRemove {
+                        .handle_shared_dir_remove(SharedDirectoryRemove {
                             directory_id: device_id,
                         });
                 }
@@ -393,7 +376,7 @@ impl FilesystemBackend {
     /// Handles an RDP [`efs::DeviceCreateRequest`] received from the RDP server.
     fn handle_rdp_device_create_req(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
-        self.send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest::from(&rdp_req))?;
+        self.send_shared_dir_request(tdpb::SharedDirectoryRequest::info_req(&rdp_req))?;
 
         self.cache.insert_handler(
             rdp_req.device_io_request.device_id,
@@ -401,37 +384,46 @@ impl FilesystemBackend {
             ResponseKind::Info(SharedDirectoryInfoResponseHandler::new(
                 rdp_req,
                 |this: &mut FilesystemBackend,
-                 tdp_resp: tdp::SharedDirectoryInfoResponse,
+                 tdp_resp: tdpb::shared_directory_response::Info,
+                 err_code: tdpb::ErrCode,
                  rdp_req: efs::DeviceCreateRequest|
                  -> PduResult<()> {
-                    this.handle_rdp_device_create_req_continued(rdp_req, tdp_resp)
+                    this.handle_rdp_device_create_req_continued(rdp_req, tdp_resp, err_code)
                 },
             )),
         )?;
         Ok(())
     }
 
-    /// Continues [`Self::handle_rdp_device_create_req`] after a [`tdp::SharedDirectoryInfoResponse`] is received from the browser,
+    /// Continues [`Self::handle_rdp_device_create_req`] after a [`tdpb::shared_directory_response::Info`] is received from the browser,
     /// returning any [`RdpdrPdu`]s that need to be sent back to the RDP server.
     fn handle_rdp_device_create_req_continued(
         &mut self,
         req: efs::DeviceCreateRequest,
-        res: tdp::SharedDirectoryInfoResponse,
+        res: tdpb::shared_directory_response::Info,
+        err_code: tdpb::ErrCode,
     ) -> PduResult<()> {
-        match res.err_code {
-            TdpErrCode::Failed | TdpErrCode::AlreadyExists => {
+        match err_code {
+            tdpb::ErrCode::Failed | tdpb::ErrCode::AlreadyExists => {
                 return Err(pdu_other_err!(
                     "",
-                    source:FilesystemBackendError(format!(
+                    source: FilesystemBackendError(format!(
                         "received unexpected TDP error code in SharedDirectoryInfoResponse: {:?}",
-                        res.err_code,
+                        err_code,
                     ))
                 ));
             }
-            TdpErrCode::Nil => {
+            tdpb::ErrCode::Nil => {
+                let fso = res.fso.as_ref().ok_or_else(|| {
+                    pdu_other_err!(
+                            "",
+                            source: FilesystemBackendError("received SharedDirectoryInfoResponse with no FileSystemObject".into()),
+                        )
+                })?;
+
                 // The file exists
                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L214
-                if res.fso.file_type == tdp::FileType::Directory {
+                if fso.file_type == tdpb::FileType::Directory as u32 {
                     if req.create_disposition == efs::CreateDisposition::FILE_CREATE {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L221
                         return self.send_rdp_device_create_response(
@@ -464,7 +456,7 @@ impl FilesystemBackend {
                     );
                 }
             }
-            TdpErrCode::DoesNotExist => {
+            tdpb::ErrCode::DoesNotExist => {
                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
                 if req
                     .create_options
@@ -474,7 +466,7 @@ impl FilesystemBackend {
                         || req.create_disposition == efs::CreateDisposition::FILE_CREATE
                     {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L252
-                        self.tdp_sd_create(req, tdp::FileType::Directory)?;
+                        self.tdp_sd_create(req, tdpb::FileType::Directory)?;
                         return Ok(());
                     } else {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
@@ -493,27 +485,34 @@ impl FilesystemBackend {
         match req.create_disposition {
             efs::CreateDisposition::FILE_SUPERSEDE => {
                 // If the file already exists, replace it with the given file. If it does not, create the given file.
-                if res.err_code == TdpErrCode::Nil {
+                if err_code == tdpb::ErrCode::Nil {
                     self.tdp_sd_overwrite(req)?;
                     return Ok(());
-                } else if res.err_code == TdpErrCode::DoesNotExist {
-                    self.tdp_sd_create(req, tdp::FileType::File)?;
+                } else if err_code == tdpb::ErrCode::DoesNotExist {
+                    self.tdp_sd_create(req, tdpb::FileType::File)?;
                     return Ok(());
                 }
             }
             efs::CreateDisposition::FILE_OPEN => {
                 // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
-                if res.err_code == TdpErrCode::Nil {
+                if err_code == tdpb::ErrCode::Nil {
+                    let fso = res.fso.ok_or_else(|| {
+                        pdu_other_err!(
+                            "",
+                            source: FilesystemBackendError("received SharedDirectoryInfoResponse with no FileSystemObject".into()),
+                        )
+                    })?;
+
                     let file_id = self.cache.add_file(
                         req.device_io_request.device_id,
-                        FileCacheObject::new(UnixPath::from(&req.path), res.fso),
+                        FileCacheObject::new(UnixPath::from(&req.path), fso),
                     )?;
                     return self.send_rdp_device_create_response(
                         &req,
                         efs::NtStatus::SUCCESS,
                         file_id,
                     );
-                } else if res.err_code == TdpErrCode::DoesNotExist {
+                } else if err_code == tdpb::ErrCode::DoesNotExist {
                     return self.send_rdp_device_create_response(
                         &req,
                         efs::NtStatus::NO_SUCH_FILE,
@@ -523,40 +522,47 @@ impl FilesystemBackend {
             }
             efs::CreateDisposition::FILE_CREATE => {
                 // If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
-                if res.err_code == TdpErrCode::Nil {
+                if err_code == tdpb::ErrCode::Nil {
                     return self.send_rdp_device_create_response(
                         &req,
                         efs::NtStatus::OBJECT_NAME_COLLISION,
                         0,
                     );
-                } else if res.err_code == TdpErrCode::DoesNotExist {
-                    self.tdp_sd_create(req, tdp::FileType::File)?;
+                } else if err_code == tdpb::ErrCode::DoesNotExist {
+                    self.tdp_sd_create(req, tdpb::FileType::File)?;
                     return Ok(());
                 }
             }
             efs::CreateDisposition::FILE_OPEN_IF => {
+                let fso = res.fso.ok_or_else(|| {
+                    pdu_other_err!(
+                            "",
+                            source: FilesystemBackendError("received SharedDirectoryInfoResponse with no FileSystemObject".into()),
+                        )
+                })?;
+
                 // If the file already exists, open it. If it does not, create the given file.
-                if res.err_code == TdpErrCode::Nil {
+                if err_code == tdpb::ErrCode::Nil {
                     let file_id = self.cache.add_file(
                         req.device_io_request.device_id,
-                        FileCacheObject::new(UnixPath::from(&req.path), res.fso),
+                        FileCacheObject::new(UnixPath::from(&req.path), fso),
                     )?;
                     return self.send_rdp_device_create_response(
                         &req,
                         efs::NtStatus::SUCCESS,
                         file_id,
                     );
-                } else if res.err_code == TdpErrCode::DoesNotExist {
-                    self.tdp_sd_create(req, tdp::FileType::File)?;
+                } else if err_code == tdpb::ErrCode::DoesNotExist {
+                    self.tdp_sd_create(req, tdpb::FileType::File)?;
                     return Ok(());
                 }
             }
             efs::CreateDisposition::FILE_OVERWRITE => {
                 // If the file already exists, open it and overwrite it. If it does not, fail the request.
-                if res.err_code == TdpErrCode::Nil {
+                if err_code == tdpb::ErrCode::Nil {
                     self.tdp_sd_overwrite(req)?;
                     return Ok(());
-                } else if res.err_code == TdpErrCode::DoesNotExist {
+                } else if err_code == tdpb::ErrCode::DoesNotExist {
                     return self.send_rdp_device_create_response(
                         &req,
                         efs::NtStatus::NO_SUCH_FILE,
@@ -566,11 +572,11 @@ impl FilesystemBackend {
             }
             efs::CreateDisposition::FILE_OVERWRITE_IF => {
                 // If the file already exists, open it and overwrite it. If it does not, create the given file.
-                if res.err_code == TdpErrCode::Nil {
+                if err_code == tdpb::ErrCode::Nil {
                     self.tdp_sd_overwrite(req)?;
                     return Ok(());
-                } else if res.err_code == TdpErrCode::DoesNotExist {
-                    self.tdp_sd_create(req, tdp::FileType::File)?;
+                } else if err_code == tdpb::ErrCode::DoesNotExist {
+                    self.tdp_sd_create(req, tdpb::FileType::File)?;
                     return Ok(());
                 }
             }
@@ -639,7 +645,7 @@ impl FilesystemBackend {
                 )
             }
             Some(dir) => {
-                if dir.fso.file_type != tdp::FileType::Directory {
+                if dir.fso.file_type != tdpb::FileType::Directory as u32 {
                     return Err(pdu_other_err!("received ServerDriveQueryDirectoryRequest request for a file rather than a directory"));
                 }
 
@@ -655,10 +661,12 @@ impl FilesystemBackend {
                 let path = dir.path.clone();
 
                 // Ask the client for the list of files in this directory.
-                self.send_tdp_sd_list_request(tdp::SharedDirectoryListRequest {
+                self.send_shared_dir_request(tdpb::SharedDirectoryRequest {
                     completion_id: rdp_req.device_io_request.completion_id,
                     directory_id: rdp_req.device_io_request.device_id,
-                    path,
+                    operation: Some(tdpb::shared_directory_request::Operation::List(
+                        tdpb::shared_directory_request::List { path: path.path },
+                    )),
                 })?;
 
                 // When we get the response for that list of files...
@@ -668,10 +676,13 @@ impl FilesystemBackend {
                     SharedDirectoryListResponseHandler::new(
                         rdp_req,
                         move |cli: &mut Self,
-                              tdp_resp: tdp::SharedDirectoryListResponse,
+                              tdp_resp: tdpb::shared_directory_response::List,
+                              err_code: tdpb::ErrCode,
                               rdp_req: efs::ServerDriveQueryDirectoryRequest|
                               -> PduResult<()> {
-                            cli.handle_rdp_query_directory_req_continued(rdp_req, tdp_resp)
+                            cli.handle_rdp_query_directory_req_continued(
+                                rdp_req, tdp_resp, err_code,
+                            )
                         },
                     ),
                 )?;
@@ -683,14 +694,15 @@ impl FilesystemBackend {
         }
     }
 
-    /// Continues [`Self::handle_query_directory_req`] after a [`tdp::SharedDirectoryListResponse`] is received from the browser,
+    /// Continues [`Self::handle_query_directory_req`] after a [`tdpb::shared_directory_response::List`] is received from the browser,
     /// returning any [`RdpdrPdu`]s that need to be sent back to the RDP server.
     fn handle_rdp_query_directory_req_continued(
         &mut self,
         rdp_req: efs::ServerDriveQueryDirectoryRequest,
-        tdp_resp: tdp::SharedDirectoryListResponse,
+        tdp_resp: tdpb::shared_directory_response::List,
+        err_code: tdpb::ErrCode,
     ) -> PduResult<()> {
-        if tdp_resp.err_code != TdpErrCode::Nil {
+        if err_code != tdpb::ErrCode::Nil {
             // For now any error will kill the session.
             // In the future, we might want to make this send back
             // an NTSTATUS::STATUS_UNSUCCESSFUL instead.
@@ -698,7 +710,7 @@ impl FilesystemBackend {
                 "",
                 source:FilesystemBackendError(format!(
                     "SharedDirectoryListRequest failed with err_code = {:?}",
-                    tdp_resp.err_code
+                    err_code
                 ))
             ));
         }
@@ -756,12 +768,11 @@ impl FilesystemBackend {
                     efs::FileSystemInformationClassLevel::FILE_FS_VOLUME_INFORMATION => {
                         Some(
                             efs::FileFsVolumeInformation {
-                                volume_creation_time: cast_length!(
+                                volume_creation_time: cast_length(
                                     "FilesystemBackend::handle_query_volume_req",
                                     "dir.fso.last_modified",
-                                    dir.fso.last_modified
-                                )
-                                .map_err(|e: EncodeError| ClientError::from(e))?,
+                                    dir.fso.last_modified,
+                                )?,
                                 // Equivalent to `u32::MAX & 0xffff` which is what FreeRDP does between
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L492
@@ -933,14 +944,14 @@ impl FilesystemBackend {
         Ok(())
     }
 
-    /// Helper function for writing a [`tdp::SharedDirectoryCreateRequest`] to the browser
-    /// and handling the [`tdp::SharedDirectoryCreateResponse`] that is received in response.
+    /// Helper function for writing a [`tdpb::shared_directory_request::Create`] to the browser
+    /// and handling the [`tdpb::shared_directory_response::Create`] that is received in response.
     fn tdp_sd_create(
         &mut self,
         rdp_req: efs::DeviceCreateRequest,
-        file_type: tdp::FileType,
+        file_type: tdpb::FileType,
     ) -> PduResult<()> {
-        self.send_tdp_sd_create_request(tdp::SharedDirectoryCreateRequest::from(
+        self.send_shared_dir_request(tdpb::SharedDirectoryRequest::create_req(
             &rdp_req, file_type,
         ))?;
         self.cache.insert_handler(
@@ -949,19 +960,28 @@ impl FilesystemBackend {
             SharedDirectoryCreateResponseHandler::new(
                 rdp_req,
                 move |this: &mut FilesystemBackend,
-                      tdp_resp: tdp::SharedDirectoryCreateResponse,
+                      tdp_resp: tdpb::shared_directory_response::Create,
+                      err_code: tdpb::ErrCode,
                       rdp_req: efs::DeviceCreateRequest|
                       -> PduResult<()> {
-                    if tdp_resp.err_code != TdpErrCode::Nil {
+                    if err_code != tdpb::ErrCode::Nil {
                         return this.send_rdp_device_create_response(
                             &rdp_req,
                             NtStatus::UNSUCCESSFUL,
                             0,
                         );
                     }
+
+                    let fso = tdp_resp.fso.ok_or_else(|| {
+                        pdu_other_err!(
+                            "",
+                            source: FilesystemBackendError("received SharedDirectoryResponse::Create with no FileSystemObject".into()),
+                        )
+                    })?;
+
                     let file_id = this.cache.add_file(
                         rdp_req.device_io_request.device_id,
-                        FileCacheObject::new(UnixPath::from(&rdp_req.path), tdp_resp.fso),
+                        FileCacheObject::new(UnixPath::from(&rdp_req.path), fso),
                     )?;
                     this.send_rdp_device_create_response(&rdp_req, NtStatus::SUCCESS, file_id)
                 },
@@ -970,23 +990,23 @@ impl FilesystemBackend {
         Ok(())
     }
 
-    /// Helper function for combining a [`tdp::SharedDirectoryDeleteRequest`]
-    /// with a [`tdp::SharedDirectoryCreateRequest`] to overwrite a file.
+    /// Helper function for combining a [`tdpb::shared_directory_request::Delete`]
+    /// with a [`tdpb::shared_directory_request::Create`] to overwrite a file.
     fn tdp_sd_overwrite(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
-        let tdp_req = tdp::SharedDirectoryDeleteRequest::from(&rdp_req);
-        self.send_tdp_sd_delete_request(tdp_req)?;
+        self.send_shared_dir_request(tdpb::SharedDirectoryRequest::delete_req(&rdp_req))?;
         self.cache.insert_handler(
             rdp_req.device_io_request.device_id,
             rdp_req.device_io_request.completion_id,
             SharedDirectoryDeleteResponseHandler::new(
                 rdp_req,
                 move |this: &mut FilesystemBackend,
-                      tdp_resp: tdp::SharedDirectoryDeleteResponse,
+                      _tdp_resp: tdpb::shared_directory_response::Delete,
+                      err_code: tdpb::ErrCode,
                       rdp_req: efs::DeviceCreateRequest|
                       -> PduResult<()> {
-                    match tdp_resp.err_code {
-                        TdpErrCode::Nil => {
-                            this.tdp_sd_create(rdp_req, tdp::FileType::File)?;
+                    match err_code {
+                        tdpb::ErrCode::Nil => {
+                            this.tdp_sd_create(rdp_req, tdpb::FileType::File)?;
                             Ok(())
                         }
                         _ => this.send_rdp_device_create_response(
@@ -1001,25 +1021,27 @@ impl FilesystemBackend {
         Ok(())
     }
 
-    /// Helper function for sending a [`tdp::SharedDirectoryDeleteRequest`] to the browser
-    /// and handling the [`tdp::SharedDirectoryDeleteResponse`] that is received in response.
+    /// Helper function for sending a [`tdpb::shared_directory_request::Delete`] to the browser
+    /// and handling the [`tdpb::shared_directory_response::Delete`] that is received in response.
     fn tdp_sd_delete(
         &mut self,
         rdp_req: efs::DeviceCloseRequest,
         file: FileCacheObject,
     ) -> PduResult<()> {
-        let tdp_req = tdp::SharedDirectoryDeleteRequest::from_fco(&rdp_req, file);
-        self.send_tdp_sd_delete_request(tdp_req)?;
+        self.send_shared_dir_request(tdpb::SharedDirectoryRequest::delete_req_from_fco(
+            &rdp_req, file.path,
+        ))?;
         self.cache.insert_handler(
             rdp_req.device_io_request.device_id,
             rdp_req.device_io_request.completion_id,
             SharedDirectoryDeleteResponseHandler::new(
                 rdp_req,
                 move |this: &mut FilesystemBackend,
-                      tdp_resp: tdp::SharedDirectoryDeleteResponse,
+                      _tdp_resp: tdpb::shared_directory_response::Delete,
+                      err_code: tdpb::ErrCode,
                       rdp_req: efs::DeviceCloseRequest|
                       -> PduResult<()> {
-                    let io_status = if tdp_resp.err_code == TdpErrCode::Nil {
+                    let io_status = if err_code == tdpb::ErrCode::Nil {
                         NtStatus::SUCCESS
                     } else {
                         NtStatus::UNSUCCESSFUL
@@ -1031,8 +1053,8 @@ impl FilesystemBackend {
         Ok(())
     }
 
-    /// Helper function for sending a [`tdp::SharedDirectoryReadRequest`] to the browser
-    /// and handling the [`tdp::SharedDirectoryReadResponse`] that is received in response.
+    /// Helper function for sending a [`tdpb::shared_directory_request::Read`] to the browser
+    /// and handling the [`tdpb::shared_directory_response::Read`] that is received in response.
     fn tdp_sd_read(&mut self, rdp_req: efs::DeviceReadRequest) -> PduResult<()> {
         match self.cache.get_file(
             rdp_req.device_io_request.device_id,
@@ -1045,18 +1067,21 @@ impl FilesystemBackend {
                 vec![],
             ),
             Some(file) => {
-                let tdp_req = tdp::SharedDirectoryReadRequest::from_fco(&rdp_req, file);
-                self.send_tdp_sd_read_request(tdp_req)?;
+                self.send_shared_dir_request(tdpb::SharedDirectoryRequest::read_req(
+                    &rdp_req,
+                    file.path(),
+                ))?;
                 self.cache.insert_handler(
                     rdp_req.device_io_request.device_id,
                     rdp_req.device_io_request.completion_id,
                     SharedDirectoryReadResponseHandler::new(
                         rdp_req,
                         move |this: &mut FilesystemBackend,
-                              tdp_res: tdp::SharedDirectoryReadResponse,
+                              tdp_res: tdpb::shared_directory_response::Read,
+                              err_code: tdpb::ErrCode,
                               rdp_req: efs::DeviceReadRequest|
                               -> PduResult<()> {
-                            this.tdp_sd_read_continued(rdp_req, tdp_res)
+                            this.tdp_sd_read_continued(rdp_req, tdp_res, err_code)
                         },
                     ),
                 )?;
@@ -1069,13 +1094,14 @@ impl FilesystemBackend {
     fn tdp_sd_read_continued(
         &mut self,
         rdp_req: efs::DeviceReadRequest,
-        tdp_res: tdp::SharedDirectoryReadResponse,
+        tdp_res: tdpb::shared_directory_response::Read,
+        err_code: tdpb::ErrCode,
     ) -> PduResult<()> {
-        match tdp_res.err_code {
-            TdpErrCode::Nil => self.send_rdp_read_response(
+        match err_code {
+            tdpb::ErrCode::Nil => self.send_rdp_read_response(
                 rdp_req.device_io_request,
                 NtStatus::SUCCESS,
-                tdp_res.read_data,
+                tdp_res.data,
             ),
             _ => self.send_rdp_read_response(
                 rdp_req.device_io_request,
@@ -1085,8 +1111,8 @@ impl FilesystemBackend {
         }
     }
 
-    /// Helper function for sending a [`tdp::SharedDirectoryWriteRequest`] to the browser
-    /// and handling the [`tdp::SharedDirectoryWriteResponse`] that is received in response.
+    /// Helper function for sending a [`tdpb::shared_directory_request::Write`] to the browser
+    /// and handling the [`tdpb::shared_directory_response::Write`] that is received in response.
     fn tdp_sd_write(&mut self, rdp_req: efs::DeviceWriteRequest) -> PduResult<()> {
         match self.cache.get_file(
             rdp_req.device_io_request.device_id,
@@ -1097,8 +1123,9 @@ impl FilesystemBackend {
                 self.send_rdp_write_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, 0)
             }
             Some(file) => {
-                self.send_tdp_sd_write_request(tdp::SharedDirectoryWriteRequest::from_fco(
-                    &rdp_req, file,
+                self.send_shared_dir_request(tdpb::SharedDirectoryRequest::write_req(
+                    &rdp_req,
+                    file.path(),
                 ))?;
                 self.cache.insert_handler(
                     rdp_req.device_io_request.device_id,
@@ -1106,10 +1133,11 @@ impl FilesystemBackend {
                     SharedDirectoryWriteResponseHandler::new(
                         rdp_req,
                         move |this: &mut FilesystemBackend,
-                              tdp_res: tdp::SharedDirectoryWriteResponse,
+                              tdp_res: tdpb::shared_directory_response::Write,
+                              err_code: tdpb::ErrCode,
                               rdp_req: efs::DeviceWriteRequest|
                               -> PduResult<()> {
-                            this.tdp_sd_write_continued(rdp_req, tdp_res)
+                            this.tdp_sd_write_continued(rdp_req, tdp_res, err_code)
                         },
                     ),
                 )?;
@@ -1122,10 +1150,11 @@ impl FilesystemBackend {
     fn tdp_sd_write_continued(
         &mut self,
         rdp_req: efs::DeviceWriteRequest,
-        tdp_res: tdp::SharedDirectoryWriteResponse,
+        tdp_res: tdpb::shared_directory_response::Write,
+        err_code: tdpb::ErrCode,
     ) -> PduResult<()> {
-        match tdp_res.err_code {
-            TdpErrCode::Nil => self.send_rdp_write_response(
+        match err_code {
+            tdpb::ErrCode::Nil => self.send_rdp_write_response(
                 rdp_req.device_io_request,
                 NtStatus::SUCCESS,
                 tdp_res.bytes_written,
@@ -1149,10 +1178,14 @@ impl FilesystemBackend {
             efs::Boolean::True => self.tdp_sd_move(rdp_req, rename_info.clone(), io_status),
             efs::Boolean::False => {
                 // If replace_if_exists is false, first check if the new_path exists.
-                self.send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest {
+                self.send_shared_dir_request(tdpb::SharedDirectoryRequest {
                     completion_id: rdp_req.device_io_request.completion_id,
                     directory_id: rdp_req.device_io_request.device_id,
-                    path: UnixPath::from(&rename_info.file_name),
+                    operation: Some(tdpb::shared_directory_request::Operation::Info(
+                        tdpb::shared_directory_request::Info {
+                            path: UnixPath::from(&rename_info.file_name).path,
+                        },
+                    )),
                 })?;
 
                 let rename_info = (*rename_info).clone();
@@ -1163,10 +1196,11 @@ impl FilesystemBackend {
                     ResponseKind::Info(SharedDirectoryInfoResponseHandler::new(
                         rdp_req,
                         move |this: &mut FilesystemBackend,
-                              res: tdp::SharedDirectoryInfoResponse,
+                              _tdp_res: tdpb::shared_directory_response::Info,
+                              err_code: tdpb::ErrCode,
                               rdp_req: efs::ServerDriveSetInformationRequest|
                               -> PduResult<()> {
-                            if res.err_code == TdpErrCode::DoesNotExist {
+                            if err_code == tdpb::ErrCode::DoesNotExist {
                                 // If the file doesn't already exist, send a move request.
                                 return this.tdp_sd_move(rdp_req, rename_info.clone(), io_status);
                             }
@@ -1184,8 +1218,8 @@ impl FilesystemBackend {
         }
     }
 
-    /// Helper function for sending a [`tdp::SharedDirectoryMoveRequest`] to the browser
-    /// and handling the [`tdp::SharedDirectoryMoveResponse`] that is received in response.
+    /// Helper function for sending a [`tdpb::shared_directory_request::Truncate`] to the browser
+    /// and handling the [`tdpb::shared_directory_response::Truncate`] that is received in response.
     fn tdp_sd_truncate(
         &mut self,
         rdp_req: efs::ServerDriveSetInformationRequest,
@@ -1197,11 +1231,15 @@ impl FilesystemBackend {
             rdp_req.device_io_request.file_id,
         ) {
             let end_of_file = eof.end_of_file;
-            self.send_tdp_truncate_request(tdp::SharedDirectoryTruncateRequest {
+            self.send_shared_dir_request(tdpb::SharedDirectoryRequest {
                 completion_id: rdp_req.device_io_request.completion_id,
                 directory_id: rdp_req.device_io_request.device_id,
-                path: file.path.clone(),
-                end_of_file: cast_length("tdp_sd_truncate", "end_of_file", eof.end_of_file)?,
+                operation: Some(tdpb::shared_directory_request::Operation::Truncate(
+                    tdpb::shared_directory_request::Truncate {
+                        path: file.path.path.clone(),
+                        size: cast_length("tdp_sd_truncate", "end_of_file", eof.end_of_file)?,
+                    },
+                )),
             })?;
 
             self.cache.insert_handler(
@@ -1210,10 +1248,11 @@ impl FilesystemBackend {
                 SharedDirectoryTruncateResponseHandler::new(
                     rdp_req,
                     move |this: &mut FilesystemBackend,
-                          res: tdp::SharedDirectoryTruncateResponse,
+                          _tdp_res: tdpb::shared_directory_response::Truncate,
+                          err_code: tdpb::ErrCode,
                           rdp_req: efs::ServerDriveSetInformationRequest|
                           -> PduResult<()> {
-                        if res.err_code != TdpErrCode::Nil {
+                        if err_code != tdpb::ErrCode::Nil {
                             return this
                                 .send_rdp_set_info_response(&rdp_req, NtStatus::UNSUCCESSFUL);
                         }
@@ -1245,8 +1284,8 @@ impl FilesystemBackend {
         self.send_rdp_set_info_response(&rdp_req, NtStatus::UNSUCCESSFUL)
     }
 
-    /// Helper function for sending a [`tdp::SharedDirectoryMoveRequest`] to the browser
-    /// and handling the [`tdp::SharedDirectoryMoveResponse`] that is received in response.
+    /// Helper function for sending a [`tdpb::shared_directory_request::Move`] to the browser
+    /// and handling the [`tdpb::shared_directory_response::Move`] that is received in response.
     fn tdp_sd_move(
         &mut self,
         rdp_req: efs::ServerDriveSetInformationRequest,
@@ -1257,11 +1296,15 @@ impl FilesystemBackend {
             rdp_req.device_io_request.device_id,
             rdp_req.device_io_request.file_id,
         ) {
-            self.send_tdp_sd_move_request(tdp::SharedDirectoryMoveRequest {
+            self.send_shared_dir_request(tdpb::SharedDirectoryRequest {
                 completion_id: rdp_req.device_io_request.completion_id,
                 directory_id: rdp_req.device_io_request.device_id,
-                original_path: file.path.clone(),
-                new_path: UnixPath::from(&rename_info.file_name),
+                operation: Some(tdpb::shared_directory_request::Operation::Move(
+                    tdpb::shared_directory_request::Move {
+                        original_path: file.path.path.clone(),
+                        new_path: UnixPath::from(&rename_info.file_name).path,
+                    },
+                )),
             })?;
 
             self.cache.insert_handler(
@@ -1270,10 +1313,11 @@ impl FilesystemBackend {
                 SharedDirectoryMoveResponseHandler::new(
                     rdp_req,
                     move |this: &mut FilesystemBackend,
-                          res: tdp::SharedDirectoryMoveResponse,
+                          _res: tdpb::shared_directory_response::Move,
+                          err_code: tdpb::ErrCode,
                           rdp_req: efs::ServerDriveSetInformationRequest|
                           -> PduResult<()> {
-                        if res.err_code != TdpErrCode::Nil {
+                        if err_code != tdpb::ErrCode::Nil {
                             return this
                                 .send_rdp_set_info_response(&rdp_req, NtStatus::UNSUCCESSFUL);
                         }
@@ -1290,291 +1334,115 @@ impl FilesystemBackend {
         self.send_rdp_set_info_response(&rdp_req, NtStatus::UNSUCCESSFUL)
     }
 
-    /// Sends a [`tdp::SharedDirectoryAcknowledge`] to the browser.
-    fn send_tdp_sd_acknowledge(
-        &self,
-        mut tdp_req: tdp::SharedDirectoryAcknowledge,
-    ) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
-        let err = unsafe { cgo_tdp_sd_acknowledge(self.cgo_handle, &mut tdp_req) };
-        match err {
-            CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(pdu_other_err!(
-                "",
-                source:FilesystemBackendError(format!(
-                    "call to tdp_sd_acknowledge failed: {:?}",
-                    err
-                ))
-            )),
-        }
+    /// Sends a [`tdpb::SharedDirectoryAcknowledge`] to the browser.
+    fn send_shared_dir_acknowledge(&self, req: tdpb::SharedDirectoryAcknowledge) -> PduResult<()> {
+        debug!("sending tdp: {:?}", req);
+        self.ipc_tdpb_sender
+            .blocking_send(tdpb::Envelope {
+                payload: Some(tdpb::envelope::Payload::SharedDirectoryAcknowledge(req)),
+            })
+            .map_err(|e| {
+                pdu_other_err!(
+                    "failed to send SharedDirectoryAcknowledge to the browser",
+                    source: e
+                )
+            })
     }
 
-    /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
-    fn send_tdp_sd_info_request(&self, tdp_req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
-        let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { cgo_tdp_sd_info_request(self.cgo_handle, req.cgo()) };
-        match err {
-            CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(pdu_other_err!(
-                "",
-                source:FilesystemBackendError(format!(
-                    "call to tdp_sd_info_request failed: {:?}",
-                    err
-                ))
-            )),
-        }
+    /// Sends a [`tdpb::SharedDirectoryRequest`] to the browser.
+    fn send_shared_dir_request(&self, req: tdpb::SharedDirectoryRequest) -> PduResult<()> {
+        debug!("sending tdp: {:?}", req);
+        self.ipc_tdpb_sender
+            .blocking_send(tdpb::Envelope {
+                payload: Some(tdpb::envelope::Payload::SharedDirectoryRequest(req)),
+            })
+            .map_err(|e| {
+                pdu_other_err!(
+                    "failed to send SharedDirectoryRequest to the browser",
+                    source: e
+                )
+            })
     }
 
-    /// Sends a [`tdp::SharedDirectoryTruncateRequest`] to the browser.
-    fn send_tdp_truncate_request(
-        &self,
-        tdp_req: tdp::SharedDirectoryTruncateRequest,
-    ) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
-        let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { cgo_tdp_sd_truncate_request(self.cgo_handle, req.cgo()) };
-        match err {
-            CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(pdu_other_err!(
-                "",
-                source:FilesystemBackendError(format!(
-                    "call to tdp_sd_truncate_request failed: {:?}",
-                    err
-                ))
-            )),
-        }
-    }
-
-    /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser.
-    fn send_tdp_sd_create_request(
-        &self,
-        tdp_req: tdp::SharedDirectoryCreateRequest,
-    ) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
-        let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { cgo_tdp_sd_create_request(self.cgo_handle, req.cgo()) };
-        match err {
-            CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(pdu_other_err!(
-                "",
-                source:FilesystemBackendError(format!(
-                    "call to tdp_sd_create_request failed: {:?}",
-                    err
-                ))
-            )),
-        }
-    }
-
-    /// Sends a [`tdp::SharedDirectoryDeleteRequest`] to the browser.
-    fn send_tdp_sd_delete_request(
-        &self,
-        tdp_req: tdp::SharedDirectoryDeleteRequest,
-    ) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
-        let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { cgo_tdp_sd_delete_request(self.cgo_handle, req.cgo()) };
-        match err {
-            CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(pdu_other_err!(
-                "",
-                source:FilesystemBackendError(format!(
-                    "call to tdp_sd_delete_request failed: {:?}",
-                    err
-                ))
-            )),
-        }
-    }
-
-    /// Sends a [`tdp::SharedDirectoryListRequest`] to the browser.
-    fn send_tdp_sd_list_request(&self, tdp_req: tdp::SharedDirectoryListRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
-        let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { cgo_tdp_sd_list_request(self.cgo_handle, req.cgo()) };
-        match err {
-            CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(pdu_other_err!(
-                "",
-                source:FilesystemBackendError(format!(
-                    "call to tdp_sd_list_request failed: {:?}",
-                    err
-                ))
-            )),
-        }
-    }
-
-    /// Sends a [`tdp::SharedDirectoryReadRequest`] to the browser.
-    fn send_tdp_sd_read_request(&self, tdp_req: tdp::SharedDirectoryReadRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
-        let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { cgo_tdp_sd_read_request(self.cgo_handle, req.cgo()) };
-        match err {
-            CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(pdu_other_err!(
-                "",
-                source:FilesystemBackendError(format!(
-                    "call to tdp_sd_read_request failed: {:?}",
-                    err
-                ))
-            )),
-        }
-    }
-
-    /// Sends a [`tdp::SharedDirectoryWriteRequest`] to the browser.
-    fn send_tdp_sd_write_request(
-        &self,
-        tdp_req: tdp::SharedDirectoryWriteRequest,
-    ) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
-        let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { cgo_tdp_sd_write_request(self.cgo_handle, req.cgo()) };
-        match err {
-            CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(pdu_other_err!(
-                "",
-                source:FilesystemBackendError(format!(
-                    "call to tdp_sd_write_request failed: {:?}",
-                    err
-                ))
-            )),
-        }
-    }
-
-    /// Sends a [`tdp::SharedDirectoryMoveRequest`] to the browser.
-    fn send_tdp_sd_move_request(&self, tdp_req: tdp::SharedDirectoryMoveRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
-        let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { cgo_tdp_sd_move_request(self.cgo_handle, req.cgo()) };
-        match err {
-            CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(pdu_other_err!(
-                "",
-                source:FilesystemBackendError(format!(
-                    "call to tdp_sd_move_request failed: {:?}",
-                    err
-                ))
-            )),
-        }
-    }
-
-    /// Called from the Go code when a [`tdp::SharedDirectoryInfoResponse`] is received from the browser.
-    ///
-    /// Calls the [`SharedDirectoryInfoResponseHandler`] associated with the completion id of the
-    /// [`tdp::SharedDirectoryInfoResponse`].
-    pub fn handle_tdp_sd_info_response(
+    pub fn handle_shared_dir_response(
         &mut self,
-        tdp_resp: tdp::SharedDirectoryInfoResponse,
+        tdp_resp: tdpb::SharedDirectoryResponse,
     ) -> PduResult<()> {
-        self.cache
-            .remove_handler::<SharedDirectoryInfoResponseHandler>(
-                tdp_resp.device_id,
-                tdp_resp.completion_id,
-            )?
-            .call(self, tdp_resp)
-    }
+        let Some(operation) = tdp_resp.operation else {
+            return Err(pdu_other_err!(
+                "",
+                source: FilesystemBackendError("received SharedDirectoryResponse with no operation".into())
+            ));
+        };
 
-    /// Called from the Go code when a [`tdp::SharedDirectoryCreateResponse`] is received from the browser.
-    ///
-    /// Calls the [`SharedDirectoryCreateResponseHandler`] associated with the completion id of the
-    /// [`tdp::SharedDirectoryCreateResponse`].
-    pub fn handle_tdp_sd_create_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryCreateResponse,
-    ) -> PduResult<()> {
-        self.cache
-            .remove_handler::<SharedDirectoryCreateResponseHandler>(
-                tdp_resp.directory_id,
-                tdp_resp.completion_id,
-            )?
-            .call(self, tdp_resp)
-    }
+        let err_code = tdpb::ErrCode::try_from(tdp_resp.error_code).map_err(|e| {
+            pdu_other_err!(
+                "",
+                source: FilesystemBackendError(format!(
+                    "received invalid error code: {}",
+                    e
+                ))
+            )
+        })?;
 
-    /// Called from the Go code when a [`tdp::SharedDirectoryDeleteResponse`] is received from the browser.
-    ///
-    /// Calls the [`SharedDirectoryDeleteResponseHandler`] associated with the completion id of the
-    /// [`tdp::SharedDirectoryDeleteResponse`].
-    pub fn handle_tdp_sd_delete_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryDeleteResponse,
-    ) -> PduResult<()> {
-        self.cache
-            .remove_handler::<SharedDirectoryDeleteResponseHandler>(
-                tdp_resp.directory_id,
-                tdp_resp.completion_id,
-            )?
-            .call(self, tdp_resp)
-    }
-
-    /// Called from the Go code when a [`tdp::SharedDirectoryListResponse`] is received from the browser.
-    ///
-    /// Calls the [`SharedDirectoryListResponseHandler`] associated with the completion id of the
-    /// [`tdp::SharedDirectoryListResponse`].
-    pub fn handle_tdp_sd_list_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryListResponse,
-    ) -> PduResult<()> {
-        self.cache
-            .remove_handler::<SharedDirectoryListResponseHandler>(
-                tdp_resp.directory_id,
-                tdp_resp.completion_id,
-            )?
-            .call(self, tdp_resp)
-    }
-
-    /// Called from the Go code when a [`tdp::SharedDirectoryReadResponse`] is received from the browser.
-    ///
-    /// Calls the [`SharedDirectoryReadResponseHandler`] associated with the completion id of the
-    /// [`tdp::SharedDirectoryReadResponse`].
-    pub fn handle_tdp_sd_read_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryReadResponse,
-    ) -> PduResult<()> {
-        self.cache
-            .remove_handler::<SharedDirectoryReadResponseHandler>(
-                tdp_resp.directory_id,
-                tdp_resp.completion_id,
-            )?
-            .call(self, tdp_resp)
-    }
-
-    /// Called from the Go code when a [`tdp::SharedDirectoryWriteResponse`] is received from the browser.
-    ///
-    /// Calls the [`SharedDirectoryWriteResponseHandler`] associated with the completion id of the
-    /// [`tdp::SharedDirectoryWriteResponse`].
-    pub fn handle_tdp_sd_write_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryWriteResponse,
-    ) -> PduResult<()> {
-        self.cache
-            .remove_handler::<SharedDirectoryWriteResponseHandler>(
-                tdp_resp.directory_id,
-                tdp_resp.completion_id,
-            )?
-            .call(self, tdp_resp)
-    }
-
-    pub fn handle_tdp_sd_move_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryMoveResponse,
-    ) -> PduResult<()> {
-        self.cache
-            .remove_handler::<SharedDirectoryMoveResponseHandler>(
-                tdp_resp.directory_id,
-                tdp_resp.completion_id,
-            )?
-            .call(self, tdp_resp)
-    }
-
-    pub fn handle_tdp_sd_truncate_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryTruncateResponse,
-    ) -> PduResult<()> {
-        self.cache
-            .remove_handler::<SharedDirectoryTruncateResponseHandler>(
-                tdp_resp.directory_id,
-                tdp_resp.completion_id,
-            )?
-            .call(self, tdp_resp)
+        match operation {
+            tdpb::shared_directory_response::Operation::Info(info) => self
+                .cache
+                .remove_handler::<SharedDirectoryInfoResponseHandler>(
+                    tdp_resp.directory_id,
+                    tdp_resp.completion_id,
+                )?
+                .call(self, info, err_code),
+            tdpb::shared_directory_response::Operation::Create(create) => self
+                .cache
+                .remove_handler::<SharedDirectoryCreateResponseHandler>(
+                    tdp_resp.directory_id,
+                    tdp_resp.completion_id,
+                )?
+                .call(self, create, err_code),
+            tdpb::shared_directory_response::Operation::Delete(delete) => self
+                .cache
+                .remove_handler::<SharedDirectoryDeleteResponseHandler>(
+                    tdp_resp.directory_id,
+                    tdp_resp.completion_id,
+                )?
+                .call(self, delete, err_code),
+            tdpb::shared_directory_response::Operation::List(list) => self
+                .cache
+                .remove_handler::<SharedDirectoryListResponseHandler>(
+                    tdp_resp.directory_id,
+                    tdp_resp.completion_id,
+                )?
+                .call(self, list, err_code),
+            tdpb::shared_directory_response::Operation::Read(read) => self
+                .cache
+                .remove_handler::<SharedDirectoryReadResponseHandler>(
+                    tdp_resp.directory_id,
+                    tdp_resp.completion_id,
+                )?
+                .call(self, read, err_code),
+            tdpb::shared_directory_response::Operation::Write(write) => self
+                .cache
+                .remove_handler::<SharedDirectoryWriteResponseHandler>(
+                    tdp_resp.directory_id,
+                    tdp_resp.completion_id,
+                )?
+                .call(self, write, err_code),
+            tdpb::shared_directory_response::Operation::Move(mv) => self
+                .cache
+                .remove_handler::<SharedDirectoryMoveResponseHandler>(
+                    tdp_resp.directory_id,
+                    tdp_resp.completion_id,
+                )?
+                .call(self, mv, err_code),
+            tdpb::shared_directory_response::Operation::Truncate(truncate) => self
+                .cache
+                .remove_handler::<SharedDirectoryTruncateResponseHandler>(
+                    tdp_resp.directory_id,
+                    tdp_resp.completion_id,
+                )?
+                .call(self, truncate, err_code),
+        }
     }
 
     /// Helper function for sending an RDP [`efs::DeviceCreateResponse`] based on an RDP [`efs::DeviceCreateRequest`].
@@ -1680,11 +1548,11 @@ impl FilesystemBackend {
                 device_io_response,
                 buffer: Some(efs::FileInformationClass::Basic(
                     efs::FileBasicInformation {
-                        creation_time: tdp::to_windows_time(file.fso.last_modified),
-                        last_access_time: tdp::to_windows_time(file.fso.last_modified),
-                        last_write_time: tdp::to_windows_time(file.fso.last_modified),
-                        change_time: tdp::to_windows_time(file.fso.last_modified),
-                        file_attributes: if file.fso.file_type == tdp::FileType::File {
+                        creation_time: to_windows_time(file.fso.last_modified),
+                        last_access_time: to_windows_time(file.fso.last_modified),
+                        last_write_time: to_windows_time(file.fso.last_modified),
+                        change_time: to_windows_time(file.fso.last_modified),
+                        file_attributes: if file.fso.file_type == tdpb::FileType::File as u32 {
                             efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
                         } else {
                             efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
@@ -1721,7 +1589,7 @@ impl FilesystemBackend {
                         } else {
                             efs::Boolean::False
                         },
-                        directory: if file.fso.file_type == tdp::FileType::File {
+                        directory: if file.fso.file_type == tdpb::FileType::File as u32 {
                             efs::Boolean::False
                         } else {
                             efs::Boolean::True
@@ -1744,7 +1612,7 @@ impl FilesystemBackend {
                 device_io_response,
                 buffer: Some(efs::FileInformationClass::AttributeTag(
                     efs::FileAttributeTagInformation {
-                        file_attributes: if file.fso.file_type == tdp::FileType::File {
+                        file_attributes: if file.fso.file_type == tdpb::FileType::File as u32 {
                             efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
                         } else {
                             efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
@@ -2005,10 +1873,10 @@ impl FileCache {
 pub struct FileCacheObject {
     path: UnixPath,
     delete_pending: bool,
-    /// The tdp::FileSystemObject pertaining to the file or directory at path.
-    fso: tdp::FileSystemObject,
+    /// The tdpb::FileSystemObject pertaining to the file or directory at path.
+    fso: tdpb::FileSystemObject,
     /// A vector of the contents of the directory at path.
-    contents: Vec<tdp::FileSystemObject>,
+    contents: Vec<tdpb::FileSystemObject>,
 
     /// Book-keeping variable, see Iterator implementation
     contents_i: usize,
@@ -2019,7 +1887,7 @@ pub struct FileCacheObject {
 }
 
 impl FileCacheObject {
-    fn new(path: UnixPath, fso: tdp::FileSystemObject) -> Self {
+    fn new(path: UnixPath, fso: tdpb::FileSystemObject) -> Self {
         Self {
             path,
             delete_pending: false,
@@ -2041,7 +1909,7 @@ impl FileCacheObject {
 /// IRP_MJ_DIRECTORY_CONTROL, which requires that we iterate through
 /// all the files of a directory one by one. In this case, the directory
 /// is the FileCacheObject itself, with its own fso field representing
-/// the directory, and its contents being represented by tdp::FileSystemObject's
+/// the directory, and its contents being represented by tdpb::FileSystemObject's
 /// in its contents field.
 ///
 /// We account for an idiosyncrasy of the RDP protocol here: when fielding an
@@ -2055,28 +1923,28 @@ impl FileCacheObject {
 /// is itself a directory (fso.file_type == FileType::Directory). We leave it up to the
 /// caller to ensure iteration makes sense in the given context that it's used.
 impl Iterator for FileCacheObject {
-    type Item = tdp::FileSystemObject;
+    type Item = tdpb::FileSystemObject;
 
     fn next(&mut self) -> Option<Self::Item> {
         // On the first call to next, return the "." directory
         if !self.dot_sent {
             self.dot_sent = true;
-            Some(tdp::FileSystemObject {
+            Some(tdpb::FileSystemObject {
                 last_modified: self.fso.last_modified,
                 size: self.fso.size,
                 file_type: self.fso.file_type,
-                is_empty: tdp::FALSE,
-                path: UnixPath::from(".".to_string()),
+                is_empty: false,
+                path: ".".to_string(),
             })
         } else if !self.dotdot_sent {
             // On the second call to next, return the ".." directory
             self.dotdot_sent = true;
-            Some(tdp::FileSystemObject {
+            Some(tdpb::FileSystemObject {
                 last_modified: self.fso.last_modified,
                 size: 0,
-                file_type: tdp::FileType::Directory,
-                is_empty: tdp::FALSE,
-                path: UnixPath::from("..".to_string()),
+                file_type: tdpb::FileType::Directory as u32,
+                is_empty: false,
+                path: "..".to_string(),
             })
         } else {
             // "." and ".." have been sent, now start iterating through
@@ -2244,9 +2112,12 @@ impl Cancel for efs::ServerDriveLockControlRequest {
     }
 }
 
-trait HandlerFn<T>: FnOnce(&mut FilesystemBackend, T) -> PduResult<()> + Send {}
+trait HandlerFn<T>: FnOnce(&mut FilesystemBackend, T, tdpb::ErrCode) -> PduResult<()> + Send {}
 
-impl<T, F> HandlerFn<T> for F where F: FnOnce(&mut FilesystemBackend, T) -> PduResult<()> + Send {}
+impl<T, F> HandlerFn<T> for F where
+    F: FnOnce(&mut FilesystemBackend, T, tdpb::ErrCode) -> PduResult<()> + Send
+{
+}
 
 struct ResponseHandler<T> {
     cancellable: Box<dyn Cancel + Send>,
@@ -2259,16 +2130,18 @@ struct ResponseHandler<T> {
 impl<T> ResponseHandler<T> {
     fn new<R: Cancel + Clone + Send + 'static>(
         req: R,
-        handler: impl FnOnce(&mut FilesystemBackend, T, R) -> PduResult<()> + Send + 'static,
+        handler: impl FnOnce(&mut FilesystemBackend, T, tdpb::ErrCode, R) -> PduResult<()>
+            + Send
+            + 'static,
     ) -> Self {
         Self {
             cancellable: Box::new(req.clone()),
-            handler: Box::new(move |this, input| handler(this, input, req)),
+            handler: Box::new(move |this, input, err_code| handler(this, input, err_code, req)),
         }
     }
 
-    fn call(self, this: &mut FilesystemBackend, res: T) -> PduResult<()> {
-        (self.handler)(this, res)
+    fn call(self, this: &mut FilesystemBackend, res: T, err_code: tdpb::ErrCode) -> PduResult<()> {
+        (self.handler)(this, res, err_code)
     }
 
     fn cancel(self) -> RdpdrPdu {
@@ -2282,14 +2155,17 @@ impl<T> std::fmt::Debug for ResponseHandler<T> {
     }
 }
 
-type SharedDirectoryInfoResponseHandler = ResponseHandler<tdp::SharedDirectoryInfoResponse>;
-type SharedDirectoryCreateResponseHandler = ResponseHandler<tdp::SharedDirectoryCreateResponse>;
-type SharedDirectoryDeleteResponseHandler = ResponseHandler<tdp::SharedDirectoryDeleteResponse>;
-type SharedDirectoryListResponseHandler = ResponseHandler<tdp::SharedDirectoryListResponse>;
-type SharedDirectoryReadResponseHandler = ResponseHandler<tdp::SharedDirectoryReadResponse>;
-type SharedDirectoryWriteResponseHandler = ResponseHandler<tdp::SharedDirectoryWriteResponse>;
-type SharedDirectoryMoveResponseHandler = ResponseHandler<tdp::SharedDirectoryMoveResponse>;
-type SharedDirectoryTruncateResponseHandler = ResponseHandler<tdp::SharedDirectoryTruncateResponse>;
+type SharedDirectoryInfoResponseHandler = ResponseHandler<tdpb::shared_directory_response::Info>;
+type SharedDirectoryCreateResponseHandler =
+    ResponseHandler<tdpb::shared_directory_response::Create>;
+type SharedDirectoryDeleteResponseHandler =
+    ResponseHandler<tdpb::shared_directory_response::Delete>;
+type SharedDirectoryListResponseHandler = ResponseHandler<tdpb::shared_directory_response::List>;
+type SharedDirectoryReadResponseHandler = ResponseHandler<tdpb::shared_directory_response::Read>;
+type SharedDirectoryWriteResponseHandler = ResponseHandler<tdpb::shared_directory_response::Write>;
+type SharedDirectoryMoveResponseHandler = ResponseHandler<tdpb::shared_directory_response::Move>;
+type SharedDirectoryTruncateResponseHandler =
+    ResponseHandler<tdpb::shared_directory_response::Truncate>;
 
 #[derive(Debug)]
 enum ResponseKind {

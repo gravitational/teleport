@@ -16,18 +16,12 @@
 
 mod filesystem;
 mod flags;
-pub(crate) mod path;
 pub(crate) mod scard;
-pub(crate) mod tdp;
 
 use self::filesystem::FilesystemBackend;
 use self::scard::{ScardBackend, SCARD_DEVICE_ID};
-use self::tdp::{
-    SharedDirectoryCreateResponse, SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse,
-    SharedDirectoryListResponse,
-};
 use crate::client::ClientHandle;
-use crate::CgoHandle;
+use crate::ipc::IpcTdpbSender;
 use ironrdp_core::impl_as_any;
 use ironrdp_pdu::{pdu_other_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{
@@ -37,6 +31,7 @@ use ironrdp_rdpdr::pdu::esc::{ScardCall, ScardIoCtlCode};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::RdpdrBackend;
 use ironrdp_svc::SvcMessage;
+use rdp_client_proto::tdpb;
 
 #[derive(Debug)]
 pub struct TeleportRdpdrBackend {
@@ -106,15 +101,15 @@ impl RdpdrBackend for TeleportRdpdrBackend {
 impl TeleportRdpdrBackend {
     pub fn new(
         client_handle: ClientHandle,
+        ipc_tdpb_sender: IpcTdpbSender,
         cert_der: Vec<u8>,
         key_der: Vec<u8>,
         pin: String,
-        cgo_handle: CgoHandle,
         allow_directory_sharing: bool,
     ) -> Self {
         Self {
             scard: ScardBackend::new(client_handle.clone(), cert_der, key_der, pin),
-            fs: FilesystemBackend::new(cgo_handle, client_handle),
+            fs: FilesystemBackend::new(client_handle, ipc_tdpb_sender),
             allow_directory_sharing,
         }
     }
@@ -128,60 +123,11 @@ impl TeleportRdpdrBackend {
         self.fs.mark_device_for_deletion(device_id)
     }
 
-    pub fn handle_tdp_sd_info_response(
+    pub fn handle_shared_dir_response(
         &mut self,
-        tdp_resp: SharedDirectoryInfoResponse,
+        resp: tdpb::SharedDirectoryResponse,
     ) -> PduResult<()> {
-        self.fs.handle_tdp_sd_info_response(tdp_resp)
-    }
-
-    pub fn handle_tdp_sd_create_response(
-        &mut self,
-        tdp_resp: SharedDirectoryCreateResponse,
-    ) -> PduResult<()> {
-        self.fs.handle_tdp_sd_create_response(tdp_resp)
-    }
-
-    pub fn handle_tdp_sd_delete_response(
-        &mut self,
-        tdp_resp: SharedDirectoryDeleteResponse,
-    ) -> PduResult<()> {
-        self.fs.handle_tdp_sd_delete_response(tdp_resp)
-    }
-
-    pub fn handle_tdp_sd_list_response(
-        &mut self,
-        tdp_resp: SharedDirectoryListResponse,
-    ) -> PduResult<()> {
-        self.fs.handle_tdp_sd_list_response(tdp_resp)
-    }
-
-    pub fn handle_tdp_sd_read_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryReadResponse,
-    ) -> PduResult<()> {
-        self.fs.handle_tdp_sd_read_response(tdp_resp)
-    }
-
-    pub fn handle_tdp_sd_write_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryWriteResponse,
-    ) -> PduResult<()> {
-        self.fs.handle_tdp_sd_write_response(tdp_resp)
-    }
-
-    pub fn handle_tdp_sd_move_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryMoveResponse,
-    ) -> PduResult<()> {
-        self.fs.handle_tdp_sd_move_response(tdp_resp)
-    }
-
-    pub fn handle_tdp_sd_truncate_response(
-        &mut self,
-        tdp_resp: tdp::SharedDirectoryTruncateResponse,
-    ) -> PduResult<()> {
-        self.fs.handle_tdp_sd_truncate_response(tdp_resp)
+        self.fs.handle_shared_dir_response(resp)
     }
 }
 
