@@ -57,6 +57,10 @@ type UserContext struct {
 	AuthType authType `json:"authType"`
 	// Name is this user name.
 	Name string `json:"userName"`
+	// DisplayPrimary is a display name when distinct from the username. May be empty.
+	DisplayPrimary string `json:"displayPrimary"`
+	// DisplaySecondary is extra context when distinct from the username. May be empty.
+	DisplaySecondary string `json:"displaySecondary"`
 	// ACL contains user access control list.
 	ACL services.UserACL `json:"userAcl"`
 	// Cluster contains cluster detail for this user's context.
@@ -114,11 +118,15 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		authType = authSSO
 	}
 
+	display := user.GetDisplay()
+
 	return &UserContext{
-		Name:           user.GetName(),
-		ACL:            acl,
-		AuthType:       authType,
-		AccessStrategy: accessStrategy,
-		PasswordSate:   user.GetPasswordState(),
+		Name:             user.GetName(),
+		DisplayPrimary:   display.Primary,
+		DisplaySecondary: display.Secondary,
+		ACL:              acl,
+		AuthType:         authType,
+		AccessStrategy:   accessStrategy,
+		PasswordSate:     user.GetPasswordState(),
 	}, nil
 }

@@ -19,9 +19,10 @@
 import { useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { Box, Text } from 'design';
+import { Box } from 'design';
 import { ChevronDown, Logout as LogoutIcon, Moon, Sun } from 'design/Icon';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import { useTeleport } from 'teleport';
@@ -41,10 +42,6 @@ import session from 'teleport/services/websession';
 import { getCurrentTheme, getNextTheme } from 'teleport/ThemeProvider';
 import { DeviceTrustStatus } from 'teleport/TopBar/DeviceTrustStatus';
 import { useUser } from 'teleport/User/UserContext';
-
-interface UserMenuNavProps {
-  username: string;
-}
 
 const USER_MENU_DROPDOWN_ID = 'tb-user-menu';
 
@@ -71,10 +68,7 @@ const UserInfo = styled.div`
   outline: none;
 `;
 
-const Username = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
-  font-size: 14px;
-  font-weight: 400;
+const CornerUserDisplay = styled(UserDisplayName)`
   display: none;
   @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     display: inline-flex;
@@ -117,7 +111,7 @@ const Arrow = styled.div<{ open?: boolean }>`
   }
 `;
 
-export function UserMenuNav({ username }: UserMenuNavProps) {
+export function UserMenuNav() {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
 
@@ -127,6 +121,8 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const ctx = useTeleport();
+  const username = ctx.storeUser.state.username;
+  const { displayPrimary, displaySecondary } = ctx.storeUser.state;
   const clusterId = ctx.storeUser.getClusterId();
   const features = useFeatures();
   const currentTheme = getCurrentTheme(preferences.theme);
@@ -137,8 +133,9 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
     setOpen(false);
   };
 
-  const initial =
-    username && username.length ? username.trim().charAt(0).toUpperCase() : '';
+  const initial = (displayPrimary.trim() || username.trim())
+    .charAt(0)
+    .toUpperCase();
 
   const topMenuItems = features.filter(
     feature => Boolean(feature.topMenuItem) && feature.category === undefined
@@ -197,7 +194,13 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
       >
         <StyledAvatar>{initial}</StyledAvatar>
 
-        <Username>{username}</Username>
+        <CornerUserDisplay
+          username={username}
+          primaryText={displayPrimary}
+          // Suppress secondary text if primary is present to avoid cluttering the corner space.
+          secondaryText={displayPrimary ? undefined : displaySecondary}
+          layout="stacked"
+        />
         <Box ml={3}>
           <DeviceTrustStatus iconOnly />
         </Box>

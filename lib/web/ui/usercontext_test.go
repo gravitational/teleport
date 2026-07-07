@@ -112,3 +112,32 @@ func TestNewUserContextCloud(t *testing.T) {
 		Prompt: "",
 	}))
 }
+
+func TestNewUserContextDisplayValues(t *testing.T) {
+	t.Parallel()
+
+	role := &types.RoleV6{}
+	role.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
+	roleSet := []types.Role{role}
+
+	t.Run("populated from traits", func(t *testing.T) {
+		t.Parallel()
+
+		user := &types.UserV2{
+			Metadata: types.Metadata{
+				Name: "alice",
+			},
+			Spec: types.UserSpecV2{
+				Traits: map[string][]string{
+					"displayName": {"Alice Anderson"},
+					"email":       {"alice@example.com"},
+				},
+			},
+		}
+
+		userContext, err := NewUserContext(user, roleSet, proto.Features{}, true, false)
+		require.NoError(t, err)
+		require.Equal(t, "Alice Anderson", userContext.DisplayPrimary)
+		require.Equal(t, "alice@example.com", userContext.DisplaySecondary)
+	})
+}
