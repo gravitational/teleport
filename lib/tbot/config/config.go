@@ -197,6 +197,11 @@ func (conf *BotConfig) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+// joinMethodsDocsURL documents the full set of supported join methods and
+// their exact config values (e.g. underscored names like "bound_keypair",
+// "terraform_cloud").
+const joinMethodsDocsURL = "https://goteleport.com/docs/reference/deployment/join-methods/"
+
 func (conf *BotConfig) CheckAndSetDefaults() error {
 	if conf.Version == "" {
 		conf.Version = V2
@@ -282,7 +287,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	// elsewhere.
 	if conf.Onboarding.JoinMethod != types.JoinMethodUnspecified {
 		if !slices.Contains(onboarding.SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
-			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
+			return trace.BadParameter("unrecognized join method: %q, see "+joinMethodsDocsURL, conf.Onboarding.JoinMethod)
 		}
 	}
 

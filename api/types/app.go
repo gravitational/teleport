@@ -602,19 +602,23 @@ func (a *AppV3) checkMCP() error {
 	}
 }
 
+// mcpStdioDocsURL documents the required fields for a stdio-transport MCP
+// server resource, including run_as_host_user.
+const mcpStdioDocsURL = "https://goteleport.com/docs/enroll-resources/mcp-access/enrolling-mcp-servers/stdio/"
+
 func (a *AppV3) checkMCPStdio() error {
 	// Skip validation for internal demo resource.
 	if resourceType, _ := a.GetLabel(TeleportInternalResourceType); resourceType == DemoResource {
 		return nil
 	}
 	if a.Spec.MCP == nil {
-		return trace.BadParameter("MCP server %q is missing 'mcp' spec", a.GetName())
+		return trace.BadParameter("MCP server %q is missing 'mcp' spec, see "+mcpStdioDocsURL, a.GetName())
 	}
 	if a.Spec.MCP.Command == "" {
-		return trace.BadParameter("MCP server %q is missing 'command' which specifies the executable to launch the MCP server. Arguments should be specified through the 'args' field", a.GetName())
+		return trace.BadParameter("MCP server %q is missing 'command' which specifies the executable to launch the MCP server. Arguments should be specified through the 'args' field, see "+mcpStdioDocsURL, a.GetName())
 	}
 	if a.Spec.MCP.RunAsHostUser == "" {
-		return trace.BadParameter("MCP server %q is missing 'run_as_host_user' which specifies a valid host user to execute the command", a.GetName())
+		return trace.BadParameter("MCP server %q is missing 'run_as_host_user' which specifies a valid host user to execute the command, see "+mcpStdioDocsURL, a.GetName())
 	}
 	return nil
 }

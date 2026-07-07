@@ -288,6 +288,11 @@ func (p *ProvisionTokenV2) setStaticFields() {
 	p.Version = V2
 }
 
+// joinMethodsDocsURL documents the full set of supported join methods and
+// their exact spec values (e.g. underscored names like "bound_keypair",
+// "terraform_cloud").
+const joinMethodsDocsURL = "https://goteleport.com/docs/reference/deployment/join-methods/"
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 	p.setStaticFields()
@@ -519,7 +524,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			return trace.Wrap(err, "spec.generic_oidc: failed validation")
 		}
 	default:
-		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
+		return trace.BadParameter("unknown join method %q, see "+joinMethodsDocsURL, p.Spec.JoinMethod)
 	}
 
 	return nil
