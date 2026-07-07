@@ -87,6 +87,10 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 		if clusterName == "" {
 			clusterName = result.ClusterName
 		}
+		// TODO (williamo/scopes): Scoped apps currently won't support required_apps.
+		if scope := result.App.GetScope(); scope != "" && len(requiredAppNames) > 0 {
+			return nil, trace.AccessDenied("scoped apps do not support required app redirects")
+		}
 		for _, requiredAppName := range requiredAppNames {
 			if result.App.GetUseAnyProxyPublicAddr() {
 				proxyDNSName := utils.FindMatchingProxyDNS(req.FQDNHint, h.proxyDNSNames())
