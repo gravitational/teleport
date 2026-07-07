@@ -73,6 +73,9 @@ const CornerUserDisplay = styled(UserDisplayName)`
   @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     display: inline-flex;
   }
+  span {
+    line-height: 1.2;
+  }
 `;
 
 const StyledAvatar = styled.div`
@@ -121,8 +124,7 @@ export function UserMenuNav() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const ctx = useTeleport();
-  const username = ctx.storeUser.state.username;
-  const { displayPrimary, displaySecondary } = ctx.storeUser.state;
+  const { displayPrimary, displaySecondary, username } = ctx.storeUser.state;
   const clusterId = ctx.storeUser.getClusterId();
   const features = useFeatures();
   const currentTheme = getCurrentTheme(preferences.theme);
