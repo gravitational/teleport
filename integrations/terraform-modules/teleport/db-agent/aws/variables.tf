@@ -4,21 +4,32 @@
 
 variable "ecs_service_subnets" {
   description = <<EOF
-Subnet IDs where the Teleport agent will be deployed.
+Subnet IDs where the Teleport db agent will be deployed.
 If var.assign_public_ip is true, then all of these subnets must be public subnets (route to an internet gateway).
 If var.assign_public_ip is false, then all of these subnets must be private subnets (route to a NAT gateway).
 EOF
   type        = list(string)
 }
 
-variable "vpc_id" {
-  description = "VPC ID where the Teleport agent will be deployed."
+variable "teleport_proxy_public_addr" {
+  description = "Teleport cluster proxy public address `host:port`."
   type        = string
+  nullable    = false
+
+  validation {
+    condition     = !strcontains(var.teleport_proxy_public_addr, "://")
+    error_message = "Must not contain a URL scheme."
+  }
+
+  validation {
+    condition     = var.teleport_proxy_public_addr == "" || strcontains(var.teleport_proxy_public_addr, ":")
+    error_message = "The address must be in the form `host:port`."
+  }
 }
 
-variable "teleport_config" {
-  description = "Teleport configuration. Write the configuration using native Terraform syntax. Warning: sensitive data, such as static join tokens, is visible to anyone who can read the task definition."
-  type        = any
+variable "vpc_id" {
+  description = "VPC ID where the Teleport db agent will be deployed."
+  type        = string
 }
 
 ################################################################################
@@ -43,10 +54,11 @@ variable "managed_updates_group" {
   type        = string
 }
 
+
 variable "assign_public_ip" {
   default     = false
   description = <<EOF
-Whether to assign public IP addresses to Teleport agent ECS tasks.
+Whether to assign public IP addresses to Teleport db agent ECS tasks.
 If this is set to true, then var.ecs_service_subnets must be public subnets (route to an internet gateway).
 Otherwise, var.ecs_service_subnets must be private subnets (route to a NAT gateway).
 EOF
@@ -61,12 +73,21 @@ variable "create" {
 
 variable "create_security_group" {
   default     = true
-  description = "Whether to create a security group for the Teleport agent ECS tasks."
+  description = "Whether to create a security group for the Teleport db agent ECS tasks."
   type        = bool
 }
 
+variable "join_params" {
+  default     = null
+  description = "Override the Teleport join parameters. When null, the module creates an IAM join token automatically. Set this to use a pre-existing token or a different join method."
+  type = object({
+    token_name = string
+    method     = string
+  })
+}
+
 variable "ecs_cluster_name" {
-  default     = "teleport"
+  default     = "teleport-db-services"
   description = "Name of the ECS cluster."
   type        = string
 }
@@ -78,7 +99,7 @@ variable "ecs_cluster_use_name_prefix" {
 }
 
 variable "ecs_service_name" {
-  default     = "teleport-service"
+  default     = "teleport-db-service"
   description = "Name of the ECS service."
   type        = string
 }
@@ -126,12 +147,12 @@ EOF
 
 variable "ecs_task_cpu" {
   default     = 2048
-  description = "Number of cpu units used by the ECS task."
+  description = "Number of CPU units used by the ECS task."
   type        = number
 }
 
 variable "ecs_task_definition_name" {
-  default     = "teleport-agent"
+  default     = "teleport-db-agent"
   description = "Name of the ECS task."
   type        = string
 }
@@ -144,7 +165,7 @@ variable "ecs_task_definition_use_name_prefix" {
 
 variable "ecs_task_desired_count" {
   default     = 2
-  description = "Desired number of Teleport ECS tasks to run."
+  description = "Desired number of Teleport db agent ECS tasks to run."
   type        = number
 }
 
@@ -167,26 +188,71 @@ variable "ecs_task_role_inline_policy" {
   type        = string
 }
 
-variable "ecs_task_role_self_assumption_allowed" {
-  default     = true
-  description = "Whether the ECS task IAM role can assume itself."
-  type        = bool
-}
-
 variable "environment_vars" {
   default     = {}
-  description = "Environment variables to set on the Teleport ECS container."
+  description = "Environment variables to set on the Teleport db agent ECS container."
   type        = map(string)
+}
+
+variable "database_types_for_default_iam_policy" {
+  default     = []
+  description = <<EOF
+Database types for which default IAM policy statements will be added to the ECS task role's inline policy.
+Currently, only `rds` is supported.
+Statements in the default IAM policy can be overridden by a statement with a matching SID in var.ecs_task_role_inline_policy.
+EOF
+  nullable    = false
+  type        = list(string)
+
+  validation {
+    condition = alltrue([
+      for database_type in var.database_types_for_default_iam_policy
+      : database_type == "rds"
+    ])
+    error_message = "Supported database types are: rds."
+  }
+}
+
+variable "database_service_resources" {
+  default     = null
+  description = "Override the db_service resource matchers. When null, a default matcher is used that matches databases in the same account, region, and VPC."
+  type = list(object({
+    labels = map(list(string))
+    aws = optional(object({
+      assume_role_arn = optional(string, "")
+      external_id     = optional(string, "")
+    }))
+  }))
+}
+
+variable "log_level" {
+  default     = "INFO"
+  description = "Teleport agent log level."
+  type        = string
 }
 
 variable "security_group_ids" {
   default     = []
-  description = "Additional security group IDs to attach to the Teleport agent ECS tasks."
+  description = "Additional security group IDs to attach to the Teleport db agent ECS tasks."
   type        = list(string)
 }
 
 variable "teleport_container_image" {
   default     = "public.ecr.aws/gravitational/teleport-ent-distroless"
-  description = "Container image used for Teleport ECS tasks."
+  description = "Container image used for the Teleport db agent ECS tasks."
   type        = string
+}
+
+variable "teleport_provision_token_name" {
+  default     = "db-agent"
+  description = "Name for the Teleport provision token resource."
+  type        = string
+  nullable    = false
+}
+
+variable "teleport_provision_token_use_name_prefix" {
+  default     = true
+  description = "Determines whether the name of the Teleport provision token is used as a prefix."
+  type        = bool
+  nullable    = false
 }
