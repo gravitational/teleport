@@ -300,6 +300,10 @@ type IdentityContext struct {
 	// this identity is associated with, if any.
 	BotInstanceID string
 
+	// BotScope is the scope of the Machine ID bot this identity is associated
+	// with, if any.
+	BotScope string
+
 	// JoinToken is the name of the join token used to join this bot identity,
 	// if any, and will not be set for bot instances that joined using the
 	// `token` join method.
@@ -1165,11 +1169,9 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	// on the unmapped identity for all scoped identities.
 	var scopePin *scopesv1.Pin
 	var beamID string
-	var botScope string
 	if id.UnmappedIdentity != nil {
 		scopePin = id.UnmappedIdentity.ScopePin
 		beamID = id.UnmappedIdentity.BeamID
-		botScope = id.UnmappedIdentity.BotScope
 	}
 
 	return apievents.UserMetadata{
@@ -1181,7 +1183,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		UserKind:        userKind,
 		BotName:         id.BotName,
 		BotInstanceID:   id.BotInstanceID,
-		BotScope:        botScope,
+		BotScope:        id.BotScope,
 		UserClusterName: id.OriginClusterName,
 		UserRoles:       slices.Clone(id.MappedRoles),
 		UserTraits:      id.Traits.Clone(),

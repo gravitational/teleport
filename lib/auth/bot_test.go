@@ -1438,10 +1438,11 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
-	// Inject mockEmitter to capture audit events
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	srv.Auth().SetEmitter(mockEmitter)
+	srv := newTestTLSServer(t,
+		withScopesFeatures(scopes.Features{Enabled: true}),
+		withEmitter(mockEmitter),
+	)
 	addr := utils.MustParseAddr(srv.Addr().String())
 
 	// Initial setup, create a bot and join token.
