@@ -104,6 +104,8 @@ export function getAcl(cfg?: { noAccess: boolean }) {
 export const baseContext = {
   authType: 'local',
   userName: 'llama',
+  displayPrimary: '',
+  displaySecondary: '',
   accessCapabilities: {
     suggestedReviewers: ['george_washington@gmail.com', 'alpha'],
     requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],
