@@ -6853,7 +6853,12 @@ func (process *TeleportProcess) initApps() {
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
-			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app)
+			// A scoped app's public_addr is derived from its (name, scope); a
+			// user must not set it.
+			if scopePin.GetScope() != "" && app.PublicAddr != "" {
+				return trace.BadParameter("app %q is scoped and must not set public_addr; it is derived from the app name and scope", app.Name)
+			}
+			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app, scopePin.GetScope())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -7401,8 +7406,9 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(requestDump))
 }
 
-// getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+// getPublicAddr waits for a proxy to be registered with Teleport. For a scoped
+// app (scope != ""), the returned address is the derived scope-qualified subdomain.
+func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App, scope string) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -7411,7 +7417,7 @@ func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoin
 	for {
 		select {
 		case <-ticker.C:
-			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name)
+			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name, scope)
 			if err == nil {
 				return publicAddr, nil
 			}

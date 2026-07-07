@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1067,9 +1068,15 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		return trace.AccessDenied("incorrect app server scope (expected %q, got %q)", handle.Hello().GetScope(), appServer.Scope)
 	}
 
+	app := appServer.GetApp()
+
 	// Require the embedded app scope to equal the server scope.
-	if app := appServer.GetApp(); app != nil && !services.AppServerScopesEqual(appServer.Scope, app.GetScope()) {
+	if app != nil && !services.AppServerScopesEqual(appServer.Scope, app.GetScope()) {
 		return trace.AccessDenied("incorrect embedded app scope (server scope %q does not match app scope %q)", appServer.Scope, app.GetScope())
+	}
+
+	if appServer.Scope != "" && !scopedapp.ScopedAppPublicAddrValid(app.GetScope(), app.GetName(), app.GetPublicAddr()) {
+		return trace.AccessDenied("scoped app %q public address %q does not match its derived address for scope %q", app.GetName(), app.GetPublicAddr(), app.GetScope())
 	}
 
 	// Older agents send mixed-case names and URL-shaped public_addr;
