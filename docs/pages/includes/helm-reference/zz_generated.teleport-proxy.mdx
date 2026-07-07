@@ -160,6 +160,31 @@ and should only be used for testing purposes.
 See https://goteleport.com/docs/admin-guides/management/security/proxy-protocol/
 for more information.
 
+## `serviceAccountTokenAudience`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`serviceAccountTokenAudience` optionally overrides the audience on
+the projected Kubernetes service account token mounted into proxy pods.
+
+When left empty and the effective Teleport join method is `kubernetes`, the
+chart defaults this to `clusterName`.
+
+## `serviceAccountTokenExpirationSeconds`
+
+| Type | Default |
+|------|---------|
+| `int` | `null` |
+
+`serviceAccountTokenExpirationSeconds` optionally overrides the TTL in
+seconds on the projected Kubernetes service account token mounted into proxy
+pods.
+
+When omitted by the user and the effective Teleport join method is
+`kubernetes`, the chart defaults this to 600 seconds.
+
 ## `proxy`
 
 | Type | Default |

@@ -91,6 +91,64 @@ tests:
                         fieldRef:
                           fieldPath: metadata.namespace
 
+  - it: derives projected token audience and ttl from overridden teleport join method
+    template: proxy.yaml
+    set:
+      clusterName: teleport.example.com
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: iam
+        token_name: placeholder
+      proxy:
+        teleportConfig:
+          teleport:
+            join_params:
+              method: kubernetes
+              token_name: real-token
+    capabilities:
+      majorVersion: 1
+      minorVersion: 21
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - matchRegex:
+          path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.audience
+          pattern: "^teleport\\.example\\.com$"
+      - equal:
+          path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.expirationSeconds
+          value: 600
+
+  - it: preserves explicit projected token audience and ttl overrides
+    template: proxy.yaml
+    set:
+      clusterName: teleport.example.com
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: iam
+        token_name: placeholder
+      serviceAccountTokenAudience: custom-audience
+      serviceAccountTokenExpirationSeconds: 1200
+      proxy:
+        teleportConfig:
+          teleport:
+            join_params:
+              method: kubernetes
+              token_name: real-token
+    capabilities:
+      majorVersion: 1
+      minorVersion: 21
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.audience
+          value: custom-audience
+      - equal:
+          path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.expirationSeconds
+          value: 1200
+
   - it: sets extraLabels on Deployment Pods
     template: proxy.yaml
     values:

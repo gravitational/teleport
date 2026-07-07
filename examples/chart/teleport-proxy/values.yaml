@@ -131,6 +131,21 @@ teleportVersionOverride: ""
 #
 proxyProtocol: ""
 
+# serviceAccountTokenAudience(string) -- optionally overrides the audience on
+# the projected Kubernetes service account token mounted into proxy pods.
+#
+# When left empty and the effective Teleport join method is `kubernetes`, the
+# chart defaults this to `clusterName`.
+serviceAccountTokenAudience: ""
+
+# serviceAccountTokenExpirationSeconds(int) -- optionally overrides the TTL in
+# seconds on the projected Kubernetes service account token mounted into proxy
+# pods.
+#
+# When omitted by the user and the effective Teleport join method is
+# `kubernetes`, the chart defaults this to 600 seconds.
+serviceAccountTokenExpirationSeconds: null
+
 # proxy(object) -- Overrides for chart-generated helm resources.
 #
 # These values are merged with chart-scoped values and take precedence in case
