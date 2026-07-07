@@ -160,7 +160,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	}
 
 	if err := b.backend.DeleteBotInstance(
-		ctx, instance.GetScope(), instance.GetSpec().GetBotName(), instance.GetSpec().GetInstanceId(),
+		ctx, req.GetBotScope(), req.GetBotName(), req.GetInstanceId(),
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
