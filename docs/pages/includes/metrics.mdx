@@ -59,6 +59,8 @@
 | `teleport_audit_parquetlog_last_processed_timestamp`     | gauge     | Teleport Audit Log  | Number of last processing time in Parquet-format audit log.                                        |
 | `teleport_audit_parquetlog_age_oldest_processed_message` | gauge     | Teleport Audit Log  | Number of age of oldest event in Parquet-format audit log.                                         |
 | `teleport_audit_parquetlog_errors_from_collect_count`    | counter   | Teleport Audit Log  | Number of collect failures in Parquet-format audit log.                                            |
+| `teleport_ca_override_apply_seconds`                     | histogram | Teleport Auth       | Duration of applying certificate overrides to CA certificates.                                     |
+| `teleport_ca_override_read_seconds`                      | histogram | Teleport Auth       | Duration of reading and parsing CA overrides.                                                      |
 | `teleport_connected_resources`                           | gauge     | Teleport Auth       | Number and type of resources connected via keepalives.                                             |
 | `teleport_postgres_events_backend_write_requests`        | counter   | Postgres (Events)   | Number of write requests to postgres events, labeled with the request `status` (success or failure). |
 | `teleport_postgres_events_backend_batch_read_requests`   | counter   | Postgres (Events)   | Number of batch read requests to postgres events, labeled with the request `status` (success or failure). |
