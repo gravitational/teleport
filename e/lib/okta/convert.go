@@ -116,7 +116,7 @@ func (s *Service) oktaAppToAppServers(ctx context.Context, oktaApplication *okta
 			return nil, trace.Wrap(err)
 		}
 
-		publicAddr, err := app.FindPublicAddr(ctx, s.accessPoint, "", appID)
+		publicAddr, err := app.FindPublicAddr(ctx, s.accessPoint, "", appID, "")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

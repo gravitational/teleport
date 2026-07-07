@@ -548,7 +548,7 @@ func testSynchronizeIgnoresHostID(t *testing.T) {
 	} {
 		oktaID, hostID := pair[0], pair[1]
 		name := mustAppName(t, oktaID, link1)
-		publicAddr, err := app.FindPublicAddr(ctx, ap, "", name)
+		publicAddr, err := app.FindPublicAddr(ctx, ap, "", name, "")
 		require.NoError(t, err)
 		upsertAppServer(t, ap, newAppServer(t,
 			types.Metadata{
