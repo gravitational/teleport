@@ -36,6 +36,8 @@ describe('buildTerraformConfig', () => {
     managedIdentity: {
       resourceGroup: 'my-resource-group',
       region: 'eastus',
+      scope: 'managementGroup',
+      managementGroupId: 'my-mg',
     },
   };
 
@@ -100,10 +102,10 @@ describe('buildTerraformConfig', () => {
     expect(result).toContain('subscriptions = ["sub-a", "sub-b"]');
   });
 
-  test('includes empty subscriptions array when none provided', () => {
+  test('omits subscriptions when none provided', () => {
     const result = buildTerraformConfig(baseConfig);
 
-    expect(result).toContain('subscriptions = []');
+    expect(result).not.toContain('subscriptions =');
   });
 
   test('includes resource_groups sorted', () => {

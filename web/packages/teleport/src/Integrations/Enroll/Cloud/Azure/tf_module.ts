@@ -66,6 +66,8 @@ export const buildTerraformConfig = ({
 
   const managedIdentityRegionOrNull = managedIdentity.region;
 
+  const managementGroupIdOrNull = managedIdentity.managementGroupId ?? null;
+
   const tfModule = hcl`# Terraform Module
 module "azure_discovery" {
   source  = ${moduleSrc}
@@ -76,6 +78,11 @@ module "azure_discovery" {
   teleport_proxy_public_addr    = ${cfg.proxyCluster + ':443'}
   teleport_discovery_group_name = "cloud-discovery-group"
   teleport_integration_name	    = ${integrationNameOrNull}
+
+  # Scope role assignment to a Management Group for discovering resources
+  # across all child subscriptions. Provide the Tenant ID to use the
+  # Tenant Root Group scope.
+  azure_management_group_id = ${managementGroupIdOrNull}
 
   # Name of an existing Azure Resource Group where
   # Azure resources will be created.
@@ -97,8 +104,9 @@ const buildMatcher = (config: ServiceConfig): TFObject | null => {
 
   const matcher: { [key: string]: TFValue } = { types: [config.type] };
 
-  // required by azure discovery module
-  matcher.subscriptions = [...config.subscriptions].sort();
+  if (config.subscriptions.length > 0) {
+    matcher.subscriptions = [...config.subscriptions].sort();
+  }
 
   if (config.resourceGroups?.length > 0) {
     matcher['resource_groups'] = [...config.resourceGroups].sort();
