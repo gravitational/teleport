@@ -522,7 +522,7 @@ In your pipeline configuration, add `$(System.AccessToken)` as an environment va
 
 ```yaml
 jobs:
-- job: Terraform
+  - job: Terraform
     steps:
     - task: TerraformTask@5
       displayName: 'Terraform plan'
