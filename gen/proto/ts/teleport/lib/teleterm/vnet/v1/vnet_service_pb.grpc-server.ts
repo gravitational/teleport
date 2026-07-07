@@ -20,6 +20,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { GetConnectionStatsResponse } from "./vnet_service_pb";
+import { GetConnectionStatsRequest } from "./vnet_service_pb";
 import { GetRecentConnectionsResponse } from "./vnet_service_pb";
 import { GetRecentConnectionsRequest } from "./vnet_service_pb";
 import { AutoConfigureSSHResponse } from "./vnet_service_pb";
@@ -98,6 +100,15 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetRecentConnections(teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse);
      */
     getRecentConnections: grpc.handleServerStreamingCall<GetRecentConnectionsRequest, GetRecentConnectionsResponse>;
+    /**
+     * GetConnectionStats streams aggregated per-target connection statistics for
+     * the running VNet service. The server sends the current statistics
+     * immediately and then a fresh snapshot whenever they change, until the
+     * stream is canceled or VNet stops. Requires VNet to be started.
+     *
+     * @generated from protobuf rpc: GetConnectionStats(teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse);
+     */
+    getConnectionStats: grpc.handleServerStreamingCall<GetConnectionStatsRequest, GetConnectionStatsResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.vnet.v1.VnetService.
@@ -190,5 +201,15 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         requestDeserialize: bytes => GetRecentConnectionsRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetRecentConnectionsResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetRecentConnectionsRequest.toBinary(value))
+    },
+    getConnectionStats: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetConnectionStats",
+        originalName: "GetConnectionStats",
+        requestStream: false,
+        responseStream: true,
+        responseDeserialize: bytes => GetConnectionStatsResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetConnectionStatsRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetConnectionStatsResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetConnectionStatsRequest.toBinary(value))
     }
 };

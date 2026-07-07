@@ -1249,6 +1249,331 @@ func (b0 RecentConnection_builder) Build() *RecentConnection {
 	return m0
 }
 
+// Request for GetConnectionStats.
+type GetConnectionStatsRequest struct {
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetConnectionStatsRequest) Reset() {
+	*x = GetConnectionStatsRequest{}
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConnectionStatsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConnectionStatsRequest) ProtoMessage() {}
+
+func (x *GetConnectionStatsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type GetConnectionStatsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetConnectionStatsRequest_builder) Build() *GetConnectionStatsRequest {
+	m0 := &GetConnectionStatsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
+// Response for GetConnectionStats, containing the complete snapshot of
+// connection statistics for all targets connected to since VNet started.
+type GetConnectionStatsResponse struct {
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Stats *[]*ConnectionStat     `protobuf:"bytes,1,rep,name=stats,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GetConnectionStatsResponse) Reset() {
+	*x = GetConnectionStatsResponse{}
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConnectionStatsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConnectionStatsResponse) ProtoMessage() {}
+
+func (x *GetConnectionStatsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetConnectionStatsResponse) GetStats() []*ConnectionStat {
+	if x != nil {
+		if x.xxx_hidden_Stats != nil {
+			return *x.xxx_hidden_Stats
+		}
+	}
+	return nil
+}
+
+func (x *GetConnectionStatsResponse) SetStats(v []*ConnectionStat) {
+	x.xxx_hidden_Stats = &v
+}
+
+type GetConnectionStatsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Stats []*ConnectionStat
+}
+
+func (b0 GetConnectionStatsResponse_builder) Build() *GetConnectionStatsResponse {
+	m0 := &GetConnectionStatsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Stats = &b.Stats
+	return m0
+}
+
+// ConnectionStat holds the aggregated connection statistics for a single
+// target connected to through VNet. All counters are absolute values
+// accumulated since VNet started.
+type ConnectionStat struct {
+	state                            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Kind                  RecentConnectionKind   `protobuf:"varint,1,opt,name=kind,proto3,enum=teleport.lib.teleterm.vnet.v1.RecentConnectionKind"`
+	xxx_hidden_Cluster               string                 `protobuf:"bytes,2,opt,name=cluster,proto3"`
+	xxx_hidden_LeafCluster           string                 `protobuf:"bytes,3,opt,name=leaf_cluster,json=leafCluster,proto3"`
+	xxx_hidden_DisplayName           string                 `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3"`
+	xxx_hidden_Port                  uint32                 `protobuf:"varint,5,opt,name=port,proto3"`
+	xxx_hidden_SuccessfulConnections uint64                 `protobuf:"varint,6,opt,name=successful_connections,json=successfulConnections,proto3"`
+	xxx_hidden_FailedConnections     uint64                 `protobuf:"varint,7,opt,name=failed_connections,json=failedConnections,proto3"`
+	xxx_hidden_BytesTx               uint64                 `protobuf:"varint,8,opt,name=bytes_tx,json=bytesTx,proto3"`
+	xxx_hidden_BytesRx               uint64                 `protobuf:"varint,9,opt,name=bytes_rx,json=bytesRx,proto3"`
+	xxx_hidden_BytesTxPerSec         uint64                 `protobuf:"varint,10,opt,name=bytes_tx_per_sec,json=bytesTxPerSec,proto3"`
+	xxx_hidden_BytesRxPerSec         uint64                 `protobuf:"varint,11,opt,name=bytes_rx_per_sec,json=bytesRxPerSec,proto3"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
+}
+
+func (x *ConnectionStat) Reset() {
+	*x = ConnectionStat{}
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionStat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionStat) ProtoMessage() {}
+
+func (x *ConnectionStat) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ConnectionStat) GetKind() RecentConnectionKind {
+	if x != nil {
+		return x.xxx_hidden_Kind
+	}
+	return RecentConnectionKind_RECENT_CONNECTION_KIND_UNSPECIFIED
+}
+
+func (x *ConnectionStat) GetCluster() string {
+	if x != nil {
+		return x.xxx_hidden_Cluster
+	}
+	return ""
+}
+
+func (x *ConnectionStat) GetLeafCluster() string {
+	if x != nil {
+		return x.xxx_hidden_LeafCluster
+	}
+	return ""
+}
+
+func (x *ConnectionStat) GetDisplayName() string {
+	if x != nil {
+		return x.xxx_hidden_DisplayName
+	}
+	return ""
+}
+
+func (x *ConnectionStat) GetPort() uint32 {
+	if x != nil {
+		return x.xxx_hidden_Port
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetSuccessfulConnections() uint64 {
+	if x != nil {
+		return x.xxx_hidden_SuccessfulConnections
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetFailedConnections() uint64 {
+	if x != nil {
+		return x.xxx_hidden_FailedConnections
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetBytesTx() uint64 {
+	if x != nil {
+		return x.xxx_hidden_BytesTx
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetBytesRx() uint64 {
+	if x != nil {
+		return x.xxx_hidden_BytesRx
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetBytesTxPerSec() uint64 {
+	if x != nil {
+		return x.xxx_hidden_BytesTxPerSec
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetBytesRxPerSec() uint64 {
+	if x != nil {
+		return x.xxx_hidden_BytesRxPerSec
+	}
+	return 0
+}
+
+func (x *ConnectionStat) SetKind(v RecentConnectionKind) {
+	x.xxx_hidden_Kind = v
+}
+
+func (x *ConnectionStat) SetCluster(v string) {
+	x.xxx_hidden_Cluster = v
+}
+
+func (x *ConnectionStat) SetLeafCluster(v string) {
+	x.xxx_hidden_LeafCluster = v
+}
+
+func (x *ConnectionStat) SetDisplayName(v string) {
+	x.xxx_hidden_DisplayName = v
+}
+
+func (x *ConnectionStat) SetPort(v uint32) {
+	x.xxx_hidden_Port = v
+}
+
+func (x *ConnectionStat) SetSuccessfulConnections(v uint64) {
+	x.xxx_hidden_SuccessfulConnections = v
+}
+
+func (x *ConnectionStat) SetFailedConnections(v uint64) {
+	x.xxx_hidden_FailedConnections = v
+}
+
+func (x *ConnectionStat) SetBytesTx(v uint64) {
+	x.xxx_hidden_BytesTx = v
+}
+
+func (x *ConnectionStat) SetBytesRx(v uint64) {
+	x.xxx_hidden_BytesRx = v
+}
+
+func (x *ConnectionStat) SetBytesTxPerSec(v uint64) {
+	x.xxx_hidden_BytesTxPerSec = v
+}
+
+func (x *ConnectionStat) SetBytesRxPerSec(v uint64) {
+	x.xxx_hidden_BytesRxPerSec = v
+}
+
+type ConnectionStat_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is the kind of the target (TCP app, SSH host, or database).
+	Kind RecentConnectionKind
+	// cluster is the profile (root cluster) the target is found in.
+	Cluster string
+	// leaf_cluster is the leaf cluster the target is found in. Empty if the
+	// target is in the root cluster.
+	LeafCluster string
+	// display_name is the address shown to the user, e.g. the app public address,
+	// the database FQDN, or the SSH host address.
+	DisplayName string
+	// port is the target port of the connection. Only set for multi-port TCP
+	// apps, zero otherwise.
+	Port uint32
+	// successful_connections is the number of connections to the target that
+	// were successfully established.
+	SuccessfulConnections uint64
+	// failed_connections is the number of connections to the target that failed
+	// to be established.
+	FailedConnections uint64
+	// bytes_tx is the total number of bytes transmitted to the target, as
+	// measured on the connection between the client application and VNet.
+	BytesTx uint64
+	// bytes_rx is the total number of bytes received from the target, as
+	// measured on the connection between the client application and VNet.
+	BytesRx uint64
+	// bytes_tx_per_sec is the transmit throughput to the target measured over
+	// the most recent sampling interval.
+	BytesTxPerSec uint64
+	// bytes_rx_per_sec is the receive throughput from the target measured over
+	// the most recent sampling interval.
+	BytesRxPerSec uint64
+}
+
+func (b0 ConnectionStat_builder) Build() *ConnectionStat {
+	m0 := &ConnectionStat{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Kind = b.Kind
+	x.xxx_hidden_Cluster = b.Cluster
+	x.xxx_hidden_LeafCluster = b.LeafCluster
+	x.xxx_hidden_DisplayName = b.DisplayName
+	x.xxx_hidden_Port = b.Port
+	x.xxx_hidden_SuccessfulConnections = b.SuccessfulConnections
+	x.xxx_hidden_FailedConnections = b.FailedConnections
+	x.xxx_hidden_BytesTx = b.BytesTx
+	x.xxx_hidden_BytesRx = b.BytesRx
+	x.xxx_hidden_BytesTxPerSec = b.BytesTxPerSec
+	x.xxx_hidden_BytesRxPerSec = b.BytesRxPerSec
+	return m0
+}
+
 var File_teleport_lib_teleterm_vnet_v1_vnet_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
@@ -1285,7 +1610,23 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\fleaf_cluster\x18\x03 \x01(\tR\vleafCluster\x12!\n" +
 	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12A\n" +
 	"\x0elast_connected\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\rlastConnected\x127\n" +
-	"\x18last_client_process_path\x18\x06 \x01(\tR\x15lastClientProcessPath*\x8b\x02\n" +
+	"\x18last_client_process_path\x18\x06 \x01(\tR\x15lastClientProcessPath\"\x1b\n" +
+	"\x19GetConnectionStatsRequest\"a\n" +
+	"\x1aGetConnectionStatsResponse\x12C\n" +
+	"\x05stats\x18\x01 \x03(\v2-.teleport.lib.teleterm.vnet.v1.ConnectionStatR\x05stats\"\xbb\x03\n" +
+	"\x0eConnectionStat\x12G\n" +
+	"\x04kind\x18\x01 \x01(\x0e23.teleport.lib.teleterm.vnet.v1.RecentConnectionKindR\x04kind\x12\x18\n" +
+	"\acluster\x18\x02 \x01(\tR\acluster\x12!\n" +
+	"\fleaf_cluster\x18\x03 \x01(\tR\vleafCluster\x12!\n" +
+	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12\x12\n" +
+	"\x04port\x18\x05 \x01(\rR\x04port\x125\n" +
+	"\x16successful_connections\x18\x06 \x01(\x04R\x15successfulConnections\x12-\n" +
+	"\x12failed_connections\x18\a \x01(\x04R\x11failedConnections\x12\x19\n" +
+	"\bbytes_tx\x18\b \x01(\x04R\abytesTx\x12\x19\n" +
+	"\bbytes_rx\x18\t \x01(\x04R\abytesRx\x12'\n" +
+	"\x10bytes_tx_per_sec\x18\n" +
+	" \x01(\x04R\rbytesTxPerSec\x12'\n" +
+	"\x10bytes_rx_per_sec\x18\v \x01(\x04R\rbytesRxPerSec*\x8b\x02\n" +
 	"\x14BackgroundItemStatus\x12&\n" +
 	"\"BACKGROUND_ITEM_STATUS_UNSPECIFIED\x10\x00\x12)\n" +
 	"%BACKGROUND_ITEM_STATUS_NOT_REGISTERED\x10\x01\x12\"\n" +
@@ -1302,7 +1643,7 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\"RECENT_CONNECTION_KIND_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aRECENT_CONNECTION_KIND_APP\x10\x01\x12\x1e\n" +
 	"\x1aRECENT_CONNECTION_KIND_SSH\x10\x02\x12#\n" +
-	"\x1fRECENT_CONNECTION_KIND_DATABASE\x10\x032\xaf\b\n" +
+	"\x1fRECENT_CONNECTION_KIND_DATABASE\x10\x032\xbd\t\n" +
 	"\vVnetService\x12b\n" +
 	"\x05Start\x12+.teleport.lib.teleterm.vnet.v1.StartRequest\x1a,.teleport.lib.teleterm.vnet.v1.StartResponse\x12_\n" +
 	"\x04Stop\x12*.teleport.lib.teleterm.vnet.v1.StopRequest\x1a+.teleport.lib.teleterm.vnet.v1.StopResponse\x12}\n" +
@@ -1311,10 +1652,11 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\x1cCheckInstallTimeRequirements\x12B.teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest\x1aC.teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse\x12}\n" +
 	"\x0eRunDiagnostics\x124.teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest\x1a5.teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse\x12\x83\x01\n" +
 	"\x10AutoConfigureSSH\x126.teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest\x1a7.teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse\x12\x91\x01\n" +
-	"\x14GetRecentConnections\x12:.teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest\x1a;.teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse0\x01BUZSgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1b\x06proto3"
+	"\x14GetRecentConnections\x12:.teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest\x1a;.teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse0\x01\x12\x8b\x01\n" +
+	"\x12GetConnectionStats\x128.teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest\x1a9.teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse0\x01BUZSgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1b\x06proto3"
 
 var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_goTypes = []any{
 	(BackgroundItemStatus)(0),                    // 0: teleport.lib.teleterm.vnet.v1.BackgroundItemStatus
 	(WindowsServiceStatus)(0),                    // 1: teleport.lib.teleterm.vnet.v1.WindowsServiceStatus
@@ -1336,37 +1678,44 @@ var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_goTypes = []any{
 	(*GetRecentConnectionsRequest)(nil),          // 17: teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest
 	(*GetRecentConnectionsResponse)(nil),         // 18: teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse
 	(*RecentConnection)(nil),                     // 19: teleport.lib.teleterm.vnet.v1.RecentConnection
-	(*v1.Report)(nil),                            // 20: teleport.lib.vnet.diag.v1.Report
-	(*timestamppb.Timestamp)(nil),                // 21: google.protobuf.Timestamp
+	(*GetConnectionStatsRequest)(nil),            // 20: teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest
+	(*GetConnectionStatsResponse)(nil),           // 21: teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse
+	(*ConnectionStat)(nil),                       // 22: teleport.lib.teleterm.vnet.v1.ConnectionStat
+	(*v1.Report)(nil),                            // 23: teleport.lib.vnet.diag.v1.Report
+	(*timestamppb.Timestamp)(nil),                // 24: google.protobuf.Timestamp
 }
 var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_depIdxs = []int32{
 	0,  // 0: teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse.status:type_name -> teleport.lib.teleterm.vnet.v1.BackgroundItemStatus
 	1,  // 1: teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse.windows_service_status:type_name -> teleport.lib.teleterm.vnet.v1.WindowsServiceStatus
-	20, // 2: teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse.report:type_name -> teleport.lib.vnet.diag.v1.Report
+	23, // 2: teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse.report:type_name -> teleport.lib.vnet.diag.v1.Report
 	19, // 3: teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse.connections:type_name -> teleport.lib.teleterm.vnet.v1.RecentConnection
 	2,  // 4: teleport.lib.teleterm.vnet.v1.RecentConnection.kind:type_name -> teleport.lib.teleterm.vnet.v1.RecentConnectionKind
-	21, // 5: teleport.lib.teleterm.vnet.v1.RecentConnection.last_connected:type_name -> google.protobuf.Timestamp
-	3,  // 6: teleport.lib.teleterm.vnet.v1.VnetService.Start:input_type -> teleport.lib.teleterm.vnet.v1.StartRequest
-	5,  // 7: teleport.lib.teleterm.vnet.v1.VnetService.Stop:input_type -> teleport.lib.teleterm.vnet.v1.StopRequest
-	7,  // 8: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:input_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
-	9,  // 9: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:input_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
-	11, // 10: teleport.lib.teleterm.vnet.v1.VnetService.CheckInstallTimeRequirements:input_type -> teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest
-	13, // 11: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:input_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
-	15, // 12: teleport.lib.teleterm.vnet.v1.VnetService.AutoConfigureSSH:input_type -> teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest
-	17, // 13: teleport.lib.teleterm.vnet.v1.VnetService.GetRecentConnections:input_type -> teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest
-	4,  // 14: teleport.lib.teleterm.vnet.v1.VnetService.Start:output_type -> teleport.lib.teleterm.vnet.v1.StartResponse
-	6,  // 15: teleport.lib.teleterm.vnet.v1.VnetService.Stop:output_type -> teleport.lib.teleterm.vnet.v1.StopResponse
-	8,  // 16: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:output_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
-	10, // 17: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:output_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
-	12, // 18: teleport.lib.teleterm.vnet.v1.VnetService.CheckInstallTimeRequirements:output_type -> teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse
-	14, // 19: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:output_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
-	16, // 20: teleport.lib.teleterm.vnet.v1.VnetService.AutoConfigureSSH:output_type -> teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
-	18, // 21: teleport.lib.teleterm.vnet.v1.VnetService.GetRecentConnections:output_type -> teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse
-	14, // [14:22] is the sub-list for method output_type
-	6,  // [6:14] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	24, // 5: teleport.lib.teleterm.vnet.v1.RecentConnection.last_connected:type_name -> google.protobuf.Timestamp
+	22, // 6: teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse.stats:type_name -> teleport.lib.teleterm.vnet.v1.ConnectionStat
+	2,  // 7: teleport.lib.teleterm.vnet.v1.ConnectionStat.kind:type_name -> teleport.lib.teleterm.vnet.v1.RecentConnectionKind
+	3,  // 8: teleport.lib.teleterm.vnet.v1.VnetService.Start:input_type -> teleport.lib.teleterm.vnet.v1.StartRequest
+	5,  // 9: teleport.lib.teleterm.vnet.v1.VnetService.Stop:input_type -> teleport.lib.teleterm.vnet.v1.StopRequest
+	7,  // 10: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:input_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
+	9,  // 11: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:input_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
+	11, // 12: teleport.lib.teleterm.vnet.v1.VnetService.CheckInstallTimeRequirements:input_type -> teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest
+	13, // 13: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:input_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
+	15, // 14: teleport.lib.teleterm.vnet.v1.VnetService.AutoConfigureSSH:input_type -> teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest
+	17, // 15: teleport.lib.teleterm.vnet.v1.VnetService.GetRecentConnections:input_type -> teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest
+	20, // 16: teleport.lib.teleterm.vnet.v1.VnetService.GetConnectionStats:input_type -> teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest
+	4,  // 17: teleport.lib.teleterm.vnet.v1.VnetService.Start:output_type -> teleport.lib.teleterm.vnet.v1.StartResponse
+	6,  // 18: teleport.lib.teleterm.vnet.v1.VnetService.Stop:output_type -> teleport.lib.teleterm.vnet.v1.StopResponse
+	8,  // 19: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:output_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
+	10, // 20: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:output_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
+	12, // 21: teleport.lib.teleterm.vnet.v1.VnetService.CheckInstallTimeRequirements:output_type -> teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse
+	14, // 22: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:output_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
+	16, // 23: teleport.lib.teleterm.vnet.v1.VnetService.AutoConfigureSSH:output_type -> teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
+	18, // 24: teleport.lib.teleterm.vnet.v1.VnetService.GetRecentConnections:output_type -> teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse
+	21, // 25: teleport.lib.teleterm.vnet.v1.VnetService.GetConnectionStats:output_type -> teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse
+	17, // [17:26] is the sub-list for method output_type
+	8,  // [8:17] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_init() }
@@ -1383,7 +1732,7 @@ func file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc), len(file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   17,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

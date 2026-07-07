@@ -43,6 +43,7 @@ const (
 	VnetService_RunDiagnostics_FullMethodName               = "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics"
 	VnetService_AutoConfigureSSH_FullMethodName             = "/teleport.lib.teleterm.vnet.v1.VnetService/AutoConfigureSSH"
 	VnetService_GetRecentConnections_FullMethodName         = "/teleport.lib.teleterm.vnet.v1.VnetService/GetRecentConnections"
+	VnetService_GetConnectionStats_FullMethodName           = "/teleport.lib.teleterm.vnet.v1.VnetService/GetConnectionStats"
 )
 
 // VnetServiceClient is the client API for VnetService service.
@@ -74,6 +75,11 @@ type VnetServiceClient interface {
 	// then a new list whenever it changes, until the stream is canceled or VNet
 	// stops. Requires VNet to be started.
 	GetRecentConnections(ctx context.Context, in *GetRecentConnectionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetRecentConnectionsResponse], error)
+	// GetConnectionStats streams aggregated per-target connection statistics for
+	// the running VNet service. The server sends the current statistics
+	// immediately and then a fresh snapshot whenever they change, until the
+	// stream is canceled or VNet stops. Requires VNet to be started.
+	GetConnectionStats(ctx context.Context, in *GetConnectionStatsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetConnectionStatsResponse], error)
 }
 
 type vnetServiceClient struct {
@@ -173,6 +179,25 @@ func (c *vnetServiceClient) GetRecentConnections(ctx context.Context, in *GetRec
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type VnetService_GetRecentConnectionsClient = grpc.ServerStreamingClient[GetRecentConnectionsResponse]
 
+func (c *vnetServiceClient) GetConnectionStats(ctx context.Context, in *GetConnectionStatsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetConnectionStatsResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &VnetService_ServiceDesc.Streams[1], VnetService_GetConnectionStats_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[GetConnectionStatsRequest, GetConnectionStatsResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type VnetService_GetConnectionStatsClient = grpc.ServerStreamingClient[GetConnectionStatsResponse]
+
 // VnetServiceServer is the server API for VnetService service.
 // All implementations must embed UnimplementedVnetServiceServer
 // for forward compatibility.
@@ -202,6 +227,11 @@ type VnetServiceServer interface {
 	// then a new list whenever it changes, until the stream is canceled or VNet
 	// stops. Requires VNet to be started.
 	GetRecentConnections(*GetRecentConnectionsRequest, grpc.ServerStreamingServer[GetRecentConnectionsResponse]) error
+	// GetConnectionStats streams aggregated per-target connection statistics for
+	// the running VNet service. The server sends the current statistics
+	// immediately and then a fresh snapshot whenever they change, until the
+	// stream is canceled or VNet stops. Requires VNet to be started.
+	GetConnectionStats(*GetConnectionStatsRequest, grpc.ServerStreamingServer[GetConnectionStatsResponse]) error
 	mustEmbedUnimplementedVnetServiceServer()
 }
 
@@ -235,6 +265,9 @@ func (UnimplementedVnetServiceServer) AutoConfigureSSH(context.Context, *AutoCon
 }
 func (UnimplementedVnetServiceServer) GetRecentConnections(*GetRecentConnectionsRequest, grpc.ServerStreamingServer[GetRecentConnectionsResponse]) error {
 	return status.Error(codes.Unimplemented, "method GetRecentConnections not implemented")
+}
+func (UnimplementedVnetServiceServer) GetConnectionStats(*GetConnectionStatsRequest, grpc.ServerStreamingServer[GetConnectionStatsResponse]) error {
+	return status.Error(codes.Unimplemented, "method GetConnectionStats not implemented")
 }
 func (UnimplementedVnetServiceServer) mustEmbedUnimplementedVnetServiceServer() {}
 func (UnimplementedVnetServiceServer) testEmbeddedByValue()                     {}
@@ -394,6 +427,17 @@ func _VnetService_GetRecentConnections_Handler(srv interface{}, stream grpc.Serv
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type VnetService_GetRecentConnectionsServer = grpc.ServerStreamingServer[GetRecentConnectionsResponse]
 
+func _VnetService_GetConnectionStats_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetConnectionStatsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(VnetServiceServer).GetConnectionStats(m, &grpc.GenericServerStream[GetConnectionStatsRequest, GetConnectionStatsResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type VnetService_GetConnectionStatsServer = grpc.ServerStreamingServer[GetConnectionStatsResponse]
+
 // VnetService_ServiceDesc is the grpc.ServiceDesc for VnetService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -434,6 +478,11 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetRecentConnections",
 			Handler:       _VnetService_GetRecentConnections_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetConnectionStats",
+			Handler:       _VnetService_GetConnectionStats_Handler,
 			ServerStreams: true,
 		},
 	},

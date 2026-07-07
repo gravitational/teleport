@@ -23,6 +23,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { VnetService } from "./vnet_service_pb";
+import type { GetConnectionStatsResponse } from "./vnet_service_pb";
+import type { GetConnectionStatsRequest } from "./vnet_service_pb";
 import type { GetRecentConnectionsResponse } from "./vnet_service_pb";
 import type { GetRecentConnectionsRequest } from "./vnet_service_pb";
 import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
@@ -104,6 +106,15 @@ export interface IVnetServiceClient {
      * @generated from protobuf rpc: GetRecentConnections(teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse);
      */
     getRecentConnections(input: GetRecentConnectionsRequest, options?: RpcOptions): ServerStreamingCall<GetRecentConnectionsRequest, GetRecentConnectionsResponse>;
+    /**
+     * GetConnectionStats streams aggregated per-target connection statistics for
+     * the running VNet service. The server sends the current statistics
+     * immediately and then a fresh snapshot whenever they change, until the
+     * stream is canceled or VNet stops. Requires VNet to be started.
+     *
+     * @generated from protobuf rpc: GetConnectionStats(teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse);
+     */
+    getConnectionStats(input: GetConnectionStatsRequest, options?: RpcOptions): ServerStreamingCall<GetConnectionStatsRequest, GetConnectionStatsResponse>;
 }
 /**
  * VnetService provides methods to manage a VNet instance.
@@ -194,5 +205,17 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
     getRecentConnections(input: GetRecentConnectionsRequest, options?: RpcOptions): ServerStreamingCall<GetRecentConnectionsRequest, GetRecentConnectionsResponse> {
         const method = this.methods[7], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetRecentConnectionsRequest, GetRecentConnectionsResponse>("serverStreaming", this._transport, method, opt, input);
+    }
+    /**
+     * GetConnectionStats streams aggregated per-target connection statistics for
+     * the running VNet service. The server sends the current statistics
+     * immediately and then a fresh snapshot whenever they change, until the
+     * stream is canceled or VNet stops. Requires VNet to be started.
+     *
+     * @generated from protobuf rpc: GetConnectionStats(teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse);
+     */
+    getConnectionStats(input: GetConnectionStatsRequest, options?: RpcOptions): ServerStreamingCall<GetConnectionStatsRequest, GetConnectionStatsResponse> {
+        const method = this.methods[8], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetConnectionStatsRequest, GetConnectionStatsResponse>("serverStreaming", this._transport, method, opt, input);
     }
 }

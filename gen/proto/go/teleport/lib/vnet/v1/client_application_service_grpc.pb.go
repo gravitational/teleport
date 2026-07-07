@@ -53,6 +53,7 @@ const (
 	ClientApplicationService_ReissueDBCert_FullMethodName             = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueDBCert"
 	ClientApplicationService_SignForDB_FullMethodName                 = "/teleport.lib.vnet.v1.ClientApplicationService/SignForDB"
 	ClientApplicationService_OnNewDBConnection_FullMethodName         = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewDBConnection"
+	ClientApplicationService_ReportConnectionStats_FullMethodName     = "/teleport.lib.vnet.v1.ClientApplicationService/ReportConnectionStats"
 )
 
 // ClientApplicationServiceClient is the client API for ClientApplicationService service.
@@ -112,6 +113,12 @@ type ClientApplicationServiceClient interface {
 	// OnNewDBConnection gets called whenever a new database connection is about to
 	// be established through VNet for observability.
 	OnNewDBConnection(ctx context.Context, in *OnNewDBConnectionRequest, opts ...grpc.CallOption) (*OnNewDBConnectionResponse, error)
+	// ReportConnectionStats reports a snapshot of the aggregated connection
+	// statistics for all targets connected to through VNet. The admin process
+	// pushes a fresh snapshot periodically while VNet is running. All counters
+	// are absolute values accumulated since VNet started, so a lost snapshot
+	// does not lose any data.
+	ReportConnectionStats(ctx context.Context, in *ReportConnectionStatsRequest, opts ...grpc.CallOption) (*ReportConnectionStatsResponse, error)
 }
 
 type clientApplicationServiceClient struct {
@@ -302,6 +309,16 @@ func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, 
 	return out, nil
 }
 
+func (c *clientApplicationServiceClient) ReportConnectionStats(ctx context.Context, in *ReportConnectionStatsRequest, opts ...grpc.CallOption) (*ReportConnectionStatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportConnectionStatsResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_ReportConnectionStats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClientApplicationServiceServer is the server API for ClientApplicationService service.
 // All implementations must embed UnimplementedClientApplicationServiceServer
 // for forward compatibility.
@@ -359,6 +376,12 @@ type ClientApplicationServiceServer interface {
 	// OnNewDBConnection gets called whenever a new database connection is about to
 	// be established through VNet for observability.
 	OnNewDBConnection(context.Context, *OnNewDBConnectionRequest) (*OnNewDBConnectionResponse, error)
+	// ReportConnectionStats reports a snapshot of the aggregated connection
+	// statistics for all targets connected to through VNet. The admin process
+	// pushes a fresh snapshot periodically while VNet is running. All counters
+	// are absolute values accumulated since VNet started, so a lost snapshot
+	// does not lose any data.
+	ReportConnectionStats(context.Context, *ReportConnectionStatsRequest) (*ReportConnectionStatsResponse, error)
 	mustEmbedUnimplementedClientApplicationServiceServer()
 }
 
@@ -422,6 +445,9 @@ func (UnimplementedClientApplicationServiceServer) SignForDB(context.Context, *S
 }
 func (UnimplementedClientApplicationServiceServer) OnNewDBConnection(context.Context, *OnNewDBConnectionRequest) (*OnNewDBConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method OnNewDBConnection not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) ReportConnectionStats(context.Context, *ReportConnectionStatsRequest) (*ReportConnectionStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReportConnectionStats not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) mustEmbedUnimplementedClientApplicationServiceServer() {
 }
@@ -769,6 +795,24 @@ func _ClientApplicationService_OnNewDBConnection_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClientApplicationService_ReportConnectionStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportConnectionStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).ReportConnectionStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_ReportConnectionStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).ReportConnectionStats(ctx, req.(*ReportConnectionStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClientApplicationService_ServiceDesc is the grpc.ServiceDesc for ClientApplicationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -847,6 +891,10 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "OnNewDBConnection",
 			Handler:    _ClientApplicationService_OnNewDBConnection_Handler,
+		},
+		{
+			MethodName: "ReportConnectionStats",
+			Handler:    _ClientApplicationService_ReportConnectionStats_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

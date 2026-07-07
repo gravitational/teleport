@@ -246,6 +246,109 @@ export interface RecentConnection {
     lastClientProcessPath: string;
 }
 /**
+ * Request for GetConnectionStats.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest
+ */
+export interface GetConnectionStatsRequest {
+}
+/**
+ * Response for GetConnectionStats, containing the complete snapshot of
+ * connection statistics for all targets connected to since VNet started.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse
+ */
+export interface GetConnectionStatsResponse {
+    /**
+     * @generated from protobuf field: repeated teleport.lib.teleterm.vnet.v1.ConnectionStat stats = 1;
+     */
+    stats: ConnectionStat[];
+}
+/**
+ * ConnectionStat holds the aggregated connection statistics for a single
+ * target connected to through VNet. All counters are absolute values
+ * accumulated since VNet started.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.ConnectionStat
+ */
+export interface ConnectionStat {
+    /**
+     * kind is the kind of the target (TCP app, SSH host, or database).
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.vnet.v1.RecentConnectionKind kind = 1;
+     */
+    kind: RecentConnectionKind;
+    /**
+     * cluster is the profile (root cluster) the target is found in.
+     *
+     * @generated from protobuf field: string cluster = 2;
+     */
+    cluster: string;
+    /**
+     * leaf_cluster is the leaf cluster the target is found in. Empty if the
+     * target is in the root cluster.
+     *
+     * @generated from protobuf field: string leaf_cluster = 3;
+     */
+    leafCluster: string;
+    /**
+     * display_name is the address shown to the user, e.g. the app public address,
+     * the database FQDN, or the SSH host address.
+     *
+     * @generated from protobuf field: string display_name = 4;
+     */
+    displayName: string;
+    /**
+     * port is the target port of the connection. Only set for multi-port TCP
+     * apps, zero otherwise.
+     *
+     * @generated from protobuf field: uint32 port = 5;
+     */
+    port: number;
+    /**
+     * successful_connections is the number of connections to the target that
+     * were successfully established.
+     *
+     * @generated from protobuf field: uint64 successful_connections = 6;
+     */
+    successfulConnections: bigint;
+    /**
+     * failed_connections is the number of connections to the target that failed
+     * to be established.
+     *
+     * @generated from protobuf field: uint64 failed_connections = 7;
+     */
+    failedConnections: bigint;
+    /**
+     * bytes_tx is the total number of bytes transmitted to the target, as
+     * measured on the connection between the client application and VNet.
+     *
+     * @generated from protobuf field: uint64 bytes_tx = 8;
+     */
+    bytesTx: bigint;
+    /**
+     * bytes_rx is the total number of bytes received from the target, as
+     * measured on the connection between the client application and VNet.
+     *
+     * @generated from protobuf field: uint64 bytes_rx = 9;
+     */
+    bytesRx: bigint;
+    /**
+     * bytes_tx_per_sec is the transmit throughput to the target measured over
+     * the most recent sampling interval.
+     *
+     * @generated from protobuf field: uint64 bytes_tx_per_sec = 10;
+     */
+    bytesTxPerSec: bigint;
+    /**
+     * bytes_rx_per_sec is the receive throughput from the target measured over
+     * the most recent sampling interval.
+     *
+     * @generated from protobuf field: uint64 bytes_rx_per_sec = 11;
+     */
+    bytesRxPerSec: bigint;
+}
+/**
  * BackgroundItemStatus maps to SMAppServiceStatus of the Service Management framework in macOS.
  * https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
  *
@@ -950,6 +1053,205 @@ class RecentConnection$Type extends MessageType<RecentConnection> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.RecentConnection
  */
 export const RecentConnection = new RecentConnection$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetConnectionStatsRequest$Type extends MessageType<GetConnectionStatsRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest", []);
+    }
+    create(value?: PartialMessage<GetConnectionStatsRequest>): GetConnectionStatsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetConnectionStatsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetConnectionStatsRequest): GetConnectionStatsRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetConnectionStatsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest
+ */
+export const GetConnectionStatsRequest = new GetConnectionStatsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetConnectionStatsResponse$Type extends MessageType<GetConnectionStatsResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse", [
+            { no: 1, name: "stats", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ConnectionStat }
+        ]);
+    }
+    create(value?: PartialMessage<GetConnectionStatsResponse>): GetConnectionStatsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.stats = [];
+        if (value !== undefined)
+            reflectionMergePartial<GetConnectionStatsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetConnectionStatsResponse): GetConnectionStatsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.lib.teleterm.vnet.v1.ConnectionStat stats */ 1:
+                    message.stats.push(ConnectionStat.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetConnectionStatsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.lib.teleterm.vnet.v1.ConnectionStat stats = 1; */
+        for (let i = 0; i < message.stats.length; i++)
+            ConnectionStat.internalBinaryWrite(message.stats[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse
+ */
+export const GetConnectionStatsResponse = new GetConnectionStatsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ConnectionStat$Type extends MessageType<ConnectionStat> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.ConnectionStat", [
+            { no: 1, name: "kind", kind: "enum", T: () => ["teleport.lib.teleterm.vnet.v1.RecentConnectionKind", RecentConnectionKind, "RECENT_CONNECTION_KIND_"] },
+            { no: 2, name: "cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "leaf_cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "display_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "port", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 6, name: "successful_connections", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 7, name: "failed_connections", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 8, name: "bytes_tx", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 9, name: "bytes_rx", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 10, name: "bytes_tx_per_sec", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 11, name: "bytes_rx_per_sec", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ConnectionStat>): ConnectionStat {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.kind = 0;
+        message.cluster = "";
+        message.leafCluster = "";
+        message.displayName = "";
+        message.port = 0;
+        message.successfulConnections = 0n;
+        message.failedConnections = 0n;
+        message.bytesTx = 0n;
+        message.bytesRx = 0n;
+        message.bytesTxPerSec = 0n;
+        message.bytesRxPerSec = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<ConnectionStat>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConnectionStat): ConnectionStat {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.teleterm.vnet.v1.RecentConnectionKind kind */ 1:
+                    message.kind = reader.int32();
+                    break;
+                case /* string cluster */ 2:
+                    message.cluster = reader.string();
+                    break;
+                case /* string leaf_cluster */ 3:
+                    message.leafCluster = reader.string();
+                    break;
+                case /* string display_name */ 4:
+                    message.displayName = reader.string();
+                    break;
+                case /* uint32 port */ 5:
+                    message.port = reader.uint32();
+                    break;
+                case /* uint64 successful_connections */ 6:
+                    message.successfulConnections = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 failed_connections */ 7:
+                    message.failedConnections = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 bytes_tx */ 8:
+                    message.bytesTx = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 bytes_rx */ 9:
+                    message.bytesRx = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 bytes_tx_per_sec */ 10:
+                    message.bytesTxPerSec = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 bytes_rx_per_sec */ 11:
+                    message.bytesRxPerSec = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ConnectionStat, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.teleterm.vnet.v1.RecentConnectionKind kind = 1; */
+        if (message.kind !== 0)
+            writer.tag(1, WireType.Varint).int32(message.kind);
+        /* string cluster = 2; */
+        if (message.cluster !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.cluster);
+        /* string leaf_cluster = 3; */
+        if (message.leafCluster !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.leafCluster);
+        /* string display_name = 4; */
+        if (message.displayName !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.displayName);
+        /* uint32 port = 5; */
+        if (message.port !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.port);
+        /* uint64 successful_connections = 6; */
+        if (message.successfulConnections !== 0n)
+            writer.tag(6, WireType.Varint).uint64(message.successfulConnections);
+        /* uint64 failed_connections = 7; */
+        if (message.failedConnections !== 0n)
+            writer.tag(7, WireType.Varint).uint64(message.failedConnections);
+        /* uint64 bytes_tx = 8; */
+        if (message.bytesTx !== 0n)
+            writer.tag(8, WireType.Varint).uint64(message.bytesTx);
+        /* uint64 bytes_rx = 9; */
+        if (message.bytesRx !== 0n)
+            writer.tag(9, WireType.Varint).uint64(message.bytesRx);
+        /* uint64 bytes_tx_per_sec = 10; */
+        if (message.bytesTxPerSec !== 0n)
+            writer.tag(10, WireType.Varint).uint64(message.bytesTxPerSec);
+        /* uint64 bytes_rx_per_sec = 11; */
+        if (message.bytesRxPerSec !== 0n)
+            writer.tag(11, WireType.Varint).uint64(message.bytesRxPerSec);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.ConnectionStat
+ */
+export const ConnectionStat = new ConnectionStat$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.vnet.v1.VnetService
  */
@@ -961,5 +1263,6 @@ export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetSe
     { name: "CheckInstallTimeRequirements", options: {}, I: CheckInstallTimeRequirementsRequest, O: CheckInstallTimeRequirementsResponse },
     { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse },
     { name: "AutoConfigureSSH", options: {}, I: AutoConfigureSSHRequest, O: AutoConfigureSSHResponse },
-    { name: "GetRecentConnections", serverStreaming: true, options: {}, I: GetRecentConnectionsRequest, O: GetRecentConnectionsResponse }
+    { name: "GetRecentConnections", serverStreaming: true, options: {}, I: GetRecentConnectionsRequest, O: GetRecentConnectionsResponse },
+    { name: "GetConnectionStats", serverStreaming: true, options: {}, I: GetConnectionStatsRequest, O: GetConnectionStatsResponse }
 ]);

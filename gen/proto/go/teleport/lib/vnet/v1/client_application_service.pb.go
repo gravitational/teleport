@@ -28,6 +28,7 @@ import (
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	unsafe "unsafe"
 )
@@ -138,6 +139,54 @@ func (SessionSSHConfigCredentialMode) Type() protoreflect.EnumType {
 }
 
 func (x SessionSSHConfigCredentialMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// ConnectionKind is the kind of target a connection was made to.
+type ConnectionKind int32
+
+const (
+	ConnectionKind_CONNECTION_KIND_UNSPECIFIED ConnectionKind = 0
+	ConnectionKind_CONNECTION_KIND_APP         ConnectionKind = 1
+	ConnectionKind_CONNECTION_KIND_SSH         ConnectionKind = 2
+	ConnectionKind_CONNECTION_KIND_DATABASE    ConnectionKind = 3
+)
+
+// Enum value maps for ConnectionKind.
+var (
+	ConnectionKind_name = map[int32]string{
+		0: "CONNECTION_KIND_UNSPECIFIED",
+		1: "CONNECTION_KIND_APP",
+		2: "CONNECTION_KIND_SSH",
+		3: "CONNECTION_KIND_DATABASE",
+	}
+	ConnectionKind_value = map[string]int32{
+		"CONNECTION_KIND_UNSPECIFIED": 0,
+		"CONNECTION_KIND_APP":         1,
+		"CONNECTION_KIND_SSH":         2,
+		"CONNECTION_KIND_DATABASE":    3,
+	}
+)
+
+func (x ConnectionKind) Enum() *ConnectionKind {
+	p := new(ConnectionKind)
+	*p = x
+	return p
+}
+
+func (x ConnectionKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConnectionKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_enumTypes[2].Descriptor()
+}
+
+func (ConnectionKind) Type() protoreflect.EnumType {
+	return &file_teleport_lib_vnet_v1_client_application_service_proto_enumTypes[2]
+}
+
+func (x ConnectionKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
@@ -4403,11 +4452,386 @@ func (b0 OnNewDBConnectionResponse_builder) Build() *OnNewDBConnectionResponse {
 	return m0
 }
 
+// ConnectionStat holds the aggregated connection statistics for a single
+// target connected to through VNet. All counters are absolute values
+// accumulated since VNet started.
+type ConnectionStat struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Kind is the kind of the target (TCP app, SSH host, or database).
+	Kind ConnectionKind `protobuf:"varint,1,opt,name=kind,proto3,enum=teleport.lib.vnet.v1.ConnectionKind" json:"kind,omitempty"`
+	// Profile is the profile (root cluster) the target is found in.
+	Profile string `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	// LeafCluster is the leaf cluster the target is found in. Empty if the
+	// target is in the root cluster.
+	LeafCluster string `protobuf:"bytes,3,opt,name=leaf_cluster,json=leafCluster,proto3" json:"leaf_cluster,omitempty"`
+	// DisplayName is the address shown to the user, e.g. the app public address,
+	// the database FQDN, or the SSH host address.
+	DisplayName string `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// Port is the target port of the connection. Only set for multi-port TCP
+	// apps, zero otherwise.
+	Port uint32 `protobuf:"varint,5,opt,name=port,proto3" json:"port,omitempty"`
+	// SuccessfulConnections is the number of connections to the target that were
+	// successfully established.
+	SuccessfulConnections uint64 `protobuf:"varint,6,opt,name=successful_connections,json=successfulConnections,proto3" json:"successful_connections,omitempty"`
+	// FailedConnections is the number of connections to the target that failed
+	// to be established.
+	FailedConnections uint64 `protobuf:"varint,7,opt,name=failed_connections,json=failedConnections,proto3" json:"failed_connections,omitempty"`
+	// BytesTx is the total number of bytes transmitted to the target, as
+	// measured on the connection between the client application and VNet.
+	BytesTx uint64 `protobuf:"varint,8,opt,name=bytes_tx,json=bytesTx,proto3" json:"bytes_tx,omitempty"`
+	// BytesRx is the total number of bytes received from the target, as measured
+	// on the connection between the client application and VNet.
+	BytesRx uint64 `protobuf:"varint,9,opt,name=bytes_rx,json=bytesRx,proto3" json:"bytes_rx,omitempty"`
+	// BytesTxPerSec is the transmit throughput to the target measured over the
+	// most recent sampling interval.
+	BytesTxPerSec uint64 `protobuf:"varint,10,opt,name=bytes_tx_per_sec,json=bytesTxPerSec,proto3" json:"bytes_tx_per_sec,omitempty"`
+	// BytesRxPerSec is the receive throughput from the target measured over the
+	// most recent sampling interval.
+	BytesRxPerSec uint64 `protobuf:"varint,11,opt,name=bytes_rx_per_sec,json=bytesRxPerSec,proto3" json:"bytes_rx_per_sec,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectionStat) Reset() {
+	*x = ConnectionStat{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionStat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionStat) ProtoMessage() {}
+
+func (x *ConnectionStat) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ConnectionStat) GetKind() ConnectionKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ConnectionKind_CONNECTION_KIND_UNSPECIFIED
+}
+
+func (x *ConnectionStat) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *ConnectionStat) GetLeafCluster() string {
+	if x != nil {
+		return x.LeafCluster
+	}
+	return ""
+}
+
+func (x *ConnectionStat) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *ConnectionStat) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetSuccessfulConnections() uint64 {
+	if x != nil {
+		return x.SuccessfulConnections
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetFailedConnections() uint64 {
+	if x != nil {
+		return x.FailedConnections
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetBytesTx() uint64 {
+	if x != nil {
+		return x.BytesTx
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetBytesRx() uint64 {
+	if x != nil {
+		return x.BytesRx
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetBytesTxPerSec() uint64 {
+	if x != nil {
+		return x.BytesTxPerSec
+	}
+	return 0
+}
+
+func (x *ConnectionStat) GetBytesRxPerSec() uint64 {
+	if x != nil {
+		return x.BytesRxPerSec
+	}
+	return 0
+}
+
+func (x *ConnectionStat) SetKind(v ConnectionKind) {
+	x.Kind = v
+}
+
+func (x *ConnectionStat) SetProfile(v string) {
+	x.Profile = v
+}
+
+func (x *ConnectionStat) SetLeafCluster(v string) {
+	x.LeafCluster = v
+}
+
+func (x *ConnectionStat) SetDisplayName(v string) {
+	x.DisplayName = v
+}
+
+func (x *ConnectionStat) SetPort(v uint32) {
+	x.Port = v
+}
+
+func (x *ConnectionStat) SetSuccessfulConnections(v uint64) {
+	x.SuccessfulConnections = v
+}
+
+func (x *ConnectionStat) SetFailedConnections(v uint64) {
+	x.FailedConnections = v
+}
+
+func (x *ConnectionStat) SetBytesTx(v uint64) {
+	x.BytesTx = v
+}
+
+func (x *ConnectionStat) SetBytesRx(v uint64) {
+	x.BytesRx = v
+}
+
+func (x *ConnectionStat) SetBytesTxPerSec(v uint64) {
+	x.BytesTxPerSec = v
+}
+
+func (x *ConnectionStat) SetBytesRxPerSec(v uint64) {
+	x.BytesRxPerSec = v
+}
+
+type ConnectionStat_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the kind of the target (TCP app, SSH host, or database).
+	Kind ConnectionKind
+	// Profile is the profile (root cluster) the target is found in.
+	Profile string
+	// LeafCluster is the leaf cluster the target is found in. Empty if the
+	// target is in the root cluster.
+	LeafCluster string
+	// DisplayName is the address shown to the user, e.g. the app public address,
+	// the database FQDN, or the SSH host address.
+	DisplayName string
+	// Port is the target port of the connection. Only set for multi-port TCP
+	// apps, zero otherwise.
+	Port uint32
+	// SuccessfulConnections is the number of connections to the target that were
+	// successfully established.
+	SuccessfulConnections uint64
+	// FailedConnections is the number of connections to the target that failed
+	// to be established.
+	FailedConnections uint64
+	// BytesTx is the total number of bytes transmitted to the target, as
+	// measured on the connection between the client application and VNet.
+	BytesTx uint64
+	// BytesRx is the total number of bytes received from the target, as measured
+	// on the connection between the client application and VNet.
+	BytesRx uint64
+	// BytesTxPerSec is the transmit throughput to the target measured over the
+	// most recent sampling interval.
+	BytesTxPerSec uint64
+	// BytesRxPerSec is the receive throughput from the target measured over the
+	// most recent sampling interval.
+	BytesRxPerSec uint64
+}
+
+func (b0 ConnectionStat_builder) Build() *ConnectionStat {
+	m0 := &ConnectionStat{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.Profile = b.Profile
+	x.LeafCluster = b.LeafCluster
+	x.DisplayName = b.DisplayName
+	x.Port = b.Port
+	x.SuccessfulConnections = b.SuccessfulConnections
+	x.FailedConnections = b.FailedConnections
+	x.BytesTx = b.BytesTx
+	x.BytesRx = b.BytesRx
+	x.BytesTxPerSec = b.BytesTxPerSec
+	x.BytesRxPerSec = b.BytesRxPerSec
+	return m0
+}
+
+// ReportConnectionStatsRequest is a request for ReportConnectionStats. It
+// carries the complete snapshot of connection statistics for all targets
+// connected to since VNet started.
+type ReportConnectionStatsRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Stats holds the statistics for every target connected to since VNet
+	// started, one entry per target.
+	Stats []*ConnectionStat `protobuf:"bytes,1,rep,name=stats,proto3" json:"stats,omitempty"`
+	// CollectedAt is the time the snapshot was collected at.
+	CollectedAt   *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=collected_at,json=collectedAt,proto3" json:"collected_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportConnectionStatsRequest) Reset() {
+	*x = ReportConnectionStatsRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportConnectionStatsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportConnectionStatsRequest) ProtoMessage() {}
+
+func (x *ReportConnectionStatsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ReportConnectionStatsRequest) GetStats() []*ConnectionStat {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+func (x *ReportConnectionStatsRequest) GetCollectedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CollectedAt
+	}
+	return nil
+}
+
+func (x *ReportConnectionStatsRequest) SetStats(v []*ConnectionStat) {
+	x.Stats = v
+}
+
+func (x *ReportConnectionStatsRequest) SetCollectedAt(v *timestamppb.Timestamp) {
+	x.CollectedAt = v
+}
+
+func (x *ReportConnectionStatsRequest) HasCollectedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CollectedAt != nil
+}
+
+func (x *ReportConnectionStatsRequest) ClearCollectedAt() {
+	x.CollectedAt = nil
+}
+
+type ReportConnectionStatsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Stats holds the statistics for every target connected to since VNet
+	// started, one entry per target.
+	Stats []*ConnectionStat
+	// CollectedAt is the time the snapshot was collected at.
+	CollectedAt *timestamppb.Timestamp
+}
+
+func (b0 ReportConnectionStatsRequest_builder) Build() *ReportConnectionStatsRequest {
+	m0 := &ReportConnectionStatsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Stats = b.Stats
+	x.CollectedAt = b.CollectedAt
+	return m0
+}
+
+// ReportConnectionStatsResponse is a response for ReportConnectionStats.
+type ReportConnectionStatsResponse struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportConnectionStatsResponse) Reset() {
+	*x = ReportConnectionStatsResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportConnectionStatsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportConnectionStatsResponse) ProtoMessage() {}
+
+func (x *ReportConnectionStatsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type ReportConnectionStatsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ReportConnectionStatsResponse_builder) Build() *ReportConnectionStatsResponse {
+	m0 := &ReportConnectionStatsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 var File_teleport_lib_vnet_v1_client_application_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\n" +
-	"5teleport/lib/vnet/v1/client_application_service.proto\x12\x14teleport.lib.vnet.v1\x1a!teleport/legacy/types/types.proto\"S\n" +
+	"5teleport/lib/vnet/v1/client_application_service.proto\x12\x14teleport.lib.vnet.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\"S\n" +
 	"\x1aAuthenticateProcessRequest\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1b\n" +
 	"\tpipe_path\x18\x02 \x01(\tR\bpipePath\"7\n" +
@@ -4559,7 +4983,24 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x12\x12\n" +
 	"\x04fqdn\x18\x02 \x01(\tR\x04fqdn\x12.\n" +
 	"\x13client_process_path\x18\x03 \x01(\tR\x11clientProcessPath\"\x1b\n" +
-	"\x19OnNewDBConnectionResponse*<\n" +
+	"\x19OnNewDBConnectionResponse\"\xac\x03\n" +
+	"\x0eConnectionStat\x128\n" +
+	"\x04kind\x18\x01 \x01(\x0e2$.teleport.lib.vnet.v1.ConnectionKindR\x04kind\x12\x18\n" +
+	"\aprofile\x18\x02 \x01(\tR\aprofile\x12!\n" +
+	"\fleaf_cluster\x18\x03 \x01(\tR\vleafCluster\x12!\n" +
+	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12\x12\n" +
+	"\x04port\x18\x05 \x01(\rR\x04port\x125\n" +
+	"\x16successful_connections\x18\x06 \x01(\x04R\x15successfulConnections\x12-\n" +
+	"\x12failed_connections\x18\a \x01(\x04R\x11failedConnections\x12\x19\n" +
+	"\bbytes_tx\x18\b \x01(\x04R\abytesTx\x12\x19\n" +
+	"\bbytes_rx\x18\t \x01(\x04R\abytesRx\x12'\n" +
+	"\x10bytes_tx_per_sec\x18\n" +
+	" \x01(\x04R\rbytesTxPerSec\x12'\n" +
+	"\x10bytes_rx_per_sec\x18\v \x01(\x04R\rbytesRxPerSec\"\x99\x01\n" +
+	"\x1cReportConnectionStatsRequest\x12:\n" +
+	"\x05stats\x18\x01 \x03(\v2$.teleport.lib.vnet.v1.ConnectionStatR\x05stats\x12=\n" +
+	"\fcollected_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vcollectedAt\"\x1f\n" +
+	"\x1dReportConnectionStatsResponse*<\n" +
 	"\x04Hash\x12\x14\n" +
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tHASH_NONE\x10\x01\x12\x0f\n" +
@@ -4567,7 +5008,12 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x1eSessionSSHConfigCredentialMode\x122\n" +
 	".SESSION_SSH_CONFIG_CREDENTIAL_MODE_UNSPECIFIED\x10\x00\x12/\n" +
 	"+SESSION_SSH_CONFIG_CREDENTIAL_MODE_MFA_CERT\x10\x01\x12-\n" +
-	")SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT\x10\x022\x92\x10\n" +
+	")SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT\x10\x02*\x81\x01\n" +
+	"\x0eConnectionKind\x12\x1f\n" +
+	"\x1bCONNECTION_KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13CONNECTION_KIND_APP\x10\x01\x12\x17\n" +
+	"\x13CONNECTION_KIND_SSH\x10\x02\x12\x1c\n" +
+	"\x18CONNECTION_KIND_DATABASE\x10\x032\x95\x11\n" +
 	"\x18ClientApplicationService\x12z\n" +
 	"\x13AuthenticateProcess\x120.teleport.lib.vnet.v1.AuthenticateProcessRequest\x1a1.teleport.lib.vnet.v1.AuthenticateProcessResponse\x12\x83\x01\n" +
 	"\x16ReportNetworkStackInfo\x123.teleport.lib.vnet.v1.ReportNetworkStackInfoRequest\x1a4.teleport.lib.vnet.v1.ReportNetworkStackInfoResponse\x12M\n" +
@@ -4587,135 +5033,146 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x19PerformSessionMFACeremony\x126.teleport.lib.vnet.v1.PerformSessionMFACeremonyRequest\x1a7.teleport.lib.vnet.v1.PerformSessionMFACeremonyResponse\x12h\n" +
 	"\rReissueDBCert\x12*.teleport.lib.vnet.v1.ReissueDBCertRequest\x1a+.teleport.lib.vnet.v1.ReissueDBCertResponse\x12\\\n" +
 	"\tSignForDB\x12&.teleport.lib.vnet.v1.SignForDBRequest\x1a'.teleport.lib.vnet.v1.SignForDBResponse\x12t\n" +
-	"\x11OnNewDBConnection\x12..teleport.lib.vnet.v1.OnNewDBConnectionRequest\x1a/.teleport.lib.vnet.v1.OnNewDBConnectionResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
+	"\x11OnNewDBConnection\x12..teleport.lib.vnet.v1.OnNewDBConnectionRequest\x1a/.teleport.lib.vnet.v1.OnNewDBConnectionResponse\x12\x80\x01\n" +
+	"\x15ReportConnectionStats\x122.teleport.lib.vnet.v1.ReportConnectionStatsRequest\x1a3.teleport.lib.vnet.v1.ReportConnectionStatsResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
 
-var file_teleport_lib_vnet_v1_client_application_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
+var file_teleport_lib_vnet_v1_client_application_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 52)
 var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(Hash)(0),                                 // 0: teleport.lib.vnet.v1.Hash
 	(SessionSSHConfigCredentialMode)(0),       // 1: teleport.lib.vnet.v1.SessionSSHConfigCredentialMode
-	(*AuthenticateProcessRequest)(nil),        // 2: teleport.lib.vnet.v1.AuthenticateProcessRequest
-	(*AuthenticateProcessResponse)(nil),       // 3: teleport.lib.vnet.v1.AuthenticateProcessResponse
-	(*ReportNetworkStackInfoRequest)(nil),     // 4: teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
-	(*NetworkStackInfo)(nil),                  // 5: teleport.lib.vnet.v1.NetworkStackInfo
-	(*ReportNetworkStackInfoResponse)(nil),    // 6: teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
-	(*PingRequest)(nil),                       // 7: teleport.lib.vnet.v1.PingRequest
-	(*PingResponse)(nil),                      // 8: teleport.lib.vnet.v1.PingResponse
-	(*ResolveFQDNRequest)(nil),                // 9: teleport.lib.vnet.v1.ResolveFQDNRequest
-	(*ResolveFQDNResponse)(nil),               // 10: teleport.lib.vnet.v1.ResolveFQDNResponse
-	(*MatchedTCPApp)(nil),                     // 11: teleport.lib.vnet.v1.MatchedTCPApp
-	(*MatchedWebApp)(nil),                     // 12: teleport.lib.vnet.v1.MatchedWebApp
-	(*MatchedHTTPSTunnelApp)(nil),             // 13: teleport.lib.vnet.v1.MatchedHTTPSTunnelApp
-	(*MatchedCluster)(nil),                    // 14: teleport.lib.vnet.v1.MatchedCluster
-	(*AppInfo)(nil),                           // 15: teleport.lib.vnet.v1.AppInfo
-	(*AppKey)(nil),                            // 16: teleport.lib.vnet.v1.AppKey
-	(*DialOptions)(nil),                       // 17: teleport.lib.vnet.v1.DialOptions
-	(*ReissueAppCertRequest)(nil),             // 18: teleport.lib.vnet.v1.ReissueAppCertRequest
-	(*ReissueAppCertResponse)(nil),            // 19: teleport.lib.vnet.v1.ReissueAppCertResponse
-	(*SignForAppRequest)(nil),                 // 20: teleport.lib.vnet.v1.SignForAppRequest
-	(*SignRequest)(nil),                       // 21: teleport.lib.vnet.v1.SignRequest
-	(*SignForAppResponse)(nil),                // 22: teleport.lib.vnet.v1.SignForAppResponse
-	(*OnNewAppConnectionRequest)(nil),         // 23: teleport.lib.vnet.v1.OnNewAppConnectionRequest
-	(*OnNewAppConnectionResponse)(nil),        // 24: teleport.lib.vnet.v1.OnNewAppConnectionResponse
-	(*OnInvalidLocalPortRequest)(nil),         // 25: teleport.lib.vnet.v1.OnInvalidLocalPortRequest
-	(*OnInvalidLocalPortResponse)(nil),        // 26: teleport.lib.vnet.v1.OnInvalidLocalPortResponse
-	(*GetTargetOSConfigurationRequest)(nil),   // 27: teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
-	(*GetTargetOSConfigurationResponse)(nil),  // 28: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
-	(*TargetOSConfiguration)(nil),             // 29: teleport.lib.vnet.v1.TargetOSConfiguration
-	(*UserTLSCertRequest)(nil),                // 30: teleport.lib.vnet.v1.UserTLSCertRequest
-	(*UserTLSCertResponse)(nil),               // 31: teleport.lib.vnet.v1.UserTLSCertResponse
-	(*SignForUserTLSRequest)(nil),             // 32: teleport.lib.vnet.v1.SignForUserTLSRequest
-	(*SignForUserTLSResponse)(nil),            // 33: teleport.lib.vnet.v1.SignForUserTLSResponse
-	(*SessionSSHConfigRequest)(nil),           // 34: teleport.lib.vnet.v1.SessionSSHConfigRequest
-	(*SessionSSHConfigResponse)(nil),          // 35: teleport.lib.vnet.v1.SessionSSHConfigResponse
-	(*SignForSSHSessionRequest)(nil),          // 36: teleport.lib.vnet.v1.SignForSSHSessionRequest
-	(*SignForSSHSessionResponse)(nil),         // 37: teleport.lib.vnet.v1.SignForSSHSessionResponse
-	(*ExchangeSSHKeysRequest)(nil),            // 38: teleport.lib.vnet.v1.ExchangeSSHKeysRequest
-	(*ExchangeSSHKeysResponse)(nil),           // 39: teleport.lib.vnet.v1.ExchangeSSHKeysResponse
-	(*PerformSessionMFACeremonyRequest)(nil),  // 40: teleport.lib.vnet.v1.PerformSessionMFACeremonyRequest
-	(*PerformSessionMFACeremonyResponse)(nil), // 41: teleport.lib.vnet.v1.PerformSessionMFACeremonyResponse
-	(*MatchedDatabase)(nil),                   // 42: teleport.lib.vnet.v1.MatchedDatabase
-	(*DatabaseInfo)(nil),                      // 43: teleport.lib.vnet.v1.DatabaseInfo
-	(*DatabaseKey)(nil),                       // 44: teleport.lib.vnet.v1.DatabaseKey
-	(*ReissueDBCertRequest)(nil),              // 45: teleport.lib.vnet.v1.ReissueDBCertRequest
-	(*ReissueDBCertResponse)(nil),             // 46: teleport.lib.vnet.v1.ReissueDBCertResponse
-	(*SignForDBRequest)(nil),                  // 47: teleport.lib.vnet.v1.SignForDBRequest
-	(*SignForDBResponse)(nil),                 // 48: teleport.lib.vnet.v1.SignForDBResponse
-	(*OnNewDBConnectionRequest)(nil),          // 49: teleport.lib.vnet.v1.OnNewDBConnectionRequest
-	(*OnNewDBConnectionResponse)(nil),         // 50: teleport.lib.vnet.v1.OnNewDBConnectionResponse
-	(*types.AppV3)(nil),                       // 51: types.AppV3
+	(ConnectionKind)(0),                       // 2: teleport.lib.vnet.v1.ConnectionKind
+	(*AuthenticateProcessRequest)(nil),        // 3: teleport.lib.vnet.v1.AuthenticateProcessRequest
+	(*AuthenticateProcessResponse)(nil),       // 4: teleport.lib.vnet.v1.AuthenticateProcessResponse
+	(*ReportNetworkStackInfoRequest)(nil),     // 5: teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
+	(*NetworkStackInfo)(nil),                  // 6: teleport.lib.vnet.v1.NetworkStackInfo
+	(*ReportNetworkStackInfoResponse)(nil),    // 7: teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
+	(*PingRequest)(nil),                       // 8: teleport.lib.vnet.v1.PingRequest
+	(*PingResponse)(nil),                      // 9: teleport.lib.vnet.v1.PingResponse
+	(*ResolveFQDNRequest)(nil),                // 10: teleport.lib.vnet.v1.ResolveFQDNRequest
+	(*ResolveFQDNResponse)(nil),               // 11: teleport.lib.vnet.v1.ResolveFQDNResponse
+	(*MatchedTCPApp)(nil),                     // 12: teleport.lib.vnet.v1.MatchedTCPApp
+	(*MatchedWebApp)(nil),                     // 13: teleport.lib.vnet.v1.MatchedWebApp
+	(*MatchedHTTPSTunnelApp)(nil),             // 14: teleport.lib.vnet.v1.MatchedHTTPSTunnelApp
+	(*MatchedCluster)(nil),                    // 15: teleport.lib.vnet.v1.MatchedCluster
+	(*AppInfo)(nil),                           // 16: teleport.lib.vnet.v1.AppInfo
+	(*AppKey)(nil),                            // 17: teleport.lib.vnet.v1.AppKey
+	(*DialOptions)(nil),                       // 18: teleport.lib.vnet.v1.DialOptions
+	(*ReissueAppCertRequest)(nil),             // 19: teleport.lib.vnet.v1.ReissueAppCertRequest
+	(*ReissueAppCertResponse)(nil),            // 20: teleport.lib.vnet.v1.ReissueAppCertResponse
+	(*SignForAppRequest)(nil),                 // 21: teleport.lib.vnet.v1.SignForAppRequest
+	(*SignRequest)(nil),                       // 22: teleport.lib.vnet.v1.SignRequest
+	(*SignForAppResponse)(nil),                // 23: teleport.lib.vnet.v1.SignForAppResponse
+	(*OnNewAppConnectionRequest)(nil),         // 24: teleport.lib.vnet.v1.OnNewAppConnectionRequest
+	(*OnNewAppConnectionResponse)(nil),        // 25: teleport.lib.vnet.v1.OnNewAppConnectionResponse
+	(*OnInvalidLocalPortRequest)(nil),         // 26: teleport.lib.vnet.v1.OnInvalidLocalPortRequest
+	(*OnInvalidLocalPortResponse)(nil),        // 27: teleport.lib.vnet.v1.OnInvalidLocalPortResponse
+	(*GetTargetOSConfigurationRequest)(nil),   // 28: teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
+	(*GetTargetOSConfigurationResponse)(nil),  // 29: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
+	(*TargetOSConfiguration)(nil),             // 30: teleport.lib.vnet.v1.TargetOSConfiguration
+	(*UserTLSCertRequest)(nil),                // 31: teleport.lib.vnet.v1.UserTLSCertRequest
+	(*UserTLSCertResponse)(nil),               // 32: teleport.lib.vnet.v1.UserTLSCertResponse
+	(*SignForUserTLSRequest)(nil),             // 33: teleport.lib.vnet.v1.SignForUserTLSRequest
+	(*SignForUserTLSResponse)(nil),            // 34: teleport.lib.vnet.v1.SignForUserTLSResponse
+	(*SessionSSHConfigRequest)(nil),           // 35: teleport.lib.vnet.v1.SessionSSHConfigRequest
+	(*SessionSSHConfigResponse)(nil),          // 36: teleport.lib.vnet.v1.SessionSSHConfigResponse
+	(*SignForSSHSessionRequest)(nil),          // 37: teleport.lib.vnet.v1.SignForSSHSessionRequest
+	(*SignForSSHSessionResponse)(nil),         // 38: teleport.lib.vnet.v1.SignForSSHSessionResponse
+	(*ExchangeSSHKeysRequest)(nil),            // 39: teleport.lib.vnet.v1.ExchangeSSHKeysRequest
+	(*ExchangeSSHKeysResponse)(nil),           // 40: teleport.lib.vnet.v1.ExchangeSSHKeysResponse
+	(*PerformSessionMFACeremonyRequest)(nil),  // 41: teleport.lib.vnet.v1.PerformSessionMFACeremonyRequest
+	(*PerformSessionMFACeremonyResponse)(nil), // 42: teleport.lib.vnet.v1.PerformSessionMFACeremonyResponse
+	(*MatchedDatabase)(nil),                   // 43: teleport.lib.vnet.v1.MatchedDatabase
+	(*DatabaseInfo)(nil),                      // 44: teleport.lib.vnet.v1.DatabaseInfo
+	(*DatabaseKey)(nil),                       // 45: teleport.lib.vnet.v1.DatabaseKey
+	(*ReissueDBCertRequest)(nil),              // 46: teleport.lib.vnet.v1.ReissueDBCertRequest
+	(*ReissueDBCertResponse)(nil),             // 47: teleport.lib.vnet.v1.ReissueDBCertResponse
+	(*SignForDBRequest)(nil),                  // 48: teleport.lib.vnet.v1.SignForDBRequest
+	(*SignForDBResponse)(nil),                 // 49: teleport.lib.vnet.v1.SignForDBResponse
+	(*OnNewDBConnectionRequest)(nil),          // 50: teleport.lib.vnet.v1.OnNewDBConnectionRequest
+	(*OnNewDBConnectionResponse)(nil),         // 51: teleport.lib.vnet.v1.OnNewDBConnectionResponse
+	(*ConnectionStat)(nil),                    // 52: teleport.lib.vnet.v1.ConnectionStat
+	(*ReportConnectionStatsRequest)(nil),      // 53: teleport.lib.vnet.v1.ReportConnectionStatsRequest
+	(*ReportConnectionStatsResponse)(nil),     // 54: teleport.lib.vnet.v1.ReportConnectionStatsResponse
+	(*types.AppV3)(nil),                       // 55: types.AppV3
+	(*timestamppb.Timestamp)(nil),             // 56: google.protobuf.Timestamp
 }
 var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32{
-	5,  // 0: teleport.lib.vnet.v1.ReportNetworkStackInfoRequest.network_stack_info:type_name -> teleport.lib.vnet.v1.NetworkStackInfo
-	11, // 1: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_tcp_app:type_name -> teleport.lib.vnet.v1.MatchedTCPApp
-	12, // 2: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_web_app:type_name -> teleport.lib.vnet.v1.MatchedWebApp
-	14, // 3: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_cluster:type_name -> teleport.lib.vnet.v1.MatchedCluster
-	42, // 4: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_database:type_name -> teleport.lib.vnet.v1.MatchedDatabase
-	13, // 5: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_https_tunnel_app:type_name -> teleport.lib.vnet.v1.MatchedHTTPSTunnelApp
-	15, // 6: teleport.lib.vnet.v1.MatchedTCPApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	15, // 7: teleport.lib.vnet.v1.MatchedHTTPSTunnelApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	16, // 8: teleport.lib.vnet.v1.AppInfo.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	51, // 9: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
-	17, // 10: teleport.lib.vnet.v1.AppInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
-	15, // 11: teleport.lib.vnet.v1.ReissueAppCertRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	16, // 12: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	21, // 13: teleport.lib.vnet.v1.SignForAppRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	6,  // 0: teleport.lib.vnet.v1.ReportNetworkStackInfoRequest.network_stack_info:type_name -> teleport.lib.vnet.v1.NetworkStackInfo
+	12, // 1: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_tcp_app:type_name -> teleport.lib.vnet.v1.MatchedTCPApp
+	13, // 2: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_web_app:type_name -> teleport.lib.vnet.v1.MatchedWebApp
+	15, // 3: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_cluster:type_name -> teleport.lib.vnet.v1.MatchedCluster
+	43, // 4: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_database:type_name -> teleport.lib.vnet.v1.MatchedDatabase
+	14, // 5: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_https_tunnel_app:type_name -> teleport.lib.vnet.v1.MatchedHTTPSTunnelApp
+	16, // 6: teleport.lib.vnet.v1.MatchedTCPApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	16, // 7: teleport.lib.vnet.v1.MatchedHTTPSTunnelApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	17, // 8: teleport.lib.vnet.v1.AppInfo.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	55, // 9: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
+	18, // 10: teleport.lib.vnet.v1.AppInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	16, // 11: teleport.lib.vnet.v1.ReissueAppCertRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	17, // 12: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	22, // 13: teleport.lib.vnet.v1.SignForAppRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
 	0,  // 14: teleport.lib.vnet.v1.SignRequest.hash:type_name -> teleport.lib.vnet.v1.Hash
-	16, // 15: teleport.lib.vnet.v1.OnNewAppConnectionRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	15, // 16: teleport.lib.vnet.v1.OnInvalidLocalPortRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	29, // 17: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse.target_os_configuration:type_name -> teleport.lib.vnet.v1.TargetOSConfiguration
-	17, // 18: teleport.lib.vnet.v1.UserTLSCertResponse.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
-	21, // 19: teleport.lib.vnet.v1.SignForUserTLSRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	17, // 15: teleport.lib.vnet.v1.OnNewAppConnectionRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	16, // 16: teleport.lib.vnet.v1.OnInvalidLocalPortRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	30, // 17: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse.target_os_configuration:type_name -> teleport.lib.vnet.v1.TargetOSConfiguration
+	18, // 18: teleport.lib.vnet.v1.UserTLSCertResponse.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	22, // 19: teleport.lib.vnet.v1.SignForUserTLSRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
 	1,  // 20: teleport.lib.vnet.v1.SessionSSHConfigRequest.credential_mode:type_name -> teleport.lib.vnet.v1.SessionSSHConfigCredentialMode
-	21, // 21: teleport.lib.vnet.v1.SignForSSHSessionRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
-	43, // 22: teleport.lib.vnet.v1.MatchedDatabase.database_info:type_name -> teleport.lib.vnet.v1.DatabaseInfo
-	44, // 23: teleport.lib.vnet.v1.DatabaseInfo.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
-	17, // 24: teleport.lib.vnet.v1.DatabaseInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
-	43, // 25: teleport.lib.vnet.v1.ReissueDBCertRequest.database_info:type_name -> teleport.lib.vnet.v1.DatabaseInfo
-	44, // 26: teleport.lib.vnet.v1.SignForDBRequest.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
-	21, // 27: teleport.lib.vnet.v1.SignForDBRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
-	44, // 28: teleport.lib.vnet.v1.OnNewDBConnectionRequest.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
-	2,  // 29: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:input_type -> teleport.lib.vnet.v1.AuthenticateProcessRequest
-	4,  // 30: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:input_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
-	7,  // 31: teleport.lib.vnet.v1.ClientApplicationService.Ping:input_type -> teleport.lib.vnet.v1.PingRequest
-	9,  // 32: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:input_type -> teleport.lib.vnet.v1.ResolveFQDNRequest
-	18, // 33: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
-	20, // 34: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
-	23, // 35: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:input_type -> teleport.lib.vnet.v1.OnNewAppConnectionRequest
-	25, // 36: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
-	27, // 37: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
-	30, // 38: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:input_type -> teleport.lib.vnet.v1.UserTLSCertRequest
-	32, // 39: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:input_type -> teleport.lib.vnet.v1.SignForUserTLSRequest
-	34, // 40: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:input_type -> teleport.lib.vnet.v1.SessionSSHConfigRequest
-	36, // 41: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:input_type -> teleport.lib.vnet.v1.SignForSSHSessionRequest
-	38, // 42: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:input_type -> teleport.lib.vnet.v1.ExchangeSSHKeysRequest
-	40, // 43: teleport.lib.vnet.v1.ClientApplicationService.PerformSessionMFACeremony:input_type -> teleport.lib.vnet.v1.PerformSessionMFACeremonyRequest
-	45, // 44: teleport.lib.vnet.v1.ClientApplicationService.ReissueDBCert:input_type -> teleport.lib.vnet.v1.ReissueDBCertRequest
-	47, // 45: teleport.lib.vnet.v1.ClientApplicationService.SignForDB:input_type -> teleport.lib.vnet.v1.SignForDBRequest
-	49, // 46: teleport.lib.vnet.v1.ClientApplicationService.OnNewDBConnection:input_type -> teleport.lib.vnet.v1.OnNewDBConnectionRequest
-	3,  // 47: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
-	6,  // 48: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
-	8,  // 49: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
-	10, // 50: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
-	19, // 51: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
-	22, // 52: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
-	24, // 53: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:output_type -> teleport.lib.vnet.v1.OnNewAppConnectionResponse
-	26, // 54: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
-	28, // 55: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
-	31, // 56: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse
-	33, // 57: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:output_type -> teleport.lib.vnet.v1.SignForUserTLSResponse
-	35, // 58: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:output_type -> teleport.lib.vnet.v1.SessionSSHConfigResponse
-	37, // 59: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:output_type -> teleport.lib.vnet.v1.SignForSSHSessionResponse
-	39, // 60: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:output_type -> teleport.lib.vnet.v1.ExchangeSSHKeysResponse
-	41, // 61: teleport.lib.vnet.v1.ClientApplicationService.PerformSessionMFACeremony:output_type -> teleport.lib.vnet.v1.PerformSessionMFACeremonyResponse
-	46, // 62: teleport.lib.vnet.v1.ClientApplicationService.ReissueDBCert:output_type -> teleport.lib.vnet.v1.ReissueDBCertResponse
-	48, // 63: teleport.lib.vnet.v1.ClientApplicationService.SignForDB:output_type -> teleport.lib.vnet.v1.SignForDBResponse
-	50, // 64: teleport.lib.vnet.v1.ClientApplicationService.OnNewDBConnection:output_type -> teleport.lib.vnet.v1.OnNewDBConnectionResponse
-	47, // [47:65] is the sub-list for method output_type
-	29, // [29:47] is the sub-list for method input_type
-	29, // [29:29] is the sub-list for extension type_name
-	29, // [29:29] is the sub-list for extension extendee
-	0,  // [0:29] is the sub-list for field type_name
+	22, // 21: teleport.lib.vnet.v1.SignForSSHSessionRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	44, // 22: teleport.lib.vnet.v1.MatchedDatabase.database_info:type_name -> teleport.lib.vnet.v1.DatabaseInfo
+	45, // 23: teleport.lib.vnet.v1.DatabaseInfo.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
+	18, // 24: teleport.lib.vnet.v1.DatabaseInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	44, // 25: teleport.lib.vnet.v1.ReissueDBCertRequest.database_info:type_name -> teleport.lib.vnet.v1.DatabaseInfo
+	45, // 26: teleport.lib.vnet.v1.SignForDBRequest.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
+	22, // 27: teleport.lib.vnet.v1.SignForDBRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	45, // 28: teleport.lib.vnet.v1.OnNewDBConnectionRequest.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
+	2,  // 29: teleport.lib.vnet.v1.ConnectionStat.kind:type_name -> teleport.lib.vnet.v1.ConnectionKind
+	52, // 30: teleport.lib.vnet.v1.ReportConnectionStatsRequest.stats:type_name -> teleport.lib.vnet.v1.ConnectionStat
+	56, // 31: teleport.lib.vnet.v1.ReportConnectionStatsRequest.collected_at:type_name -> google.protobuf.Timestamp
+	3,  // 32: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:input_type -> teleport.lib.vnet.v1.AuthenticateProcessRequest
+	5,  // 33: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:input_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
+	8,  // 34: teleport.lib.vnet.v1.ClientApplicationService.Ping:input_type -> teleport.lib.vnet.v1.PingRequest
+	10, // 35: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:input_type -> teleport.lib.vnet.v1.ResolveFQDNRequest
+	19, // 36: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
+	21, // 37: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
+	24, // 38: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:input_type -> teleport.lib.vnet.v1.OnNewAppConnectionRequest
+	26, // 39: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
+	28, // 40: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
+	31, // 41: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:input_type -> teleport.lib.vnet.v1.UserTLSCertRequest
+	33, // 42: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:input_type -> teleport.lib.vnet.v1.SignForUserTLSRequest
+	35, // 43: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:input_type -> teleport.lib.vnet.v1.SessionSSHConfigRequest
+	37, // 44: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:input_type -> teleport.lib.vnet.v1.SignForSSHSessionRequest
+	39, // 45: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:input_type -> teleport.lib.vnet.v1.ExchangeSSHKeysRequest
+	41, // 46: teleport.lib.vnet.v1.ClientApplicationService.PerformSessionMFACeremony:input_type -> teleport.lib.vnet.v1.PerformSessionMFACeremonyRequest
+	46, // 47: teleport.lib.vnet.v1.ClientApplicationService.ReissueDBCert:input_type -> teleport.lib.vnet.v1.ReissueDBCertRequest
+	48, // 48: teleport.lib.vnet.v1.ClientApplicationService.SignForDB:input_type -> teleport.lib.vnet.v1.SignForDBRequest
+	50, // 49: teleport.lib.vnet.v1.ClientApplicationService.OnNewDBConnection:input_type -> teleport.lib.vnet.v1.OnNewDBConnectionRequest
+	53, // 50: teleport.lib.vnet.v1.ClientApplicationService.ReportConnectionStats:input_type -> teleport.lib.vnet.v1.ReportConnectionStatsRequest
+	4,  // 51: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
+	7,  // 52: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
+	9,  // 53: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
+	11, // 54: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
+	20, // 55: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
+	23, // 56: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
+	25, // 57: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:output_type -> teleport.lib.vnet.v1.OnNewAppConnectionResponse
+	27, // 58: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
+	29, // 59: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
+	32, // 60: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse
+	34, // 61: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:output_type -> teleport.lib.vnet.v1.SignForUserTLSResponse
+	36, // 62: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:output_type -> teleport.lib.vnet.v1.SessionSSHConfigResponse
+	38, // 63: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:output_type -> teleport.lib.vnet.v1.SignForSSHSessionResponse
+	40, // 64: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:output_type -> teleport.lib.vnet.v1.ExchangeSSHKeysResponse
+	42, // 65: teleport.lib.vnet.v1.ClientApplicationService.PerformSessionMFACeremony:output_type -> teleport.lib.vnet.v1.PerformSessionMFACeremonyResponse
+	47, // 66: teleport.lib.vnet.v1.ClientApplicationService.ReissueDBCert:output_type -> teleport.lib.vnet.v1.ReissueDBCertResponse
+	49, // 67: teleport.lib.vnet.v1.ClientApplicationService.SignForDB:output_type -> teleport.lib.vnet.v1.SignForDBResponse
+	51, // 68: teleport.lib.vnet.v1.ClientApplicationService.OnNewDBConnection:output_type -> teleport.lib.vnet.v1.OnNewDBConnectionResponse
+	54, // 69: teleport.lib.vnet.v1.ClientApplicationService.ReportConnectionStats:output_type -> teleport.lib.vnet.v1.ReportConnectionStatsResponse
+	51, // [51:70] is the sub-list for method output_type
+	32, // [32:51] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_vnet_v1_client_application_service_proto_init() }
@@ -4736,8 +5193,8 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc), len(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   49,
+			NumEnums:      3,
+			NumMessages:   52,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -55,6 +55,12 @@ service VnetService {
   // then a new list whenever it changes, until the stream is canceled or VNet
   // stops. Requires VNet to be started.
   rpc GetRecentConnections(GetRecentConnectionsRequest) returns (stream GetRecentConnectionsResponse);
+
+  // GetConnectionStats streams aggregated per-target connection statistics for
+  // the running VNet service. The server sends the current statistics
+  // immediately and then a fresh snapshot whenever they change, until the
+  // stream is canceled or VNet stops. Requires VNet to be started.
+  rpc GetConnectionStats(GetConnectionStatsRequest) returns (stream GetConnectionStatsResponse);
 }
 
 // Request for Start.
@@ -178,4 +184,50 @@ message RecentConnection {
   // platform-specific (currently macOS only); empty when the process could not
   // be identified.
   string last_client_process_path = 6;
+}
+
+// Request for GetConnectionStats.
+message GetConnectionStatsRequest {}
+
+// Response for GetConnectionStats, containing the complete snapshot of
+// connection statistics for all targets connected to since VNet started.
+message GetConnectionStatsResponse {
+  repeated ConnectionStat stats = 1;
+}
+
+// ConnectionStat holds the aggregated connection statistics for a single
+// target connected to through VNet. All counters are absolute values
+// accumulated since VNet started.
+message ConnectionStat {
+  // kind is the kind of the target (TCP app, SSH host, or database).
+  RecentConnectionKind kind = 1;
+  // cluster is the profile (root cluster) the target is found in.
+  string cluster = 2;
+  // leaf_cluster is the leaf cluster the target is found in. Empty if the
+  // target is in the root cluster.
+  string leaf_cluster = 3;
+  // display_name is the address shown to the user, e.g. the app public address,
+  // the database FQDN, or the SSH host address.
+  string display_name = 4;
+  // port is the target port of the connection. Only set for multi-port TCP
+  // apps, zero otherwise.
+  uint32 port = 5;
+  // successful_connections is the number of connections to the target that
+  // were successfully established.
+  uint64 successful_connections = 6;
+  // failed_connections is the number of connections to the target that failed
+  // to be established.
+  uint64 failed_connections = 7;
+  // bytes_tx is the total number of bytes transmitted to the target, as
+  // measured on the connection between the client application and VNet.
+  uint64 bytes_tx = 8;
+  // bytes_rx is the total number of bytes received from the target, as
+  // measured on the connection between the client application and VNet.
+  uint64 bytes_rx = 9;
+  // bytes_tx_per_sec is the transmit throughput to the target measured over
+  // the most recent sampling interval.
+  uint64 bytes_tx_per_sec = 10;
+  // bytes_rx_per_sec is the receive throughput from the target measured over
+  // the most recent sampling interval.
+  uint64 bytes_rx_per_sec = 11;
 }
