@@ -28,7 +28,13 @@ if [[ -z "${VERSION}" ]]; then
 fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-cat > "${script_dir}"/../teleport/container-service/aws/teleport_version_variable.tf <<EOF
+modules=(
+    "teleport/container-service/aws"
+    "teleport/db-agent/aws"
+)
+
+for module in "${modules[@]}"; do
+    cat > "${script_dir}/../${module}/teleport_version_variable.tf" <<EOF
 variable "teleport_version" {
   default     = "${VERSION}"
   description = <<EOD
@@ -39,3 +45,4 @@ EOD
   type        = string
 }
 EOF
+done
