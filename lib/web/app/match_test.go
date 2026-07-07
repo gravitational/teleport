@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 )
 
 func TestMatchAppServerForRoute(t *testing.T) {
@@ -31,8 +32,9 @@ func TestMatchAppServerForRoute(t *testing.T) {
 	for _, test := range []struct {
 		desc string
 
-		appName string
-		appAddr string
+		appName  string
+		appAddr  string
+		appScope string
 
 		name string
 		addr string
@@ -103,6 +105,25 @@ func TestMatchAppServerForRoute(t *testing.T) {
 			addr:      "",
 			wantMatch: false,
 		},
+		// scoped app matching - matches based on its computed app name and scope as the subdomain.
+		{
+			desc:      "scoped app matches its hash under a different proxy",
+			appName:   "grafana",
+			appScope:  "/staging/west",
+			appAddr:   scopedapp.ScopedAppPublicAddr("/staging/west", "grafana", "teleport.example.com"),
+			name:      "grafana",
+			addr:      scopedapp.ScopedAppPublicAddr("/staging/west", "grafana", "teleportalt.example.com"),
+			wantMatch: true,
+		},
+		{
+			desc:      "scoped app does not match a different scope's hash",
+			appName:   "grafana",
+			appScope:  "/staging/west",
+			appAddr:   scopedapp.ScopedAppPublicAddr("/staging/west", "grafana", "teleport.example.com"),
+			name:      "grafana",
+			addr:      scopedapp.ScopedAppPublicAddr("/prod", "grafana", "teleportalt.example.com"),
+			wantMatch: false,
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			appServer, err := types.NewAppServerV3(
@@ -111,6 +132,7 @@ func TestMatchAppServerForRoute(t *testing.T) {
 					HostID: "test-host-id",
 					App: &types.AppV3{
 						Metadata: types.Metadata{Name: test.appName},
+						Scope:    test.appScope,
 						Spec: types.AppSpecV3{
 							PublicAddr: test.appAddr,
 							URI:        "http://localhost:12345",
