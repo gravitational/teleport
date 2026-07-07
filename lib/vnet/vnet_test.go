@@ -583,6 +583,9 @@ func (p *fakeClientApp) OnNewDBConnection(_ context.Context, _ *vnetv1.DatabaseK
 	return nil
 }
 
+func (p *fakeClientApp) ReportConnectionStats(_ context.Context, _ []*vnetv1.ConnectionStat, _ time.Time) {
+}
+
 func (p *fakeClientApp) dialSSHNode(
 	ctx context.Context,
 	target dialTarget,

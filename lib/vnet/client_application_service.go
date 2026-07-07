@@ -608,10 +608,9 @@ func (s *clientApplicationService) OnNewDBConnection(ctx context.Context, req *v
 }
 
 // ReportConnectionStats receives a snapshot of the aggregated connection
-// statistics periodically pushed by the admin process.
-//
-// TODO(tangyatsu): pass the snapshot to the client application once it exposes
-// a method for it.
+// statistics periodically pushed by the admin process and passes it to the
+// client application.
 func (s *clientApplicationService) ReportConnectionStats(ctx context.Context, req *vnetv1.ReportConnectionStatsRequest) (*vnetv1.ReportConnectionStatsResponse, error) {
+	s.cfg.clientApplication.ReportConnectionStats(ctx, req.GetStats(), req.GetCollectedAt().AsTime())
 	return &vnetv1.ReportConnectionStatsResponse{}, nil
 }

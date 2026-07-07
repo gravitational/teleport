@@ -74,6 +74,11 @@ type Service struct {
 	// streamed to the UI. Its pointer is stable for the lifetime of the Service;
 	// it is activated on Start and deactivated on stop.
 	recentConnections *recentConnectionsStore
+	// connectionStats keeps the latest snapshot of the aggregated connection
+	// statistics reported by the VNet admin process so it can be streamed to
+	// the UI. Its pointer is stable for the lifetime of the Service; it is
+	// activated on Start and deactivated on stop.
+	connectionStats *connectionStatsStore
 }
 
 // New creates an instance of Service.
@@ -86,6 +91,7 @@ func New(cfg Config) (*Service, error) {
 		cfg:                cfg,
 		clusterConfigCache: vnet.NewClusterConfigCache(cfg.Clock),
 		recentConnections:  newRecentConnectionsStore(cfg.Clock),
+		connectionStats:    newConnectionStatsStore(),
 	}, nil
 }
 
@@ -147,6 +153,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		insecureSkipVerify: s.cfg.InsecureSkipVerify,
 		usageReporter:      &disabledTelemetryUsageReporter{},
 		recentConnections:  s.recentConnections,
+		connectionStats:    s.connectionStats,
 	}
 
 	// Generally, the usage reporting setting cannot be changed without restarting the app, so
@@ -199,6 +206,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		if s.status == statusRunning {
 			s.status = statusNotRunning
 			s.recentConnections.CloseSession()
+			s.connectionStats.CloseSession()
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -214,6 +222,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	s.networkStackInfo = vnetProcess.NetworkStackInfo()
 	s.usageReporter = clientApplication.usageReporter
 	s.recentConnections.Reset()
+	s.connectionStats.Reset()
 	s.status = statusRunning
 	return &api.StartResponse{}, nil
 }
@@ -426,6 +435,42 @@ func (s *Service) GetRecentConnections(_ *api.GetRecentConnectionsRequest, strea
 	}
 }
 
+// GetConnectionStats streams the aggregated per-target connection statistics
+// reported by the running VNet service. It sends the current statistics
+// immediately, then a fresh snapshot whenever they change, until the stream is
+// canceled or VNet stops.
+func (s *Service) GetConnectionStats(_ *api.GetConnectionStatsRequest, stream grpc.ServerStreamingServer[api.GetConnectionStatsResponse]) error {
+	s.mu.Lock()
+	if s.status != statusRunning {
+		s.mu.Unlock()
+		return trace.CompareFailed("VNet is not running")
+	}
+	store := s.connectionStats
+	s.mu.Unlock()
+
+	sub, snapshot := store.Subscribe()
+	defer store.Unsubscribe(sub)
+
+	if err := stream.Send(api.GetConnectionStatsResponse_builder{Stats: snapshot}.Build()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case snapshot, ok := <-sub.updates:
+			if !ok {
+				// VNet stopped and the session was closed.
+				return nil
+			}
+			if err := stream.Send(api.GetConnectionStatsResponse_builder{Stats: snapshot}.Build()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+}
+
 func (s *Service) stopLocked() error {
 	if s.status == statusClosed {
 		return trace.CompareFailed("VNet service has been closed")
@@ -445,6 +490,7 @@ func (s *Service) stopLocked() error {
 		return trace.Wrap(err)
 	}
 	s.usageReporter.Stop()
+	s.connectionStats.CloseSession()
 
 	s.status = statusNotRunning
 	return nil
@@ -501,6 +547,7 @@ type clientApplication struct {
 	usageReporter      usageReporter
 	insecureSkipVerify bool
 	recentConnections  *recentConnectionsStore
+	connectionStats    *connectionStatsStore
 }
 
 func (p *clientApplication) ListProfiles() ([]string, error) {
@@ -589,6 +636,13 @@ func (p *clientApplication) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.Da
 func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey, fqdn, clientProcessPath string) error {
 	p.recentConnections.RecordDatabase(dbKey, fqdn, clientProcessPath)
 	return nil
+}
+
+// ReportConnectionStats gets called periodically with a fresh snapshot of the
+// aggregated per-target connection statistics whenever they changed. Each
+// snapshot carries absolute values and fully replaces the previous one.
+func (p *clientApplication) ReportConnectionStats(_ context.Context, stats []*vnetv1.ConnectionStat, _ time.Time) {
+	p.connectionStats.SetStats(convertConnectionStats(stats))
 }
 
 // UserTLSCert returns the user TLS certificate for the given profile.
