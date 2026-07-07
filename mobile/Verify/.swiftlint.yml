@@ -8,3 +8,8 @@ disabled_rules:
 # Optional values should always be explicitly initialized with '= nil' for clarity.
 implicit_optional_initialization:
   style: never
+
+identifier_name:
+  excluded:
+    - "^id$"
+    - "^db$"
