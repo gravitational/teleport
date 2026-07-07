@@ -171,7 +171,7 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
 			// details, so it is only logged, and clients receive a generic
 			// internal error message.
 			cfg.Logger.ErrorContext(providerReq.Context(), "failed to sign provider request", "error", err)
-			return nil, info, trace.BadParameter("failed to generate provider request")
+			return nil, info, llmerrors.ErrConfig
 		}
 	}
 	return providerReq, info, nil
