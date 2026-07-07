@@ -499,6 +499,39 @@ func TestWorkloadIdentityParser(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "example", resource.GetMetadata().Name)
 	})
+	t.Run("put scoped", func(t *testing.T) {
+		encodedScope, err := scopes.EncodeForKey("/staging")
+		require.NoError(t, err)
+		event := backend.Event{
+			Type: types.OpPut,
+			Item: backend.Item{
+				Key:   backend.NewKey(scopedPrefix, workloadIdentityPrefix, encodedScope, "example"),
+				Value: []byte(`{"kind":"workload_identity","version":"v1","metadata":{"name":"example"},"scope":"/staging","spec":{"spiffe":{"id":"/staging/_/test"}}}`),
+			},
+		}
+		require.True(t, parser.match(event.Item.Key))
+		resource, err := parser.parse(event)
+		require.NoError(t, err)
+		require.Equal(t, "example", resource.GetMetadata().Name)
+	})
+	t.Run("put with invalid scope", func(t *testing.T) {
+		// Identical to the passing scoped put, except the payload scope fails
+		// weak validation. The parser rejects the event so the invalid scope
+		// never reaches downstream consumers; the watcher drops it with a
+		// warning.
+		encodedScope, err := scopes.EncodeForKey("/staging")
+		require.NoError(t, err)
+		event := backend.Event{
+			Type: types.OpPut,
+			Item: backend.Item{
+				Key:   backend.NewKey(scopedPrefix, workloadIdentityPrefix, encodedScope, "example"),
+				Value: []byte(`{"kind":"workload_identity","version":"v1","metadata":{"name":"example"},"scope":"/foo bar","spec":{"spiffe":{"id":"/staging/_/test"}}}`),
+			},
+		}
+		require.True(t, parser.match(event.Item.Key))
+		_, err = parser.parse(event)
+		require.Error(t, err)
+	})
 	t.Run("does not match workload identity x509 revocation", func(t *testing.T) {
 		event := backend.Event{
 			Type: types.OpPut,

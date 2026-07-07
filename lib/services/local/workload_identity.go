@@ -281,6 +281,15 @@ func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, err
 		if err != nil {
 			return nil, trace.Wrap(err, "unmarshalling resource from event")
 		}
+		// Downstream consumers (e.g. cache index keys) assume resource scopes
+		// have passed weak validation, so drop events that violate that here.
+		// A failure drops just this event: the watcher logs it and stays
+		// healthy.
+		if scope := resource.GetScope(); scope != "" {
+			if err := scopes.WeakValidate(scope); err != nil {
+				return nil, trace.Wrap(err, "validating scope of workload identity %q from event", resource.GetMetadata().GetName())
+			}
+		}
 		return types.Resource153ToLegacy(resource), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)

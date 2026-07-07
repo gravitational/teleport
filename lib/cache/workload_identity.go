@@ -138,11 +138,14 @@ func (c *Cache) GetWorkloadIdentity(ctx context.Context, name scopes.QualifiedNa
 	defer span.End()
 
 	// The name index is keyed by resource cursor, so look up by the cursor for
-	// the requested scope-qualified name.
-	cursor, err := scopes.MakeResourceCursor(name.Scope, name.Name)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// the requested scope-qualified name. The scope is caller input, so weakly
+	// validate it before deriving the cursor.
+	if name.Scope != "" {
+		if err := scopes.WeakValidate(name.Scope); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+	cursor := scopes.MakeResourceCursor(name.Scope, name.Name)
 
 	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
 		cache:      c,

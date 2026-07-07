@@ -295,14 +295,7 @@ func WorkloadIdentityKey(sortField WorkloadIdentitySortField) (func(*workloadide
 // WorkloadIdentity, used both as its in-memory cache index key and as its
 // pagination cursor, so it must be stable and unique per resource.
 func workloadIdentityCursor(wi *workloadidentityv1pb.WorkloadIdentity) string {
-	cursor, err := scopes.MakeResourceCursor(wi.GetScope(), wi.GetMetadata().GetName())
-	if err != nil {
-		// TODO(strideynet): Define sane behavior with Forrest/Nic or find
-		// resource cursor mechanism which is infallible. Ensure pattern is
-		// applied to Bots and Bot Instances too :')
-		panic(err)
-	}
-	return cursor
+	return scopes.MakeResourceCursor(wi.GetScope(), wi.GetMetadata().GetName())
 }
 
 // workloadIdentitySPIFFEIDKey returns the ordering key for the spiffe_id sort.
