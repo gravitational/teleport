@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -232,6 +233,10 @@ func (f *awsFetchersClientsGetter) GetAWSSTSClient(cfg aws.Config) fetchers.STSC
 func (f *awsFetchersClientsGetter) GetAWSSTSPresignClient(cfg aws.Config) fetchers.STSPresignClient {
 	stsClient := stsutils.NewFromConfig(cfg)
 	return sts.NewPresignClient(stsClient)
+}
+
+func (f *awsFetchersClientsGetter) GetAWSIAMClient(cfg aws.Config) fetchers.IAMClient {
+	return iamutils.NewFromConfig(cfg)
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -411,6 +416,9 @@ type Server struct {
 	kubeFetchers []common.Fetcher
 	// kubeAppsFetchers holds all kubernetes fetchers for apps.
 	kubeAppsFetchers []common.Fetcher
+	// eksAccessManager provisions EKS access entries and the AWS discovery Status
+	// for discovered EKS clusters.
+	eksAccessManager *fetchers.EKSAccessManager
 	// databaseFetchers holds all database fetchers.
 	databaseFetchers []common.Fetcher
 
@@ -498,6 +506,11 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	s.databaseFetchers = databaseFetchers
+
+	s.eksAccessManager, err = fetchers.NewEKSAccessManager(s.AWSFetchersClients, s.Log)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if err := s.initAWSWatchers(cfg.Matchers.AWS); err != nil {
 		return nil, trace.Wrap(err)
