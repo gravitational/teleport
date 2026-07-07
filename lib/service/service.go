@@ -6917,11 +6917,11 @@ func (process *TeleportProcess) initApps() {
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
-			// A scoped app's public_addr is derived from its (name, scope); a
-			// user must not set it.
-			if scopePin.GetScope() != "" && app.PublicAddr != "" {
-				return trace.BadParameter("app %q is scoped and must not set public_addr; it is derived from the app name and scope", app.Name)
+			isScopedApp := scopePin.GetScope() != ""
+			if err := validateScopedAppRegistration(isScopedApp, app.Name, app.PublicAddr, app.Cloud, app.MCP, app.LLM, app.RequiredAppNames, app.AWS); err != nil {
+				return trace.Wrap(err)
 			}
+
 			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app, scopePin.GetScope())
 			if err != nil {
 				return trace.Wrap(err)
@@ -7168,6 +7168,32 @@ func (process *TeleportProcess) initApps() {
 		agentPool.Wait()
 		return nil
 	})
+}
+
+// TODO(williamo/scopes): Update this validate function when we add support for these features.
+func validateScopedAppRegistration(isScoped bool, appName string, publicAddr, cloud string, mcp *types.MCP, llm *types.LLM, requiredApps []string, aws *servicecfg.AppAWS) error {
+	if !isScoped {
+		return nil
+	}
+	if publicAddr != "" {
+		return trace.BadParameter("app %q is scoped and must not set public_addr; it is derived from the app name and scope", appName)
+	}
+	if cloud != "" {
+		return trace.BadParameter("app %q is scoped and does not support cloud applications", appName)
+	}
+	if mcp != nil {
+		return trace.BadParameter("app %q is scoped and does not support mcp applications", appName)
+	}
+	if llm != nil {
+		return trace.BadParameter("app %q is scoped and does not support llm apps", appName)
+	}
+	if len(requiredApps) > 0 {
+		return trace.BadParameter("app %q is scoped and does not support specifying required app names", appName)
+	}
+	if aws != nil {
+		return trace.BadParameter("app %q is scoped and does not support aws applications", appName)
+	}
+	return nil
 }
 
 func warnOnErr(ctx context.Context, err error, log *slog.Logger) {
