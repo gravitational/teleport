@@ -581,7 +581,7 @@ ingress:
   useExisting: false
   # ingress.suppressAutomaticWildcards(bool) -- will not automatically add 
   # `*.<clusterName>` as a hostname served by the Ingress. This may be
-  # desirable if you don't use Teleport Application Access.
+  # desirable if you don't use applications protected by Teleport.
   suppressAutomaticWildcards: false
   # ingress.spec(object) -- is additional entries here will be added to the ingress spec.
   # Example:

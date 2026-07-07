@@ -10,7 +10,7 @@ tags:
 The `teleport-proxy` Helm chart deploys a Teleport proxy server on Kubernetes.
 This chart should be used in conjunction with the
 [teleport-cluster](./teleport-cluster.mdx) chart for cases where a Teleport
-Proxy is needed without a Teleport Auth server. This is generally in a different
+Proxy is needed without a Teleport Auth Service. This is generally in a different
 Kubernetes cluster than ones where [teleport-cluster](./teleport-cluster.mdx) is
 deployed. For example, deploying a Teleport Proxy to a region close to Teleport
 agents or clients.
@@ -20,15 +20,15 @@ The `teleport-proxy` chart configuration/values generally parallel the
 
 * `clusterName` - Should match `teleport-cluster`
 * `auth_server` - The address these Proxies can use to connect to Teleport Auth
-  servers. As of this release, Proxies must have direct IP/L4 connectivity to
-  Teleport Auth servers -- routing through an L7 load balancer using SNI is not
+  Service instances. As of this release, Proxies must have direct IP/L4 connectivity to
+  Teleport Auth Service instances -- routing through an L7 load balancer using SNI is not
   yet supported.
 * `join_params` - How these Teleport Proxies can authenticate to the Teleport
   Cluster.
 
 These `auth_server` and `join_params` fields differ from `teleport-cluster` in
 that `teleport-cluster` can generate them automatically because its proxies are
-running on the same Kubernetes cluster as the Auth server. See the Full
+running on the same Kubernetes cluster as the Auth Service. See the Full
 Reference below for details.
 
 Source code is available
