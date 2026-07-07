@@ -34,10 +34,10 @@ are supported by this chart. This **excludes** the `token` and `bound_keypair`
 join methods.
 
 See also:
-* [Join Methods and Tokens](../../deployment/join-methods/)
-* [Teleport Config Reference](../../deployment/config/#instance-wide-settings).
+* [Join Methods and Tokens](../deployment/join-methods.mdx)
+* [Teleport Config Reference](../deployment/config.mdx#instance-wide-settings).
 
-To create the token, see docs ([Terraform](../../infrastructure-as-code/terraform-provider/resources/provision_token/) or [tctl](https://goteleport.com/docs/reference/cli/tctl/#tctl-tokens-add)):
+To create the token, see docs ([Terraform](../infrastructure-as-code/terraform-provider/resources/provision_token.mdx) or [tctl](../../reference/cli/tctl.mdx#tctl-tokens-add)):
       `tctl tokens add --type=proxy ...`
 
 ### `join_params.method`
@@ -49,9 +49,9 @@ To create the token, see docs ([Terraform](../../infrastructure-as-code/terrafor
 `join_params.method` How to join the cluster.
 
 Running on eks/aks/gke? Consider cloud-specific Workload Identity instead of Kubernetes:
-* [AWS](../../deployment/join-methods/#aws-iam-role-iam)
-* [Azure](../../deployment/join-methods/)#azure-managed-identity-azure
-* [GCP](../../deployment/join-methods/#gcp-service-account-gcp)
+* [AWS](../deployment/join-methods.mdx#aws-iam-role-iam)
+* [Azure](../deployment/join-methods.mdx)#azure-managed-identity-azure
+* [GCP](../deployment/join-methods.mdx#gcp-service-account-gcp)
 
 ### `join_params.token_name`
 
@@ -157,7 +157,7 @@ If proxyProtocol is unspecified, Teleport does not require PROXY header for the
 connection, but will accept it if present. This mode is considered insecure
 and should only be used for testing purposes.
 
-See https://goteleport.com/docs/admin-guides/management/security/proxy-protocol/
+See [Run Teleport with the Proxy Protocol](../../zero-trust-access/management/security/proxy-protocol.mdx)
 for more information.
 
 ## `serviceAccountTokenAudience`
@@ -350,7 +350,7 @@ block the deployment if it is not.
 |------|---------|
 | `object` | `{"additionalLabels":{"prometheus":"default"},"enabled":false,"interval":"30s"}` |
 
-`podMonitor` controls the [PodMonitor CR](monitoring.coreos.com/v1).
+`podMonitor` controls the [PodMonitor CR](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api-reference/api.md#monitoring.coreos.com/v1.PodMonitor].
 This CRD is managed by the prometheus-operator and allows workload to
 get monitored. To use this value, you need to run a `prometheus-operator`
 in the cluster for this value to take effect.
@@ -914,7 +914,7 @@ loadBalancerIP: "1.2.3.4"
 If you set `ingress.enabled` to true, service.type MUST also be set to something other than "LoadBalancer" to prevent
 additional unnecessary load balancers from being created. Ingress controllers should provision their own load balancer.
 Using an Ingress also requires that you use the `tsh` client to connect to Kubernetes clusters and databases behind Teleport.
-See [TLS Routing](https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies-preview) for details.
+See [TLS Routing](../architecture/tls-routing.mdx#working-with-layer-7-load-balancers-or-reverse-proxies-preview) for details.
 
 ### `ingress.enabled`
 
