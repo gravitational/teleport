@@ -24,6 +24,7 @@ import { AlertProps } from 'design/Alert/Alert';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
 import {
+  ChevronRight,
   Copy,
   Download,
   Refresh,
@@ -133,6 +134,13 @@ export function DocumentVnetDiagReport(props: {
     }
   };
 
+  // Warning headings for every problem in the report, so the collapsed summary tells the user what
+  // went wrong without expanding the report.
+  const issues = [
+    ...getNetworkStackIssues(networkStackAttempt),
+    ...report.checks.flatMap(getCheckAttemptIssues),
+  ];
+
   return (
     <Document visible={props.visible}>
       <Stack
@@ -148,87 +156,129 @@ export function DocumentVnetDiagReport(props: {
         // content was displayed in the Stack.
         alignSelf="flex-start"
       >
-        <Stack gap={2} fullWidth alignItems="stretch">
-          <Flex flexWrap="wrap" gap={2} justifyContent="space-between">
-            <H1>VNet Diagnostic Report</H1>
-
-            <Flex gap={2}>
-              <HoverTooltip
-                tipContent={
-                  disabledDiagnosticsReason || 'Run Diagnostics Again'
-                }
+        <Details>
+          <ReportSummary>
+            <Stack gap={4} fullWidth alignItems="stretch">
+              <Flex
+                flexWrap="wrap"
+                gap={2}
+                justifyContent="space-between"
+                alignItems="center"
               >
-                <Button
-                  intent="neutral"
-                  p={1}
-                  disabled={!!disabledDiagnosticsReason}
-                  onClick={runDiagnosticsAndReplaceReport}
+                <Flex gap={2} alignItems="center">
+                  <Chevron />
+                  <H1>VNet Diagnostic Report</H1>
+                </Flex>
+
+                {/* Clicks on the buttons must not toggle the enclosing <details>. */}
+                <Flex gap={2} onClick={e => e.stopPropagation()}>
+                  <HoverTooltip
+                    tipContent={
+                      disabledDiagnosticsReason || 'Run Diagnostics Again'
+                    }
+                  >
+                    <Button
+                      intent="neutral"
+                      p={1}
+                      disabled={!!disabledDiagnosticsReason}
+                      onClick={runDiagnosticsAndReplaceReport}
+                    >
+                      <Refresh size="medium" />
+                    </Button>
+                  </HoverTooltip>
+
+                  <HoverTooltip tipContent="Copy Report to Clipboard">
+                    <Button
+                      intent="neutral"
+                      p={1}
+                      onClick={copyReportToClipboard}
+                    >
+                      <Copy size="medium" />
+                    </Button>
+                  </HoverTooltip>
+
+                  <HoverTooltip tipContent="Save Report to File">
+                    <Button intent="neutral" p={1} onClick={saveReportToFile}>
+                      <Download size="medium" />
+                    </Button>
+                  </HoverTooltip>
+                </Flex>
+              </Flex>
+
+              {manualDiagnosticsAttempt.status === 'error' && (
+                // Keep re-run failures visible even while collapsed; the wrapper stops the click
+                // from toggling the <details>.
+                <div onClick={e => e.stopPropagation()}>
+                  <Alert
+                    kind="danger"
+                    details={<P2>{manualDiagnosticsAttempt.statusText}</P2>}
+                  >
+                    Encountered an error while re-running diagnostics.
+                  </Alert>
+                </div>
+              )}
+
+              <SummaryStatus gap={1} fullWidth alignItems="stretch">
+                {issues.length > 0 ? (
+                  issues.map(issue => (
+                    <P1 m={0} key={issue}>
+                      <Warning /> {issue}
+                    </P1>
+                  ))
+                ) : (
+                  <P1 m={0}>
+                    <Success /> No issues found.
+                  </P1>
+                )}
+              </SummaryStatus>
+            </Stack>
+          </ReportSummary>
+
+          {/*
+            Keep the body in a single wrapper. A closed <details> hides it as one unit; making
+            <Details> the flex/gap container would leave the gap after the summary while collapsed.
+          */}
+          <Stack gap={4} fullWidth alignItems="stretch" mt={4}>
+            {networkStackAttempt.status === diag.CheckAttemptStatus.ERROR && (
+              <Stack gap={2} fullWidth alignItems="stretch">
+                <P2>Created at: {createdAt}</P2>
+                <Alert
+                  kind="danger"
+                  details={<P2>{networkStackAttempt.error}</P2>}
                 >
-                  <Refresh size="medium" />
-                </Button>
-              </HoverTooltip>
+                  {networkDetailsUnavailableTitle}
+                </Alert>
+              </Stack>
+            )}
 
-              <HoverTooltip tipContent="Copy Report to Clipboard">
-                <Button intent="neutral" p={1} onClick={copyReportToClipboard}>
-                  <Copy size="medium" />
-                </Button>
-              </HoverTooltip>
+            {networkStackAttempt.status === diag.CheckAttemptStatus.OK && (
+              <P2>
+                Created at: {createdAt}
+                <br />
+                Network interface: <code>{networkStack.interfaceName}</code>
+                <br />
+                IPv4 CIDR{' '}
+                {pluralize(networkStack.ipv4CidrRanges.length, 'range')}:{' '}
+                <code>{networkStack.ipv4CidrRanges.join(', ')}</code>
+                <br />
+                IPv6 prefix: <code>{networkStack.ipv6Prefix}</code>
+                <br />
+                DNS {pluralize(networkStack.dnsZones.length, 'zone')}:{' '}
+                <code>{networkStack.dnsZones.join(', ')}</code>
+              </P2>
+            )}
 
-              <HoverTooltip tipContent="Save Report to File">
-                <Button intent="neutral" p={1} onClick={saveReportToFile}>
-                  <Download size="medium" />
-                </Button>
-              </HoverTooltip>
-            </Flex>
-          </Flex>
-
-          {manualDiagnosticsAttempt.status === 'error' && (
-            <Alert
-              kind="danger"
-              details={<P2>{manualDiagnosticsAttempt.statusText}</P2>}
-            >
-              Encountered an error while re-running diagnostics.
-            </Alert>
-          )}
-
-          {networkStackAttempt.status === diag.CheckAttemptStatus.ERROR && (
-            <>
-              <P2>Created at: {createdAt}</P2>
-              <Alert
-                kind="danger"
-                details={<P2>{networkStackAttempt.error}</P2>}
-              >
-                Network details could not be determined
-              </Alert>
-            </>
-          )}
-
-          {networkStackAttempt.status === diag.CheckAttemptStatus.OK && (
-            <P2>
-              Created at: {createdAt}
-              <br />
-              Network interface: <code>{networkStack.interfaceName}</code>
-              <br />
-              IPv4 CIDR {pluralize(networkStack.ipv4CidrRanges.length, 'range')}
-              : <code>{networkStack.ipv4CidrRanges.join(', ')}</code>
-              <br />
-              IPv6 prefix: <code>{networkStack.ipv6Prefix}</code>
-              <br />
-              DNS {pluralize(networkStack.dnsZones.length, 'zone')}:{' '}
-              <code>{networkStack.dnsZones.join(', ')}</code>
-            </P2>
-          )}
-        </Stack>
-
-        {report.checks.map(checkAttempt => (
-          <CheckAttempt
-            // tshd promises that checkAttempt.checkReport.report.oneofKind is
-            // 1) always present even if the check fails to complete
-            // 2) unique
-            key={checkAttempt.checkReport.report.oneofKind}
-            checkAttempt={checkAttempt}
-          />
-        ))}
+            {report.checks.map(checkAttempt => (
+              <CheckAttempt
+                // tshd promises that checkAttempt.checkReport.report.oneofKind is
+                // 1) always present even if the check fails to complete
+                // 2) unique
+                key={checkAttempt.checkReport.report.oneofKind}
+                checkAttempt={checkAttempt}
+              />
+            ))}
+          </Stack>
+        </Details>
       </Stack>
     </Document>
   );
@@ -249,14 +299,12 @@ const CheckAttempt = ({
   return (
     <Stack gap={2} fullWidth>
       {!displayDetails ? (
-        <Alert kind="danger">
-          Cannot display the result from an unsupported check {reportOneof}
-        </Alert>
+        <Alert kind="danger">{unsupportedCheckTitle(reportOneof)}</Alert>
       ) : (
         <>
           {checkAttempt.status === diag.CheckAttemptStatus.ERROR && (
             <Alert kind="danger" details={<P2>{checkAttempt.error}</P2>}>
-              Failed to {displayDetails.errorTitle}
+              {failedToTitle(displayDetails.errorTitle)}
             </Alert>
           )}
 
@@ -295,21 +343,75 @@ const reportOneofDisplayDetails: Record<
   {
     Component: React.ComponentType<{ checkReport: diag.CheckReport }>;
     errorTitle: string;
+    // getIssues returns the warning heading(s) for the problems the check found, matching what
+    // Component renders, so the collapsed summary never drifts from the expanded body.
+    getIssues: (checkReport: diag.CheckReport) => string[];
   }
 > = {
   routeConflictReport: {
     errorTitle: 'inspect network routes',
     Component: CheckReportRouteConflict,
+    getIssues: getRouteConflictIssues,
   },
   sshConfigurationReport: {
     errorTitle: 'inspect SSH configuration',
     Component: CheckReportSSHConfiguration,
+    getIssues: getSSHConfigurationIssues,
   },
   dnsReport: {
     errorTitle: 'inspect DNS configuration',
     Component: CheckReportDNS,
+    getIssues: getDNSIssues,
   },
 };
+
+const networkDetailsUnavailableTitle =
+  'Network details could not be determined';
+
+const failedToTitle = (errorTitle: string) => `Failed to ${errorTitle}`;
+
+const unsupportedCheckTitle = (reportOneof: string) =>
+  `Cannot display the result from an unsupported check ${reportOneof}`;
+
+function getNetworkStackIssues(
+  networkStackAttempt: diag.NetworkStackAttempt
+): string[] {
+  return networkStackAttempt.status === diag.CheckAttemptStatus.ERROR
+    ? [networkDetailsUnavailableTitle]
+    : [];
+}
+
+function getCheckAttemptIssues(checkAttempt: diag.CheckAttempt): string[] {
+  const reportOneof = checkAttempt.checkReport.report.oneofKind;
+  const displayDetails = reportOneofDisplayDetails[reportOneof];
+  if (!displayDetails) {
+    return [unsupportedCheckTitle(reportOneof)];
+  }
+  if (checkAttempt.status === diag.CheckAttemptStatus.ERROR) {
+    return [failedToTitle(displayDetails.errorTitle)];
+  }
+  return displayDetails.getIssues(checkAttempt.checkReport);
+}
+
+const routeConflictWarning = (conflictCount: number) =>
+  conflictCount === 1
+    ? 'There is a network route in conflict with VNet.'
+    : 'There are multiple network routes in conflict with VNet.';
+
+function getRouteConflictIssues({
+  report,
+  status,
+}: diag.CheckReport): string[] {
+  if (
+    !reportOneOfIsRouteConflictReport(report) ||
+    status === diag.CheckReportStatus.OK
+  ) {
+    return [];
+  }
+  return [
+    routeConflictWarning(report.routeConflictReport.routeConflicts.length),
+  ];
+}
 
 /**
  * CheckReportRouteConflict displays a table with network routes in the system that are in conflict
@@ -338,11 +440,7 @@ function CheckReportRouteConflict({
     <>
       <Stack>
         <P1>
-          <Warning /> There{' '}
-          {routeConflicts.length === 1
-            ? 'is a network route'
-            : 'are multiple network routes'}{' '}
-          in conflict with VNet.
+          <Warning /> {routeConflictWarning(routeConflicts.length)}
         </P1>
 
         <P2 m={0}>
@@ -377,6 +475,17 @@ function CheckReportRouteConflict({
       />
     </>
   );
+}
+
+const sshNotConfiguredWarning = 'VNet SSH is not configured.';
+
+function getSSHConfigurationIssues({ report }: diag.CheckReport): string[] {
+  if (!reportOneOfIsSSHConfigurationReport(report)) {
+    return [];
+  }
+  return report.sshConfigurationReport.userOpensshConfigIncludesVnetSshConfig
+    ? []
+    : [sshNotConfiguredWarning];
 }
 
 function CheckReportSSHConfiguration({
@@ -442,7 +551,7 @@ function CheckReportSSHConfiguration({
     <>
       <Stack>
         <P1>
-          <Warning /> VNet SSH is not configured.
+          <Warning /> {sshNotConfiguredWarning}
         </P1>
         <P2 m={0}>
           The user's default SSH configuration file does not include VNet's
@@ -472,6 +581,49 @@ function CheckReportSSHConfiguration({
   );
 }
 
+const dnsUnreachableWarning = (family: 'IPv4' | 'IPv6', address: string) =>
+  `VNet ${family} DNS unreachable on ${address}.`;
+
+const dnsZonesNotRoutedWarning = (problemCount: number, totalZones: number) =>
+  problemCount === 1
+    ? `1 of ${totalZones} DNS zones is not fully routed through VNet.`
+    : `${problemCount} of ${totalZones} DNS zones are not fully routed through VNet.`;
+
+function getDNSIssues({ report }: diag.CheckReport): string[] {
+  if (!reportOneOfIsDNSReport(report)) {
+    return [];
+  }
+  const { ipv4Reachability, ipv6Reachability, zoneResults } = report.dnsReport;
+  const issues: string[] = [];
+  if (ipv4Reachability && !ipv4Reachability.reachable) {
+    issues.push(dnsUnreachableWarning('IPv4', ipv4Reachability.address));
+  }
+  if (ipv6Reachability && !ipv6Reachability.reachable) {
+    issues.push(dnsUnreachableWarning('IPv6', ipv6Reachability.address));
+  }
+  const problemRows = dnsProblemRows(zoneResults);
+  if (problemRows.length > 0) {
+    issues.push(
+      dnsZonesNotRoutedWarning(problemRows.length, zoneResults.length)
+    );
+  }
+  return issues;
+}
+
+// Show only zones that have at least one problem. A null aRecord or aaaaRecord means that record
+// type wasn't queried because no expected IP was captured from the reachability step, so not a
+// problem.
+function dnsProblemRows(
+  zoneResults: diag.DNSZoneResult[]
+): diag.DNSZoneResult[] {
+  const okStatus = diag.DNSZoneStatus.DNS_ZONE_STATUS_OK;
+  return zoneResults.filter(
+    zr =>
+      (zr.aRecord && zr.aRecord.status !== okStatus) ||
+      (zr.aaaaRecord && zr.aaaaRecord.status !== okStatus)
+  );
+}
+
 /**
  * CheckReportDNS displays per-family reachability and the per-zone, per-record-type outcomes.
  */
@@ -485,15 +637,7 @@ function CheckReportDNS({
   }
   const { ipv4Reachability, ipv6Reachability, zoneResults } = report.dnsReport;
 
-  // Show only zones that have at least one problem. A null aRecord
-  // or aaaaRecord means that record type wasn't queried because no
-  // expected IP was captured from the reachability step, so not a problem.
-  const okStatus = diag.DNSZoneStatus.DNS_ZONE_STATUS_OK;
-  const problemRows = zoneResults.filter(
-    zr =>
-      (zr.aRecord && zr.aRecord.status !== okStatus) ||
-      (zr.aaaaRecord && zr.aaaaRecord.status !== okStatus)
-  );
+  const problemRows = dnsProblemRows(zoneResults);
 
   const allUnreachable =
     (ipv4Reachability || ipv6Reachability) &&
@@ -517,9 +661,7 @@ function CheckReportDNS({
           <Stack>
             <P1>
               <Warning />{' '}
-              {problemRows.length === 1
-                ? `1 of ${zoneResults.length} DNS zones is not fully routed through VNet.`
-                : `${problemRows.length} of ${zoneResults.length} DNS zones are not fully routed through VNet.`}
+              {dnsZonesNotRoutedWarning(problemRows.length, zoneResults.length)}
             </P1>
             <P2 m={0}>
               The OS resolver is not sending some queries for the zones below to
@@ -630,6 +772,37 @@ function DnsZoneStatusLabel({ status }: { status: diag.DNSZoneStatus }) {
       return <>Unknown ({status})</>;
   }
 }
+
+const Details = styled.details`
+  width: 100%;
+  margin: 0;
+`;
+
+const ReportSummary = styled.summary`
+  cursor: pointer;
+  list-style: none;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+`;
+
+// The at-a-glance issue lines are only shown while collapsed; once the report is expanded, the
+// check results below carry the same information.
+const SummaryStatus = styled(Stack)`
+  details[open] & {
+    display: none;
+  }
+`;
+
+const Chevron = styled(ChevronRight).attrs({ size: 'medium' })`
+  flex-shrink: 0;
+  transition: transform 150ms ease;
+
+  details[open] & {
+    transform: rotate(90deg);
+  }
+`;
 
 const Summary = styled.summary`
   cursor: pointer;
