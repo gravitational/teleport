@@ -220,7 +220,7 @@ func TestWatchers(t *testing.T) {
 				svc, err := NewLinuxDesktopService(backend)
 				require.NoError(subtestT, err)
 
-				desktop := &linuxdesktopv1.LinuxDesktop{
+				desktop := linuxdesktopv1.LinuxDesktop_builder{
 					Kind:    types.KindLinuxDesktop,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
@@ -230,11 +230,11 @@ func TestWatchers(t *testing.T) {
 							"team": "engineering",
 						},
 					},
-					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+					Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 						Addr:     "127.0.0.1:22",
 						Hostname: "test-host",
-					},
-				}
+					}.Build(),
+				}.Build()
 
 				_, err = svc.CreateLinuxDesktop(subtestCtx, desktop)
 				require.NoError(subtestT, err)
@@ -246,13 +246,13 @@ func TestWatchers(t *testing.T) {
 
 				// EXPECT that the resource attached to the event is a Linux desktop
 				desktop := unwrapResource153[*linuxdesktopv1.LinuxDesktop](subtestT, event.Resource)
-				require.Equal(subtestT, "desktop-1", desktop.Metadata.Name)
-				require.Equal(subtestT, "127.0.0.1:22", desktop.Spec.Addr)
-				require.Equal(subtestT, "test-host", desktop.Spec.Hostname)
+				require.Equal(subtestT, "desktop-1", desktop.GetMetadata().GetName())
+				require.Equal(subtestT, "127.0.0.1:22", desktop.GetSpec().GetAddr())
+				require.Equal(subtestT, "test-host", desktop.GetSpec().GetHostname())
 				require.Equal(subtestT, map[string]string{
 					"env":  "test",
 					"team": "engineering",
-				}, desktop.Metadata.Labels)
+				}, desktop.GetMetadata().GetLabels())
 			},
 		},
 		{
@@ -263,7 +263,7 @@ func TestWatchers(t *testing.T) {
 				svc, err := NewLinuxDesktopService(backend)
 				require.NoError(subtestT, err)
 
-				desktop := &linuxdesktopv1.LinuxDesktop{
+				desktop := linuxdesktopv1.LinuxDesktop_builder{
 					Kind:    types.KindLinuxDesktop,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
@@ -272,11 +272,11 @@ func TestWatchers(t *testing.T) {
 							"env": "staging",
 						},
 					},
-					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+					Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 						Addr:     "192.168.1.10:22",
 						Hostname: "delete-me",
-					},
-				}
+					}.Build(),
+				}.Build()
 
 				_, err = svc.CreateLinuxDesktop(subtestCtx, desktop)
 				require.NoError(subtestT, err)

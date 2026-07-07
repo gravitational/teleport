@@ -30,7 +30,7 @@ import (
 func TestMarshalUnmarshalLinuxDesktop(t *testing.T) {
 	t.Parallel()
 
-	desktop := &linuxdesktopv1.LinuxDesktop{
+	desktop := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
@@ -39,11 +39,11 @@ func TestMarshalUnmarshalLinuxDesktop(t *testing.T) {
 				"env": "test",
 			},
 		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "127.0.0.1:22",
 			Hostname: "host",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	out, err := MarshalLinuxDesktop(desktop)
 	require.NoError(t, err)

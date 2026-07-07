@@ -35,7 +35,7 @@ func TestPackUnpackLinuxDesktop(t *testing.T) {
 	}{
 		{
 			name: "basic linux desktop",
-			desktop: &linuxdesktopv1.LinuxDesktop{
+			desktop: linuxdesktopv1.LinuxDesktop_builder{
 				Kind:    types.KindLinuxDesktop,
 				SubKind: "",
 				Version: types.V3,
@@ -46,30 +46,30 @@ func TestPackUnpackLinuxDesktop(t *testing.T) {
 						"region": "us-east-1",
 					},
 				},
-				Spec: &linuxdesktopv1.LinuxDesktopSpec{
+				Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 					Addr:     "192.168.1.100:22",
 					Hostname: "linux-host-1",
 					ProxyIds: []string{"proxy-1", "proxy-2"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "linux desktop with no labels",
-			desktop: &linuxdesktopv1.LinuxDesktop{
+			desktop: linuxdesktopv1.LinuxDesktop_builder{
 				Kind:    types.KindLinuxDesktop,
 				Version: types.V3,
 				Metadata: &headerv1.Metadata{
 					Name: "minimal-desktop",
 				},
-				Spec: &linuxdesktopv1.LinuxDesktopSpec{
+				Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 					Addr:     "example.com:22",
 					Hostname: "minimal-host",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "linux desktop with empty proxy IDs",
-			desktop: &linuxdesktopv1.LinuxDesktop{
+			desktop: linuxdesktopv1.LinuxDesktop_builder{
 				Kind:    types.KindLinuxDesktop,
 				Version: types.V3,
 				Metadata: &headerv1.Metadata{
@@ -78,12 +78,12 @@ func TestPackUnpackLinuxDesktop(t *testing.T) {
 						"test": "label",
 					},
 				},
-				Spec: &linuxdesktopv1.LinuxDesktopSpec{
+				Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 					Addr:     "172.16.0.10:22",
 					Hostname: "isolated-host",
 					ProxyIds: []string{},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	}
 
@@ -100,14 +100,14 @@ func TestPackUnpackLinuxDesktop(t *testing.T) {
 
 			// Verify wire format fields
 			wireDesktop := paginatedResource.LinuxDesktop
-			require.Equal(t, tt.desktop.Kind, wireDesktop.Kind)
-			require.Equal(t, tt.desktop.SubKind, wireDesktop.SubKind)
-			require.Equal(t, tt.desktop.Version, wireDesktop.Version)
-			require.Equal(t, tt.desktop.Metadata.Name, wireDesktop.Metadata.Name)
-			require.Equal(t, tt.desktop.Metadata.Labels, wireDesktop.Metadata.Labels)
-			require.Equal(t, tt.desktop.Spec.Addr, wireDesktop.Addr)
-			require.Equal(t, tt.desktop.Spec.Hostname, wireDesktop.Hostname)
-			require.Equal(t, tt.desktop.Spec.ProxyIds, wireDesktop.ProxyIds)
+			require.Equal(t, tt.desktop.GetKind(), wireDesktop.Kind)
+			require.Equal(t, tt.desktop.GetSubKind(), wireDesktop.SubKind)
+			require.Equal(t, tt.desktop.GetVersion(), wireDesktop.Version)
+			require.Equal(t, tt.desktop.GetMetadata().Name, wireDesktop.Metadata.Name)
+			require.Equal(t, tt.desktop.GetMetadata().Labels, wireDesktop.Metadata.Labels)
+			require.Equal(t, tt.desktop.GetSpec().GetAddr(), wireDesktop.Addr)
+			require.Equal(t, tt.desktop.GetSpec().GetHostname(), wireDesktop.Hostname)
+			require.Equal(t, tt.desktop.GetSpec().GetProxyIds(), wireDesktop.ProxyIds)
 
 			// Unpack the desktop
 			unpacked := UnpackLinuxDesktop(wireDesktop)

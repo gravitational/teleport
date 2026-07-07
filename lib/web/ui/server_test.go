@@ -480,7 +480,7 @@ func TestMakeLinuxDesktop(t *testing.T) {
 		{
 			name: "basic linux desktop",
 			desktop: func(t *testing.T) *linuxdesktopv1.LinuxDesktop {
-				return &linuxdesktopv1.LinuxDesktop{
+				return linuxdesktopv1.LinuxDesktop_builder{
 					Kind:    types.KindLinuxDesktop,
 					Version: types.V3,
 					Metadata: &headerv1.Metadata{
@@ -490,12 +490,12 @@ func TestMakeLinuxDesktop(t *testing.T) {
 							"region": "us-west",
 						},
 					},
-					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+					Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 						Addr:     "10.0.0.1:22",
 						Hostname: "linux-host-1",
 						ProxyIds: []string{"proxy-1"},
-					},
-				}
+					}.Build(),
+				}.Build()
 			},
 			logins:          []string{"ubuntu", "root"},
 			requiresRequest: false,
@@ -516,7 +516,7 @@ func TestMakeLinuxDesktop(t *testing.T) {
 		{
 			name: "linux desktop with internal labels filtered",
 			desktop: func(t *testing.T) *linuxdesktopv1.LinuxDesktop {
-				return &linuxdesktopv1.LinuxDesktop{
+				return linuxdesktopv1.LinuxDesktop_builder{
 					Kind:    types.KindLinuxDesktop,
 					Version: types.V3,
 					Metadata: &headerv1.Metadata{
@@ -527,11 +527,11 @@ func TestMakeLinuxDesktop(t *testing.T) {
 							"visible":                       "label",
 						},
 					},
-					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+					Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 						Addr:     "192.168.1.100:22",
 						Hostname: "linux-host-2",
-					},
-				}
+					}.Build(),
+				}.Build()
 			},
 			logins:          []string{"admin"},
 			requiresRequest: true,
@@ -551,17 +551,17 @@ func TestMakeLinuxDesktop(t *testing.T) {
 		{
 			name: "linux desktop with no labels",
 			desktop: func(t *testing.T) *linuxdesktopv1.LinuxDesktop {
-				return &linuxdesktopv1.LinuxDesktop{
+				return linuxdesktopv1.LinuxDesktop_builder{
 					Kind:    types.KindLinuxDesktop,
 					Version: types.V3,
 					Metadata: &headerv1.Metadata{
 						Name: "linux-desktop-3",
 					},
-					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+					Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 						Addr:     "example.com:2222",
 						Hostname: "linux-host-3",
-					},
-				}
+					}.Build(),
+				}.Build()
 			},
 			logins:          nil,
 			requiresRequest: false,

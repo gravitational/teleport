@@ -2541,17 +2541,17 @@ func newAccessGraphSettings(t *testing.T) *clusterconfigpb.AccessGraphSettings {
 }
 
 func newLinuxDesktop(name string) *linuxdesktopv1.LinuxDesktop {
-	return &linuxdesktopv1.LinuxDesktop{
+	return linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: name,
 		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "127.0.0.1:22",
 			Hostname: "host",
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 func newUserNotification(t *testing.T, name string) *notificationsv1.Notification {

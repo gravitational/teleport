@@ -42,30 +42,30 @@ type mockClient struct {
 
 func (m *mockClient) ListLinuxDesktops(_ context.Context, in *linuxdesktopv1.ListLinuxDesktopsRequest, _ ...grpc.CallOption) (*linuxdesktopv1.ListLinuxDesktopsResponse, error) {
 	m.listRequest = in
-	return &linuxdesktopv1.ListLinuxDesktopsResponse{
-		LinuxDesktops: m.listResponse,
-		NextPageToken: "next",
-	}, nil
+	rsp := &linuxdesktopv1.ListLinuxDesktopsResponse{}
+	rsp.SetLinuxDesktops(m.listResponse)
+	rsp.SetNextPageToken("next")
+	return rsp, nil
 }
 
 func (m *mockClient) CreateLinuxDesktop(_ context.Context, in *linuxdesktopv1.CreateLinuxDesktopRequest, _ ...grpc.CallOption) (*linuxdesktopv1.LinuxDesktop, error) {
 	m.createRequest = in
-	return in.LinuxDesktop, nil
+	return in.GetLinuxDesktop(), nil
 }
 
 func (m *mockClient) GetLinuxDesktop(_ context.Context, in *linuxdesktopv1.GetLinuxDesktopRequest, _ ...grpc.CallOption) (*linuxdesktopv1.LinuxDesktop, error) {
 	m.getRequest = in
-	return newLinuxDesktop(in.Name), nil
+	return newLinuxDesktop(in.GetName()), nil
 }
 
 func (m *mockClient) UpdateLinuxDesktop(_ context.Context, in *linuxdesktopv1.UpdateLinuxDesktopRequest, _ ...grpc.CallOption) (*linuxdesktopv1.LinuxDesktop, error) {
 	m.updateRequest = in
-	return in.LinuxDesktop, nil
+	return in.GetLinuxDesktop(), nil
 }
 
 func (m *mockClient) UpsertLinuxDesktop(_ context.Context, in *linuxdesktopv1.UpsertLinuxDesktopRequest, _ ...grpc.CallOption) (*linuxdesktopv1.LinuxDesktop, error) {
 	m.upsertRequest = in
-	return in.LinuxDesktop, nil
+	return in.GetLinuxDesktop(), nil
 }
 
 func (m *mockClient) DeleteLinuxDesktop(_ context.Context, in *linuxdesktopv1.DeleteLinuxDesktopRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
@@ -88,8 +88,8 @@ func TestClientListLinuxDesktops(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, mockClient.listResponse, desktops)
 	require.Equal(t, "next", next)
-	require.Equal(t, int32(10), mockClient.listRequest.PageSize)
-	require.Equal(t, "token", mockClient.listRequest.PageToken)
+	require.Equal(t, int32(10), mockClient.listRequest.GetPageSize())
+	require.Equal(t, "token", mockClient.listRequest.GetPageToken())
 }
 
 func TestClientCreateLinuxDesktop(t *testing.T) {
@@ -102,7 +102,7 @@ func TestClientCreateLinuxDesktop(t *testing.T) {
 	resp, err := client.CreateLinuxDesktop(t.Context(), desktop)
 	require.NoError(t, err)
 	require.Equal(t, desktop, resp)
-	require.Equal(t, desktop, mockClient.createRequest.LinuxDesktop)
+	require.Equal(t, desktop, mockClient.createRequest.GetLinuxDesktop())
 }
 
 func TestClientGetLinuxDesktop(t *testing.T) {
@@ -113,7 +113,7 @@ func TestClientGetLinuxDesktop(t *testing.T) {
 
 	resp, err := client.GetLinuxDesktop(t.Context(), "desktop-1")
 	require.NoError(t, err)
-	require.Equal(t, "desktop-1", mockClient.getRequest.Name)
+	require.Equal(t, "desktop-1", mockClient.getRequest.GetName())
 	require.Equal(t, newLinuxDesktop("desktop-1"), resp)
 }
 
@@ -127,7 +127,7 @@ func TestClientUpdateLinuxDesktop(t *testing.T) {
 	resp, err := client.UpdateLinuxDesktop(t.Context(), desktop)
 	require.NoError(t, err)
 	require.Equal(t, desktop, resp)
-	require.Equal(t, desktop, mockClient.updateRequest.LinuxDesktop)
+	require.Equal(t, desktop, mockClient.updateRequest.GetLinuxDesktop())
 }
 
 func TestClientUpsertLinuxDesktop(t *testing.T) {
@@ -140,7 +140,7 @@ func TestClientUpsertLinuxDesktop(t *testing.T) {
 	resp, err := client.UpsertLinuxDesktop(t.Context(), desktop)
 	require.NoError(t, err)
 	require.Equal(t, desktop, resp)
-	require.Equal(t, desktop, mockClient.upsertRequest.LinuxDesktop)
+	require.Equal(t, desktop, mockClient.upsertRequest.GetLinuxDesktop())
 }
 
 func TestClientDeleteLinuxDesktop(t *testing.T) {
@@ -151,19 +151,19 @@ func TestClientDeleteLinuxDesktop(t *testing.T) {
 
 	err := client.DeleteLinuxDesktop(t.Context(), "desktop-1")
 	require.NoError(t, err)
-	require.Equal(t, "desktop-1", mockClient.deleteRequest.Name)
+	require.Equal(t, "desktop-1", mockClient.deleteRequest.GetName())
 }
 
 func newLinuxDesktop(name string) *linuxdesktopv1.LinuxDesktop {
-	return &linuxdesktopv1.LinuxDesktop{
-		Kind:    types.KindLinuxDesktop,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: name,
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
-			Addr:     "127.0.0.1:22",
-			Hostname: "host",
-		},
-	}
+	spec := &linuxdesktopv1.LinuxDesktopSpec{}
+	spec.SetAddr("127.0.0.1:22")
+	spec.SetHostname("host")
+	l := &linuxdesktopv1.LinuxDesktop{}
+	l.SetKind(types.KindLinuxDesktop)
+	l.SetVersion(types.V1)
+	l.SetMetadata(&headerv1.Metadata{
+		Name: name,
+	})
+	l.SetSpec(spec)
+	return l
 }
