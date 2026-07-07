@@ -613,9 +613,11 @@ func (b0 ListAccessListsV2Response_builder) Build() *ListAccessListsV2Response {
 type GetInheritedGrantsRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// access_list_id is the ID of the access list to retrieve.
-	AccessListId  string `protobuf:"bytes,1,opt,name=access_list_id,json=accessListId,proto3" json:"access_list_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AccessListId string `protobuf:"bytes,1,opt,name=access_list_id,json=accessListId,proto3" json:"access_list_id,omitempty"`
+	// access_list_scope is the scope of the access list to retrieve.
+	AccessListScope string `protobuf:"bytes,2,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GetInheritedGrantsRequest) Reset() {
@@ -650,8 +652,19 @@ func (x *GetInheritedGrantsRequest) GetAccessListId() string {
 	return ""
 }
 
+func (x *GetInheritedGrantsRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
 func (x *GetInheritedGrantsRequest) SetAccessListId(v string) {
 	x.AccessListId = v
+}
+
+func (x *GetInheritedGrantsRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
 }
 
 type GetInheritedGrantsRequest_builder struct {
@@ -659,6 +672,8 @@ type GetInheritedGrantsRequest_builder struct {
 
 	// access_list_id is the ID of the access list to retrieve.
 	AccessListId string
+	// access_list_scope is the scope of the access list to retrieve.
+	AccessListScope string
 }
 
 func (b0 GetInheritedGrantsRequest_builder) Build() *GetInheritedGrantsRequest {
@@ -666,6 +681,7 @@ func (b0 GetInheritedGrantsRequest_builder) Build() *GetInheritedGrantsRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.AccessListId = b.AccessListId
+	x.AccessListScope = b.AccessListScope
 	return m0
 }
 
@@ -744,7 +760,9 @@ func (b0 GetInheritedGrantsResponse_builder) Build() *GetInheritedGrantsResponse
 type GetAccessListRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the access list to retrieve.
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// scope is the scope of the access list to retrieve.
+	Scope         string `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -781,8 +799,19 @@ func (x *GetAccessListRequest) GetName() string {
 	return ""
 }
 
+func (x *GetAccessListRequest) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 func (x *GetAccessListRequest) SetName(v string) {
 	x.Name = v
+}
+
+func (x *GetAccessListRequest) SetScope(v string) {
+	x.Scope = v
 }
 
 type GetAccessListRequest_builder struct {
@@ -790,6 +819,8 @@ type GetAccessListRequest_builder struct {
 
 	// name is the name of the access list to retrieve.
 	Name string
+	// scope is the scope of the access list to retrieve.
+	Scope string
 }
 
 func (b0 GetAccessListRequest_builder) Build() *GetAccessListRequest {
@@ -797,6 +828,7 @@ func (b0 GetAccessListRequest_builder) Build() *GetAccessListRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.Name = b.Name
+	x.Scope = b.Scope
 	return m0
 }
 
@@ -946,7 +978,9 @@ func (b0 UpdateAccessListRequest_builder) Build() *UpdateAccessListRequest {
 type DeleteAccessListRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the access list to delete.
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// scope is the scope of the access list to delete.
+	Scope         string `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -983,8 +1017,19 @@ func (x *DeleteAccessListRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteAccessListRequest) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 func (x *DeleteAccessListRequest) SetName(v string) {
 	x.Name = v
+}
+
+func (x *DeleteAccessListRequest) SetScope(v string) {
+	x.Scope = v
 }
 
 type DeleteAccessListRequest_builder struct {
@@ -992,6 +1037,8 @@ type DeleteAccessListRequest_builder struct {
 
 	// name is the name of the access list to delete.
 	Name string
+	// scope is the scope of the access list to delete.
+	Scope string
 }
 
 func (b0 DeleteAccessListRequest_builder) Build() *DeleteAccessListRequest {
@@ -999,6 +1046,7 @@ func (b0 DeleteAccessListRequest_builder) Build() *DeleteAccessListRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.Name = b.Name
+	x.Scope = b.Scope
 	return m0
 }
 
@@ -1156,8 +1204,10 @@ type CountAccessListMembersRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// access_list_name is the name of the access list to retrieve.
 	AccessListName string `protobuf:"bytes,1,opt,name=access_list_name,json=accessListName,proto3" json:"access_list_name,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// access_list_scope is the scope of the access list to retrieve.
+	AccessListScope string `protobuf:"bytes,2,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *CountAccessListMembersRequest) Reset() {
@@ -1192,8 +1242,19 @@ func (x *CountAccessListMembersRequest) GetAccessListName() string {
 	return ""
 }
 
+func (x *CountAccessListMembersRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
 func (x *CountAccessListMembersRequest) SetAccessListName(v string) {
 	x.AccessListName = v
+}
+
+func (x *CountAccessListMembersRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
 }
 
 type CountAccessListMembersRequest_builder struct {
@@ -1201,6 +1262,8 @@ type CountAccessListMembersRequest_builder struct {
 
 	// access_list_name is the name of the access list to retrieve.
 	AccessListName string
+	// access_list_scope is the scope of the access list to retrieve.
+	AccessListScope string
 }
 
 func (b0 CountAccessListMembersRequest_builder) Build() *CountAccessListMembersRequest {
@@ -1208,6 +1271,7 @@ func (b0 CountAccessListMembersRequest_builder) Build() *CountAccessListMembersR
 	b, x := &b0, m0
 	_, _ = b, x
 	x.AccessListName = b.AccessListName
+	x.AccessListScope = b.AccessListScope
 	return m0
 }
 
@@ -1297,9 +1361,11 @@ type ListAccessListMembersRequest struct {
 	// page_token is the page token.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	// access_list is the name of the access list that the member belongs to.
-	AccessList    string `protobuf:"bytes,3,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AccessList string `protobuf:"bytes,3,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
+	// access_list_scope is the scope of the access list that the member belongs to.
+	AccessListScope string `protobuf:"bytes,4,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ListAccessListMembersRequest) Reset() {
@@ -1348,6 +1414,13 @@ func (x *ListAccessListMembersRequest) GetAccessList() string {
 	return ""
 }
 
+func (x *ListAccessListMembersRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
 func (x *ListAccessListMembersRequest) SetPageSize(v int32) {
 	x.PageSize = v
 }
@@ -1360,6 +1433,10 @@ func (x *ListAccessListMembersRequest) SetAccessList(v string) {
 	x.AccessList = v
 }
 
+func (x *ListAccessListMembersRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
+}
+
 type ListAccessListMembersRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1369,6 +1446,8 @@ type ListAccessListMembersRequest_builder struct {
 	PageToken string
 	// access_list is the name of the access list that the member belongs to.
 	AccessList string
+	// access_list_scope is the scope of the access list that the member belongs to.
+	AccessListScope string
 }
 
 func (b0 ListAccessListMembersRequest_builder) Build() *ListAccessListMembersRequest {
@@ -1378,6 +1457,7 @@ func (b0 ListAccessListMembersRequest_builder) Build() *ListAccessListMembersReq
 	x.PageSize = b.PageSize
 	x.PageToken = b.PageToken
 	x.AccessList = b.AccessList
+	x.AccessListScope = b.AccessListScope
 	return m0
 }
 
@@ -1794,7 +1874,11 @@ type GetAccessListMemberRequest struct {
 	// access_list is the name of the access list that the member belongs to.
 	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	// member_name is the name of the user that belongs to the access list.
-	MemberName    string `protobuf:"bytes,2,opt,name=member_name,json=memberName,proto3" json:"member_name,omitempty"`
+	MemberName string `protobuf:"bytes,2,opt,name=member_name,json=memberName,proto3" json:"member_name,omitempty"`
+	// access_list_scope is the scope of the access list that the member belongs to.
+	AccessListScope string `protobuf:"bytes,3,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	// member_scope is the scope of the member, in case the member is a scoped access list.
+	MemberScope   string `protobuf:"bytes,4,opt,name=member_scope,json=memberScope,proto3" json:"member_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1838,12 +1922,34 @@ func (x *GetAccessListMemberRequest) GetMemberName() string {
 	return ""
 }
 
+func (x *GetAccessListMemberRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
+func (x *GetAccessListMemberRequest) GetMemberScope() string {
+	if x != nil {
+		return x.MemberScope
+	}
+	return ""
+}
+
 func (x *GetAccessListMemberRequest) SetAccessList(v string) {
 	x.AccessList = v
 }
 
 func (x *GetAccessListMemberRequest) SetMemberName(v string) {
 	x.MemberName = v
+}
+
+func (x *GetAccessListMemberRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
+}
+
+func (x *GetAccessListMemberRequest) SetMemberScope(v string) {
+	x.MemberScope = v
 }
 
 type GetAccessListMemberRequest_builder struct {
@@ -1853,6 +1959,10 @@ type GetAccessListMemberRequest_builder struct {
 	AccessList string
 	// member_name is the name of the user that belongs to the access list.
 	MemberName string
+	// access_list_scope is the scope of the access list that the member belongs to.
+	AccessListScope string
+	// member_scope is the scope of the member, in case the member is a scoped access list.
+	MemberScope string
 }
 
 func (b0 GetAccessListMemberRequest_builder) Build() *GetAccessListMemberRequest {
@@ -1861,6 +1971,8 @@ func (b0 GetAccessListMemberRequest_builder) Build() *GetAccessListMemberRequest
 	_, _ = b, x
 	x.AccessList = b.AccessList
 	x.MemberName = b.MemberName
+	x.AccessListScope = b.AccessListScope
+	x.MemberScope = b.MemberScope
 	return m0
 }
 
@@ -1871,7 +1983,11 @@ type GetStaticAccessListMemberRequest struct {
 	// access_list is the name of the access_list that the member belongs to.
 	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	// member_name is the name of the user that belongs to the access_list.
-	MemberName    string `protobuf:"bytes,2,opt,name=member_name,json=memberName,proto3" json:"member_name,omitempty"`
+	MemberName string `protobuf:"bytes,2,opt,name=member_name,json=memberName,proto3" json:"member_name,omitempty"`
+	// access_list_scope is the scope of the access list that the member belongs to.
+	AccessListScope string `protobuf:"bytes,3,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	// member_scope is the scope of the member, in case the member is a scoped access list.
+	MemberScope   string `protobuf:"bytes,4,opt,name=member_scope,json=memberScope,proto3" json:"member_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1915,12 +2031,34 @@ func (x *GetStaticAccessListMemberRequest) GetMemberName() string {
 	return ""
 }
 
+func (x *GetStaticAccessListMemberRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
+func (x *GetStaticAccessListMemberRequest) GetMemberScope() string {
+	if x != nil {
+		return x.MemberScope
+	}
+	return ""
+}
+
 func (x *GetStaticAccessListMemberRequest) SetAccessList(v string) {
 	x.AccessList = v
 }
 
 func (x *GetStaticAccessListMemberRequest) SetMemberName(v string) {
 	x.MemberName = v
+}
+
+func (x *GetStaticAccessListMemberRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
+}
+
+func (x *GetStaticAccessListMemberRequest) SetMemberScope(v string) {
+	x.MemberScope = v
 }
 
 type GetStaticAccessListMemberRequest_builder struct {
@@ -1930,6 +2068,10 @@ type GetStaticAccessListMemberRequest_builder struct {
 	AccessList string
 	// member_name is the name of the user that belongs to the access_list.
 	MemberName string
+	// access_list_scope is the scope of the access list that the member belongs to.
+	AccessListScope string
+	// member_scope is the scope of the member, in case the member is a scoped access list.
+	MemberScope string
 }
 
 func (b0 GetStaticAccessListMemberRequest_builder) Build() *GetStaticAccessListMemberRequest {
@@ -1938,6 +2080,8 @@ func (b0 GetStaticAccessListMemberRequest_builder) Build() *GetStaticAccessListM
 	_, _ = b, x
 	x.AccessList = b.AccessList
 	x.MemberName = b.MemberName
+	x.AccessListScope = b.AccessListScope
+	x.MemberScope = b.MemberScope
 	return m0
 }
 
@@ -2018,9 +2162,11 @@ func (b0 GetStaticAccessListMemberResponse_builder) Build() *GetStaticAccessList
 type GetAccessListOwnersRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// access_list is the name of the access list.
-	AccessList    string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
+	// access_list_scope is the scope of the access list.
+	AccessListScope string `protobuf:"bytes,3,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GetAccessListOwnersRequest) Reset() {
@@ -2055,8 +2201,19 @@ func (x *GetAccessListOwnersRequest) GetAccessList() string {
 	return ""
 }
 
+func (x *GetAccessListOwnersRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
 func (x *GetAccessListOwnersRequest) SetAccessList(v string) {
 	x.AccessList = v
+}
+
+func (x *GetAccessListOwnersRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
 }
 
 type GetAccessListOwnersRequest_builder struct {
@@ -2064,6 +2221,8 @@ type GetAccessListOwnersRequest_builder struct {
 
 	// access_list is the name of the access list.
 	AccessList string
+	// access_list_scope is the scope of the access list.
+	AccessListScope string
 }
 
 func (b0 GetAccessListOwnersRequest_builder) Build() *GetAccessListOwnersRequest {
@@ -2071,6 +2230,7 @@ func (b0 GetAccessListOwnersRequest_builder) Build() *GetAccessListOwnersRequest
 	b, x := &b0, m0
 	_, _ = b, x
 	x.AccessList = b.AccessList
+	x.AccessListScope = b.AccessListScope
 	return m0
 }
 
@@ -2432,7 +2592,11 @@ type DeleteAccessListMemberRequest struct {
 	// access_list is the name of access list.
 	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	// member_name is the name of the user to delete.
-	MemberName    string `protobuf:"bytes,3,opt,name=member_name,json=memberName,proto3" json:"member_name,omitempty"`
+	MemberName string `protobuf:"bytes,3,opt,name=member_name,json=memberName,proto3" json:"member_name,omitempty"`
+	// access_list_scope is the scope of the access list that the member belongs to.
+	AccessListScope string `protobuf:"bytes,4,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	// member_scope is the scope of the member, in case the member is a scoped access list.
+	MemberScope   string `protobuf:"bytes,5,opt,name=member_scope,json=memberScope,proto3" json:"member_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2476,12 +2640,34 @@ func (x *DeleteAccessListMemberRequest) GetMemberName() string {
 	return ""
 }
 
+func (x *DeleteAccessListMemberRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
+func (x *DeleteAccessListMemberRequest) GetMemberScope() string {
+	if x != nil {
+		return x.MemberScope
+	}
+	return ""
+}
+
 func (x *DeleteAccessListMemberRequest) SetAccessList(v string) {
 	x.AccessList = v
 }
 
 func (x *DeleteAccessListMemberRequest) SetMemberName(v string) {
 	x.MemberName = v
+}
+
+func (x *DeleteAccessListMemberRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
+}
+
+func (x *DeleteAccessListMemberRequest) SetMemberScope(v string) {
+	x.MemberScope = v
 }
 
 type DeleteAccessListMemberRequest_builder struct {
@@ -2491,6 +2677,10 @@ type DeleteAccessListMemberRequest_builder struct {
 	AccessList string
 	// member_name is the name of the user to delete.
 	MemberName string
+	// access_list_scope is the scope of the access list that the member belongs to.
+	AccessListScope string
+	// member_scope is the scope of the member, in case the member is a scoped access list.
+	MemberScope string
 }
 
 func (b0 DeleteAccessListMemberRequest_builder) Build() *DeleteAccessListMemberRequest {
@@ -2499,6 +2689,8 @@ func (b0 DeleteAccessListMemberRequest_builder) Build() *DeleteAccessListMemberR
 	_, _ = b, x
 	x.AccessList = b.AccessList
 	x.MemberName = b.MemberName
+	x.AccessListScope = b.AccessListScope
+	x.MemberScope = b.MemberScope
 	return m0
 }
 
@@ -2509,7 +2701,11 @@ type DeleteStaticAccessListMemberRequest struct {
 	// access_list is the name of access list.
 	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	// member_name is the name of the user to delete.
-	MemberName    string `protobuf:"bytes,2,opt,name=member_name,json=memberName,proto3" json:"member_name,omitempty"`
+	MemberName string `protobuf:"bytes,2,opt,name=member_name,json=memberName,proto3" json:"member_name,omitempty"`
+	// access_list_scope is the scope of the access list that the member belongs to.
+	AccessListScope string `protobuf:"bytes,3,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	// member_scope is the scope of the member, in case the member is a scoped access list.
+	MemberScope   string `protobuf:"bytes,4,opt,name=member_scope,json=memberScope,proto3" json:"member_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2553,12 +2749,34 @@ func (x *DeleteStaticAccessListMemberRequest) GetMemberName() string {
 	return ""
 }
 
+func (x *DeleteStaticAccessListMemberRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
+func (x *DeleteStaticAccessListMemberRequest) GetMemberScope() string {
+	if x != nil {
+		return x.MemberScope
+	}
+	return ""
+}
+
 func (x *DeleteStaticAccessListMemberRequest) SetAccessList(v string) {
 	x.AccessList = v
 }
 
 func (x *DeleteStaticAccessListMemberRequest) SetMemberName(v string) {
 	x.MemberName = v
+}
+
+func (x *DeleteStaticAccessListMemberRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
+}
+
+func (x *DeleteStaticAccessListMemberRequest) SetMemberScope(v string) {
+	x.MemberScope = v
 }
 
 type DeleteStaticAccessListMemberRequest_builder struct {
@@ -2568,6 +2786,10 @@ type DeleteStaticAccessListMemberRequest_builder struct {
 	AccessList string
 	// member_name is the name of the user to delete.
 	MemberName string
+	// access_list_scope is the scope of the access list that the member belongs to.
+	AccessListScope string
+	// member_scope is the scope of the member, in case the member is a scoped access list.
+	MemberScope string
 }
 
 func (b0 DeleteStaticAccessListMemberRequest_builder) Build() *DeleteStaticAccessListMemberRequest {
@@ -2576,6 +2798,8 @@ func (b0 DeleteStaticAccessListMemberRequest_builder) Build() *DeleteStaticAcces
 	_, _ = b, x
 	x.AccessList = b.AccessList
 	x.MemberName = b.MemberName
+	x.AccessListScope = b.AccessListScope
+	x.MemberScope = b.MemberScope
 	return m0
 }
 
@@ -2629,9 +2853,11 @@ func (b0 DeleteStaticAccessListMemberResponse_builder) Build() *DeleteStaticAcce
 type DeleteAllAccessListMembersForAccessListRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// access_list is the name of access list.
-	AccessList    string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
+	// access_list_scope is the scope of the access list.
+	AccessListScope string `protobuf:"bytes,2,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DeleteAllAccessListMembersForAccessListRequest) Reset() {
@@ -2666,8 +2892,19 @@ func (x *DeleteAllAccessListMembersForAccessListRequest) GetAccessList() string 
 	return ""
 }
 
+func (x *DeleteAllAccessListMembersForAccessListRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
 func (x *DeleteAllAccessListMembersForAccessListRequest) SetAccessList(v string) {
 	x.AccessList = v
+}
+
+func (x *DeleteAllAccessListMembersForAccessListRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
 }
 
 type DeleteAllAccessListMembersForAccessListRequest_builder struct {
@@ -2675,6 +2912,8 @@ type DeleteAllAccessListMembersForAccessListRequest_builder struct {
 
 	// access_list is the name of access list.
 	AccessList string
+	// access_list_scope is the scope of the access list.
+	AccessListScope string
 }
 
 func (b0 DeleteAllAccessListMembersForAccessListRequest_builder) Build() *DeleteAllAccessListMembersForAccessListRequest {
@@ -2682,6 +2921,7 @@ func (b0 DeleteAllAccessListMembersForAccessListRequest_builder) Build() *Delete
 	b, x := &b0, m0
 	_, _ = b, x
 	x.AccessList = b.AccessList
+	x.AccessListScope = b.AccessListScope
 	return m0
 }
 
@@ -2739,9 +2979,11 @@ type ListAccessListReviewsRequest struct {
 	// page_size is the size of the page to request.
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// next_token is the page token.
-	NextToken     string `protobuf:"bytes,3,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	NextToken string `protobuf:"bytes,3,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
+	// access_list_scope is the scope of the access list.
+	AccessListScope string `protobuf:"bytes,4,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ListAccessListReviewsRequest) Reset() {
@@ -2790,6 +3032,13 @@ func (x *ListAccessListReviewsRequest) GetNextToken() string {
 	return ""
 }
 
+func (x *ListAccessListReviewsRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
 func (x *ListAccessListReviewsRequest) SetAccessList(v string) {
 	x.AccessList = v
 }
@@ -2802,6 +3051,10 @@ func (x *ListAccessListReviewsRequest) SetNextToken(v string) {
 	x.NextToken = v
 }
 
+func (x *ListAccessListReviewsRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
+}
+
 type ListAccessListReviewsRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -2811,6 +3064,8 @@ type ListAccessListReviewsRequest_builder struct {
 	PageSize int32
 	// next_token is the page token.
 	NextToken string
+	// access_list_scope is the scope of the access list.
+	AccessListScope string
 }
 
 func (b0 ListAccessListReviewsRequest_builder) Build() *ListAccessListReviewsRequest {
@@ -2820,6 +3075,7 @@ func (b0 ListAccessListReviewsRequest_builder) Build() *ListAccessListReviewsReq
 	x.AccessList = b.AccessList
 	x.PageSize = b.PageSize
 	x.NextToken = b.NextToken
+	x.AccessListScope = b.AccessListScope
 	return m0
 }
 
@@ -3222,8 +3478,10 @@ type DeleteAccessListReviewRequest struct {
 	ReviewName string `protobuf:"bytes,1,opt,name=review_name,json=reviewName,proto3" json:"review_name,omitempty"`
 	// access_list_name is the name of the access list to delete the review from.
 	AccessListName string `protobuf:"bytes,2,opt,name=access_list_name,json=accessListName,proto3" json:"access_list_name,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// access_list_scope is the scope of the access list.
+	AccessListScope string `protobuf:"bytes,3,opt,name=access_list_scope,json=accessListScope,proto3" json:"access_list_scope,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DeleteAccessListReviewRequest) Reset() {
@@ -3265,12 +3523,23 @@ func (x *DeleteAccessListReviewRequest) GetAccessListName() string {
 	return ""
 }
 
+func (x *DeleteAccessListReviewRequest) GetAccessListScope() string {
+	if x != nil {
+		return x.AccessListScope
+	}
+	return ""
+}
+
 func (x *DeleteAccessListReviewRequest) SetReviewName(v string) {
 	x.ReviewName = v
 }
 
 func (x *DeleteAccessListReviewRequest) SetAccessListName(v string) {
 	x.AccessListName = v
+}
+
+func (x *DeleteAccessListReviewRequest) SetAccessListScope(v string) {
+	x.AccessListScope = v
 }
 
 type DeleteAccessListReviewRequest_builder struct {
@@ -3280,6 +3549,8 @@ type DeleteAccessListReviewRequest_builder struct {
 	ReviewName string
 	// access_list_name is the name of the access list to delete the review from.
 	AccessListName string
+	// access_list_scope is the scope of the access list.
+	AccessListScope string
 }
 
 func (b0 DeleteAccessListReviewRequest_builder) Build() *DeleteAccessListReviewRequest {
@@ -3288,6 +3559,7 @@ func (b0 DeleteAccessListReviewRequest_builder) Build() *DeleteAccessListReviewR
 	_, _ = b, x
 	x.ReviewName = b.ReviewName
 	x.AccessListName = b.AccessListName
+	x.AccessListScope = b.AccessListScope
 	return m0
 }
 
@@ -4179,37 +4451,42 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"\x06origin\x18\x04 \x01(\tR\x06origin\"\x8a\x01\n" +
 	"\x19ListAccessListsV2Response\x12E\n" +
 	"\faccess_lists\x18\x01 \x03(\v2\".teleport.accesslist.v1.AccessListR\vaccessLists\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"A\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"m\n" +
 	"\x19GetInheritedGrantsRequest\x12$\n" +
-	"\x0eaccess_list_id\x18\x01 \x01(\tR\faccessListId\"^\n" +
+	"\x0eaccess_list_id\x18\x01 \x01(\tR\faccessListId\x12*\n" +
+	"\x11access_list_scope\x18\x02 \x01(\tR\x0faccessListScope\"^\n" +
 	"\x1aGetInheritedGrantsResponse\x12@\n" +
-	"\x06grants\x18\x01 \x01(\v2(.teleport.accesslist.v1.AccessListGrantsR\x06grants\"*\n" +
+	"\x06grants\x18\x01 \x01(\v2(.teleport.accesslist.v1.AccessListGrantsR\x06grants\"@\n" +
 	"\x14GetAccessListRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"^\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"^\n" +
 	"\x17UpsertAccessListRequest\x12C\n" +
 	"\vaccess_list\x18\x01 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
 	"accessList\"^\n" +
 	"\x17UpdateAccessListRequest\x12C\n" +
 	"\vaccess_list\x18\x01 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
-	"accessList\"-\n" +
+	"accessList\"C\n" +
 	"\x17DeleteAccessListRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\x1d\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"\x1d\n" +
 	"\x1bDeleteAllAccessListsRequest\"\x1f\n" +
 	"\x1dGetAccessListsToReviewRequest\"g\n" +
 	"\x1eGetAccessListsToReviewResponse\x12E\n" +
-	"\faccess_lists\x18\x01 \x03(\v2\".teleport.accesslist.v1.AccessListR\vaccessLists\"I\n" +
+	"\faccess_lists\x18\x01 \x03(\v2\".teleport.accesslist.v1.AccessListR\vaccessLists\"u\n" +
 	"\x1dCountAccessListMembersRequest\x12(\n" +
-	"\x10access_list_name\x18\x01 \x01(\tR\x0eaccessListName\"U\n" +
+	"\x10access_list_name\x18\x01 \x01(\tR\x0eaccessListName\x12*\n" +
+	"\x11access_list_scope\x18\x02 \x01(\tR\x0faccessListScope\"U\n" +
 	"\x1eCountAccessListMembersResponse\x12\x14\n" +
 	"\x05count\x18\x01 \x01(\rR\x05count\x12\x1d\n" +
 	"\n" +
-	"list_count\x18\x02 \x01(\rR\tlistCount\"{\n" +
+	"list_count\x18\x02 \x01(\rR\tlistCount\"\xa7\x01\n" +
 	"\x1cListAccessListMembersRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x1f\n" +
 	"\vaccess_list\x18\x03 \x01(\tR\n" +
-	"accessList\"\x81\x01\n" +
+	"accessList\x12*\n" +
+	"\x11access_list_scope\x18\x04 \x01(\tR\x0faccessListScope\"\x81\x01\n" +
 	"\x1dListAccessListMembersResponse\x128\n" +
 	"\amembers\x18\x01 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"]\n" +
@@ -4227,22 +4504,27 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"#UpsertAccessListWithMembersResponse\x12C\n" +
 	"\vaccess_list\x18\x01 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
 	"accessList\x128\n" +
-	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\"^\n" +
+	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\"\xad\x01\n" +
 	"\x1aGetAccessListMemberRequest\x12\x1f\n" +
 	"\vaccess_list\x18\x01 \x01(\tR\n" +
 	"accessList\x12\x1f\n" +
 	"\vmember_name\x18\x02 \x01(\tR\n" +
-	"memberName\"d\n" +
+	"memberName\x12*\n" +
+	"\x11access_list_scope\x18\x03 \x01(\tR\x0faccessListScope\x12!\n" +
+	"\fmember_scope\x18\x04 \x01(\tR\vmemberScope\"\xb3\x01\n" +
 	" GetStaticAccessListMemberRequest\x12\x1f\n" +
 	"\vaccess_list\x18\x01 \x01(\tR\n" +
 	"accessList\x12\x1f\n" +
 	"\vmember_name\x18\x02 \x01(\tR\n" +
-	"memberName\"[\n" +
+	"memberName\x12*\n" +
+	"\x11access_list_scope\x18\x03 \x01(\tR\x0faccessListScope\x12!\n" +
+	"\fmember_scope\x18\x04 \x01(\tR\vmemberScope\"[\n" +
 	"!GetStaticAccessListMemberResponse\x126\n" +
-	"\x06member\x18\x01 \x01(\v2\x1e.teleport.accesslist.v1.MemberR\x06member\"=\n" +
+	"\x06member\x18\x01 \x01(\v2\x1e.teleport.accesslist.v1.MemberR\x06member\"i\n" +
 	"\x1aGetAccessListOwnersRequest\x12\x1f\n" +
 	"\vaccess_list\x18\x01 \x01(\tR\n" +
-	"accessList\"^\n" +
+	"accessList\x12*\n" +
+	"\x11access_list_scope\x18\x03 \x01(\tR\x0faccessListScope\"^\n" +
 	"\x1bGetAccessListOwnersResponse\x12?\n" +
 	"\x06owners\x18\x01 \x03(\v2'.teleport.accesslist.v1.AccessListOwnerR\x06owners\"\x84\x01\n" +
 	"\x1dUpsertAccessListMemberRequest\x126\n" +
@@ -4252,28 +4534,34 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"$UpsertStaticAccessListMemberResponse\x126\n" +
 	"\x06member\x18\x01 \x01(\v2\x1e.teleport.accesslist.v1.MemberR\x06member\"W\n" +
 	"\x1dUpdateAccessListMemberRequest\x126\n" +
-	"\x06member\x18\x01 \x01(\v2\x1e.teleport.accesslist.v1.MemberR\x06member\"m\n" +
+	"\x06member\x18\x01 \x01(\v2\x1e.teleport.accesslist.v1.MemberR\x06member\"\xbc\x01\n" +
 	"\x1dDeleteAccessListMemberRequest\x12\x1f\n" +
 	"\vaccess_list\x18\x01 \x01(\tR\n" +
 	"accessList\x12\x1f\n" +
 	"\vmember_name\x18\x03 \x01(\tR\n" +
-	"memberNameJ\x04\b\x02\x10\x03R\x04name\"g\n" +
+	"memberName\x12*\n" +
+	"\x11access_list_scope\x18\x04 \x01(\tR\x0faccessListScope\x12!\n" +
+	"\fmember_scope\x18\x05 \x01(\tR\vmemberScopeJ\x04\b\x02\x10\x03R\x04name\"\xb6\x01\n" +
 	"#DeleteStaticAccessListMemberRequest\x12\x1f\n" +
 	"\vaccess_list\x18\x01 \x01(\tR\n" +
 	"accessList\x12\x1f\n" +
 	"\vmember_name\x18\x02 \x01(\tR\n" +
-	"memberName\"&\n" +
-	"$DeleteStaticAccessListMemberResponse\"Q\n" +
+	"memberName\x12*\n" +
+	"\x11access_list_scope\x18\x03 \x01(\tR\x0faccessListScope\x12!\n" +
+	"\fmember_scope\x18\x04 \x01(\tR\vmemberScope\"&\n" +
+	"$DeleteStaticAccessListMemberResponse\"}\n" +
 	".DeleteAllAccessListMembersForAccessListRequest\x12\x1f\n" +
 	"\vaccess_list\x18\x01 \x01(\tR\n" +
-	"accessList\"6\n" +
-	"!DeleteAllAccessListMembersRequestJ\x04\b\x01\x10\x02R\vaccess_list\"{\n" +
+	"accessList\x12*\n" +
+	"\x11access_list_scope\x18\x02 \x01(\tR\x0faccessListScope\"6\n" +
+	"!DeleteAllAccessListMembersRequestJ\x04\b\x01\x10\x02R\vaccess_list\"\xa7\x01\n" +
 	"\x1cListAccessListReviewsRequest\x12\x1f\n" +
 	"\vaccess_list\x18\x01 \x01(\tR\n" +
 	"accessList\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"next_token\x18\x03 \x01(\tR\tnextToken\"x\n" +
+	"next_token\x18\x03 \x01(\tR\tnextToken\x12*\n" +
+	"\x11access_list_scope\x18\x04 \x01(\tR\x0faccessListScope\"x\n" +
 	"\x1dListAccessListReviewsResponse\x128\n" +
 	"\areviews\x18\x01 \x03(\v2\x1e.teleport.accesslist.v1.ReviewR\areviews\x12\x1d\n" +
 	"\n" +
@@ -4291,11 +4579,12 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"\x1eCreateAccessListReviewResponse\x12\x1f\n" +
 	"\vreview_name\x18\x01 \x01(\tR\n" +
 	"reviewName\x12B\n" +
-	"\x0fnext_audit_date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\rnextAuditDate\"j\n" +
+	"\x0fnext_audit_date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\rnextAuditDate\"\x96\x01\n" +
 	"\x1dDeleteAccessListReviewRequest\x12\x1f\n" +
 	"\vreview_name\x18\x01 \x01(\tR\n" +
 	"reviewName\x12(\n" +
-	"\x10access_list_name\x18\x02 \x01(\tR\x0eaccessListName\"~\n" +
+	"\x10access_list_name\x18\x02 \x01(\tR\x0eaccessListName\x12*\n" +
+	"\x11access_list_scope\x18\x03 \x01(\tR\x0faccessListScope\"~\n" +
 	"\x1bAccessRequestPromoteRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12(\n" +
