@@ -59,6 +59,7 @@ jobs:
       contents: read
       actions: read
     strategy:
+      max-parallel: 2 # temp limit until we get limits increased on teleport-prod
       matrix:
         mode: ['debug', 'production']
         release: ['oss', 'enterprise', 'fips']
