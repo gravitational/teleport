@@ -4,6 +4,8 @@ disabled_rules:
   - switch_case_alignment
   # we shouldn't prohibit TODOs in code, they're useful markers for outstanding work
   - todo
+  # in theory linting line length is nice, but in practice we should just let the formatter do its thing, because sometimes long lines are unavoidable.
+  - line_length
 
 # Optional values should always be explicitly initialized with '= nil' for clarity.
 implicit_optional_initialization:
@@ -13,3 +15,6 @@ identifier_name:
   excluded:
     - "^id$"
     - "^db$"
+
+trailing_comma:
+  mandatory_comma: true
