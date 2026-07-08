@@ -1,0 +1,7 @@
+# Per-run working artifacts — never commit
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+crash.log
+# .terraform.lock.hcl IS committed (pins provider versions)
