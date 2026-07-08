@@ -220,7 +220,7 @@ func TestWorkloadIdentityService_GetWorkloadIdentity(t *testing.T) {
 			proto.Clone(want).(*workloadidentityv1pb.WorkloadIdentity),
 		)
 		require.NoError(t, err)
-		got, err := service.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "example"})
+		got, err := service.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "example"}.Build())
 		require.NoError(t, err)
 		require.NotEmpty(t, got.GetMetadata().GetRevision())
 		require.Empty(t, cmp.Diff(
@@ -231,7 +231,7 @@ func TestWorkloadIdentityService_GetWorkloadIdentity(t *testing.T) {
 		))
 	})
 	t.Run("not found", func(t *testing.T) {
-		_, err := service.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "not-found"})
+		_, err := service.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "not-found"}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
@@ -247,18 +247,18 @@ func TestWorkloadIdentityService_DeleteWorkloadIdentity(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = service.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "example"})
+		_, err = service.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "example"}.Build())
 		require.NoError(t, err)
 
-		err = service.DeleteWorkloadIdentity(ctx, scopes.QualifiedName{Name: "example"})
+		err = service.DeleteWorkloadIdentity(ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{Name: "example"}.Build())
 		require.NoError(t, err)
 
-		_, err = service.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: "example"})
+		_, err = service.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "example"}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
 	t.Run("not found", func(t *testing.T) {
-		err := service.DeleteWorkloadIdentity(ctx, scopes.QualifiedName{Name: "foo.example.com"})
+		err := service.DeleteWorkloadIdentity(ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{Name: "foo.example.com"}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
@@ -384,6 +384,12 @@ func TestWorkloadIdentityService_Scoped(t *testing.T) {
 	const scope = "/staging"
 	scopedName := scopes.QualifiedName{Scope: scope, Name: "example"}
 	unscopedName := scopes.QualifiedName{Name: "example"}
+	getReq := func(n scopes.QualifiedName) *workloadidentityv1pb.GetWorkloadIdentityRequest {
+		return workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
+	}
+	delReq := func(n scopes.QualifiedName) *workloadidentityv1pb.DeleteWorkloadIdentityRequest {
+		return workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
+	}
 
 	// A scoped and an unscoped identity sharing a name do not collide.
 	_, err := service.CreateWorkloadIdentity(ctx, newValidWorkloadIdentity("example"))
@@ -398,10 +404,10 @@ func TestWorkloadIdentityService_Scoped(t *testing.T) {
 	require.ErrorContains(t, err, "must be prefixed with the scope")
 
 	// Get addresses each key range independently.
-	gotScoped, err := service.GetWorkloadIdentity(ctx, scopedName)
+	gotScoped, err := service.GetWorkloadIdentity(ctx, getReq(scopedName))
 	require.NoError(t, err)
 	require.Equal(t, scope, gotScoped.GetScope())
-	gotUnscoped, err := service.GetWorkloadIdentity(ctx, unscopedName)
+	gotUnscoped, err := service.GetWorkloadIdentity(ctx, getReq(unscopedName))
 	require.NoError(t, err)
 	require.Empty(t, gotUnscoped.GetScope())
 
@@ -420,10 +426,10 @@ func TestWorkloadIdentityService_Scoped(t *testing.T) {
 		proto.Clone(updated).(*workloadidentityv1pb.WorkloadIdentity),
 	)
 	require.NoError(t, err)
-	gotScoped, err = service.GetWorkloadIdentity(ctx, scopedName)
+	gotScoped, err = service.GetWorkloadIdentity(ctx, getReq(scopedName))
 	require.NoError(t, err)
 	require.Equal(t, "updated", gotScoped.GetSpec().GetSpiffe().GetHint())
-	gotUnscoped, err = service.GetWorkloadIdentity(ctx, unscopedName)
+	gotUnscoped, err = service.GetWorkloadIdentity(ctx, getReq(unscopedName))
 	require.NoError(t, err)
 	require.NotEqual(t, "updated", gotUnscoped.GetSpec().GetSpiffe().GetHint())
 
@@ -436,10 +442,10 @@ func TestWorkloadIdentityService_Scoped(t *testing.T) {
 	require.Equal(t, []scopes.QualifiedName{unscopedName, scopedName}, ranged)
 
 	// Deleting the scoped identity leaves the unscoped one intact.
-	require.NoError(t, service.DeleteWorkloadIdentity(ctx, scopedName))
-	_, err = service.GetWorkloadIdentity(ctx, scopedName)
+	require.NoError(t, service.DeleteWorkloadIdentity(ctx, delReq(scopedName)))
+	_, err = service.GetWorkloadIdentity(ctx, getReq(scopedName))
 	require.True(t, trace.IsNotFound(err))
-	_, err = service.GetWorkloadIdentity(ctx, unscopedName)
+	_, err = service.GetWorkloadIdentity(ctx, getReq(unscopedName))
 	require.NoError(t, err)
 }
 

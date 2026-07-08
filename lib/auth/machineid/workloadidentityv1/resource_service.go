@@ -43,7 +43,7 @@ import (
 // workloadIdentityReader is the interface used to serve reads, satisfied by
 // the cache.
 type workloadIdentityReader interface {
-	GetWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) (*workloadidentityv1pb.WorkloadIdentity, error)
+	GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest) (*workloadidentityv1pb.WorkloadIdentity, error)
 	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 }
 
@@ -52,7 +52,7 @@ type workloadIdentityReader interface {
 type workloadIdentityReadWriter interface {
 	CreateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 	UpdateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
-	DeleteWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) error
+	DeleteWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.DeleteWorkloadIdentityRequest) error
 	UpsertWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 }
 
@@ -136,10 +136,7 @@ func (s *ResourceService) GetWorkloadIdentity(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	resource, err := s.cache.GetWorkloadIdentity(ctx, scopes.QualifiedName{
-		Scope: req.GetScope(),
-		Name:  req.GetName(),
-	})
+	resource, err := s.cache.GetWorkloadIdentity(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -276,10 +273,7 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		}
 	}
 
-	if err := s.backend.DeleteWorkloadIdentity(ctx, scopes.QualifiedName{
-		Scope: req.GetScope(),
-		Name:  req.GetName(),
-	}); err != nil {
+	if err := s.backend.DeleteWorkloadIdentity(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

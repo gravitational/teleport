@@ -2164,10 +2164,10 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 				)
 				// Expect the value fetched from the store to match returned
 				// item.
-				fetched, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, scopes.QualifiedName{
+				fetched, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
 					Scope: res.GetScope(),
 					Name:  res.GetMetadata().GetName(),
-				})
+				}.Build())
 				require.NoError(t, err)
 				require.Empty(
 					t,
@@ -2353,10 +2353,10 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 			tt.requireError(t, err)
 
 			if tt.checkNonExisting {
-				_, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, scopes.QualifiedName{
+				_, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
 					Scope: tt.req.GetScope(),
 					Name:  tt.req.GetName(),
-				})
+				}.Build())
 				require.True(t, trace.IsNotFound(err))
 			}
 			if tt.requireEvent != nil {
@@ -2974,10 +2974,10 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 				)
 				// Expect the value fetched from the store to match returned
 				// item.
-				fetched, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, scopes.QualifiedName{
+				fetched, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
 					Scope: res.GetScope(),
 					Name:  res.GetMetadata().GetName(),
-				})
+				}.Build())
 				require.NoError(t, err)
 				require.Empty(
 					t,
@@ -3172,10 +3172,10 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 				)
 				// Expect the value fetched from the store to match returned
 				// item.
-				fetched, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, scopes.QualifiedName{
+				fetched, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
 					Scope: res.GetScope(),
 					Name:  res.GetMetadata().GetName(),
-				})
+				}.Build())
 				require.NoError(t, err)
 				require.Empty(
 					t,

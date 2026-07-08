@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -1513,8 +1512,9 @@ type Cache interface {
 	// pagination.
 	ListSPIFFEFederations(ctx context.Context, pageSize int, lastToken string) ([]*machineidv1.SPIFFEFederation, string, error)
 
-	// GetWorkloadIdentity gets a WorkloadIdentity by its scope-qualified name.
-	GetWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) (*workloadidentityv1pb.WorkloadIdentity, error)
+	// GetWorkloadIdentity gets a WorkloadIdentity by the name and scope in the
+	// request.
+	GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest) (*workloadidentityv1pb.WorkloadIdentity, error)
 	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
 	// range [start, end), ordered by the given sort field and direction.
 	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]

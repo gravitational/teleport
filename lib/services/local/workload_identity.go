@@ -75,11 +75,15 @@ func (b *WorkloadIdentityService) CreateWorkloadIdentity(
 	return created, trace.Wrap(err)
 }
 
-// GetWorkloadIdentity retrieves a WorkloadIdentity by its scope-qualified name.
+// GetWorkloadIdentity retrieves a WorkloadIdentity by the name and scope in the
+// request.
 func (b *WorkloadIdentityService) GetWorkloadIdentity(
-	ctx context.Context, name scopes.QualifiedName,
+	ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
-	resource, err := b.service.GetResource(ctx, name)
+	resource, err := b.service.GetResource(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	})
 	return resource, trace.Wrap(err)
 }
 
@@ -102,12 +106,15 @@ func (b *WorkloadIdentityService) RangeWorkloadIdentities(
 	return b.service.Resources(ctx, start, end)
 }
 
-// DeleteWorkloadIdentity deletes a specific WorkloadIdentity given a
-// scope-qualified name.
+// DeleteWorkloadIdentity deletes a specific WorkloadIdentity given the name and
+// scope in the request.
 func (b *WorkloadIdentityService) DeleteWorkloadIdentity(
-	ctx context.Context, name scopes.QualifiedName,
+	ctx context.Context, req *workloadidentityv1pb.DeleteWorkloadIdentityRequest,
 ) error {
-	return trace.Wrap(b.service.DeleteResource(ctx, name))
+	return trace.Wrap(b.service.DeleteResource(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}))
 }
 
 // DeleteAllWorkloadIdentities deletes all SPIFFE resources, this is typically

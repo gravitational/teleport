@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -226,7 +225,9 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	}
 
 	// TODO(strideynet): Update to accept scope param and pass down here.
-	wi, err := s.cache.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: req.GetName()})
+	wi, err := s.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+		Name: req.GetName(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

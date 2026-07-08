@@ -38,10 +38,10 @@ import (
 // interface may also be implemented by a client to allow remote and local
 // consumers to access the resource in a similar way.
 type WorkloadIdentities interface {
-	// GetWorkloadIdentity gets a WorkloadIdentity by its scope-qualified name.
-	// An empty scope addresses an unscoped WorkloadIdentity.
+	// GetWorkloadIdentity gets a WorkloadIdentity by the name and scope in the
+	// request. An empty scope addresses an unscoped WorkloadIdentity.
 	GetWorkloadIdentity(
-		ctx context.Context, name scopes.QualifiedName,
+		ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
 	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
 	// range [start, end), ordered by the given sort field and direction.
@@ -55,9 +55,9 @@ type WorkloadIdentities interface {
 	CreateWorkloadIdentity(
 		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
-	// DeleteWorkloadIdentity deletes a WorkloadIdentity by its scope-qualified
-	// name.
-	DeleteWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) error
+	// DeleteWorkloadIdentity deletes a WorkloadIdentity by the name and scope in
+	// the request.
+	DeleteWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.DeleteWorkloadIdentityRequest) error
 	// UpdateWorkloadIdentity updates a specific WorkloadIdentity. The resource must
 	// already exist, and, condition update semantics are used - e.g the submitted
 	// resource must have a revision matching the revision of the resource in the

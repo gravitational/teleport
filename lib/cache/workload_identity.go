@@ -131,28 +131,28 @@ func (c *Cache) RangeWorkloadIdentities(
 	}
 }
 
-// GetWorkloadIdentity returns a single WorkloadIdentity by its scope-qualified
-// name.
-func (c *Cache) GetWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) (*workloadidentityv1pb.WorkloadIdentity, error) {
+// GetWorkloadIdentity returns a single WorkloadIdentity by the name and scope in
+// the request.
+func (c *Cache) GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest) (*workloadidentityv1pb.WorkloadIdentity, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWorkloadIdentity")
 	defer span.End()
 
 	// The name index is keyed by resource cursor, so look up by the cursor for
 	// the requested scope-qualified name. The scope is caller input, so weakly
 	// validate it before deriving the cursor.
-	if name.Scope != "" {
-		if err := scopes.WeakValidate(name.Scope); err != nil {
+	if req.GetScope() != "" {
+		if err := scopes.WeakValidate(req.GetScope()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	cursor := scopes.MakeResourceCursor(name.Scope, name.Name)
+	cursor := scopes.MakeResourceCursor(req.GetScope(), req.GetName())
 
 	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
 		cache:      c,
 		collection: c.collections.workloadIdentity,
 		index:      workloadIdentityNameIndex,
 		upstreamGet: func(ctx context.Context, _ string) (*workloadidentityv1pb.WorkloadIdentity, error) {
-			return c.Config.WorkloadIdentity.GetWorkloadIdentity(ctx, name)
+			return c.Config.WorkloadIdentity.GetWorkloadIdentity(ctx, req)
 		},
 	}
 	out, err := getter.get(ctx, cursor)

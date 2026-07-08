@@ -124,7 +124,7 @@ func TestWorkloadIdentity(t *testing.T) {
 		},
 		cacheList: workloadIdentityPageFunc(p.cache.RangeWorkloadIdentities),
 		cacheGet: func(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
-			return p.cache.GetWorkloadIdentity(ctx, scopes.QualifiedName{Name: name})
+			return p.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: name}.Build())
 		},
 	})
 }
@@ -143,6 +143,12 @@ func TestWorkloadIdentityCacheScoped(t *testing.T) {
 		const scope = "/staging"
 		scopedName := scopes.QualifiedName{Scope: scope, Name: "shared"}
 		unscopedName := scopes.QualifiedName{Name: "shared"}
+		getReq := func(n scopes.QualifiedName) *workloadidentityv1pb.GetWorkloadIdentityRequest {
+			return workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
+		}
+		delReq := func(n scopes.QualifiedName) *workloadidentityv1pb.DeleteWorkloadIdentityRequest {
+			return workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
+		}
 
 		// An unscoped and a scoped identity that share a name must not collide.
 		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, newWorkloadIdentity("shared"))
@@ -164,24 +170,24 @@ func TestWorkloadIdentityCacheScoped(t *testing.T) {
 		synctest.Wait()
 
 		// Both are independently retrievable from the cache by their qualified name.
-		gotUnscoped, err := p.cache.GetWorkloadIdentity(ctx, unscopedName)
+		gotUnscoped, err := p.cache.GetWorkloadIdentity(ctx, getReq(unscopedName))
 		require.NoError(t, err)
 		require.Empty(t, gotUnscoped.GetScope())
 		require.Equal(t, "/example", gotUnscoped.GetSpec().GetSpiffe().GetId())
 
-		gotScoped, err := p.cache.GetWorkloadIdentity(ctx, scopedName)
+		gotScoped, err := p.cache.GetWorkloadIdentity(ctx, getReq(scopedName))
 		require.NoError(t, err)
 		require.Equal(t, scope, gotScoped.GetScope())
 
 		// Deleting the scoped identity evicts it from the cache without disturbing
 		// the unscoped identity of the same name.
-		require.NoError(t, p.workloadIdentity.DeleteWorkloadIdentity(ctx, scopedName))
+		require.NoError(t, p.workloadIdentity.DeleteWorkloadIdentity(ctx, delReq(scopedName)))
 		synctest.Wait()
 
-		_, err = p.cache.GetWorkloadIdentity(ctx, scopedName)
+		_, err = p.cache.GetWorkloadIdentity(ctx, getReq(scopedName))
 		require.True(t, trace.IsNotFound(err))
 
-		gotUnscoped, err = p.cache.GetWorkloadIdentity(ctx, unscopedName)
+		gotUnscoped, err = p.cache.GetWorkloadIdentity(ctx, getReq(unscopedName))
 		require.NoError(t, err)
 		require.Empty(t, gotUnscoped.GetScope())
 	})
