@@ -23,3 +23,9 @@ struct Cluster {
 	var host: String
 	var port: Int
 }
+
+extension Cluster: CustomDebugStringConvertible {
+	var debugDescription: String {
+		"\(id):\(host):\(port)"
+	}
+}

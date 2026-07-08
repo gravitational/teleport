@@ -51,7 +51,7 @@ extension PostEnrollmentLandingView {
 #Preview("Post Enrollment") {
 	PostEnrollmentLandingView(
 		clusters: [
-			Cluster(id: UUID(), host: "example.teleport.sh"),
+			Cluster(id: UUID(), host: "example.teleport.sh", port: 443),
 		],
 	)
 }

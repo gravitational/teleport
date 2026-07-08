@@ -17,11 +17,15 @@
 import Core
 import Dependencies
 import Observation
+import OSLog
+import SQLiteData
 import SwiftNavigation
 
 @Observable
 @MainActor
 class EnrollDeviceViewModel {
+	static let logger = Logger.forType(EnrollDeviceViewModel.self)
+
 	var loadingState: LoadingState<String> = .idle
 	private let deepLink: EnrollMobileDeviceDeepLink
 	let eventStackViewModel = EventStackViewModel<String>()
@@ -29,6 +33,10 @@ class EnrollDeviceViewModel {
 	@ObservationIgnored
 	@Dependency(\.enrollClient)
 	private var enrollClient: EnrollClient
+
+	@ObservationIgnored
+	@Dependency(\.defaultDatabase)
+	private var database
 
 	weak var delegate: (any Delegate)? = nil
 
@@ -58,37 +66,31 @@ class EnrollDeviceViewModel {
 
 			// The code that follows in this function is for demonstration purposes only.
 			eventStackViewModel.clearAllEvents()
-			eventStackViewModel.addEvent(id: "initial-request", message: "Requesting enrollment pairing token.")
-			try await Task.sleep(for: .milliseconds(2000))
-			eventStackViewModel.updateEvent(
-				id: "initial-request",
-				message: "Initial request for enrollment pairing token timed out.",
-				status: .failure,
-			)
-			try await Task.sleep(for: .milliseconds(400))
-			eventStackViewModel.addEvent(
-				id: "retry-request",
-				message: "Retrying...",
-			)
-			try await Task.sleep(for: .milliseconds(1000))
-			eventStackViewModel.updateEvent(
-				id: "retry-request",
-				message: "Received enrollment pairing token.",
-				status: .success,
-			)
-			try await Task.sleep(for: .milliseconds(400))
-			eventStackViewModel.addEvent(
-				id: "enrollment-request",
-				message: "Requesting enrollment...",
-			)
-			try await Task.sleep(for: .milliseconds(2000))
+			eventStackViewModel.addEvent(id: "enrollment-request", message: "Enrolling device...")
+			try await Task.sleep(for: .milliseconds(500))
 			eventStackViewModel.updateEvent(
 				id: "enrollment-request",
 				message: "Device enrolled!",
-				status: .success
+				status: .success,
 			)
-			loadingState = .success("fake-token-\(defaultHTTPSPort)")
+
+			let cluster = try await database.write { db in
+				try Cluster.insert {
+					Cluster.Draft(
+						host: deepLink.hostname,
+						port: deepLink.port ?? defaultHTTPSPort,
+					)
+				}
+				.returning(\.self)
+				.fetchOne(db)
+			}
+
+			Self.logger.info("Successfully enrolled \(cluster.debugDescription)")
+			delegate?.enrollDeviceViewModelDidEnrollCluster(self)
+
+			loadingState = .success("fake-token-\(cluster?.id.uuidString ?? "(nil)")")
 		} catch {
+			Self.logger.error("Failed to request enrollment token: \(error)")
 			loadingState = .failure(error)
 		}
 	}
@@ -99,6 +101,7 @@ class EnrollDeviceViewModel {
 extension EnrollDeviceViewModel {
 	protocol Delegate: AnyObject {
 		func enrollDeviceViewModelDidCancelOperation(_ viewModel: EnrollDeviceViewModel)
+		func enrollDeviceViewModelDidEnrollCluster(_ viewModel: EnrollDeviceViewModel)
 	}
 }
 

@@ -70,6 +70,10 @@ extension LandingViewModel: EnrollDeviceViewModel.Delegate {
 	func enrollDeviceViewModelDidCancelOperation(_ viewModel: EnrollDeviceViewModel) {
 		destination = nil
 	}
+
+	func enrollDeviceViewModelDidEnrollCluster(_ viewModel: EnrollDeviceViewModel) {
+		destination = nil
+	}
 }
 
 // MARK: - EnrollCameraScannerViewModel.Delegate
