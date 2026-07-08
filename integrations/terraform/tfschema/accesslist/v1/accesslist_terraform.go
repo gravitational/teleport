@@ -1848,7 +1848,7 @@ func CopyAccessListToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"AccessList.header.metadata.expires"})
 										} else {
-											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 											tf.Attrs["expires"] = v
 										}
 									}
@@ -2220,7 +2220,7 @@ func CopyAccessListToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"AccessList.spec.audit.notifications.start"})
 														} else {
-															v := CopyToDuration(diags, obj.Start, t, tf.Attrs["start"])
+															v := CopyToDuration(diags, obj.Start, t, tf.Attrs["start"], preserveUnknown)
 															tf.Attrs["start"] = v
 														}
 													}
@@ -4129,7 +4129,7 @@ func CopyMemberToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"Member.header.metadata.expires"})
 										} else {
-											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 											tf.Attrs["expires"] = v
 										}
 									}
@@ -4237,7 +4237,7 @@ func CopyMemberToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"Member.spec.joined"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Joined, t, tf.Attrs["joined"])
+							v := CopyToTimestamp(diags, obj.Joined, t, tf.Attrs["joined"], preserveUnknown)
 							tf.Attrs["joined"] = v
 						}
 					}
@@ -4246,7 +4246,7 @@ func CopyMemberToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"Member.spec.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}

@@ -874,7 +874,7 @@ func CopyWorkloadClusterToTerraformPreserveUnknown(ctx context.Context, obj *git
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"WorkloadCluster.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
