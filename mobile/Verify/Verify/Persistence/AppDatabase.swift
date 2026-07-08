@@ -107,9 +107,9 @@ extension AppDatabase {
 		// }
 
 		#if DEBUG
-			// Log SQL statements if the `SQL_TRACE` environment variable is set.
+			// Log SQL statements if the --sql-trace argument is passed.
 			// See <https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/database/trace(options:_:)>
-			if ProcessInfo.processInfo.environment["SQL_TRACE"] != nil {
+			if CommandLine.arguments.contains("--sql-trace") {
 				config.prepareDatabase { db in
 					db.trace(options: .profile) {
 						if context == .preview {
