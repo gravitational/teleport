@@ -103,7 +103,52 @@ func TestCopyToTimestamp(t *testing.T) {
 				Format:  time.RFC3339,
 			}
 
-			value := CopyToTimestamp(diags, tc.input, tfschema.UseRFC3339Time(), valueInitial)
+			value := CopyToTimestamp(diags, tc.input, tfschema.UseRFC3339Time(), valueInitial, false)
+			require.Empty(t, diags)
+			require.Equal(t, tc.expected, value)
+		})
+	}
+}
+
+func TestCopyToTimestampPreserveUnknown(t *testing.T) {
+	t.Parallel()
+
+	timestamp := timestamppb.New(time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC))
+
+	for _, tc := range []struct {
+		name     string
+		input    *timestamppb.Timestamp
+		expected tfschema.TimeValue
+	}{
+		{
+			name:  "null",
+			input: nil,
+			expected: tfschema.TimeValue{
+				Null:    true,
+				Format:  time.RFC3339,
+				Unknown: true,
+			},
+		},
+		{
+			name:  "non-nil",
+			input: timestamp,
+			expected: tfschema.TimeValue{
+				Value:   timestamp.AsTime(),
+				Format:  time.RFC3339,
+				Unknown: true,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			diags := diag.Diagnostics{}
+			valueInitial := tfschema.TimeValue{
+				Unknown: true,
+				Format:  time.RFC3339,
+			}
+
+			value := CopyToTimestamp(diags, tc.input, tfschema.UseRFC3339Time(), valueInitial, true)
 			require.Empty(t, diags)
 			require.Equal(t, tc.expected, value)
 		})
@@ -180,7 +225,47 @@ func TestCopyToDuration(t *testing.T) {
 				Unknown: true,
 			}
 
-			value := CopyToDuration(diags, tc.input, tfschema.DurationType{}, initialValue)
+			value := CopyToDuration(diags, tc.input, tfschema.DurationType{}, initialValue, false)
+			require.Empty(t, diags)
+			require.Equal(t, tc.expected, value)
+		})
+	}
+}
+
+func TestCopyToDurationPreserveUnknown(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		input    *durationpb.Duration
+		expected tfschema.DurationValue
+	}{
+		{
+			name:  "null",
+			input: nil,
+			expected: tfschema.DurationValue{
+				Null:    true,
+				Unknown: true,
+			},
+		},
+		{
+			name:  "non-nil",
+			input: durationpb.New(time.Minute),
+			expected: tfschema.DurationValue{
+				Value:   time.Minute,
+				Unknown: true,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			diags := diag.Diagnostics{}
+			initialValue := tfschema.DurationValue{
+				Unknown: true,
+			}
+
+			value := CopyToDuration(diags, tc.input, tfschema.DurationType{}, initialValue, true)
 			require.Empty(t, diags)
 			require.Equal(t, tc.expected, value)
 		})
