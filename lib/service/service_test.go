@@ -2770,7 +2770,6 @@ func TestInitScopedAppsFromConfig(t *testing.T) {
 	// --- Auth + proxy process ---
 	authDir := makeTempDir(t)
 	authCfg := servicecfg.MakeDefaultConfig()
-	authCfg.InsecureMode = true
 	authCfg.Version = defaults.TeleportConfigVersionV3
 	authCfg.DataDir = authDir
 	authCfg.Auth.Enabled = true
@@ -2856,7 +2855,6 @@ func TestInitScopedAppsFromConfig(t *testing.T) {
 
 	const appName = "scoped-graf"
 	agentCfg := servicecfg.MakeDefaultConfig()
-	agentCfg.InsecureMode = true
 	agentCfg.Version = defaults.TeleportConfigVersionV3
 	agentCfg.DataDir = makeTempDir(t)
 	agentCfg.ProxyServer = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyAddr}
