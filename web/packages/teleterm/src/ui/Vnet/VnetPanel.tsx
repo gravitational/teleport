@@ -314,12 +314,35 @@ export const SecondaryText = (props: PropsWithChildren) => (
  * is streamed from the VNet service and cleared whenever VNet stops.
  */
 const RecentConnectionsList = () => {
-  const { recentConnections } = useVnetContext();
+  const { recentConnections, openReport, diagnosticsAttempt, closePanel } =
+    useVnetContext();
+
+  const hasConnections = recentConnections.length > 0;
 
   return (
     <Box p={textSpacing}>
-      <SectionLabel>Recent connections</SectionLabel>
-      {recentConnections.length === 0 ? (
+      <Flex justifyContent="space-between" alignItems="center" gap={2}>
+        <SectionLabel>Recent connections</SectionLabel>
+        {hasConnections && (
+          <ButtonText
+            size="small"
+            onClick={() => {
+              const report = diagnosticsAttempt.data;
+              openReport(report);
+              closePanel();
+            }}
+            css={`
+              flex-shrink: 0;
+              gap: 2px;
+              min-height: 0;
+            `}
+          >
+            Show all
+            <ChevronRight size="small" />
+          </ButtonText>
+        )}
+      </Flex>
+      {!hasConnections ? (
         <SecondaryText>No connections yet.</SecondaryText>
       ) : (
         <Flex flexDirection="column" gap={1}>
