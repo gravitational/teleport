@@ -952,7 +952,7 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -1142,7 +1142,7 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.spec.agents.maintenance_window_duration"})
 										} else {
-											v := CopyToDuration(diags, obj.MaintenanceWindowDuration, t, tf.Attrs["maintenance_window_duration"])
+											v := CopyToDuration(diags, obj.MaintenanceWindowDuration, t, tf.Attrs["maintenance_window_duration"], preserveUnknown)
 											tf.Attrs["maintenance_window_duration"] = v
 										}
 									}
@@ -1960,7 +1960,7 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AutoUpdateVersion.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
