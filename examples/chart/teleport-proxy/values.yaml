@@ -100,41 +100,24 @@ serviceAccountTokenAudience: ""
 # `kubernetes`, the chart defaults this to 600 seconds.
 serviceAccountTokenExpirationSeconds: null
 
-# proxy(object) -- Overrides for chart-generated helm resources.
+# teleportConfig(object) -- contains YAML teleport configuration for the
+# proxy pods. The configuration will be merged with the chart-generated
+# configuration and will take precedence in case of conflict.
 #
-# These values are merged with chart-scoped values and take precedence in case
-# of conflict.
-# For example:
+# See the Teleport Configuration Reference for the list of supported fields:
+# ../../config/
 #
 # ```yaml
-# proxy:
-#   postStart:
-#     command: ["curl", "http://hook"]
-#   imagePullPolicy: Always
-#   annotations:
-#     service:
-#       external-dns.alpha.kubernetes.io/hostname: "teleport.example.com"
+# teleportConfig:
+#   teleport:
+#     cache:
+#       enabled: false
+#   proxy_service:
+#     https_keypairs:
+#       - key_file: /my-custom-mount/key.pem
+#         cert_file: /my-custom-mount/cert.pem
 # ```
-proxy:
-
-  # proxy.teleportConfig(object) -- contains YAML teleport configuration for
-  # proxy pods. The configuration will be merged with the chart-generated
-  # configuration and will take precedence in case of conflict.
-  #
-  # See the Teleport Configuration Reference for the list of supported fields:
-  # ../../config/
-  #
-  # ```yaml
-  # teleportConfig:
-  #   teleport:
-  #     cache:
-  #       enabled: false
-  #   proxy_service:
-  #     https_keypairs:
-  #       - key_file: /my-custom-mount/key.pem
-  #         cert_file: /my-custom-mount/cert.pem
-  # ```
-  teleportConfig: {}
+teleportConfig: {}
 
 # proxyListenerMode(string) -- controls TLS routing.
 # This must be set to the same value cluster-wide (i.e. in the
@@ -241,7 +224,7 @@ licenseSecretName: "license"
 # - "gcp": Use when running on GKE
 # - "azure": Use when running on AKS
 # - "scratch": Do not generate config file. You must supply one (see
-#    proxy.teleportConfig below.)
+#    teleportConfig below.)
 chartMode: standalone
 
 # validateConfigOnDeploy(bool) -- enables a Kubernetes job before install and
@@ -277,7 +260,7 @@ podMonitor:
 # via an ingress (`ingress.enabled`).
 # If proxy pods are replicable, they will default to 2 replicas,
 # even if `highAvailability.replicaCount` is 1. To force a single proxy replica,
-# set `proxy.highAvailability.replicaCount: 1`.
+# set `highAvailability.replicaCount: 1`.
 highAvailability:
   # highAvailability.replicaCount(int) -- controls the amount of pod replicas. The `highAvailability` comment describes
   # the replication requirements.

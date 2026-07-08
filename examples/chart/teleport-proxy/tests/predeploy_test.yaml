@@ -55,11 +55,7 @@ tests:
       extraLabels:
         job:
           foo: bar
-          baz: override-me
-      proxy:
-        extraLabels:
-          job:
-            baz: overridden
+          baz: override
     documentIndex: 3
     asserts:
       - isKind:
@@ -72,7 +68,7 @@ tests:
           value: bar
       - equal:
           path: metadata.labels.baz
-          value: overridden
+          value: override
 
   - it: should set extraLabels.jobPod on proxy predeploy job when set in values
     template: proxy.yaml
@@ -85,11 +81,7 @@ tests:
       extraLabels:
         jobPod:
           foo: bar
-          baz: override-me
-      proxy:
-        extraLabels:
-          jobPod:
-            baz: overridden
+          baz: override
     documentIndex: 3
     asserts:
       - isKind:
@@ -102,7 +94,7 @@ tests:
           value: bar
       - equal:
           path: spec.template.metadata.labels.baz
-          value: overridden
+          value: override
 
   - it: should set extraLabels on proxy predeploy config when set in values
     template: proxy.yaml
@@ -115,11 +107,7 @@ tests:
       extraLabels:
         config:
           foo: bar
-          baz: override-me
-      proxy:
-        extraLabels:
-          config:
-            baz: overridden
+          baz: override
     documentIndex: 2
     asserts:
       - isKind:
@@ -132,7 +120,7 @@ tests:
           value: bar
       - equal:
           path: metadata.labels.baz
-          value: overridden
+          value: override
 
   - it: should use default serviceAccount name suffixed with -hook for proxy predeploy job SA when not set in values and we're creating SAs
     template: proxy.yaml

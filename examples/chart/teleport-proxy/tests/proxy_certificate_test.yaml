@@ -9,11 +9,7 @@ tests:
       extraLabels:
         certSecret:
           foo: bar
-          baz: override-me
-      proxy:
-        extraLabels:
-          certSecret:
-            baz: overridden
+          baz: override
     documentIndex: 0
     asserts:
       - isKind:
@@ -26,4 +22,4 @@ tests:
           value: bar
       - equal:
           path: spec.secretTemplate.labels.baz
-          value: overridden
+          value: override

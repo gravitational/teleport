@@ -83,8 +83,8 @@
             "type": ["integer", "null"],
             "default": null
         },
-        "proxy": {
-            "$id": "#/properties/proxy",
+        "teleportConfig": {
+            "$id": "#/properties/teleportConfig",
             "type": "object"
         },
         "podMonitor": {

@@ -2,32 +2,6 @@ suite: Proxy Deployment
 templates:
   - proxy.yaml
 tests:
-  - it: should have a single replica when proxy-specific replicaCount is set to 1 and a cert is passed
-    template: proxy.yaml
-    set:
-      clusterName: helm-lint.example.com
-      authServer: teleport-auth.example.com
-      joinParams:
-        method: kubernetes
-        tokenName: teleport-proxy
-      highAvailability:
-        certManager:
-          enabled: true
-          issuerName: helm-lint
-      proxy:
-        highAvailability:
-          replicaCount: 1
-    documentIndex: 2
-    asserts:
-      - isKind:
-          of: Deployment
-      - equal:
-          path: metadata.name
-          value: RELEASE-NAME-proxy
-      - equal:
-          path: spec.replicas
-          value: 1
-
   - it: sets extraLabels on Deployment
     template: proxy.yaml
     values:
@@ -36,11 +10,7 @@ tests:
       extraLabels:
         deployment:
           foo: bar
-          baz: override-me
-      proxy:
-        extraLabels:
-          deployment:
-            baz: overridden
+          baz: extra
     documentIndex: 1
     asserts:
       - isKind:
@@ -53,7 +23,7 @@ tests:
           value: bar
       - equal:
           path: metadata.labels.baz
-          value: overridden
+          value: extra
 
   - it: sets projected token audience and ttl for kubernetes join
     template: proxy.yaml
@@ -99,12 +69,11 @@ tests:
       joinParams:
         method: iam
         tokenName: placeholder
-      proxy:
-        teleportConfig:
-          teleport:
-            join_params:
-              method: kubernetes
-              token_name: real-token
+      teleportConfig:
+        teleport:
+          join_params:
+            method: kubernetes
+            token_name: real-token
     capabilities:
       majorVersion: 1
       minorVersion: 21
@@ -129,12 +98,11 @@ tests:
         tokenName: placeholder
       serviceAccountTokenAudience: custom-audience
       serviceAccountTokenExpirationSeconds: 1200
-      proxy:
-        teleportConfig:
-          teleport:
-            join_params:
-              method: kubernetes
-              token_name: real-token
+      teleportConfig:
+        teleport:
+          join_params:
+            method: kubernetes
+            token_name: real-token
     capabilities:
       majorVersion: 1
       minorVersion: 21
@@ -157,11 +125,7 @@ tests:
       extraLabels:
         pod:
           foo: bar
-          baz: override-me
-      proxy:
-        extraLabels:
-          pod:
-            baz: overridden
+          baz: override
     documentIndex: 1
     asserts:
       - isKind:
@@ -174,7 +138,7 @@ tests:
           value: bar
       - equal:
           path: spec.template.metadata.labels.baz
-          value: overridden
+          value: override
 
   - it: sets readinessProbe values on Deployment Pods
     template: proxy.yaml
@@ -189,14 +153,13 @@ tests:
         periodSeconds: 10
         failureThreshold: 11
         successThreshold: 12
-      proxy:
-        # we test an auth-specific override
-        readinessProbe:
-          initialDelaySeconds: 13
     documentIndex: 1
     asserts:
       - isKind:
           of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 9
       - equal:
           path: metadata.name
           value: RELEASE-NAME-proxy
@@ -209,9 +172,6 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.successThreshold
           value: 12
-      - equal:
-          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
-          value: 13
 
   - it: does not set GOMEMLIMIT if ratio is 0
     template: proxy.yaml
@@ -229,9 +189,7 @@ tests:
       resources:
         limits:
           memory: "10.5G"
-      # we nest under proxy to check if merge works properly
-      proxy:
-        goMemLimitRatio: 0
+      goMemLimitRatio: 0
     documentIndex: 1
     asserts:
       - isKind:
@@ -276,9 +234,8 @@ tests:
         tokenName: teleport-proxy
       tls:
         existingSecretName: my-certs
-      proxy:
-        highAvailability:
-          replicaCount: 0
+      highAvailability:
+        replicaCount: 0
     documentIndex: 1
     asserts:
       - isKind:

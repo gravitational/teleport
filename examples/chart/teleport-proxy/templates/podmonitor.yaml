@@ -1,5 +1,4 @@
 {{- $proxy := mustDeepCopy . -}}
-{{- $_ := set $proxy "Values" (mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy) -}}
 {{- if .Values.podMonitor.enabled -}}
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor

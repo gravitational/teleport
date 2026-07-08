@@ -139,35 +139,13 @@ pods.
 When omitted by the user and the effective Teleport join method is
 `kubernetes`, the chart defaults this to 600 seconds.
 
-## `proxy`
-
-| Type | Default |
-|------|---------|
-| `object` | `{"teleportConfig":{}}` |
-
-`proxy` Overrides for chart-generated helm resources.
-
-These values are merged with chart-scoped values and take precedence in case
-of conflict.
-For example:
-
-```yaml
-proxy:
-  postStart:
-    command: ["curl", "http://hook"]
-  imagePullPolicy: Always
-  annotations:
-    service:
-      external-dns.alpha.kubernetes.io/hostname: "teleport.example.com"
-```
-
-### `proxy.teleportConfig`
+## `teleportConfig`
 
 | Type | Default |
 |------|---------|
 | `object` | `{}` |
 
-`proxy.teleportConfig` contains YAML teleport configuration for
+`teleportConfig` contains YAML teleport configuration for the
 proxy pods. The configuration will be merged with the chart-generated
 configuration and will take precedence in case of conflict.
 
@@ -298,7 +276,7 @@ the `teleport-cluster` chart.
 - "gcp": Use when running on GKE
 - "azure": Use when running on AKS
 - "scratch": Do not generate config file. You must supply one (see
-   proxy.teleportConfig below.)
+   teleportConfig below.)
 
 ## `validateConfigOnDeploy`
 
@@ -366,7 +344,7 @@ Proxy pods need to be provided a certificate to be replicated (either via
 via an ingress (`ingress.enabled`).
 If proxy pods are replicable, they will default to 2 replicas,
 even if `highAvailability.replicaCount` is 1. To force a single proxy replica,
-set `proxy.highAvailability.replicaCount: 1`.
+set `highAvailability.replicaCount: 1`.
 
 ### `highAvailability.replicaCount`
 

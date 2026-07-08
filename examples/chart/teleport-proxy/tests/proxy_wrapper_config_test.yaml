@@ -39,10 +39,9 @@ tests:
       joinParams:
         method: kubernetes
         tokenName: teleport-proxy
-      proxy:
-        teleportConfig:
-          teleport:
-            auth_server: auth.example.com:9999
+      teleportConfig:
+        teleport:
+          auth_server: auth.example.com:9999
     documentIndex: 0
     asserts:
       - isKind:
@@ -76,12 +75,11 @@ tests:
       joinParams:
         method: kubernetes
         tokenName: generated-token
-      proxy:
-        teleportConfig:
-          teleport:
-            join_params:
-              method: iam
-              token_name: overridden-token
+      teleportConfig:
+        teleport:
+          join_params:
+            method: iam
+            token_name: overridden-token
     documentIndex: 0
     asserts:
       - isKind:
@@ -100,10 +98,9 @@ tests:
       joinParams:
         method: kubernetes
         tokenName: teleport-proxy
-      proxy:
-        teleportConfig:
-          proxy_service:
-            public_addr: custom.example.com:443
+      teleportConfig:
+        proxy_service:
+          public_addr: custom.example.com:443
     documentIndex: 0
     asserts:
       - isKind:

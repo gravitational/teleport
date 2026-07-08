@@ -2,7 +2,7 @@ suite: Proxy Service
 templates:
   - proxy.yaml
 tests:
-  - it: uses a ClusterIP when proxy.service.type=ClusterIP
+  - it: uses a ClusterIP when service.type=ClusterIP
     set:
       clusterName: teleport.example.com
       authServer: teleport-auth.example.com
@@ -10,10 +10,7 @@ tests:
         method: kubernetes
         tokenName: teleport-proxy
       service:
-        type: NodePort
-      proxy:
-        service:
-          type: ClusterIP
+        type: ClusterIP
     documentIndex: 5
     asserts:
       - isKind:
@@ -25,7 +22,7 @@ tests:
           path: spec.type
           value: ClusterIP
 
-  - it: fails to deploy when ingress.enabled=true and proxy.service.type is set to LoadBalancer (default)
+  - it: fails to deploy when ingress.enabled=true and service.type is set to LoadBalancer (default)
     set:
       clusterName: teleport.example.com
       authServer: teleport-auth.example.com
@@ -35,14 +32,13 @@ tests:
       proxyListenerMode: multiplex
       ingress:
         enabled: true
-      proxy:
-        service:
-          type: LoadBalancer
+      service:
+        type: LoadBalancer
     asserts:
       - failedTemplate:
           errorMessage: "service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set service.type=ClusterIP instead"
 
-  - it: uses a ClusterIP when ingress.enabled=true and proxy.service.type=ClusterIP
+  - it: uses a ClusterIP when ingress.enabled=true and service.type=ClusterIP
     set:
       clusterName: teleport.example.com
       authServer: teleport-auth.example.com
@@ -52,9 +48,8 @@ tests:
       proxyListenerMode: multiplex
       ingress:
         enabled: true
-      proxy:
-        service:
-          type: ClusterIP
+      service:
+        type: ClusterIP
     documentIndex: 6
     asserts:
       - isKind:
@@ -66,7 +61,7 @@ tests:
           path: spec.type
           value: ClusterIP
 
-  - it: uses a NodePort when ingress.enabled=true and proxy.service.type=NodePort
+  - it: uses a NodePort when ingress.enabled=true and service.type=NodePort
     set:
       clusterName: teleport.example.com
       authServer: teleport-auth.example.com
@@ -76,9 +71,8 @@ tests:
       proxyListenerMode: multiplex
       ingress:
         enabled: true
-      proxy:
-        service:
-          type: NodePort
+      service:
+        type: NodePort
     documentIndex: 6
     asserts:
       - isKind:
@@ -90,7 +84,7 @@ tests:
           path: spec.type
           value: NodePort
 
-  - it: uses a NodePort when ingress.enabled=true and proxy.service.type is overridden
+  - it: uses a NodePort when ingress.enabled=true and service.type is overridden
     set:
       clusterName: teleport.example.com
       authServer: teleport-auth.example.com
@@ -100,9 +94,8 @@ tests:
       proxyListenerMode: multiplex
       ingress:
         enabled: true
-      proxy:
-        service:
-          type: NodePort
+      service:
+        type: NodePort
     documentIndex: 6
     asserts:
       - isKind:
@@ -121,11 +114,7 @@ tests:
       extraLabels:
         service:
           foo: bar
-          baz: override-me
-      proxy:
-        extraLabels:
-          service:
-            baz: overridden
+          baz: override
     documentIndex: 5
     asserts:
       - isKind:
@@ -138,4 +127,4 @@ tests:
           value: bar
       - equal:
           path: metadata.labels.baz
-          value: overridden
+          value: override
