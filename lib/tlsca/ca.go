@@ -430,7 +430,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DeviceExtensions:         devExts,
 		BotName:                  id.BotName,
 		BotInstanceID:            id.BotInstanceID,
-		BotScope:                 id.BotScope,
+		BotScopeOfOrigin:         id.BotScope,
 		BotInternal:              id.BotInternal,
 		JoinToken:                id.JoinToken,
 	}
@@ -1621,7 +1621,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		TrustedDevice:     device,
 		BotName:           id.BotName,
 		BotInstanceID:     id.BotInstanceID,
-		BotScope:          id.BotScope,
+		BotScopeOfOrigin:  id.BotScope,
 		UserRoles:         slices.Clone(id.Groups),
 		UserTraits:        id.Traits.Clone(),
 		UserClusterName:   userTeleportCluster,

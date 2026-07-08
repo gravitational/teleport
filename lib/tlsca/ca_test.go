@@ -813,11 +813,11 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				}.Build(),
 			},
 			want: apievents.UserMetadata{
-				User:          "bot-alpaca",
-				UserKind:      apievents.UserKind_USER_KIND_BOT,
-				BotName:       "alpaca",
-				BotInstanceID: "123-123",
-				BotScope:      "/staging",
+				User:             "bot-alpaca",
+				UserKind:         apievents.UserKind_USER_KIND_BOT,
+				BotName:          "alpaca",
+				BotInstanceID:    "123-123",
+				BotScopeOfOrigin: "/staging",
 				ScopePin: &apievents.ScopePin{
 					Scope: "/staging",
 					Assignments: map[string]*apievents.ScopePinnedAssignments{

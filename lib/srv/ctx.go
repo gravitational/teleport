@@ -1175,20 +1175,20 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	}
 
 	return apievents.UserMetadata{
-		Login:           id.Login,
-		User:            id.TeleportUser,
-		Impersonator:    id.Impersonator,
-		AccessRequests:  id.ActiveRequests,
-		TrustedDevice:   id.UnmappedIdentity.GetDeviceMetadata(),
-		UserKind:        userKind,
-		BotName:         id.BotName,
-		BotInstanceID:   id.BotInstanceID,
-		BotScope:        id.BotScope,
-		UserClusterName: id.OriginClusterName,
-		UserRoles:       slices.Clone(id.MappedRoles),
-		UserTraits:      id.Traits.Clone(),
-		ScopePin:        pinning.ToEventsPin(scopePin),
-		BeamID:          beamID,
+		Login:            id.Login,
+		User:             id.TeleportUser,
+		Impersonator:     id.Impersonator,
+		AccessRequests:   id.ActiveRequests,
+		TrustedDevice:    id.UnmappedIdentity.GetDeviceMetadata(),
+		UserKind:         userKind,
+		BotName:          id.BotName,
+		BotInstanceID:    id.BotInstanceID,
+		BotScopeOfOrigin: id.BotScope,
+		UserClusterName:  id.OriginClusterName,
+		UserRoles:        slices.Clone(id.MappedRoles),
+		UserTraits:       id.Traits.Clone(),
+		ScopePin:         pinning.ToEventsPin(scopePin),
+		BeamID:           beamID,
 	}
 }
 

@@ -279,12 +279,12 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				},
 			},
 			want: apievents.UserMetadata{
-				User:          "bot-alpaca",
-				Login:         "alpaca1",
-				UserKind:      apievents.UserKind_USER_KIND_BOT,
-				BotName:       "alpaca",
-				BotInstanceID: "123-123-123",
-				BotScope:      "/staging",
+				User:             "bot-alpaca",
+				Login:            "alpaca1",
+				UserKind:         apievents.UserKind_USER_KIND_BOT,
+				BotName:          "alpaca",
+				BotInstanceID:    "123-123-123",
+				BotScopeOfOrigin: "/staging",
 				ScopePin: &apievents.ScopePin{
 					Scope: "/staging",
 					Assignments: map[string]*apievents.ScopePinnedAssignments{
