@@ -24,12 +24,11 @@ import {
   useState,
 } from 'react';
 
-import { Box, ButtonSecondary, Flex, Stack, Text } from 'design';
-import { ActionButton } from 'design/Alert';
+import { Box, ButtonSecondary, ButtonText, Flex, Stack, Text } from 'design';
+import { Info } from 'design/Icon';
 import { StepComponentProps } from 'design/StepSlider';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
-  ConnectionStat,
   RecentConnection,
   RecentConnectionKind,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
@@ -42,6 +41,7 @@ import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/Connecti
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { DiagnosticsAlert } from './DiagnosticsAlert';
+import { NetworkGraph } from './NetworkGraph';
 import { textSpacing } from './sliderStep';
 import { VnetSliderStepHeader } from './VnetConnectionItem';
 import { useVnetContext } from './vnetContext';
@@ -168,13 +168,17 @@ export const VnetSliderStep = (props: StepComponentProps) => {
         <>
           <VnetStatus />
           <RecentConnectionsList />
-          <ConnectionStatsList />
+          <Box px={textSpacing}>
+            <SectionLabel>Configuration</SectionLabel>
+          </Box>
         </>
       )}
 
       <DiagnosticsAlert
         runDiagnosticsFromVnetPanel={runDiagnosticsFromVnetPanel}
       />
+
+      {status.value === 'running' && <SshConfigurationHint />}
     </Box>
   );
 };
@@ -197,7 +201,6 @@ const VnetStatus = () => {
   const {
     refreshServiceInfoAttempt,
     serviceInfoAttempt: eagerServiceInfoAttempt,
-    openSSHConfigurationModal,
   } = useVnetContext();
   const serviceInfoAttempt = useDelayedRepeatedAttempt(eagerServiceInfoAttempt);
   const serviceInfoRefreshRequestedRef = useRef(false);
@@ -242,107 +245,75 @@ const VnetStatus = () => {
     );
   }
 
-  const statusIndicator = (
-    <ConnectionStatusIndicator
-      status={serviceInfoAttempt.status === 'success' ? 'on' : 'processing'}
-      title={
-        serviceInfoAttempt.status === 'processing'
-          ? 'Updating VNet status…'
-          : undefined
-      }
-      inline
-      mr={2}
-      mt={2}
-    />
-  );
-
-  const serviceInfo = serviceInfoAttempt.data;
-
-  const sshConfiguredIndicator = serviceInfo.sshConfigured ? null : (
-    <Flex justifyContent="space-between" alignItems="center">
-      <Flex>
-        <ConnectionStatusIndicator status={'warning'} inline mr={2} />
-        <Text>SSH clients are not configured to use VNet</Text>
-      </Flex>
-
-      <ActionButton
-        fill="filled"
-        intent="neutral"
-        inputAlignment
-        action={{
-          onClick: () =>
-            openSSHConfigurationModal({
-              vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
-            }),
-          content: 'Resolve',
-        }}
-      />
-    </Flex>
-  );
-
-  if (serviceInfo.appDnsZones.length == 0 && serviceInfo.clusters.length == 0) {
-    return (
-      <Flex p={textSpacing}>
-        {statusIndicator}
-        No clusters connected yet, VNet is not proxying any connections.
-      </Flex>
-    );
-  }
-
-  const appDNSZones = new Set(serviceInfo.appDnsZones);
-  const sshClusters = new Set(serviceInfo.clusters);
-  const appAndSshAreEqual =
-    appDNSZones.size == sshClusters.size && appDNSZones.isSubsetOf(sshClusters);
-
-  if (appAndSshAreEqual) {
-    return (
-      <Text p={textSpacing}>
-        <Flex>
-          {statusIndicator}
-          Proxying TCP and SSH connections to {[...appDNSZones].join(', ')}
-        </Flex>
-        {sshConfiguredIndicator}
-      </Text>
-    );
-  }
-
-  const both = [...appDNSZones.intersection(sshClusters)].sort();
-  const justTCP = [...appDNSZones.difference(sshClusters)].sort();
-  const justSSH = [...sshClusters.difference(appDNSZones)].sort();
-
   return (
-    <Box p={textSpacing}>
-      <Flex>
-        {statusIndicator}
-        <Box>
-          Proxying TCP and SSH connections to:
-          <Text typography="body2">
-            {both.length ? (
-              <Box>
-                <ConnectionKindIndicator bold>TCP</ConnectionKindIndicator>
-                <ConnectionKindIndicator bold>SSH</ConnectionKindIndicator>
-                {both.join(', ')}
-              </Box>
-            ) : null}
-            {justTCP.length ? (
-              <Box>
-                <ConnectionKindIndicator bold>TCP</ConnectionKindIndicator>
-                {justTCP.join(', ')}
-              </Box>
-            ) : null}
-            {justSSH.length ? (
-              <Box>
-                <ConnectionKindIndicator bold>SSH</ConnectionKindIndicator>
-                {justSSH.join(', ')}
-              </Box>
-            ) : null}
-          </Text>
-        </Box>
-      </Flex>
-      {sshConfiguredIndicator}
-    </Box>
+    <Stack px={textSpacing} pt={textSpacing} width="100%">
+      <SectionLabel>Network activity</SectionLabel>
+      <NetworkGraph />
+    </Stack>
   );
 };
+
+/**
+ * SshConfigurationHint is a low-key, muted hint shown at the very bottom of the
+ * VNet panel, reporting whether SSH clients are configured to use VNet. It
+ * renders nothing until the service info has loaded. Both states share the same
+ * icon-plus-text format: an OK icon when configured, a hint icon (and a way to
+ * fix it) when not. Unlike a warning, it doesn't raise a status indicator.
+ */
+const SshConfigurationHint = () => {
+  const { serviceInfoAttempt, openSSHConfigurationModal } = useVnetContext();
+
+  if (serviceInfoAttempt.status !== 'success') {
+    return null;
+  }
+  const serviceInfo = serviceInfoAttempt.data;
+
+  return (
+    <Flex px={textSpacing} gap={1} alignItems="flex-start">
+      <Info size="small" color="text.muted" mt="2px" />
+      <SecondaryText>
+        SSH clients are not configured to use VNet.{' '}
+        <ButtonText
+          size="small"
+          onClick={() =>
+            openSSHConfigurationModal({
+              vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+            })
+          }
+          css={`
+            padding: 0;
+            min-height: 0;
+            font: inherit;
+            color: inherit;
+            text-decoration: underline;
+          `}
+        >
+          Configure
+        </ButtonText>
+      </SecondaryText>
+    </Flex>
+  );
+};
+
+/**
+ * SectionLabel is the small muted heading shown above each section of the
+ * running VNet panel (network activity, recent connections).
+ */
+const SectionLabel = (props: PropsWithChildren) => (
+  <Text typography="body3" bold color="text.slightlyMuted">
+    {props.children}
+  </Text>
+);
+
+/**
+ * SecondaryText is the shared style for the panel's muted, secondary lines:
+ * empty-state placeholders and hints sitting beneath a SectionLabel.
+ */
+export const SecondaryText = (props: PropsWithChildren) => (
+  <Text typography="body3" color="text.muted">
+    {props.children}
+  </Text>
+);
 
 /**
  * RecentConnectionsList shows the targets recently connected to through VNet,
@@ -354,13 +325,9 @@ const RecentConnectionsList = () => {
 
   return (
     <Box p={textSpacing}>
-      <Text typography="body3" color="text.slightlyMuted" mb={1}>
-        Recent connections
-      </Text>
+      <SectionLabel>Recent connections</SectionLabel>
       {recentConnections.length === 0 ? (
-        <Text typography="body2" color="text.muted">
-          No connections yet.
-        </Text>
+        <SecondaryText>No connections yet.</SecondaryText>
       ) : (
         <Flex flexDirection="column" gap={1}>
           {recentConnections.map(connection => (
@@ -390,7 +357,14 @@ const RecentConnectionRow = (props: { connection: RecentConnection }) => {
 
   return (
     <Flex alignItems="center" gap={1} minWidth={0}>
-      <ConnectionKindIndicator>{kindLabel(kind)}</ConnectionKindIndicator>
+      <ConnectionKindIndicator
+        css={`
+          padding: 0px 6px;
+          font-weight: 600;
+        `}
+      >
+        {kindLabel(kind)}
+      </ConnectionKindIndicator>
       <Flex flexDirection="column" flex="1" minWidth={0}>
         {openedBy && (
           <Flex
@@ -400,7 +374,7 @@ const RecentConnectionRow = (props: { connection: RecentConnection }) => {
             justifyContent="space-between"
           >
             <Text
-              typography="body2"
+              typography="body3"
               title={displayName}
               css={`
                 min-width: 0;
@@ -573,123 +547,4 @@ function kindLabel(kind: RecentConnectionKind): string {
     default:
       return '';
   }
-}
-
-/**
- * ConnectionStatsList shows the aggregated per-target connection statistics
- * reported by the VNet admin process: successful/failed connection counts,
- * total bytes transferred, and current throughput. All counters are absolute
- * values accumulated since VNet started. The list is streamed from the VNet
- * service and cleared whenever VNet stops.
- */
-const ConnectionStatsList = () => {
-  const { connectionStats } = useVnetContext();
-
-  if (connectionStats.length === 0) {
-    return null;
-  }
-
-  return (
-    <Box p={textSpacing}>
-      <Text typography="body3" color="text.slightlyMuted" mb={1}>
-        Connection statistics
-      </Text>
-      <Flex flexDirection="column" gap={1}>
-        {connectionStats.map(stat => (
-          <ConnectionStatRow
-            key={[
-              stat.kind,
-              stat.cluster,
-              stat.leafCluster,
-              stat.displayName,
-              stat.port,
-            ].join('/')}
-            stat={stat}
-          />
-        ))}
-      </Flex>
-    </Box>
-  );
-};
-
-const ConnectionStatRow = (props: { stat: ConnectionStat }) => {
-  const {
-    kind,
-    displayName,
-    port,
-    successfulConnections,
-    failedConnections,
-    bytesTx,
-    bytesRx,
-    bytesTxPerSec,
-    bytesRxPerSec,
-  } = props.stat;
-  // The port is only set for multi-port TCP apps.
-  const name = port ? `${displayName}:${port}` : displayName;
-  const hasThroughput = bytesTxPerSec > 0n || bytesRxPerSec > 0n;
-
-  return (
-    <Flex flexDirection="column" minWidth={0}>
-      <Flex alignItems="center" gap={1} minWidth={0}>
-        <ConnectionKindIndicator>{kindLabel(kind)}</ConnectionKindIndicator>
-        <Text
-          typography="body2"
-          title={name}
-          css={`
-            flex: 1;
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-          `}
-        >
-          {name}
-        </Text>
-        <Text
-          typography="body3"
-          color="text.muted"
-          title="Successful connections"
-          css={`
-            white-space: nowrap;
-          `}
-        >
-          ✓ {successfulConnections.toString()}
-        </Text>
-        {failedConnections > 0n && (
-          <Text
-            typography="body3"
-            color="error.main"
-            title="Failed connections"
-            css={`
-              white-space: nowrap;
-            `}
-          >
-            ✕ {failedConnections.toString()}
-          </Text>
-        )}
-      </Flex>
-      <Text typography="body3" color="text.muted">
-        ↑ {formatBytes(bytesTx)} ↓ {formatBytes(bytesRx)}
-        {hasThroughput &&
-          ` · ↑ ${formatBytes(bytesTxPerSec)}/s ↓ ${formatBytes(bytesRxPerSec)}/s`}
-      </Text>
-    </Flex>
-  );
-};
-
-/** formatBytes formats a byte count into a human-readable string. */
-function formatBytes(bytes: bigint): string {
-  if (bytes < 1024n) {
-    return `${bytes} B`;
-  }
-  let value = Number(bytes);
-  let unit = 'B';
-  for (const nextUnit of ['KB', 'MB', 'GB', 'TB', 'PB']) {
-    if (value < 1024) {
-      break;
-    }
-    value /= 1024;
-    unit = nextUnit;
-  }
-  return `${value.toFixed(1)} ${unit}`;
 }

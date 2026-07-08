@@ -18,11 +18,10 @@
 
 import { PropsWithChildren, ReactNode } from 'react';
 
-import { Alert, Flex, P2 } from 'design';
+import { Alert, ButtonText, Flex, P2 } from 'design';
 import { ActionButton } from 'design/Alert';
 import { AlertKind } from 'design/Alert/Alert';
-import { Checks } from 'design/Icon';
-import { StatusIcon } from 'design/StatusIcon';
+import { CircleCheck } from 'design/Icon';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
@@ -30,6 +29,7 @@ import {
 
 import { hasReportFoundIssues } from 'teleterm/services/vnet/diag';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { SecondaryText } from 'teleterm/ui/Vnet/VnetSliderStep';
 
 import { textSpacing } from './sliderStep';
 import { useVnetContext } from './vnetContext';
@@ -102,22 +102,30 @@ export const DiagnosticsAlert = (props: {
     )
   ) {
     return (
-      <Flex px={textSpacing} justifyContent="space-between" alignItems="center">
+      <Flex
+        px={textSpacing}
+        justifyContent="space-between"
+        alignItems="flex-start"
+      >
         <Flex gap={1}>
-          <StatusIcon kind="neutral" customIcon={Checks} size="large" />
-          No issues found.
+          <CircleCheck size="small" color="success.main" mt="2px" />
+          <SecondaryText>
+            No issues found.{' '}
+            <ButtonText
+              size="small"
+              onClick={() => openReportAndClosePanel()}
+              css={`
+                padding: 0;
+                min-height: 0;
+                font: inherit;
+                color: inherit;
+                text-decoration: underline;
+              `}
+            >
+              Open Diag Report
+            </ButtonText>
+          </SecondaryText>
         </Flex>
-
-        <ActionButton
-          fill="filled"
-          intent="neutral"
-          inputAlignment
-          action={{
-            content: 'Open Diag Report',
-            onClick: openReportAndClosePanel,
-          }}
-          {...disabledOpenReportButtonProps}
-        />
       </Flex>
     );
   }
