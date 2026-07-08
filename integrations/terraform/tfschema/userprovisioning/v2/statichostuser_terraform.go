@@ -878,7 +878,7 @@ func CopyStaticHostUserToTerraformPreserveUnknown(ctx context.Context, obj *gith
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"StaticHostUser.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
