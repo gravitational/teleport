@@ -146,6 +146,14 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 		if err := validateScopedSPIFFEID(s.GetScope(), s.GetSpec().GetSpiffe().GetId()); err != nil {
 			return trace.Wrap(err)
 		}
+
+		// TODO(strideynet): For now we only constrict the naming of scoped
+		// workload identities - however - we should consider rolling out a
+		// write-side restriction to unscoped workload identities in a major
+		// version.
+		if err := scopes.StrongValidateSegment(s.GetMetadata().GetName()); err != nil {
+			return trace.Wrap(err, "metadata.name:")
+		}
 	}
 
 	for i, rule := range s.GetSpec().GetRules().GetAllow() {

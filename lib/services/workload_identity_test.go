@@ -436,6 +436,23 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 			requireErr: require.NoError,
 		},
 		{
+			name: "scoped name must be valid segment",
+			in: workloadidentityv1pb.WorkloadIdentity_builder{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: "example::",
+				}.Build(),
+				Scope: "/security/eu",
+				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+						Id: "/security/eu/_/k8s/cluster-a",
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			requireErr: errContains("segment \"example::\" is malformed"),
+		},
+		{
 			name: "scoped success with templated spiffe id",
 			in: workloadidentityv1pb.WorkloadIdentity_builder{
 				Kind:    types.KindWorkloadIdentity,
