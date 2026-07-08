@@ -28,6 +28,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -152,7 +153,7 @@ loop:
 				desktopSessionEnd.Code = DesktopSessionEndCode
 				desktopSessionEnd.ClusterName = e.ClusterName
 				desktopSessionEnd.StartTime = e.Time
-				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, transformedUsername(e.UserMetadata, cfg.ClusterName))
+				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, e.UserMetadata.User)
 				desktopSessionEnd.Recorded = true
 				desktopSessionEnd.UserMetadata = e.UserMetadata
 				desktopSessionEnd.SessionMetadata = e.SessionMetadata
@@ -176,10 +177,14 @@ loop:
 				sshSessionEnd.InitialCommand = e.InitialCommand
 				sshSessionEnd.SessionRecording = e.SessionRecording
 				sshSessionEnd.Interactive = e.TerminalSize != ""
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, cfg.ClusterName))
+				// TODO(Joerger): DELETE IN v20 - User is already cluster-qualified post v19
+				participant := services.UsernameForCluster(e.UserMetadata.User, e.UserMetadata.UserClusterName, cfg.ClusterName)
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, participant)
 
 			case *apievents.SessionJoin:
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, cfg.ClusterName))
+				// TODO(Joerger): DELETE IN v20 - User is already cluster-qualified post v19
+				participant := services.UsernameForCluster(e.UserMetadata.User, e.UserMetadata.UserClusterName, cfg.ClusterName)
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, participant)
 
 			case *apievents.DatabaseSessionStart:
 				dbSessionEnd.Type = DatabaseSessionEndEvent
@@ -190,7 +195,7 @@ loop:
 				dbSessionEnd.SessionMetadata = e.SessionMetadata
 				dbSessionEnd.DatabaseMetadata = e.DatabaseMetadata
 				dbSessionEnd.ConnectionMetadata = e.ConnectionMetadata
-				dbSessionEnd.Participants = append(dbSessionEnd.Participants, transformedUsername(e.UserMetadata, cfg.ClusterName))
+				dbSessionEnd.Participants = append(dbSessionEnd.Participants, e.UserMetadata.User)
 
 			case *apievents.AppSessionStart:
 				appSessionEnd.Type = AppSessionEndEvent

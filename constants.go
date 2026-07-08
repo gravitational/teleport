@@ -34,6 +34,7 @@ const (
 	SSHAgentPID = "SSH_AGENT_PID"
 
 	// SSHTeleportUser is the current Teleport user that is logged in.
+	// For remote users, this is the unaltered teleport username. e.g. "alice", not "remote-alice-root"
 	SSHTeleportUser = "SSH_TELEPORT_USER"
 
 	// SSHSessionWebProxyAddr is the address the web proxy.

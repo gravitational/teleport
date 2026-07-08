@@ -4550,8 +4550,17 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 
+	// Use the username as seen by the target cluster rather than the
+	// proxy-local username from the web session. For a remote user,
+	// the target cluster represents them in the cluster-qualified
+	// "remote-<user>-<origin_cluster>" form.
+	currentUser, err := clt.GetCurrentUser(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	accessContext := moderation.SessionAccessContext{
-		Username: sctx.GetUser(),
+		Username: currentUser.GetName(),
 		Roles:    userRoles,
 	}
 

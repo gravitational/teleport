@@ -9945,6 +9945,35 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 			},
 			checkSessionTrackers: require.Empty,
 		},
+		{
+			name: "session-owner-can-see-own-session",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("any", types.RoleSpecV6{})
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.SSHSessionKind),
+					HostUser:  testUser.GetName(),
+				})
+			},
+			checkSessionTrackers: require.NotEmpty,
+		},
+		{
+			name: "cross-cluster-username-collision-not-visible",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("any", types.RoleSpecV6{})
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.SSHSessionKind),
+					HostUser: services.UsernameForRemoteCluster(
+						testUser.GetName(), "root.example.com"),
+				})
+			},
+			checkSessionTrackers: require.Empty,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
