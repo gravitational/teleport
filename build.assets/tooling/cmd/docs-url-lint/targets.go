@@ -48,6 +48,10 @@ func Targets() []Target {
 			Function: "CheckAndSetDefaults",
 			Receiver: "ProvisionTokenV2",
 		},
+		{
+			Package:  "github.com/gravitational/teleport/lib/services",
+			Function: "ValidateWorkloadIdentity",
+		},
 	}
 }
 
