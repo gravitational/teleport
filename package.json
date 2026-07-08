@@ -73,7 +73,7 @@
     "@codemirror/view": "^6.43.4",
     "@floating-ui/react": "^0.27.19",
     "@fontsource/ubuntu": "^5.2.8",
-    "@gravitational/design-system": "git+https://github.com/gravitational/design-system.git#8021bd891ea4ebbe5cb2485d32dabc63bf847ec7",
+    "@gravitational/design-system": "git+https://github.com/gravitational/design-system.git#a44820e7da18807cd6c4e61417bc10178aa3c702&path:/dist",
     "@grpc/grpc-js": "1.14.4",
     "@hookform/resolvers": "^5.4.0",
     "@lezer/highlight": "^1.2.3",
