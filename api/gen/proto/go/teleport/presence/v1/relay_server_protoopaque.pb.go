@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/presence/v1/relay_server.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package presencev1
 

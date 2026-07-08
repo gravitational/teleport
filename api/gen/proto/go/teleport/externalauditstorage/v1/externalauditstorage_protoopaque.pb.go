@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/externalauditstorage/v1/externalauditstorage.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package externalauditstoragev1
 

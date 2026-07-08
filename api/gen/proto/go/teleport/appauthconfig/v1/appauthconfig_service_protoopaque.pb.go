@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/appauthconfig/v1/appauthconfig_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package appauthconfigv1
 

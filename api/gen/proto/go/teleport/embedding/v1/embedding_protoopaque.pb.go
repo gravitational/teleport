@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/embedding/v1/embedding.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package embeddingv1
 

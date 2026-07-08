@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/recordingencryption/v1/recording_encryption_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package recordingencryptionv1
 
