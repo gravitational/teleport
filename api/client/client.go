@@ -75,6 +75,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -996,6 +997,11 @@ func (c *Client) BeamServiceClient() beamsv1.BeamServiceClient {
 	return beamsv1.NewBeamServiceClient(c.conn)
 }
 
+// BeamsConfigServiceClient returns a client for the beams config service.
+func (c *Client) BeamsConfigServiceClient() beamsv1.BeamsConfigServiceClient {
+	return beamsv1.NewBeamsConfigServiceClient(c.conn)
+}
+
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
@@ -1770,6 +1776,7 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		URI:           req.URI,
 		Expires:       req.Expires,
 		AuthorityType: string(req.AuthorityType),
+		Scope:         req.Scope,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -2536,6 +2543,24 @@ func (c *Client) ListTrustedClusters(ctx context.Context, limit int, start strin
 // RangeTrustedClusters returns Trusted Cluster resources within the range [start, end).
 func (c *Client) RangeTrustedClusters(ctx context.Context, start, end string) iter.Seq2[types.TrustedCluster, error] {
 	return clientutils.RangeResources(ctx, start, end, c.ListTrustedClusters, types.TrustedCluster.GetName)
+}
+
+// ListTunnelConnections returns a page of tunnel connections matching the
+// given filter.
+func (c *Client) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
+	resp, err := c.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+		Filter:    filter,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(resp.TunnelConnections))
+	for i, v2 := range resp.TunnelConnections {
+		conns[i] = v2
+	}
+	return conns, resp.NextPageToken, nil
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
@@ -6103,6 +6128,19 @@ func (c *Client) ValidateTrustedCluster(
 	return resp, nil
 }
 
+// ExtendWebSession creates a new web session for a user based on a valid
+// existing web session, e.g. to apply an approved access request, switch
+// back to default roles, or pick up recent user changes.
+func (c *Client) ExtendWebSession(
+	ctx context.Context, req *proto.ExtendWebSessionRequest,
+) (*proto.ExtendWebSessionResponse, error) {
+	resp, err := c.grpc.ExtendWebSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // ListScopedTokens fetches pages of scoped tokens.
 func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error) {
 	res, err := c.grpc.ListScopedTokens(ctx, req)
@@ -6227,6 +6265,51 @@ func (c *Client) CreateAppSessionWithJWT(ctx context.Context, req *appauthconfig
 // WorkloadClustersClient returns an [workloadclusterv1.WorkloadClusterServiceClient].
 func (c *Client) WorkloadClustersClient() workloadclusterv1.WorkloadClusterServiceClient {
 	return workloadclusterv1.NewWorkloadClusterServiceClient(c.conn)
+}
+
+// ClientIPRestrictionClient returns a [clientiprestrictionv1.ClientIPRestrictionServiceClient].
+func (c *Client) ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient {
+	return clientiprestrictionv1.NewClientIPRestrictionServiceClient(c.conn)
+}
+
+// GetClientIPRestriction returns the ClientIPRestriction singleton. The name is
+// resolved server-side, so no name needs to be provided.
+func (c *Client) GetClientIPRestriction(ctx context.Context) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	resp, err := c.ClientIPRestrictionClient().GetClientIPRestriction(ctx, &clientiprestrictionv1.GetClientIPRestrictionRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
+}
+
+// CreateClientIPRestriction creates the ClientIPRestriction singleton. It fails if
+// one already exists.
+func (c *Client) CreateClientIPRestriction(ctx context.Context, cir *clientiprestrictionv1.ClientIPRestriction) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	req := &clientiprestrictionv1.CreateClientIPRestrictionRequest{}
+	req.SetClientIpRestriction(cir)
+	resp, err := c.ClientIPRestrictionClient().CreateClientIPRestriction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
+}
+
+// UpsertClientIPRestriction creates or replaces the ClientIPRestriction singleton.
+func (c *Client) UpsertClientIPRestriction(ctx context.Context, cir *clientiprestrictionv1.ClientIPRestriction) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	req := &clientiprestrictionv1.UpsertClientIPRestrictionRequest{}
+	req.SetClientIpRestriction(cir)
+	resp, err := c.ClientIPRestrictionClient().UpsertClientIPRestriction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
+}
+
+// DeleteClientIPRestriction deletes the ClientIPRestriction singleton. The name is
+// resolved server-side, so no name needs to be provided.
+func (c *Client) DeleteClientIPRestriction(ctx context.Context) error {
+	_, err := c.ClientIPRestrictionClient().DeleteClientIPRestriction(ctx, &clientiprestrictionv1.DeleteClientIPRestrictionRequest{})
+	return trace.Wrap(err)
 }
 
 // ListWorkloadClusters returns a list of WorkloadClusters.

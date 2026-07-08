@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -610,6 +611,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		AppSession:              p.AuthServer.Services.IdentityInternal,
 		Applications:            p.AuthServer.Services.ApplicationsInternal,
 		Beams:                   p.AuthServer.Services.Beams,
+		BeamsConfig:             p.AuthServer.Services.BeamsConfigService,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -782,7 +784,28 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
 			},
-			AgentScope: id.Identity.AgentScope,
+			AgentScope: id.Identity.GetAgentScope(),
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return certs.TLS, privateKeyPEM, nil
+	case authz.ScopedBuiltinRole:
+		systemRoles, err := types.NewTeleportRoles(id.ScopePin.GetSystemRoles().GetAdditional())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:       id.ServerFQDN,
+				NodeName:     id.ServerFQDN,
+				Role:         types.SystemRole(id.ScopePin.GetSystemRoles().GetPrimary()),
+				PublicTLSKey: tlsPublicKeyPEM,
+				PublicSSHKey: sshPublicKeyPEM,
+				SystemRoles:  systemRoles,
+			},
+			AgentScope: id.Identity.GetAgentScope(),
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1144,8 +1167,8 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 			Username: userName,
 			Identity: tlsca.Identity{
 				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
+				// GenerateUserTestCertsWithContext will inject BotName,
+				// BotInstanceID and BotScope.
 				BotInternal: botInternal,
 			},
 		},
@@ -1160,8 +1183,8 @@ func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity 
 			Username: userName,
 			Identity: tlsca.Identity{
 				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
+				// GenerateUserTestCertsWithContext will inject BotName,
+				// BotInstanceID and BotScope.
 				BotInternal: botInternal,
 			},
 		},
@@ -1256,7 +1279,36 @@ func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole
 			Username:              username,
 			AdditionalSystemRoles: types.SystemRoles(roles),
 			Identity: tlsca.Identity{
+				Username:   hostID,
 				AgentScope: scope,
+			},
+		},
+	}
+}
+
+// TestScopePinnedHost returns TestIdentity for a scoped host with an agent pin. One or more roles may be provided;
+// all are included as AdditionalSystemRoles on an instance cert identity.
+func TestScopePinnedHost(clusterName, hostID, scope string, roles ...types.SystemRole) TestIdentity {
+	serverFQDN := hostID
+	if clusterName != "" {
+		serverFQDN = utils.HostFQDN(hostID, clusterName)
+	}
+	pin := scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: scope,
+		SystemRoles: scopesv1.SystemRoles_builder{
+			Primary:    string(types.RoleInstance),
+			Additional: types.SystemRoles(roles).StringSlice(),
+		}.Build(),
+	}.Build()
+	return TestIdentity{
+		I: authz.ScopedBuiltinRole{
+			ClusterName: clusterName,
+			ServerFQDN:  serverFQDN,
+			ScopePin:    pin,
+			Identity: tlsca.Identity{
+				Username: serverFQDN,
+				ScopePin: pin,
 			},
 		},
 	}
@@ -1264,13 +1316,19 @@ func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole
 
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
+	return TestScopedServerID(role, serverID, "")
+}
+
+// TestScopedServerID returns a scoped TestIdentity for a node with the passed in serverID.
+func TestScopedServerID(role types.SystemRole, serverID, scope string) TestIdentity {
 	return TestIdentity{
 		I: authz.BuiltinRole{
 			Role:                  types.RoleInstance,
 			Username:              serverID,
 			AdditionalSystemRoles: types.SystemRoles{role},
 			Identity: tlsca.Identity{
-				Username: serverID,
+				Username:   serverID,
+				AgentScope: scope,
 			},
 		},
 	}
@@ -1545,6 +1603,49 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
 		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return state.ReadIdentityFromKeyPair(privateKeyPEM, certs)
+}
+
+// NewScopedServerIdentity generates new scoped server identity, used in tests
+func NewScopedServerIdentity(clt *auth.Server, hostID, scope string, role types.SystemRole) (*state.Identity, error) {
+	if scope == "" {
+		return NewServerIdentity(clt, hostID, role)
+	}
+
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPubKey, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
+		Req: &proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     hostID,
+			Role:         role,
+			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
+			PublicTLSKey: tlsPubKey,
+		},
+		AgentScope: scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

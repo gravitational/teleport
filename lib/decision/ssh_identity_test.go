@@ -80,6 +80,7 @@ func TestSSHIdentityConversion(t *testing.T) {
 		Generation:    3,
 		BotName:       "bot",
 		BotInstanceID: "instance",
+		BotScope:      "/foo",
 		JoinToken:     "join-token",
 		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIDs: []types.ResourceID{{
@@ -120,6 +121,7 @@ func TestSSHIdentityConversion(t *testing.T) {
 			},
 		}.Build()),
 		DelegationSessionID: "delegation-session",
+		BeamID:              "beam-id",
 	}
 
 	ignores := []string{

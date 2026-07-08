@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/utils"
@@ -211,33 +212,48 @@ func Test_handleStreamableHTTP(t *testing.T) {
 	})
 }
 
-// Test_Server_HandleSession_reject_req_missing_name makes sure requests with missing canonical
-// "name" param are rejected.
-func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
+// Test_Server_HandleSession_request_sanitization verifies the forwarded request is stripped of
+// non-canonical fields (e.g. uppercase) which may confuse the upstream server.
+func Test_Server_HandleSession_request_sanitization(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
 
-	const forbiddenTool = "forbidden_tool"
-	const forbiddenToolTextContent = "FORBIDDEN_TOOL_EXECUTED_ON_UPSTREAM"
+	const allowedTool = "allowed_tool"
+	const allowedToolTextContent = "allowed_tool_executed_on_upstream"
+	const deniedTool = "denied_tool"
+	const deniedToolTextContent = "DENIED_TOOL_EXECUTED_ON_UPSTREAM"
 
-	role := newAllowAllDenyForbiddenToolRole(t, forbiddenTool)
+	role, err := types.NewRole("allowed_tool_access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: map[string]apiutils.Strings{
+				types.Wildcard: {types.Wildcard},
+			},
+			MCP: &types.MCPPermissions{
+				Tools: []string{allowedTool},
+			},
+		},
+	})
+	require.NoError(t, err)
 
 	upstream := mcpserver.NewMCPServer("test-server", "1.0.0")
 	upstream.AddTool(
-		mcp.Tool{
-			Name: forbiddenTool,
-		},
+		mcp.Tool{Name: allowedTool},
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.NewTextContent(forbiddenToolTextContent)},
-			}, nil
+			return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(allowedToolTextContent)}}, nil
+		},
+	)
+	upstream.AddTool(
+		mcp.Tool{Name: deniedTool},
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(deniedToolTextContent)}}, nil
 		},
 	)
 
-	emitter, mcpClientTransport := newStreamableMCPServer(t, upstream, role)
+	recorder, mcpClientTransport, proxyURL := newStreamableMCPServer(t, upstream, role)
 
-	_, err := mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
+	// Initialize message has to be sent first. It isn't a part of the test.
+	_, err = mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      mcp.NewRequestId(1),
 		Method:  string(mcp.MethodInitialize),
@@ -252,43 +268,40 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, mcpClientTransport.GetSessionId())
 
-	// Verify it works as expected if the canonical lower-case "name" param is provided.
-	emitter.Reset()
+	// Verify everything works as expected if the canonical lower-case "name" param is
+	// provided and allowed tool is executed.
+	recorder.Reset()
 	resp, err := mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      mcp.NewRequestId(2),
 		Method:  string(mcp.MethodToolsCall),
 		Params: map[string]any{
-			"name": forbiddenTool,
+			"name": allowedTool,
 		},
 	})
 	require.NoError(t, err)
-	require.NotNil(t, resp.Error)
-	require.Equal(t, mcp.INVALID_PARAMS, resp.Error.Code)
-	respJSON := testJSONString(t, resp)
-	require.NotContains(t, respJSON, forbiddenToolTextContent)
-	require.Contains(t, respJSON, "User does not have permissions")
+	require.Contains(t, string(resp.Result), allowedToolTextContent)
+	// Verify the request was forwarded.
+	require.Len(t, recorder.requests, 1)
 
-	// Verify that when non-canonical capitalized "Name" param is specified the request is
-	// rejected.
-	emitter.Reset()
+	// Verify everything works as expected if the canonical lower-case "name" param is
+	// provided and denied tool is rejected.
+	recorder.Reset()
 	resp, err = mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
-		ID:      mcp.NewRequestId(3),
+		ID:      mcp.NewRequestId(2),
 		Method:  string(mcp.MethodToolsCall),
 		Params: map[string]any{
-			"Name": forbiddenTool,
+			"name": deniedTool,
 		},
 	})
 	require.NoError(t, err)
-	require.NotNil(t, resp.Error)
-	require.Equal(t, mcp.INVALID_REQUEST, resp.Error.Code)
-	respJSON = testJSONString(t, resp)
-	require.NotContains(t, respJSON, forbiddenToolTextContent)
-	require.Contains(t, respJSON, testJSONString(t, errInvalidRequestMissingName.Error()))
+	requireDeniedToolResponse(t, testJSON(t, resp))
+	// Verify the request was not forwarded.
+	require.Empty(t, recorder.requests)
 
-	// Verify that when an empty "name" param is specified the request is rejected.
-	emitter.Reset()
+	// Verify that when an empty "name" param is specified the request is rejected as invalid.
+	recorder.Reset()
 	resp, err = mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      mcp.NewRequestId(4),
@@ -298,28 +311,120 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NotNil(t, resp.Error)
-	require.Equal(t, mcp.INVALID_REQUEST, resp.Error.Code)
-	respJSON = testJSONString(t, resp)
-	require.NotContains(t, respJSON, forbiddenToolTextContent)
-	require.Contains(t, respJSON, testJSONString(t, errInvalidRequestMissingName.Error()))
+	requireToolNameMissingResponse(t, testJSON(t, resp))
+	// Verify the request was not forwarded.
+	require.Empty(t, recorder.requests)
 
-	// Verify that correct request is properly unauthorized.
-	emitter.Reset()
+	// Verify that when non-canonical capitalized "Name" param is specified and send through
+	// streamable transport the request is correctly rejected.
+	recorder.Reset()
 	resp, err = mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
-		ID:      mcp.NewRequestId(5),
+		ID:      mcp.NewRequestId(3),
 		Method:  string(mcp.MethodToolsCall),
 		Params: map[string]any{
-			"name": forbiddenTool,
+			"Name": allowedTool,
+			"name": deniedTool,
+			"NAME": allowedTool,
 		},
 	})
 	require.NoError(t, err)
-	require.NotNil(t, resp.Error)
-	require.Equal(t, mcp.INVALID_PARAMS, resp.Error.Code)
-	respJSON = testJSONString(t, resp)
-	require.NotContains(t, respJSON, forbiddenToolTextContent)
-	require.Contains(t, respJSON, "User does not have permissions.")
+	requireDeniedToolResponse(t, testJSON(t, resp))
+	// Verify the request was not forwarded.
+	require.Empty(t, recorder.requests)
+
+	// Verify that when non-canonical capitalized "Name" param is specified and send through
+	// HTTP transport the request is correctly rejected.
+	recorder.Reset()
+	proxyRequest := fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{%q:%q,%q:%q,%q:%q,%q:%q}}`,
+		"Name", allowedTool,
+		"NaMe", allowedTool,
+		"name", deniedTool,
+		"NAME", allowedTool,
+	)
+	rawResp := testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), proxyRequest)
+	requireDeniedToolResponse(t, rawResp)
+	// Verify the request was not forwarded.
+	require.Empty(t, recorder.requests)
+
+	// Verify that when non-canonical capitalized "Params" field is specified and send through
+	// HTTP transport the request is correctly rejected.
+	recorder.Reset()
+	proxyRequest = fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":8,"method":"tools/call","Params":{%q:%q}}`,
+		"name", deniedTool,
+	)
+	rawResp = testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), proxyRequest)
+	requireToolNameMissingResponse(t, rawResp)
+	// Verify the request was not forwarded.
+	require.Empty(t, recorder.requests)
+
+	// Verify that when non-canonical capitalized "Method" field is specified and send through
+	// HTTP transport the request is sanitized before forwarding, resulting in a ping message.
+	recorder.Reset()
+	proxyRequest = fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":9,"method":"ping","Method":"tools/call","params":{%q:%q}}`,
+		"name", deniedTool,
+	)
+	expectedForwardedRequest := fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":9,"method":"ping","params":{%q:%q}}`,
+		"name", deniedTool,
+	)
+	rawResp = testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), proxyRequest)
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":9,"result":{}}`, string(rawResp))
+	// Verify the request was forwarded as ping.
+	require.Len(t, recorder.requests, 1)
+	forwardedRequest := string(testGetRequestPayload(t, recorder.requests[0]))
+	require.JSONEq(t, expectedForwardedRequest, forwardedRequest)
+	require.Contains(t, proxyRequest, `"Method"`)
+	require.NotContains(t, forwardedRequest, `"Method"`)
+
+	// Verify that when non-canonical capitalized "ID" field is specified and send through HTTP
+	// transport the request is sanitized before forwarding, resulting in a Notification
+	// message.
+	recorder.Reset()
+	proxyRequest = fmt.Sprintf(
+		`{"jsonrpc":"2.0","ID":8,"method":"tools/call","params":{%q:%q}}`, "name", deniedTool,
+	)
+	expectedForwardedRequest = fmt.Sprintf(
+		`{"jsonrpc":"2.0","method":"tools/call","params":{%q:%q}}`, "name", deniedTool,
+	)
+	rawResp = testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), proxyRequest)
+	require.Empty(t, rawResp) // MCP Notification response.
+	// Verify the forwarded request's confusing fields are pruned.
+	require.Len(t, recorder.requests, 1)
+	forwardedRequest = string(testGetRequestPayload(t, recorder.requests[0]))
+	require.JSONEq(t, expectedForwardedRequest, forwardedRequest)
+	require.Contains(t, proxyRequest, `"ID":8`)
+	require.NotContains(t, forwardedRequest, `"ID":8`)
+
+	// Verify multiple non-canonical fields are stripped from a message send over HTTP before
+	// forwarding.
+	recorder.Reset()
+	proxyRequest = fmt.Sprintf(
+		`{"jsonrpc":"2.0","ID":100,"id":9,"Method":"ping","method":"tools/call","Params":{"a":"b"},"params":{%q:%q,%q:%q,%q:%q,%q:%q}}`,
+		"Name", deniedTool,
+		"NaMe", deniedTool,
+		"name", allowedTool,
+		"NAME", deniedTool,
+	)
+	expectedForwardedRequest = fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{%q:%q}}`,
+		"name", allowedTool,
+	)
+	rawResp = testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), proxyRequest)
+	require.Contains(t, string(rawResp), allowedToolTextContent)
+	// Verify the forwarded request's confusing fields are pruned.
+	require.Len(t, recorder.requests, 1)
+	forwardedRequest = string(testGetRequestPayload(t, recorder.requests[0]))
+	require.JSONEq(t, expectedForwardedRequest, forwardedRequest)
+	require.Contains(t, proxyRequest, `"ID":`)
+	require.NotContains(t, forwardedRequest, `"ID"`)
+	require.Contains(t, proxyRequest, `"Method":`)
+	require.NotContains(t, forwardedRequest, `"Method"`)
+	require.Contains(t, proxyRequest, `"Params":`)
+	require.NotContains(t, forwardedRequest, `"Params"`)
 }
 
 func Test_handleAuthErrHTTP(t *testing.T) {

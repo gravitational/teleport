@@ -17,6 +17,7 @@ limitations under the License.
 package accesslist
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
@@ -39,6 +40,17 @@ const (
 	AccessListPresetRoleInfix = "acl-preset"
 )
 
+// PresetType defines the type of access list preset.
+type PresetType string
+
+// LongTermPresetType grants members access roles directly.
+// Owners receive the reviewer role.
+const LongTermPresetType PresetType = "long-term"
+
+// ShortTermPresetType grants members a requester role for on-demand access.
+// Members receive the requester role to request access, owners receive the reviewer role.
+const ShortTermPresetType PresetType = "short-term"
+
 // PresetRoleNames returns the role names recorded on this access list's
 // label or nil if the label is unset.
 func (a *AccessList) PresetRoleNames() []string {
@@ -47,4 +59,17 @@ func (a *AccessList) PresetRoleNames() []string {
 		return nil
 	}
 	return strings.Split(rolesStr, ",")
+}
+
+// IsPreset returns true if the access list was created via a preset, identified
+// by the preset label the backend sets at create time.
+func (a *AccessList) IsPreset() bool {
+	return a.GetAllLabels()[AccessListPresetLabel] != ""
+}
+
+// RoleName generates a role name for preset access list roles.
+// The format is: {prefix}-acl-preset-{accessListName}.
+// For example: "reviewer-acl-preset-my-access-list".
+func RoleName(prefix, accessListName string) string {
+	return fmt.Sprintf("%s-%s-%s", prefix, AccessListPresetRoleInfix, accessListName)
 }

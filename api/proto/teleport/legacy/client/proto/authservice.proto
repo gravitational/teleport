@@ -803,6 +803,9 @@ message GenerateAppTokenRequest {
   // AuthorityType configures which Teleport authority issues the JWT token.
   // Defaults to JWTSigner ("jwt") if empty.
   string authority_type = 6;
+  // Scope is defined when a scoped service must generate an app token.
+  // It will be used when making scoped rbac decisions
+  string scope = 7;
 }
 
 // GenerateAppTokenResponse contains a signed application token.
@@ -1027,6 +1030,30 @@ message DeleteUserSAMLIdPSessionsRequest {
 message GetWebSessionResponse {
   // Session is the web session.
   types.WebSessionV2 Session = 1 [(gogoproto.jsontag) = "session"];
+}
+
+// ExtendWebSessionRequest contains the parameters used to issue a new web
+// session for a user based on a valid existing web session.
+message ExtendWebSessionRequest {
+  // user is the name of the user whose web session is being extended.
+  string user = 1;
+  // prev_session_id is the ID of the user's current web session.
+  string prev_session_id = 2;
+  // access_request_id optionally holds the ID of an approved access request
+  // whose roles should be applied to the new web session.
+  string access_request_id = 3;
+  // switchback indicates the user wants to switch back from an assumed role
+  // to their default roles.
+  bool switchback = 4;
+  // reload_user indicates the user should be refetched from the backend so
+  // recent changes (e.g. updated traits) apply to the new web session.
+  bool reload_user = 5;
+}
+
+// ExtendWebSessionResponse contains the extended web session.
+message ExtendWebSessionResponse {
+  // session is the new web session.
+  types.WebSessionV2 session = 1;
 }
 
 // GetWebTokenResponse contains the requested web token.
@@ -3335,6 +3362,10 @@ service AuthService {
 
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
+  // ExtendWebSession creates a new web session for a user based on a valid
+  // existing web session, e.g. to apply an approved access request, switch
+  // back to default roles, or pick up recent user changes.
+  rpc ExtendWebSession(ExtendWebSessionRequest) returns (ExtendWebSessionResponse);
   // StreamWebSessions gets all web sessions in a stream.
   rpc StreamWebSessions(google.protobuf.Empty) returns (stream types.WebSessionV2);
   // DeleteWebSession deletes a web session.

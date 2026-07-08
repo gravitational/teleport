@@ -642,14 +642,3 @@ type authenticatedStream struct {
 func (a *authenticatedStream) Context() context.Context {
 	return a.ctx
 }
-
-func findPrimarySystemRole(roles []string) *types.SystemRole {
-	for _, role := range roles {
-		systemRole := types.SystemRole(role)
-		err := systemRole.Check()
-		if err == nil {
-			return &systemRole
-		}
-	}
-	return nil
-}

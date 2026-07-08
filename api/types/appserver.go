@@ -81,11 +81,22 @@ type AppServer interface {
 }
 
 // NewAppServerV3 creates a new app server instance.
-func NewAppServerV3(meta Metadata, spec AppServerSpecV3) (*AppServerV3, error) {
+// TODO(williamo/scopes): scope is variadic only so existing
+// callers compile unchanged during the scope migration.
+func NewAppServerV3(meta Metadata, spec AppServerSpecV3, scope ...string) (*AppServerV3, error) {
 	s := &AppServerV3{
 		Metadata: meta,
 		Spec:     spec,
 	}
+
+	switch len(scope) {
+	case 0: // unscoped
+	case 1:
+		s.Scope = scope[0]
+	default:
+		return nil, trace.BadParameter("expected at most 1 scope, got %d", len(scope))
+	}
+
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,7 +111,7 @@ func NewAppServerV3FromApp(app *AppV3, hostname, hostID string) (*AppServerV3, e
 		Hostname: hostname,
 		HostID:   hostID,
 		App:      app,
-	})
+	}, app.GetScope())
 }
 
 // NewAppServerForAWSOIDCIntegration creates a new AppServer that will be used to grant AWS App Access

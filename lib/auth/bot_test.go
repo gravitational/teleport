@@ -824,7 +824,7 @@ func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.
 	require.NoError(t, err)
 
 	log := logtest.NewLogger()
-	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+	dialer, err := reversetunnelclient.NewAuthDialerThroughProxy(reversetunnelclient.AuthDialerThroughProxyConfig{
 		Resolver:              resolver,
 		ClientConfig:          sshConfig,
 		Log:                   log,
@@ -1258,9 +1258,9 @@ func TestRegisterBotWithInvalidUserLoginState(t *testing.T) {
 	require.ElementsMatch(t, []string{"bot-" + botName}, ident.Groups)
 
 	// Delete the bot; it should delete the invalid ULS.
-	_, err = client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+	_, err = client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 		BotName: botName,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	_, err = client.UserLoginStateClient().GetUserLoginState(ctx, "bot-"+botName)
@@ -1415,8 +1415,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 			SubKind: scopedaccess.SubKindDynamic,
 			Scope:   "/test",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  "test-scoped",
-				BotScope: "/test",
+				Bot: scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: "scoped-example", Scope: "/test"}.Build(),
 				},
@@ -1471,8 +1470,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 			JoinMethod: string(types.JoinMethodKubernetes),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
-			BotName:    "test-scoped",
-			BotScope:   "/test",
+			Bot:        scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 			Kubernetes: joiningv1.Kubernetes_builder{
 				Type: string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: joiningv1.Kubernetes_StaticJWKSConfig_builder{
@@ -1512,6 +1510,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	require.Equal(t, "/test", ident.ScopePin.GetScope())
 	require.True(t, ident.BotInternal)
 	require.Equal(t, "example-token", ident.JoinToken)
+	require.Equal(t, "/test", ident.BotScope)
 
 	botClient := authClientForRegisterResult(t, ctx, addr, result)
 

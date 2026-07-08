@@ -199,6 +199,10 @@ type ExecCommand struct {
 	// IsTestStub is used by tests to mock the shell.
 	IsTestStub bool `json:"is_test_stub"`
 
+	// TestLoginShell overrides the shell used for the session. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	TestLoginShell string `json:"test_login_shell"`
+
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
 
@@ -1263,6 +1267,11 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	}
 	if c.IsTestStub {
 		shellPath = "/bin/sh"
+	}
+	// Tests may override the login shell so they don't run the real user's shell,
+	// which has side effects such as polluting the user's shell history.
+	if c.TestLoginShell != "" {
+		shellPath = c.TestLoginShell
 	}
 
 	// If a subsystem was requested, handle the known subsystems or error out;

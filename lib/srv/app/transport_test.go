@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -198,11 +199,15 @@ func newTestTransport(t *testing.T, dial func(context.Context, string, string) (
 	})
 	require.NoError(t, err)
 	tr, err := newTransport(t.Context(), &transportConfig{
-		app:                 app,
-		publicPort:          "443",
-		jwt:                 "test-jwt",
-		clusterName:         "example",
-		certAuthorityGetter: &emptyCertAuthorityGetter{},
+		app:         app,
+		publicPort:  "443",
+		jwt:         "test-jwt",
+		clusterName: "example",
+		accessPoint: &emptyAccessPoint{},
+		authClient:  &emptyAuthClient{},
+		getUserCertFunc: func() ([]byte, error) {
+			return nil, trace.NotImplemented("not implemented")
+		},
 	})
 	require.NoError(t, err)
 	tr.tr.(*http.Transport).DialContext = dial
@@ -266,13 +271,26 @@ func (noopAudit) OnDynamoDBRequest(context.Context, *common.SessionContext, *htt
 	return nil
 }
 
+func (noopAudit) OnLLMRequest(context.Context, *common.SessionContext, *http.Request, common.LLMRequest, common.LLMResponse) error {
+	return nil
+}
+
 func (noopAudit) EmitEvent(context.Context, apievents.AuditEvent) error {
 	return nil
 }
 
-type emptyCertAuthorityGetter struct{}
+type emptyAccessPoint struct {
+	authclient.AppsAccessPoint
+}
 
-// GetCertAuthority returns cert authority by id.
-func (emptyCertAuthorityGetter) GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error) {
+func (emptyAccessPoint) GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error) {
 	return nil, trace.NotFound("certificate authority not found")
+}
+
+func (emptyAccessPoint) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return nil, trace.NotFound("auth preference not found")
+}
+
+type emptyAuthClient struct {
+	authclient.ClientI
 }

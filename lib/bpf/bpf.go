@@ -125,10 +125,22 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		return nil, trace.Wrap(err)
 	}
 	defer func() {
-		if err != nil {
-			if err := s.cgroup.Close(true); err != nil {
-				logger.WarnContext(closeContext, "Failed to close cgroup", "error", err)
-			}
+		if err == nil {
+			return
+		}
+
+		if s.conn != nil {
+			s.conn.close()
+		}
+		if s.open != nil {
+			s.open.close()
+		}
+		if s.exec != nil {
+			s.exec.close()
+		}
+
+		if err := s.cgroup.Close(true); err != nil {
+			logger.WarnContext(closeContext, "Failed to close cgroup", "error", err)
 		}
 	}()
 
@@ -414,6 +426,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			UserClusterName: ctx.UserOriginClusterName,
 			UserRoles:       slices.Clone(ctx.UserRoles),
 			UserTraits:      ctx.UserTraits.Clone(),
+			BeamID:          ctx.BeamID,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,
@@ -506,6 +519,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 			UserClusterName: ctx.UserOriginClusterName,
 			UserRoles:       slices.Clone(ctx.UserRoles),
 			UserTraits:      ctx.UserTraits.Clone(),
+			BeamID:          ctx.BeamID,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,
@@ -566,6 +580,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			UserClusterName: ctx.UserOriginClusterName,
 			UserRoles:       slices.Clone(ctx.UserRoles),
 			UserTraits:      ctx.UserTraits.Clone(),
+			BeamID:          ctx.BeamID,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,
@@ -628,6 +643,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			UserClusterName: ctx.UserOriginClusterName,
 			UserRoles:       slices.Clone(ctx.UserRoles),
 			UserTraits:      ctx.UserTraits.Clone(),
+			BeamID:          ctx.BeamID,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,

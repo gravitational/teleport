@@ -126,6 +126,10 @@ type Server struct {
 	// this gets set to true for unit testing
 	isTestStub bool
 
+	// testLoginShell overrides the shell used for sessions. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	testLoginShell string
+
 	// cancel cancels all operations
 	cancel context.CancelFunc
 	// ctx is broadcasting context closure
@@ -276,12 +280,14 @@ type Server struct {
 
 type remoteForwardingMapKey struct {
 	user    string
+	cluster string
 	srcAddr string
 }
 
 func getRemoteForwardingMapKey(scx *srv.ServerContext) remoteForwardingMapKey {
 	return remoteForwardingMapKey{
 		user:    scx.Identity.TeleportUser,
+		cluster: scx.Identity.OriginClusterName,
 		srcAddr: scx.SrcAddr,
 	}
 }
@@ -868,6 +874,16 @@ func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 func SetPresenceMaxDuration(maxDuration time.Duration) ServerOption {
 	return func(s *Server) error {
 		s.presenceMaxDuration = maxDuration
+		return nil
+	}
+}
+
+// SetTestLoginShell overrides the shell used for sessions instead of resolving
+// the login shell of the OS user. This is intended for tests only to avoid
+// running the real user's shell and polluting shell history.
+func SetTestLoginShell(shell string) ServerOption {
+	return func(s *Server) error {
+		s.testLoginShell = shell
 		return nil
 	}
 }
@@ -1698,6 +1714,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(channel)
 	scx.SessionRecordingConfig.SetMode(types.RecordOff)
 	scx.ExecType = teleport.ChanDirectTCPIP
@@ -1773,6 +1790,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(ch)
 	scx.ExecType = teleport.ChanSession
 	scx.SetAllowFileCopying(s.allowFileCopying)
@@ -1889,7 +1907,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case sshutils.AgentForwardRequest:
 			// process agent forwarding, but we will only forward agent to proxy in
 			// recording proxy mode.
-			err := s.handleAgentForwardProxy(req, serverContext)
+			err := s.handleAgentForwardProxy(ctx, serverContext)
 			if err != nil {
 				serverContext.Logger.WarnContext(ctx, "Failure forwarding agent", "error", err)
 			}
@@ -1950,6 +1968,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			err := s.handleAgentForwardNode(ctx, req, serverContext)
 			if err != nil {
 				serverContext.Logger.WarnContext(ctx, "failure forwarding agent", "error", err)
+				if trace.IsAccessDenied(err) {
+					s.writeStderr(ctx, ch, "Agent forwarding is not permitted for this user.\n")
+				} else {
+					s.writeStderr(ctx, ch, "Agent forwarding failed.\n")
+				}
 			}
 			return nil
 		case sshutils.PuTTYWinadjRequest:
@@ -1997,6 +2020,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		err := s.handleAgentForwardNode(ctx, req, serverContext)
 		if err != nil {
 			serverContext.Logger.WarnContext(ctx, "failure forwarding agent", "error", err)
+			if trace.IsAccessDenied(err) {
+				s.writeStderr(ctx, ch, "Agent forwarding is not permitted for this user.\n")
+			} else {
+				s.writeStderr(ctx, ch, "Agent forwarding failed.\n")
+			}
 		}
 		return nil
 	case sshutils.PuTTYWinadjRequest:
@@ -2014,10 +2042,19 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 
 // handleAgentForwardNode will create a unix socket and serve the agent running
 // on the client on it.
-func (s *Server) handleAgentForwardNode(ctx context.Context, _ *ssh.Request, scx *srv.ServerContext) error {
+func (s *Server) handleAgentForwardNode(ctx context.Context, _ *ssh.Request, scx *srv.ServerContext) (err error) {
+	event := scx.GetAgentForwardEvent()
+	defer func() {
+		if err != nil {
+			event.Metadata.Code = events.AgentForwardFailureCode
+			event.Status.Success = false
+			event.Status.Error = err.Error()
+		}
+		s.emitAuditEventWithLog(ctx, event)
+	}()
+
 	// check if the user's RBAC role allows agent forwarding
-	err := s.authHandlers.CheckAgentForward(scx)
-	if err != nil {
+	if err := s.authHandlers.CheckAgentForward(scx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2067,23 +2104,17 @@ func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
 // request will do nothing. To maintain interoperability, agent forwarding
 // requests should never fail, all errors should be logged and we should
 // continue processing requests.
-func (s *Server) handleAgentForwardProxy(_ *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleAgentForwardProxy(ctx context.Context, scx *srv.ServerContext) error {
 	// Forwarding an agent to the proxy is only supported when the proxy is in
 	// recording mode.
-	if !services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if !services.IsRecordAtProxy(scx.SessionRecordingConfig.GetMode()) {
 		return trace.BadParameter("agent forwarding to proxy only supported in recording mode")
 	}
 
-	// Check if the user's RBAC role allows agent forwarding.
-	err := s.authHandlers.CheckAgentForward(ctx)
-	if err != nil {
+	if err := s.authHandlers.CheckAgentForward(scx); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Enable agent forwarding for the broader connection-level
-	// context.
-	ctx.Parent().SetForwardAgent(true)
-
+	scx.Parent().SetForwardAgent(true)
 	return nil
 }
 
@@ -2099,6 +2130,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			LocalAddr:  scx.ServerConn.LocalAddr().String(),
 			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
 		},
+		ServerMetadata: scx.ServerMetadata(),
 		Status: apievents.Status{
 			Success: true,
 		},
@@ -2280,6 +2312,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(ch)
 	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
@@ -2319,7 +2352,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	// which is a hack, but the only way we can think of making it work,
 	// ideas are appreciated.
 	if services.IsRecordAtProxy(recConfig.GetMode()) {
-		err = s.handleAgentForwardProxy(&ssh.Request{}, scx)
+		err = s.handleAgentForwardProxy(ctx, scx)
 		if err != nil {
 			s.logger.WarnContext(ctx, "Failed to request agent in recording mode", "error", err)
 			s.writeStderr(ctx, ch, "Failed to request agent")
@@ -2411,6 +2444,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 
 	listenAddr := sshutils.JoinHostPort(req.Addr, req.Port)
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.ExecType = teleport.TCPIPForwardRequest
 	scx.SrcAddr = listenAddr
 	scx.DstAddr = ccx.NetConn.RemoteAddr().String()

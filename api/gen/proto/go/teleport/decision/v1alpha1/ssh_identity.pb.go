@@ -319,8 +319,14 @@ type SSHIdentity struct {
 	// HeadlessAuthenticationID is the ID of the headless authentication
 	// resource this certificate was created for.
 	HeadlessAuthenticationId string `protobuf:"bytes,40,opt,name=headless_authentication_id,json=headlessAuthenticationId,proto3" json:"headless_authentication_id,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Beam this SSH identity is associated with, derived from the delegation
+	// session's beam ID label.
+	BeamId string `protobuf:"bytes,41,opt,name=beam_id,json=beamId,proto3" json:"beam_id,omitempty"`
+	// BotScope is the scope of the Machine ID bot this identity was issued to,
+	// if any. Empty for unscoped bots and non-bot identities.
+	BotScope      string `protobuf:"bytes,42,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SSHIdentity) Reset() {
@@ -628,6 +634,20 @@ func (x *SSHIdentity) GetHeadlessAuthenticationId() string {
 	return ""
 }
 
+func (x *SSHIdentity) GetBeamId() string {
+	if x != nil {
+		return x.BeamId
+	}
+	return ""
+}
+
+func (x *SSHIdentity) GetBotScope() string {
+	if x != nil {
+		return x.BotScope
+	}
+	return ""
+}
+
 func (x *SSHIdentity) SetValidAfter(v uint64) {
 	x.ValidAfter = v
 }
@@ -788,6 +808,14 @@ func (x *SSHIdentity) SetHeadlessAuthenticationId(v string) {
 	x.HeadlessAuthenticationId = v
 }
 
+func (x *SSHIdentity) SetBeamId(v string) {
+	x.BeamId = v
+}
+
+func (x *SSHIdentity) SetBotScope(v string) {
+	x.BotScope = v
+}
+
 func (x *SSHIdentity) HasPreviousIdentityExpires() bool {
 	if x == nil {
 		return false
@@ -921,6 +949,12 @@ type SSHIdentity_builder struct {
 	// HeadlessAuthenticationID is the ID of the headless authentication
 	// resource this certificate was created for.
 	HeadlessAuthenticationId string
+	// Beam this SSH identity is associated with, derived from the delegation
+	// session's beam ID label.
+	BeamId string
+	// BotScope is the scope of the Machine ID bot this identity was issued to,
+	// if any. Empty for unscoped bots and non-bot identities.
+	BotScope string
 }
 
 func (b0 SSHIdentity_builder) Build() *SSHIdentity {
@@ -967,6 +1001,8 @@ func (b0 SSHIdentity_builder) Build() *SSHIdentity {
 	x.ImmutableLabelHash = b.ImmutableLabelHash
 	x.DelegationSessionId = b.DelegationSessionId
 	x.HeadlessAuthenticationId = b.HeadlessAuthenticationId
+	x.BeamId = b.BeamId
+	x.BotScope = b.BotScope
 	return m0
 }
 
@@ -1094,7 +1130,7 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"X\n" +
 	"\fSSHAuthority\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12%\n" +
-	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\x8c\x0e\n" +
+	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\xc2\x0e\n" +
 	"\vSSHIdentity\x12\x1f\n" +
 	"\vvalid_after\x18\x01 \x01(\x04R\n" +
 	"validAfter\x12!\n" +
@@ -1144,7 +1180,9 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"\x1ballowed_resource_access_ids\x18% \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\x120\n" +
 	"\x14immutable_label_hash\x18& \x01(\tR\x12immutableLabelHash\x122\n" +
 	"\x15delegation_session_id\x18' \x01(\tR\x13delegationSessionId\x12<\n" +
-	"\x1aheadless_authentication_id\x18( \x01(\tR\x18headlessAuthenticationId\"\xbf\x01\n" +
+	"\x1aheadless_authentication_id\x18( \x01(\tR\x18headlessAuthenticationId\x12\x17\n" +
+	"\abeam_id\x18) \x01(\tR\x06beamId\x12\x1b\n" +
+	"\tbot_scope\x18* \x01(\tR\bbotScope\"\xbf\x01\n" +
 	"\rCertExtension\x12A\n" +
 	"\x04type\x18\x01 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionTypeR\x04type\x12A\n" +
 	"\x04mode\x18\x02 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionModeR\x04mode\x12\x12\n" +

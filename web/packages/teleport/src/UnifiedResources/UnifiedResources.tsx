@@ -16,11 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useState, type JSX } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type JSX,
+  type ReactNode,
+} from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
+import Box from 'design/Box';
+import Flex from 'design/Flex';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 import {
@@ -128,6 +135,7 @@ export function ClusterResources({
   showCheckout = false,
   availabilityFilter,
   bulkActions = [],
+  ctaSlot,
 }: {
   clusterId: string;
   isLeafCluster: boolean;
@@ -139,6 +147,16 @@ export function ClusterResources({
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   availabilityFilter?: ResourceAvailabilityFilter;
+  /**
+   * Optional render-prop for rendering content (such as a CTA) that depends on
+   * the current resource list. It's given the number of currently displayed
+   * resources along with whether any filter or search is active, so the content
+   * can tell a genuinely empty cluster apart from a list emptied by filtering.
+   */
+  ctaSlot?: (props: {
+    resourceCount: number;
+    isFilterApplied: boolean;
+  }) => ReactNode;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
@@ -275,6 +293,13 @@ export function ClusterResources({
     });
   }
 
+  const isFilterApplied =
+    !!params.search ||
+    !!params.query ||
+    !!params.pinnedOnly ||
+    !!params.kinds?.length ||
+    !!params.statuses?.length;
+
   return (
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
@@ -340,6 +365,7 @@ export function ClusterResources({
           </>
         }
       />
+      {ctaSlot?.({ resourceCount: resources.length, isFilterApplied })}
     </>
   );
 }

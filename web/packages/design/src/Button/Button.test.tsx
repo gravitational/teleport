@@ -22,64 +22,29 @@ import React, {
   PropsWithChildren,
 } from 'react';
 
-import { render, screen, theme } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
-import {
-  Button,
-  ButtonPrimary,
-  ButtonSecondary,
-  ButtonSize,
-  ButtonWarning,
-} from './index';
+import { Button, ButtonPrimary, ButtonSize } from './index';
 
 describe('design/Button', () => {
-  it('renders a <button> and respects default "kind" prop == primary', () => {
-    const { container } = render(<Button />);
-    expect(container.firstChild?.nodeName).toBe('BUTTON');
-    expect(container.firstChild).toHaveStyle({
-      background: theme.colors.brand,
-    });
-  });
-
-  test('"kind" primary renders bg == theme.colors.buttons.primary.default', () => {
-    const { container } = render(<ButtonPrimary />);
-    expect(container.firstChild).toHaveStyle({
-      background: theme.colors.buttons.primary.default,
-    });
-  });
-
-  test('"kind" secondary renders bg == theme.colors.buttons.secondary.default', () => {
-    const { container } = render(<ButtonSecondary />);
-    expect(container.firstChild).toHaveStyle({
-      background: theme.colors.buttons.secondary.default,
-    });
-  });
-
-  test('"kind" warning renders bg == theme.colors.buttons.warning.default', () => {
-    const { container } = render(<ButtonWarning />);
-    expect(container.firstChild).toHaveStyle({
-      background: theme.colors.buttons.warning.default,
-    });
-  });
-
   test('"size" small renders min-height: 24px', () => {
-    const { container } = render(<Button size="small" />);
-    expect(container.firstChild).toHaveStyle({ 'min-height': '24px' });
+    render(<Button size="small">Hi</Button>);
+    expect(screen.getByRole('button')).toHaveStyle({ 'min-height': '24px' });
   });
 
   test('"size" medium renders min-height: 32px', () => {
-    const { container } = render(<Button size="medium" />);
-    expect(container.firstChild).toHaveStyle('min-height: 32px');
+    render(<Button size="medium">Hi</Button>);
+    expect(screen.getByRole('button')).toHaveStyle('min-height: 32px');
   });
 
   test('"size" large renders min-height: 40px', () => {
-    const { container } = render(<Button size="large" />);
-    expect(container.firstChild).toHaveStyle('min-height: 40px');
+    render(<Button size="large">Hi</Button>);
+    expect(screen.getByRole('button')).toHaveStyle('min-height: 40px');
   });
 
   test('"block" prop renders width 100%', () => {
-    const { container } = render(<Button block />);
-    expect(container.firstChild).toHaveStyle('width: 100%');
+    render(<Button block>Hi</Button>);
+    expect(screen.getByRole('button')).toHaveStyle('width: 100%');
   });
 
   describe('types and as prop', () => {

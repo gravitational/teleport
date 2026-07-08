@@ -487,7 +487,7 @@ func TestUniqueNotificationIdentifierCRUD(t *testing.T) {
 func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {
 	t.Helper()
 
-	notification := notificationsv1.Notification{
+	notification := notificationsv1.Notification_builder{
 		SubKind: "test-subkind",
 		Spec: notificationsv1.NotificationSpec_builder{
 			Username: username,
@@ -497,15 +497,15 @@ func newUserNotification(t *testing.T, username string, title string) *notificat
 				types.NotificationTitleLabel: title,
 			},
 		}.Build(),
-	}
+	}.Build()
 
-	return &notification
+	return notification
 }
 
 func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
-	notification := notificationsv1.GlobalNotification{
+	notification := notificationsv1.GlobalNotification_builder{
 		Spec: notificationsv1.GlobalNotificationSpec_builder{
 			All: proto.Bool(true),
 			Notification: notificationsv1.Notification_builder{
@@ -518,7 +518,7 @@ func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNo
 				}.Build(),
 			}.Build(),
 		}.Build(),
-	}
+	}.Build()
 
-	return &notification
+	return notification
 }

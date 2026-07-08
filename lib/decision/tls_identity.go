@@ -72,6 +72,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 		Generation:              id.GetGeneration(),
 		BotName:                 id.GetBotName(),
 		BotInstanceID:           id.GetBotInstanceId(),
+		BotScope:                id.GetBotScope(),
 		JoinToken:               id.GetJoinToken(),
 		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIDs:       resourceIDsToTypes(id.GetAllowedResourceIds()),
@@ -81,6 +82,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 		DeviceExtensions:         deviceExtensionsFromProto(id.GetDeviceExtensions()),
 		UserType:                 types.UserType(id.GetUserType()),
 		DelegationSessionID:      id.GetDelegationSessionId(),
+		BeamID:                   id.GetBeamId(),
 	}
 }
 
@@ -124,6 +126,7 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 		Generation:              id.Generation,
 		BotName:                 id.BotName,
 		BotInstanceId:           id.BotInstanceID,
+		BotScope:                id.BotScope,
 		JoinToken:               id.JoinToken,
 		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIds:       resourceIDsFromTypes(id.AllowedResourceIDs),
@@ -133,6 +136,7 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 		DeviceExtensions:         deviceExtensionsToProto(&id.DeviceExtensions),
 		UserType:                 string(id.UserType),
 		DelegationSessionId:      id.DelegationSessionID,
+		BeamId:                   id.BeamID,
 	}.Build()
 }
 

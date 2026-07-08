@@ -308,8 +308,7 @@ func (s *TerraformSuiteOSSScopedResources) TestBotWithScope() {
 					resource.TestCheckResourceAttr(scopedRoleName, "scope", "/test-scope"),
 					resource.TestCheckResourceAttr(assignmentName, "metadata.name", "test-bot-assignment"),
 					resource.TestCheckResourceAttr(assignmentName, "scope", "/test-scope"),
-					resource.TestCheckResourceAttr(assignmentName, "spec.bot_name", "test-scoped-bot"),
-					resource.TestCheckResourceAttr(assignmentName, "spec.bot_scope", "/test-scope"),
+					resource.TestCheckResourceAttr(assignmentName, "spec.bot", "/test-scope::test-scoped-bot"),
 					resource.TestCheckResourceAttr(assignmentName, "spec.assignments.0.role", "scoped-operator"),
 					resource.TestCheckResourceAttr(assignmentName, "spec.assignments.0.scope", "/test-scope"),
 				),
@@ -340,7 +339,7 @@ func (s *TerraformSuiteOSSScopedResources) TestBotWithScope() {
 					resource.TestCheckResourceAttr(scopedRoleName, "scope", "/different-scope"),
 					resource.TestCheckResourceAttr(assignmentName, "metadata.name", "test-bot-assignment-different"),
 					resource.TestCheckResourceAttr(assignmentName, "scope", "/different-scope"),
-					resource.TestCheckResourceAttr(assignmentName, "spec.bot_scope", "/different-scope"),
+					resource.TestCheckResourceAttr(assignmentName, "spec.bot", "/different-scope::test-scoped-bot"),
 				),
 			},
 			{

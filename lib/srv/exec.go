@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/mattn/go-shellwords"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -377,7 +378,10 @@ func (e *localExec) transformSecureCopy() error {
 func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	// split up command by space to grab the first word. if we don't have anything
 	// it's an interactive shell the user requested and not scp, return
-	args := strings.Split(command, " ")
+	args, err := shellwords.Parse(command)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	if len(args) == 0 {
 		return false, nil
 	}
@@ -514,7 +518,7 @@ func (e *remoteExec) PID() int {
 // emitExecAuditEvent emits either an SCP or exec event based on the
 // command run.
 //
-// Note: to ensure that the event is recorded ctx.session must be used
+// Note: to ensure that the event is recorded ctx.party.s must be used
 // instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, result ExecResult) {
 	// Create common fields for event.
@@ -579,7 +583,7 @@ func emitExecAuditEvent(ctx *ServerContext, result ExecResult) {
 				scpEvent.Code = events.SCPDownloadCode
 			}
 		}
-		if err := ctx.session.emitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
+		if err := ctx.party.s.emitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
 			ctx.Logger.WarnContext(ctx.srv.Context(), "Failed to emit scp event", "error", err)
 		}
 	} else {
@@ -599,7 +603,7 @@ func emitExecAuditEvent(ctx *ServerContext, result ExecResult) {
 		} else {
 			execEvent.Code = events.ExecCode
 		}
-		if err := ctx.session.emitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
+		if err := ctx.party.s.emitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
 			ctx.Logger.WarnContext(ctx.srv.Context(), "Failed to emit exec event", "error", err)
 		}
 	}

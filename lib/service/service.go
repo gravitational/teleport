@@ -490,6 +490,15 @@ func (c *Connector) ScopePin() *scopesv1.Pin {
 	return c.scopePin
 }
 
+// checkScopedAppJoin rejects an app agent that joined with a scoped token while
+// agent scope pins are disabled.
+func checkScopedAppJoin(conn *Connector) error {
+	if conn.Scope() != "" && conn.ScopePin() == nil {
+		return trace.BadParameter("set TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes on main auth service to join a scoped app agent")
+	}
+	return nil
+}
+
 func (c *Connector) Role() types.SystemRole {
 	return c.role
 }
@@ -614,7 +623,7 @@ func (c *Connector) TunnelProxyResolver() reversetunnelclient.Resolver {
 	}
 
 	switch dialer := c.Client.Dialer().(type) {
-	case *reversetunnelclient.TunnelAuthDialer:
+	case *reversetunnelclient.AuthDialerThroughProxy:
 		return dialer.Resolver
 	default:
 		return nil
@@ -3133,6 +3142,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AppSession = services.IdentityInternal
 	cfg.Applications = services.ApplicationsInternal
 	cfg.Beams = services.Beams
+	cfg.BeamsConfig = services.BeamsConfigService
 	cfg.DelegationSessions = services.DelegationSessions
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.StaticScopedToken = services.ClusterConfigurationInternal
@@ -3424,22 +3434,26 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 	return process.Config.Proxy.PublicAddrs[0]
 }
 
+func isSQLiteQueueEnabled() bool {
+	enabled, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY"))
+	return enabled
+}
+
 // NewAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
-func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
-	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
-		Clock: process.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// asyncEmitter makes sure that sessions do not block
-	// in case if connections are slow
-	return events.NewAsyncEmitter(events.AsyncEmitterConfig{
-		Inner: emitter,
-	})
+func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.CheckingAsyncEmitter, error) {
+	// Wrap the AsyncEmitter in a CheckingEmitter to ensure event fields are
+	// properly set before inserting events into the queue.
+	return events.NewCheckingAsyncEmitter(
+		events.CheckingEmitterConfig{
+			Clock: process.Clock,
+		},
+		events.AsyncEmitterConfig{
+			Inner:             events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
+			DataDir:           process.Config.DataDir,
+			EnableSQLiteQueue: isSQLiteQueueEnabled(),
+		},
+	)
 }
 
 // ServerTLSConfig returns a new server-side [*tls.Config] that presents the
@@ -3750,7 +3764,10 @@ func (process *TeleportProcess) initSSH() error {
 			}()
 			defer mux.Close()
 
-			listener, err = limiter.WrapListener(mux.SSH())
+			listener, err = limiter.WrapListener(
+				mux.SSH(),
+				sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+			)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -5029,6 +5046,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	alpnLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// make a caching auth client for the auth server:
 	accessPoint, err := process.newLocalCacheForProxy(conn.Client, []string{teleport.ComponentProxy})
 	if err != nil {
@@ -5383,7 +5405,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}
 
-		rtListener, err := reverseTunnelLimiter.WrapListener(listeners.reverseTunnel)
+		rtListener, err := reverseTunnelLimiter.WrapListener(
+			listeners.reverseTunnel,
+			sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -5595,17 +5620,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		connectionsHandler.SetApplicationsProvider(func(ctx context.Context, publicAddr string) (types.Application, error) {
-			allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(ctx, webapp.MatchPublicAddr(publicAddr))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if len(allAppServers) == 0 {
-				return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
-			}
-			// TODO(okraport): determine if we should shuffle app servers here.
-			return allAppServers[0].GetApp(), nil
-		})
+		connectionsHandler.SetApplicationsProvider(
+			func(ctx context.Context, appName, publicAddr string) (types.Application, error) {
+				allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(
+					ctx, webapp.MatchAppServerForRoute(appName, publicAddr))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				if len(allAppServers) == 0 {
+					return nil, trace.NotFound("no app %s found for endpoint %q", appName, publicAddr)
+				}
+				// TODO(okraport): determine if we should shuffle app servers here.
+				return allAppServers[0].GetApp(), nil
+			})
 
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
 			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
@@ -5984,7 +6011,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start ssh server
 		go func() {
-			listener, err := proxyLimiter.WrapListener(listeners.ssh)
+			listener, err := proxyLimiter.WrapListener(
+				listeners.ssh,
+				sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+			)
 			if err != nil {
 				logger.ErrorContext(process.ExitContext(), "Failed to set up SSH proxy server", "error", err)
 				return
@@ -5996,7 +6026,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start grpc server
 		go func() {
-			listener, err := proxyLimiter.WrapListener(listeners.sshGRPC)
+			listener, err := proxyLimiter.WrapListener(
+				listeners.sshGRPC,
+				sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+			)
 			if err != nil {
 				logger.ErrorContext(process.ExitContext(), "Failed to set up SSH proxy server", "error", err)
 				return
@@ -6334,6 +6367,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Listener:          listeners.alpn,
 			ClusterName:       clusterName,
 			AccessPoint:       accessPoint,
+			Limiter:           alpnLimiter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6361,6 +6395,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Listener:          listeners.reverseTunnelALPN,
 				ClusterName:       clusterName,
 				AccessPoint:       accessPoint,
+				Limiter:           reverseTunnelLimiter,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6874,10 +6909,20 @@ func (process *TeleportProcess) initApps() {
 			})
 		}
 
+		if err := checkScopedAppJoin(conn); err != nil {
+			return trace.Wrap(err)
+		}
+		scopePin := conn.ScopePin()
+
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
-			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app)
+			isScopedApp := scopePin.GetScope() != ""
+			if err := validateScopedAppRegistration(isScopedApp, app.Name, app.PublicAddr, app.Cloud, app.MCP, app.LLM, app.RequiredAppNames, app.AWS); err != nil {
+				return trace.Wrap(err)
+			}
+
+			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app, scopePin.GetScope())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -6901,6 +6946,7 @@ func (process *TeleportProcess) initApps() {
 			if app.AWS != nil {
 				aws = &types.AppAWS{
 					ExternalID: app.AWS.ExternalID,
+					Region:     app.AWS.Region,
 				}
 			}
 
@@ -6923,7 +6969,7 @@ func (process *TeleportProcess) initApps() {
 				MCP:                   app.MCP,
 				LLM:                   app.LLM,
 				TLS:                   app.TLS,
-			})
+			}, scopePin.GetScope())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -7043,6 +7089,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectionsHandler:          connectionsHandler,
 			InventoryHandle:             process.inventoryHandle,
 			IgnoreAppsWithCommandLabels: runningOnBeams,
+			ScopePin:                    scopePin,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -7121,6 +7168,32 @@ func (process *TeleportProcess) initApps() {
 		agentPool.Wait()
 		return nil
 	})
+}
+
+// TODO(williamo/scopes): Update this validate function when we add support for these features.
+func validateScopedAppRegistration(isScoped bool, appName string, publicAddr, cloud string, mcp *types.MCP, llm *types.LLM, requiredApps []string, aws *servicecfg.AppAWS) error {
+	if !isScoped {
+		return nil
+	}
+	if publicAddr != "" {
+		return trace.BadParameter("app %q is scoped and must not set public_addr; it is derived from the app name and scope", appName)
+	}
+	if cloud != "" {
+		return trace.BadParameter("app %q is scoped and does not support cloud applications", appName)
+	}
+	if mcp != nil {
+		return trace.BadParameter("app %q is scoped and does not support mcp applications", appName)
+	}
+	if llm != nil {
+		return trace.BadParameter("app %q is scoped and does not support llm apps", appName)
+	}
+	if len(requiredApps) > 0 {
+		return trace.BadParameter("app %q is scoped and does not support specifying required app names", appName)
+	}
+	if aws != nil {
+		return trace.BadParameter("app %q is scoped and does not support aws applications", appName)
+	}
+	return nil
 }
 
 func warnOnErr(ctx context.Context, err error, log *slog.Logger) {
@@ -7434,8 +7507,9 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(requestDump))
 }
 
-// getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+// getPublicAddr waits for a proxy to be registered with Teleport. For a scoped
+// app (scope != ""), the returned address is the derived scope-qualified subdomain.
+func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App, scope string) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -7444,7 +7518,7 @@ func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoin
 	for {
 		select {
 		case <-ticker.C:
-			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name)
+			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name, scope)
 			if err == nil {
 				return publicAddr, nil
 			}
