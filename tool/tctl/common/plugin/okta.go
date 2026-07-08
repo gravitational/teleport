@@ -46,6 +46,9 @@ func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause) {
 		Flag("api-token", "Okta API token for the plugin to use").
 		StringVar(&p.install.okta.apiToken)
 	p.install.okta.cmd.
+		Flag("oauth-client-id", "Okta OAuth API service app client ID").
+		StringVar(&p.install.okta.oauthClientID)
+	p.install.okta.cmd.
 		Flag("saml-connector", "SAML connector used for Okta SSO login.").
 		Required().
 		StringVar(&p.install.okta.samlConnector)
@@ -98,6 +101,7 @@ type oktaArgs struct {
 	appID                 string
 	samlConnector         string
 	apiToken              string
+	oauthClientID         string
 	scimEnabled           bool
 	scimToken             string
 	userSync              bool
@@ -113,7 +117,13 @@ type oktaArgs struct {
 }
 
 func (s *oktaArgs) validateAndCheckDefaults(ctx context.Context, args *pluginServices) error {
-	if s.apiToken == "" {
+	if s.apiToken != "" && s.oauthClientID != "" {
+		return trace.BadParameter("Only one of API token or OAuth client ID may be set")
+	}
+
+	hasCreds := s.apiToken != "" || s.oauthClientID != ""
+
+	if !hasCreds {
 		if !s.scimEnabled {
 			return trace.BadParameter("API token is required")
 		}
@@ -138,6 +148,7 @@ func (s *oktaArgs) validateAndCheckDefaults(ctx context.Context, args *pluginSer
 			return trace.BadParameter("User sync is required for AccessList sync")
 		}
 	}
+
 	if s.scimEnabled {
 		if s.scimToken == "" {
 			var err error
@@ -256,6 +267,27 @@ func generateCredentials(pluginName string, oktaSettings oktaArgs) ([]*types.Plu
 			},
 		}
 		creds = append(creds, oktaAPICreds)
+	}
+
+	if oktaSettings.oauthClientID != "" {
+		oktaOAuthCreds := &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Name:   pluginName,
+					Labels: map[string]string{types.OktaCredPurposeLabel: types.OktaCredPurposeOAuth},
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+					OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+						ClientId:     oktaSettings.oauthClientID,
+						ClientSecret: "none",
+					},
+				},
+			},
+		}
+
+		creds = append(creds, oktaOAuthCreds)
 	}
 
 	if oktaSettings.scimToken != "" {

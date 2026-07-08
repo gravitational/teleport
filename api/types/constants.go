@@ -1931,6 +1931,9 @@ const (
 	// authenticating with the Okta REST API
 	OktaCredPurposeAuth = "okta-auth"
 
+	// This is duplicated from enterprise. De-dupe in production implementation.
+	OktaCredPurposeOAuth = "okta-oauth-client-id"
+
 	// OktaCredPurposeSCIMToken indicates that theis to be used for authenticating
 	// SCIM requests from the upstream organization. The content of the credential
 	// is a bcrypt hash of actual token.
