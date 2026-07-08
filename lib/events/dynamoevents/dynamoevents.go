@@ -20,6 +20,8 @@ package dynamoevents
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
@@ -263,6 +266,7 @@ type event struct {
 	Expires        *int64 `json:"Expires,omitempty" dynamodbav:",omitempty"`
 	FieldsMap      events.EventFields
 	EventNamespace string
+	PayloadHash    string `json:"PayloadHash,omitempty" dynamodbav:",omitempty"`
 }
 
 // toIterator marshals an event's EventKey, to be used in checkpointKey.
@@ -315,6 +319,10 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := metrics.RegisterPrometheusCollectors(prometheusCollectors...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -589,9 +597,40 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 	return nil
 }
 
-func (l *Log) handleConditionError(ctx context.Context, err error, sessionID string, in apievents.AuditEvent) error {
+func (l *Log) handleConditionError(ctx context.Context, err error, sessionID string, in apievents.AuditEvent, existing map[string]dynamodbtypes.AttributeValue) error {
 	if alreadyUpdated := ctx.Value(conflictHandledContextKey); alreadyUpdated != nil {
 		return err
+	}
+
+	existingID, existingHash := eventIdentity(existing)
+	incomingID := in.GetID()
+
+	if incomingID != "" && incomingID == existingID {
+		incomingHash, err := payloadHash(in)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if existingHash != "" && existingHash == incomingHash {
+			writeRequestsDeduped.Inc()
+			l.logger.DebugContext(ctx,
+				"Dropped duplicate audit event.",
+				"event_id", incomingID,
+				"event_type", in.GetType(),
+			)
+			return nil
+		}
+
+		newID := uuid.NewString()
+		l.logger.WarnContext(ctx,
+			"Audit event collided with a different event sharing the same id. Re-inserting under a new id.",
+			"event_type", in.GetType(),
+			"original_event_id", incomingID,
+			"new_event_id", newID,
+		)
+		eventIDCollisions.Inc()
+		in.SetID(newID)
+		sessionID = getSessionID(in)
 	}
 
 	// Update index using the current system time instead of event time to
@@ -605,12 +644,28 @@ func (l *Log) handleConditionError(ctx context.Context, err error, sessionID str
 	return nil
 }
 
+func eventIdentity(item map[string]dynamodbtypes.AttributeValue) (id, hash string) {
+	if item == nil {
+		return "", ""
+	}
+	var e event
+	if err := attributevalue.UnmarshalMap(item, &e); err != nil {
+		return "", ""
+	}
+	return e.FieldsMap.GetID(), e.PayloadHash
+}
+
 // getSessionID if set returns event ID obtained from metadata or generates a new one.
 func getSessionID(in apievents.AuditEvent) string {
 	s, ok := in.(events.SessionMetadataGetter)
 	if ok && s.GetSessionID() != "" {
 		return s.GetSessionID()
 	}
+
+	if id := in.GetID(); id != "" {
+		return id
+	}
+
 	// no session id - global event gets a random uuid to get a good partition
 	// key distribution
 	return uuid.New().String()
@@ -647,6 +702,12 @@ func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.
 	}
 
 	if _, err = l.svc.PutItem(ctx, input); err != nil {
+		var existing map[string]dynamodbtypes.AttributeValue
+		var conflictErr *dynamodbtypes.ConditionalCheckFailedException
+		if errors.As(err, &conflictErr) {
+			existing = conflictErr.Item
+		}
+
 		err = convertError(err)
 
 		switch {
@@ -659,7 +720,7 @@ func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.
 			// item event index/session id. Since we can't change the session
 			// id, update the event index with a new value and retry the put
 			// item.
-			if err2 := l.handleConditionError(ctx, err, sessionID, in); err2 != nil {
+			if err2 := l.handleConditionError(ctx, err, sessionID, in, existing); err2 != nil {
 				// Only log about the original conflict if updating
 				// the session information fails.
 				l.logger.ErrorContext(ctx, "Conflict on event session_id and event_index",
@@ -684,6 +745,10 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	hash, err := payloadHash(in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	e := event{
 		EventKey: EventKey{
 			SessionID:     sessionID,
@@ -694,6 +759,7 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 		EventType:      in.GetType(),
 		EventNamespace: apidefaults.Namespace,
 		FieldsMap:      fieldsMap,
+		PayloadHash:    hash,
 	}
 	l.setExpiry(&e)
 	av, err := attributevalue.MarshalMap(e)
@@ -708,9 +774,29 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 
 	if !l.Config.DisableConflictCheck {
 		input.ConditionExpression = aws.String("attribute_not_exists(SessionID) AND attribute_not_exists(EventIndex)")
+		input.ReturnValuesOnConditionCheckFailure = dynamodbtypes.ReturnValuesOnConditionCheckFailureAllOld
 	}
 
 	return input, nil
+}
+
+func payloadHash(in apievents.AuditEvent) (string, error) {
+	payload, err := utils.FastMarshal(in)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var fields map[string]any
+	if err := utils.FastUnmarshal(payload, &fields); err != nil {
+		return "", trace.Wrap(err)
+	}
+	delete(fields, events.EventID)
+	delete(fields, events.EventIndex)
+	canonical, err := utils.FastMarshal(fields)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	sum := sha256.Sum256(canonical)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func (l *Log) setExpiry(e *event) {
