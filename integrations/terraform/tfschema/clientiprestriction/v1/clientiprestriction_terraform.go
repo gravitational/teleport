@@ -601,7 +601,7 @@ func CopyClientIPRestrictionToTerraformPreserveUnknown(ctx context.Context, obj 
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"ClientIPRestriction.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}

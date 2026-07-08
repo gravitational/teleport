@@ -652,7 +652,7 @@ func CopyVnetConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"VnetConfig.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
