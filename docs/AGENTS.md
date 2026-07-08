@@ -18,8 +18,61 @@ mode — the two are not interchangeable and some rules conflict by design.
   variables and placeholders in guides" and "Prerequisites and permission
   failures" below.
 
+A third section, "Authoring guidance," is written for the human (or agent)
+drafting a guide, not for a reviewing or executing agent. Review Mode checks
+against it; see "What to check" below.
+
 If it's unclear which mode applies, stop and ask rather than guessing —
 the two modes call for opposite behavior around running commands.
+
+## Authoring guidance
+
+This section is for whoever is writing or editing a guide. Its purpose is
+narrow: guides get followed by AI agents in Execution Mode (an internal
+Beams test run, or a customer's own agent working through the guide against
+their cluster), and two specific failure patterns show up repeatedly when
+guides don't follow it.
+
+**Failure pattern 1: prerequisites get skipped even when they're present.**
+A Prerequisites section written as narrative description ("You'll need
+appropriate permissions to configure this resource") reads fine to a human
+but doesn't give an executing agent anything to check against — it can
+convince itself the description is satisfied without verifying it. To
+prevent this:
+
+- Name the exact role or permission required, not a paraphrase of it (say
+  `editor`, not "appropriate permissions").
+- Where a step depends on a specific role, add a `requires` attribute to
+  the relevant `<Var>` or step (e.g. `requires="role:editor"`) instead of
+  relying on prose alone. Execution Mode is instructed to check `requires`
+  attributes against the agent's own roles before proceeding; prose alone
+  has no equivalent enforcement.
+- If a prerequisite depends on infrastructure the agent can't assume exists
+  (a target host, a network path, an external system), say so explicitly
+  rather than implying the reader's own workstation satisfies it.
+
+**Failure pattern 2: `<Var>` placeholders get filled with the example value
+instead of a real one.** If a `<Var>` shows a plausible-looking default
+(e.g. `teleport.example.com`), an executing agent may treat it as usable
+rather than a placeholder to replace. To prevent this:
+
+- Add `source="user-supplied"` to any `<Var>` whose value cannot be
+  derived from a prior command, a discovery command, or an environment
+  variable — this is what tells an executing agent to stop and ask instead
+  of guessing or reusing the example. See "Resolving variables and
+  placeholders in guides" below for the full rule set this maps to.
+- Avoid giving a user-supplied `<Var>` a `default` that looks like a
+  complete, valid value; if an example is necessary, make it obviously a
+  placeholder (e.g. `<my-cluster-name>`) rather than something that could
+  pass for real.
+- If a value can be derived (proxy address, cluster name, existing role),
+  mark it with `source="command:<...>"` rather than leaving it ambiguous —
+  don't make every `<Var>` "user-supplied" by default, since that pushes
+  unnecessary questions onto a customer running the guide.
+
+A guide that follows both of these should need no other agent-specific
+authoring effort — the burden shifts from every guide re-explaining itself
+to the shared `<Var>` and Prerequisites conventions doing the work.
 
 ## Review Mode
 
@@ -116,6 +169,16 @@ Example of a well-formed finding:
   - Partials/includes are used where shared content exists. Partials live in
     `docs/pages/includes/`; before flagging duplication, confirm a matching
     partial actually exists there.
+  - Prerequisites name the exact role or permission required (not a
+    paraphrase like "appropriate permissions"), per "Authoring guidance"
+    above. Flag vague prerequisite language as a Suggestion.
+  - A `<Var>` whose value can't reasonably be derived (a new resource name,
+    an external credential, anything only the reader would know) carries
+    `source="user-supplied"`. Flag a missing `source` attribute on such a
+    `<Var>` as a Suggestion — without it, an executing agent may reuse the
+    shown example value instead of asking. Don't flag `<Var>` tags for
+    values that are plausibly derivable (proxy address, cluster name);
+    only flag the ones that clearly cannot be.
 - **Cross-references**
   - Links to related docs are present and resolve (correct relative paths, no
     broken anchors).
