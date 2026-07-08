@@ -52,9 +52,9 @@ Example of a well-formed finding:
     shape, and so on) live in
     [`contributing/documentation-style-guide.md`](contributing/documentation-style-guide.md),
     the single source of truth shared with human contributors. Do not restate
-    or re-derive those rules — consult the guide.
-  - For how to *apply* them in review — what an agent can check reliably, what
-    the linters already cover, and how to rate severity — see
+    or re-derive those rules; consult the guide.
+  - For how to *apply* them in review: what an agent can check reliably, what
+    the linters already cover, and how to rate severity see
     [`AGENTS-STYLE.md`](./AGENTS-STYLE.md).
   - Beyond the guide, flag internal inconsistency within a page: the same term
     capitalized or formatted two ways, or an acronym/concept keyword that
@@ -119,7 +119,7 @@ Example of a well-formed finding:
   [`contributing/documentation-style-guide.md`](contributing/documentation-style-guide.md),
   shared with human contributors.
 - Applying those conventions in review: [`AGENTS-STYLE.md`](./AGENTS-STYLE.md)
-  (next to this file) — what's checkable, what the linters cover, and severity
+  (next to this file) - what's checkable, what the linters cover, and severity
   for style findings.
 - CLI references: `docs/pages/reference/cli/{tctl,tsh,tbot}.mdx`.
 - Automated linting: docs content is checked by remark-lint in the
@@ -140,3 +140,85 @@ Do not do the following in a docs review:
 - Speculation on provider-specific facts (AWS, Azure, GCP, IdP vendors)
   without a source. Flag uncertainty for a human reviewer instead.
 - Verifying commands against live clusters.
+
+## Resolving variables and placeholders in guides
+
+Guides contain `<Var name="..." />` placeholders standing in for values such
+as addresses, tokens, and resource names. Never invent or guess a value for
+a placeholder. Resolve each one using the first rule that applies:
+
+1. **Output of a prior step.** If a command earlier in the guide (or one
+   you already ran in this session) produced the value (a join token, a
+   resource ID, an address printed in command output), reuse that exact
+   value. Example: `<Var name="token" />` after a `tctl tokens add` step
+   refers to the token that command printed.
+2. **Discoverable by command.** If the value describes the current cluster
+   or session: proxy address, cluster name, your roles, existing
+   resources - obtain it with a read-only command and parse the output.
+   Useful commands: `tsh status --format=json`, `tctl status`,
+   `tctl get <resource>`. Example: `<Var name="proxy-address" />` comes
+   from `tsh status`.
+3. **Environment.** If a conventional environment variable clearly
+   provides the value (for example `TELEPORT_PROXY`), use it.
+4. **Otherwise, ask the user and stop until they answer.** Values only the
+   user can choose or know, such as names for new resources, endpoints and
+   credentials of external systems, cloud account identifiers cannot be
+   derived. Ask before proceeding. A wrong guess wastes the entire run;
+   asking costs one exchange.
+
+The same placeholder name refers to the same value everywhere on a page:
+once resolved, reuse it; do not re-derive or re-prompt.
+
+If you resolved a value by inference (rules 1–3) and later output
+contradicts it (errors referencing a different address, a resource not
+found) stop and re-confirm the value with the user instead of continuing.
+
+### Explicit sourcing hints override the rules above
+
+Some `<Var>` tags may carry a `source` attribute (in rendered pages,
+`data-agent-source`). When present, it overrides rules 1–4:
+
+- `source="user-supplied"` - ask the user; the value cannot be derived.
+- `source="command:<cli command>"` - run that command and parse its output.
+- `source="env:<VAR_NAME>"` - read that environment variable; ask if unset.
+- `source="computed"` - reuse a value resolved earlier on the same page.
+
+Most guides do not carry these hints; the numbered rules are the default.
+
+## Prerequisites and permission failures
+
+Before executing a guide's numbered steps, verify its Prerequisites
+section. Confirm you are logged in (`tsh status`) and that each listed
+requirement is met; do not assume a prerequisite is satisfied because it
+is probably true.
+
+Not every prerequisite is a login or a role. Some require
+infrastructure, such as a host to enroll, a network path, or an external
+system. Do not assume such a resource exists, and do not substitute the
+machine you are running on for it. Many guides act on a **separate target
+host**, distinct from the workstation where you run `tsh` and `tctl`; that
+host's requirements (operating system, open ports, network access) may
+differ from your own environment. For example, a guide that enrolls a
+Linux server still expects that server to exist even though you run the
+client commands from macOS or Windows. Before starting the steps, identify
+which machine or resource each step acts on, confirm it exists and meets
+the stated requirements, and stop to ask the user if it is missing or the
+guide is ambiguous about which machine is meant. A wrong assumption here
+wastes the entire run; asking costs one exchange.
+
+If any command fails with an authorization error, such as "access denied",
+"permission denied", a missing verb on a resource, or any RBAC error,
+treat it as a privilege gap, not a configuration problem, a product bug,
+or a documentation error. Do not retry with invented workarounds, do not
+skip the step, and never report the step complete. Instead:
+
+1. Identify the role or permission the step requires. Guides usually name
+   required roles (such as `editor`) in their Prerequisites section.
+2. File an Access Request: `tsh request create --roles=<role>`.
+3. Tell the user what you requested and why, and pause the run until the
+   request is approved or denied.
+
+If a prerequisite or `<Var>` carries an explicit `requires` attribute
+(for example `requires="role:editor"`), check your roles against it with
+`tsh status` before attempting the step, and follow the same
+Access Request procedure if you lack the role.
