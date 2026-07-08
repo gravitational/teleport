@@ -53,6 +53,10 @@ type ProxyStdioConnConfig struct {
 	AutoReconnect bool
 	// HTTPHeaders defines extra custom headers for HTTP transports.
 	HTTPHeaders map[string]string
+	// GetHTTPAuthHeader, if set, is called for every HTTP request to the
+	// remote MCP server and its result is sent as the Authorization header.
+	// Used for OAuth access tokens that may get refreshed between requests.
+	GetHTTPAuthHeader func(context.Context) (string, error)
 
 	// Logger is the slog logger.
 	Logger *slog.Logger
@@ -220,11 +224,18 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 		transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return r.DialServer(ctx)
 		}
+		var roundTripper http.RoundTripper = transport
+		if r.GetHTTPAuthHeader != nil {
+			roundTripper = &authHeaderRoundTripper{
+				base:      transport,
+				getHeader: r.GetHTTPAuthHeader,
+			}
+		}
 		httpReaderWriter, err := mcputils.NewHTTPReaderWriter(
 			r.closeCtx,
 			"http://localhost", // does not matter with the custom transport.
 			mcpclienttransport.WithHTTPBasicClient(&http.Client{
-				Transport: transport,
+				Transport: roundTripper,
 			}),
 			mcpclienttransport.WithContinuousListening(),
 			mcpclienttransport.WithHTTPHeaders(r.HTTPHeaders),
@@ -421,4 +432,21 @@ func (r *serverConnWithAutoReconnect) cacheMessageLocked(ctx context.Context, ms
 			}
 		}
 	}
+}
+
+// authHeaderRoundTripper sets the Authorization header on every request,
+// with a value fetched just-in-time so refreshed tokens are picked up.
+type authHeaderRoundTripper struct {
+	base      http.RoundTripper
+	getHeader func(context.Context) (string, error)
+}
+
+func (t *authHeaderRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	header, err := t.getHeader(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	r = r.Clone(r.Context())
+	r.Header.Set("Authorization", header)
+	return t.base.RoundTrip(r)
 }
