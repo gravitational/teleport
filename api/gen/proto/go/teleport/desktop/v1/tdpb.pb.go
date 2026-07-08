@@ -1733,433 +1733,6 @@ func (b0 MFA_builder) Build() *MFA {
 	return m0
 }
 
-// AuthPrompt is shown to the user during TDPB session establishment.
-type AuthPrompt struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Types that are valid to be assigned to Prompt:
-	//
-	//	*AuthPrompt_MfaPrompt
-	Prompt        isAuthPrompt_Prompt `protobuf_oneof:"prompt"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AuthPrompt) Reset() {
-	*x = AuthPrompt{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AuthPrompt) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AuthPrompt) ProtoMessage() {}
-
-func (x *AuthPrompt) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *AuthPrompt) GetPrompt() isAuthPrompt_Prompt {
-	if x != nil {
-		return x.Prompt
-	}
-	return nil
-}
-
-func (x *AuthPrompt) GetMfaPrompt() *MFAPrompt {
-	if x != nil {
-		if x, ok := x.Prompt.(*AuthPrompt_MfaPrompt); ok {
-			return x.MfaPrompt
-		}
-	}
-	return nil
-}
-
-func (x *AuthPrompt) SetMfaPrompt(v *MFAPrompt) {
-	if v == nil {
-		x.Prompt = nil
-		return
-	}
-	x.Prompt = &AuthPrompt_MfaPrompt{v}
-}
-
-func (x *AuthPrompt) HasPrompt() bool {
-	if x == nil {
-		return false
-	}
-	return x.Prompt != nil
-}
-
-func (x *AuthPrompt) HasMfaPrompt() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Prompt.(*AuthPrompt_MfaPrompt)
-	return ok
-}
-
-func (x *AuthPrompt) ClearPrompt() {
-	x.Prompt = nil
-}
-
-func (x *AuthPrompt) ClearMfaPrompt() {
-	if _, ok := x.Prompt.(*AuthPrompt_MfaPrompt); ok {
-		x.Prompt = nil
-	}
-}
-
-const AuthPrompt_Prompt_not_set_case case_AuthPrompt_Prompt = 0
-const AuthPrompt_MfaPrompt_case case_AuthPrompt_Prompt = 1
-
-func (x *AuthPrompt) WhichPrompt() case_AuthPrompt_Prompt {
-	if x == nil {
-		return AuthPrompt_Prompt_not_set_case
-	}
-	switch x.Prompt.(type) {
-	case *AuthPrompt_MfaPrompt:
-		return AuthPrompt_MfaPrompt_case
-	default:
-		return AuthPrompt_Prompt_not_set_case
-	}
-}
-
-type AuthPrompt_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Fields of oneof Prompt:
-	MfaPrompt *MFAPrompt
-	// -- end of Prompt
-}
-
-func (b0 AuthPrompt_builder) Build() *AuthPrompt {
-	m0 := &AuthPrompt{}
-	b, x := &b0, m0
-	_, _ = b, x
-	if b.MfaPrompt != nil {
-		x.Prompt = &AuthPrompt_MfaPrompt{b.MfaPrompt}
-	}
-	return m0
-}
-
-type case_AuthPrompt_Prompt protoreflect.FieldNumber
-
-func (x case_AuthPrompt_Prompt) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[18].Descriptor()
-	if x == 0 {
-		return "not set"
-	}
-	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
-}
-
-type isAuthPrompt_Prompt interface {
-	isAuthPrompt_Prompt()
-}
-
-type AuthPrompt_MfaPrompt struct {
-	MfaPrompt *MFAPrompt `protobuf:"bytes,1,opt,name=mfa_prompt,json=mfaPrompt,proto3,oneof"`
-}
-
-func (*AuthPrompt_MfaPrompt) isAuthPrompt_Prompt() {}
-
-// MFAPrompt indicates MFA is required for in-band MFA enforcement during TDPB session establishment.
-type MFAPrompt struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MFAPrompt) Reset() {
-	*x = MFAPrompt{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MFAPrompt) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MFAPrompt) ProtoMessage() {}
-
-func (x *MFAPrompt) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-type MFAPrompt_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 MFAPrompt_builder) Build() *MFAPrompt {
-	m0 := &MFAPrompt{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
-}
-
-// MFAPromptResponse is the user's response to an MFA prompt.
-type MFAPromptResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Types that are valid to be assigned to Response:
-	//
-	//	*MFAPromptResponse_Reference
-	Response      isMFAPromptResponse_Response `protobuf_oneof:"response"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MFAPromptResponse) Reset() {
-	*x = MFAPromptResponse{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MFAPromptResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MFAPromptResponse) ProtoMessage() {}
-
-func (x *MFAPromptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *MFAPromptResponse) GetResponse() isMFAPromptResponse_Response {
-	if x != nil {
-		return x.Response
-	}
-	return nil
-}
-
-func (x *MFAPromptResponse) GetReference() *MFAPromptResponseReference {
-	if x != nil {
-		if x, ok := x.Response.(*MFAPromptResponse_Reference); ok {
-			return x.Reference
-		}
-	}
-	return nil
-}
-
-func (x *MFAPromptResponse) SetReference(v *MFAPromptResponseReference) {
-	if v == nil {
-		x.Response = nil
-		return
-	}
-	x.Response = &MFAPromptResponse_Reference{v}
-}
-
-func (x *MFAPromptResponse) HasResponse() bool {
-	if x == nil {
-		return false
-	}
-	return x.Response != nil
-}
-
-func (x *MFAPromptResponse) HasReference() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Response.(*MFAPromptResponse_Reference)
-	return ok
-}
-
-func (x *MFAPromptResponse) ClearResponse() {
-	x.Response = nil
-}
-
-func (x *MFAPromptResponse) ClearReference() {
-	if _, ok := x.Response.(*MFAPromptResponse_Reference); ok {
-		x.Response = nil
-	}
-}
-
-const MFAPromptResponse_Response_not_set_case case_MFAPromptResponse_Response = 0
-const MFAPromptResponse_Reference_case case_MFAPromptResponse_Response = 1
-
-func (x *MFAPromptResponse) WhichResponse() case_MFAPromptResponse_Response {
-	if x == nil {
-		return MFAPromptResponse_Response_not_set_case
-	}
-	switch x.Response.(type) {
-	case *MFAPromptResponse_Reference:
-		return MFAPromptResponse_Reference_case
-	default:
-		return MFAPromptResponse_Response_not_set_case
-	}
-}
-
-type MFAPromptResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Fields of oneof Response:
-	Reference *MFAPromptResponseReference
-	// -- end of Response
-}
-
-func (b0 MFAPromptResponse_builder) Build() *MFAPromptResponse {
-	m0 := &MFAPromptResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	if b.Reference != nil {
-		x.Response = &MFAPromptResponse_Reference{b.Reference}
-	}
-	return m0
-}
-
-type case_MFAPromptResponse_Response protoreflect.FieldNumber
-
-func (x case_MFAPromptResponse_Response) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[20].Descriptor()
-	if x == 0 {
-		return "not set"
-	}
-	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
-}
-
-type isMFAPromptResponse_Response interface {
-	isMFAPromptResponse_Response()
-}
-
-type MFAPromptResponse_Reference struct {
-	Reference *MFAPromptResponseReference `protobuf:"bytes,1,opt,name=reference,proto3,oneof"`
-}
-
-func (*MFAPromptResponse_Reference) isMFAPromptResponse_Response() {}
-
-// MFAPromptResponseReference instructs the Windows Desktop Service to retrieve the MFA response from the MFA
-// service.
-type MFAPromptResponseReference struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// challenge_name is the name of the MFA challenge created by the client.
-	ChallengeName string `protobuf:"bytes,1,opt,name=challenge_name,json=challengeName,proto3" json:"challenge_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MFAPromptResponseReference) Reset() {
-	*x = MFAPromptResponseReference{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MFAPromptResponseReference) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MFAPromptResponseReference) ProtoMessage() {}
-
-func (x *MFAPromptResponseReference) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *MFAPromptResponseReference) GetChallengeName() string {
-	if x != nil {
-		return x.ChallengeName
-	}
-	return ""
-}
-
-func (x *MFAPromptResponseReference) SetChallengeName(v string) {
-	x.ChallengeName = v
-}
-
-type MFAPromptResponseReference_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// challenge_name is the name of the MFA challenge created by the client.
-	ChallengeName string
-}
-
-func (b0 MFAPromptResponseReference_builder) Build() *MFAPromptResponseReference {
-	m0 := &MFAPromptResponseReference{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ChallengeName = b.ChallengeName
-	return m0
-}
-
-// SessionEstablishing is sent by the Desktop Service after MFA completes (or when MFA is not required) to signal that
-// the session backend is being established. The client can use this to display a connecting indicator while the backend
-// is dialed.
-type SessionEstablishing struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SessionEstablishing) Reset() {
-	*x = SessionEstablishing{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SessionEstablishing) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SessionEstablishing) ProtoMessage() {}
-
-func (x *SessionEstablishing) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-type SessionEstablishing_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 SessionEstablishing_builder) Build() *SessionEstablishing {
-	m0 := &SessionEstablishing{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
-}
-
 // Sent by client to announce a new shared directory.
 type SharedDirectoryAnnounce struct {
 	state         protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -2171,7 +1744,7 @@ type SharedDirectoryAnnounce struct {
 
 func (x *SharedDirectoryAnnounce) Reset() {
 	*x = SharedDirectoryAnnounce{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2183,7 +1756,7 @@ func (x *SharedDirectoryAnnounce) String() string {
 func (*SharedDirectoryAnnounce) ProtoMessage() {}
 
 func (x *SharedDirectoryAnnounce) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2242,7 +1815,7 @@ type SharedDirectoryRemove struct {
 
 func (x *SharedDirectoryRemove) Reset() {
 	*x = SharedDirectoryRemove{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2254,7 +1827,7 @@ func (x *SharedDirectoryRemove) String() string {
 func (*SharedDirectoryRemove) ProtoMessage() {}
 
 func (x *SharedDirectoryRemove) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2301,7 +1874,7 @@ type SharedDirectoryAcknowledge struct {
 
 func (x *SharedDirectoryAcknowledge) Reset() {
 	*x = SharedDirectoryAcknowledge{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2313,7 +1886,7 @@ func (x *SharedDirectoryAcknowledge) String() string {
 func (*SharedDirectoryAcknowledge) ProtoMessage() {}
 
 func (x *SharedDirectoryAcknowledge) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2387,7 +1960,7 @@ type SharedDirectoryRequest struct {
 
 func (x *SharedDirectoryRequest) Reset() {
 	*x = SharedDirectoryRequest{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2399,7 +1972,7 @@ func (x *SharedDirectoryRequest) String() string {
 func (*SharedDirectoryRequest) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2790,7 +2363,7 @@ func (b0 SharedDirectoryRequest_builder) Build() *SharedDirectoryRequest {
 type case_SharedDirectoryRequest_Operation protoreflect.FieldNumber
 
 func (x case_SharedDirectoryRequest_Operation) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[26].Descriptor()
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[21].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -2876,7 +2449,7 @@ type SharedDirectoryResponse struct {
 
 func (x *SharedDirectoryResponse) Reset() {
 	*x = SharedDirectoryResponse{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2888,7 +2461,7 @@ func (x *SharedDirectoryResponse) String() string {
 func (*SharedDirectoryResponse) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3293,7 +2866,7 @@ func (b0 SharedDirectoryResponse_builder) Build() *SharedDirectoryResponse {
 type case_SharedDirectoryResponse_Operation protoreflect.FieldNumber
 
 func (x case_SharedDirectoryResponse_Operation) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[27].Descriptor()
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[22].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -3366,7 +2939,7 @@ type FileSystemObject struct {
 
 func (x *FileSystemObject) Reset() {
 	*x = FileSystemObject{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3378,7 +2951,7 @@ func (x *FileSystemObject) String() string {
 func (*FileSystemObject) ProtoMessage() {}
 
 func (x *FileSystemObject) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3478,7 +3051,7 @@ type LatencyStats struct {
 
 func (x *LatencyStats) Reset() {
 	*x = LatencyStats{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3490,7 +3063,7 @@ func (x *LatencyStats) String() string {
 func (*LatencyStats) ProtoMessage() {}
 
 func (x *LatencyStats) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3550,7 +3123,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3562,7 +3135,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6327,20 +5900,7 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\n" +
 	"channel_id\x18\x02 \x01(\tR\tchannelId\x12D\n" +
 	"\tchallenge\x18\x03 \x01(\v2&.teleport.mfa.v1.AuthenticateChallengeR\tchallenge\x12^\n" +
-	"\x17authentication_response\x18\x04 \x01(\v2%.teleport.mfa.v1.AuthenticateResponseR\x16authenticationResponse\"W\n" +
-	"\n" +
-	"AuthPrompt\x12?\n" +
-	"\n" +
-	"mfa_prompt\x18\x01 \x01(\v2\x1e.teleport.desktop.v1.MFAPromptH\x00R\tmfaPromptB\b\n" +
-	"\x06prompt\"\v\n" +
-	"\tMFAPrompt\"p\n" +
-	"\x11MFAPromptResponse\x12O\n" +
-	"\treference\x18\x01 \x01(\v2/.teleport.desktop.v1.MFAPromptResponseReferenceH\x00R\treferenceB\n" +
-	"\n" +
-	"\bresponse\"C\n" +
-	"\x1aMFAPromptResponseReference\x12%\n" +
-	"\x0echallenge_name\x18\x01 \x01(\tR\rchallengeName\"\x15\n" +
-	"\x13SessionEstablishing\"P\n" +
+	"\x17authentication_response\x18\x04 \x01(\v2%.teleport.mfa.v1.AuthenticateResponseR\x16authenticationResponse\"P\n" +
 	"\x17SharedDirectoryAnnounce\x12!\n" +
 	"\fdirectory_id\x18\x01 \x01(\rR\vdirectoryId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\":\n" +
@@ -6617,13 +6177,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 	if File_teleport_desktop_v1_tdpb_proto != nil {
 		return
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[18].OneofWrappers = []any{
-		(*AuthPrompt_MfaPrompt)(nil),
-	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[20].OneofWrappers = []any{
-		(*MFAPromptResponse_Reference)(nil),
-	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[26].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[21].OneofWrappers = []any{
 		(*SharedDirectoryRequest_Info_)(nil),
 		(*SharedDirectoryRequest_Create_)(nil),
 		(*SharedDirectoryRequest_Delete_)(nil),
@@ -6633,7 +6187,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*SharedDirectoryRequest_Move_)(nil),
 		(*SharedDirectoryRequest_Truncate_)(nil),
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[27].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[22].OneofWrappers = []any{
 		(*SharedDirectoryResponse_Info_)(nil),
 		(*SharedDirectoryResponse_Create_)(nil),
 		(*SharedDirectoryResponse_Delete_)(nil),

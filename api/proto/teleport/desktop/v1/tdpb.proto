@@ -176,35 +176,6 @@ message MFA {
   mfa.v1.AuthenticateResponse authentication_response = 4;
 }
 
-// AuthPrompt is shown to the user during TDPB session establishment.
-message AuthPrompt {
-  oneof prompt {
-    MFAPrompt mfa_prompt = 1;
-  }
-}
-
-// MFAPrompt indicates MFA is required for in-band MFA enforcement during TDPB session establishment.
-message MFAPrompt {}
-
-// MFAPromptResponse is the user's response to an MFA prompt.
-message MFAPromptResponse {
-  oneof response {
-    MFAPromptResponseReference reference = 1;
-  }
-}
-
-// MFAPromptResponseReference instructs the Windows Desktop Service to retrieve the MFA response from the MFA
-// service.
-message MFAPromptResponseReference {
-  // challenge_name is the name of the MFA challenge created by the client.
-  string challenge_name = 1;
-}
-
-// SessionEstablishing is sent by the Desktop Service after MFA completes (or when MFA is not required) to signal that
-// the session backend is being established. The client can use this to display a connecting indicator while the backend
-// is dialed.
-message SessionEstablishing {}
-
 // Sent by client to announce a new shared directory.
 message SharedDirectoryAnnounce {
   uint32 directory_id = 1;
