@@ -1245,15 +1245,6 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindClientIPRestriction",
 		DefaultName:  "apitypes.MetaNameClientIPRestriction",
-		// ClientIPRestriction is asynchronously enforced at the ingress layer.
-		// Poll the status until the restrictions become active.
-		StatePoll: &statePoll{
-			StatePath:                []string{"Status", "State"},
-			PendingStates:            []string{"pending"},
-			TargetStates:             []string{"active"},
-			StatePollIntervalSeconds: 30,
-			StateTimeoutSeconds:      20 * 60,
-		},
 	}
 	/*
 		//

@@ -20,7 +20,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"time"
 	apitypes "github.com/gravitational/teleport/api/types"
 
 	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
@@ -30,7 +29,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/clientiprestriction/v1"
 )
@@ -174,54 +172,6 @@ func (r resourceTeleportClientIPRestriction) Create(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	stateConf := resource.StateChangeConf{
-		Pending: []string{
-			"pending",
-		},
-		Target:  []string{
-			"active",
-		},
-		Timeout:      1200 * time.Second,
-		PollInterval: 30 * time.Second,
-		Refresh: func() (any, string, error) {
-			clientIPRestriction, err := r.p.Client.GetClientIPRestriction(ctx)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-
-			if clientIPRestriction == nil {
-				return nil, "", trace.Errorf("response from GetClientIPRestriction was nil")
-			}
-			if clientIPRestriction.Status == nil {
-				return nil, "", trace.Errorf("response from GetClientIPRestriction at .Status was nil")
-			}
-
-			return clientIPRestriction, clientIPRestriction.Status.State, nil
-		},
-	}
-
-	result, err := stateConf.WaitForStateContext(ctx)
-	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for ClientIPRestriction", trace.Wrap(err), "client_ip_restriction"))
-		return
-	}
-	// WaitForStateContext returns the last polled resource, which carries the
-	// settled status (e.g. "active"). Persist it so state reflects what we waited
-	// for instead of the create-time status.
-	if settled, ok := result.(*clientiprestrictionv1.ClientIPRestriction); ok {
-		diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, settled, &plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		plan.Attrs["id"] = types.String{Value: settled.Metadata.Name}
-		diags = resp.State.Set(ctx, &plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	}
 }
 
 // Read reads teleport ClientIPRestriction
@@ -346,53 +296,6 @@ func (r resourceTeleportClientIPRestriction) Update(ctx context.Context, req tfs
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	stateConf := resource.StateChangeConf{
-		Pending: []string{
-			"pending",
-		},
-		Target:  []string{
-			"active",
-		},
-		Timeout:      1200 * time.Second,
-		PollInterval: 30 * time.Second,
-		Refresh: func() (any, string, error) {
-			clientIPRestriction, err := r.p.Client.GetClientIPRestriction(ctx)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-
-			if clientIPRestriction == nil {
-				return nil, "", trace.Errorf("response from GetClientIPRestriction was nil")
-			}
-			if clientIPRestriction.Status == nil {
-				return nil, "", trace.Errorf("response from GetClientIPRestriction at .Status was nil")
-			}
-
-			return clientIPRestriction, clientIPRestriction.Status.State, nil
-		},
-	}
-
-	result, err := stateConf.WaitForStateContext(ctx)
-	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for ClientIPRestriction", trace.Wrap(err), "client_ip_restriction"))
-		return
-	}
-	// WaitForStateContext returns the last polled resource, which carries the
-	// settled status (e.g. "active"). Persist it so state reflects what we waited
-	// for instead of the update-time status.
-	if settled, ok := result.(*clientiprestrictionv1.ClientIPRestriction); ok {
-		diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, settled, &plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		diags = resp.State.Set(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
 	}
 }
 

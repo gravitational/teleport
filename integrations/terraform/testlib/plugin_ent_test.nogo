@@ -70,20 +70,17 @@ func newFakeCloudClient() *fakeCloudClient {
 	return &fakeCloudClient{MockedClient: &cloud.MockedClient{}}
 }
 
-// nextRevision returns a unique revision string on every write so that callers
-// polling for a revision change observe one. Must be called with f.mu held.
-func (f *fakeCloudClient) nextRevision() string {
+// store saves the restriction with a fresh revision so callers waiting for a
+// revision change observe one. Status is intentionally left unset: the provider
+// excludes it from the Terraform schema (RFD 153) and never reads it. Must be
+// called with f.mu held.
+func (f *fakeCloudClient) store(cidrs []string) *cloudv1.ClientIPRestriction {
 	f.rev++
-	return fmt.Sprintf("rev-%d", f.rev)
-}
-
-// cloneCIR returns a deep copy so callers cannot mutate our stored state.
-func cloneCIR(in *cloudv1.ClientIPRestriction) *cloudv1.ClientIPRestriction {
-	return &cloudv1.ClientIPRestriction{
-		Cidrs:    append([]string(nil), in.GetCidrs()...),
-		Revision: in.GetRevision(),
-		Status:   in.GetStatus(),
+	f.cir = &cloudv1.ClientIPRestriction{
+		Cidrs:    cidrs,
+		Revision: fmt.Sprintf("rev-%d", f.rev),
 	}
+	return f.cir
 }
 
 func (f *fakeCloudClient) GetClientIPRestriction(_ context.Context, _ *cloudv1.GetClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.GetClientIPRestrictionResponse, error) {
@@ -92,7 +89,7 @@ func (f *fakeCloudClient) GetClientIPRestriction(_ context.Context, _ *cloudv1.G
 	if f.cir == nil {
 		return nil, trace.NotFound("client_ip_restriction not found")
 	}
-	return &cloudv1.GetClientIPRestrictionResponse{ClientIpRestriction: cloneCIR(f.cir)}, nil
+	return &cloudv1.GetClientIPRestrictionResponse{ClientIpRestriction: f.cir}, nil
 }
 
 func (f *fakeCloudClient) CreateClientIPRestriction(_ context.Context, in *cloudv1.CreateClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.CreateClientIPRestrictionResponse, error) {
@@ -101,8 +98,7 @@ func (f *fakeCloudClient) CreateClientIPRestriction(_ context.Context, in *cloud
 	if f.cir != nil {
 		return nil, trace.AlreadyExists("client_ip_restriction already exists")
 	}
-	f.cir = f.newActiveCIR(in.GetCidrs())
-	return &cloudv1.CreateClientIPRestrictionResponse{ClientIpRestriction: cloneCIR(f.cir)}, nil
+	return &cloudv1.CreateClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs())}, nil
 }
 
 func (f *fakeCloudClient) UpdateClientIPRestriction(_ context.Context, in *cloudv1.UpdateClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.UpdateClientIPRestrictionResponse, error) {
@@ -111,15 +107,13 @@ func (f *fakeCloudClient) UpdateClientIPRestriction(_ context.Context, in *cloud
 	if f.cir == nil {
 		return nil, trace.NotFound("client_ip_restriction not found")
 	}
-	f.cir = f.newActiveCIR(in.GetCidrs())
-	return &cloudv1.UpdateClientIPRestrictionResponse{ClientIpRestriction: cloneCIR(f.cir)}, nil
+	return &cloudv1.UpdateClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs())}, nil
 }
 
 func (f *fakeCloudClient) UpsertClientIPRestriction(_ context.Context, in *cloudv1.UpsertClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.UpsertClientIPRestrictionResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.cir = f.newActiveCIR(in.GetCidrs())
-	return &cloudv1.UpsertClientIPRestrictionResponse{ClientIpRestriction: cloneCIR(f.cir)}, nil
+	return &cloudv1.UpsertClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs())}, nil
 }
 
 func (f *fakeCloudClient) DeleteClientIPRestriction(_ context.Context, _ *cloudv1.DeleteClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.DeleteClientIPRestrictionResponse, error) {
@@ -127,17 +121,4 @@ func (f *fakeCloudClient) DeleteClientIPRestriction(_ context.Context, _ *cloudv
 	defer f.mu.Unlock()
 	f.cir = nil
 	return &cloudv1.DeleteClientIPRestrictionResponse{}, nil
-}
-
-// newActiveCIR builds a restriction with a fresh revision and an active status.
-// The real Cloud backend enforces restrictions asynchronously (pending ->
-// active); we settle to active immediately so the provider's status poll
-// completes on its first refresh and tests stay fast. Must be called with
-// f.mu held.
-func (f *fakeCloudClient) newActiveCIR(cidrs []string) *cloudv1.ClientIPRestriction {
-	return &cloudv1.ClientIPRestriction{
-		Cidrs:    append([]string(nil), cidrs...),
-		Revision: f.nextRevision(),
-		Status:   cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_ACTIVE,
-	}
 }
