@@ -834,7 +834,7 @@ func isNetworkError(err error) bool {
 }
 
 func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Profile) error {
-	if profile.RequireKubeLocalProxy() {
+	if profile.RequireKubeLocalProxy() || profile.PrivateKeyPolicy.IsHardwareKeyPolicy() {
 		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` or `tsh kubectl` instead.")
 	}
 	return nil
