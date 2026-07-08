@@ -44,6 +44,14 @@ extension AppDatabase {
 			appropriateFor: nil,
 			create: true,
 		).appending(path: databaseDirectoryName)
+
+		#if DEBUG
+		// Allow for an easy reset of the database in case we want to manually test what a fresh database looks like
+		if CommandLine.arguments.contains("--reset-database") {
+			try? fileManager.removeItem(at: databaseDirectoryURL)
+		}
+		#endif
+
 		try fileManager.createDirectory(at: databaseDirectoryURL, withIntermediateDirectories: true)
 
 		// Create the database file by initializing a GRDB DatabaseQueue.
