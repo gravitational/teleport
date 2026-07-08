@@ -34,7 +34,7 @@ import (
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
-// AccessGraphCommand implements experimental Access Graph commands.
+// AccessGraphCommand implements the Identity Security Access Graph commands.
 type AccessGraphCommand struct {
 	ccf    *tctlcfg.GlobalCLIFlags
 	config *servicecfg.Config

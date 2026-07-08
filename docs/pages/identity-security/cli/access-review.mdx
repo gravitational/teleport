@@ -1,0 +1,158 @@
+---
+title: Review Identity Access from the CLI
+sidebar_label: Access Review
+description: Use tctl access-review to see which identities can access which resources, and whether that access is used.
+tags:
+  - identity-security
+  - how-to
+enterprise: Identity Security
+page_type: how-to
+---
+
+`tctl access-review` answers who can reach which resources, through which
+grantors, and — optionally — whether that access has actually been used. Use it
+to review and certify role and access-list grants, answer "who can reach this
+database", or find dormant standing privileges.
+
+You scope every review with a `--query`: a SQL `SELECT` against the Access Graph
+`access_path` model. The query defines which identities and resources the review
+covers; the results describe the **access** each identity has to each resource
+and how that access is granted. It reports access paths only — it does not
+enumerate other relationships, such as who can *review* an access list rather
+than gain access through it.
+
+## Prerequisites
+
+See [Identity Security from the Command Line](./cli.mdx) for the shared
+prerequisites and how the CLI authenticates to Access Graph. This command
+requires Access Graph v1.31.0 or later, and `tctl access-review` requires a
+`--query`.
+
+## Review access
+
+Scope the review with a `--query`. The query is a SQL `SELECT` against
+`access_path`; the `WHERE` clause is where you narrow it. For example, to review
+everything one user can reach:
+
+```code
+$ tctl access-review --query "SELECT * FROM access_path WHERE identity = 'alice'"
+```
+
+`identity` matches a user or bot by its stored name or alias — for SSO users
+this is usually their username or email. `resource` matches a resource by name,
+and `identity_group` matches a grantor: a role, access list, or access request.
+Matches with `=` and `IN` are exact and case-sensitive; use `ILIKE` for
+case-insensitive or prefix matching when you are unsure of the exact name.
+
+### Common review patterns
+
+| Goal | Query |
+| --- | --- |
+| Everything one user can reach | `SELECT * FROM access_path WHERE identity = 'alice'` |
+| Who can reach a resource | `SELECT * FROM access_path WHERE resource ILIKE 'prod-db%'` |
+| What a role grants, and to whom | `SELECT * FROM access_path WHERE identity_group IN ('prod-db-admin')` |
+| What an access list grants, and to whom | `SELECT * FROM access_path WHERE identity_group IN ('Prod Admins')` |
+| Why a resource is reachable through a role | `SELECT * FROM access_path WHERE resource = 'prod-db' AND identity_group IN ('prod-db-admin')` |
+
+Roles and access lists are both `identity_group` nodes; the output's `Kind`
+column distinguishes `role` from `access_list`. When you scope a review through
+a grantor like this, mind what the results do and do not cover — see
+[Understand query scope](#understand-query-scope).
+
+By default the output summarizes each identity's resources, resolved access
+level, primary grantor, and grantor counts. Add `--detailed` to break each
+resource down by individual grantor and the level each one contributes:
+
+```code
+$ tctl access-review --query "<query>" --detailed
+```
+
+| Flag | Description |
+| --- | --- |
+| `--query` | Required. SQL `SELECT` against `access_path` scoping the identities to review. |
+| `--from` | Show activity at or after this time; enables the activity columns. RFC3339, `YYYY-MM-DD`, or durations like `24h`, `7d`. |
+| `--to` | Upper bound for activity. Defaults to now when `--from` is set. Requires `--from`. |
+| `--detailed` | Show each grantor with its individual access level instead of summary counts. |
+| `--limit` | Maximum identities to return. Default: `50`. |
+| `--format` | `text`, `json`, `yaml`. |
+
+In text output, a `*` marks self-expiring access or a temporary grantor.
+
+## Understand query scope
+
+Results are derived only from the paths your query produces. When you scope a
+review through a given node — a role, an access list, or any other grantor — the
+results show only the paths that flow **through that node**, not necessarily
+every path the matched identities have to the matched resources.
+
+For example, this query answers "what does membership in `Prod Admins` grant,
+and to whom":
+
+```code
+$ tctl access-review --query "SELECT * FROM access_path WHERE identity_group IN ('Prod Admins')"
+```
+
+It does not tell you the full access of each of those members. A member might
+also reach the same resource through another role, another access list, or an
+approved access request, and those paths are invisible to a query scoped to
+`Prod Admins`.
+
+So when a scoped query shows an identity reaching a resource, it is usually
+worth confirming that identity's complete access to the resource with a
+follow-up query scoped by `identity` and `resource` directly:
+
+```code
+$ tctl access-review --query "SELECT * FROM access_path WHERE identity = 'alice' AND resource = 'prod-server'"
+```
+
+This returns every path from `alice` to `prod-server`, with each grantor that
+backs it — the authoritative view to check before you add or remove access.
+
+## Show access activity
+
+If your cluster has
+[Identity Activity Center](../access-graph/identity-activity-center.mdx) enabled,
+add `--from` (and optionally `--to`) to include activity columns that show how
+often each access was used and when it was last exercised:
+
+```code
+$ tctl access-review --query "<query>" --from=30d
+```
+
+Activity counts come from Teleport session-start events, so they cover only
+resources reached through a Teleport session (SSH, database, Kubernetes, app,
+desktop). Resources used outside a session — such as AWS, Okta, or GitLab
+resources — leave the activity columns blank even when the access is used.
+
+## Next steps
+
+- [tctl access-review reference](../../reference/cli/tctl.mdx#tctl-access-review)
+
+## Use tctl access-review with an AI agent
+
+To let an AI agent drive this command, install the matching Agent Skill:
+
+```code
+$ npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-access-review
+```
+
+## Troubleshooting
+
+### access-review is unavailable on this cluster
+
+This usually means Identity Security is not enabled, or the access-review
+endpoint is not yet available on this cluster. Confirm Identity Security is
+enabled and that your cluster is v18.11.0 or later.
+
+### column "..." not found
+
+The `WHERE` clause references a column `access_path` does not have. The
+queryable columns include `identity`, `resource`, `identity_group`, `source`,
+and `id` — for example, filter users with `identity`, not `identity_name`.
+
+### No access found
+
+An empty result is more often a name mismatch than a true "no access". `=` and
+`IN` match the stored name exactly and case-sensitively, so re-run with `ILIKE`
+(for example, `resource ILIKE '%db%'`), read the names from the output, then
+scope precisely.

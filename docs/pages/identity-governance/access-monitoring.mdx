@@ -9,6 +9,29 @@ tags:
 enterprise: Identity Governance
 ---
 
+<Admonition type="warning" title="Access Monitoring is being replaced by Identity Security">
+Access Monitoring is deprecated beginning in Teleport 19 and is scheduled for
+removal in Teleport 20, when Teleport Identity Security fully replaces it. The
+Access Monitoring UI is removed from Identity Governance starting in Teleport
+19.4. For the full plan, timeline, and rationale, see the [Access Monitoring
+deprecation discussion](https://github.com/gravitational/teleport/discussions/68403).
+</Admonition>
+
+Identity Security already covers many Access Monitoring use cases — through its
+Web UI and the [Identity Security CLI](../identity-security/cli/cli.mdx) — and we
+are actively expanding coverage. The table below maps each Access Monitoring
+capability to its Identity Security replacement and current status:
+
+| Access Monitoring capability | Identity Security replacement | Status |
+| --- | --- | --- |
+| Pre-built risk reports (root SSH, MFA-less sessions, privileged accounts) | [Alerts](../identity-security/usage/alerts.mdx) / [`tctl detections`](../identity-security/cli/detections.mdx) | Available |
+| Investigating who did what, from where, and when | [Investigate](../identity-security/usage/investigate.mdx) / [`tctl investigate`](../identity-security/cli/investigate.mdx) | Available |
+| Reviewing which identities can access which resources | [`tctl access-review`](../identity-security/cli/access-review.mdx) | Available |
+| Monitoring access-path changes to sensitive resources | [Crown Jewels](../identity-security/usage/crown-jewels.mdx) / [`tctl access-changes`](../identity-security/cli/access-changes.mdx) | Available |
+| Reporting, charts, and aggregations over audit activity (Query Editor, `tctl audit query exec`) | Work in progress. In the meantime, [`tctl investigate`](../identity-security/cli/investigate.mdx) retrieves the underlying events, which you can export to build your own reports. | In progress |
+
+---
+
 Access Monitoring allows users to understand and analyze the access patterns in a Teleport cluster.
 
 When Access Monitoring is enabled in a cluster, Teleport runs a background service that collects
@@ -243,6 +266,16 @@ WHERE
   command LIKE '%/etc/passwd%';
 ```
 
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=exec --from=30d --limit=0 --format=json \
+  | jq '[.data[] | select((.event_data.command // "") | test("/etc/passwd"))]'
+```
+
+</details>
+
 ![exec passwd](../../img/access-monitoring/exec_passwd.png)
 
 - Select the count of unique IP addresses associated with each user cert over different event dates:
@@ -260,6 +293,17 @@ ORDER BY
   event_date;
 ```
 
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=cert.create --from=30d --limit=0 --format=json \
+  | jq '[.data[] | {user: .event_data.identity.user, ip: .event_data.identity.client_ip}]
+        | group_by(.user)
+        | map({user: .[0].user, unique_ip_count: ([.[].ip] | unique | length)})'
+```
+
+</details>
 
 - Selects users who interacted with the Teleport cluster from more than one different IP address:
 ```sql
@@ -276,6 +320,19 @@ ORDER BY
   event_date) AS data WHERE unique_ip_count > 1;
 ```
 
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=cert.create --from=30d --limit=0 --format=json \
+  | jq '[.data[] | {user: .event_data.identity.user, ip: .event_data.identity.client_ip}]
+        | group_by(.user)
+        | map({user: .[0].user, unique_ip_count: ([.[].ip] | unique | length)})
+        | map(select(.unique_ip_count > 1))'
+```
+
+</details>
+
 - Show all the unique IP addresses that were used by the user 'admin-annie':
 ```sql
 SELECT
@@ -284,6 +341,16 @@ FROM
   cert_create
 WHERE identity_user = 'admin-annie'
 ```
+
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=cert.create --user='admin-annie' --from=30d --limit=0 --format=json \
+  | jq '[.data[].event_data.identity.client_ip] | unique'
+```
+
+</details>
 
 - Show Access Requests and their reviews:
 
@@ -296,6 +363,15 @@ WHERE
   access_request_create.id = access_request_review.id
 ```
 
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=access_request.create --event-type=access_request.review --from=30d --limit=0 --format=json
+```
+
+</details>
+
 - Show details about an Access Request and its reviews:
 
 ```sql
@@ -306,6 +382,16 @@ FROM
 WHERE
   request.id = review.id
 ```
+
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=access_request.create --event-type=access_request.review --from=30d --limit=0 --format=json \
+  | jq '[.data[] | {event: .event_type, id: .event_data.id, user: .event_data.user, reason: .event_data.reason, roles: .event_data.roles, resource_ids: .event_data.resource_ids, reviewer: .event_data.reviewer, state: .event_data.state}]'
+```
+
+</details>
 
 # Access Monitoring Reports
 
@@ -343,6 +429,21 @@ ORDER BY
     event_date
 ```
 
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=db.session.start --from=30d --limit=0 --format=json \
+  | jq '[.data[] | select(
+      (.event_data.with_mfa // "") == "" and
+      ((.event_data.access_requests // []) | length) == 0 and
+      (.event_data.impersonator // "") == "" and
+      ((.event_data.trusted_device.device_id) // "") == ""
+    )]'
+```
+
+</details>
+
 ![privileged access report](../../img/access-monitoring/privileged_access_report.png)
 
 
@@ -378,6 +479,22 @@ ORDER BY
     event_date
 ```
 
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=session.start --from=30d --limit=0 --format=json \
+  | jq '[.data[] | select(
+      .event_data.proto == "ssh" and
+      (.event_data.with_mfa // "") == "" and
+      ((.event_data.access_requests // []) | length) == 0 and
+      (.event_data.impersonator // "") == "" and
+      ((.event_data.trusted_device.device_id) // "") == ""
+    )]'
+```
+
+</details>
+
 **Suggestion:**  Set up Access Requests, Device Trust and per-session MFA.
 
 ### Kubernetes API calls with weak security
@@ -407,6 +524,21 @@ ORDER BY
     event_date
 ```
 
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=kube.request --from=30d --limit=0 --format=json \
+  | jq '[.data[] | select(
+      (.event_data.with_mfa // "") == "" and
+      ((.event_data.access_requests // []) | length) == 0 and
+      (.event_data.impersonator // "") == "" and
+      ((.event_data.trusted_device.device_id) // "") == ""
+    )]'
+```
+
+</details>
+
 **Suggestion:**  Set up Access Requests, Device Trust and per-session MFA.
 
 ### Privileged Postgres sessions
@@ -428,6 +560,16 @@ GROUP BY
 ORDER BY
     event_date
 ```
+
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=db.session.start --from=30d --limit=0 --format=json \
+  | jq '[.data[] | select(.event_data.db_protocol == "postgres" and .event_data.db_user == "postgres")]'
+```
+
+</details>
 
 **Suggestion:** Downgrade database connections to less privileged database user.
 
@@ -452,6 +594,16 @@ ORDER BY
     event_date
 ```
 
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=exec --from=30d --limit=0 --format=json \
+  | jq '[.data[] | select(.event_data.proto == "kube")]'
+```
+
+</details>
+
 **Suggestion:**  Eliminate usage of kube exec.
 
 
@@ -474,6 +626,16 @@ GROUP BY
 ORDER BY
     event_date
 ```
+
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=cert.create --from=30d --limit=0 --format=json \
+  | jq '[.data[] | select(((.event_data.identity.expires | sub("\\.[0-9]+Z$";"Z") | fromdateiso8601) - (.time | sub("\\.[0-9]+Z$";"Z") | fromdateiso8601)) > 86400)]'
+```
+
+</details>
 
 **Suggestion:**  Use short lived certificates less than a working day. Check out Machine & Workload Identity to get short lived certificates for your automation.
 
@@ -499,6 +661,16 @@ ORDER BY
     event_date
 ```
 
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=instance.join --from=30d --limit=0 --format=json \
+  | jq '[.data[] | select(((.event_data.token_expires | sub("\\.[0-9]+Z$";"Z") | fromdateiso8601) - (.time | sub("\\.[0-9]+Z$";"Z") | fromdateiso8601)) > 86400)]'
+```
+
+</details>
+
 **Suggestion:**  Use short-lived tokens to reduce risk of compromise or [delegated](../reference/deployment/join-methods.mdx) joining when possible.
 
 ### Root SSH sessions
@@ -520,6 +692,17 @@ GROUP BY
 ORDER BY
     event_date
 ```
+
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=session.start --from=30d --limit=0 --format=json \
+  | jq '[.data[] | select(.event_data.login == "root")]'
+```
+
+</details>
+
 **Suggestion:**  Don’t use `root` for SSH sessions, downgrade access to users with sudo privileges instead.
 
 ### System Kubernetes API calls
@@ -541,6 +724,16 @@ GROUP BY
 ORDER BY
     event_date
 ```
+
+<details>
+<summary>Check this with `tctl investigate`</summary>
+
+```code
+$ tctl investigate --event-type=kube.request --from=30d --limit=0 --format=json \
+  | jq '[.data[] | select((.event_data.kubernetes_groups // []) | index("system:masters"))]'
+```
+
+</details>
 
 **Suggestion:**  Don't use system:masters group for Kubernetes API calls, downgrade to `view` or `edit` instead.
 

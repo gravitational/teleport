@@ -21,6 +21,13 @@ The Entra ID integration enables the following features in Teleport:
 paths and policies from the Teleport Identity Security product. If enabled, Teleport imports 
 enterprise applications as well. 
 
+<Admonition type="tip" title="Review access to Entra ID resources">
+Once Teleport imports your Entra ID groups and enterprise applications, you can
+use Teleport Identity Security to review which identities can access them and
+whether that access is used. See [Review Identity Access from the
+CLI](../../../identity-security/cli/access-review.mdx) (`tctl access-review`).
+</Admonition>
+
 ## How it works
 
 To configure SSO, Teleport uses an Entra ID enterprise application where 

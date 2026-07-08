@@ -1,0 +1,110 @@
+---
+title: Investigate Activity from the CLI
+sidebar_label: Investigate
+description: Use tctl investigate to search and explore Identity Security activity logs from the terminal.
+tags:
+  - identity-security
+  - how-to
+enterprise: Identity Security
+page_type: how-to
+---
+
+`tctl investigate` searches the identity activity logs that Teleport Identity
+Security aggregates from Teleport and your integrations — the same data behind
+the Web UI [Investigate](../usage/investigate.mdx) view. Use it to trace who did
+what, from where, and when.
+
+## Prerequisites
+
+See [Identity Security from the Command Line](./cli.mdx) for the shared
+prerequisites and how the CLI authenticates to Access Graph. This command
+requires Access Graph v1.28.0 or later.
+
+## Explore with facets
+
+A typical investigation starts broad and narrows: survey the shape of the data
+with facets, decide what to filter on, then pull the matching events.
+
+Running `tctl investigate` returns events plus a facet summary of the matching
+data. To narrow a broad search before pulling events, ask for facets only:
+
+```code
+$ tctl investigate --from=24h --facets-only
+```
+
+Facets show the top values for each field (user, event type, resource, source,
+IP, and more) so you can see what to filter on next.
+
+## Filter with structured flags
+
+Combine repeatable include filters; prefix any with `exclude-` to negate:
+
+```code
+$ tctl investigate --user=alice@example.com --status=failure --from=7d
+$ tctl investigate --event-type=session.start --exclude-source=okta
+```
+
+| Flag | Description |
+| --- | --- |
+| `--user` | User (email for users, ID for bots). Repeatable. |
+| `--event-type` | Event type, e.g. `session.start`. Repeatable. |
+| `--resource`, `--resource-kind` | Target resource and kind (`ssh`, `kube`, …). Repeatable. |
+| `--status` | `success` or `failure`. Repeatable. |
+| `--source` | Event source. Repeatable. |
+| `--ip`, `--country`, `--city`, `--region` | Origin filters. Repeatable. |
+| `--from`, `--to` | Time window. Default: `1d` to `now`. |
+| `--limit`, `--order` | Cap results (default `100`) and order by time (`asc`/`desc`). |
+| `--all-facets`, `--show-unmatched` | Expand facet output. |
+| `--format` | `text`, `json`, `yaml`. |
+
+Every structured flag has an `--exclude-<flag>` counterpart. For the complete
+list (AWS, GitHub, Okta, Teleport-cluster, token, and user-agent filters), see
+the [CLI reference](../../reference/cli/tctl.mdx#tctl-investigate).
+
+## Run a raw query
+
+For expressions the structured flags cannot build, pass a raw Lucene query.
+`--query` is mutually exclusive with the structured filter flags:
+
+```code
+$ tctl investigate --query 'identity_id:"alice@example.com" AND NOT status:"failure"'
+```
+
+Preview the query a set of flags would build without contacting the backend:
+
+```code
+$ tctl investigate --user=alice@example.com --status=failure --print-query
+```
+
+## Filter by location
+
+Restrict results to a radius (kilometers) around a point. All three geo flags
+are required together:
+
+```code
+$ tctl investigate --latitude=37.8044 --longitude=-122.2712 --radius=25
+```
+
+## Next steps
+
+- [tctl investigate reference](../../reference/cli/tctl.mdx#tctl-investigate)
+
+## Use tctl investigate with an AI agent
+
+To let an AI agent drive this command, install the matching Agent Skill:
+
+```code
+$ npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate
+```
+
+## Troubleshooting
+
+### --query is mutually exclusive with structured filter flags
+
+Use either `--query` or the structured flags (`--user`, `--event-type`, …), not
+both. Remove the flags the error lists, or fold them into the raw query.
+
+### geo filter requires all of --latitude, --longitude, and --radius
+
+A location filter needs all three flags. Supply the missing one, or drop all
+three to search without a location filter.

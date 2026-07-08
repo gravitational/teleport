@@ -1,0 +1,58 @@
+---
+title: Identity Security from the Command Line
+sidebar_label: Command-Line Interface
+description: Query Identity Security detections, activity logs, access-path changes, and access review from tctl.
+tags:
+  - identity-security
+  - reference
+enterprise: Identity Security
+page_type: landing
+---
+
+Teleport Identity Security exposes several `tctl` commands for querying Access
+Graph data directly from your terminal: security detections, identity activity
+logs, access-path changes to crown jewels, and identity access review. Use them
+to script investigations, feed automation, and work without leaving the shell.
+
+## How it works
+
+These commands talk directly to Teleport Access Graph rather than the usual
+`tctl` administrative API. The first time you run one, `tctl` issues and caches
+an Access Graph certificate bound to your current `tsh` profile; later commands
+reuse that certificate until it expires.
+
+## Prerequisites
+
+- A Teleport Enterprise cluster v18.11.0 or later with Identity Security enabled.
+- Access Graph running. Teleport Enterprise Cloud manages Access Graph for you.
+  For self-hosted clusters, follow the [Docker](../access-graph/self-hosted.mdx)
+  or [Helm](../access-graph/self-hosted-helm.mdx) deployment guide. Each command
+  requires a minimum Access Graph version, noted on its page.
+- `tctl` installed locally. See [Installation](../../installation/installation.mdx).
+- A logged-in session created with `tsh login`, or a Teleport identity file
+  passed with `tctl -i <identity-file> --auth-server <proxy-or-auth-addr>`.
+
+## Get started
+
+Log in to your cluster, then run any Identity Security command:
+
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
+$ tctl detections ls
+```
+
+The first command prompts `tctl` to issue an Access Graph certificate; you will
+not be asked again until it expires.
+
+## Commands
+
+| Command | What it does | In the Web UI |
+| --- | --- | --- |
+| [`tctl detections`](./detections.mdx) | Investigate security detections and anomalies. | [Alerts](../usage/alerts.mdx) |
+| [`tctl investigate`](./investigate.mdx) | Search and explore Identity Security activity logs. | [Investigate](../usage/investigate.mdx) |
+| [`tctl access-changes`](./access-changes.mdx) | Monitor access-path changes to crown jewels. | [Crown Jewels](../usage/crown-jewels.mdx) |
+| [`tctl access-review`](./access-review.mdx) | Review which identities can access which resources. | Access Graph |
+
+## Next steps
+
+- [tctl CLI reference](../../reference/cli/tctl.mdx)

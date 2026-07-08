@@ -1,0 +1,84 @@
+---
+title: Investigate Detections from the CLI
+sidebar_label: Detections
+description: Use tctl detections to list and inspect Identity Security security detections and anomalies.
+tags:
+  - identity-security
+  - how-to
+enterprise: Identity Security
+page_type: how-to
+---
+
+`tctl detections` lists and inspects the security detections and anomalies that
+Teleport Identity Security raises across your infrastructure — the same
+detections shown in the Web UI under [Alerts](../usage/alerts.mdx).
+
+## Prerequisites
+
+See [Identity Security from the Command Line](./cli.mdx) for the shared
+prerequisites and how the CLI authenticates to Access Graph. This command
+requires Access Graph v1.28.0 or later.
+
+## List detections
+
+By default `tctl detections ls` shows open (`in_progress`, `triaged`)
+detections from the last 30 days:
+
+```code
+$ tctl detections ls
+```
+
+Filter by status, severity, and source, and widen the window:
+
+```code
+$ tctl detections ls --severity=high --severity=critical --status=in_progress --from=7d
+```
+
+Add `--detailed` for extra columns, or emit JSON/YAML for automation:
+
+```code
+$ tctl detections ls --detailed
+$ tctl detections ls --format=json --limit=25
+```
+
+| Flag | Description |
+| --- | --- |
+| `--status` | Filter by status: `in_progress`, `triaged`, `resolved`, `closed`. Repeatable. Default: `in_progress`, `triaged`. |
+| `--severity` | Filter by severity: `low`, `medium`, `high`, `critical`. Repeatable. |
+| `--source` | Filter by detection source. Repeatable. |
+| `--type` | Filter by detection type. Repeatable. |
+| `--from`, `--to` | Time window. Accepts RFC3339, `YYYY-MM-DD`, or durations like `24h`, `7d`. Default: `30d` to `now`. |
+| `--detailed` | Include extra columns in text output. |
+| `--limit` | Maximum detections to return. Default: `100`. |
+| `--format` | Output format: `text`, `json`, `yaml`. |
+
+## Inspect a detection
+
+Once `ls` surfaces a detection worth investigating, copy its ID from the `ID`
+column and pass it to `get` to see the full detail — description, mitigation
+steps, related log entries, and status-change history:
+
+```code
+$ tctl detections get 6f6cf1ce-6d1e-4f9e-8f1a-2f7c9b0f1e23
+```
+
+Follow the related log entries into [`tctl
+investigate`](./investigate.mdx) to trace the surrounding activity.
+
+## Next steps
+
+- [tctl detections ls reference](../../reference/cli/tctl.mdx#tctl-detections-ls)
+- [tctl detections get reference](../../reference/cli/tctl.mdx#tctl-detections-get)
+
+## Troubleshooting
+
+### invalid detection id
+
+`tctl detections get` expects a detection UUID, as shown in the `ID` column of
+`tctl detections ls`. Copy the ID from the list output.
+
+### No detections found
+
+Widen `--from`/`--to`, relax `--status` (open detections only by default), or
+remove severity and source filters. An empty result means nothing matched the
+filter in the window, not that detections are unavailable.

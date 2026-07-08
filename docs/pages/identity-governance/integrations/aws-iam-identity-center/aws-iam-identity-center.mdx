@@ -15,6 +15,13 @@ accounts and their permissions.
 
 With the AWS Identity Center integration, you can manage AWS access by granting short term or long term access with Identity Governance.
 
+<Admonition type="tip" title="Review access to AWS resources">
+After Teleport imports your Identity Center account assignments, you can use
+Teleport Identity Security to review which identities can reach them and whether
+that access is used. See [Review Identity Access from the
+CLI](../../../identity-security/cli/access-review.mdx) (`tctl access-review`).
+</Admonition>
+
 ## How it works
 
 The Identity Center integration builds on top of Teleport's [role-based access controls](../../../index.mdx),

@@ -19,6 +19,13 @@ with user groups can be managed by Teleport's RBAC along with Access Requests.
 
 In this guide, you will set up the Teleport Okta integration.
 
+<Admonition type="tip" title="Review access to Okta resources">
+Once Teleport imports your Okta applications and groups, you can use Teleport
+Identity Security to review which identities can access them and whether that
+access is used. See [Review Identity Access from the
+CLI](../../../identity-security/cli/access-review.mdx) (`tctl access-review`).
+</Admonition>
+
 ## How it works
 
 Enrolling the Okta integration is a guided process and contains four components:
