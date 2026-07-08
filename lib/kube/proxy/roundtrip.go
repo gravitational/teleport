@@ -58,6 +58,20 @@ type SpdyRoundTripper struct {
 	*/
 	// conn is the underlying network connection to the remote server.
 	conn net.Conn
+
+	// cleanups contains objects that should be closed when the roundtripper is
+	// no longer used. [SpdyRoundTripper.Cleanup] should be called to ensure
+	// that.
+	cleanups []io.Closer
+}
+
+// Cleanup ensures that every connection that was opened by this roundtripper is
+// closed.
+func (w *SpdyRoundTripper) Cleanup() {
+	for _, closer := range w.cleanups {
+		_ = closer.Close()
+	}
+	w.cleanups = nil
 }
 
 var (
@@ -237,6 +251,7 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		return nil, err
 	}
 
+	s.cleanups = append(s.cleanups, conn)
 	s.conn = conn
 
 	return resp, nil
