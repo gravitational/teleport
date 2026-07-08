@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { formatDistanceToNow } from 'date-fns';
 import {
   PropsWithChildren,
   useCallback,
@@ -25,7 +26,7 @@ import {
 } from 'react';
 
 import { Box, ButtonSecondary, ButtonText, Flex, Stack, Text } from 'design';
-import { Info } from 'design/Icon';
+import { ChevronRight, Info } from 'design/Icon';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { RecentConnection } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { useRefAutoFocus } from 'shared/hooks';
@@ -321,7 +322,7 @@ const RecentConnectionsList = () => {
       {recentConnections.length === 0 ? (
         <SecondaryText>No connections yet.</SecondaryText>
       ) : (
-        <Flex flexDirection="column">
+        <Flex flexDirection="column" gap={1}>
           {recentConnections.map(connection => (
             <RecentConnectionRow
               key={[
@@ -351,23 +352,45 @@ const RecentConnectionRow = (props: { connection: RecentConnection }) => {
     <Flex alignItems="center" gap={1} minWidth={0}>
       <ConnectionKindIndicator
         css={`
-          padding: 0px 6px;
+          padding: 3px 6px;
           font-weight: 600;
         `}
       >
         {kindLabel(kind)}
       </ConnectionKindIndicator>
       <Flex flexDirection="column" flex="1" minWidth={0}>
+        <Text
+          typography="body3"
+          title={displayName}
+          mt={1}
+          css={`
+            line-height: normal;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          {displayName}
+        </Text>
         {openedBy && (
-          <Flex
-            alignItems="center"
-            gap={1}
-            minWidth={0}
-            justifyContent="space-between"
-          >
+          <Flex alignItems="center" gap={1} minWidth={0}>
+            {appIcon && (
+              <img
+                src={appIcon}
+                alt=""
+                css={`
+                  width: 16px;
+                  height: 16px;
+                  flex-shrink: 0;
+                  object-fit: contain;
+                `}
+              />
+            )}
             <Text
               typography="body3"
-              title={displayName}
+              color="text.muted"
+              title={lastClientProcessPath}
               css={`
                 min-width: 0;
                 overflow: hidden;
@@ -375,46 +398,21 @@ const RecentConnectionRow = (props: { connection: RecentConnection }) => {
                 white-space: nowrap;
               `}
             >
-              {displayName}
+              {openedBy}
             </Text>
-            <Flex gap={1} alignItems="center">
-              {appIcon && (
-                <img
-                  src={appIcon}
-                  alt=""
-                  css={`
-                    max-height: 32px;
-                    object-fit: contain;
-                  `}
-                />
-              )}
-              <Stack gap={0}>
-                <Text
-                  typography="body3"
-                  color="text.muted"
-                  title={lastClientProcessPath}
-                  css={`
-                    line-height: 14px;
-                    white-space: nowrap;
-                  `}
-                >
-                  {openedBy}
-                </Text>
-                {lastConnectedDate && (
-                  <Text
-                    typography="body3"
-                    color="text.muted"
-                    title={lastConnectedDate.toLocaleString()}
-                    css={`
-                      line-height: 14px;
-                      white-space: nowrap;
-                    `}
-                  >
-                    {formatRelativeShort(lastConnectedDate, new Date())}
-                  </Text>
-                )}
-              </Stack>
-            </Flex>
+            {lastConnectedDate && (
+              <Text
+                typography="body3"
+                color="text.muted"
+                title={lastConnectedDate.toLocaleString()}
+                css={`
+                  flex-shrink: 0;
+                  white-space: nowrap;
+                `}
+              >
+                · {formatDistanceToNow(lastConnectedDate, { addSuffix: true })}
+              </Text>
+            )}
           </Flex>
         )}
       </Flex>
@@ -473,34 +471,6 @@ function useAppIcon(path: string | undefined): string {
   }, [path, mainProcessClient]);
 
   return icon;
-}
-
-/**
- * formatRelativeShort renders how long ago `date` was in a compact form such as
- * "just now", "5m ago", "2h ago", "3d ago", or "2w ago", picking the largest
- * whole unit that fits. Intl.RelativeTimeFormat is intentionally not used: even
- * its narrowest English style produces "5 min. ago" rather than "5m ago", and
- * it doesn't select the unit on its own.
- */
-function formatRelativeShort(date: Date, now: Date): string {
-  const seconds = Math.round((now.getTime() - date.getTime()) / 1000);
-  if (seconds < 60) {
-    return 'just now';
-  }
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-  const days = Math.floor(hours / 24);
-  if (days < 7) {
-    return `${days}d ago`;
-  }
-  const weeks = Math.floor(days / 7);
-  return `${weeks}w ago`;
 }
 
 /**
