@@ -55,3 +55,18 @@ func (m *MockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, 
 func (m *MockAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return m.Emitter.EmitAuditEvent(ctx, event)
 }
+
+func (m *MockAuditLog) SearchSessionEvents(ctx context.Context, cfg events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	events := make([]apievents.AuditEvent, 0, len(m.SessionEvents))
+	for _, event := range m.SessionEvents {
+		if t := event.GetTime(); t.Before(cfg.From) || t.After(cfg.To) {
+			continue
+		}
+		switch e := event.(type) {
+		case *apievents.SessionEnd, *apievents.WindowsDesktopSessionEnd,
+			*apievents.DatabaseSessionEnd, *apievents.AppSessionEnd, *apievents.MCPSessionEnd:
+			events = append(events, e)
+		}
+	}
+	return events, "", nil
+}
