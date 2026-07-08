@@ -6386,6 +6386,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			Modules:            cfg.AuthServer.modules,
 			Emitter:            cfg.Emitter,
 			ScopesFeatures:     cfg.AuthServer.scopesFeatures,
+			AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
+				return trace.Wrap(cfg.AuthServer.UpsertClusterAlert(ctx, a))
+			},
 		}))
 	}
 

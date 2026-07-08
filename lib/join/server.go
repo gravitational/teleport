@@ -23,12 +23,16 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -129,12 +133,22 @@ type ServerConfig struct {
 	Modules            modules.Modules
 	Emitter            apievents.Emitter
 	ScopesFeatures     scopes.Features
+	// AlertCreator, if set, raises a cluster alert when a client is rejected
+	// for running an unsupported version.
+	AlertCreator func(context.Context, types.ClusterAlert) error
 }
 
 // Server implements cluster joining for nodes and bots.
 type Server struct {
 	cfg               *ServerConfig
 	oracleRootCACache *oraclejoin.RootCACache
+	// oldestSupportedVersion is the oldest client version that is allowed to
+	// join the cluster. If "TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes" is set,
+	// this will be nil and no version checks will be performed.
+	oldestSupportedVersion *semver.Version
+	// lastRejectedAlertTime is the timestamp of the last unsupported client
+	// alert, used to rate limit alert creation to at most once per day.
+	lastRejectedAlertTime atomic.Int64
 }
 
 // NewServer returns a new [Server] instance.
@@ -142,9 +156,14 @@ func NewServer(cfg *ServerConfig) *Server {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, "join")
 	}
+	oldestSupportedVersion := teleport.MinClientSemVer()
+	if os.Getenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS") == "yes" {
+		oldestSupportedVersion = nil
+	}
 	return &Server{
-		cfg:               cfg,
-		oracleRootCACache: oraclejoin.NewRootCACache(),
+		cfg:                    cfg,
+		oracleRootCACache:      oraclejoin.NewRootCACache(),
+		oldestSupportedVersion: oldestSupportedVersion,
 	}
 }
 
@@ -284,6 +303,12 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// Must run after authenticate, which records the client version on the
+	// diagnostic for proxy-forwarded requests.
+	if err := s.validateClientVersion(ctx, diag.Get()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	token, err := s.getProvisionToken(ctx, clientInit.TokenName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -398,6 +423,89 @@ func (s *Server) handleJoinMethod(
 		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	default:
 		return nil, trace.NotImplemented("join method %s is not implemented", joinMethod)
+	}
+}
+
+// validateClientVersion checks the version of the joining client against the
+// server's oldest supported version. If the client is too old or reports a
+// version that cannot be parsed, it returns an error. A client that reports no
+// version is allowed.
+func (s *Server) validateClientVersion(ctx context.Context, info diagnostic.Info) error {
+	if s.oldestSupportedVersion == nil {
+		return nil // TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes is set, don't enforce version checks
+	}
+
+	clientVersion := info.ClientVersion
+	if clientVersion == "" {
+		return nil
+	}
+
+	minVersion := *s.oldestSupportedVersion
+	minVersion.PreRelease = ""
+
+	clientSemVer, err := semver.NewVersion(clientVersion)
+	if err != nil {
+		s.cfg.Logger.WarnContext(ctx,
+			"Failed to determine client version",
+			"version", clientVersion,
+			"error", err)
+		s.displayRejectedClientAlert(ctx, info)
+		return trace.AccessDenied("client version is unsupported, minimum supported version is %s", minVersion.String())
+	}
+
+	if clientSemVer.LessThan(*s.oldestSupportedVersion) {
+		s.cfg.Logger.InfoContext(ctx,
+			"Rejecting join request from client using unsupported version",
+			"client_version", clientSemVer.String(),
+			"oldest_supported_version", minVersion.String())
+		s.displayRejectedClientAlert(ctx, info)
+		return trace.AccessDenied("client version is unsupported, minimum supported version is %s", minVersion.String())
+	}
+	return nil
+}
+
+// displayRejectedClientAlert raises a once-per-day cluster alert for rejected
+// outdated clients. It shares the auth middleware's alert name so rejections
+// coalesce into a single alert.
+func (s *Server) displayRejectedClientAlert(ctx context.Context, info diagnostic.Info) {
+	if s.cfg.AlertCreator == nil {
+		return
+	}
+
+	now := time.Now()
+	lastAlert := s.lastRejectedAlertTime.Load()
+	then := time.Unix(0, lastAlert)
+	if lastAlert != 0 && now.Before(then.Add(24*time.Hour)) {
+		return
+	}
+	if !s.lastRejectedAlertTime.CompareAndSwap(lastAlert, now.UnixNano()) {
+		return
+	}
+
+	alertVersion := semver.Version{
+		Major: s.oldestSupportedVersion.Major,
+		Minor: s.oldestSupportedVersion.Minor,
+		Patch: s.oldestSupportedVersion.Patch,
+	}
+
+	client := info.Role
+	if info.RemoteAddr != "" {
+		client += " at " + info.RemoteAddr
+	}
+
+	alert, err := types.NewClusterAlert(
+		"rejected-unsupported-connection",
+		fmt.Sprintf("%s attempted to join running unsupported version v%s and was rejected. Joining will be allowed after upgrading to v%s or newer", client, info.ClientVersion, alertVersion.String()),
+		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),
+	)
+	if err != nil {
+		s.cfg.Logger.WarnContext(ctx, "failed to create rejected-unsupported-connection alert", "error", err)
+		return
+	}
+	if err := s.cfg.AlertCreator(ctx, alert); err != nil {
+		s.cfg.Logger.WarnContext(ctx, "failed to persist rejected-unsupported-connection alert", "error", err)
 	}
 }
 

@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -34,9 +35,11 @@ import (
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joinv1proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
@@ -49,7 +52,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
+	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -543,6 +548,137 @@ func TestJoinToken(t *testing.T) {
 			tc.assertRejoinExpectation(t, newIdentity, err)
 		})
 	}
+}
+
+// TestJoinRejectsOutdatedClient asserts a too-old client is rejected before any
+// credentials are issued, over the proxy-forwarded path. The auth middleware's
+// version gate can't cover it, since it sees the proxy's version.
+func TestJoinRejectsOutdatedClient(t *testing.T) {
+	t.Parallel()
+
+	// The proxy joins with this token and so does the outdated node below.
+	token, err := types.NewProvisionTokenFromSpec("token1", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: []types.SystemRole{types.RoleInstance, types.RoleProxy},
+	})
+	require.NoError(t, err)
+
+	authService := newFakeAuthService(t)
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token))
+
+	proxy := newFakeProxy(authService)
+	proxy.join(t)
+	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { proxyListener.Close() })
+	proxy.runGRPCServer(t, proxyListener)
+
+	conn, err := proxyinsecureclient.NewConnection(t.Context(), proxyinsecureclient.ConnectionConfig{
+		ProxyServer: proxyListener.Addr().String(),
+		Insecure:    true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+
+	joinClient := joinv1.NewClientFromConn(conn)
+
+	// Report a version two majors behind, which is below the minimum supported
+	// version. The version interceptor honors a version already set on the
+	// outgoing context, so this value reaches the proxy unchanged.
+	oldVersion := semver.Version{Major: api.VersionMajor - 2}.String()
+	ctx := metadata.AppendToOutgoingContext(t.Context(), "version", oldVersion)
+
+	stream, err := joinClient.Join(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, stream.Send(&messages.ClientInit{
+		TokenName:  token.GetName(),
+		SystemRole: types.RoleInstance.String(),
+	}))
+
+	// The very first response is the rejection, confirming the check runs before
+	// any credentials are issued (no ServerInit precedes it).
+	_, err = stream.Recv()
+	require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
+	// Assert only that the minimum version is surfaced, not the exact wording,
+	// so the test survives copy edits to the rejection message.
+	minVersion := semver.Version{Major: api.VersionMajor - 1}.String()
+	require.ErrorContains(t, err, minVersion)
+
+	evt, err := authService.lastEvent(ctx, events.InstanceJoinEvent)
+	require.NoError(t, err)
+	instanceJoin, ok := evt.(*apievents.InstanceJoin)
+	require.True(t, ok, "got %T, expected *apievents.InstanceJoin", evt)
+	require.Contains(t, instanceJoin.Status.Error, minVersion)
+	// Clear the asserted error so the structural comparison below doesn't couple
+	// to the exact message wording.
+	instanceJoin.Status.Error = ""
+	require.Empty(t, cmp.Diff(
+		&apievents.InstanceJoin{
+			Metadata: apievents.Metadata{
+				Type: events.InstanceJoinEvent,
+				Code: events.InstanceJoinFailureCode,
+			},
+			Status: apievents.Status{
+				Success: false,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: "127.0.0.1",
+			},
+			Role: types.RoleInstance.String(),
+		},
+		instanceJoin,
+		protocmp.Transform(),
+		cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+			return key == "Time" || key == "ID"
+		}),
+	))
+}
+
+// TestJoinAllowsOutdatedClientWithOverride asserts that when the env variable
+// "TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes" is set, the join-time version check
+// is disabled, so an outdated client proceeds to the normal join flow instead
+// of being rejected.
+func TestJoinAllowsOutdatedClientWithOverride(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
+
+	token, err := types.NewProvisionTokenFromSpec("token1", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: []types.SystemRole{types.RoleInstance, types.RoleProxy},
+	})
+	require.NoError(t, err)
+
+	authService := newFakeAuthService(t)
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token))
+
+	proxy := newFakeProxy(authService)
+	proxy.join(t)
+	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { proxyListener.Close() })
+	proxy.runGRPCServer(t, proxyListener)
+
+	conn, err := proxyinsecureclient.NewConnection(t.Context(), proxyinsecureclient.ConnectionConfig{
+		ProxyServer: proxyListener.Addr().String(),
+		Insecure:    true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+
+	joinClient := joinv1.NewClientFromConn(conn)
+
+	oldVersion := semver.Version{Major: api.VersionMajor - 2}.String()
+	ctx := metadata.AppendToOutgoingContext(t.Context(), "version", oldVersion)
+
+	stream, err := joinClient.Join(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, stream.Send(&messages.ClientInit{
+		TokenName:  token.GetName(),
+		SystemRole: types.RoleInstance.String(),
+	}))
+
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	require.IsType(t, &messages.ServerInit{}, resp)
 }
 
 // TestJoinError asserts that attempts to join with an invalid token return an
