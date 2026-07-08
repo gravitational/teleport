@@ -138,6 +138,14 @@ const (
 	AppSessionLLMRequestSuccessCode = "T2014I"
 	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
 	AppSessionLLMRequestFailureCode = "T2014E"
+	// AppSessionHTTPRequestCode is the HTTP proxy request event code.
+	AppSessionHTTPRequestCode = "T2015I"
+	// AppSessionHTTPRequestBodyChunkCode is the HTTP proxy request body chunk event code.
+	AppSessionHTTPRequestBodyChunkCode = "T2016I"
+	// AppSessionHTTPResponseCode is the HTTP proxy response event code.
+	AppSessionHTTPResponseCode = "T2017I"
+	// AppSessionHTTPResponseBodyChunkCode is the HTTP proxy response body chunk event code.
+	AppSessionHTTPResponseBodyChunkCode = "T2018I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -326,6 +334,10 @@ const (
 	KubernetesClusterUpdateCode = "T3011I"
 	// KubernetesClusterDeleteCode is the kube.delete event code.
 	KubernetesClusterDeleteCode = "T3012I"
+	// AgentForwardCode is the agent forward event code.
+	AgentForwardCode = "T3013I"
+	// AgentForwardFailureCode is the agent forward failure event code.
+	AgentForwardFailureCode = "T3013W"
 
 	// The following codes correspond to SFTP file operations.
 	SFTPOpenCode           = "TS001I"
@@ -941,15 +953,6 @@ const (
 	CertAuthOverrideUpsertCode = "TCO03I"
 	// CertAuthOverrideDeleteCode is the cert_auth_override delete event code.
 	CertAuthOverrideDeleteCode = "TCO04I"
-	// CertAuthOverrideCertificatesAddCode is the event code for specialized
-	// AddCertificateOverride operation.
-	CertAuthOverrideCertificatesAddCode = "TCO05I"
-	// CertAuthOverrideCertificatesUpdateCode is the event code for specialized
-	// UpdateCertificateOverride operation.
-	CertAuthOverrideCertificatesUpdateCode = "TCO06I"
-	// CertAuthOverrideCertificatesRemoveCode is the event code for specialized
-	// RemoveCertificateOverride operation.
-	CertAuthOverrideCertificatesRemoveCode = "TCO07I"
 
 	// BeamsConfigCreateCode is the Beams config create event code.
 	BeamsConfigCreateCode = "TBEAM001I"

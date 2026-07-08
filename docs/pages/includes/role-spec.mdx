@@ -28,6 +28,11 @@ spec:
     # ssh_file_copy controls whether file copying (SCP/SFTP) is allowed.
     # Defaults to true.
     ssh_file_copy: false
+    # web_terminal_clipboard_mode controls whether users can copy text from
+    # an SSH session to the clipboard in the Web UI terminal. Options are 'unrestricted'
+    # (the default) and 'no-copy'. If any of the user's roles is set to 'no-copy',
+    # copying is disabled.
+    web_terminal_clipboard_mode: no-copy
     # client_idle_timeout determines if SSH sessions to cluster nodes are
     # forcefully terminated after no activity from a client (idle client).
     # it overrides the global cluster setting. examples: '30m', '1h' or '1h30m'
@@ -376,6 +381,9 @@ spec:
       # the reviewer can preview details about resources accessible by any roles
       # listed in preview_as_roles when reviewing Resource Access Requests
       preview_as_roles: ['dbadmin']
+      # the reviewer can submit reviews on behalf of other users;
+      # only to be used by Access Request plugins (eg. Slack plugin)
+      submit_for_users: ['*']
 
     # request allows a user to request roles matching
     # expressions below

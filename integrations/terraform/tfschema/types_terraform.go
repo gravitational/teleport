@@ -923,6 +923,11 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"region": {
+							Description: "Region is a cloud region for the app. This field is set for apps that integrates with AWS applications/APIs.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"roles_anywhere_profile": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"accept_role_session_name": {
@@ -13498,6 +13503,23 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["region"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.AWS.region"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.AWS.region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Region = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -15133,6 +15155,28 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 												v.Unknown = false
 												tf.Attrs["roles_anywhere_profile"] = v
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["region"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.AWS.region"})
+										} else {
+											v, ok := tf.Attrs["region"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.AWS.region", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.AWS.region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Region) == ""
+											}
+											v.Value = string(obj.Region)
+											v.Unknown = false
+											tf.Attrs["region"] = v
 										}
 									}
 								}

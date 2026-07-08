@@ -72,7 +72,7 @@ func TestAppAccess(t *testing.T) {
 
 	streamableHTTPTLSServer := httptest.NewTLSServer(mcpserver.NewStreamableHTTPServer(mcptest.NewServer()))
 	streamableHTTPTLSServerURL := "mcp+" + streamableHTTPTLSServer.URL + "/mcp"
-	t.Cleanup(streamableHTTPServer.Close)
+	t.Cleanup(streamableHTTPTLSServer.Close)
 
 	extraApps := []servicecfg.App{
 		{

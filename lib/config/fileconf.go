@@ -2515,6 +2515,9 @@ type Rewrite struct {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string `yaml:"external_id,omitempty"`
+	// Region is a cloud region for the app.
+	// This field is set for apps that integrates with AWS applications/APIs.
+	Region string `yaml:"region,omitempty"`
 }
 
 // PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.

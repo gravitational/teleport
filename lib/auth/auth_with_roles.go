@@ -424,11 +424,10 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
-func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	if err := a.localServerAction(); err != nil {
-		return nil, trace.Wrap(err)
+func (a *ScopedServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	if _, isServer := getLocalServerID(a.scopedContext.Identity); !isServer {
+		return nil, trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
-
 	tracker, err := a.authServer.CreateSessionTracker(ctx, tracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -667,11 +666,10 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 }
 
 // UpdateSessionTracker updates a tracker resource for an active session.
-func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if err := a.localServerAction(); err != nil {
-		return trace.Wrap(err)
+func (a *ScopedServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	if _, isServer := getLocalServerID(a.scopedContext.Identity); !isServer {
+		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
-
 	return a.authServer.UpdateSessionTracker(ctx, req)
 }
 
@@ -789,7 +787,7 @@ func (a *ScopedServerWithRoles) GenerateHostCerts(ctx context.Context, req *prot
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
 func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
 	// ensure requesting cert's primary role is a server role.
-	_, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	_, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
 	}
@@ -873,7 +871,7 @@ func (a *ServerWithRoles) AssertSystemRole(ctx context.Context, req proto.System
 // use it for metrics purposes.
 func (a *ScopedServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
 	// Ensure that caller is a teleport server
-	serverID, isBuiltinServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isBuiltinServer := getLocalServerID(a.scopedContext.Identity)
 	if !isBuiltinServer {
 		return nil, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
@@ -1121,30 +1119,27 @@ func (a *ServerWithRoles) ClearAlertAcks(ctx context.Context, req proto.ClearAle
 	return a.authServer.ClearAlertAcks(ctx, req)
 }
 
-func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	ruleCtx := a.scopedContext.RuleContext()
 	// Note: UpsertNode doesn't allow any namespaces but "default".
-	if err := a.authorizeAction(types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
+	// The Decision API only checks on the default namespace.
+	if err := a.scopedContext.CheckerContext.Decision(ctx, s.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindNode, types.VerbCreate, types.VerbUpdate)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
+	agentScope := a.scopedContext.Identity.GetIdentity().GetAgentScope()
 	if nodeScope := s.GetScope(); agentScope != "" {
 		if nodeScope != agentScope {
 			return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
 		}
+	}
 
-		if a.hasBuiltinRole(types.RoleNode) {
-			clusterName, err := a.GetDomainName(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			callerID, err := ExtractHostID(a.context.User.GetName(), clusterName)
-			if err != nil {
-				return nil, trace.AccessDenied("access denied")
-			}
-			if s.GetName() != callerID {
-				return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
-			}
+	if a.hasBuiltinRole(types.RoleNode) {
+		callerID, _ := getLocalServerID(a.scopedContext.Identity)
+		if s.GetName() != callerID {
+			return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
 		}
 	}
 
@@ -3874,6 +3869,17 @@ func getBotName(user services.UserState) string {
 	return ""
 }
 
+// getBotScope returns the scope of the bot embedded in the user metadata, if
+// any. For unscoped bots and non-bot users, returns "".
+func getBotScope(user services.UserState) string {
+	scope, ok := user.GetLabel(types.BotScopeLabel)
+	if ok {
+		return scope
+	}
+
+	return ""
+}
+
 func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
 	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
@@ -4242,7 +4248,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
 
-			BotName: getBotName(user),
+			BotName:  getBotName(user),
+			BotScope: getBotScope(user),
 			// Always pass through a bot instance ID if available. Legacy bots
 			// joining without an instance ID may have one generated when
 			// `updateBotInstance()` is called below, and this (empty) value will be
@@ -4317,6 +4324,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		ActiveRequests:         req.AccessRequests,
 		ConnectionDiagnosticID: req.ConnectionDiagnosticID,
 		BotName:                getBotName(user),
+		BotScope:               getBotScope(user),
 
 		// Always pass through a bot instance ID if available. Legacy bots
 		// joining without an instance ID may have one generated when
@@ -4641,6 +4649,10 @@ func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withS
 		if err := a.authConnectorAction(types.KindOIDC, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetOIDCConnector(ctx, id, withSecrets)
 }
@@ -4654,6 +4666,10 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindOIDC, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4671,6 +4687,10 @@ func (a *ServerWithRoles) ListOIDCConnectors(ctx context.Context, limit int, sta
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindOIDC, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
@@ -4826,6 +4846,10 @@ func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withS
 		if err := a.authConnectorAction(types.KindSAML, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetSAMLConnectorWithValidationOptions(ctx, id, withSecrets, opts...)
 }
@@ -4839,6 +4863,10 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindSAML, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4856,6 +4884,10 @@ func (a *ServerWithRoles) ListSAMLConnectorsWithOptions(ctx context.Context, lim
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindSAML, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
@@ -5060,6 +5092,10 @@ func (a *ServerWithRoles) GetGithubConnector(ctx context.Context, id string, wit
 		if err := a.authConnectorAction(types.KindGithub, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetGithubConnector(ctx, id, withSecrets)
 }
@@ -5073,6 +5109,10 @@ func (a *ServerWithRoles) GetGithubConnectors(ctx context.Context, withSecrets b
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindGithub, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -5090,6 +5130,10 @@ func (a *ServerWithRoles) ListGithubConnectors(ctx context.Context, limit int, s
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(types.KindGithub, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		// Reading secrets requires admin action MFA
+		if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
@@ -5178,7 +5222,7 @@ func (a *ScopedServerWithRoles) EmitAuditEvent(ctx context.Context, event apieve
 	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedEmitEvent(ctx, &ruleCtx); err != nil {
 		return trace.Wrap(err)
 	}
-	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
@@ -5205,7 +5249,7 @@ func (a *ScopedServerWithRoles) CreateAuditStream(ctx context.Context, sid sessi
 	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
@@ -5226,7 +5270,7 @@ func (a *ScopedServerWithRoles) ResumeAuditStream(ctx context.Context, sid sessi
 	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
@@ -6665,11 +6709,25 @@ func (a *ServerWithRoles) canDeleteWebSession(username string) error {
 }
 
 // GenerateAppToken creates a JWT token with application access.
-func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
-	if err := a.authorizeAction(types.KindJWT, types.VerbCreate); err != nil {
+func (a *ScopedServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, types.VerbCreate)
+	}); err != nil {
 		return "", trace.Wrap(err)
 	}
 
+	// TODO(williamo/scopes): bind req.Scope to the generated token.
+	//
+	// The app JWT is signed by a single cluster wide JWT CA, so its trust anchor spans every scope.
+	// A compromised app could replay a valid signed token against another
+	// app they can access, including one in a different scope, if that app
+	// verifies only the signature and not the "aud" claim. Setting "aud" to the
+	// app's address is a partial mitigation, but enforcement is up to the
+	// downstream app.
+	//
+	// This cross app replay risk is not strictly scope specific, but attackers
+	// can use this path to reach out to other applications not in the user's scope.
 	token, err := a.authServer.generateAppToken(ctx, req)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -7338,80 +7396,110 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 }
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
-func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	// Don't allow users create clusters they wouldn't have access to (e.g.
-	// non-matching labels).
-	if err := a.checkAccessToKubeCluster(cluster); err != nil {
+func (a *ScopedServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbCreate); err != nil {
+			return err
+		}
+		// Don't allow users to create clusters they wouldn't have access to (e.g.
+		// non-matching labels).
+		return checker.Kube().CanAccessCluster(cluster)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 	// Don't allow discovery service to create clusters with dynamic labels.
 	if a.hasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
 		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
 	}
-	// Dynamic scoped kube clusters are not implemented yet so we need to prevent their creation.
-	if cluster.GetScope() != "" {
-		return trace.BadParameter("scope must be empty")
-	}
 	return trace.Wrap(a.authServer.CreateKubernetesCluster(ctx, cluster))
 }
 
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
-func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbUpdate); err != nil {
+func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
 	// Don't allow users update clusters they don't have access to (e.g.
 	// non-matching labels). Make sure to check existing cluster too.
 	existing, err := a.authServer.GetKubernetesCluster(ctx, cluster.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(existing); err != nil {
+	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbUpdate); err != nil {
+			return err
+		}
+		if err := checker.Kube().CanAccessCluster(existing); err != nil {
+			return err
+		}
+		if err := checker.Kube().CanAccessCluster(cluster); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(cluster); err != nil {
-		return trace.Wrap(err)
+
+	// We check if the scope has changed after the decision so we can provide a useful error message.
+	// We do a naive equality check to cover when both scopes are empty and scopes.Compare for a more complete check
+	// when at least one scope is set.
+	if existing.GetScope() != cluster.GetScope() && scopes.Compare(existing.GetScope(), cluster.GetScope()) != scopes.Equivalent {
+		return trace.BadParameter("scope of existing kubernetes cluster cannot be changed")
 	}
+
 	// Don't allow discovery service to create clusters with dynamic labels.
 	if a.hasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
 		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
 	}
-	// Dynamic scoped kube clusters are not implemented yet so we need to prevent their creation.
-	if cluster.GetScope() != "" {
-		return trace.BadParameter("scope must be empty")
-	}
+
 	return trace.Wrap(a.authServer.UpdateKubernetesCluster(ctx, cluster))
 }
 
 // GetKubernetesCluster returns specified kubernetes cluster resource.
-func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbRead); err != nil {
+func (a *ScopedServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	kubeCluster, err := a.authServer.GetKubernetesCluster(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(kubeCluster); err != nil {
+
+	if err := a.scopedContext.CheckerContext.Decision(ctx, kubeCluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+			return err
+		}
+		return checker.Kube().CanAccessCluster(kubeCluster)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return kubeCluster, nil
 }
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
-func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []types.KubeCluster, err error) {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []types.KubeCluster, err error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	out, err := iterstream.Collect(
 		iterstream.FilterMap(
 			a.authServer.RangeKubernetesClusters(ctx, "", ""),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
-				if a.checkAccessToKubeCluster(cluster) == nil {
+				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+						return err
+					}
+					return checker.Kube().CanAccessCluster(cluster)
+				}); err == nil {
 					return cluster, true
 				}
 				return nil, false
@@ -7426,8 +7514,9 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
-func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
@@ -7436,7 +7525,12 @@ func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int,
 			a.authServer.RangeKubernetesClusters(ctx, start, ""),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
-				if a.checkAccessToKubeCluster(cluster) == nil {
+				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+						return err
+					}
+					return checker.Kube().CanAccessCluster(cluster)
+				}); err == nil {
 					return cluster, true
 				}
 				return nil, false
@@ -7448,8 +7542,9 @@ func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int,
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
-func (a *ServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbDelete); err != nil {
+func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	// Make sure user has access to the kubernetes cluster before deleting.
@@ -7457,15 +7552,21 @@ func (a *ServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name stri
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(cluster); err != nil {
+	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+			return err
+		}
+		return checker.Kube().CanAccessCluster(cluster)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.DeleteKubernetesCluster(ctx, name))
 }
 
 // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
-func (a *ServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbDelete); err != nil {
+func (a *ScopedServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	// Make sure to only delete kubernetes cluster user has access to.
@@ -7473,12 +7574,26 @@ func (a *ServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	var deletedAtLeastOneCluster bool
 	for _, cluster := range clusters {
-		if err := a.checkAccessToKubeCluster(cluster); err == nil {
+		if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete, types.VerbList); err != nil {
+				return err
+			}
+			return checker.Kube().CanAccessCluster(cluster)
+		}); err == nil {
 			if err := a.authServer.DeleteKubernetesCluster(ctx, cluster.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
+			deletedAtLeastOneCluster = true
 		}
+	}
+
+	// if we found clusters to be deleted but there were no successful deletions, at least on
+	// return an access denied error so the caller knows the deletion was not successful
+	if len(clusters) > 0 && !deletedAtLeastOneCluster {
+		return trace.AccessDenied("access denied (decision)")
 	}
 	return nil
 }
@@ -8917,9 +9032,9 @@ func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks ser
 	return okta.CheckAccess(authzCtx, existingLock, verb)
 }
 
-// getBuiltinServerID returns the builtin server ID associated with the identity.
+// getLocalServerID returns the builtin server ID associated with the identity.
 // If the identity is not a builtin server role, and empty string and false are returned.
-func getBuiltinServerID(identityGetter authz.IdentityGetter) (serverID string, isBuiltinServer bool) {
+func getLocalServerID(identityGetter authz.IdentityGetter) (serverID string, isBuiltinServer bool) {
 	switch role := identityGetter.(type) {
 	case authz.BuiltinRole:
 		return role.GetServerID(), role.IsServer()

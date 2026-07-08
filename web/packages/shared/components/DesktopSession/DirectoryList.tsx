@@ -17,23 +17,14 @@
  */
 import styled from 'styled-components';
 
-import { Flex, Stack, P3, P2, H3 } from 'design';
-import {
-  ButtonFill,
-  ButtonIntent,
-  ButtonPrimary,
-  ButtonProps,
-  ButtonSecondary,
-} from 'design/Button/Button';
-import { Eject, FolderPlus, Plus } from 'design/Icon';
-import { HoverTooltip } from 'design/Tooltip';
+import { Flex, Stack, P2, H3 } from 'design';
+import { ButtonPrimary, ButtonProps } from 'design/Button/Button';
+import { FolderPlus, Plus } from 'design/Icon';
 import { MenuIcon } from 'shared/components/MenuAction';
 
 interface SharedDirectoriesProps {
   sharedDirectories: DirectoryItem[];
-  onRemoveSharedDirectory: (id: number) => void;
   onAddSharedDirectory: () => void;
-  canRemoveSharedDirectory: boolean;
   canShareDirectories: boolean;
   maxSharedDirectories: number;
   directorySharingMessage: string;
@@ -46,9 +37,7 @@ export interface DirectoryItem {
 
 export function SharedDirectoryList({
   sharedDirectories,
-  onRemoveSharedDirectory,
   onAddSharedDirectory,
-  canRemoveSharedDirectory,
   canShareDirectories,
   maxSharedDirectories,
   directorySharingMessage,
@@ -93,96 +82,22 @@ export function SharedDirectoryList({
           {!!sharedDirectories.length && (
             <DirectoryEntries aria-label="Shared directories">
               {sharedDirectories.map(dir => (
-                <DirectoryEntry
-                  name={dir.name}
-                  id={dir.id}
-                  isRemoveSupported={canRemoveSharedDirectory}
-                  onRemove={onRemoveSharedDirectory}
-                  key={dir.id}
-                />
+                <DirectoryEntry name={dir.name} id={dir.id} key={dir.id} />
               ))}
             </DirectoryEntries>
           )}
-
-          {/* If not supported, explain to the user that removal is not supported for the
-              connected WDS version, but may be supported on new versions. */}
-          <RemovalSupportInformation
-            isRemoveSupported={canRemoveSharedDirectory}
-            directoryCount={sharedDirectories.length}
-          />
         </Stack>
       </Container>
     </MenuIcon>
   );
 }
 
-function DirectoryEntry(props: {
-  name: string;
-  id: number;
-  isRemoveSupported: boolean;
-  onRemove: (id: number) => void;
-}) {
-  let buttonProps: {
-    disabled: boolean;
-    intent: ButtonIntent;
-    fill: ButtonFill;
-  } = {
-    disabled: false,
-    intent: 'primary',
-    fill: 'minimal',
-  };
-  let hoverText = 'Disconnect 1 shared directory';
-  if (!props.isRemoveSupported) {
-    hoverText = `
-      Disconnecting shared directories is not supported by this version of
-      Windows Desktop Service. To enable this feature, contact your Teleport
-      administrator about upgrading the Windows Desktop Service instance(s) in
-      your Teleport cluster.
-      `;
-  }
-
-  if (!props.isRemoveSupported) {
-    buttonProps = {
-      disabled: true,
-      intent: 'neutral',
-      fill: 'filled',
-    };
-  }
-
+function DirectoryEntry(props: { name: string; id: number }) {
   return (
     <DirectoryEntriesItem>
       <P2>{props.name}</P2>
-      <HoverTooltip placement="bottom" tipContent={hoverText}>
-        <Flex flexShrink={0}>
-          <ButtonSecondary
-            aria-label={`Disconnect shared directory ${props.name}`}
-            size="small"
-            compact={true}
-            onClick={() => props.onRemove(props.id)}
-            {...buttonProps}
-          >
-            <Eject size="small" />
-          </ButtonSecondary>
-        </Flex>
-      </HoverTooltip>
     </DirectoryEntriesItem>
   );
-}
-
-function RemovalSupportInformation(props: {
-  isRemoveSupported: boolean;
-  directoryCount: number;
-}) {
-  if (props.isRemoveSupported || props.directoryCount == 0) {
-    return;
-  }
-
-  const copyText =
-    props.directoryCount > 1
-      ? 'Disconnect these shared directories by restarting your session.'
-      : 'Disconnect this shared directory by restarting your session.';
-
-  return <P3 color="text.muted">{copyText}</P3>;
 }
 
 function ShareButton(
