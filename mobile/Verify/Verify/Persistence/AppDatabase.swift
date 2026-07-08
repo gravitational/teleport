@@ -77,7 +77,7 @@ extension AppDatabase {
 
 	/// An in-memory database that can be used when persisting to disk isn't appropriate, such as in SwiftUI Previews.
 	///
-	/// This function will always return the same in-memory database when called multiple times. If a brand new
+	/// This property will always return the same in-memory database when called multiple times. If a brand new
 	/// in-memory database is explicitly required, call `makeInMemoryDatabase()` instead.
 	static let inMemory: any DatabaseWriter = makeInMemoryDatabase()
 
