@@ -619,7 +619,7 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 
 			// 4. Handle delivery failures.
 			if ctx.Err() == nil && q.ctx.Err() == nil {
-				q.handleDeliveryFailures(ctx, items, successfullyDelivered)
+				q.handleDeliveryFailures(ctx, q.db, items, successfullyDelivered)
 			}
 		}
 
@@ -680,12 +680,12 @@ func (q *sqliteQueue) ackWithRetry(ctx context.Context, items []Item) error {
 	}
 }
 
-func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, successfullyDelivered []Item) {
+func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, db *sql.DB, items []Item, successfullyDelivered []Item) {
 	failed := itemsNotIn(items, successfullyDelivered)
 	if len(failed) == 0 {
 		return
 	}
-	promoted, err := q.processFailedDeliveries(failed)
+	promoted, err := q.processFailedDeliveries(ctx, db, failed)
 	if err != nil {
 		slog.ErrorContext(q.ctx,
 			"Failed to process failed audit event deliveries.",
@@ -723,12 +723,12 @@ func itemsNotIn(all, delivered []Item) []Item {
 	return failed
 }
 
-func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
+func (q *sqliteQueue) processFailedDeliveries(ctx context.Context, db *sql.DB, failed []Item) (int, error) {
 	if len(failed) == 0 {
 		return 0, nil
 	}
 
-	tx, err := q.db.BeginTx(q.ctx, nil)
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -739,7 +739,7 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 		ids[i] = item.id
 	}
 
-	rows, err := tx.QueryContext(q.ctx,
+	rows, err := tx.QueryContext(ctx,
 		"UPDATE audit_queue SET attempts = attempts + 1 WHERE id IN ("+placeholders(len(ids))+") RETURNING id, attempts",
 		ids...,
 	)
@@ -1151,17 +1151,20 @@ func (q *sqliteQueue) drainOrphanDB(ctx context.Context, db *sql.DB, handler Han
 			break
 		}
 		successfullyDelivered := handler(ctx, items)
-		if len(successfullyDelivered) == 0 {
-			return false
-		}
 
 		// Notice: We do not want to call q.ack() here. This is because this db
 		// is an adopted db. Hence it is a different database than the one that
 		// is currently held by `q`.
-		if err := ackDB(ctx, db, successfullyDelivered); err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx, "Failed to ack orphan events.", "error", err)
-			return false
+		if len(successfullyDelivered) > 0 {
+			if err := ackDB(ctx, db, successfullyDelivered); err != nil {
+				orphanScanErrors.Inc()
+				slog.ErrorContext(q.ctx, "Failed to ack orphan events.", "error", err)
+				return false
+			}
+		}
+
+		if ctx.Err() == nil && q.ctx.Err() == nil {
+			q.handleDeliveryFailures(ctx, db, items, successfullyDelivered)
 		}
 
 		// We didn't manage to drain the entire orphan. We will re-attempt to

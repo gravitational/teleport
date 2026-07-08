@@ -539,6 +539,51 @@ func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
 	require.ErrorIs(t, <-bRunErr, context.Canceled)
 }
 
+func TestOrphanAdoption_PromotesFailedToDeadLetter(t *testing.T) {
+	t.Parallel()
+	parent := t.TempDir()
+	ctx := t.Context()
+
+	aPath := filepath.Join(parent, "a")
+	a, err := newSQLiteQueue(Config{Path: aPath})
+	require.NoError(t, err)
+	require.NoError(t, a.Enqueue(newTestEvent(42)))
+	require.NoError(t, a.Close())
+
+	_, err = os.Stat(aPath)
+	require.NoError(t, err, "expected A's directory to remain after Close due to non-empty queue")
+
+	b, err := newSQLiteQueue(Config{
+		Path:                    filepath.Join(parent, "b"),
+		OrphanScanInterval:      50 * time.Millisecond,
+		MaxAttempts:             1,
+		DeadLetterSweepInterval: time.Hour, // prevent B from re-delivering during the test
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = b.Close() })
+
+	runCtx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	runErr := make(chan error, 1)
+	go func() {
+		runErr <- b.Run(runCtx, func(context.Context, []Item) []Item { return nil })
+	}()
+
+	require.Eventually(t, func() bool {
+		dl, err := fetchDeadLetter(b.ctx, b.db, 10)
+		return err == nil && len(dl) == 1 && dl[0].Event.GetIndex() == 42
+	}, 5*time.Second, 50*time.Millisecond,
+		"expected A's failing event to be promoted and migrated into B's dead-letter queue")
+
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(aPath)
+		return os.IsNotExist(err)
+	}, 5*time.Second, 50*time.Millisecond, "expected A's directory to be removed after promotion and migration")
+
+	cancel()
+	require.ErrorIs(t, <-runErr, context.Canceled)
+}
+
 func TestOrphanAdoption_SkipsLockedQueue(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
@@ -721,7 +766,7 @@ func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 	require.Len(t, items, 2)
 
 	for i := 0; i < 2; i++ {
-		promoted, err := q.processFailedDeliveries(items)
+		promoted, err := q.processFailedDeliveries(t.Context(), q.db, items)
 		require.NoError(t, err)
 		require.Equal(t, 0, promoted, "should not be exhausted after attempt %d", i+1)
 		remaining, err := q.fetch(10)
@@ -729,7 +774,7 @@ func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 		require.Len(t, remaining, 2, "items should still be in audit_queue after attempt %d", i+1)
 	}
 
-	promoted, err := q.processFailedDeliveries(items)
+	promoted, err := q.processFailedDeliveries(t.Context(), q.db, items)
 	require.NoError(t, err)
 	require.Equal(t, 2, promoted)
 
@@ -847,7 +892,7 @@ func TestDeadLetterSweep_DrainsEntireBacklog(t *testing.T) {
 	items, err := q.fetch(total)
 	require.NoError(t, err)
 	require.Len(t, items, total)
-	promoted, err := q.processFailedDeliveries(items)
+	promoted, err := q.processFailedDeliveries(ctx, q.db, items)
 	require.NoError(t, err)
 	require.Equal(t, total, promoted)
 
@@ -887,7 +932,7 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	items, err := q.fetch(1)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	promoted, err := q.processFailedDeliveries(items)
+	promoted, err := q.processFailedDeliveries(t.Context(), q.db, items)
 	require.NoError(t, err)
 	require.Equal(t, 1, promoted)
 
