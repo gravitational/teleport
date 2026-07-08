@@ -16,10 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import styled from 'styled-components';
 
-import { Button, Alert as DesignAlert, Flex, H1, Link, Stack } from 'design';
+import {
+  Button,
+  Alert as DesignAlert,
+  Flex,
+  H1,
+  Input,
+  Link,
+  Stack,
+  Text,
+} from 'design';
 import { AlertProps } from 'design/Alert/Alert';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
@@ -35,6 +44,7 @@ import { P1, P2 } from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { ConnectionStat } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
@@ -50,6 +60,7 @@ import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
 
+import { ConnectionStatRow } from './ConnectionStatRow';
 import { useVnetContext } from './vnetContext';
 
 export function DocumentVnetDiagReport(props: {
@@ -149,140 +160,220 @@ export function DocumentVnetDiagReport(props: {
         fullWidth
         mx="auto"
         mt={4}
-        p={5}
-        backgroundColor="levels.surface"
-        borderRadius={2}
         // Without this, the Stack would span the whole height of the Document, no matter how much
-        // content was displayed in the Stack.
+        // content was displayed in it.
         alignSelf="flex-start"
       >
-        <Details>
-          <ReportSummary>
-            <Stack gap={4} fullWidth alignItems="stretch">
-              <Flex
-                flexWrap="wrap"
-                gap={2}
-                justifyContent="space-between"
-                alignItems="center"
-              >
-                <Flex gap={2} alignItems="center">
-                  <Chevron />
-                  <H1>VNet Diagnostic Report</H1>
+        <ReportCard>
+          <Details>
+            <ReportSummary>
+              <Stack gap={4} fullWidth alignItems="stretch">
+                <Flex
+                  flexWrap="wrap"
+                  gap={2}
+                  justifyContent="space-between"
+                  alignItems="center"
+                >
+                  <Flex gap={2} alignItems="center">
+                    <Chevron />
+                    <H1>VNet Diagnostic Report</H1>
+                  </Flex>
+
+                  {/* Clicks on the buttons must not toggle the enclosing <details>. */}
+                  <Flex gap={2} onClick={e => e.stopPropagation()}>
+                    <HoverTooltip
+                      tipContent={
+                        disabledDiagnosticsReason || 'Run Diagnostics Again'
+                      }
+                    >
+                      <Button
+                        intent="neutral"
+                        p={1}
+                        disabled={!!disabledDiagnosticsReason}
+                        onClick={runDiagnosticsAndReplaceReport}
+                      >
+                        <Refresh size="medium" />
+                      </Button>
+                    </HoverTooltip>
+
+                    <HoverTooltip tipContent="Copy Report to Clipboard">
+                      <Button
+                        intent="neutral"
+                        p={1}
+                        onClick={copyReportToClipboard}
+                      >
+                        <Copy size="medium" />
+                      </Button>
+                    </HoverTooltip>
+
+                    <HoverTooltip tipContent="Save Report to File">
+                      <Button intent="neutral" p={1} onClick={saveReportToFile}>
+                        <Download size="medium" />
+                      </Button>
+                    </HoverTooltip>
+                  </Flex>
                 </Flex>
 
-                {/* Clicks on the buttons must not toggle the enclosing <details>. */}
-                <Flex gap={2} onClick={e => e.stopPropagation()}>
-                  <HoverTooltip
-                    tipContent={
-                      disabledDiagnosticsReason || 'Run Diagnostics Again'
-                    }
-                  >
-                    <Button
-                      intent="neutral"
-                      p={1}
-                      disabled={!!disabledDiagnosticsReason}
-                      onClick={runDiagnosticsAndReplaceReport}
+                {manualDiagnosticsAttempt.status === 'error' && (
+                  // Keep re-run failures visible even while collapsed; the wrapper stops the click
+                  // from toggling the <details>.
+                  <div onClick={e => e.stopPropagation()}>
+                    <Alert
+                      kind="danger"
+                      details={<P2>{manualDiagnosticsAttempt.statusText}</P2>}
                     >
-                      <Refresh size="medium" />
-                    </Button>
-                  </HoverTooltip>
+                      Encountered an error while re-running diagnostics.
+                    </Alert>
+                  </div>
+                )}
 
-                  <HoverTooltip tipContent="Copy Report to Clipboard">
-                    <Button
-                      intent="neutral"
-                      p={1}
-                      onClick={copyReportToClipboard}
-                    >
-                      <Copy size="medium" />
-                    </Button>
-                  </HoverTooltip>
+                <SummaryStatus gap={1} fullWidth alignItems="stretch">
+                  {issues.length > 0 ? (
+                    issues.map(issue => (
+                      <P1 m={0} key={issue}>
+                        <Warning /> {issue}
+                      </P1>
+                    ))
+                  ) : (
+                    <P1 m={0}>
+                      <Success /> No issues found.
+                    </P1>
+                  )}
+                </SummaryStatus>
+              </Stack>
+            </ReportSummary>
 
-                  <HoverTooltip tipContent="Save Report to File">
-                    <Button intent="neutral" p={1} onClick={saveReportToFile}>
-                      <Download size="medium" />
-                    </Button>
-                  </HoverTooltip>
-                </Flex>
-              </Flex>
-
-              {manualDiagnosticsAttempt.status === 'error' && (
-                // Keep re-run failures visible even while collapsed; the wrapper stops the click
-                // from toggling the <details>.
-                <div onClick={e => e.stopPropagation()}>
+            {/*
+              Keep the body in a single wrapper. A closed <details> hides it as one unit; making
+              <Details> the flex/gap container would leave the gap after the summary while collapsed.
+            */}
+            <Stack gap={4} fullWidth alignItems="stretch" mt={4}>
+              {networkStackAttempt.status === diag.CheckAttemptStatus.ERROR && (
+                <Stack gap={2} fullWidth alignItems="stretch">
+                  <P2>Created at: {createdAt}</P2>
                   <Alert
                     kind="danger"
-                    details={<P2>{manualDiagnosticsAttempt.statusText}</P2>}
+                    details={<P2>{networkStackAttempt.error}</P2>}
                   >
-                    Encountered an error while re-running diagnostics.
+                    {networkDetailsUnavailableTitle}
                   </Alert>
-                </div>
+                </Stack>
               )}
 
-              <SummaryStatus gap={1} fullWidth alignItems="stretch">
-                {issues.length > 0 ? (
-                  issues.map(issue => (
-                    <P1 m={0} key={issue}>
-                      <Warning /> {issue}
-                    </P1>
-                  ))
-                ) : (
-                  <P1 m={0}>
-                    <Success /> No issues found.
-                  </P1>
-                )}
-              </SummaryStatus>
+              {networkStackAttempt.status === diag.CheckAttemptStatus.OK && (
+                <P2>
+                  Created at: {createdAt}
+                  <br />
+                  Network interface: <code>{networkStack.interfaceName}</code>
+                  <br />
+                  IPv4 CIDR{' '}
+                  {pluralize(networkStack.ipv4CidrRanges.length, 'range')}:{' '}
+                  <code>{networkStack.ipv4CidrRanges.join(', ')}</code>
+                  <br />
+                  IPv6 prefix: <code>{networkStack.ipv6Prefix}</code>
+                  <br />
+                  DNS {pluralize(networkStack.dnsZones.length, 'zone')}:{' '}
+                  <code>{networkStack.dnsZones.join(', ')}</code>
+                </P2>
+              )}
+
+              {report.checks.map(checkAttempt => (
+                <CheckAttempt
+                  // tshd promises that checkAttempt.checkReport.report.oneofKind is
+                  // 1) always present even if the check fails to complete
+                  // 2) unique
+                  key={checkAttempt.checkReport.report.oneofKind}
+                  checkAttempt={checkAttempt}
+                />
+              ))}
             </Stack>
-          </ReportSummary>
+          </Details>
+        </ReportCard>
 
-          {/*
-            Keep the body in a single wrapper. A closed <details> hides it as one unit; making
-            <Details> the flex/gap container would leave the gap after the summary while collapsed.
-          */}
-          <Stack gap={4} fullWidth alignItems="stretch" mt={4}>
-            {networkStackAttempt.status === diag.CheckAttemptStatus.ERROR && (
-              <Stack gap={2} fullWidth alignItems="stretch">
-                <P2>Created at: {createdAt}</P2>
-                <Alert
-                  kind="danger"
-                  details={<P2>{networkStackAttempt.error}</P2>}
-                >
-                  {networkDetailsUnavailableTitle}
-                </Alert>
-              </Stack>
-            )}
-
-            {networkStackAttempt.status === diag.CheckAttemptStatus.OK && (
-              <P2>
-                Created at: {createdAt}
-                <br />
-                Network interface: <code>{networkStack.interfaceName}</code>
-                <br />
-                IPv4 CIDR{' '}
-                {pluralize(networkStack.ipv4CidrRanges.length, 'range')}:{' '}
-                <code>{networkStack.ipv4CidrRanges.join(', ')}</code>
-                <br />
-                IPv6 prefix: <code>{networkStack.ipv6Prefix}</code>
-                <br />
-                DNS {pluralize(networkStack.dnsZones.length, 'zone')}:{' '}
-                <code>{networkStack.dnsZones.join(', ')}</code>
-              </P2>
-            )}
-
-            {report.checks.map(checkAttempt => (
-              <CheckAttempt
-                // tshd promises that checkAttempt.checkReport.report.oneofKind is
-                // 1) always present even if the check fails to complete
-                // 2) unique
-                key={checkAttempt.checkReport.report.oneofKind}
-                checkAttempt={checkAttempt}
-              />
-            ))}
-          </Stack>
-        </Details>
+        <ConnectionsSection />
       </Stack>
     </Document>
   );
 }
+
+/**
+ * filterAndSortConnectionStats returns the stats whose address (displayName)
+ * contains the case-insensitive filter substring, sorted by address, then kind,
+ * then port. It returns a new array and does not mutate the input.
+ */
+export function filterAndSortConnectionStats(
+  stats: ConnectionStat[],
+  filter: string
+): ConnectionStat[] {
+  const normalizedFilter = filter.trim().toLowerCase();
+  return stats
+    .filter(stat => stat.displayName.toLowerCase().includes(normalizedFilter))
+    .sort(
+      (a, b) =>
+        a.displayName.localeCompare(b.displayName) ||
+        a.kind - b.kind ||
+        a.port - b.port
+    );
+}
+
+/**
+ * ConnectionsSection lists all VNet connections from the connection statistics
+ * stream, sorted by address with a type badge and filterable by address. It
+ * reads the same connectionStats as the VNet panel and renders them with the
+ * shared ConnectionStatRow.
+ */
+const ConnectionsSection = () => {
+  const { connectionStats } = useVnetContext();
+  const [filter, setFilter] = useState('');
+  const filteredStats = filterAndSortConnectionStats(connectionStats, filter);
+
+  return (
+    <ReportCard>
+      <Flex
+        gap={2}
+        flexWrap="wrap"
+        justifyContent="space-between"
+        alignItems="center"
+      >
+        <Text typography="body3" color="text.slightlyMuted">
+          Connections
+        </Text>
+        <Input
+          size="small"
+          width="220px"
+          placeholder="Search address"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+        />
+      </Flex>
+
+      {connectionStats.length === 0 ? (
+        <P2 m={0} color="text.muted">
+          No connections yet.
+        </P2>
+      ) : filteredStats.length === 0 ? (
+        <P2 m={0} color="text.muted">
+          No connections match the filter.
+        </P2>
+      ) : (
+        <Stack gap={1} fullWidth alignItems="stretch">
+          {filteredStats.map(stat => (
+            <ConnectionStatRow
+              key={[
+                stat.kind,
+                stat.cluster,
+                stat.leafCluster,
+                stat.displayName,
+                stat.port,
+              ].join('/')}
+              stat={stat}
+            />
+          ))}
+        </Stack>
+      )}
+    </ReportCard>
+  );
+};
 
 /**
  * CheckAttempt displays the result of attempting to run an individual check along with the outputs
@@ -772,6 +863,12 @@ function DnsZoneStatusLabel({ status }: { status: diag.DNSZoneStatus }) {
       return <>Unknown ({status})</>;
   }
 }
+
+const ReportCard = styled(Stack).attrs({ fullWidth: true, gap: 4 })`
+  padding: ${props => props.theme.space[5]}px;
+  background-color: ${props => props.theme.colors.levels.surface};
+  border-radius: ${props => props.theme.radii[2]}px;
+`;
 
 const Details = styled.details`
   width: 100%;
