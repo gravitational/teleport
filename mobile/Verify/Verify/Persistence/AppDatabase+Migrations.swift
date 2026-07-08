@@ -49,7 +49,12 @@ extension AppDatabase {
 					// upon insertion.
 					.defaults(sql: "(uuid())")
 
-				table.column("host", .text).notNull()
+				table.column("host", .text)
+					.notNull()
+				table.column("port", .integer)
+					.notNull()
+
+				table.uniqueKey(["host", "port"])
 			}
 		}
 
