@@ -24,6 +24,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -38,6 +39,15 @@ import (
 // over active connections into the cumulative per-target counters and
 // recomputes throughput.
 const statsSamplingInterval = time.Second
+
+const (
+	// maxRecordsPerTarget is how many connection records are kept for a single
+	// target before the oldest finished one is evicted.
+	maxRecordsPerTarget = 50
+	// maxRecordsGlobal is how many connection records are kept in total before
+	// the oldest finished one is evicted.
+	maxRecordsGlobal = 1000
+)
 
 // statsKey identifies a single target for connection statistics aggregation.
 // Two connections with the same key are aggregated into the same counters.
@@ -72,18 +82,50 @@ type trackedConn struct {
 	tc          *utils.TrackingConn
 	lastWritten uint64
 	lastRead    uint64
+	// record is the connection record this conn belongs to, if one was created.
+	// It is cleared once the conn is closed and its final byte counts have been
+	// copied over to the record.
+	record *connRecord
+}
+
+// connRecord tracks a single individual connection through its lifecycle.
+type connRecord struct {
+	id        uint64
+	key       statsKey
+	localPort uint16
+	process   string
+	startedAt time.Time
+	// endedAt is zero while the connection is active.
+	endedAt time.Time
+	// tracked is set while the connection is active, so byte counts can be read
+	// live from it. Once the conn is closed the final counts are copied to
+	// bytesTx/bytesRx and this is cleared.
+	tracked          *trackedConn
+	bytesTx, bytesRx uint64
+	state            vnetv1.ConnectionRecordState
+	errMsg           string
+}
+
+// bytes returns the bytes transferred over the connection, read live from the
+// tracked conn while the connection is still active.
+func (r *connRecord) bytes() (tx, rx uint64) {
+	if r.tracked != nil {
+		written, read := r.tracked.tc.Stat()
+		return read, written
+	}
+	return r.bytesTx, r.bytesRx
 }
 
 // reportConnectionsFunc reports a snapshot of VNet connection activity to the
 // client application.
 type reportConnectionsFunc func(ctx context.Context, report *vnetv1.ConnectionsReport) error
 
-// statsCollector aggregates per-target connection statistics for all
-// connections handled by VNet in the admin process. TCP handlers report
-// connection attempts through [statsCollector.begin], and a sampler
-// periodically folds bytes transferred over active connections into the
-// cumulative counters via [statsCollector.run] and reports fresh snapshots to
-// the client application.
+// statsCollector aggregates per-target connection statistics and keeps a capped
+// window of individual connection records for all connections handled by VNet
+// in the admin process. TCP handlers report connection attempts through
+// [statsCollector.begin], and a sampler periodically folds bytes transferred
+// over active connections into the cumulative counters via [statsCollector.run]
+// and reports fresh snapshots to the client application.
 type statsCollector struct {
 	clock clockwork.Clock
 	// report, if set, is called with a fresh snapshot whenever VNet connection
@@ -92,27 +134,45 @@ type statsCollector struct {
 	// lastReported is the last successfully reported snapshot. It is only
 	// accessed from the [statsCollector.run] goroutine.
 	lastReported *vnetv1.ConnectionsReport
+	// nextRecordID hands out connection record IDs. It is incremented when a
+	// connection attempt starts, so IDs order records by connection start time.
+	// IDs of attempts that never produce a record are skipped.
+	nextRecordID atomic.Uint64
 
-	// mu guards agg and active.
+	// mu guards agg, active, records and recordsPerTarget.
 	mu     sync.Mutex
 	agg    map[statsKey]*targetAgg
 	active map[*trackedConn]struct{}
+	// records holds the connection records currently kept, in creation order.
+	records []*connRecord
+	// recordsPerTarget counts the records in records per target, to enforce the
+	// per-target cap without scanning.
+	recordsPerTarget map[statsKey]int
 }
 
 func newStatsCollector(clock clockwork.Clock, report reportConnectionsFunc) *statsCollector {
 	return &statsCollector{
-		clock:  clock,
-		report: report,
-		agg:    make(map[statsKey]*targetAgg),
-		active: make(map[*trackedConn]struct{}),
+		clock:            clock,
+		report:           report,
+		agg:              make(map[statsKey]*targetAgg),
+		active:           make(map[*trackedConn]struct{}),
+		recordsPerTarget: make(map[statsKey]int),
 	}
 }
 
 // begin starts tracking a single connection attempt to the target identified
-// by key. Callers must call [connAttempt.finish] with the handler's final
-// error once the attempt has ended.
-func (c *statsCollector) begin(key statsKey) *connAttempt {
-	return &connAttempt{c: c, key: key}
+// by key. localPort is the port the client application dialed. Callers must
+// call [connAttempt.finish] with the handler's final error once the attempt
+// has ended.
+func (c *statsCollector) begin(ctx context.Context, key statsKey, localPort uint16) *connAttempt {
+	return &connAttempt{
+		c:         c,
+		id:        c.nextRecordID.Add(1),
+		key:       key,
+		localPort: localPort,
+		process:   clientProcessPathFromContext(ctx),
+		startedAt: c.clock.Now(),
+	}
 }
 
 // connAttempt tracks a single connection attempt from start to finish. It is
@@ -120,8 +180,17 @@ func (c *statsCollector) begin(key statsKey) *connAttempt {
 // [finish] sequentially in a single goroutine.
 type connAttempt struct {
 	c           *statsCollector
+	id          uint64
 	key         statsKey
+	localPort   uint16
+	process     string
+	startedAt   time.Time
 	established bool
+	// tracked is the downstream conn, set once it has been accepted.
+	tracked *trackedConn
+	// record is the record for this connection, set once the attempt resolved
+	// into either an established or a failed connection.
+	record *connRecord
 }
 
 // instrument wraps connector so that when it succeeds the attempt is counted
@@ -152,12 +221,14 @@ func (a *connAttempt) track(connector func() (net.Conn, error)) func() (net.Conn
 		if err != nil {
 			return nil, err
 		}
-		return a.c.trackConn(a.key, conn), nil
+		trackedConn, tracked := a.c.trackConn(a.key, conn)
+		a.tracked = tracked
+		return trackedConn, nil
 	}
 }
 
-// success counts the attempt as a successfully established connection. It is
-// idempotent.
+// success counts the attempt as a successfully established connection and
+// records it as active. It is idempotent.
 func (a *connAttempt) success() {
 	if a.established {
 		return
@@ -166,24 +237,70 @@ func (a *connAttempt) success() {
 	a.c.mu.Lock()
 	defer a.c.mu.Unlock()
 	a.c.aggLocked(a.key).successfulConns++
+
+	a.record = a.newRecord(vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_ACTIVE)
+	// Point the record and the conn at each other so the record can report live
+	// byte counts and the conn can finalize them when it's closed.
+	a.record.tracked = a.tracked
+	if a.tracked != nil {
+		a.tracked.record = a.record
+	}
+	a.c.addRecordLocked(a.record)
 }
 
 // finish must be called with the handler's final error after the attempt has
-// ended. It counts the attempt as failed if the connection was never
-// established and the attempt did not end with a benign context cancelation
-// (the client going away is not a failure of the target).
+// ended.
+//
+// A connection that was established is recorded as done, keeping any error it
+// ended with mid-stream. A connection that was never established is counted and
+// recorded as failed, unless it ended with a benign context cancelation: the
+// client going away is not a failure of the target, and is not worth a record.
 func (a *connAttempt) finish(err error) {
-	if a.established || err == nil || errors.Is(err, context.Canceled) {
-		return
-	}
 	a.c.mu.Lock()
 	defer a.c.mu.Unlock()
+	now := a.c.clock.Now()
+
+	if a.established {
+		if a.record == nil {
+			return
+		}
+		a.record.endedAt = now
+		a.record.state = vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_DONE
+		if err != nil && !errors.Is(err, context.Canceled) {
+			a.record.errMsg = err.Error()
+		}
+		return
+	}
+
+	if err == nil || errors.Is(err, context.Canceled) {
+		return
+	}
 	a.c.aggLocked(a.key).failedConns++
+	a.record = a.newRecord(vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_FAILED)
+	a.record.endedAt = now
+	a.record.errMsg = err.Error()
+	if a.tracked != nil {
+		// The downstream conn was accepted before the attempt failed, and has
+		// been closed by now, so its counts are final.
+		a.record.bytesTx, a.record.bytesRx = a.tracked.lastRead, a.tracked.lastWritten
+	}
+	a.c.addRecordLocked(a.record)
+}
+
+func (a *connAttempt) newRecord(state vnetv1.ConnectionRecordState) *connRecord {
+	return &connRecord{
+		id:        a.id,
+		key:       a.key,
+		localPort: a.localPort,
+		process:   a.process,
+		startedAt: a.startedAt,
+		state:     state,
+	}
 }
 
 // trackConn wraps conn so bytes transferred over it are periodically folded
 // into the cumulative counters for key, until the conn is closed.
-func (c *statsCollector) trackConn(key statsKey, conn net.Conn) net.Conn {
+func (c *statsCollector) trackConn(key statsKey, conn net.Conn) (net.Conn, *trackedConn) {
 	tracked := &trackedConn{key: key, tc: utils.NewTrackingConn(conn)}
 	c.mu.Lock()
 	c.active[tracked] = struct{}{}
@@ -191,16 +308,52 @@ func (c *statsCollector) trackConn(key statsKey, conn net.Conn) net.Conn {
 	return &statsConn{
 		TrackingConn: tracked.tc,
 		onClose:      func() { c.closeTracked(tracked) },
-	}
+	}, tracked
 }
 
 // closeTracked folds any remaining bytes transferred over the conn into the
-// cumulative counters and stops tracking it.
+// cumulative counters and into its record, and stops tracking it.
 func (c *statsCollector) closeTracked(t *trackedConn) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.foldLocked(t)
 	delete(c.active, t)
+	if t.record != nil {
+		t.record.bytesTx, t.record.bytesRx = t.lastRead, t.lastWritten
+		t.record.tracked = nil
+		t.record = nil
+	}
+}
+
+// addRecordLocked appends a new record and evicts old ones if it pushed the
+// collector over either cap.
+func (c *statsCollector) addRecordLocked(rec *connRecord) {
+	c.records = append(c.records, rec)
+	c.recordsPerTarget[rec.key]++
+	// Never evict the record just added, it is the newest one.
+	if c.recordsPerTarget[rec.key] > maxRecordsPerTarget {
+		c.evictOldestLocked(func(r *connRecord) bool { return r != rec && r.key == rec.key })
+	}
+	if len(c.records) > maxRecordsGlobal {
+		c.evictOldestLocked(func(r *connRecord) bool { return r != rec })
+	}
+}
+
+// evictOldestLocked removes the oldest finished record matching match. Active
+// connections are never evicted, so a cap may be exceeded while more than that
+// many connections to a target are open at once.
+func (c *statsCollector) evictOldestLocked(match func(*connRecord) bool) {
+	for i, rec := range c.records {
+		if rec.state == vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_ACTIVE || !match(rec) {
+			continue
+		}
+		c.records = slices.Delete(c.records, i, i+1)
+		c.recordsPerTarget[rec.key]--
+		if c.recordsPerTarget[rec.key] == 0 {
+			delete(c.recordsPerTarget, rec.key)
+		}
+		return
+	}
 }
 
 // foldLocked folds bytes transferred over the conn since the previous sample
@@ -252,19 +405,56 @@ func (c *statsCollector) sample(interval time.Duration) {
 	}
 }
 
-// snapshot returns the current snapshot of VNet connection activity.
+// snapshot returns the current snapshot of VNet connection activity. The
+// statistics and the records are taken under the same lock, so they always
+// describe the same instant.
 func (c *statsCollector) snapshot() *vnetv1.ConnectionsReport {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return vnetv1.ConnectionsReport_builder{
-		Stats:       c.snapshotStats(),
+		Stats:       c.snapshotStatsLocked(),
+		Connections: c.snapshotRecordsLocked(),
 		CollectedAt: timestamppb.New(c.clock.Now()),
 	}.Build()
 }
 
-// snapshotStats returns the current statistics for all targets connected to
-// since VNet started, in a stable order.
-func (c *statsCollector) snapshotStats() []*vnetv1.ConnectionStat {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+// snapshotRecordsLocked returns the connection records currently kept, ordered
+// newest-first. Records for active connections carry live byte counts.
+func (c *statsCollector) snapshotRecordsLocked() []*vnetv1.ConnectionRecord {
+	records := make([]*vnetv1.ConnectionRecord, 0, len(c.records))
+	for _, rec := range c.records {
+		bytesTx, bytesRx := rec.bytes()
+		b := vnetv1.ConnectionRecord_builder{
+			Id:                rec.id,
+			Kind:              rec.key.kind,
+			Profile:           rec.key.profile,
+			LeafCluster:       rec.key.leafCluster,
+			DisplayName:       rec.key.displayName,
+			Port:              uint32(rec.key.port),
+			LocalPort:         uint32(rec.localPort),
+			ClientProcessPath: rec.process,
+			StartedAt:         timestamppb.New(rec.startedAt),
+			BytesTx:           bytesTx,
+			BytesRx:           bytesRx,
+			State:             rec.state,
+			ErrorMessage:      rec.errMsg,
+		}
+		if !rec.endedAt.IsZero() {
+			b.EndedAt = timestamppb.New(rec.endedAt)
+		}
+		records = append(records, b.Build())
+	}
+	// IDs are handed out when a connection starts, so ordering by descending ID
+	// puts the most recently started connection first.
+	slices.SortFunc(records, func(a, b *vnetv1.ConnectionRecord) int {
+		return cmp.Compare(b.GetId(), a.GetId())
+	})
+	return records
+}
+
+// snapshotStatsLocked returns the current statistics for all targets connected
+// to since VNet started, in a stable order.
+func (c *statsCollector) snapshotStatsLocked() []*vnetv1.ConnectionStat {
 	stats := make([]*vnetv1.ConnectionStat, 0, len(c.agg))
 	for key, agg := range c.agg {
 		stats = append(stats, vnetv1.ConnectionStat_builder{

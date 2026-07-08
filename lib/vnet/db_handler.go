@@ -113,10 +113,11 @@ func (h *dbHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnproxy.L
 // to the local ALPN proxy, which is configured with middleware to automatically
 // handle certificate renewal and re-logins.
 //
-// localPort is part of the tcpHandler interface contract but is unused here
-// the local ALPN proxy ignores it for database connections.
-func (h *dbHandler) handleTCPConnector(ctx context.Context, _ uint16, connector func() (net.Conn, error)) error {
-	att := h.cfg.connStats.begin(h.statsKey())
+// localPort is not used to route the connection, the local ALPN proxy ignores
+// it for database connections. It is only reported in the connection record, as
+// the port the client application dialed.
+func (h *dbHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
+	att := h.cfg.connStats.begin(ctx, h.statsKey(), localPort)
 	err := h.handleTCPConnectorInner(ctx, att.instrument(connector))
 	att.finish(err)
 	return trace.Wrap(err)

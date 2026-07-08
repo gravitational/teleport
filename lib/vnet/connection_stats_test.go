@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -52,28 +53,28 @@ func TestStatsCollector_successfulAndFailedConnections(t *testing.T) {
 	key := testStatsKey("app.root.example.com")
 
 	// A connection that establishes and later ends without an error.
-	att := c.begin(key)
+	att := c.begin(context.Background(), key, 1234)
 	_, err := att.instrument(nopConnector)()
 	require.NoError(t, err)
 	att.finish(nil)
 
 	// A connection that establishes and later ends with an error is still
 	// counted as successful, it's not a failure to establish.
-	att = c.begin(key)
+	att = c.begin(context.Background(), key, 1234)
 	_, err = att.instrument(nopConnector)()
 	require.NoError(t, err)
 	att.finish(trace.Errorf("conn reset"))
 
 	// A connection that fails before establishing.
-	att = c.begin(key)
+	att = c.begin(context.Background(), key, 1234)
 	att.finish(trace.Errorf("proxy dial failed"))
 
 	// A connection canceled before establishing is not a failure of the
 	// target.
-	att = c.begin(key)
+	att = c.begin(context.Background(), key, 1234)
 	att.finish(trace.Wrap(context.Canceled))
 
-	stats := c.snapshotStats()
+	stats := c.snapshot().GetStats()
 	require.Len(t, stats, 1)
 	require.Equal(t, uint64(2), stats[0].GetSuccessfulConnections())
 	require.Equal(t, uint64(1), stats[0].GetFailedConnections())
@@ -85,19 +86,19 @@ func TestStatsCollector_trackWithExplicitSuccess(t *testing.T) {
 
 	// track alone does not count establishment, an error after the downstream
 	// conn was accepted (e.g. a failed SSH handshake) is still a failure.
-	att := c.begin(key)
+	att := c.begin(context.Background(), key, 1234)
 	_, err := att.track(nopConnector)()
 	require.NoError(t, err)
 	att.finish(trace.Errorf("ssh handshake failed"))
 
 	// With an explicit success call the attempt counts as established.
-	att = c.begin(key)
+	att = c.begin(context.Background(), key, 1234)
 	_, err = att.track(nopConnector)()
 	require.NoError(t, err)
 	att.success()
 	att.finish(nil)
 
-	stats := c.snapshotStats()
+	stats := c.snapshot().GetStats()
 	require.Len(t, stats, 1)
 	require.Equal(t, uint64(1), stats[0].GetSuccessfulConnections())
 	require.Equal(t, uint64(1), stats[0].GetFailedConnections())
@@ -107,7 +108,7 @@ func TestStatsCollector_bytesAndThroughput(t *testing.T) {
 	c := newStatsCollector(clockwork.NewFakeClock(), nil)
 	key := testStatsKey("app.root.example.com")
 
-	att := c.begin(key)
+	att := c.begin(context.Background(), key, 1234)
 	conn, err := att.instrument(nopConnector)()
 	require.NoError(t, err)
 
@@ -119,7 +120,7 @@ func TestStatsCollector_bytesAndThroughput(t *testing.T) {
 	require.NoError(t, err)
 
 	c.sample(time.Second)
-	stats := c.snapshotStats()
+	stats := c.snapshot().GetStats()
 	require.Len(t, stats, 1)
 	require.Equal(t, uint64(100), stats[0].GetBytesTx())
 	require.Equal(t, uint64(40), stats[0].GetBytesRx())
@@ -128,7 +129,7 @@ func TestStatsCollector_bytesAndThroughput(t *testing.T) {
 
 	// An idle interval zeroes the throughput but keeps the totals.
 	c.sample(time.Second)
-	stats = c.snapshotStats()
+	stats = c.snapshot().GetStats()
 	require.Equal(t, uint64(100), stats[0].GetBytesTx())
 	require.Equal(t, uint64(40), stats[0].GetBytesRx())
 	require.Zero(t, stats[0].GetBytesTxPerSec())
@@ -142,12 +143,132 @@ func TestStatsCollector_bytesAndThroughput(t *testing.T) {
 	require.Empty(t, c.active)
 
 	c.sample(time.Second)
-	stats = c.snapshotStats()
+	stats = c.snapshot().GetStats()
 	require.Equal(t, uint64(110), stats[0].GetBytesTx())
 	require.Equal(t, uint64(40), stats[0].GetBytesRx())
 
 	att.finish(nil)
-	require.Equal(t, uint64(1), c.snapshotStats()[0].GetSuccessfulConnections())
+	require.Equal(t, uint64(1), c.snapshot().GetStats()[0].GetSuccessfulConnections())
+}
+
+func TestStatsCollector_recordLifecycle(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	c := newStatsCollector(clock, nil)
+	key := testStatsKey("app.root.example.com")
+	ctx := contextWithPeerProcess(context.Background(), peerProcess{PID: 1, ExePath: "/usr/bin/psql"})
+
+	att := c.begin(ctx, key, 8080)
+	conn, err := att.instrument(nopConnector)()
+	require.NoError(t, err)
+	_, err = conn.Read(make([]byte, 100))
+	require.NoError(t, err)
+
+	// While active the record carries live byte counts and no end time.
+	records := c.snapshot().GetConnections()
+	require.Len(t, records, 1)
+	rec := records[0]
+	require.Equal(t, vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_ACTIVE, rec.GetState())
+	require.Equal(t, "/usr/bin/psql", rec.GetClientProcessPath())
+	require.Equal(t, uint32(8080), rec.GetLocalPort())
+	// The target is a single-port app, so the dialed port is not part of its
+	// identity.
+	require.Zero(t, rec.GetPort())
+	require.Equal(t, uint64(100), rec.GetBytesTx())
+	require.Nil(t, rec.GetEndedAt())
+
+	// Once the conn is closed and the attempt finished, the record is done and
+	// its byte counts are final.
+	clock.Advance(time.Second)
+	require.NoError(t, conn.Close())
+	att.finish(nil)
+
+	records = c.snapshot().GetConnections()
+	require.Len(t, records, 1)
+	rec = records[0]
+	require.Equal(t, vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_DONE, rec.GetState())
+	require.Equal(t, uint64(100), rec.GetBytesTx())
+	require.NotNil(t, rec.GetEndedAt())
+	require.Empty(t, rec.GetErrorMessage())
+}
+
+func TestStatsCollector_recordStates(t *testing.T) {
+	c := newStatsCollector(clockwork.NewFakeClock(), nil)
+	key := testStatsKey("app.root.example.com")
+	ctx := context.Background()
+
+	// Established, then ended with a mid-stream error: done, but the error is
+	// kept.
+	att := c.begin(ctx, key, 1234)
+	_, err := att.instrument(nopConnector)()
+	require.NoError(t, err)
+	att.finish(trace.Errorf("conn reset"))
+
+	// Never established: failed, with the reason.
+	att = c.begin(ctx, key, 1234)
+	att.finish(trace.Errorf("proxy dial failed"))
+
+	// Canceled before establishing: not worth a record.
+	att = c.begin(ctx, key, 1234)
+	att.finish(trace.Wrap(context.Canceled))
+
+	records := c.snapshot().GetConnections()
+	require.Len(t, records, 2)
+	// Newest first.
+	require.Equal(t, vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_FAILED, records[0].GetState())
+	require.Contains(t, records[0].GetErrorMessage(), "proxy dial failed")
+	require.Equal(t, vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_DONE, records[1].GetState())
+	require.Contains(t, records[1].GetErrorMessage(), "conn reset")
+}
+
+func TestStatsCollector_recordEviction(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("per target", func(t *testing.T) {
+		c := newStatsCollector(clockwork.NewFakeClock(), nil)
+		key := testStatsKey("app.root.example.com")
+		for range maxRecordsPerTarget + 5 {
+			att := c.begin(ctx, key, 1234)
+			att.finish(trace.Errorf("nope"))
+		}
+		records := c.snapshot().GetConnections()
+		require.Len(t, records, maxRecordsPerTarget)
+		// The oldest records were evicted, the newest is first.
+		require.Equal(t, uint64(maxRecordsPerTarget+5), records[0].GetId())
+		require.Equal(t, uint64(6), records[len(records)-1].GetId())
+	})
+
+	t.Run("global", func(t *testing.T) {
+		c := newStatsCollector(clockwork.NewFakeClock(), nil)
+		// Spread records over enough targets that no per-target cap is hit, so
+		// only the global cap evicts.
+		targets := maxRecordsGlobal/maxRecordsPerTarget + 1
+		for i := range targets {
+			key := testStatsKey(fmt.Sprintf("app-%d.root.example.com", i))
+			for range maxRecordsPerTarget {
+				c.begin(ctx, key, 1234).finish(trace.Errorf("nope"))
+			}
+		}
+		require.Len(t, c.snapshot().GetConnections(), maxRecordsGlobal)
+	})
+
+	t.Run("active connections are never evicted", func(t *testing.T) {
+		c := newStatsCollector(clockwork.NewFakeClock(), nil)
+		key := testStatsKey("app.root.example.com")
+
+		// One active connection, then enough finished ones to overflow the cap.
+		activeAtt := c.begin(ctx, key, 1234)
+		_, err := activeAtt.instrument(nopConnector)()
+		require.NoError(t, err)
+		for range maxRecordsPerTarget + 5 {
+			c.begin(ctx, key, 1234).finish(trace.Errorf("nope"))
+		}
+
+		records := c.snapshot().GetConnections()
+		require.Len(t, records, maxRecordsPerTarget)
+		// The active record survived, even though it is the oldest one.
+		require.Equal(t, uint64(1), records[len(records)-1].GetId())
+		require.Equal(t, vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_ACTIVE, records[len(records)-1].GetState())
+	})
 }
 
 func TestStatsCollector_push(t *testing.T) {
@@ -167,7 +288,7 @@ func TestStatsCollector_push(t *testing.T) {
 	c.push(ctx)
 	require.Empty(t, reports)
 
-	att := c.begin(key)
+	att := c.begin(context.Background(), key, 1234)
 	_, err := att.instrument(nopConnector)()
 	require.NoError(t, err)
 	att.finish(nil)
@@ -181,7 +302,7 @@ func TestStatsCollector_push(t *testing.T) {
 
 	// A failed report is retried on the next push, snapshots carry absolute
 	// values so nothing is lost.
-	att = c.begin(key)
+	att = c.begin(context.Background(), key, 1234)
 	_, err = att.instrument(nopConnector)()
 	require.NoError(t, err)
 	att.finish(nil)
@@ -205,7 +326,7 @@ func TestStatsCollector_aggregatesPerTarget(t *testing.T) {
 	otherKey := testStatsKey("other.root.example.com")
 
 	for _, k := range []statsKey{key, key, otherKey} {
-		att := c.begin(k)
+		att := c.begin(context.Background(), k, 1234)
 		conn, err := att.instrument(nopConnector)()
 		require.NoError(t, err)
 		_, err = conn.Read(make([]byte, 25))
@@ -214,7 +335,7 @@ func TestStatsCollector_aggregatesPerTarget(t *testing.T) {
 	}
 
 	c.sample(time.Second)
-	stats := c.snapshotStats()
+	stats := c.snapshot().GetStats()
 	require.Len(t, stats, 2)
 	// Snapshot order is stable, sorted by display name within the same kind
 	// and profile.

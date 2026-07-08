@@ -50,19 +50,22 @@ func newSSHHandler(cfg sshHandlerConfig) *sshHandler {
 	}
 }
 
+// sshLocalPort is the only port VNet handles SSH connections on.
+const sshLocalPort = 22
+
 // handleTCPConnector handles an incoming TCP connection from VNet and proxies
 // the connection to a target SSH node.
 func (h *sshHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
-	if localPort != 22 {
+	if localPort != sshLocalPort {
 		// Not counted as a failed connection in the stats, VNet only ever
 		// advertises SSH on port 22 so connections to other ports are just
 		// port probes, not real attempts to reach the target.
-		return trace.BadParameter("SSH is only handled on port 22")
+		return trace.BadParameter("SSH is only handled on port %d", sshLocalPort)
 	}
 	agent := newSSHAgent()
 	targetConn, err := h.cfg.sshProvider.dial(ctx, h.cfg.target, agent)
 	if err != nil {
-		h.cfg.connStats.begin(h.statsKey()).finish(err)
+		h.cfg.connStats.begin(ctx, h.statsKey(), localPort).finish(err)
 		return trace.Wrap(err)
 	}
 	defer targetConn.Close()
@@ -77,7 +80,9 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 	targetConn net.Conn,
 	agent *sshAgent,
 ) error {
-	att := h.cfg.connStats.begin(h.statsKey())
+	// Callers only reach this after checking that the connection is to the SSH
+	// port.
+	att := h.cfg.connStats.begin(ctx, h.statsKey(), sshLocalPort)
 	err := h.handleTCPConnectorWithTargetConnInner(ctx, att, connector, targetConn, agent)
 	att.finish(err)
 	return trace.Wrap(err)

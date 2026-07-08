@@ -119,7 +119,7 @@ func (h *appHandler) getOrInitializeLocalProxy(ctx context.Context, localPort ui
 // handleTCPConnector handles an incoming TCP connection from VNet by passing it to the local alpn proxy,
 // which is set up with middleware to automatically handle certificate renewal and re-logins.
 func (h *appHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
-	att := h.cfg.connStats.begin(h.statsKey(localPort))
+	att := h.cfg.connStats.begin(ctx, h.statsKey(localPort), localPort)
 	err := h.handleTCPConnectorInner(ctx, localPort, att.instrument(connector))
 	att.finish(err)
 	return trace.Wrap(err)
