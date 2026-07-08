@@ -17,9 +17,9 @@ clusterName: ""
 
 # authServer(string) -- the address this proxy should use to contact the Auth
 # service. This should be
-# be an \<IP\>:\<PORT\> for an internal network path to the auth service. Port
+# be an \<IP\>:\<PORT\> for an internal network path to the Auth Service. Port
 # defaults to 3025 if not specified.
-# If running on the same kube cluster as the auth service, consider using the
+# If running on the same kube cluster as the Auth Service, consider using the
 # teleport-cluster chart instead.
 authServer: ""
 
@@ -170,7 +170,7 @@ separateMongoListener: false
 #   to register second factors.
 #
 #   You can do this by setting `auth_service.authentication.webauthn.rp_id` in
-#   the config for your Teleport Auth server.
+#   the config for your Teleport Auth Service.
 #
 #   RP ID must be both a valid domain, and part of the full domain users are connecting to.
 #   For example, if users are accessing the cluster with the domain
