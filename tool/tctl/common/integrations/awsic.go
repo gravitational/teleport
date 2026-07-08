@@ -23,18 +23,12 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/utils"
 )
-
-type awsicArgs struct {
-	format string
-}
 
 // listAWSICAccounts prints the AWS Identity Center accounts synced into the
 // cluster along with their permission sets.
@@ -49,17 +43,7 @@ func (c *Command) listAWSICAccounts(ctx context.Context, clt *authclient.Client)
 	}
 
 	servers := filterICAccounts(resources)
-
-	switch c.awsicArgs.format {
-	case teleport.Text:
-		return trace.Wrap(c.writeAWSICText(servers))
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(c.Stdout, servers))
-	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(c.Stdout, servers))
-	default:
-		return trace.BadParameter("unknown value for --format flag: %s", c.awsicArgs.format)
-	}
+	return trace.Wrap(c.writeAWSICText(servers))
 }
 
 func filterICAccounts(resources []*types.EnrichedResource) []types.AppServer {
