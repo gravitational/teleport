@@ -17,7 +17,6 @@
 package mfav2
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"log/slog"
@@ -25,9 +24,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
+	clientpb "github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
@@ -49,7 +49,7 @@ type AuthServer interface {
 	BeginSSOMFAChallenge(
 		ctx context.Context,
 		params mfatypes.BeginSSOMFAChallengeParams,
-	) (*proto.SSOChallenge, error)
+	) (*clientpb.SSOChallenge, error)
 
 	VerifySSOMFASession(
 		ctx context.Context,
@@ -562,10 +562,7 @@ func (s *Service) VerifyValidatedMFAChallenge(
 	}
 
 	// Ensure all payload fields in the request match the stored challenge to prevent cross-session replay.
-	reqSSHSessionID, storedSSHSessionID := req.GetPayload().GetSshSessionId(), chal.GetSpec().GetPayload().GetSshSessionId()
-	reqTLSSessionID, storedTLSSessionID := req.GetPayload().GetTlsSessionId(), chal.GetSpec().GetPayload().GetTlsSessionId()
-
-	if !bytes.Equal(reqSSHSessionID, storedSSHSessionID) || !bytes.Equal(reqTLSSessionID, storedTLSSessionID) {
+	if !proto.Equal(req.GetPayload(), chal.GetSpec().GetPayload()) {
 		return nil, trace.AccessDenied("request payload does not match validated challenge payload")
 	}
 

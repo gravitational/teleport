@@ -392,7 +392,7 @@ func newValidatedMFAChallenge() *mfav2.ValidatedMFAChallenge {
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
 		Metadata: headerv1.Metadata_builder{
-			Name: "test-challenge-" + uuid.New().String(),
+			Name: "test-challenge-" + uuid.NewString(),
 		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload: mfav2.SessionIdentifyingPayload_builder{
