@@ -25,7 +25,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -55,6 +54,28 @@ var payload = mfav2.SessionIdentifyingPayload_builder{
 
 func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		payload *mfav2.SessionIdentifyingPayload
+	}{
+		{
+			name:    "With a SSH session ID",
+			payload: mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte("ssh-session-id")}.Build(),
+		},
+		{
+			name:    "With a TLS session ID",
+			payload: mfav2.SessionIdentifyingPayload_builder{TlsSessionId: []byte("tls-session-id")}.Build(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testCreateValidateSessionChallengeWebauthn(t, tc.payload)
+		})
+	}
+}
+
+func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2.SessionIdentifyingPayload) {
+	t.Helper()
 
 	authServer, service, emitter, user := setupAuthServer(t, nil)
 
@@ -302,22 +323,22 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 			expectedError: trace.BadParameter("missing SessionIdentifyingPayload in request"),
 		},
 		{
-			name: "missing SshSessionId in payload",
+			name: "empty ssh_session_id",
 			req: mfav2.CreateSessionChallengeRequest_builder{
 				Payload: mfav2.SessionIdentifyingPayload_builder{
 					SshSessionId: []byte{},
 				}.Build(),
 			}.Build(),
-			expectedError: trace.BadParameter("empty SshSessionId in payload"),
+			expectedError: trace.BadParameter("ssh_session_id must not be empty"),
 		},
 		{
-			name: "empty SshSessionId in payload",
+			name: "empty tls_session_id",
 			req: mfav2.CreateSessionChallengeRequest_builder{
 				Payload: mfav2.SessionIdentifyingPayload_builder{
-					SshSessionId: []byte{},
+					TlsSessionId: []byte{},
 				}.Build(),
 			}.Build(),
-			expectedError: trace.BadParameter("empty SshSessionId in payload"),
+			expectedError: trace.BadParameter("tls_session_id must not be empty"),
 		},
 		{
 			name: "SSO challenge missing SsoClientRedirectUrl",
@@ -1078,7 +1099,7 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				TargetCluster: targetCluster,
 				Username:      "test-user",
 			}.Build(),
-			expectedError: trace.BadParameter("empty SshSessionId in payload"),
+			expectedError: trace.BadParameter("ssh_session_id must not be empty"),
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -1092,105 +1113,107 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 	t.Parallel()
 
-	authServer, service, _, user := setupAuthServer(t, nil)
+	for _, tc := range []struct {
+		name    string
+		payload *mfav2.SessionIdentifyingPayload
+	}{
+		{
+			name:    "With a SSH session ID",
+			payload: mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte("ssh-session-id")}.Build(),
+		},
+		{
+			name:    "With a TLS session ID",
+			payload: mfav2.SessionIdentifyingPayload_builder{TlsSessionId: []byte("tls-session-id")}.Build(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	ctx, cancel := context.WithTimeout(
-		authz.ContextWithUser(
-			t.Context(),
-			authtest.TestBuiltin(types.RoleNode).I,
-		),
-		5*time.Second,
-	)
-	defer cancel()
+			authServer, service, _, user := setupAuthServer(t, nil)
+			ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
 
-	req := mfav2.VerifyValidatedMFAChallengeRequest_builder{
-		Username:      user.GetName(),
-		Name:          chalName,
-		Payload:       payload,
-		SourceCluster: sourceCluster,
-	}.Build()
+			chal := mfav2.ValidatedMFAChallenge_builder{
+				Kind:     types.KindValidatedMFAChallenge,
+				Version:  types.V1,
+				Metadata: headerv1.Metadata_builder{Name: chalName}.Build(),
+				Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+					Payload:       tc.payload,
+					SourceCluster: sourceCluster,
+					TargetCluster: targetCluster,
+					Username:      user.GetName(),
+				}.Build(),
+			}.Build()
+			_, err := authServer.Auth().CreateValidatedMFAChallenge(ctx, targetCluster, chal)
+			require.NoError(t, err)
 
-	group, ctx := errgroup.WithContext(ctx)
-
-	// Start a goroutine to create the ValidatedMFAChallenge, to simulate the expected real-world sequence of events
-	// where the challenge is created before it is verified, but not necessarily immediately before.
-	group.Go(func() error {
-		chal := mfav2.ValidatedMFAChallenge_builder{
-			Kind:    types.KindValidatedMFAChallenge,
-			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
-				Name: chalName,
-			}.Build(),
-			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
-				Payload:       payload,
-				SourceCluster: sourceCluster,
-				TargetCluster: targetCluster,
+			resp, err := service.VerifyValidatedMFAChallenge(ctx, mfav2.VerifyValidatedMFAChallengeRequest_builder{
 				Username:      user.GetName(),
-			}.Build(),
-		}.Build()
-
-		if _, err := authServer.Auth().CreateValidatedMFAChallenge(ctx, targetCluster, chal); err != nil {
-			return trace.Wrap(err, "create ValidatedMFAChallenge")
-		}
-
-		return nil
-	})
-
-	// Start a goroutine to verify the ValidatedMFAChallenge, which will wait until the challenge is created by the
-	// first goroutine.
-	group.Go(func() error {
-		resp, err := service.VerifyValidatedMFAChallenge(ctx, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if resp == nil {
-			return trace.BadParameter("expected non-nil response")
-		}
-
-		return nil
-	})
-
-	// Wait for both goroutines to complete and check for errors. The fact that the verify goroutine does not return an
-	// error indicates that the challenge was successfully verified asynchronously after it was created.
-	require.NoError(t, group.Wait())
+				Name:          chalName,
+				Payload:       tc.payload,
+				SourceCluster: sourceCluster,
+			}.Build())
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+		})
+	}
 }
 
 func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
 	t.Parallel()
 
-	authServer, service, _, user := setupAuthServer(t, nil)
+	for _, tc := range []struct {
+		name        string
+		chalPayload *mfav2.SessionIdentifyingPayload
+		reqPayload  *mfav2.SessionIdentifyingPayload
+	}{
+		{
+			name:        "SSH session ID mismatch",
+			chalPayload: mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte("stored-ssh-id")}.Build(),
+			reqPayload:  mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte("different-ssh-id")}.Build(),
+		},
+		{
+			name:        "TLS session ID mismatch",
+			chalPayload: mfav2.SessionIdentifyingPayload_builder{TlsSessionId: []byte("stored-tls-id")}.Build(),
+			reqPayload:  mfav2.SessionIdentifyingPayload_builder{TlsSessionId: []byte("different-tls-id")}.Build(),
+		},
+		{
+			name:        "Cross type session ID mismatch",
+			chalPayload: mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte("stored-ssh-id")}.Build(),
+			reqPayload:  mfav2.SessionIdentifyingPayload_builder{TlsSessionId: []byte("req-tls-id")}.Build(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			authServer, service, _, user := setupAuthServer(t, nil)
+			ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
 
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
+			chal := mfav2.ValidatedMFAChallenge_builder{
+				Kind:     types.KindValidatedMFAChallenge,
+				Version:  types.V1,
+				Metadata: headerv1.Metadata_builder{Name: chalName}.Build(),
+				Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+					Payload:       tc.chalPayload,
+					SourceCluster: sourceCluster,
+					TargetCluster: targetCluster,
+					Username:      user.GetName(),
+				}.Build(),
+			}.Build()
 
-	chal := mfav2.ValidatedMFAChallenge_builder{
-		Kind:    types.KindValidatedMFAChallenge,
-		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
-			Name: chalName,
-		}.Build(),
-		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
-			Payload:       payload,
-			SourceCluster: sourceCluster,
-			TargetCluster: targetCluster,
-			Username:      user.GetName(),
-		}.Build(),
-	}.Build()
-	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, targetCluster, chal)
-	require.NoError(t, err)
+			_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, targetCluster, chal)
+			require.NoError(t, err)
 
-	resp, err := service.VerifyValidatedMFAChallenge(ctx, mfav2.VerifyValidatedMFAChallengeRequest_builder{
-		Username: user.GetName(),
-		Name:     chalName,
-		Payload: mfav2.SessionIdentifyingPayload_builder{
-			SshSessionId: []byte("this-is-a-different-session-id"),
-		}.Build(),
-		SourceCluster: sourceCluster,
-	}.Build())
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-	require.ErrorContains(t, err, "request payload does not match validated challenge payload")
-	require.Nil(t, resp)
+			resp, err := service.VerifyValidatedMFAChallenge(
+				ctx,
+				mfav2.VerifyValidatedMFAChallengeRequest_builder{
+					Username:      user.GetName(),
+					Name:          chalName,
+					Payload:       tc.reqPayload,
+					SourceCluster: sourceCluster,
+				}.Build(),
+			)
+			require.ErrorIs(t, err, trace.AccessDenied("request payload does not match validated challenge payload"))
+			require.Nil(t, resp)
+		})
+	}
 }
 
 func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
@@ -1298,7 +1321,7 @@ func TestVerifyValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				Payload:       mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte{}}.Build(),
 				SourceCluster: sourceCluster,
 			}.Build(),
-			expectedError: trace.BadParameter("empty SshSessionId in payload"),
+			expectedError: trace.BadParameter("ssh_session_id must not be empty"),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

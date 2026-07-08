@@ -399,6 +399,7 @@ func (s *Service) ValidateSessionChallenge(
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				Payload: mfav2.SessionIdentifyingPayload_builder{
 					SshSessionId: details.Payload.SSHSessionID,
+					TlsSessionId: details.Payload.TLSSessionID,
 				}.Build(),
 				SourceCluster: details.SourceCluster,
 				TargetCluster: details.TargetCluster,
@@ -560,10 +561,11 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.AccessDenied("request source cluster does not match validated challenge source cluster")
 	}
 
-	// Ensure the payload in the request matches the stored challenge payload for the same type.
-	reqSshSessionId := req.GetPayload().GetSshSessionId()
-	storedSshSessionId := chal.GetSpec().GetPayload().GetSshSessionId()
-	if !bytes.Equal(reqSshSessionId, storedSshSessionId) {
+	// Ensure all payload fields in the request match the stored challenge to prevent cross-session replay.
+	reqSSHSessionID, storedSSHSessionID := req.GetPayload().GetSshSessionId(), chal.GetSpec().GetPayload().GetSshSessionId()
+	reqTLSSessionID, storedTLSSessionID := req.GetPayload().GetTlsSessionId(), chal.GetSpec().GetPayload().GetTlsSessionId()
+
+	if !bytes.Equal(reqSSHSessionID, storedSSHSessionID) || !bytes.Equal(reqTLSSessionID, storedTLSSessionID) {
 		return nil, trace.AccessDenied("request payload does not match validated challenge payload")
 	}
 
@@ -857,8 +859,20 @@ func checkPayload(sip *mfav2.SessionIdentifyingPayload) error {
 		return trace.BadParameter("missing SessionIdentifyingPayload in request")
 	}
 
-	if len(sip.GetSshSessionId()) == 0 {
-		return trace.BadParameter("empty SshSessionId in payload")
+	switch sip.WhichPayload() {
+	case mfav2.SessionIdentifyingPayload_SshSessionId_case:
+		if len(sip.GetSshSessionId()) == 0 {
+			return trace.BadParameter("ssh_session_id must not be empty")
+		}
+
+	case mfav2.SessionIdentifyingPayload_TlsSessionId_case:
+		if len(sip.GetTlsSessionId()) == 0 {
+			return trace.BadParameter("tls_session_id must not be empty")
+		}
+
+	default:
+		// Fail close to avoid any potential auth bypasses.
+		return trace.BadParameter("missing or unknown payload type: %v", sip.WhichPayload())
 	}
 
 	return nil
