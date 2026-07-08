@@ -27,10 +27,7 @@ import {
 import { Box, ButtonSecondary, ButtonText, Flex, Stack, Text } from 'design';
 import { Info } from 'design/Icon';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import {
-  RecentConnection,
-  RecentConnectionKind,
-} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { RecentConnection } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 
@@ -38,6 +35,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionItem';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
+import { kindLabel } from './ConnectionStatRow';
 import { DiagnosticsAlert } from './DiagnosticsAlert';
 import { NetworkGraph } from './NetworkGraph';
 import { textSpacing } from './sliderStep';
@@ -528,17 +526,4 @@ function processDisplayName(path: string): string {
   const segments = path.split('/');
   const segment = segments[segments.length - 1] || path;
   return segment[0].toUpperCase() + segment.substring(1);
-}
-
-function kindLabel(kind: RecentConnectionKind): string {
-  switch (kind) {
-    case RecentConnectionKind.APP:
-      return 'TCP';
-    case RecentConnectionKind.SSH:
-      return 'SSH';
-    case RecentConnectionKind.DATABASE:
-      return 'DB';
-    default:
-      return '';
-  }
 }
