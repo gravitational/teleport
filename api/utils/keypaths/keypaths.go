@@ -312,6 +312,33 @@ func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+FileExtTLSCert)
 }
 
+// mcpOAuthDirSuffix is the suffix for the user's MCP OAuth credentials directory.
+const mcpOAuthDirSuffix = "-mcp-oauth"
+
+// MCPOAuthDir returns the path to the user's MCP OAuth credentials directory
+// for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-mcp-oauth
+func MCPOAuthDir(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+mcpOAuthDirSuffix)
+}
+
+// MCPOAuthCredentialPath returns the path to the user's OAuth credentials for
+// the given proxy, cluster, and MCP app.
+//
+// <baseDir>/keys/<proxy>/<username>-mcp-oauth/<cluster>/<appname>.json
+func MCPOAuthCredentialPath(baseDir, proxy, username, cluster, appname string) string {
+	return filepath.Join(MCPOAuthDir(baseDir, proxy, username), cluster, appname+".json")
+}
+
+// MCPOAuthLockPath returns the path to the lock file that serializes refreshes
+// of the user's OAuth credentials for the given proxy, cluster, and MCP app.
+//
+// <baseDir>/keys/<proxy>/<username>-mcp-oauth/<cluster>/<appname>.json.lock
+func MCPOAuthLockPath(baseDir, proxy, username, cluster, appname string) string {
+	return MCPOAuthCredentialPath(baseDir, proxy, username, cluster, appname) + ".lock"
+}
+
 // AppKeyPath returns the path to the user's private key for the given proxy,
 // cluster, and app.
 //

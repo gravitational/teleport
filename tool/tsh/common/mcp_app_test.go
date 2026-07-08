@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
+	mcpoauth "github.com/gravitational/teleport/lib/client/mcp/oauth"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -388,6 +390,27 @@ func Test_parseHTTPHeaders(t *testing.T) {
 			require.Equal(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestHasAuthorizationHeader(t *testing.T) {
+	require.False(t, hasAuthorizationHeader(nil))
+	require.False(t, hasAuthorizationHeader(map[string]string{"X-Custom": "v"}))
+	require.True(t, hasAuthorizationHeader(map[string]string{"Authorization": "Bearer x"}))
+	require.True(t, hasAuthorizationHeader(map[string]string{"authorization": "Bearer x"}))
+}
+
+func TestMakeMCPReconnectUserMessageAuthRequired(t *testing.T) {
+	msg := makeMCPReconnectUserMessage(mcpclienttransport.ErrUnauthorized, "linear")
+	require.Contains(t, msg, "tsh mcp login linear")
+
+	msg = makeMCPReconnectUserMessage(trace.Wrap(mcpoauth.ErrLoginRequired), "linear")
+	require.Contains(t, msg, "tsh mcp login linear")
+
+	msg = makeMCPReconnectUserMessage(trace.Errorf("request failed: unauthorized (401)"), "linear")
+	require.Contains(t, msg, "tsh mcp login linear")
+
+	msg = makeMCPReconnectUserMessage(trace.Errorf("boom"), "linear")
+	require.Contains(t, msg, "restart your MCP client")
 }
 
 type fakeResourcesClient struct {

@@ -30,6 +30,19 @@ func TestAccessGraphTLSCertPath(t *testing.T) {
 	require.Equal(t, "~/tsh/keys/proxy/user-access-graph.crt", path)
 }
 
+func TestMCPOAuthPaths(t *testing.T) {
+	base := "/home/user/.tsh"
+	require.Equal(t,
+		"/home/user/.tsh/keys/proxy.example.com/alice-mcp-oauth",
+		keypaths.MCPOAuthDir(base, "proxy.example.com", "alice"))
+	require.Equal(t,
+		"/home/user/.tsh/keys/proxy.example.com/alice-mcp-oauth/root/linear.json",
+		keypaths.MCPOAuthCredentialPath(base, "proxy.example.com", "alice", "root", "linear"))
+	require.Equal(t,
+		"/home/user/.tsh/keys/proxy.example.com/alice-mcp-oauth/root/linear.json.lock",
+		keypaths.MCPOAuthLockPath(base, "proxy.example.com", "alice", "root", "linear"))
+}
+
 func TestIsProfileKubeConfigPath(t *testing.T) {
 	path := ""
 	isKubeConfig, err := keypaths.IsProfileKubeConfigPath(path)

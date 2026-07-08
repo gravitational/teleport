@@ -2055,6 +2055,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.dbConfig.run()
 	case mcpCmd.connect.FullCommand():
 		err = mcpCmd.connect.run()
+	case mcpCmd.login.FullCommand():
+		err = mcpCmd.login.run()
 	case mcpCmd.list.FullCommand():
 		err = mcpCmd.list.run()
 	case mcpCmd.config.FullCommand():

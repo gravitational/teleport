@@ -53,6 +53,11 @@ type ProxyStdioConnConfig struct {
 	AutoReconnect bool
 	// HTTPHeaders defines extra custom headers for HTTP transports.
 	HTTPHeaders map[string]string
+	// MakeAuthHeader, when set, supplies the value of the Authorization header
+	// for HTTP transports, called per request. An explicit Authorization entry
+	// in HTTPHeaders takes precedence and callers should leave MakeAuthHeader
+	// unset in that case.
+	MakeAuthHeader func(context.Context) (string, error)
 
 	// Logger is the slog logger.
 	Logger *slog.Logger
@@ -220,14 +225,29 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 		transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return r.DialServer(ctx)
 		}
-		httpReaderWriter, err := mcputils.NewHTTPReaderWriter(
-			r.closeCtx,
-			"http://localhost", // does not matter with the custom transport.
+		opts := []mcpclienttransport.StreamableHTTPCOption{
 			mcpclienttransport.WithHTTPBasicClient(&http.Client{
 				Transport: transport,
 			}),
 			mcpclienttransport.WithContinuousListening(),
 			mcpclienttransport.WithHTTPHeaders(r.HTTPHeaders),
+		}
+		if r.MakeAuthHeader != nil {
+			opts = append(opts, mcpclienttransport.WithHTTPHeaderFunc(func(ctx context.Context) map[string]string {
+				header, err := r.MakeAuthHeader(ctx)
+				if err != nil {
+					// Header funcs cannot fail the request. Send no auth and
+					// let the 401 path surface the actionable login message.
+					r.Logger.WarnContext(ctx, "Failed to get MCP OAuth authorization header", "error", err)
+					return nil
+				}
+				return map[string]string{"Authorization": header}
+			}))
+		}
+		httpReaderWriter, err := mcputils.NewHTTPReaderWriter(
+			r.closeCtx,
+			"http://localhost", // does not matter with the custom transport.
+			opts...,
 		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
