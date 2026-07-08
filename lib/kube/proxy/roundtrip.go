@@ -256,16 +256,19 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 // NewConnection validates the upgrade response, creating and returning a new
 // httpstream.Connection if there were no errors.
 func (s *SpdyRoundTripper) NewConnection(resp *http.Response) (httpstream.Connection, error) {
+	if s.conn == nil {
+		return nil, trace.Wrap(&upgradeFailureError{
+			Cause: errors.New("unable to upgrade connection: broken roundtripper setup, connection is missing but it should be present (this is a bug)"),
+		})
+	}
 	connectionHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderConnection))
 	upgradeHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderUpgrade))
 	if (resp.StatusCode != http.StatusSwitchingProtocols) ||
 		!strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) ||
 		!strings.Contains(upgradeHeader, strings.ToLower(streamspdy.HeaderSpdy31)) {
-		// The upgrade was rejected. Close the conn so that we don't leak an
-		// io.Copy goroutine.
-		if s.conn != nil {
-			_ = s.conn.Close()
-		}
+		// The upgrade was rejected. Close the conn after reading the response
+		// error so that we don't leak an io.Copy goroutine.
+		defer s.conn.Close()
 		return nil, trace.Wrap(extractKubeAPIStatusFromReq(resp))
 	}
 
