@@ -23,6 +23,8 @@ export type ListWorkloadIdentitiesResponse = {
 
 export type WorkloadIdentity = {
   name: string;
+  /** scope is empty or omitted for unscoped workload identities. */
+  scope?: string;
   spiffe_id: string | null | undefined;
   labels: Record<string, string> | null | undefined;
   spiffe_hint: string | null | undefined;
