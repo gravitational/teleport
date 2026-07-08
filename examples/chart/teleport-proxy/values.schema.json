@@ -267,7 +267,7 @@
                 "replicaCount": {
                     "$id": "#/properties/highAvailability/properties/replicaCount",
                     "type": "integer",
-                    "default": 1
+                    "default": 2
                 },
                 "requireAntiAffinity": {
                     "$id": "#/properties/highAvailability/properties/requireAntiAffinity",

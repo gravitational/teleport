@@ -258,9 +258,6 @@ podMonitor:
 # Proxy pods need to be provided a certificate to be replicated (either via
 # `tls.existingSecretName` or via `highAvailability.certManager`) or be exposed
 # via an ingress (`ingress.enabled`).
-# If proxy pods are replicable, they will default to 2 replicas,
-# even if `highAvailability.replicaCount` is 1. To force a single proxy replica,
-# set `highAvailability.replicaCount: 1`.
 highAvailability:
   # highAvailability.replicaCount(int) -- controls the amount of pod replicas. The `highAvailability` comment describes
   # the replication requirements.

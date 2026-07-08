@@ -203,7 +203,47 @@ tests:
             name: "GOMEMLIMIT"
             value: "9450000000"
 
-  - it: should default to multiple replicas when proxy-specific replicaCount is not set
+  - it: should honor user-provided replicaCount
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+      highAvailability:
+        replicaCount: 3
+      documentIndex: 1
+      asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should default to multiple replicas when replicaCount is not set but deployment is not replicable
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should default to multiple replicas when replicaCount is not set but deployment is replicable
     template: proxy.yaml
     set:
       clusterName: helm-lint.example.com
@@ -224,7 +264,7 @@ tests:
           path: spec.replicas
           value: 2
 
-  - it: should default to multiple replicas when proxy-specific replicaCount is zero
+  - it: should fail if replicaCount is set but not a postitive integer
     template: proxy.yaml
     set:
       clusterName: helm-lint.example.com
@@ -236,13 +276,6 @@ tests:
         existingSecretName: my-certs
       highAvailability:
         replicaCount: 0
-    documentIndex: 1
     asserts:
-      - isKind:
-          of: Deployment
-      - equal:
-          path: metadata.name
-          value: RELEASE-NAME-proxy
-      - equal:
-          path: spec.replicas
-          value: 2
+      - failedTemplate:
+          errorMessage: "highAvailability.replicaCount must be >= 1"

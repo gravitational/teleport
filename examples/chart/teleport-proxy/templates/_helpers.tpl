@@ -20,4 +20,7 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
 {{- else if empty .Values.joinParams.tokenName -}}
 {{- fail "joinParams.tokenName is required" -}}
 {{- end -}}
+{{ if not (and (hasKey .Values "highAvailability") (hasKey .Values.highAvailability "replicaCount") (ge (int .Values.highAvailability.replicaCount) 1)) }}
+{{ fail "highAvailability.replicaCount must be >= 1" }}
+{{- end }}
 {{- end -}}
