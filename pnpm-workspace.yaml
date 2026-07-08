@@ -4,6 +4,7 @@ packages:
   - e2e
   - e/e2e
 allowBuilds:
+  '@gravitational/design-system@https://codeload.github.com/gravitational/design-system/tar.gz/8021bd891ea4ebbe5cb2485d32dabc63bf847ec7': true
   '@swc/core': true
   cbor-extract: true
   esbuild: true
