@@ -169,15 +169,15 @@ func TestMaterializerSimpleChain(t *testing.T) {
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"grandparent": newAccessList(t, "grandparent", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa/bb/cc",
-					Role:  "grandparentrole",
+					Role:  "/::grandparentrole",
 				}})),
 				"parent": newAccessList(t, "parent", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa/bb",
-					Role:  "parentrole",
+					Role:  "/::parentrole",
 				}})),
 				"base": newAccessList(t, "base", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa",
-					Role:  "baserole",
+					Role:  "/::baserole",
 				}})),
 			},
 			MembersByAccessList: map[string][]*accesslist.AccessListMember{
@@ -194,15 +194,15 @@ func TestMaterializerSimpleChain(t *testing.T) {
 		},
 		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 			expectedScopedRoleAssignment("tester", "base", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "baserole",
+				Role:  "/::baserole",
 				Scope: "/aa",
 			}.Build()}),
 			expectedScopedRoleAssignment("tester", "parent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "parentrole",
+				Role:  "/::parentrole",
 				Scope: "/aa/bb",
 			}.Build()}),
 			expectedScopedRoleAssignment("tester", "grandparent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "grandparentrole",
+				Role:  "/::grandparentrole",
 				Scope: "/aa/bb/cc",
 			}.Build()}),
 		},
@@ -216,7 +216,7 @@ func TestMaterializerDoubleListMembership(t *testing.T) {
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"parent": newAccessList(t, "parent", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/parentscope",
-					Role:  "parentrole",
+					Role:  "/::parentrole",
 				}})),
 				"memberListA": newAccessList(t, "memberListA"),
 				"memberListB": newAccessList(t, "memberListB"),
@@ -241,19 +241,19 @@ func TestMaterializerDoubleListMembership(t *testing.T) {
 			// All users should be direct or nested members of the parent role,
 			// expect exactly one materialized assignment each.
 			expectedScopedRoleAssignment("testerA", "parent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "parentrole",
+				Role:  "/::parentrole",
 				Scope: "/parentscope",
 			}.Build()}),
 			expectedScopedRoleAssignment("testerB", "parent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "parentrole",
+				Role:  "/::parentrole",
 				Scope: "/parentscope",
 			}.Build()}),
 			expectedScopedRoleAssignment("testerC", "parent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "parentrole",
+				Role:  "/::parentrole",
 				Scope: "/parentscope",
 			}.Build()}),
 			expectedScopedRoleAssignment("testerD", "parent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "parentrole",
+				Role:  "/::parentrole",
 				Scope: "/parentscope",
 			}.Build()}),
 		},
@@ -267,11 +267,11 @@ func TestMaterializerDoubleListParents(t *testing.T) {
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"parentA": newAccessList(t, "parentA", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa",
-					Role:  "roleA",
+					Role:  "/::roleA",
 				}})),
 				"parentB": newAccessList(t, "parentB", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/bb",
-					Role:  "roleB",
+					Role:  "/::roleB",
 				}})),
 				"child": newAccessList(t, "child"),
 			},
@@ -290,11 +290,11 @@ func TestMaterializerDoubleListParents(t *testing.T) {
 		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 			// User should be a nested member of both parents and get an assignment for each.
 			expectedScopedRoleAssignment("tester", "parentA", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "roleA",
+				Role:  "/::roleA",
 				Scope: "/aa",
 			}.Build()}),
 			expectedScopedRoleAssignment("tester", "parentB", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "roleB",
+				Role:  "/::roleB",
 				Scope: "/bb",
 			}.Build()}),
 		},
@@ -308,7 +308,7 @@ func TestMaterializerDirectOwner(t *testing.T) {
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"testlist": newAccessList(t, "testlist", withOwnerGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa",
-					Role:  "testrole",
+					Role:  "/::testrole",
 				}}), withOwners([]accesslist.Owner{{
 					Name:           "tester",
 					MembershipKind: accesslist.MembershipKindUser,
@@ -322,7 +322,7 @@ func TestMaterializerDirectOwner(t *testing.T) {
 			// The user is simply a direct owner of the access list and an
 			// assignment is expected.
 			expectedScopedRoleAssignment("tester", "testlist", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "testrole",
+				Role:  "/::testrole",
 				Scope: "/aa",
 			}.Build()}),
 		},
@@ -338,11 +338,11 @@ func TestMaterializerUserMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 					"granted": newAccessList(t, "granted",
 						withMemberGrants([]accesslist.ScopedRoleGrant{{
 							Scope: "/member",
-							Role:  "memberrole",
+							Role:  "/::memberrole",
 						}}),
 						withOwnerGrants([]accesslist.ScopedRoleGrant{{
 							Scope: "/owner",
-							Role:  "ownerrole",
+							Role:  "/::ownerrole",
 						}}),
 						withOwners([]accesslist.Owner{{
 							Name:           "tester",
@@ -360,7 +360,7 @@ func TestMaterializerUserMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 			},
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "ownerrole",
+					Role:  "/::ownerrole",
 					Scope: "/owner",
 				}.Build()}),
 			},
@@ -374,10 +374,10 @@ func TestMaterializerUserMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 					// tester is now both a direct owner of granted and a nested member via child,
 					// so the materialized assignment must include both grants.
 					expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-						Role:  "memberrole",
+						Role:  "/::memberrole",
 						Scope: "/member",
 					}.Build(), scopedaccessv1.Assignment_builder{
-						Role:  "ownerrole",
+						Role:  "/::ownerrole",
 						Scope: "/owner",
 					}.Build()}),
 				},
@@ -395,11 +395,11 @@ func TestMaterializerListMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 					"granted": newAccessList(t, "granted",
 						withMemberGrants([]accesslist.ScopedRoleGrant{{
 							Scope: "/member",
-							Role:  "memberrole",
+							Role:  "/::memberrole",
 						}}),
 						withOwnerGrants([]accesslist.ScopedRoleGrant{{
 							Scope: "/owner",
-							Role:  "ownerrole",
+							Role:  "/::ownerrole",
 						}}),
 						withOwners([]accesslist.Owner{{
 							Name:           "tester",
@@ -421,7 +421,7 @@ func TestMaterializerListMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 			},
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "ownerrole",
+					Role:  "/::ownerrole",
 					Scope: "/owner",
 				}.Build()}),
 			},
@@ -435,10 +435,10 @@ func TestMaterializerListMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 					// tester is now both a direct owner of granted and a nested member via
 					// parent->child, so the materialized assignment must include both grants.
 					expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-						Role:  "memberrole",
+						Role:  "/::memberrole",
 						Scope: "/member",
 					}.Build(), scopedaccessv1.Assignment_builder{
-						Role:  "ownerrole",
+						Role:  "/::ownerrole",
 						Scope: "/owner",
 					}.Build()}),
 				},
@@ -456,11 +456,11 @@ func TestMaterializerAccessListPutPreservesExistingOwnerGrant(t *testing.T) {
 					"granted": newAccessList(t, "granted",
 						withMemberGrants([]accesslist.ScopedRoleGrant{{
 							Scope: "/member",
-							Role:  "memberrole",
+							Role:  "/::memberrole",
 						}}),
 						withOwnerGrants([]accesslist.ScopedRoleGrant{{
 							Scope: "/owner",
-							Role:  "ownerrole",
+							Role:  "/::ownerrole",
 						}}),
 						withOwners([]accesslist.Owner{{
 							Name:           "tester",
@@ -483,7 +483,7 @@ func TestMaterializerAccessListPutPreservesExistingOwnerGrant(t *testing.T) {
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				// tests is initially ownly an owner of the granted list.
 				expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "ownerrole",
+					Role:  "/::ownerrole",
 					Scope: "/owner",
 				}.Build()}),
 			},
@@ -498,10 +498,10 @@ func TestMaterializerAccessListPutPreservesExistingOwnerGrant(t *testing.T) {
 					// as tests is now a member and owner of granted, make sure
 					// the materialiazed assignment includes both grants.
 					expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-						Role:  "memberrole",
+						Role:  "/::memberrole",
 						Scope: "/member",
 					}.Build(), scopedaccessv1.Assignment_builder{
-						Role:  "ownerrole",
+						Role:  "/::ownerrole",
 						Scope: "/owner",
 					}.Build()}),
 				},
@@ -521,7 +521,7 @@ func TestMaterializerOwnerRequirements(t *testing.T) {
 					// present in the granted list.
 					"granted": newAccessList(t, "granted", withOwnerGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/aa",
-						Role:  "ownerrole",
+						Role:  "/::ownerrole",
 					}}), withOwners([]accesslist.Owner{{
 						Name:           "owners",
 						MembershipKind: accesslist.MembershipKindList,
@@ -540,7 +540,7 @@ func TestMaterializerOwnerRequirements(t *testing.T) {
 				// list "owners" are valid _owners_ of list "granted", so the
 				// assignment should be materialized.
 				expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "ownerrole",
+					Role:  "/::ownerrole",
 					Scope: "/aa",
 				}.Build()}),
 			},
@@ -561,11 +561,11 @@ func TestMaterializerOwnerRequirements(t *testing.T) {
 					// The nested user is also a valid member of the owners list so
 					// should also have an assignment materialized.
 					expectedScopedRoleAssignment("tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-						Role:  "ownerrole",
+						Role:  "/::ownerrole",
 						Scope: "/aa",
 					}.Build()}),
 					expectedScopedRoleAssignment("nested_tester", "granted", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-						Role:  "ownerrole",
+						Role:  "/::ownerrole",
 						Scope: "/aa",
 					}.Build()}),
 				},
@@ -581,21 +581,21 @@ func TestMaterializerOwnerChain(t *testing.T) {
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"grandparent": newAccessList(t, "grandparent", withOwnerGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa/bb/cc",
-					Role:  "grandparentownerrole",
+					Role:  "/::grandparentownerrole",
 				}}), withOwners([]accesslist.Owner{{
 					Name:           "parent",
 					MembershipKind: accesslist.MembershipKindList,
 				}})),
 				"parent": newAccessList(t, "parent", withOwnerGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa/bb",
-					Role:  "parentownerrole",
+					Role:  "/::parentownerrole",
 				}}), withOwners([]accesslist.Owner{{
 					Name:           "base",
 					MembershipKind: accesslist.MembershipKindList,
 				}})),
 				"base": newAccessList(t, "base", withOwnerGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa",
-					Role:  "baseownerrole",
+					Role:  "/::baseownerrole",
 				}}), withOwners([]accesslist.Owner{{
 					Name:           "baseowner",
 					MembershipKind: accesslist.MembershipKindUser,
@@ -618,22 +618,22 @@ func TestMaterializerOwnerChain(t *testing.T) {
 		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 			// baseowner is a direct owner of base list. Ownership is not inherited.
 			expectedScopedRoleAssignment("baseowner", "base", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "baseownerrole",
+				Role:  "/::baseownerrole",
 				Scope: "/aa",
 			}.Build()}),
 			// basemember is a member of base list, base list is an owner of parent list.
 			expectedScopedRoleAssignment("basemember", "parent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "parentownerrole",
+				Role:  "/::parentownerrole",
 				Scope: "/aa/bb",
 			}.Build()}),
 			// basemember is a nested member of parent list, parent list is an owner of grandparent list.
 			expectedScopedRoleAssignment("basemember", "grandparent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "grandparentownerrole",
+				Role:  "/::grandparentownerrole",
 				Scope: "/aa/bb/cc",
 			}.Build()}),
 			// parentmember is a member of parent list, parent list is an owner of grandparent list.
 			expectedScopedRoleAssignment("parentmember", "grandparent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "grandparentownerrole",
+				Role:  "/::grandparentownerrole",
 				Scope: "/aa/bb/cc",
 			}.Build()}),
 		},
@@ -648,7 +648,7 @@ func TestMaterializerAccessListPutWithMembershipRequirements(t *testing.T) {
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"top": newAccessList(t, "top", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/aa",
-						Role:  "toprole",
+						Role:  "/::toprole",
 					}})),
 					"middle": newAccessList(t, "middle"),
 				},
@@ -663,7 +663,7 @@ func TestMaterializerAccessListPutWithMembershipRequirements(t *testing.T) {
 			},
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "toprole",
+					Role:  "/::toprole",
 					Scope: "/aa",
 				}.Build()}),
 			},
@@ -689,7 +689,7 @@ func TestMaterializerAccessListMemberKindUpdateInvalidatesPriorKind(t *testing.T
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"parent": newAccessList(t, "parent", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/aa",
-						Role:  "parentrole",
+						Role:  "/::parentrole",
 					}})),
 					"child": newAccessList(t, "child"),
 				},
@@ -707,7 +707,7 @@ func TestMaterializerAccessListMemberKindUpdateInvalidatesPriorKind(t *testing.T
 				// of list parent, resulting in a materialized assignment for
 				// tester in parent.
 				expectedScopedRoleAssignment("tester", "parent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "parentrole",
+					Role:  "/::parentrole",
 					Scope: "/aa",
 				}.Build()}),
 			},
@@ -729,7 +729,7 @@ func TestMaterializerAccessListMemberKindUpdateInvalidatesPriorKind(t *testing.T
 					// now broken.
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("child", "parent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "parentrole",
+							Role:  "/::parentrole",
 							Scope: "/aa",
 						}.Build()}),
 					},
@@ -749,7 +749,7 @@ func TestMaterializerAccessListMemberKindUpdateInvalidatesPriorKind(t *testing.T
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("tester", "parent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "parentrole",
+							Role:  "/::parentrole",
 							Scope: "/aa",
 						}.Build()}),
 					},
@@ -783,7 +783,7 @@ func TestMaterializerDiamond(t *testing.T) {
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"top": newAccessList(t, "top", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/aa",
-						Role:  "toprole",
+						Role:  "/::toprole",
 					}})),
 					"left":   newAccessList(t, "left"),
 					"right":  newAccessList(t, "right"),
@@ -808,7 +808,7 @@ func TestMaterializerDiamond(t *testing.T) {
 			// Initially the user is a valid member of the top list by 2 paths.
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "toprole",
+					Role:  "/::toprole",
 					Scope: "/aa",
 				}.Build()}),
 			},
@@ -823,7 +823,7 @@ func TestMaterializerDiamond(t *testing.T) {
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "toprole",
+							Role:  "/::toprole",
 							Scope: "/aa",
 						}.Build()}),
 					},
@@ -847,7 +847,7 @@ func TestMaterializerDiamond(t *testing.T) {
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "toprole",
+							Role:  "/::toprole",
 							Scope: "/aa",
 						}.Build()}),
 					},
@@ -868,7 +868,7 @@ func TestMaterializerCascadingMemberExpiries(t *testing.T) {
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"testlist": newAccessList(t, "testlist", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/test",
-						Role:  "testrole",
+						Role:  "/::testrole",
 					}})),
 				},
 				MembersByAccessList: map[string][]*accesslist.AccessListMember{
@@ -882,15 +882,15 @@ func TestMaterializerCascadingMemberExpiries(t *testing.T) {
 			// Initially all users are valid members of testlist.
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("alice", "testlist", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "testrole",
+					Role:  "/::testrole",
 					Scope: "/test",
 				}.Build()}),
 				expectedScopedRoleAssignment("bob", "testlist", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "testrole",
+					Role:  "/::testrole",
 					Scope: "/test",
 				}.Build()}),
 				expectedScopedRoleAssignment("charlie", "testlist", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "testrole",
+					Role:  "/::testrole",
 					Scope: "/test",
 				}.Build()}),
 			},
@@ -903,11 +903,11 @@ func TestMaterializerCascadingMemberExpiries(t *testing.T) {
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("bob", "testlist", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "testrole",
+							Role:  "/::testrole",
 							Scope: "/test",
 						}.Build()}),
 						expectedScopedRoleAssignment("charlie", "testlist", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "testrole",
+							Role:  "/::testrole",
 							Scope: "/test",
 						}.Build()}),
 					},
@@ -920,7 +920,7 @@ func TestMaterializerCascadingMemberExpiries(t *testing.T) {
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("charlie", "testlist", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "testrole",
+							Role:  "/::testrole",
 							Scope: "/test",
 						}.Build()}),
 					},
@@ -946,11 +946,11 @@ func TestMaterializerRepairFailedReads(t *testing.T) {
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"parent": newAccessList(t, "parent", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/test/parent",
-						Role:  "testrole",
+						Role:  "/::testrole",
 					}})),
 					"child": newAccessList(t, "child", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/test/child",
-						Role:  "testrole",
+						Role:  "/::testrole",
 					}})),
 				},
 				MembersByAccessList: map[string][]*accesslist.AccessListMember{
@@ -980,7 +980,7 @@ func TestMaterializerRepairFailedReads(t *testing.T) {
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("tester", "child", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "testrole",
+							Role:  "/::testrole",
 							Scope: "/test/child",
 						}.Build()}),
 					},
@@ -1010,11 +1010,11 @@ func TestMaterializerRepairFailedReads(t *testing.T) {
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("tester", "child", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "testrole",
+							Role:  "/::testrole",
 							Scope: "/test/child",
 						}.Build()}),
 						expectedScopedRoleAssignment("tester", "parent", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "testrole",
+							Role:  "/::testrole",
 							Scope: "/test/parent",
 						}.Build()}),
 					},
@@ -1053,7 +1053,7 @@ func TestMaterializerDiamondExpiry(t *testing.T) {
 				AccessListsByName: map[string]*accesslist.AccessList{
 					"top": newAccessList(t, "top", withMemberGrants([]accesslist.ScopedRoleGrant{{
 						Scope: "/aa",
-						Role:  "toprole",
+						Role:  "/::toprole",
 					}})),
 					"left":   newAccessList(t, "left"),
 					"right":  newAccessList(t, "right"),
@@ -1078,7 +1078,7 @@ func TestMaterializerDiamondExpiry(t *testing.T) {
 			// Initially the user is a valid member of the top list by 2 paths.
 			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 				expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "toprole",
+					Role:  "/::toprole",
 					Scope: "/aa",
 				}.Build()}),
 			},
@@ -1092,7 +1092,7 @@ func TestMaterializerDiamondExpiry(t *testing.T) {
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "toprole",
+							Role:  "/::toprole",
 							Scope: "/aa",
 						}.Build()}),
 					},
@@ -1115,7 +1115,7 @@ func TestMaterializerDiamondExpiry(t *testing.T) {
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-							Role:  "toprole",
+							Role:  "/::toprole",
 							Scope: "/aa",
 						}.Build()}),
 					},
@@ -1257,6 +1257,7 @@ initializing acl cache: %v`, t1.Sub(t0), t2.Sub(t1), t3.Sub(t2))
 					_, err := assignmentCache.GetScopedRoleAssignment(b.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 						Name:    key.AssignmentName(),
 						SubKind: scopedaccess.SubKindMaterialized,
+						Scope:   "/",
 					}.Build())
 					assert.NoError(b, err)
 				}
@@ -1269,7 +1270,7 @@ func createBenchmarkCollection(b require.TestingT, listCount, membersPerList, ne
 	var collection accesslists.Collection
 
 	grants := []accesslist.ScopedRoleGrant{{
-		Role:  "testrole",
+		Role:  "/::testrole",
 		Scope: "/aa",
 	}}
 	listIndex := 0

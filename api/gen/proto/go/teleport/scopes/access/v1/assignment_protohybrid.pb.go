@@ -336,7 +336,7 @@ func (b0 ScopedRoleAssignmentSpec_builder) Build() *ScopedRoleAssignmentSpec {
 // Assignment is a role/scope pair that defines an individual assignment.
 type Assignment struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Roles is the name of the role that is assigned by this assignment.
+	// Role is the scope-qualified name of the role that is assigned by this assignment.
 	Role string `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
 	// Scope is the scope to which the role is assigned. This must be a member/child
 	// of the scope of the [ScopedRoleAssignment] in which this assignment is contained.
@@ -395,7 +395,7 @@ func (x *Assignment) SetScope(v string) {
 type Assignment_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Roles is the name of the role that is assigned by this assignment.
+	// Role is the scope-qualified name of the role that is assigned by this assignment.
 	Role string
 	// Scope is the scope to which the role is assigned. This must be a member/child
 	// of the scope of the [ScopedRoleAssignment] in which this assignment is contained.

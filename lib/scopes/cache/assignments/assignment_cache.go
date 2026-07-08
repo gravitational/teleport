@@ -96,6 +96,12 @@ func (c *AssignmentCache) GetScopedRoleAssignment(ctx context.Context, req *scop
 		return nil, trace.NotFound("scoped role assignment %q not found", req.GetName())
 	}
 
+	// emulate namespace-like behavior by treating mismatched scopes as NotFound (prep for the transition
+	// to true namespacing).
+	if scopes.Compare(req.GetScope(), assignment.GetScope()) != scopes.Equivalent {
+		return nil, trace.NotFound("scoped role assignment %q not found in scope %q", req.GetName(), req.GetScope())
+	}
+
 	return scopedaccessv1.GetScopedRoleAssignmentResponse_builder{
 		Assignment: assignment,
 	}.Build(), nil
