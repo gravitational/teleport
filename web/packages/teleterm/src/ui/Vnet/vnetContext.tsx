@@ -20,6 +20,7 @@ import {
   createContext,
   FC,
   PropsWithChildren,
+  RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -48,7 +49,6 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
-import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { IAppContext } from 'teleterm/ui/types';
 
 /**
@@ -61,6 +61,18 @@ export type VnetContext = {
    * Describes whether the given OS can run VNet.
    */
   isSupported: boolean;
+  /**
+   * Whether the VNet panel (opened from its top bar icon) is currently open.
+   */
+  isPanelOpen: boolean;
+  /**
+   * isPanelOpenRef is useful for reading isPanelOpen from within event handlers whose identity
+   * shouldn't be based on isPanelOpen.
+   */
+  isPanelOpenRef: RefObject<boolean | null>;
+  openPanel: () => void;
+  closePanel: () => void;
+  togglePanel: () => void;
   status: VnetStatus;
   start: () => Promise<[void, Error]>;
   startAttempt: Attempt<void>;
@@ -132,8 +144,7 @@ export type VnetContext = {
    */
   openReport: ((report: Report) => void) | undefined;
   /**
-   * Whether the connections icon in the top left and the icon for the VNet connection item should
-   * show a warning state.
+   * Whether the VNet icon in the top bar should show a warning state.
    */
   showDiagWarningIndicator: boolean;
   /**
@@ -186,7 +197,13 @@ export const VnetContextProvider: FC<
       hasEverStarted: false,
     }
   );
-  const { isOpenRef: isConnectionsPanelOpenRef } = useConnectionsContext();
+  const [isPanelOpen, isPanelOpenRef, setIsPanelOpen] = useStateRef(false);
+  const openPanel = useCallback(() => setIsPanelOpen(true), [setIsPanelOpen]);
+  const closePanel = useCallback(() => setIsPanelOpen(false), [setIsPanelOpen]);
+  const togglePanel = useCallback(
+    () => setIsPanelOpen(wasOpen => !wasOpen),
+    [setIsPanelOpen]
+  );
 
   const platform = useMemo(
     () => mainProcessClient.getRuntimeSettings().platform,
@@ -460,9 +477,9 @@ export const VnetContextProvider: FC<
         return;
       }
 
-      if (isConnectionsPanelOpenRef.current) {
-        // If the connection panel is open and the report has found some issues, the user should be
-        // able to see the warning in the panel. If they're on the VNet panel, we don't want to show
+      if (isPanelOpenRef.current) {
+        // If the VNet panel is open and the report has found some issues, the user should be
+        // able to see the warning in the panel. In that case we don't want to show
         // the notification _and_ the alert in the panel.
         //
         // diagNotificationIdRef needs to be made dirty so that on the next run the notification is
@@ -503,7 +520,7 @@ export const VnetContextProvider: FC<
       openReport,
       hasDismissedDiagnosticsAlertRef,
       resetHasActedOnPreviousNotification,
-      isConnectionsPanelOpenRef,
+      isPanelOpenRef,
       workspacesService,
     ]
   );
@@ -635,6 +652,11 @@ export const VnetContextProvider: FC<
     <VnetContext.Provider
       value={{
         isSupported,
+        isPanelOpen,
+        isPanelOpenRef,
+        openPanel,
+        closePanel,
+        togglePanel,
         status,
         start,
         startAttempt,

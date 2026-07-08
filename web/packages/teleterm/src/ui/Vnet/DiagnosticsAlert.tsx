@@ -28,8 +28,7 @@ import {
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import { hasReportFoundIssues } from 'teleterm/services/vnet/diag';
-import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
-import { SecondaryText } from 'teleterm/ui/Vnet/VnetSliderStep';
+import { SecondaryText } from 'teleterm/ui/Vnet/VnetPanel';
 
 import { textSpacing } from './sliderStep';
 import { useVnetContext } from './vnetContext';
@@ -53,8 +52,8 @@ export const DiagnosticsAlert = (props: {
     dismissDiagnosticsAlert,
     hasDismissedDiagnosticsAlert,
     openReport,
+    closePanel,
   } = useVnetContext();
-  const { close: closeConnectionsPanel } = useConnectionsContext();
 
   if (
     diagnosticsAttempt.status === '' ||
@@ -90,7 +89,7 @@ export const DiagnosticsAlert = (props: {
     }
 
     openReport(report);
-    closeConnectionsPanel();
+    closePanel();
   };
 
   if (

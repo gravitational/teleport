@@ -81,7 +81,6 @@ export const ConnectionsSliderStep = (props: StepComponentProps) => {
           activateItem={activateItem}
           removeItem={removeItem}
           disconnectItem={disconnectItem}
-          slideToVnet={props.next}
         />
       </KeyboardArrowsNavigation>
     </Box>

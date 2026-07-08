@@ -26,7 +26,6 @@ import {
 
 import { Box, ButtonSecondary, ButtonText, Flex, Stack, Text } from 'design';
 import { Info } from 'design/Icon';
-import { StepComponentProps } from 'design/StepSlider';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
   RecentConnection,
@@ -34,7 +33,6 @@ import {
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
-import { mergeRefs } from 'shared/libs/mergeRefs';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionItem';
@@ -43,15 +41,13 @@ import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/Connec
 import { DiagnosticsAlert } from './DiagnosticsAlert';
 import { NetworkGraph } from './NetworkGraph';
 import { textSpacing } from './sliderStep';
-import { VnetSliderStepHeader } from './VnetConnectionItem';
 import { useVnetContext } from './vnetContext';
+import { VnetPanelHeader } from './VnetPanelHeader';
 
 /**
- * VnetSliderStep is the second step of StepSlider used in TopBar/Connections. It is shown after
- * selecting VnetConnectionItem from ConnectionsFilterableList.
+ * VnetPanel is the content shown in the popover opened from the VNet icon in the top bar.
  */
-export const VnetSliderStep = (props: StepComponentProps) => {
-  const visible = props.stepIndex === 1 && props.hasTransitionEnded;
+export const VnetPanel = () => {
   const {
     status,
     startAttempt,
@@ -60,8 +56,8 @@ export const VnetSliderStep = (props: StepComponentProps) => {
     runDiagnostics,
     reinstateDiagnosticsAlert,
   } = useVnetContext();
-  const autoFocusRef = useRefAutoFocus<HTMLElement>({
-    shouldFocus: visible,
+  const autoFocusRef = useRefAutoFocus<HTMLDivElement>({
+    shouldFocus: true,
   });
   /**
    * If the user has previously dismissed an alert, requesting a manual run from the VNet panel
@@ -77,19 +73,17 @@ export const VnetSliderStep = (props: StepComponentProps) => {
   );
 
   return (
-    // Padding needs to align with the padding of the previous slider step.
     <Box
       p={2}
-      ref={mergeRefs([props.refCallback, autoFocusRef])}
-      tabIndex={visible ? 0 : -1}
+      ref={autoFocusRef}
+      tabIndex={0}
       css={`
         // Do not show the outline when focused. This element cannot be interacted with and we focus
         // it only so that the next tab press is going to focus the VNet header button instead.
         outline: none;
       `}
     >
-      <VnetSliderStepHeader
-        goBack={props.prev}
+      <VnetPanelHeader
         runDiagnosticsFromVnetPanel={runDiagnosticsFromVnetPanel}
       />
       <Flex
@@ -310,7 +304,7 @@ const SectionLabel = (props: PropsWithChildren) => (
  * empty-state placeholders and hints sitting beneath a SectionLabel.
  */
 export const SecondaryText = (props: PropsWithChildren) => (
-  <Text typography="body3" color="text.muted">
+  <Text typography="body3" color="text.slightlyMuted">
     {props.children}
   </Text>
 );

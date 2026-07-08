@@ -22,7 +22,6 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { FilterableList } from 'teleterm/ui/components/FilterableList';
 import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
-import { useVnetContext, VnetConnectionItem } from 'teleterm/ui/Vnet';
 
 import { ConnectionItem } from './ConnectionItem';
 
@@ -31,10 +30,8 @@ export function ConnectionsFilterableList(props: {
   activateItem(id: string): void;
   removeItem(id: string): void;
   disconnectItem(id: string): void;
-  slideToVnet(): void;
 }) {
   const { setActiveIndex } = useKeyboardArrowsNavigationStateUpdate();
-  const { isSupported: isVnetSupported } = useVnetContext();
   const { clustersService } = useAppContext();
   const clustersInConnections = new Set(props.items.map(i => i.clusterName));
   // showClusterNames is based on two values, as there are two cases we need to account for:
@@ -50,44 +47,28 @@ export function ConnectionsFilterableList(props: {
   const showClusterName =
     clustersService.getClustersCount() > 1 || clustersInConnections.size > 1;
 
-  if (!isVnetSupported && props.items.length === 0) {
+  if (props.items.length === 0) {
     return <Text color="text.muted">No Connections</Text>;
-  } // With VNet being supported, there's always at least one item to show – the VNet item.
-
-  let items: Array<ExtendedTrackedConnection | VnetConnection> = props.items;
-
-  if (isVnetSupported) {
-    items = [{ kind: 'vnet', title: 'VNet' }, ...items];
   }
 
   return (
-    <FilterableList<ExtendedTrackedConnection | VnetConnection>
-      items={items}
+    <FilterableList<ExtendedTrackedConnection>
+      items={props.items}
       filterBy="title"
       placeholder="Search connections"
       onFilterChange={value =>
         value.length ? setActiveIndex(0) : setActiveIndex(-1)
       }
-      Node={({ item, index }) =>
-        item.kind === 'vnet' ? (
-          <VnetConnectionItem
-            openVnetPanel={props.slideToVnet}
-            title="Open VNet panel"
-            index={index}
-          />
-        ) : (
-          <ConnectionItem
-            item={item}
-            index={index}
-            showClusterName={showClusterName}
-            activate={() => props.activateItem(item.id)}
-            remove={() => props.removeItem(item.id)}
-            disconnect={() => props.disconnectItem(item.id)}
-          />
-        )
-      }
+      Node={({ item, index }) => (
+        <ConnectionItem
+          item={item}
+          index={index}
+          showClusterName={showClusterName}
+          activate={() => props.activateItem(item.id)}
+          remove={() => props.removeItem(item.id)}
+          disconnect={() => props.disconnectItem(item.id)}
+        />
+      )}
     />
   );
 }
-
-type VnetConnection = { kind: 'vnet'; title: 'VNet' };

@@ -37,10 +37,6 @@ import {
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { makeDocumentConnectMyComputer } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
-import {
-  ConnectionsContextProvider,
-  useConnectionsContext,
-} from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { IAppContext } from 'teleterm/ui/types';
 
 import {
@@ -557,16 +553,14 @@ const Wrapper = (
 ) => {
   return (
     <MockAppContextProvider appContext={props.appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider diagnosticsIntervalMs={diagnosticsIntervalMs}>
-          {props.controlConnectionsRef && (
-            <OpenConnections
-              controlConnectionsRef={props.controlConnectionsRef}
-            />
-          )}
-          {props.children}
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
+      <VnetContextProvider diagnosticsIntervalMs={diagnosticsIntervalMs}>
+        {props.controlConnectionsRef && (
+          <OpenConnections
+            controlConnectionsRef={props.controlConnectionsRef}
+          />
+        )}
+        {props.children}
+      </VnetContextProvider>
     </MockAppContextProvider>
   );
 };
@@ -589,12 +583,15 @@ function createWrapper<Props>(
 const OpenConnections = (props: {
   controlConnectionsRef: RefObject<ControlConnections>;
 }) => {
-  const { open, close } = useConnectionsContext();
-  useImperativeHandle(props.controlConnectionsRef, () => ({ open, close }));
+  const { openPanel, closePanel } = useVnetContext();
+  useImperativeHandle(props.controlConnectionsRef, () => ({
+    open: openPanel,
+    close: closePanel,
+  }));
 
   useEffect(() => {
-    open();
-  }, [open]);
+    openPanel();
+  }, [openPanel]);
 
   return null;
 };

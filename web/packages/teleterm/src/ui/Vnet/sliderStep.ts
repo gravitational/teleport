@@ -17,6 +17,6 @@
  */
 
 /**
- * textSpacing is the spacing between the border of the slider step and text within VnetSliderStep.
+ * textSpacing is the spacing between the border of the VNet panel and text within it.
  */
 export const textSpacing = 2;

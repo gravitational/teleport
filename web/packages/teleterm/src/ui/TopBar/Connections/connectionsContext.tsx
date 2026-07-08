@@ -20,69 +20,40 @@ import {
   createContext,
   FC,
   PropsWithChildren,
-  RefObject,
   useCallback,
   useContext,
   useState,
 } from 'react';
-
-import { useStateRef } from 'shared/hooks';
 
 /**
  * ConnectionsContext allows other parts of the app to control the connection list.
  */
 export type ConnectionsContext = {
   isOpen: boolean;
-  /**
-   * isOpenRef is useful for reading isOpen from within event handlers whose identity shouldn't be
-   * based on isOpen.
-   */
-  isOpenRef: RefObject<boolean | null>;
-  open: (step?: Step) => void;
+  open: () => void;
   close: () => void;
   toggle: () => void;
-  /**
-   * stepToOpen is the step that will be shown when the connection list gets opened.
-   * It doesn't control the current stop beyond the initial render.
-   */
-  stepToOpen: Step;
 };
-
-export type Step = 'connections' | 'vnet';
-
-const defaultStep: Step = 'connections';
 
 export const ConnectionsContext = createContext<ConnectionsContext>(null);
 
 export const ConnectionsContextProvider: FC<PropsWithChildren> = props => {
-  const [isOpen, isOpenRef, setIsOpen] = useStateRef(false);
-  const [stepToOpen, setStepToOpen] = useState<Step>('connections');
+  const [isOpen, setIsOpen] = useState(false);
 
   const toggle = useCallback(() => {
     setIsOpen(wasOpen => !wasOpen);
-
-    if (isOpen) {
-      setStepToOpen(defaultStep);
-    }
-  }, [isOpen, setIsOpen]);
+  }, [setIsOpen]);
 
   const close = useCallback(() => {
     setIsOpen(false);
-    setStepToOpen(defaultStep);
   }, [setIsOpen]);
 
-  const open = useCallback(
-    (step: Step = defaultStep) => {
-      setIsOpen(true);
-      setStepToOpen(step);
-    },
-    [setIsOpen]
-  );
+  const open = useCallback(() => {
+    setIsOpen(true);
+  }, [setIsOpen]);
 
   return (
-    <ConnectionsContext.Provider
-      value={{ isOpen, isOpenRef, toggle, close, open, stepToOpen }}
-    >
+    <ConnectionsContext.Provider value={{ isOpen, toggle, close, open }}>
       {props.children}
     </ConnectionsContext.Provider>
   );

@@ -21,6 +21,8 @@ import styled from 'styled-components';
 
 import { Flex } from 'design';
 
+import { Vnet } from 'teleterm/ui/TopBar/Vnet';
+
 import { SearchBar } from '../Search';
 import { AdditionalActions } from './AdditionalActions';
 import { Clusters } from './Clusters';
@@ -35,7 +37,7 @@ export function TopBar(props: {
     <Grid>
       <JustifyLeft>
         <Connections />
-        <div ref={props.connectMyComputerRef} />
+        <Vnet />
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
@@ -72,10 +74,9 @@ const CentralContainer = styled(Flex).attrs({ gap: 3 })`
   max-width: calc(${props => props.theme.space[10]}px * 9);
 `;
 
-// Reserve space for dynamic icons (Connect My Computer and access requests)
-// to prevent layout shift. Side containers must be of equal width to keep the
-// search bar input centered, so that it is completely hidden when the search
-// is open.
+// Reserve space for dynamic icons (access requests) to prevent layout shift.
+// Side containers must be of equal width to keep the search bar input centered,
+// so that it is completely hidden when the search is open.
 const SIDE_CONTAINER_WIDTH = '128px';
 
 const JustifyLeft = styled(Flex).attrs({ gap: 3 })`

@@ -23,7 +23,6 @@ import { ensureError } from 'shared/utils/error';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { VnetLauncherArgs } from 'teleterm/ui/services/workspacesService/documentsService/types';
-import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { routing } from 'teleterm/ui/uri';
 
 import { useVnetContext } from './vnetContext';
@@ -56,15 +55,15 @@ export const useVnetLauncher = (): {
     hasEverStarted,
     currentServiceInfo,
     openSSHConfigurationModal,
+    openPanel,
   } = useVnetContext();
-  const { open } = useConnectionsContext();
 
   const launchVnet: () => Promise<boolean> = useCallback(async () => {
     if (status.value === 'running' || startAttempt.status === 'processing') {
       return true;
     }
 
-    open('vnet');
+    openPanel();
 
     const [, error] = await start();
     if (error) {
@@ -72,7 +71,7 @@ export const useVnetLauncher = (): {
       return false;
     }
     return true;
-  }, [status.value, startAttempt.status, open, start]);
+  }, [status.value, startAttempt.status, openPanel, start]);
 
   const openInfoDoc = useCallback(
     async (args: VnetLauncherArgs) => {

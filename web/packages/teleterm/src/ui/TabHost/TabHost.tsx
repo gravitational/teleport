@@ -62,7 +62,6 @@ export function TabHostContainer(props: {
 
 export function TabHost({
   ctx,
-  topBarConnectMyComputerRef,
   topBarAccessRequestRef,
   desktopSessionControlsRef,
 }: {
@@ -148,7 +147,6 @@ export function TabHost({
         />
       </Flex>
       <DocumentsRenderer
-        topBarConnectMyComputerRef={topBarConnectMyComputerRef}
         topBarAccessRequestRef={topBarAccessRequestRef}
         desktopSessionControlsRef={desktopSessionControlsRef}
       />

@@ -30,7 +30,6 @@ import {
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   ConnectMyComputerContextProvider,
-  ConnectMyComputerNavigationMenu,
   DocumentConnectMyComputer,
 } from 'teleterm/ui/ConnectMyComputer';
 import Document from 'teleterm/ui/Document';
@@ -57,7 +56,6 @@ import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { WorkspaceContextProvider } from './workspaceContext';
 
 export function DocumentsRenderer(props: {
-  topBarConnectMyComputerRef: MutableRefObject<HTMLDivElement>;
   topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
   desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
 }) {
@@ -123,20 +121,12 @@ export function DocumentsRenderer(props: {
                   <KeyboardShortcutsPanel />
                 )}
                 {workspace.rootClusterUri ===
-                  workspacesService.getRootClusterUri() && (
-                  <>
-                    {props.topBarConnectMyComputerRef.current &&
-                      createPortal(
-                        <ConnectMyComputerNavigationMenu />,
-                        props.topBarConnectMyComputerRef.current
-                      )}
-                    {props.topBarAccessRequestRef.current &&
-                      createPortal(
-                        <AccessRequestsMenu />,
-                        props.topBarAccessRequestRef.current
-                      )}
-                  </>
-                )}
+                  workspacesService.getRootClusterUri() &&
+                  props.topBarAccessRequestRef.current &&
+                  createPortal(
+                    <AccessRequestsMenu />,
+                    props.topBarAccessRequestRef.current
+                  )}
               </AccessRequestsContextProvider>
             </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>

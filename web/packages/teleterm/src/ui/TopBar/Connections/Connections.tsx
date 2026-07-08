@@ -23,9 +23,8 @@ import Popover from 'design/Popover';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
-import { useVnetContext, VnetSliderStep } from 'teleterm/ui/Vnet';
 
-import { Step, useConnectionsContext } from './connectionsContext';
+import { useConnectionsContext } from './connectionsContext';
 import { ConnectionsIcon } from './ConnectionsIcon/ConnectionsIcon';
 import { ConnectionsSliderStep } from './ConnectionsSliderStep';
 
@@ -33,18 +32,11 @@ export function Connections() {
   const { connectionTracker } = useAppContext();
   connectionTracker.useState();
   const iconRef = useRef(undefined);
-  const { isOpen, toggle, close, stepToOpen } = useConnectionsContext();
-  const { status: vnetStatus, showDiagWarningIndicator } = useVnetContext();
-  const isAnyConnectionActive =
-    connectionTracker.getConnections().some(c => c.connected) ||
-    vnetStatus.value === 'running';
-  const status = useMemo(() => {
-    if (showDiagWarningIndicator) {
-      return 'warning';
-    }
-
-    return isAnyConnectionActive ? 'on' : 'off';
-  }, [showDiagWarningIndicator, isAnyConnectionActive]);
+  const { isOpen, toggle, close } = useConnectionsContext();
+  const isAnyConnectionActive = connectionTracker
+    .getConnections()
+    .some(c => c.connected);
+  const status = isAnyConnectionActive ? 'on' : 'off';
 
   useKeyboardShortcuts(
     useMemo(
@@ -55,15 +47,6 @@ export function Connections() {
     )
   );
 
-  // TODO(ravicious): Investigate the problem with height getting temporarily reduced when switching
-  // from a shorter step 1 to a taller step 2, particularly when there's an error rendered in step 2
-  // that wasn't there on first render.
-  //
-  // It might have to do with how Popover calculates height or how StepSlider uses refs for height.
-  //
-  // We aim to replace the sliding animation with an expanding animation before the release, so it
-  // might not be worth the effort.
-
   return (
     <>
       <ConnectionsIcon status={status} onClick={toggle} ref={iconRef} />
@@ -73,15 +56,11 @@ export function Connections() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         onClose={close}
       >
-        {/*
-          It needs to be wide enough for the diag warning in the VNet panel to not be squished too much.
-        */}
         <Box width="396px" bg="levels.elevated">
           <StepSlider
             tDuration={250}
             currFlow="default"
             flows={stepSliderFlows}
-            defaultStepIndex={stepToIndex(stepToOpen)}
           />
         </Box>
       </Popover>
@@ -89,16 +68,4 @@ export function Connections() {
   );
 }
 
-const stepSliderFlows = { default: [ConnectionsSliderStep, VnetSliderStep] };
-
-const stepToIndex = (step: Step): number => {
-  switch (step) {
-    case 'connections':
-      return 0;
-    case 'vnet':
-      return 1;
-    default:
-      step satisfies never;
-      return 0;
-  }
-};
+const stepSliderFlows = { default: [ConnectionsSliderStep] };
