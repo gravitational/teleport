@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/build.assets/tooling
 
-go 1.26.4
+go 1.26.5
 
 tool github.com/gravitational/teleport/build.assets/tooling/cmd/helm-janitor
 
