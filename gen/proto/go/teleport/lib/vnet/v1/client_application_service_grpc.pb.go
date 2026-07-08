@@ -53,7 +53,7 @@ const (
 	ClientApplicationService_ReissueDBCert_FullMethodName             = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueDBCert"
 	ClientApplicationService_SignForDB_FullMethodName                 = "/teleport.lib.vnet.v1.ClientApplicationService/SignForDB"
 	ClientApplicationService_OnNewDBConnection_FullMethodName         = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewDBConnection"
-	ClientApplicationService_ReportConnectionStats_FullMethodName     = "/teleport.lib.vnet.v1.ClientApplicationService/ReportConnectionStats"
+	ClientApplicationService_ReportConnections_FullMethodName         = "/teleport.lib.vnet.v1.ClientApplicationService/ReportConnections"
 )
 
 // ClientApplicationServiceClient is the client API for ClientApplicationService service.
@@ -113,12 +113,12 @@ type ClientApplicationServiceClient interface {
 	// OnNewDBConnection gets called whenever a new database connection is about to
 	// be established through VNet for observability.
 	OnNewDBConnection(ctx context.Context, in *OnNewDBConnectionRequest, opts ...grpc.CallOption) (*OnNewDBConnectionResponse, error)
-	// ReportConnectionStats reports a snapshot of the aggregated connection
-	// statistics for all targets connected to through VNet. The admin process
-	// pushes a fresh snapshot periodically while VNet is running. All counters
-	// are absolute values accumulated since VNet started, so a lost snapshot
-	// does not lose any data.
-	ReportConnectionStats(ctx context.Context, in *ReportConnectionStatsRequest, opts ...grpc.CallOption) (*ReportConnectionStatsResponse, error)
+	// ReportConnections reports a snapshot of VNet connection activity: the
+	// aggregated statistics for all targets connected to through VNet, plus a
+	// capped window of individual connection records. The admin process pushes a
+	// fresh snapshot periodically while VNet is running. Every snapshot is
+	// complete and self-contained, so a lost snapshot does not lose any data.
+	ReportConnections(ctx context.Context, in *ReportConnectionsRequest, opts ...grpc.CallOption) (*ReportConnectionsResponse, error)
 }
 
 type clientApplicationServiceClient struct {
@@ -309,10 +309,10 @@ func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, 
 	return out, nil
 }
 
-func (c *clientApplicationServiceClient) ReportConnectionStats(ctx context.Context, in *ReportConnectionStatsRequest, opts ...grpc.CallOption) (*ReportConnectionStatsResponse, error) {
+func (c *clientApplicationServiceClient) ReportConnections(ctx context.Context, in *ReportConnectionsRequest, opts ...grpc.CallOption) (*ReportConnectionsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ReportConnectionStatsResponse)
-	err := c.cc.Invoke(ctx, ClientApplicationService_ReportConnectionStats_FullMethodName, in, out, cOpts...)
+	out := new(ReportConnectionsResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_ReportConnections_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -376,12 +376,12 @@ type ClientApplicationServiceServer interface {
 	// OnNewDBConnection gets called whenever a new database connection is about to
 	// be established through VNet for observability.
 	OnNewDBConnection(context.Context, *OnNewDBConnectionRequest) (*OnNewDBConnectionResponse, error)
-	// ReportConnectionStats reports a snapshot of the aggregated connection
-	// statistics for all targets connected to through VNet. The admin process
-	// pushes a fresh snapshot periodically while VNet is running. All counters
-	// are absolute values accumulated since VNet started, so a lost snapshot
-	// does not lose any data.
-	ReportConnectionStats(context.Context, *ReportConnectionStatsRequest) (*ReportConnectionStatsResponse, error)
+	// ReportConnections reports a snapshot of VNet connection activity: the
+	// aggregated statistics for all targets connected to through VNet, plus a
+	// capped window of individual connection records. The admin process pushes a
+	// fresh snapshot periodically while VNet is running. Every snapshot is
+	// complete and self-contained, so a lost snapshot does not lose any data.
+	ReportConnections(context.Context, *ReportConnectionsRequest) (*ReportConnectionsResponse, error)
 	mustEmbedUnimplementedClientApplicationServiceServer()
 }
 
@@ -446,8 +446,8 @@ func (UnimplementedClientApplicationServiceServer) SignForDB(context.Context, *S
 func (UnimplementedClientApplicationServiceServer) OnNewDBConnection(context.Context, *OnNewDBConnectionRequest) (*OnNewDBConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method OnNewDBConnection not implemented")
 }
-func (UnimplementedClientApplicationServiceServer) ReportConnectionStats(context.Context, *ReportConnectionStatsRequest) (*ReportConnectionStatsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ReportConnectionStats not implemented")
+func (UnimplementedClientApplicationServiceServer) ReportConnections(context.Context, *ReportConnectionsRequest) (*ReportConnectionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReportConnections not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) mustEmbedUnimplementedClientApplicationServiceServer() {
 }
@@ -795,20 +795,20 @@ func _ClientApplicationService_OnNewDBConnection_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClientApplicationService_ReportConnectionStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReportConnectionStatsRequest)
+func _ClientApplicationService_ReportConnections_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportConnectionsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClientApplicationServiceServer).ReportConnectionStats(ctx, in)
+		return srv.(ClientApplicationServiceServer).ReportConnections(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClientApplicationService_ReportConnectionStats_FullMethodName,
+		FullMethod: ClientApplicationService_ReportConnections_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClientApplicationServiceServer).ReportConnectionStats(ctx, req.(*ReportConnectionStatsRequest))
+		return srv.(ClientApplicationServiceServer).ReportConnections(ctx, req.(*ReportConnectionsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -893,8 +893,8 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClientApplicationService_OnNewDBConnection_Handler,
 		},
 		{
-			MethodName: "ReportConnectionStats",
-			Handler:    _ClientApplicationService_ReportConnectionStats_Handler,
+			MethodName: "ReportConnections",
+			Handler:    _ClientApplicationService_ReportConnections_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

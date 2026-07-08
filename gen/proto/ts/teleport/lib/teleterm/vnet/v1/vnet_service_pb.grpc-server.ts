@@ -20,8 +20,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-import { GetConnectionStatsResponse } from "./vnet_service_pb";
-import { GetConnectionStatsRequest } from "./vnet_service_pb";
+import { GetConnectionsResponse } from "./vnet_service_pb";
+import { GetConnectionsRequest } from "./vnet_service_pb";
 import { GetRecentConnectionsResponse } from "./vnet_service_pb";
 import { GetRecentConnectionsRequest } from "./vnet_service_pb";
 import { AutoConfigureSSHResponse } from "./vnet_service_pb";
@@ -101,14 +101,15 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      */
     getRecentConnections: grpc.handleServerStreamingCall<GetRecentConnectionsRequest, GetRecentConnectionsResponse>;
     /**
-     * GetConnectionStats streams aggregated per-target connection statistics for
-     * the running VNet service. The server sends the current statistics
-     * immediately and then a fresh snapshot whenever they change, until the
-     * stream is canceled or VNet stops. Requires VNet to be started.
+     * GetConnections streams VNet connection activity: aggregated per-target
+     * statistics plus a capped window of individual connection records. The
+     * server sends the current snapshot immediately and then a fresh one whenever
+     * it changes, until the stream is canceled or VNet stops. Requires VNet to be
+     * started.
      *
-     * @generated from protobuf rpc: GetConnectionStats(teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse);
+     * @generated from protobuf rpc: GetConnections(teleport.lib.teleterm.vnet.v1.GetConnectionsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetConnectionsResponse);
      */
-    getConnectionStats: grpc.handleServerStreamingCall<GetConnectionStatsRequest, GetConnectionStatsResponse>;
+    getConnections: grpc.handleServerStreamingCall<GetConnectionsRequest, GetConnectionsResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.vnet.v1.VnetService.
@@ -202,14 +203,14 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         responseSerialize: value => Buffer.from(GetRecentConnectionsResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetRecentConnectionsRequest.toBinary(value))
     },
-    getConnectionStats: {
-        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetConnectionStats",
-        originalName: "GetConnectionStats",
+    getConnections: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetConnections",
+        originalName: "GetConnections",
         requestStream: false,
         responseStream: true,
-        responseDeserialize: bytes => GetConnectionStatsResponse.fromBinary(bytes),
-        requestDeserialize: bytes => GetConnectionStatsRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(GetConnectionStatsResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(GetConnectionStatsRequest.toBinary(value))
+        responseDeserialize: bytes => GetConnectionsResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetConnectionsRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetConnectionsResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetConnectionsRequest.toBinary(value))
     }
 };

@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"os"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -88,10 +87,11 @@ type ClientApplication interface {
 	// and possibly empty.
 	OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey, fqdn, clientProcessPath string) error
 
-	// ReportConnectionStats gets called periodically with a fresh snapshot of the aggregated
-	// per-target connection statistics whenever they changed. All counters are absolute values
-	// accumulated since VNet started, so each snapshot fully replaces the previous one.
-	ReportConnectionStats(ctx context.Context, stats []*vnetv1.ConnectionStat, collectedAt time.Time)
+	// ReportConnections gets called periodically with a fresh snapshot of VNet connection activity
+	// whenever it changed: the aggregated per-target statistics plus a capped window of individual
+	// connection records. Every snapshot is complete and self-contained, so it fully replaces the
+	// previous one.
+	ReportConnections(ctx context.Context, report *vnetv1.ConnectionsReport)
 }
 
 // ClusterClient is an interface defining the subset of [client.ClusterClient]

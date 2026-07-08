@@ -24,7 +24,6 @@ import (
 	"net"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -203,10 +202,9 @@ func (p *vnetClientApplication) OnNewDBConnection(_ context.Context, _ *vnetv1.D
 	return nil
 }
 
-// ReportConnectionStats gets called periodically with a fresh snapshot of the
-// aggregated connection statistics. It's a noop as tsh doesn't surface the
-// statistics anywhere.
-func (p *vnetClientApplication) ReportConnectionStats(_ context.Context, _ []*vnetv1.ConnectionStat, _ time.Time) {
+// ReportConnections gets called periodically with a fresh snapshot of VNet
+// connection activity. It's a noop as tsh doesn't surface it anywhere.
+func (p *vnetClientApplication) ReportConnections(_ context.Context, _ *vnetv1.ConnectionsReport) {
 }
 
 // OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app

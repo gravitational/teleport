@@ -146,9 +146,9 @@ export class MockVnetClient implements VnetClient {
     },
     then: () => Promise.resolve(),
   })) as unknown as VnetClient['getRecentConnections'];
-  // getConnectionStats returns an open stream that emits nothing. Tests and
-  // stories that need stats can override it.
-  getConnectionStats = (() => ({
+  // getConnections returns an open stream that emits nothing. Tests and
+  // stories that need connection activity can override it.
+  getConnections = (() => ({
     responses: {
       onMessage: () => () => {},
       onNext: () => () => {},
@@ -156,7 +156,7 @@ export class MockVnetClient implements VnetClient {
       onError: () => () => {},
     },
     then: () => Promise.resolve(),
-  })) as unknown as VnetClient['getConnectionStats'];
+  })) as unknown as VnetClient['getConnections'];
 }
 
 export class MockAutoUpdateClient implements AutoUpdateClient {

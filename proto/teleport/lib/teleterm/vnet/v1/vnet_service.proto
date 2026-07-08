@@ -56,11 +56,12 @@ service VnetService {
   // stops. Requires VNet to be started.
   rpc GetRecentConnections(GetRecentConnectionsRequest) returns (stream GetRecentConnectionsResponse);
 
-  // GetConnectionStats streams aggregated per-target connection statistics for
-  // the running VNet service. The server sends the current statistics
-  // immediately and then a fresh snapshot whenever they change, until the
-  // stream is canceled or VNet stops. Requires VNet to be started.
-  rpc GetConnectionStats(GetConnectionStatsRequest) returns (stream GetConnectionStatsResponse);
+  // GetConnections streams VNet connection activity: aggregated per-target
+  // statistics plus a capped window of individual connection records. The
+  // server sends the current snapshot immediately and then a fresh one whenever
+  // it changes, until the stream is canceled or VNet stops. Requires VNet to be
+  // started.
+  rpc GetConnections(GetConnectionsRequest) returns (stream GetConnectionsResponse);
 }
 
 // Request for Start.
@@ -186,13 +187,77 @@ message RecentConnection {
   string last_client_process_path = 6;
 }
 
-// Request for GetConnectionStats.
-message GetConnectionStatsRequest {}
+// Request for GetConnections.
+message GetConnectionsRequest {}
 
-// Response for GetConnectionStats, containing the complete snapshot of
-// connection statistics for all targets connected to since VNet started.
-message GetConnectionStatsResponse {
+// Response for GetConnections, containing the complete snapshot of VNet
+// connection activity.
+message GetConnectionsResponse {
+  // stats holds the aggregated statistics for every target connected to since
+  // VNet started, one entry per target. Counters are absolute values and are
+  // never evicted.
   repeated ConnectionStat stats = 1;
+  // connections holds the individual connection records currently kept, ordered
+  // newest-first. Capped, so it does not necessarily cover every connection
+  // accounted for in stats.
+  repeated ConnectionRecord connections = 2;
+}
+
+// ConnectionRecordState is the state of an individual connection.
+enum ConnectionRecordState {
+  CONNECTION_RECORD_STATE_UNSPECIFIED = 0;
+  // ACTIVE means the connection was established and is still proxying traffic.
+  CONNECTION_RECORD_STATE_ACTIVE = 1;
+  // DONE means the connection was established and has ended. It may still carry
+  // an error message if it ended with a mid-stream error.
+  CONNECTION_RECORD_STATE_DONE = 2;
+  // FAILED means the connection was never established.
+  CONNECTION_RECORD_STATE_FAILED = 3;
+}
+
+// ConnectionRecord describes a single connection made through VNet.
+message ConnectionRecord {
+  // id uniquely identifies the connection within a single VNet run. It
+  // increases monotonically with the time the connection started at.
+  uint64 id = 1;
+  // kind is the kind of the target (TCP app, SSH host, or database).
+  RecentConnectionKind kind = 2;
+  // cluster is the profile (root cluster) the target is found in.
+  string cluster = 3;
+  // leaf_cluster is the leaf cluster the target is found in. Empty if the
+  // target is in the root cluster.
+  string leaf_cluster = 4;
+  // display_name is the address shown to the user, e.g. the app public address,
+  // the database FQDN, or the SSH host address.
+  string display_name = 5;
+  // port is the target port of the connection. Only set for multi-port TCP
+  // apps, zero otherwise. Together with the fields above it identifies the
+  // target, matching the same fields on ConnectionStat.
+  uint32 port = 6;
+  // local_port is the port the client application actually dialed. Unlike port
+  // it is always set. For single-port TCP apps and databases the dialed port is
+  // not part of the target identity, VNet routes the connection to the port
+  // from the resource spec no matter which port was dialed.
+  uint32 local_port = 7;
+  // client_process_path is the executable path of the local program that opened
+  // the connection, best-effort and possibly empty.
+  string client_process_path = 8;
+  // started_at is the time the connection was opened at.
+  google.protobuf.Timestamp started_at = 9;
+  // ended_at is the time the connection ended at. Unset while the connection is
+  // still active.
+  google.protobuf.Timestamp ended_at = 10;
+  // bytes_tx is the number of bytes transmitted to the target over this
+  // connection. Updated while the connection is active, final once it ended.
+  uint64 bytes_tx = 11;
+  // bytes_rx is the number of bytes received from the target over this
+  // connection. Updated while the connection is active, final once it ended.
+  uint64 bytes_rx = 12;
+  // state is the state of the connection.
+  ConnectionRecordState state = 13;
+  // error_message is the reason a FAILED connection could not be established, or
+  // the mid-stream error a DONE connection ended with. Empty otherwise.
+  string error_message = 14;
 }
 
 // ConnectionStat holds the aggregated connection statistics for a single

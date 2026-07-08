@@ -22,13 +22,11 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"io"
-	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -297,14 +295,13 @@ func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, 
 	return trace.Wrap(err, "calling OnNewDBConnection rpc")
 }
 
-// ReportConnectionStats reports a snapshot of the aggregated connection
-// statistics to the client application.
-func (c *clientApplicationServiceClient) ReportConnectionStats(ctx context.Context, stats []*vnetv1.ConnectionStat, collectedAt time.Time) error {
-	_, err := c.clt.ReportConnectionStats(ctx, vnetv1.ReportConnectionStatsRequest_builder{
-		Stats:       stats,
-		CollectedAt: timestamppb.New(collectedAt),
+// ReportConnections reports a snapshot of VNet connection activity to the
+// client application.
+func (c *clientApplicationServiceClient) ReportConnections(ctx context.Context, report *vnetv1.ConnectionsReport) error {
+	_, err := c.clt.ReportConnections(ctx, vnetv1.ReportConnectionsRequest_builder{
+		Report: report,
 	}.Build())
-	return trace.Wrap(err, "calling ReportConnectionStats rpc")
+	return trace.Wrap(err, "calling ReportConnections rpc")
 }
 
 // newRPCCertSigner creates an [rpcSigner] from a DER-encoded certificate and a

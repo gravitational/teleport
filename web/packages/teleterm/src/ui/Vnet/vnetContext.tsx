@@ -599,7 +599,7 @@ export const VnetContextProvider: FC<
       // aborted distinguishes the error the stream emits when we abort it on
       // cleanup from a genuine stream error.
       let aborted = false;
-      const stream = vnet.getConnectionStats(
+      const stream = vnet.getConnections(
         {},
         { abort: cloneAbortSignal(abortController.signal) }
       );

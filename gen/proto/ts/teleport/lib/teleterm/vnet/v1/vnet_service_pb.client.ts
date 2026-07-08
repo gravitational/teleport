@@ -23,8 +23,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { VnetService } from "./vnet_service_pb";
-import type { GetConnectionStatsResponse } from "./vnet_service_pb";
-import type { GetConnectionStatsRequest } from "./vnet_service_pb";
+import type { GetConnectionsResponse } from "./vnet_service_pb";
+import type { GetConnectionsRequest } from "./vnet_service_pb";
 import type { GetRecentConnectionsResponse } from "./vnet_service_pb";
 import type { GetRecentConnectionsRequest } from "./vnet_service_pb";
 import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
@@ -107,14 +107,15 @@ export interface IVnetServiceClient {
      */
     getRecentConnections(input: GetRecentConnectionsRequest, options?: RpcOptions): ServerStreamingCall<GetRecentConnectionsRequest, GetRecentConnectionsResponse>;
     /**
-     * GetConnectionStats streams aggregated per-target connection statistics for
-     * the running VNet service. The server sends the current statistics
-     * immediately and then a fresh snapshot whenever they change, until the
-     * stream is canceled or VNet stops. Requires VNet to be started.
+     * GetConnections streams VNet connection activity: aggregated per-target
+     * statistics plus a capped window of individual connection records. The
+     * server sends the current snapshot immediately and then a fresh one whenever
+     * it changes, until the stream is canceled or VNet stops. Requires VNet to be
+     * started.
      *
-     * @generated from protobuf rpc: GetConnectionStats(teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse);
+     * @generated from protobuf rpc: GetConnections(teleport.lib.teleterm.vnet.v1.GetConnectionsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetConnectionsResponse);
      */
-    getConnectionStats(input: GetConnectionStatsRequest, options?: RpcOptions): ServerStreamingCall<GetConnectionStatsRequest, GetConnectionStatsResponse>;
+    getConnections(input: GetConnectionsRequest, options?: RpcOptions): ServerStreamingCall<GetConnectionsRequest, GetConnectionsResponse>;
 }
 /**
  * VnetService provides methods to manage a VNet instance.
@@ -207,15 +208,16 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
         return stackIntercept<GetRecentConnectionsRequest, GetRecentConnectionsResponse>("serverStreaming", this._transport, method, opt, input);
     }
     /**
-     * GetConnectionStats streams aggregated per-target connection statistics for
-     * the running VNet service. The server sends the current statistics
-     * immediately and then a fresh snapshot whenever they change, until the
-     * stream is canceled or VNet stops. Requires VNet to be started.
+     * GetConnections streams VNet connection activity: aggregated per-target
+     * statistics plus a capped window of individual connection records. The
+     * server sends the current snapshot immediately and then a fresh one whenever
+     * it changes, until the stream is canceled or VNet stops. Requires VNet to be
+     * started.
      *
-     * @generated from protobuf rpc: GetConnectionStats(teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse);
+     * @generated from protobuf rpc: GetConnections(teleport.lib.teleterm.vnet.v1.GetConnectionsRequest) returns (stream teleport.lib.teleterm.vnet.v1.GetConnectionsResponse);
      */
-    getConnectionStats(input: GetConnectionStatsRequest, options?: RpcOptions): ServerStreamingCall<GetConnectionStatsRequest, GetConnectionStatsResponse> {
+    getConnections(input: GetConnectionsRequest, options?: RpcOptions): ServerStreamingCall<GetConnectionsRequest, GetConnectionsResponse> {
         const method = this.methods[8], opt = this._transport.mergeOptions(options);
-        return stackIntercept<GetConnectionStatsRequest, GetConnectionStatsResponse>("serverStreaming", this._transport, method, opt, input);
+        return stackIntercept<GetConnectionsRequest, GetConnectionsResponse>("serverStreaming", this._transport, method, opt, input);
     }
 }

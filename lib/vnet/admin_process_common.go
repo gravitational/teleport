@@ -34,7 +34,7 @@ func newNetworkStackConfig(ctx context.Context, tun TUNDevice, clt *clientApplic
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connStats := newStatsCollector(clock, clt.ReportConnectionStats)
+	connStats := newStatsCollector(clock, clt.ReportConnections)
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:         clt,
 		appProvider: newAppProvider(clt),

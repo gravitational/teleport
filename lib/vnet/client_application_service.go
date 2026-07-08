@@ -607,10 +607,10 @@ func (s *clientApplicationService) OnNewDBConnection(ctx context.Context, req *v
 	return &vnetv1.OnNewDBConnectionResponse{}, nil
 }
 
-// ReportConnectionStats receives a snapshot of the aggregated connection
-// statistics periodically pushed by the admin process and passes it to the
-// client application.
-func (s *clientApplicationService) ReportConnectionStats(ctx context.Context, req *vnetv1.ReportConnectionStatsRequest) (*vnetv1.ReportConnectionStatsResponse, error) {
-	s.cfg.clientApplication.ReportConnectionStats(ctx, req.GetStats(), req.GetCollectedAt().AsTime())
-	return &vnetv1.ReportConnectionStatsResponse{}, nil
+// ReportConnections receives a snapshot of VNet connection activity
+// periodically pushed by the admin process and passes it to the client
+// application.
+func (s *clientApplicationService) ReportConnections(ctx context.Context, req *vnetv1.ReportConnectionsRequest) (*vnetv1.ReportConnectionsResponse, error) {
+	s.cfg.clientApplication.ReportConnections(ctx, req.GetReport())
+	return &vnetv1.ReportConnectionsResponse{}, nil
 }

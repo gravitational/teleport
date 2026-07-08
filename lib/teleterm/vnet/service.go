@@ -435,11 +435,10 @@ func (s *Service) GetRecentConnections(_ *api.GetRecentConnectionsRequest, strea
 	}
 }
 
-// GetConnectionStats streams the aggregated per-target connection statistics
-// reported by the running VNet service. It sends the current statistics
-// immediately, then a fresh snapshot whenever they change, until the stream is
-// canceled or VNet stops.
-func (s *Service) GetConnectionStats(_ *api.GetConnectionStatsRequest, stream grpc.ServerStreamingServer[api.GetConnectionStatsResponse]) error {
+// GetConnections streams VNet connection activity reported by the running VNet
+// service. It sends the current snapshot immediately, then a fresh one whenever
+// it changes, until the stream is canceled or VNet stops.
+func (s *Service) GetConnections(_ *api.GetConnectionsRequest, stream grpc.ServerStreamingServer[api.GetConnectionsResponse]) error {
 	s.mu.Lock()
 	if s.status != statusRunning {
 		s.mu.Unlock()
@@ -451,7 +450,7 @@ func (s *Service) GetConnectionStats(_ *api.GetConnectionStatsRequest, stream gr
 	sub, snapshot := store.Subscribe()
 	defer store.Unsubscribe(sub)
 
-	if err := stream.Send(api.GetConnectionStatsResponse_builder{Stats: snapshot}.Build()); err != nil {
+	if err := stream.Send(api.GetConnectionsResponse_builder{Stats: snapshot}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -464,7 +463,7 @@ func (s *Service) GetConnectionStats(_ *api.GetConnectionStatsRequest, stream gr
 				// VNet stopped and the session was closed.
 				return nil
 			}
-			if err := stream.Send(api.GetConnectionStatsResponse_builder{Stats: snapshot}.Build()); err != nil {
+			if err := stream.Send(api.GetConnectionsResponse_builder{Stats: snapshot}.Build()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -638,11 +637,14 @@ func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1
 	return nil
 }
 
-// ReportConnectionStats gets called periodically with a fresh snapshot of the
-// aggregated per-target connection statistics whenever they changed. Each
-// snapshot carries absolute values and fully replaces the previous one.
-func (p *clientApplication) ReportConnectionStats(_ context.Context, stats []*vnetv1.ConnectionStat, _ time.Time) {
-	p.connectionStats.SetStats(convertConnectionStats(stats))
+// ReportConnections gets called periodically with a fresh snapshot of VNet
+// connection activity whenever it changed. Each snapshot is complete and
+// self-contained, fully replacing the previous one.
+//
+// TODO(tangyatsu): store the individual connection records too, they are
+// currently dropped.
+func (p *clientApplication) ReportConnections(_ context.Context, report *vnetv1.ConnectionsReport) {
+	p.connectionStats.SetStats(convertConnectionStats(report.GetStats()))
 }
 
 // UserTLSCert returns the user TLS certificate for the given profile.

@@ -257,8 +257,8 @@ func (*embeddedApplicationServiceClient) OnInvalidLocalPort(context.Context, *vn
 	return &vnetv1.OnInvalidLocalPortResponse{}, nil
 }
 
-func (*embeddedApplicationServiceClient) ReportConnectionStats(context.Context, *vnetv1.ReportConnectionStatsRequest, ...grpc.CallOption) (*vnetv1.ReportConnectionStatsResponse, error) {
-	return &vnetv1.ReportConnectionStatsResponse{}, nil
+func (*embeddedApplicationServiceClient) ReportConnections(context.Context, *vnetv1.ReportConnectionsRequest, ...grpc.CallOption) (*vnetv1.ReportConnectionsResponse, error) {
+	return &vnetv1.ReportConnectionsResponse{}, nil
 }
 
 func (e *embeddedApplicationServiceClient) GetTargetOSConfiguration(ctx context.Context, _ *vnetv1.GetTargetOSConfigurationRequest, _ ...grpc.CallOption) (*vnetv1.GetTargetOSConfigurationResponse, error) {

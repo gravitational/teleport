@@ -28,6 +28,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/utils"
@@ -73,9 +74,9 @@ type trackedConn struct {
 	lastRead    uint64
 }
 
-// reportStatsFunc reports a snapshot of the aggregated connection statistics
-// to the client application.
-type reportStatsFunc func(ctx context.Context, stats []*vnetv1.ConnectionStat, collectedAt time.Time) error
+// reportConnectionsFunc reports a snapshot of VNet connection activity to the
+// client application.
+type reportConnectionsFunc func(ctx context.Context, report *vnetv1.ConnectionsReport) error
 
 // statsCollector aggregates per-target connection statistics for all
 // connections handled by VNet in the admin process. TCP handlers report
@@ -85,12 +86,12 @@ type reportStatsFunc func(ctx context.Context, stats []*vnetv1.ConnectionStat, c
 // the client application.
 type statsCollector struct {
 	clock clockwork.Clock
-	// report, if set, is called with a fresh snapshot whenever the statistics
-	// changed since the last successful report.
-	report reportStatsFunc
+	// report, if set, is called with a fresh snapshot whenever VNet connection
+	// activity changed since the last successful report.
+	report reportConnectionsFunc
 	// lastReported is the last successfully reported snapshot. It is only
 	// accessed from the [statsCollector.run] goroutine.
-	lastReported []*vnetv1.ConnectionStat
+	lastReported *vnetv1.ConnectionsReport
 
 	// mu guards agg and active.
 	mu     sync.Mutex
@@ -98,7 +99,7 @@ type statsCollector struct {
 	active map[*trackedConn]struct{}
 }
 
-func newStatsCollector(clock clockwork.Clock, report reportStatsFunc) *statsCollector {
+func newStatsCollector(clock clockwork.Clock, report reportConnectionsFunc) *statsCollector {
 	return &statsCollector{
 		clock:  clock,
 		report: report,
@@ -251,9 +252,17 @@ func (c *statsCollector) sample(interval time.Duration) {
 	}
 }
 
-// snapshot returns the current statistics for all targets connected to since
-// VNet started, in a stable order.
-func (c *statsCollector) snapshot() []*vnetv1.ConnectionStat {
+// snapshot returns the current snapshot of VNet connection activity.
+func (c *statsCollector) snapshot() *vnetv1.ConnectionsReport {
+	return vnetv1.ConnectionsReport_builder{
+		Stats:       c.snapshotStats(),
+		CollectedAt: timestamppb.New(c.clock.Now()),
+	}.Build()
+}
+
+// snapshotStats returns the current statistics for all targets connected to
+// since VNet started, in a stable order.
+func (c *statsCollector) snapshotStats() []*vnetv1.ConnectionStat {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	stats := make([]*vnetv1.ConnectionStat, 0, len(c.agg))
@@ -301,22 +310,35 @@ func (c *statsCollector) run(ctx context.Context) {
 	}
 }
 
-// push reports the current snapshot if the statistics changed since the last
-// successful report. Snapshots carry absolute values so a failed report loses
-// no data, the next successful one catches the client application up.
+// push reports the current snapshot if VNet connection activity changed since
+// the last successful report. Snapshots are complete and self-contained so a
+// failed report loses no data, the next successful one catches the client
+// application up.
 func (c *statsCollector) push(ctx context.Context) {
 	if c.report == nil {
 		return
 	}
-	stats := c.snapshot()
-	if slices.EqualFunc(stats, c.lastReported, func(a, b *vnetv1.ConnectionStat) bool { return proto.Equal(a, b) }) {
+	report := c.snapshot()
+	if reportsEqual(report, c.lastReported) {
 		return
 	}
-	if err := c.report(ctx, stats, c.clock.Now()); err != nil {
-		log.DebugContext(ctx, "Failed to report connection stats to the client application", "error", err)
+	if err := c.report(ctx, report); err != nil {
+		log.DebugContext(ctx, "Failed to report connections to the client application", "error", err)
 		return
 	}
-	c.lastReported = stats
+	c.lastReported = report
+}
+
+// reportsEqual reports whether two snapshots hold the same connection activity.
+// The collection time is deliberately not compared: it advances on every sample
+// and would make every snapshot look like a change. A nil report is treated as
+// an empty one, so an empty snapshot compares equal to "nothing reported yet".
+func reportsEqual(a, b *vnetv1.ConnectionsReport) bool {
+	return slices.EqualFunc(a.GetStats(), b.GetStats(), func(a, b *vnetv1.ConnectionStat) bool {
+		return proto.Equal(a, b)
+	}) && slices.EqualFunc(a.GetConnections(), b.GetConnections(), func(a, b *vnetv1.ConnectionRecord) bool {
+		return proto.Equal(a, b)
+	})
 }
 
 // statsConn wraps a tracked conn to stop tracking it when it's closed.

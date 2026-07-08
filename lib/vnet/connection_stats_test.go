@@ -73,7 +73,7 @@ func TestStatsCollector_successfulAndFailedConnections(t *testing.T) {
 	att = c.begin(key)
 	att.finish(trace.Wrap(context.Canceled))
 
-	stats := c.snapshot()
+	stats := c.snapshotStats()
 	require.Len(t, stats, 1)
 	require.Equal(t, uint64(2), stats[0].GetSuccessfulConnections())
 	require.Equal(t, uint64(1), stats[0].GetFailedConnections())
@@ -97,7 +97,7 @@ func TestStatsCollector_trackWithExplicitSuccess(t *testing.T) {
 	att.success()
 	att.finish(nil)
 
-	stats := c.snapshot()
+	stats := c.snapshotStats()
 	require.Len(t, stats, 1)
 	require.Equal(t, uint64(1), stats[0].GetSuccessfulConnections())
 	require.Equal(t, uint64(1), stats[0].GetFailedConnections())
@@ -119,7 +119,7 @@ func TestStatsCollector_bytesAndThroughput(t *testing.T) {
 	require.NoError(t, err)
 
 	c.sample(time.Second)
-	stats := c.snapshot()
+	stats := c.snapshotStats()
 	require.Len(t, stats, 1)
 	require.Equal(t, uint64(100), stats[0].GetBytesTx())
 	require.Equal(t, uint64(40), stats[0].GetBytesRx())
@@ -128,7 +128,7 @@ func TestStatsCollector_bytesAndThroughput(t *testing.T) {
 
 	// An idle interval zeroes the throughput but keeps the totals.
 	c.sample(time.Second)
-	stats = c.snapshot()
+	stats = c.snapshotStats()
 	require.Equal(t, uint64(100), stats[0].GetBytesTx())
 	require.Equal(t, uint64(40), stats[0].GetBytesRx())
 	require.Zero(t, stats[0].GetBytesTxPerSec())
@@ -142,28 +142,28 @@ func TestStatsCollector_bytesAndThroughput(t *testing.T) {
 	require.Empty(t, c.active)
 
 	c.sample(time.Second)
-	stats = c.snapshot()
+	stats = c.snapshotStats()
 	require.Equal(t, uint64(110), stats[0].GetBytesTx())
 	require.Equal(t, uint64(40), stats[0].GetBytesRx())
 
 	att.finish(nil)
-	require.Equal(t, uint64(1), c.snapshot()[0].GetSuccessfulConnections())
+	require.Equal(t, uint64(1), c.snapshotStats()[0].GetSuccessfulConnections())
 }
 
 func TestStatsCollector_push(t *testing.T) {
-	var reports [][]*vnetv1.ConnectionStat
+	var reports []*vnetv1.ConnectionsReport
 	var reportErr error
-	c := newStatsCollector(clockwork.NewFakeClock(), func(_ context.Context, stats []*vnetv1.ConnectionStat, _ time.Time) error {
+	c := newStatsCollector(clockwork.NewFakeClock(), func(_ context.Context, report *vnetv1.ConnectionsReport) error {
 		if reportErr != nil {
 			return reportErr
 		}
-		reports = append(reports, stats)
+		reports = append(reports, report)
 		return nil
 	})
 	ctx := context.Background()
 	key := testStatsKey("app.root.example.com")
 
-	// Nothing to report yet.
+	// Nothing to report yet, an empty snapshot is not a change.
 	c.push(ctx)
 	require.Empty(t, reports)
 
@@ -193,7 +193,10 @@ func TestStatsCollector_push(t *testing.T) {
 	reportErr = nil
 	c.push(ctx)
 	require.Len(t, reports, 2)
-	require.Equal(t, uint64(2), reports[1][0].GetSuccessfulConnections())
+	require.Equal(t, uint64(2), reports[1].GetStats()[0].GetSuccessfulConnections())
+	// The collection time is set on every snapshot but is not what makes a
+	// snapshot count as changed.
+	require.NotNil(t, reports[1].GetCollectedAt())
 }
 
 func TestStatsCollector_aggregatesPerTarget(t *testing.T) {
@@ -211,7 +214,7 @@ func TestStatsCollector_aggregatesPerTarget(t *testing.T) {
 	}
 
 	c.sample(time.Second)
-	stats := c.snapshot()
+	stats := c.snapshotStats()
 	require.Len(t, stats, 2)
 	// Snapshot order is stable, sorted by display name within the same kind
 	// and profile.

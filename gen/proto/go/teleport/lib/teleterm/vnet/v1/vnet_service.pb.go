@@ -194,6 +194,58 @@ func (x RecentConnectionKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
+// ConnectionRecordState is the state of an individual connection.
+type ConnectionRecordState int32
+
+const (
+	ConnectionRecordState_CONNECTION_RECORD_STATE_UNSPECIFIED ConnectionRecordState = 0
+	// ACTIVE means the connection was established and is still proxying traffic.
+	ConnectionRecordState_CONNECTION_RECORD_STATE_ACTIVE ConnectionRecordState = 1
+	// DONE means the connection was established and has ended. It may still carry
+	// an error message if it ended with a mid-stream error.
+	ConnectionRecordState_CONNECTION_RECORD_STATE_DONE ConnectionRecordState = 2
+	// FAILED means the connection was never established.
+	ConnectionRecordState_CONNECTION_RECORD_STATE_FAILED ConnectionRecordState = 3
+)
+
+// Enum value maps for ConnectionRecordState.
+var (
+	ConnectionRecordState_name = map[int32]string{
+		0: "CONNECTION_RECORD_STATE_UNSPECIFIED",
+		1: "CONNECTION_RECORD_STATE_ACTIVE",
+		2: "CONNECTION_RECORD_STATE_DONE",
+		3: "CONNECTION_RECORD_STATE_FAILED",
+	}
+	ConnectionRecordState_value = map[string]int32{
+		"CONNECTION_RECORD_STATE_UNSPECIFIED": 0,
+		"CONNECTION_RECORD_STATE_ACTIVE":      1,
+		"CONNECTION_RECORD_STATE_DONE":        2,
+		"CONNECTION_RECORD_STATE_FAILED":      3,
+	}
+)
+
+func (x ConnectionRecordState) Enum() *ConnectionRecordState {
+	p := new(ConnectionRecordState)
+	*p = x
+	return p
+}
+
+func (x ConnectionRecordState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConnectionRecordState) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_enumTypes[3].Descriptor()
+}
+
+func (ConnectionRecordState) Type() protoreflect.EnumType {
+	return &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_enumTypes[3]
+}
+
+func (x ConnectionRecordState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 // Request for Start.
 type StartRequest struct {
 	state         protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -1275,27 +1327,27 @@ func (b0 RecentConnection_builder) Build() *RecentConnection {
 	return m0
 }
 
-// Request for GetConnectionStats.
-type GetConnectionStatsRequest struct {
+// Request for GetConnections.
+type GetConnectionsRequest struct {
 	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetConnectionStatsRequest) Reset() {
-	*x = GetConnectionStatsRequest{}
+func (x *GetConnectionsRequest) Reset() {
+	*x = GetConnectionsRequest{}
 	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetConnectionStatsRequest) String() string {
+func (x *GetConnectionsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetConnectionStatsRequest) ProtoMessage() {}
+func (*GetConnectionsRequest) ProtoMessage() {}
 
-func (x *GetConnectionStatsRequest) ProtoReflect() protoreflect.Message {
+func (x *GetConnectionsRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1307,41 +1359,48 @@ func (x *GetConnectionStatsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type GetConnectionStatsRequest_builder struct {
+type GetConnectionsRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 }
 
-func (b0 GetConnectionStatsRequest_builder) Build() *GetConnectionStatsRequest {
-	m0 := &GetConnectionStatsRequest{}
+func (b0 GetConnectionsRequest_builder) Build() *GetConnectionsRequest {
+	m0 := &GetConnectionsRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
 	return m0
 }
 
-// Response for GetConnectionStats, containing the complete snapshot of
-// connection statistics for all targets connected to since VNet started.
-type GetConnectionStatsResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	Stats         []*ConnectionStat      `protobuf:"bytes,1,rep,name=stats,proto3" json:"stats,omitempty"`
+// Response for GetConnections, containing the complete snapshot of VNet
+// connection activity.
+type GetConnectionsResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// stats holds the aggregated statistics for every target connected to since
+	// VNet started, one entry per target. Counters are absolute values and are
+	// never evicted.
+	Stats []*ConnectionStat `protobuf:"bytes,1,rep,name=stats,proto3" json:"stats,omitempty"`
+	// connections holds the individual connection records currently kept, ordered
+	// newest-first. Capped, so it does not necessarily cover every connection
+	// accounted for in stats.
+	Connections   []*ConnectionRecord `protobuf:"bytes,2,rep,name=connections,proto3" json:"connections,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetConnectionStatsResponse) Reset() {
-	*x = GetConnectionStatsResponse{}
+func (x *GetConnectionsResponse) Reset() {
+	*x = GetConnectionsResponse{}
 	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetConnectionStatsResponse) String() string {
+func (x *GetConnectionsResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetConnectionStatsResponse) ProtoMessage() {}
+func (*GetConnectionsResponse) ProtoMessage() {}
 
-func (x *GetConnectionStatsResponse) ProtoReflect() protoreflect.Message {
+func (x *GetConnectionsResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1353,28 +1412,363 @@ func (x *GetConnectionStatsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *GetConnectionStatsResponse) GetStats() []*ConnectionStat {
+func (x *GetConnectionsResponse) GetStats() []*ConnectionStat {
 	if x != nil {
 		return x.Stats
 	}
 	return nil
 }
 
-func (x *GetConnectionStatsResponse) SetStats(v []*ConnectionStat) {
+func (x *GetConnectionsResponse) GetConnections() []*ConnectionRecord {
+	if x != nil {
+		return x.Connections
+	}
+	return nil
+}
+
+func (x *GetConnectionsResponse) SetStats(v []*ConnectionStat) {
 	x.Stats = v
 }
 
-type GetConnectionStatsResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Stats []*ConnectionStat
+func (x *GetConnectionsResponse) SetConnections(v []*ConnectionRecord) {
+	x.Connections = v
 }
 
-func (b0 GetConnectionStatsResponse_builder) Build() *GetConnectionStatsResponse {
-	m0 := &GetConnectionStatsResponse{}
+type GetConnectionsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// stats holds the aggregated statistics for every target connected to since
+	// VNet started, one entry per target. Counters are absolute values and are
+	// never evicted.
+	Stats []*ConnectionStat
+	// connections holds the individual connection records currently kept, ordered
+	// newest-first. Capped, so it does not necessarily cover every connection
+	// accounted for in stats.
+	Connections []*ConnectionRecord
+}
+
+func (b0 GetConnectionsResponse_builder) Build() *GetConnectionsResponse {
+	m0 := &GetConnectionsResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
 	x.Stats = b.Stats
+	x.Connections = b.Connections
+	return m0
+}
+
+// ConnectionRecord describes a single connection made through VNet.
+type ConnectionRecord struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// id uniquely identifies the connection within a single VNet run. It
+	// increases monotonically with the time the connection started at.
+	Id uint64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	// kind is the kind of the target (TCP app, SSH host, or database).
+	Kind RecentConnectionKind `protobuf:"varint,2,opt,name=kind,proto3,enum=teleport.lib.teleterm.vnet.v1.RecentConnectionKind" json:"kind,omitempty"`
+	// cluster is the profile (root cluster) the target is found in.
+	Cluster string `protobuf:"bytes,3,opt,name=cluster,proto3" json:"cluster,omitempty"`
+	// leaf_cluster is the leaf cluster the target is found in. Empty if the
+	// target is in the root cluster.
+	LeafCluster string `protobuf:"bytes,4,opt,name=leaf_cluster,json=leafCluster,proto3" json:"leaf_cluster,omitempty"`
+	// display_name is the address shown to the user, e.g. the app public address,
+	// the database FQDN, or the SSH host address.
+	DisplayName string `protobuf:"bytes,5,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// port is the target port of the connection. Only set for multi-port TCP
+	// apps, zero otherwise. Together with the fields above it identifies the
+	// target, matching the same fields on ConnectionStat.
+	Port uint32 `protobuf:"varint,6,opt,name=port,proto3" json:"port,omitempty"`
+	// local_port is the port the client application actually dialed. Unlike port
+	// it is always set. For single-port TCP apps and databases the dialed port is
+	// not part of the target identity, VNet routes the connection to the port
+	// from the resource spec no matter which port was dialed.
+	LocalPort uint32 `protobuf:"varint,7,opt,name=local_port,json=localPort,proto3" json:"local_port,omitempty"`
+	// client_process_path is the executable path of the local program that opened
+	// the connection, best-effort and possibly empty.
+	ClientProcessPath string `protobuf:"bytes,8,opt,name=client_process_path,json=clientProcessPath,proto3" json:"client_process_path,omitempty"`
+	// started_at is the time the connection was opened at.
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	// ended_at is the time the connection ended at. Unset while the connection is
+	// still active.
+	EndedAt *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=ended_at,json=endedAt,proto3" json:"ended_at,omitempty"`
+	// bytes_tx is the number of bytes transmitted to the target over this
+	// connection. Updated while the connection is active, final once it ended.
+	BytesTx uint64 `protobuf:"varint,11,opt,name=bytes_tx,json=bytesTx,proto3" json:"bytes_tx,omitempty"`
+	// bytes_rx is the number of bytes received from the target over this
+	// connection. Updated while the connection is active, final once it ended.
+	BytesRx uint64 `protobuf:"varint,12,opt,name=bytes_rx,json=bytesRx,proto3" json:"bytes_rx,omitempty"`
+	// state is the state of the connection.
+	State ConnectionRecordState `protobuf:"varint,13,opt,name=state,proto3,enum=teleport.lib.teleterm.vnet.v1.ConnectionRecordState" json:"state,omitempty"`
+	// error_message is the reason a FAILED connection could not be established, or
+	// the mid-stream error a DONE connection ended with. Empty otherwise.
+	ErrorMessage  string `protobuf:"bytes,14,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectionRecord) Reset() {
+	*x = ConnectionRecord{}
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionRecord) ProtoMessage() {}
+
+func (x *ConnectionRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ConnectionRecord) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ConnectionRecord) GetKind() RecentConnectionKind {
+	if x != nil {
+		return x.Kind
+	}
+	return RecentConnectionKind_RECENT_CONNECTION_KIND_UNSPECIFIED
+}
+
+func (x *ConnectionRecord) GetCluster() string {
+	if x != nil {
+		return x.Cluster
+	}
+	return ""
+}
+
+func (x *ConnectionRecord) GetLeafCluster() string {
+	if x != nil {
+		return x.LeafCluster
+	}
+	return ""
+}
+
+func (x *ConnectionRecord) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *ConnectionRecord) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *ConnectionRecord) GetLocalPort() uint32 {
+	if x != nil {
+		return x.LocalPort
+	}
+	return 0
+}
+
+func (x *ConnectionRecord) GetClientProcessPath() string {
+	if x != nil {
+		return x.ClientProcessPath
+	}
+	return ""
+}
+
+func (x *ConnectionRecord) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *ConnectionRecord) GetEndedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndedAt
+	}
+	return nil
+}
+
+func (x *ConnectionRecord) GetBytesTx() uint64 {
+	if x != nil {
+		return x.BytesTx
+	}
+	return 0
+}
+
+func (x *ConnectionRecord) GetBytesRx() uint64 {
+	if x != nil {
+		return x.BytesRx
+	}
+	return 0
+}
+
+func (x *ConnectionRecord) GetState() ConnectionRecordState {
+	if x != nil {
+		return x.State
+	}
+	return ConnectionRecordState_CONNECTION_RECORD_STATE_UNSPECIFIED
+}
+
+func (x *ConnectionRecord) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *ConnectionRecord) SetId(v uint64) {
+	x.Id = v
+}
+
+func (x *ConnectionRecord) SetKind(v RecentConnectionKind) {
+	x.Kind = v
+}
+
+func (x *ConnectionRecord) SetCluster(v string) {
+	x.Cluster = v
+}
+
+func (x *ConnectionRecord) SetLeafCluster(v string) {
+	x.LeafCluster = v
+}
+
+func (x *ConnectionRecord) SetDisplayName(v string) {
+	x.DisplayName = v
+}
+
+func (x *ConnectionRecord) SetPort(v uint32) {
+	x.Port = v
+}
+
+func (x *ConnectionRecord) SetLocalPort(v uint32) {
+	x.LocalPort = v
+}
+
+func (x *ConnectionRecord) SetClientProcessPath(v string) {
+	x.ClientProcessPath = v
+}
+
+func (x *ConnectionRecord) SetStartedAt(v *timestamppb.Timestamp) {
+	x.StartedAt = v
+}
+
+func (x *ConnectionRecord) SetEndedAt(v *timestamppb.Timestamp) {
+	x.EndedAt = v
+}
+
+func (x *ConnectionRecord) SetBytesTx(v uint64) {
+	x.BytesTx = v
+}
+
+func (x *ConnectionRecord) SetBytesRx(v uint64) {
+	x.BytesRx = v
+}
+
+func (x *ConnectionRecord) SetState(v ConnectionRecordState) {
+	x.State = v
+}
+
+func (x *ConnectionRecord) SetErrorMessage(v string) {
+	x.ErrorMessage = v
+}
+
+func (x *ConnectionRecord) HasStartedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartedAt != nil
+}
+
+func (x *ConnectionRecord) HasEndedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.EndedAt != nil
+}
+
+func (x *ConnectionRecord) ClearStartedAt() {
+	x.StartedAt = nil
+}
+
+func (x *ConnectionRecord) ClearEndedAt() {
+	x.EndedAt = nil
+}
+
+type ConnectionRecord_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// id uniquely identifies the connection within a single VNet run. It
+	// increases monotonically with the time the connection started at.
+	Id uint64
+	// kind is the kind of the target (TCP app, SSH host, or database).
+	Kind RecentConnectionKind
+	// cluster is the profile (root cluster) the target is found in.
+	Cluster string
+	// leaf_cluster is the leaf cluster the target is found in. Empty if the
+	// target is in the root cluster.
+	LeafCluster string
+	// display_name is the address shown to the user, e.g. the app public address,
+	// the database FQDN, or the SSH host address.
+	DisplayName string
+	// port is the target port of the connection. Only set for multi-port TCP
+	// apps, zero otherwise. Together with the fields above it identifies the
+	// target, matching the same fields on ConnectionStat.
+	Port uint32
+	// local_port is the port the client application actually dialed. Unlike port
+	// it is always set. For single-port TCP apps and databases the dialed port is
+	// not part of the target identity, VNet routes the connection to the port
+	// from the resource spec no matter which port was dialed.
+	LocalPort uint32
+	// client_process_path is the executable path of the local program that opened
+	// the connection, best-effort and possibly empty.
+	ClientProcessPath string
+	// started_at is the time the connection was opened at.
+	StartedAt *timestamppb.Timestamp
+	// ended_at is the time the connection ended at. Unset while the connection is
+	// still active.
+	EndedAt *timestamppb.Timestamp
+	// bytes_tx is the number of bytes transmitted to the target over this
+	// connection. Updated while the connection is active, final once it ended.
+	BytesTx uint64
+	// bytes_rx is the number of bytes received from the target over this
+	// connection. Updated while the connection is active, final once it ended.
+	BytesRx uint64
+	// state is the state of the connection.
+	State ConnectionRecordState
+	// error_message is the reason a FAILED connection could not be established, or
+	// the mid-stream error a DONE connection ended with. Empty otherwise.
+	ErrorMessage string
+}
+
+func (b0 ConnectionRecord_builder) Build() *ConnectionRecord {
+	m0 := &ConnectionRecord{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Kind = b.Kind
+	x.Cluster = b.Cluster
+	x.LeafCluster = b.LeafCluster
+	x.DisplayName = b.DisplayName
+	x.Port = b.Port
+	x.LocalPort = b.LocalPort
+	x.ClientProcessPath = b.ClientProcessPath
+	x.StartedAt = b.StartedAt
+	x.EndedAt = b.EndedAt
+	x.BytesTx = b.BytesTx
+	x.BytesRx = b.BytesRx
+	x.State = b.State
+	x.ErrorMessage = b.ErrorMessage
 	return m0
 }
 
@@ -1420,7 +1814,7 @@ type ConnectionStat struct {
 
 func (x *ConnectionStat) Reset() {
 	*x = ConnectionStat{}
-	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[19]
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1432,7 +1826,7 @@ func (x *ConnectionStat) String() string {
 func (*ConnectionStat) ProtoMessage() {}
 
 func (x *ConnectionStat) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[19]
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1654,10 +2048,29 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\fleaf_cluster\x18\x03 \x01(\tR\vleafCluster\x12!\n" +
 	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12A\n" +
 	"\x0elast_connected\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\rlastConnected\x127\n" +
-	"\x18last_client_process_path\x18\x06 \x01(\tR\x15lastClientProcessPath\"\x1b\n" +
-	"\x19GetConnectionStatsRequest\"a\n" +
-	"\x1aGetConnectionStatsResponse\x12C\n" +
-	"\x05stats\x18\x01 \x03(\v2-.teleport.lib.teleterm.vnet.v1.ConnectionStatR\x05stats\"\xbb\x03\n" +
+	"\x18last_client_process_path\x18\x06 \x01(\tR\x15lastClientProcessPath\"\x17\n" +
+	"\x15GetConnectionsRequest\"\xb0\x01\n" +
+	"\x16GetConnectionsResponse\x12C\n" +
+	"\x05stats\x18\x01 \x03(\v2-.teleport.lib.teleterm.vnet.v1.ConnectionStatR\x05stats\x12Q\n" +
+	"\vconnections\x18\x02 \x03(\v2/.teleport.lib.teleterm.vnet.v1.ConnectionRecordR\vconnections\"\xc7\x04\n" +
+	"\x10ConnectionRecord\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12G\n" +
+	"\x04kind\x18\x02 \x01(\x0e23.teleport.lib.teleterm.vnet.v1.RecentConnectionKindR\x04kind\x12\x18\n" +
+	"\acluster\x18\x03 \x01(\tR\acluster\x12!\n" +
+	"\fleaf_cluster\x18\x04 \x01(\tR\vleafCluster\x12!\n" +
+	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\x12\x12\n" +
+	"\x04port\x18\x06 \x01(\rR\x04port\x12\x1d\n" +
+	"\n" +
+	"local_port\x18\a \x01(\rR\tlocalPort\x12.\n" +
+	"\x13client_process_path\x18\b \x01(\tR\x11clientProcessPath\x129\n" +
+	"\n" +
+	"started_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x125\n" +
+	"\bended_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\aendedAt\x12\x19\n" +
+	"\bbytes_tx\x18\v \x01(\x04R\abytesTx\x12\x19\n" +
+	"\bbytes_rx\x18\f \x01(\x04R\abytesRx\x12J\n" +
+	"\x05state\x18\r \x01(\x0e24.teleport.lib.teleterm.vnet.v1.ConnectionRecordStateR\x05state\x12#\n" +
+	"\rerror_message\x18\x0e \x01(\tR\ferrorMessage\"\xbb\x03\n" +
 	"\x0eConnectionStat\x12G\n" +
 	"\x04kind\x18\x01 \x01(\x0e23.teleport.lib.teleterm.vnet.v1.RecentConnectionKindR\x04kind\x12\x18\n" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12!\n" +
@@ -1687,7 +2100,12 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\"RECENT_CONNECTION_KIND_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aRECENT_CONNECTION_KIND_APP\x10\x01\x12\x1e\n" +
 	"\x1aRECENT_CONNECTION_KIND_SSH\x10\x02\x12#\n" +
-	"\x1fRECENT_CONNECTION_KIND_DATABASE\x10\x032\xbd\t\n" +
+	"\x1fRECENT_CONNECTION_KIND_DATABASE\x10\x03*\xaa\x01\n" +
+	"\x15ConnectionRecordState\x12'\n" +
+	"#CONNECTION_RECORD_STATE_UNSPECIFIED\x10\x00\x12\"\n" +
+	"\x1eCONNECTION_RECORD_STATE_ACTIVE\x10\x01\x12 \n" +
+	"\x1cCONNECTION_RECORD_STATE_DONE\x10\x02\x12\"\n" +
+	"\x1eCONNECTION_RECORD_STATE_FAILED\x10\x032\xb0\t\n" +
 	"\vVnetService\x12b\n" +
 	"\x05Start\x12+.teleport.lib.teleterm.vnet.v1.StartRequest\x1a,.teleport.lib.teleterm.vnet.v1.StartResponse\x12_\n" +
 	"\x04Stop\x12*.teleport.lib.teleterm.vnet.v1.StopRequest\x1a+.teleport.lib.teleterm.vnet.v1.StopResponse\x12}\n" +
@@ -1696,70 +2114,77 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\x1cCheckInstallTimeRequirements\x12B.teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest\x1aC.teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse\x12}\n" +
 	"\x0eRunDiagnostics\x124.teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest\x1a5.teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse\x12\x83\x01\n" +
 	"\x10AutoConfigureSSH\x126.teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest\x1a7.teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse\x12\x91\x01\n" +
-	"\x14GetRecentConnections\x12:.teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest\x1a;.teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse0\x01\x12\x8b\x01\n" +
-	"\x12GetConnectionStats\x128.teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest\x1a9.teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse0\x01BUZSgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1b\x06proto3"
+	"\x14GetRecentConnections\x12:.teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest\x1a;.teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse0\x01\x12\x7f\n" +
+	"\x0eGetConnections\x124.teleport.lib.teleterm.vnet.v1.GetConnectionsRequest\x1a5.teleport.lib.teleterm.vnet.v1.GetConnectionsResponse0\x01BUZSgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1b\x06proto3"
 
-var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_goTypes = []any{
 	(BackgroundItemStatus)(0),                    // 0: teleport.lib.teleterm.vnet.v1.BackgroundItemStatus
 	(WindowsServiceStatus)(0),                    // 1: teleport.lib.teleterm.vnet.v1.WindowsServiceStatus
 	(RecentConnectionKind)(0),                    // 2: teleport.lib.teleterm.vnet.v1.RecentConnectionKind
-	(*StartRequest)(nil),                         // 3: teleport.lib.teleterm.vnet.v1.StartRequest
-	(*StartResponse)(nil),                        // 4: teleport.lib.teleterm.vnet.v1.StartResponse
-	(*StopRequest)(nil),                          // 5: teleport.lib.teleterm.vnet.v1.StopRequest
-	(*StopResponse)(nil),                         // 6: teleport.lib.teleterm.vnet.v1.StopResponse
-	(*GetServiceInfoRequest)(nil),                // 7: teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
-	(*GetServiceInfoResponse)(nil),               // 8: teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
-	(*GetBackgroundItemStatusRequest)(nil),       // 9: teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
-	(*GetBackgroundItemStatusResponse)(nil),      // 10: teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
-	(*CheckInstallTimeRequirementsRequest)(nil),  // 11: teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest
-	(*CheckInstallTimeRequirementsResponse)(nil), // 12: teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse
-	(*RunDiagnosticsRequest)(nil),                // 13: teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
-	(*RunDiagnosticsResponse)(nil),               // 14: teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
-	(*AutoConfigureSSHRequest)(nil),              // 15: teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest
-	(*AutoConfigureSSHResponse)(nil),             // 16: teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
-	(*GetRecentConnectionsRequest)(nil),          // 17: teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest
-	(*GetRecentConnectionsResponse)(nil),         // 18: teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse
-	(*RecentConnection)(nil),                     // 19: teleport.lib.teleterm.vnet.v1.RecentConnection
-	(*GetConnectionStatsRequest)(nil),            // 20: teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest
-	(*GetConnectionStatsResponse)(nil),           // 21: teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse
-	(*ConnectionStat)(nil),                       // 22: teleport.lib.teleterm.vnet.v1.ConnectionStat
-	(*v1.Report)(nil),                            // 23: teleport.lib.vnet.diag.v1.Report
-	(*timestamppb.Timestamp)(nil),                // 24: google.protobuf.Timestamp
+	(ConnectionRecordState)(0),                   // 3: teleport.lib.teleterm.vnet.v1.ConnectionRecordState
+	(*StartRequest)(nil),                         // 4: teleport.lib.teleterm.vnet.v1.StartRequest
+	(*StartResponse)(nil),                        // 5: teleport.lib.teleterm.vnet.v1.StartResponse
+	(*StopRequest)(nil),                          // 6: teleport.lib.teleterm.vnet.v1.StopRequest
+	(*StopResponse)(nil),                         // 7: teleport.lib.teleterm.vnet.v1.StopResponse
+	(*GetServiceInfoRequest)(nil),                // 8: teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
+	(*GetServiceInfoResponse)(nil),               // 9: teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
+	(*GetBackgroundItemStatusRequest)(nil),       // 10: teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
+	(*GetBackgroundItemStatusResponse)(nil),      // 11: teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
+	(*CheckInstallTimeRequirementsRequest)(nil),  // 12: teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest
+	(*CheckInstallTimeRequirementsResponse)(nil), // 13: teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse
+	(*RunDiagnosticsRequest)(nil),                // 14: teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
+	(*RunDiagnosticsResponse)(nil),               // 15: teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
+	(*AutoConfigureSSHRequest)(nil),              // 16: teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest
+	(*AutoConfigureSSHResponse)(nil),             // 17: teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
+	(*GetRecentConnectionsRequest)(nil),          // 18: teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest
+	(*GetRecentConnectionsResponse)(nil),         // 19: teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse
+	(*RecentConnection)(nil),                     // 20: teleport.lib.teleterm.vnet.v1.RecentConnection
+	(*GetConnectionsRequest)(nil),                // 21: teleport.lib.teleterm.vnet.v1.GetConnectionsRequest
+	(*GetConnectionsResponse)(nil),               // 22: teleport.lib.teleterm.vnet.v1.GetConnectionsResponse
+	(*ConnectionRecord)(nil),                     // 23: teleport.lib.teleterm.vnet.v1.ConnectionRecord
+	(*ConnectionStat)(nil),                       // 24: teleport.lib.teleterm.vnet.v1.ConnectionStat
+	(*v1.Report)(nil),                            // 25: teleport.lib.vnet.diag.v1.Report
+	(*timestamppb.Timestamp)(nil),                // 26: google.protobuf.Timestamp
 }
 var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_depIdxs = []int32{
 	0,  // 0: teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse.status:type_name -> teleport.lib.teleterm.vnet.v1.BackgroundItemStatus
 	1,  // 1: teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse.windows_service_status:type_name -> teleport.lib.teleterm.vnet.v1.WindowsServiceStatus
-	23, // 2: teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse.report:type_name -> teleport.lib.vnet.diag.v1.Report
-	19, // 3: teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse.connections:type_name -> teleport.lib.teleterm.vnet.v1.RecentConnection
+	25, // 2: teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse.report:type_name -> teleport.lib.vnet.diag.v1.Report
+	20, // 3: teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse.connections:type_name -> teleport.lib.teleterm.vnet.v1.RecentConnection
 	2,  // 4: teleport.lib.teleterm.vnet.v1.RecentConnection.kind:type_name -> teleport.lib.teleterm.vnet.v1.RecentConnectionKind
-	24, // 5: teleport.lib.teleterm.vnet.v1.RecentConnection.last_connected:type_name -> google.protobuf.Timestamp
-	22, // 6: teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse.stats:type_name -> teleport.lib.teleterm.vnet.v1.ConnectionStat
-	2,  // 7: teleport.lib.teleterm.vnet.v1.ConnectionStat.kind:type_name -> teleport.lib.teleterm.vnet.v1.RecentConnectionKind
-	3,  // 8: teleport.lib.teleterm.vnet.v1.VnetService.Start:input_type -> teleport.lib.teleterm.vnet.v1.StartRequest
-	5,  // 9: teleport.lib.teleterm.vnet.v1.VnetService.Stop:input_type -> teleport.lib.teleterm.vnet.v1.StopRequest
-	7,  // 10: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:input_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
-	9,  // 11: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:input_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
-	11, // 12: teleport.lib.teleterm.vnet.v1.VnetService.CheckInstallTimeRequirements:input_type -> teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest
-	13, // 13: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:input_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
-	15, // 14: teleport.lib.teleterm.vnet.v1.VnetService.AutoConfigureSSH:input_type -> teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest
-	17, // 15: teleport.lib.teleterm.vnet.v1.VnetService.GetRecentConnections:input_type -> teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest
-	20, // 16: teleport.lib.teleterm.vnet.v1.VnetService.GetConnectionStats:input_type -> teleport.lib.teleterm.vnet.v1.GetConnectionStatsRequest
-	4,  // 17: teleport.lib.teleterm.vnet.v1.VnetService.Start:output_type -> teleport.lib.teleterm.vnet.v1.StartResponse
-	6,  // 18: teleport.lib.teleterm.vnet.v1.VnetService.Stop:output_type -> teleport.lib.teleterm.vnet.v1.StopResponse
-	8,  // 19: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:output_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
-	10, // 20: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:output_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
-	12, // 21: teleport.lib.teleterm.vnet.v1.VnetService.CheckInstallTimeRequirements:output_type -> teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse
-	14, // 22: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:output_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
-	16, // 23: teleport.lib.teleterm.vnet.v1.VnetService.AutoConfigureSSH:output_type -> teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
-	18, // 24: teleport.lib.teleterm.vnet.v1.VnetService.GetRecentConnections:output_type -> teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse
-	21, // 25: teleport.lib.teleterm.vnet.v1.VnetService.GetConnectionStats:output_type -> teleport.lib.teleterm.vnet.v1.GetConnectionStatsResponse
-	17, // [17:26] is the sub-list for method output_type
-	8,  // [8:17] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	26, // 5: teleport.lib.teleterm.vnet.v1.RecentConnection.last_connected:type_name -> google.protobuf.Timestamp
+	24, // 6: teleport.lib.teleterm.vnet.v1.GetConnectionsResponse.stats:type_name -> teleport.lib.teleterm.vnet.v1.ConnectionStat
+	23, // 7: teleport.lib.teleterm.vnet.v1.GetConnectionsResponse.connections:type_name -> teleport.lib.teleterm.vnet.v1.ConnectionRecord
+	2,  // 8: teleport.lib.teleterm.vnet.v1.ConnectionRecord.kind:type_name -> teleport.lib.teleterm.vnet.v1.RecentConnectionKind
+	26, // 9: teleport.lib.teleterm.vnet.v1.ConnectionRecord.started_at:type_name -> google.protobuf.Timestamp
+	26, // 10: teleport.lib.teleterm.vnet.v1.ConnectionRecord.ended_at:type_name -> google.protobuf.Timestamp
+	3,  // 11: teleport.lib.teleterm.vnet.v1.ConnectionRecord.state:type_name -> teleport.lib.teleterm.vnet.v1.ConnectionRecordState
+	2,  // 12: teleport.lib.teleterm.vnet.v1.ConnectionStat.kind:type_name -> teleport.lib.teleterm.vnet.v1.RecentConnectionKind
+	4,  // 13: teleport.lib.teleterm.vnet.v1.VnetService.Start:input_type -> teleport.lib.teleterm.vnet.v1.StartRequest
+	6,  // 14: teleport.lib.teleterm.vnet.v1.VnetService.Stop:input_type -> teleport.lib.teleterm.vnet.v1.StopRequest
+	8,  // 15: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:input_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
+	10, // 16: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:input_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
+	12, // 17: teleport.lib.teleterm.vnet.v1.VnetService.CheckInstallTimeRequirements:input_type -> teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest
+	14, // 18: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:input_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
+	16, // 19: teleport.lib.teleterm.vnet.v1.VnetService.AutoConfigureSSH:input_type -> teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest
+	18, // 20: teleport.lib.teleterm.vnet.v1.VnetService.GetRecentConnections:input_type -> teleport.lib.teleterm.vnet.v1.GetRecentConnectionsRequest
+	21, // 21: teleport.lib.teleterm.vnet.v1.VnetService.GetConnections:input_type -> teleport.lib.teleterm.vnet.v1.GetConnectionsRequest
+	5,  // 22: teleport.lib.teleterm.vnet.v1.VnetService.Start:output_type -> teleport.lib.teleterm.vnet.v1.StartResponse
+	7,  // 23: teleport.lib.teleterm.vnet.v1.VnetService.Stop:output_type -> teleport.lib.teleterm.vnet.v1.StopResponse
+	9,  // 24: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:output_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
+	11, // 25: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:output_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
+	13, // 26: teleport.lib.teleterm.vnet.v1.VnetService.CheckInstallTimeRequirements:output_type -> teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse
+	15, // 27: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:output_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
+	17, // 28: teleport.lib.teleterm.vnet.v1.VnetService.AutoConfigureSSH:output_type -> teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
+	19, // 29: teleport.lib.teleterm.vnet.v1.VnetService.GetRecentConnections:output_type -> teleport.lib.teleterm.vnet.v1.GetRecentConnectionsResponse
+	22, // 30: teleport.lib.teleterm.vnet.v1.VnetService.GetConnections:output_type -> teleport.lib.teleterm.vnet.v1.GetConnectionsResponse
+	22, // [22:31] is the sub-list for method output_type
+	13, // [13:22] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_init() }
@@ -1775,8 +2200,8 @@ func file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc), len(file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   20,
+			NumEnums:      4,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -244,7 +244,7 @@ const Decorator = (props: PropsWithChildren<StoryProps>) => {
       );
   }
 
-  appContext.vnet.getConnectionStats = (() => ({
+  appContext.vnet.getConnections = (() => ({
     responses: {
       onMessage: (
         callback: (response: { stats: ConnectionStat[] }) => void
@@ -257,7 +257,7 @@ const Decorator = (props: PropsWithChildren<StoryProps>) => {
       onError: () => () => {},
     },
     then: () => Promise.resolve(),
-  })) as unknown as typeof appContext.vnet.getConnectionStats;
+  })) as unknown as typeof appContext.vnet.getConnections;
 
   return (
     <MockAppContextProvider appContext={appContext}>
