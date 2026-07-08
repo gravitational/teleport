@@ -638,7 +638,7 @@ func TestListAccessRequests(t *testing.T) {
 	}))
 }
 
-func TestListAccessRequestsUserDisplaysOptIn(t *testing.T) {
+func TestListAccessRequestsUserDisplays(t *testing.T) {
 	t.Parallel()
 
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
@@ -695,16 +695,6 @@ func TestListAccessRequestsUserDisplaysOptIn(t *testing.T) {
 		Filter: &types.AccessRequestFilter{
 			ID: req.GetName(),
 		},
-	})
-	require.NoError(t, err)
-	require.Len(t, rsp.AccessRequests, 1)
-	require.Empty(t, rsp.UserDisplays)
-
-	rsp, err = adminClient.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
-		Filter: &types.AccessRequestFilter{
-			ID: req.GetName(),
-		},
-		IncludeUserDisplays: true,
 	})
 	require.NoError(t, err)
 	require.Len(t, rsp.AccessRequests, 1)

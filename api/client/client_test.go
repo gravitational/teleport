@@ -1011,8 +1011,7 @@ func TestListAccessRequestsIncludesUserDisplays(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	rsp, err := clt.ListAccessRequests(t.Context(), &proto.ListAccessRequestsRequest{
-		Limit:               1,
-		IncludeUserDisplays: true,
+		Limit: 1,
 	})
 	require.NoError(t, err)
 
@@ -1025,17 +1024,15 @@ func TestListAccessRequestsIncludesUserDisplays(t *testing.T) {
 		"plain": nil,
 	}, rsp.UserDisplays)
 	require.Equal(t, []string{""}, service.startKeys)
-	require.Equal(t, []bool{true}, service.includeUserDisplays)
 }
 
 type accessRequestListService struct {
 	proto.UnimplementedAuthServiceServer
 
-	pages               []*proto.ListAccessRequestsResponse
-	startKeys           []string
-	includeUserDisplays []bool
-	listErr             error
-	compatRequests      []*types.AccessRequestV3
+	pages          []*proto.ListAccessRequestsResponse
+	startKeys      []string
+	listErr        error
+	compatRequests []*types.AccessRequestV3
 }
 
 func (s *accessRequestListService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
@@ -1044,7 +1041,6 @@ func (s *accessRequestListService) ListAccessRequests(ctx context.Context, req *
 	}
 
 	s.startKeys = append(s.startKeys, req.StartKey)
-	s.includeUserDisplays = append(s.includeUserDisplays, req.IncludeUserDisplays)
 	pageIndex := len(s.startKeys) - 1
 	if pageIndex >= len(s.pages) {
 		return nil, trail.ToGRPC(trace.NotFound("page %d not found", pageIndex))

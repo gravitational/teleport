@@ -29,25 +29,36 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func (a *ServerWithRoles) addAccessRequestUserDisplays(ctx context.Context, req *proto.ListAccessRequestsRequest, rsp *proto.ListAccessRequestsResponse, err error) (*proto.ListAccessRequestsResponse, error) {
-	return addAccessRequestUserDisplaysToResponse(ctx, req, rsp, err, a.authServer, a.authServer.logger)
+// fetchAccessRequests lists access requests, filtered by match if non-nil, and attaches users display values.
+func (a *Server) fetchAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*proto.ListAccessRequestsResponse, error) {
+	var rsp *proto.ListAccessRequestsResponse
+	var err error
+	if match == nil {
+		rsp, err = a.ListAccessRequests(ctx, req)
+	} else {
+		rsp, err = a.ListMatchingAccessRequests(ctx, req, match)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	addAccessRequestUserDisplays(ctx, rsp, a, a.logger)
+	return rsp, nil
 }
 
-func addAccessRequestUserDisplaysToResponse(ctx context.Context, req *proto.ListAccessRequestsRequest, rsp *proto.ListAccessRequestsResponse, listErr error, getter services.UserGetter, logger *slog.Logger) (*proto.ListAccessRequestsResponse, error) {
-	if listErr != nil {
-		return nil, trace.Wrap(listErr)
-	}
-	if !req.GetIncludeUserDisplays() || len(rsp.AccessRequests) == 0 {
-		return rsp, nil
+// addAccessRequestUserDisplays is best-effort: on resolution failure the page
+// is left without display values.
+func addAccessRequestUserDisplays(ctx context.Context, rsp *proto.ListAccessRequestsResponse, getter services.UserGetter, logger *slog.Logger) {
+	if len(rsp.AccessRequests) == 0 {
+		return
 	}
 
 	displays, err := resolveAccessRequestUserDisplays(ctx, getter, rsp.AccessRequests)
 	if err != nil {
 		logger.WarnContext(ctx, "Failed to resolve user displays for access request page", "error", err)
-		return rsp, nil
+		return
 	}
 	rsp.UserDisplays = displays
-	return rsp, nil
 }
 
 func resolveAccessRequestUserDisplays(ctx context.Context, getter services.UserGetter, requests []*types.AccessRequestV3) (map[string]*proto.UserDisplay, error) {

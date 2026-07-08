@@ -85,7 +85,7 @@ func TestResolveAccessRequestUserDisplays(t *testing.T) {
 	require.NotContains(t, got, missingUser)
 }
 
-func TestAddAccessRequestUserDisplaysToResponseKeepsResponseOnResolveError(t *testing.T) {
+func TestAddAccessRequestUserDisplaysKeepsResponseOnResolveError(t *testing.T) {
 	t.Parallel()
 
 	const requester = "display-requester"
@@ -95,11 +95,9 @@ func TestAddAccessRequestUserDisplaysToResponseKeepsResponseOnResolveError(t *te
 		AccessRequests: []*types.AccessRequestV3{req},
 	}
 
-	got, err := addAccessRequestUserDisplaysToResponse(
+	addAccessRequestUserDisplays(
 		context.Background(),
-		&proto.ListAccessRequestsRequest{IncludeUserDisplays: true},
 		listRsp,
-		nil,
 		&userDisplayGetter{
 			failFor: map[string]error{
 				requester: errors.New("backend unavailable"),
@@ -107,9 +105,8 @@ func TestAddAccessRequestUserDisplaysToResponseKeepsResponseOnResolveError(t *te
 		},
 		slog.New(slog.DiscardHandler),
 	)
-	require.NoError(t, err)
-	require.Same(t, listRsp, got)
-	require.Empty(t, got.UserDisplays)
+	require.Equal(t, []*types.AccessRequestV3{req}, listRsp.AccessRequests)
+	require.Empty(t, listRsp.UserDisplays)
 }
 
 type userDisplayGetter struct {

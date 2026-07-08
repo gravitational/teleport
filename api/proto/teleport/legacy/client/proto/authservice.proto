@@ -2990,15 +2990,15 @@ message ListAccessRequestsRequest {
   // If the previous response had NextKey set then this should be
   // set to its value. Should be empty on the first request.
   string StartKey = 5;
-
-  // IncludeUserDisplays requests read-time display values for users referenced
-  // by the returned access requests.
-  bool IncludeUserDisplays = 6;
 }
 
 // UserDisplay holds read-time display values derived from a user resource.
 message UserDisplay {
+  // Primary is a human-readable display name derived from the user's traits.
+  // Empty when the user has no display value distinct from their username.
   string Primary = 1;
+  // Secondary is supporting context, typically the user's email address.
+  // Empty when the user has no such value distinct from their username.
   string Secondary = 2;
 }
 
