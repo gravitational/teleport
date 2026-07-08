@@ -30,6 +30,7 @@ import {
   IpcMainInvokeEvent,
   Menu,
   MenuItemConstructorOptions,
+  nativeImage,
   nativeTheme,
   shell,
 } from 'electron';
@@ -461,6 +462,41 @@ export default class MainProcess {
         }
 
         return { canceled };
+      }
+    );
+
+    ipcHandle(
+      MainProcessIpc.GetAppIcon,
+      async (
+        _,
+        filePath: Parameters<MainProcessClient['getAppIcon']>[0]
+      ): ReturnType<MainProcessClient['getAppIcon']> => {
+        // On macOS the reported path points at the executable inside an app
+        // bundle (e.g. /Applications/iTerm.app/Contents/MacOS/iTerm2). The
+        // bundle itself carries the icon, so resolve the thumbnail from the
+        // .app directory when the path is inside one.
+        const appBundle = filePath.match(/^(.*?\.app)(\/|$)/);
+        const thumbnailPath = appBundle ? appBundle[1] : filePath;
+
+        try {
+          // createThumbnailFromPath is only supported on macOS and Windows and
+          // rejects for paths it can't read. The renderer falls back to a
+          // text-only representation when the icon is empty.
+          const image = await nativeImage.createThumbnailFromPath(
+            thumbnailPath,
+            { width: 64, height: 64 }
+          );
+          if (image.isEmpty()) {
+            return '';
+          }
+          return image.toDataURL();
+        } catch (error) {
+          this.logger.error(
+            `Could not read the app icon for "${thumbnailPath}"`,
+            error
+          );
+          return '';
+        }
       }
     );
 

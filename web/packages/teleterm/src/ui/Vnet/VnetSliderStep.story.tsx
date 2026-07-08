@@ -360,6 +360,7 @@ export const WithRecentConnections: StoryObj<StoryProps> = {
         leafCluster: '',
         displayName: 'grafana.teleport.example.com',
         lastConnected: Timestamp.fromDate(new Date(Date.now() - 15 * 1000)),
+        lastClientProcessPath: '/usr/bin/curl',
       },
       {
         kind: RecentConnectionKind.SSH,
@@ -367,6 +368,7 @@ export const WithRecentConnections: StoryObj<StoryProps> = {
         leafCluster: '',
         displayName: 'node-01.teleport.example.com',
         lastConnected: Timestamp.fromDate(new Date(Date.now() - 5 * 60 * 1000)),
+        lastClientProcessPath: '/Applications/iTerm.app/Contents/MacOS/iTerm2',
       },
       {
         kind: RecentConnectionKind.DATABASE,
@@ -376,6 +378,8 @@ export const WithRecentConnections: StoryObj<StoryProps> = {
         lastConnected: Timestamp.fromDate(
           new Date(Date.now() - 42 * 60 * 1000)
         ),
+        // No process identified (e.g. non-macOS), so no icon or "Opened by".
+        lastClientProcessPath: '',
       },
     ],
   },

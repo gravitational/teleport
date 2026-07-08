@@ -16,10 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { formatDistanceToNow } from 'date-fns';
-import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
+import {
+  PropsWithChildren,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
-import { Box, ButtonSecondary, Flex, Text } from 'design';
+import { Box, ButtonSecondary, Flex, Stack, Text } from 'design';
 import { ActionButton } from 'design/Alert';
 import { StepComponentProps } from 'design/StepSlider';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
@@ -31,6 +36,7 @@ import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionItem';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
@@ -373,40 +379,186 @@ const RecentConnectionsList = () => {
 };
 
 const RecentConnectionRow = (props: { connection: RecentConnection }) => {
-  const { kind, displayName, lastConnected } = props.connection;
+  const { kind, displayName, lastConnected, lastClientProcessPath } =
+    props.connection;
   const lastConnectedDate = lastConnected && Timestamp.toDate(lastConnected);
+  const openedBy =
+    lastClientProcessPath && processDisplayName(lastClientProcessPath);
+  const appIcon = useAppIcon(lastClientProcessPath);
 
   return (
     <Flex alignItems="center" gap={1} minWidth={0}>
       <ConnectionKindIndicator>{kindLabel(kind)}</ConnectionKindIndicator>
-      <Text
-        typography="body2"
-        title={displayName}
-        css={`
-          flex: 1;
-          min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        `}
-      >
-        {displayName}
-      </Text>
-      {lastConnectedDate && (
-        <Text
-          typography="body3"
-          color="text.muted"
-          title={lastConnectedDate.toLocaleString()}
-          css={`
-            white-space: nowrap;
-          `}
-        >
-          {formatDistanceToNow(lastConnectedDate, { addSuffix: true })}
-        </Text>
-      )}
+      <Flex flexDirection="column" flex="1" minWidth={0}>
+        {openedBy && (
+          <Flex
+            alignItems="center"
+            gap={1}
+            minWidth={0}
+            justifyContent="space-between"
+          >
+            <Text
+              typography="body2"
+              title={displayName}
+              css={`
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+              `}
+            >
+              {displayName}
+            </Text>
+            <Flex gap={1} alignItems="center">
+              {appIcon && (
+                <img
+                  src={appIcon}
+                  alt=""
+                  css={`
+                    max-height: 32px;
+                    object-fit: contain;
+                  `}
+                />
+              )}
+              <Stack gap={0}>
+                <Text
+                  typography="body3"
+                  color="text.muted"
+                  title={lastClientProcessPath}
+                  css={`
+                    line-height: 14px;
+                    white-space: nowrap;
+                  `}
+                >
+                  {openedBy}
+                </Text>
+                {lastConnectedDate && (
+                  <Text
+                    typography="body3"
+                    color="text.muted"
+                    title={lastConnectedDate.toLocaleString()}
+                    css={`
+                      line-height: 14px;
+                      white-space: nowrap;
+                    `}
+                  >
+                    {formatRelativeShort(lastConnectedDate, new Date())}
+                  </Text>
+                )}
+              </Stack>
+            </Flex>
+          </Flex>
+        )}
+      </Flex>
     </Flex>
   );
 };
+
+/**
+ * appIconCache memoizes resolved icon data URLs by executable path across the
+ * lifetime of the renderer. Icons don't change while the app runs, and the
+ * recent connections list re-renders on every stream update, so caching avoids
+ * repeatedly crossing the IPC boundary for the same program. The empty string
+ * (no icon available) is cached too, so unresolved paths aren't retried.
+ */
+const appIconCache = new Map<string, Promise<string>>();
+
+/**
+ * useAppIcon resolves the icon of the local program at the given executable
+ * path to a data URL through the main process. It returns an empty string until
+ * the icon loads, or permanently if the platform or path yields no icon; the
+ * caller renders the icon only when the string is non-empty.
+ */
+function useAppIcon(path: string | undefined): string {
+  const { mainProcessClient } = useAppContext();
+  const [icon, setIcon] = useState('');
+
+  useEffect(() => {
+    if (!path) {
+      setIcon('');
+      return;
+    }
+
+    let cached = appIconCache.get(path);
+    if (!cached) {
+      cached = mainProcessClient.getAppIcon(path);
+      appIconCache.set(path, cached);
+    }
+
+    let canceled = false;
+    cached.then(
+      dataUrl => {
+        if (!canceled) {
+          setIcon(dataUrl);
+        }
+      },
+      () => {
+        // getAppIcon already logs failures in the main process and resolves to
+        // an empty string, so a rejection here is unexpected; drop the cached
+        // entry so a later render can retry.
+        appIconCache.delete(path);
+      }
+    );
+    return () => {
+      canceled = true;
+    };
+  }, [path, mainProcessClient]);
+
+  return icon;
+}
+
+/**
+ * formatRelativeShort renders how long ago `date` was in a compact form such as
+ * "just now", "5m ago", "2h ago", "3d ago", or "2w ago", picking the largest
+ * whole unit that fits. Intl.RelativeTimeFormat is intentionally not used: even
+ * its narrowest English style produces "5 min. ago" rather than "5m ago", and
+ * it doesn't select the unit on its own.
+ */
+function formatRelativeShort(date: Date, now: Date): string {
+  const seconds = Math.round((now.getTime() - date.getTime()) / 1000);
+  if (seconds < 60) {
+    return 'just now';
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+  const days = Math.floor(hours / 24);
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+  const weeks = Math.floor(days / 7);
+  return `${weeks}w ago`;
+}
+
+/**
+ * processDisplayName returns a human-friendly name for a local process
+ * executable path, used to show which program opened a connection.
+ *
+ * For macOS app bundles it uses the name of the outermost .app bundle, e.g.
+ * "Google Chrome" for a deeply nested helper executable
+ * (".../Google Chrome.app/.../Google Chrome Helper.app/Contents/MacOS/..."),
+ * rather than the executable's own basename ("Google Chrome Helper"). This
+ * mirrors the icon lookup in the main process' getAppIcon handler. Otherwise it
+ * uses the executable's basename with its first letter capitalized, e.g. "Curl"
+ * for "/usr/bin/curl".
+ */
+function processDisplayName(path: string): string {
+  if (!path) {
+    return '';
+  }
+  const appBundle = path.match(/^(?:.*?\/)?([^/]+)\.app(?:\/|$)/);
+  if (appBundle) {
+    return appBundle[1];
+  }
+  const segments = path.split('/');
+  const segment = segments[segments.length - 1] || path;
+  return segment[0].toUpperCase() + segment.substring(1);
+}
 
 function kindLabel(kind: RecentConnectionKind): string {
   switch (kind) {

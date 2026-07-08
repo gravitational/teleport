@@ -96,23 +96,23 @@ func (s *recentConnectionsStore) CloseSession() {
 }
 
 // RecordApp records a connection to a TCP app.
-func (s *recentConnectionsStore) RecordApp(appKey *vnetv1.AppKey, publicAddr string) {
+func (s *recentConnectionsStore) RecordApp(appKey *vnetv1.AppKey, publicAddr, clientProcessPath string) {
 	s.record(api.RecentConnectionKind_RECENT_CONNECTION_KIND_APP,
-		appKey.GetProfile(), appKey.GetLeafCluster(), displayName(publicAddr, appKey.GetName()))
+		appKey.GetProfile(), appKey.GetLeafCluster(), displayName(publicAddr, appKey.GetName()), clientProcessPath)
 }
 
 // RecordDatabase records a connection to a database.
-func (s *recentConnectionsStore) RecordDatabase(dbKey *vnetv1.DatabaseKey, fqdn string) {
+func (s *recentConnectionsStore) RecordDatabase(dbKey *vnetv1.DatabaseKey, fqdn, clientProcessPath string) {
 	s.record(api.RecentConnectionKind_RECENT_CONNECTION_KIND_DATABASE,
-		dbKey.GetProfile(), dbKey.GetLeafCluster(), displayName(fqdn, dbKey.GetName()))
+		dbKey.GetProfile(), dbKey.GetLeafCluster(), displayName(fqdn, dbKey.GetName()), clientProcessPath)
 }
 
 // RecordSSH records a connection to an SSH host.
-func (s *recentConnectionsStore) RecordSSH(profile, leafCluster, address string) {
-	s.record(api.RecentConnectionKind_RECENT_CONNECTION_KIND_SSH, profile, leafCluster, address)
+func (s *recentConnectionsStore) RecordSSH(profile, leafCluster, address, clientProcessPath string) {
+	s.record(api.RecentConnectionKind_RECENT_CONNECTION_KIND_SSH, profile, leafCluster, address, clientProcessPath)
 }
 
-func (s *recentConnectionsStore) record(kind api.RecentConnectionKind, cluster, leafCluster, displayName string) {
+func (s *recentConnectionsStore) record(kind api.RecentConnectionKind, cluster, leafCluster, displayName, clientProcessPath string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.active {
@@ -120,11 +120,12 @@ func (s *recentConnectionsStore) record(kind api.RecentConnectionKind, cluster, 
 	}
 	key := connectionKey{kind: kind, cluster: cluster, leafCluster: leafCluster, displayName: displayName}
 	s.entries[key] = api.RecentConnection_builder{
-		Kind:          kind,
-		Cluster:       cluster,
-		LeafCluster:   leafCluster,
-		DisplayName:   displayName,
-		LastConnected: timestamppb.New(s.clock.Now()),
+		Kind:                  kind,
+		Cluster:               cluster,
+		LeafCluster:           leafCluster,
+		DisplayName:           displayName,
+		LastConnected:         timestamppb.New(s.clock.Now()),
+		LastClientProcessPath: clientProcessPath,
 	}.Build()
 	s.notifyLocked()
 }

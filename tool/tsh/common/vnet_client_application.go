@@ -136,12 +136,12 @@ func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName 
 
 // OnNewSSHSession gets called before each VNet SSH connection. It's a noop as
 // tsh doesn't need to do anything extra here.
-func (p *vnetClientApplication) OnNewSSHSession(ctx context.Context, profileName, rootClusterName, leafClusterName, address string) {
+func (p *vnetClientApplication) OnNewSSHSession(ctx context.Context, profileName, rootClusterName, leafClusterName, address, clientProcessPath string) {
 }
 
 // OnNewAppConnection gets called before each VNet app connection. It's a noop as tsh doesn't need to do
 // anything extra here.
-func (p *vnetClientApplication) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey, _ string) error {
+func (p *vnetClientApplication) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey, _, _ string) error {
 	return nil
 }
 
@@ -198,7 +198,7 @@ func (p *vnetClientApplication) reissueDBCert(ctx context.Context, tc *client.Te
 
 // OnNewDBConnection gets called before each VNet database connection. It's a
 // noop as tsh doesn't need to do anything extra here.
-func (p *vnetClientApplication) OnNewDBConnection(_ context.Context, _ *vnetv1.DatabaseKey, _ string) error {
+func (p *vnetClientApplication) OnNewDBConnection(_ context.Context, _ *vnetv1.DatabaseKey, _, _ string) error {
 	return nil
 }
 

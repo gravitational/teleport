@@ -1129,8 +1129,13 @@ type RecentConnection struct {
 	DisplayName string `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// last_connected is the time of the most recent connection to the target.
 	LastConnected *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_connected,json=lastConnected,proto3" json:"last_connected,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// last_client_process_path is the filesystem path of the local program that
+	// most recently opened a connection to the target. Best-effort and
+	// platform-specific (currently macOS only); empty when the process could not
+	// be identified.
+	LastClientProcessPath string `protobuf:"bytes,6,opt,name=last_client_process_path,json=lastClientProcessPath,proto3" json:"last_client_process_path,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *RecentConnection) Reset() {
@@ -1193,6 +1198,13 @@ func (x *RecentConnection) GetLastConnected() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *RecentConnection) GetLastClientProcessPath() string {
+	if x != nil {
+		return x.LastClientProcessPath
+	}
+	return ""
+}
+
 func (x *RecentConnection) SetKind(v RecentConnectionKind) {
 	x.Kind = v
 }
@@ -1211,6 +1223,10 @@ func (x *RecentConnection) SetDisplayName(v string) {
 
 func (x *RecentConnection) SetLastConnected(v *timestamppb.Timestamp) {
 	x.LastConnected = v
+}
+
+func (x *RecentConnection) SetLastClientProcessPath(v string) {
+	x.LastClientProcessPath = v
 }
 
 func (x *RecentConnection) HasLastConnected() bool {
@@ -1239,6 +1255,11 @@ type RecentConnection_builder struct {
 	DisplayName string
 	// last_connected is the time of the most recent connection to the target.
 	LastConnected *timestamppb.Timestamp
+	// last_client_process_path is the filesystem path of the local program that
+	// most recently opened a connection to the target. Best-effort and
+	// platform-specific (currently macOS only); empty when the process could not
+	// be identified.
+	LastClientProcessPath string
 }
 
 func (b0 RecentConnection_builder) Build() *RecentConnection {
@@ -1250,6 +1271,7 @@ func (b0 RecentConnection_builder) Build() *RecentConnection {
 	x.LeafCluster = b.LeafCluster
 	x.DisplayName = b.DisplayName
 	x.LastConnected = b.LastConnected
+	x.LastClientProcessPath = b.LastClientProcessPath
 	return m0
 }
 
@@ -1282,13 +1304,14 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\x18AutoConfigureSSHResponse\"\x1d\n" +
 	"\x1bGetRecentConnectionsRequest\"q\n" +
 	"\x1cGetRecentConnectionsResponse\x12Q\n" +
-	"\vconnections\x18\x01 \x03(\v2/.teleport.lib.teleterm.vnet.v1.RecentConnectionR\vconnections\"\xfe\x01\n" +
+	"\vconnections\x18\x01 \x03(\v2/.teleport.lib.teleterm.vnet.v1.RecentConnectionR\vconnections\"\xb7\x02\n" +
 	"\x10RecentConnection\x12G\n" +
 	"\x04kind\x18\x01 \x01(\x0e23.teleport.lib.teleterm.vnet.v1.RecentConnectionKindR\x04kind\x12\x18\n" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12!\n" +
 	"\fleaf_cluster\x18\x03 \x01(\tR\vleafCluster\x12!\n" +
 	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12A\n" +
-	"\x0elast_connected\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\rlastConnected*\x8b\x02\n" +
+	"\x0elast_connected\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\rlastConnected\x127\n" +
+	"\x18last_client_process_path\x18\x06 \x01(\tR\x15lastClientProcessPath*\x8b\x02\n" +
 	"\x14BackgroundItemStatus\x12&\n" +
 	"\"BACKGROUND_ITEM_STATUS_UNSPECIFIED\x10\x00\x12)\n" +
 	"%BACKGROUND_ITEM_STATUS_NOT_REGISTERED\x10\x01\x12\"\n" +

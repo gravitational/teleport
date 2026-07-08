@@ -235,6 +235,15 @@ export interface RecentConnection {
      * @generated from protobuf field: google.protobuf.Timestamp last_connected = 5;
      */
     lastConnected?: Timestamp;
+    /**
+     * last_client_process_path is the filesystem path of the local program that
+     * most recently opened a connection to the target. Best-effort and
+     * platform-specific (currently macOS only); empty when the process could not
+     * be identified.
+     *
+     * @generated from protobuf field: string last_client_process_path = 6;
+     */
+    lastClientProcessPath: string;
 }
 /**
  * BackgroundItemStatus maps to SMAppServiceStatus of the Service Management framework in macOS.
@@ -863,7 +872,8 @@ class RecentConnection$Type extends MessageType<RecentConnection> {
             { no: 2, name: "cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "leaf_cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "display_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "last_connected", kind: "message", T: () => Timestamp }
+            { no: 5, name: "last_connected", kind: "message", T: () => Timestamp },
+            { no: 6, name: "last_client_process_path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<RecentConnection>): RecentConnection {
@@ -872,6 +882,7 @@ class RecentConnection$Type extends MessageType<RecentConnection> {
         message.cluster = "";
         message.leafCluster = "";
         message.displayName = "";
+        message.lastClientProcessPath = "";
         if (value !== undefined)
             reflectionMergePartial<RecentConnection>(this, message, value);
         return message;
@@ -895,6 +906,9 @@ class RecentConnection$Type extends MessageType<RecentConnection> {
                     break;
                 case /* google.protobuf.Timestamp last_connected */ 5:
                     message.lastConnected = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.lastConnected);
+                    break;
+                case /* string last_client_process_path */ 6:
+                    message.lastClientProcessPath = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -923,6 +937,9 @@ class RecentConnection$Type extends MessageType<RecentConnection> {
         /* google.protobuf.Timestamp last_connected = 5; */
         if (message.lastConnected)
             Timestamp.internalBinaryWrite(message.lastConnected, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* string last_client_process_path = 6; */
+        if (message.lastClientProcessPath !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.lastClientProcessPath);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -140,8 +140,9 @@ func (c *clientApplicationServiceClient) SignForApp(ctx context.Context, req *vn
 // OnNewAppConnection reports a new TCP connection to the target app.
 func (c *clientApplicationServiceClient) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey, publicAddr string) error {
 	_, err := c.clt.OnNewAppConnection(ctx, vnetv1.OnNewAppConnectionRequest_builder{
-		AppKey:     appKey,
-		PublicAddr: publicAddr,
+		AppKey:            appKey,
+		PublicAddr:        publicAddr,
+		ClientProcessPath: clientProcessPathFromContext(ctx),
 	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "calling OnNewAppConnection rpc")
@@ -200,12 +201,13 @@ func (c *clientApplicationServiceClient) SessionSSHConfig(
 	mode vnetv1.SessionSSHConfigCredentialMode,
 ) (*vnetv1.SessionSSHConfigResponse, error) {
 	resp, err := c.clt.SessionSSHConfig(ctx, vnetv1.SessionSSHConfigRequest_builder{
-		Profile:        target.profile,
-		RootCluster:    target.rootCluster,
-		LeafCluster:    target.leafCluster,
-		Address:        target.addr,
-		User:           user,
-		CredentialMode: mode,
+		Profile:           target.profile,
+		RootCluster:       target.rootCluster,
+		LeafCluster:       target.leafCluster,
+		Address:           target.addr,
+		User:              user,
+		CredentialMode:    mode,
+		ClientProcessPath: clientProcessPathFromContext(ctx),
 	}.Build())
 	return resp, trace.Wrap(err, "calling SessionSSHConfig rpc")
 }
@@ -286,8 +288,9 @@ func (c *clientApplicationServiceClient) SignForDB(ctx context.Context, req *vne
 // OnNewDBConnection reports a new database connection for observability.
 func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey, fqdn string) error {
 	_, err := c.clt.OnNewDBConnection(ctx, vnetv1.OnNewDBConnectionRequest_builder{
-		DatabaseKey: dbKey,
-		Fqdn:        fqdn,
+		DatabaseKey:       dbKey,
+		Fqdn:              fqdn,
+		ClientProcessPath: clientProcessPathFromContext(ctx),
 	}.Build())
 	return trace.Wrap(err, "calling OnNewDBConnection rpc")
 }

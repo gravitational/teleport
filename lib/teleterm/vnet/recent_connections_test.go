@@ -37,9 +37,9 @@ func TestRecentConnectionsStore_dedupeAndOrder(t *testing.T) {
 	store := newRecentConnectionsStore(clock)
 	store.Reset()
 
-	store.RecordApp(appKey("a"), "a.example.com")
+	store.RecordApp(appKey("a"), "a.example.com", "")
 	clock.Advance(time.Second)
-	store.RecordApp(appKey("b"), "b.example.com")
+	store.RecordApp(appKey("b"), "b.example.com", "")
 
 	_, snap := store.Subscribe()
 	require.Len(t, snap, 2)
@@ -50,7 +50,7 @@ func TestRecentConnectionsStore_dedupeAndOrder(t *testing.T) {
 	// Reconnecting to an existing target updates its timestamp and reorders it,
 	// rather than adding a duplicate row.
 	clock.Advance(time.Second)
-	store.RecordApp(appKey("a"), "a.example.com")
+	store.RecordApp(appKey("a"), "a.example.com", "")
 
 	_, snap = store.Subscribe()
 	require.Len(t, snap, 2)
@@ -62,9 +62,9 @@ func TestRecentConnectionsStore_kindsAreDistinct(t *testing.T) {
 	store.Reset()
 
 	// Same display name but different kinds are different rows.
-	store.RecordApp(appKey("shared"), "shared.example.com")
-	store.RecordDatabase(vnetv1.DatabaseKey_builder{Profile: "root", Name: "shared"}.Build(), "shared.example.com")
-	store.RecordSSH("root", "", "host.example.com")
+	store.RecordApp(appKey("shared"), "shared.example.com", "")
+	store.RecordDatabase(vnetv1.DatabaseKey_builder{Profile: "root", Name: "shared"}.Build(), "shared.example.com", "")
+	store.RecordSSH("root", "", "host.example.com", "")
 
 	_, snap := store.Subscribe()
 	require.Len(t, snap, 3)
@@ -83,11 +83,33 @@ func TestRecentConnectionsStore_fallsBackToName(t *testing.T) {
 	store.Reset()
 
 	// With no public address, the resource name is used as the display name.
-	store.RecordApp(appKey("no-addr"), "")
+	store.RecordApp(appKey("no-addr"), "", "")
 
 	_, snap := store.Subscribe()
 	require.Len(t, snap, 1)
 	assert.Equal(t, "no-addr", snap[0].GetDisplayName())
+}
+
+func TestRecentConnectionsStore_recordsClientProcessPath(t *testing.T) {
+	store := newRecentConnectionsStore(clockwork.NewFakeClock())
+	store.Reset()
+
+	// The local process that opened the connection is carried through to the
+	// recorded entry so the UI can show which program connected.
+	store.RecordApp(appKey("a"), "a.example.com", "/usr/bin/curl")
+
+	_, snap := store.Subscribe()
+	require.Len(t, snap, 1)
+	assert.Equal(t, "/usr/bin/curl", snap[0].GetLastClientProcessPath())
+
+	// An unidentified process leaves the field empty.
+	store.RecordApp(appKey("b"), "b.example.com", "")
+	_, snap = store.Subscribe()
+	for _, c := range snap {
+		if c.GetDisplayName() == "b.example.com" {
+			assert.Empty(t, c.GetLastClientProcessPath())
+		}
+	}
 }
 
 func TestRecentConnectionsStore_inactiveDropsRecords(t *testing.T) {
@@ -95,7 +117,7 @@ func TestRecentConnectionsStore_inactiveDropsRecords(t *testing.T) {
 
 	// The store starts inactive: records before Reset are dropped. This mirrors
 	// connection callbacks firing from detached goroutines after VNet stopped.
-	store.RecordApp(appKey("a"), "a.example.com")
+	store.RecordApp(appKey("a"), "a.example.com", "")
 
 	sub, snap := store.Subscribe()
 	assert.Empty(t, snap)
@@ -107,7 +129,7 @@ func TestRecentConnectionsStore_inactiveDropsRecords(t *testing.T) {
 func TestRecentConnectionsStore_resetClears(t *testing.T) {
 	store := newRecentConnectionsStore(clockwork.NewFakeClock())
 	store.Reset()
-	store.RecordApp(appKey("a"), "a.example.com")
+	store.RecordApp(appKey("a"), "a.example.com", "")
 
 	store.Reset()
 
@@ -122,7 +144,7 @@ func TestRecentConnectionsStore_subscriberReceivesUpdates(t *testing.T) {
 	sub, snap := store.Subscribe()
 	assert.Empty(t, snap)
 
-	store.RecordApp(appKey("a"), "a.example.com")
+	store.RecordApp(appKey("a"), "a.example.com", "")
 	got := <-sub.updates
 	require.Len(t, got, 1)
 	assert.Equal(t, "a.example.com", got[0].GetDisplayName())

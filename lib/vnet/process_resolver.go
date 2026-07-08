@@ -16,10 +16,13 @@
 
 package vnet
 
-import "log/slog"
+import (
+	"context"
+	"log/slog"
+)
 
 type peerProcess struct {
-	PID int
+	PID     int
 	ExePath string
 }
 
@@ -34,4 +37,23 @@ type processResolver interface {
 	// resolveTCP returns the local process that owns the TCP connection whose
 	// source (ephemeral) port is srcPort and destination port is dstPort.
 	resolveTCP(srcPort, dstPort uint16) (peerProcess, error)
+}
+
+type peerProcessContextKey struct{}
+
+// contextWithPeerProcess returns a copy of ctx carrying the local process that
+// opened the connection being handled, so downstream connection callbacks can
+// report it without re-resolving.
+func contextWithPeerProcess(ctx context.Context, p peerProcess) context.Context {
+	return context.WithValue(ctx, peerProcessContextKey{}, p)
+}
+
+// clientProcessPathFromContext returns the executable path of the local process
+// carried by ctx, or an empty string if none was identified.
+func clientProcessPathFromContext(ctx context.Context) string {
+	p, ok := ctx.Value(peerProcessContextKey{}).(peerProcess)
+	if !ok {
+		return ""
+	}
+	return p.ExePath
 }

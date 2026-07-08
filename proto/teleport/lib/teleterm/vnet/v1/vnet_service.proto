@@ -173,4 +173,9 @@ message RecentConnection {
   string display_name = 4;
   // last_connected is the time of the most recent connection to the target.
   google.protobuf.Timestamp last_connected = 5;
+  // last_client_process_path is the filesystem path of the local program that
+  // most recently opened a connection to the target. Best-effort and
+  // platform-specific (currently macOS only); empty when the process could not
+  // be identified.
+  string last_client_process_path = 6;
 }

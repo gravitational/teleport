@@ -295,6 +295,10 @@ message OnNewAppConnectionRequest {
   // PublicAddr is the public address of the app, used as its display address in
   // the list of recent VNet connections.
   string public_addr = 2;
+  // ClientProcessPath is the filesystem path of the local program that opened
+  // the connection. Best-effort and platform-specific (currently only resolved
+  // on macOS); empty when the process could not be identified.
+  string client_process_path = 3;
 }
 
 // OnNewAppConnectionResponse is a response for OnNewAppConnection.
@@ -396,6 +400,10 @@ message SessionSSHConfigRequest {
   string user = 5;
   // Selects the credential path for this request.
   SessionSSHConfigCredentialMode credential_mode = 6;
+  // ClientProcessPath is the filesystem path of the local program that opened
+  // the connection. Best-effort and platform-specific (currently only resolved
+  // on macOS); empty when the process could not be identified.
+  string client_process_path = 7;
 }
 
 // SessionSSHConfigResponse is a response for SessionSSHConfig.
@@ -530,6 +538,10 @@ message OnNewDBConnectionRequest {
   // Fqdn is the fully-qualified domain name the database is reached at, used as
   // its display address in the list of recent VNet connections.
   string fqdn = 2;
+  // ClientProcessPath is the filesystem path of the local program that opened
+  // the connection. Best-effort and platform-specific (currently only resolved
+  // on macOS); empty when the process could not be identified.
+  string client_process_path = 3;
 }
 
 // OnNewDBConnectionResponse is a response for OnNewDBConnection.

@@ -531,7 +531,7 @@ func (p *fakeClientApp) GetVnetConfig(ctx context.Context, profileName, leafClus
 	return cfg, nil
 }
 
-func (p *fakeClientApp) OnNewSSHSession(ctx context.Context, profileName, rootClusterName, leafClusterName, address string) {
+func (p *fakeClientApp) OnNewSSHSession(ctx context.Context, profileName, rootClusterName, leafClusterName, address, clientProcessPath string) {
 	p.onNewSSHSessionCallCount.Add(1)
 }
 
@@ -540,7 +540,7 @@ func (p *fakeClientApp) PerformSessionMFACeremony(_ context.Context, _, _ string
 	return "test-challenge-name", nil
 }
 
-func (p *fakeClientApp) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey, _ string) error {
+func (p *fakeClientApp) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey, _, _ string) error {
 	p.onNewAppConnectionCallCount.Add(1)
 	return nil
 }
@@ -575,7 +575,7 @@ func (p *fakeClientApp) RequestedRouteToDatabases(dbName string) []*proto.RouteT
 	return returnedRoutes
 }
 
-func (p *fakeClientApp) OnNewDBConnection(_ context.Context, _ *vnetv1.DatabaseKey, _ string) error {
+func (p *fakeClientApp) OnNewDBConnection(_ context.Context, _ *vnetv1.DatabaseKey, _, _ string) error {
 	p.onNewDBConnectionCallCount.Add(1)
 	return nil
 }

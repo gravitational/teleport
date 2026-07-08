@@ -146,6 +146,17 @@ export type MainProcessClient = {
      */
     canceled: boolean;
   }>;
+  /**
+   * getAppIcon returns a data URL with the icon of the local program at the
+   * given executable path, for use as an `<img>` source. It is used to show
+   * which program opened a VNet connection.
+   *
+   * The icon is resolved through the OS via nativeImage.createThumbnailFromPath,
+   * which is only supported on macOS and Windows. On other platforms, or when
+   * the path cannot be read, it resolves to an empty string. Callers must handle
+   * the empty string by falling back to a text-only representation.
+   */
+  getAppIcon(path: string): Promise<string>;
   configService: ConfigService;
   fileStorage: FileStorage;
   /**
@@ -365,6 +376,7 @@ export enum MainProcessIpc {
   DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
   SaveTextToFile = 'main-process-save-text-to-file',
+  GetAppIcon = 'main-process-get-app-icon',
   ForceFocusWindow = 'main-process-force-focus-window',
   SelectDirectoryForDesktopSession = 'main-process-select-directory-for-desktop-session',
   CheckForAppUpdates = 'main-process-check-for-app-updates',

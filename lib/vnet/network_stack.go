@@ -476,7 +476,9 @@ func (ns *networkStack) handleTCP(req *tcp.ForwarderRequest) {
 		slog.DebugContext(ctx, "Could not identify the local process for this connection.", "error", err)
 	} else {
 		slog = slog.With("peer_process", peer)
-		//TODO: report the path to the Electron app.
+		// Carry the resolved process on the context so the connection callbacks
+		// can report it to the client application further down the handler chain.
+		ctx = contextWithPeerProcess(ctx, peer)
 		slog.InfoContext(ctx, "Local process opened a VNet connection.")
 	}
 

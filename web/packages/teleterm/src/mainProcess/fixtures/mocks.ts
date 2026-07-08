@@ -105,6 +105,10 @@ export class MockMainProcessClient implements MainProcessClient {
     });
   }
 
+  getAppIcon() {
+    return Promise.resolve('');
+  }
+
   fileStorage = createMockFileStorage();
 
   async forceFocusWindow() {}

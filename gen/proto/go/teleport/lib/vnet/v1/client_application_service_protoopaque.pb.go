@@ -2059,11 +2059,12 @@ func (b0 SignForAppResponse_builder) Build() *SignForAppResponse {
 
 // OnNewAppConnectionRequest is a request for OnNewAppConnection.
 type OnNewAppConnectionRequest struct {
-	state                 protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_AppKey     *AppKey                `protobuf:"bytes,1,opt,name=app_key,json=appKey,proto3"`
-	xxx_hidden_PublicAddr string                 `protobuf:"bytes,2,opt,name=public_addr,json=publicAddr,proto3"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state                        protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_AppKey            *AppKey                `protobuf:"bytes,1,opt,name=app_key,json=appKey,proto3"`
+	xxx_hidden_PublicAddr        string                 `protobuf:"bytes,2,opt,name=public_addr,json=publicAddr,proto3"`
+	xxx_hidden_ClientProcessPath string                 `protobuf:"bytes,3,opt,name=client_process_path,json=clientProcessPath,proto3"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *OnNewAppConnectionRequest) Reset() {
@@ -2105,12 +2106,23 @@ func (x *OnNewAppConnectionRequest) GetPublicAddr() string {
 	return ""
 }
 
+func (x *OnNewAppConnectionRequest) GetClientProcessPath() string {
+	if x != nil {
+		return x.xxx_hidden_ClientProcessPath
+	}
+	return ""
+}
+
 func (x *OnNewAppConnectionRequest) SetAppKey(v *AppKey) {
 	x.xxx_hidden_AppKey = v
 }
 
 func (x *OnNewAppConnectionRequest) SetPublicAddr(v string) {
 	x.xxx_hidden_PublicAddr = v
+}
+
+func (x *OnNewAppConnectionRequest) SetClientProcessPath(v string) {
+	x.xxx_hidden_ClientProcessPath = v
 }
 
 func (x *OnNewAppConnectionRequest) HasAppKey() bool {
@@ -2132,6 +2144,10 @@ type OnNewAppConnectionRequest_builder struct {
 	// PublicAddr is the public address of the app, used as its display address in
 	// the list of recent VNet connections.
 	PublicAddr string
+	// ClientProcessPath is the filesystem path of the local program that opened
+	// the connection. Best-effort and platform-specific (currently only resolved
+	// on macOS); empty when the process could not be identified.
+	ClientProcessPath string
 }
 
 func (b0 OnNewAppConnectionRequest_builder) Build() *OnNewAppConnectionRequest {
@@ -2140,6 +2156,7 @@ func (b0 OnNewAppConnectionRequest_builder) Build() *OnNewAppConnectionRequest {
 	_, _ = b, x
 	x.xxx_hidden_AppKey = b.AppKey
 	x.xxx_hidden_PublicAddr = b.PublicAddr
+	x.xxx_hidden_ClientProcessPath = b.ClientProcessPath
 	return m0
 }
 
@@ -2811,15 +2828,16 @@ func (b0 SignForUserTLSResponse_builder) Build() *SignForUserTLSResponse {
 
 // SessionSSHConfigRequest is a request for SessionSSHConfig.
 type SessionSSHConfigRequest struct {
-	state                     protoimpl.MessageState         `protogen:"opaque.v1"`
-	xxx_hidden_Profile        string                         `protobuf:"bytes,1,opt,name=profile,proto3"`
-	xxx_hidden_RootCluster    string                         `protobuf:"bytes,2,opt,name=root_cluster,json=rootCluster,proto3"`
-	xxx_hidden_LeafCluster    string                         `protobuf:"bytes,3,opt,name=leaf_cluster,json=leafCluster,proto3"`
-	xxx_hidden_Address        string                         `protobuf:"bytes,4,opt,name=address,proto3"`
-	xxx_hidden_User           string                         `protobuf:"bytes,5,opt,name=user,proto3"`
-	xxx_hidden_CredentialMode SessionSSHConfigCredentialMode `protobuf:"varint,6,opt,name=credential_mode,json=credentialMode,proto3,enum=teleport.lib.vnet.v1.SessionSSHConfigCredentialMode"`
-	unknownFields             protoimpl.UnknownFields
-	sizeCache                 protoimpl.SizeCache
+	state                        protoimpl.MessageState         `protogen:"opaque.v1"`
+	xxx_hidden_Profile           string                         `protobuf:"bytes,1,opt,name=profile,proto3"`
+	xxx_hidden_RootCluster       string                         `protobuf:"bytes,2,opt,name=root_cluster,json=rootCluster,proto3"`
+	xxx_hidden_LeafCluster       string                         `protobuf:"bytes,3,opt,name=leaf_cluster,json=leafCluster,proto3"`
+	xxx_hidden_Address           string                         `protobuf:"bytes,4,opt,name=address,proto3"`
+	xxx_hidden_User              string                         `protobuf:"bytes,5,opt,name=user,proto3"`
+	xxx_hidden_CredentialMode    SessionSSHConfigCredentialMode `protobuf:"varint,6,opt,name=credential_mode,json=credentialMode,proto3,enum=teleport.lib.vnet.v1.SessionSSHConfigCredentialMode"`
+	xxx_hidden_ClientProcessPath string                         `protobuf:"bytes,7,opt,name=client_process_path,json=clientProcessPath,proto3"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *SessionSSHConfigRequest) Reset() {
@@ -2889,6 +2907,13 @@ func (x *SessionSSHConfigRequest) GetCredentialMode() SessionSSHConfigCredential
 	return SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_UNSPECIFIED
 }
 
+func (x *SessionSSHConfigRequest) GetClientProcessPath() string {
+	if x != nil {
+		return x.xxx_hidden_ClientProcessPath
+	}
+	return ""
+}
+
 func (x *SessionSSHConfigRequest) SetProfile(v string) {
 	x.xxx_hidden_Profile = v
 }
@@ -2913,6 +2938,10 @@ func (x *SessionSSHConfigRequest) SetCredentialMode(v SessionSSHConfigCredential
 	x.xxx_hidden_CredentialMode = v
 }
 
+func (x *SessionSSHConfigRequest) SetClientProcessPath(v string) {
+	x.xxx_hidden_ClientProcessPath = v
+}
+
 type SessionSSHConfigRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -2929,6 +2958,10 @@ type SessionSSHConfigRequest_builder struct {
 	User string
 	// Selects the credential path for this request.
 	CredentialMode SessionSSHConfigCredentialMode
+	// ClientProcessPath is the filesystem path of the local program that opened
+	// the connection. Best-effort and platform-specific (currently only resolved
+	// on macOS); empty when the process could not be identified.
+	ClientProcessPath string
 }
 
 func (b0 SessionSSHConfigRequest_builder) Build() *SessionSSHConfigRequest {
@@ -2941,6 +2974,7 @@ func (b0 SessionSSHConfigRequest_builder) Build() *SessionSSHConfigRequest {
 	x.xxx_hidden_Address = b.Address
 	x.xxx_hidden_User = b.User
 	x.xxx_hidden_CredentialMode = b.CredentialMode
+	x.xxx_hidden_ClientProcessPath = b.ClientProcessPath
 	return m0
 }
 
@@ -4080,11 +4114,12 @@ func (b0 SignForDBResponse_builder) Build() *SignForDBResponse {
 
 // OnNewDBConnectionRequest is a request for OnNewDBConnection.
 type OnNewDBConnectionRequest struct {
-	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_DatabaseKey *DatabaseKey           `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3"`
-	xxx_hidden_Fqdn        string                 `protobuf:"bytes,2,opt,name=fqdn,proto3"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	state                        protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_DatabaseKey       *DatabaseKey           `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3"`
+	xxx_hidden_Fqdn              string                 `protobuf:"bytes,2,opt,name=fqdn,proto3"`
+	xxx_hidden_ClientProcessPath string                 `protobuf:"bytes,3,opt,name=client_process_path,json=clientProcessPath,proto3"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *OnNewDBConnectionRequest) Reset() {
@@ -4126,12 +4161,23 @@ func (x *OnNewDBConnectionRequest) GetFqdn() string {
 	return ""
 }
 
+func (x *OnNewDBConnectionRequest) GetClientProcessPath() string {
+	if x != nil {
+		return x.xxx_hidden_ClientProcessPath
+	}
+	return ""
+}
+
 func (x *OnNewDBConnectionRequest) SetDatabaseKey(v *DatabaseKey) {
 	x.xxx_hidden_DatabaseKey = v
 }
 
 func (x *OnNewDBConnectionRequest) SetFqdn(v string) {
 	x.xxx_hidden_Fqdn = v
+}
+
+func (x *OnNewDBConnectionRequest) SetClientProcessPath(v string) {
+	x.xxx_hidden_ClientProcessPath = v
 }
 
 func (x *OnNewDBConnectionRequest) HasDatabaseKey() bool {
@@ -4153,6 +4199,10 @@ type OnNewDBConnectionRequest_builder struct {
 	// Fqdn is the fully-qualified domain name the database is reached at, used as
 	// its display address in the list of recent VNet connections.
 	Fqdn string
+	// ClientProcessPath is the filesystem path of the local program that opened
+	// the connection. Best-effort and platform-specific (currently only resolved
+	// on macOS); empty when the process could not be identified.
+	ClientProcessPath string
 }
 
 func (b0 OnNewDBConnectionRequest_builder) Build() *OnNewDBConnectionRequest {
@@ -4161,6 +4211,7 @@ func (b0 OnNewDBConnectionRequest_builder) Build() *OnNewDBConnectionRequest {
 	_, _ = b, x
 	x.xxx_hidden_DatabaseKey = b.DatabaseKey
 	x.xxx_hidden_Fqdn = b.Fqdn
+	x.xxx_hidden_ClientProcessPath = b.ClientProcessPath
 	return m0
 }
 
@@ -4280,11 +4331,12 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x0fpss_salt_length\x18\x03 \x01(\x05H\x00R\rpssSaltLength\x88\x01\x01B\x12\n" +
 	"\x10_pss_salt_length\"2\n" +
 	"\x12SignForAppResponse\x12\x1c\n" +
-	"\tsignature\x18\x01 \x01(\fR\tsignature\"s\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"\xa3\x01\n" +
 	"\x19OnNewAppConnectionRequest\x125\n" +
 	"\aapp_key\x18\x01 \x01(\v2\x1c.teleport.lib.vnet.v1.AppKeyR\x06appKey\x12\x1f\n" +
 	"\vpublic_addr\x18\x02 \x01(\tR\n" +
-	"publicAddr\"\x1c\n" +
+	"publicAddr\x12.\n" +
+	"\x13client_process_path\x18\x03 \x01(\tR\x11clientProcessPath\"\x1c\n" +
 	"\x1aOnNewAppConnectionResponse\"v\n" +
 	"\x19OnInvalidLocalPortRequest\x128\n" +
 	"\bapp_info\x18\x01 \x01(\v2\x1d.teleport.lib.vnet.v1.AppInfoR\aappInfo\x12\x1f\n" +
@@ -4306,14 +4358,15 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\x125\n" +
 	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\"6\n" +
 	"\x16SignForUserTLSResponse\x12\x1c\n" +
-	"\tsignature\x18\x01 \x01(\fR\tsignature\"\x86\x02\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"\xb6\x02\n" +
 	"\x17SessionSSHConfigRequest\x12\x18\n" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\x12!\n" +
 	"\froot_cluster\x18\x02 \x01(\tR\vrootCluster\x12!\n" +
 	"\fleaf_cluster\x18\x03 \x01(\tR\vleafCluster\x12\x18\n" +
 	"\aaddress\x18\x04 \x01(\tR\aaddress\x12\x12\n" +
 	"\x04user\x18\x05 \x01(\tR\x04user\x12]\n" +
-	"\x0fcredential_mode\x18\x06 \x01(\x0e24.teleport.lib.vnet.v1.SessionSSHConfigCredentialModeR\x0ecredentialMode\"n\n" +
+	"\x0fcredential_mode\x18\x06 \x01(\x0e24.teleport.lib.vnet.v1.SessionSSHConfigCredentialModeR\x0ecredentialMode\x12.\n" +
+	"\x13client_process_path\x18\a \x01(\tR\x11clientProcessPath\"n\n" +
 	"\x18SessionSSHConfigResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
@@ -4357,10 +4410,11 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x125\n" +
 	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\"1\n" +
 	"\x11SignForDBResponse\x12\x1c\n" +
-	"\tsignature\x18\x01 \x01(\fR\tsignature\"t\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"\xa4\x01\n" +
 	"\x18OnNewDBConnectionRequest\x12D\n" +
 	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x12\x12\n" +
-	"\x04fqdn\x18\x02 \x01(\tR\x04fqdn\"\x1b\n" +
+	"\x04fqdn\x18\x02 \x01(\tR\x04fqdn\x12.\n" +
+	"\x13client_process_path\x18\x03 \x01(\tR\x11clientProcessPath\"\x1b\n" +
 	"\x19OnNewDBConnectionResponse*<\n" +
 	"\x04Hash\x12\x14\n" +
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +

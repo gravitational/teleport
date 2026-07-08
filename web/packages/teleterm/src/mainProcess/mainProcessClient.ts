@@ -112,6 +112,9 @@ export default function createMainProcessClient(): MainProcessClient {
     saveTextToFile(args) {
       return ipcInvoke(MainProcessIpc.SaveTextToFile, args);
     },
+    getAppIcon(path) {
+      return ipcInvoke(MainProcessIpc.GetAppIcon, path);
+    },
     openTerminalContextMenu,
     openTabContextMenu,
     configService: createConfigServiceClient(),
