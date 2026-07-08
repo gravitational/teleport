@@ -3219,7 +3219,7 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"DiscoveryConfig.header.metadata.expires"})
 										} else {
-											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 											tf.Attrs["expires"] = v
 										}
 									}
@@ -3588,7 +3588,7 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Tags"})
 												} else {
-													v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"])
+													v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"], preserveUnknown)
 													tf.Attrs["tags"] = v
 												}
 											}
@@ -4740,7 +4740,7 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.azure.ResourceTags"})
 												} else {
-													v := CopyToLabels(diags, obj.ResourceTags, t, tf.Attrs["tags"])
+													v := CopyToLabels(diags, obj.ResourceTags, t, tf.Attrs["tags"], preserveUnknown)
 													tf.Attrs["tags"] = v
 												}
 											}
@@ -5431,7 +5431,7 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.gcp.Tags"})
 												} else {
-													v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"])
+													v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"], preserveUnknown)
 													tf.Attrs["tags"] = v
 												}
 											}
@@ -6031,7 +6031,7 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.gcp.Labels"})
 												} else {
-													v := CopyToLabels(diags, obj.Labels, t, tf.Attrs["labels"])
+													v := CopyToLabels(diags, obj.Labels, t, tf.Attrs["labels"], preserveUnknown)
 													tf.Attrs["labels"] = v
 												}
 											}
@@ -6225,7 +6225,7 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.kube.Labels"})
 												} else {
-													v := CopyToLabels(diags, obj.Labels, t, tf.Attrs["labels"])
+													v := CopyToLabels(diags, obj.Labels, t, tf.Attrs["labels"], preserveUnknown)
 													tf.Attrs["labels"] = v
 												}
 											}
@@ -6650,7 +6650,7 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				if !ok {
 																					diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.access_graph.AWS.eks_audit_logs.Tags"})
 																				} else {
-																					v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"])
+																					v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"], preserveUnknown)
 																					tf.Attrs["tags"] = v
 																				}
 																			}

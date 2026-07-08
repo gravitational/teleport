@@ -1099,7 +1099,7 @@ func CopyInferenceModelToTerraformPreserveUnknown(ctx context.Context, obj *gith
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"InferenceModel.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -1888,7 +1888,7 @@ func CopyInferenceSecretToTerraformPreserveUnknown(ctx context.Context, obj *git
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"InferenceSecret.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -2475,7 +2475,7 @@ func CopyInferencePolicyToTerraformPreserveUnknown(ctx context.Context, obj *git
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"InferencePolicy.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -3201,7 +3201,7 @@ func CopyRetrievalModelToTerraformPreserveUnknown(ctx context.Context, obj *gith
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"RetrievalModel.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
