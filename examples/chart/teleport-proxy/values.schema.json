@@ -54,9 +54,18 @@
                     "$id": "#/properties/joinParams/tokenName",
                     "type": "string",
                     "default": ""
+                },
+                "azure":  {
+                    "$id": "#properties/joinParams/azure",
+                    "type": "object",
+                    "properties": {
+                        "clientId": {
+                            "$id": "#/properties/joinParams/azure/clientId",
+                            "type": "string"
+                        }
+                    }
                 }
-            },
-            "additionalProperties": true
+            }
         },
         "nameOverride": {
             "$id": "#/properties/nameOverride",

@@ -191,3 +191,37 @@ tests:
       - matchRegex:
           path: data.teleport\.yaml
           pattern: 'token_name: teleport-proxy'
+
+  - it: Sets user's Azure client ID
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: azure
+        tokenName: teleport-proxy
+        azure:
+          clientId: "abc-123"
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: 'azure:\s*\n\s*client_id:\s*abc-123'
+
+  - it: doesn't set join_params.azure if the user doesn't supply a value for clientId
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: azure
+        tokenName: teleport-proxy
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - notMatchRegex:
+          path: data.teleport\.yaml
+          pattern: "azure:"
+
+      

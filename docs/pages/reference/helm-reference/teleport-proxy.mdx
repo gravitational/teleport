@@ -44,7 +44,7 @@ needs to provision cloud-specific behavior.
 | `aws` | Adds AWS load balancer annotations to Service. | [Running an HA Teleport cluster using an AWS EKS Cluster](../../installation/self-hosted/helm-deployments/aws.mdx) |
 | `gcp` | No custom behavior needed as of this release. | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../installation/self-hosted/helm-deployments/gcp.mdx) |
 | `azure` | No custom behavior needed as of this release. | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../installation/self-hosted/helm-deployments/azure.mdx) |
-| `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode [`proxy.teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../installation/self-hosted/helm-deployments/custom.mdx) |
+| `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode [`teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../installation/self-hosted/helm-deployments/custom.mdx) |
 
 <Admonition type="warning" title="Version Compatibility">
 The chart is versioned with Teleport. No compatibility guarantees are ensured

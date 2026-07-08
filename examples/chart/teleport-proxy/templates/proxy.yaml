@@ -15,7 +15,7 @@ putting something in the top-level fields we do validate.
 {{- $_ := set $proxy.Values "teleportConfig" (include "teleport-proxy.teleportConfig" $proxy | fromYaml) -}}
 {{- $_ := set $proxy.Values.serviceAccount "name" (include "teleport-proxy.serviceAccountName" $proxy) -}}
 {{- $_ := set $proxy.Values "forceHAReplicas" true -}}{{/* This feature is to support legacy behavior in teleport-cluster. For teleport-proxy we always set replicas*/}}
-{{- if eq (coalesce (get (get (default dict (get (default dict $proxy.Values.teleportConfig) "teleport")) "join_params") "method") $proxy.Values.joinParams.method) "kubernetes" -}}
+{{- if eq (coalesce (dig "teleportConfig" "teleport" "join_params" "method" "" $proxy.Values.AsMap) (dig "joinParams" "method" "" $proxy.Values.AsMap)) "kubernetes" -}}
 {{- $_ := set $proxy.Values "serviceAccountTokenAudience" (coalesce $proxy.Values.serviceAccountTokenAudience $proxy.Values.clusterName) -}}
 {{- $_ := set $proxy.Values "serviceAccountTokenExpirationSeconds" (coalesce $proxy.Values.serviceAccountTokenExpirationSeconds 600) -}}
 {{- end -}}

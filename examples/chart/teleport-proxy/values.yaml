@@ -39,13 +39,19 @@ authServer: ""
 #       `tctl tokens add --type=proxy ...`
 joinParams:
 
-# joinParams.method(string) -- How to join the cluster.
-#
-# See [Join Methods](../../reference/deployment/join-methods.mdx)
+  # joinParams.method(string) -- How to join the cluster.
+  #
+  # See [Join Methods](../../reference/deployment/join-methods.mdx)
   method: kubernetes
   
-# joinParams.tokenName(string) -- The name of the Teleport join token.
+  # joinParams.tokenName(string) -- The name of the Teleport join token.
   tokenName: ""
+
+  # joinParams.azure(object) -- Azure config params. See [Joining Services via Azure](../../installation/agents/azure/)
+  azure:
+    # joinParams.azure.clientId(string) -- Azure client ID to use for joining.
+    clientId: ""
+
 
 ##################################################
 # Values that you may need to change.

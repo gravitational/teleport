@@ -36,7 +36,7 @@ teleport-cluster chart instead.
 
 | Type | Default |
 |------|---------|
-| `object` | `{"method":"kubernetes","tokenName":""}` |
+| `object` | `{"azure":{"clientId":""},"method":"kubernetes","tokenName":""}` |
 
 `joinParams` are parameters for joining the Teleport Cluster.
 
@@ -70,6 +70,22 @@ See [Join Methods](../../reference/deployment/join-methods.mdx)
 | `string` | `""` |
 
 `joinParams.tokenName` The name of the Teleport join token.
+
+### `joinParams.azure`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"clientId":""}` |
+
+`joinParams.azure` Azure config params. See [Joining Services via Azure](../../installation/agents/azure/)
+
+#### `joinParams.azure.clientId`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`joinParams.azure.clientId` Azure client ID to use for joining.
 
 ## `teleportVersionOverride`
 
