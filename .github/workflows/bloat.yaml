@@ -81,7 +81,7 @@ jobs:
         id: build_base
         run: |
           make WEBASSETS_SKIP_BUILD=1 BUILDDIR=base_build binaries
-          cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh,teleport-update,fdpass-teleport,sessionhelper" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ env.REVIWERS }}"  > ~/teleport_base_build_stats
+          cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh,teleport-update,fdpass-teleport,sessionhelper" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ env.REVIEWERS }}"  > ~/teleport_base_build_stats
           echo "base_stats_file=~/teleport_base_build_stats" >> $GITHUB_OUTPUT
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
 
