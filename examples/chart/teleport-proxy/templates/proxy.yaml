@@ -11,7 +11,7 @@ putting something in the top-level fields we do validate.
 {{- $_ := set $proxy "Values" (mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy) -}}
 
 {{/* TODO:(adamcarheden): The lib chart shouldn't take auth service or token. The caller should specify it in the teleportConfig. */}}
-{{- $_ := set $proxy.Values "teleportAuthService" (include "teleport-proxy.auth_server" $proxy) -}}
+{{- $_ := set $proxy.Values "teleportAuthService" (include "teleport-proxy.authServer" $proxy) -}}
 {{- if eq $proxy.Values.serviceAccountTokenExpirationSeconds nil -}}
 {{- $_ := unset $proxy.Values "serviceAccountTokenExpirationSeconds" -}}
 {{- end -}}
@@ -19,7 +19,7 @@ putting something in the top-level fields we do validate.
 {{- $_ := set $proxy.Values "teleportConfig" (include "teleport-proxy.teleportConfig" $proxy | fromYaml) -}}
 {{- $_ := set $proxy.Values.serviceAccount "name" (include "teleport-proxy.serviceAccountName" $proxy) -}}
 {{- $_ := set $proxy.Values "forceHAReplicas" (not (empty (get (default (dict) .Values.proxy.highAvailability) "replicaCount"))) -}}
-{{- if eq (coalesce (get (default dict (get (default dict (get (default dict $proxy.Values.teleportConfig) "teleport")) "join_params")) "method") $proxy.Values.join_params.method) "kubernetes" -}}
+{{- if eq (coalesce (get (get (default dict (get (default dict $proxy.Values.teleportConfig) "teleport")) "join_params") "method") $proxy.Values.joinParams.method) "kubernetes" -}}
 {{- $_ := set $proxy.Values "serviceAccountTokenAudience" (coalesce $proxy.Values.serviceAccountTokenAudience $proxy.Values.clusterName) -}}
 {{- $_ := set $proxy.Values "serviceAccountTokenExpirationSeconds" (coalesce $proxy.Values.serviceAccountTokenExpirationSeconds 600) -}}
 {{- end -}}

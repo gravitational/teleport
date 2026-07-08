@@ -6,10 +6,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       highAvailability:
         certManager:
           enabled: true
@@ -59,10 +59,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
     capabilities:
       majorVersion: 1
       minorVersion: 21
@@ -95,10 +95,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: iam
-        token_name: placeholder
+        tokenName: placeholder
       proxy:
         teleportConfig:
           teleport:
@@ -123,10 +123,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: iam
-        token_name: placeholder
+        tokenName: placeholder
       serviceAccountTokenAudience: custom-audience
       serviceAccountTokenExpirationSeconds: 1200
       proxy:
@@ -180,10 +180,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       readinessProbe:
         initialDelaySeconds: 9
         periodSeconds: 10
@@ -217,10 +217,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       # we set an extra env so contrainers[0].env always exists
       # this makes testing easier
       extraEnv:
@@ -249,10 +249,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       tls:
         existingSecretName: my-certs
     documentIndex: 1
@@ -270,10 +270,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       tls:
         existingSecretName: my-certs
       proxy:

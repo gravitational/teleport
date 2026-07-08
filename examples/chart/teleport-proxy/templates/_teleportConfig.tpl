@@ -3,11 +3,11 @@
   required.
 */}}
 {{- define "teleport-proxy.generatedTeleportConfig" -}}
-{{- $joinParams := mustDeepCopy .Values.join_params -}}
 teleport:
-  auth_server: {{ include "teleport-proxy.auth_server" . | quote }}
+  auth_server: {{ include "teleport-proxy.authServer" . | quote }}
   join_params:
-{{- toYaml $joinParams | nindent 4 }}
+    method: {{ .Values.joinParams.method | quote }}
+    token_name: {{ .Values.joinParams.tokenName | quote }}
 {{- end -}}
 
 {{- define "teleport-proxy.teleportConfig" -}}

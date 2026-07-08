@@ -19,14 +19,14 @@ The `teleport-proxy` chart configuration/values generally parallel the
 `teleport-cluster` configuration/values. The three required fields are:
 
 * `clusterName` - Should match `teleport-cluster`
-* `auth_server` - The address these Proxies can use to connect to Teleport Auth
+* `authServer` - The address these Proxies can use to connect to Teleport Auth
   Service instances. As of this release, Proxies must have direct IP/L4 connectivity to
   Teleport Auth Service instances -- routing through an L7 load balancer using SNI is not
   yet supported.
-* `join_params` - How these Teleport Proxies can authenticate to the Teleport
+* `joinParams` - How these Teleport Proxies can authenticate to the Teleport
   Cluster.
 
-These `auth_server` and `join_params` fields differ from `teleport-cluster` in
+These `authServer` and `joinParams` fields differ from `teleport-cluster` in
 that `teleport-cluster` can generate them automatically because its proxies are
 running on the same Kubernetes cluster as the Auth Service. See the Full
 Reference below for details.

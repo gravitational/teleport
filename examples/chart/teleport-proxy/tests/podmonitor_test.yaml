@@ -5,10 +5,10 @@ tests:
   - it: does not create a PodMonitor by default
     set:
       clusterName: test-kube-cluster-name
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
     asserts:
       - hasDocuments:
           count: 0
@@ -16,10 +16,10 @@ tests:
   - it: creates a PodMonitor when enabled
     set:
       clusterName: test-kube-cluster-name
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       podMonitor:
         enabled: true
     asserts:
@@ -31,10 +31,10 @@ tests:
   - it: configures scrape interval if provided
     set:
       clusterName: test-kube-cluster-name
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       podMonitor:
         enabled: true
         interval: 2m

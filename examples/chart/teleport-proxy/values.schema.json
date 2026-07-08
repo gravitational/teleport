@@ -3,8 +3,8 @@
     "type": "object",
     "required": [
         "clusterName",
-        "auth_server",
-        "join_params",
+        "authServer",
+        "joinParams",
         "enterprise",
         "chartMode",
         "validateConfigOnDeploy",
@@ -32,49 +32,31 @@
             "type": "string",
             "default": ""
         },
-        "auth_server": {
-            "$id": "#/properties/auth_server",
+        "authServer": {
+            "$id": "#/properties/authServer",
             "type": "string",
             "default": ""
         },
-        "join_params": {
-            "$id": "#/properties/join_params",
+        "joinParams": {
+            "$id": "#/properties/joinParams",
             "type": "object",
             "required": [
                 "method",
-                "token_name"
+                "tokenName"
             ],
             "properties": {
                 "method": {
-                    "$id": "#/properties/join_params/method",
+                    "$id": "#/properties/joinParams/method",
                     "type": "string",
                     "default": ""
                 },
-                "token_name": {
-                    "$id": "#/properties/join_params/token_name",
+                "tokenName": {
+                    "$id": "#/properties/joinParams/tokenName",
                     "type": "string",
                     "default": ""
                 }
             },
             "additionalProperties": true
-        },
-        "joinTokenSecret": {
-            "$id": "#/properties/joinTokenSecret",
-            "type":"object",
-            "default": {},
-            "required": ["create", "name"],
-            "properties": {
-                "create": {
-                    "$id":"#/properties/joinTokenSecret/create",
-                    "type": "boolean",
-                    "default": "true"
-                },
-                "name": {
-                    "$id":"#/properties/joinTokenSecret/name",
-                    "type": "string",
-                    "default": "teleport-proxy-join-token"
-                }
-            }
         },
         "nameOverride": {
             "$id": "#/properties/nameOverride",

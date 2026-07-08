@@ -2,13 +2,13 @@ suite: Proxy Wrapper Config
 templates:
   - proxy.yaml
 tests:
-  - it: appends :3025 to auth_server when no port is set
+  - it: appends :3025 to authServer when no port is set
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -17,13 +17,13 @@ tests:
           path: data.teleport\.yaml
           pattern: 'auth_server: teleport-auth\.example\.com:3025'
 
-  - it: preserves auth_server when an explicit port is set
+  - it: preserves authServer when an explicit port is set
     set:
       clusterName: teleport.example.com
-      auth_server: auth.example.com:9999
-      join_params:
+      authServer: auth.example.com:9999
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -32,13 +32,13 @@ tests:
           path: data.teleport\.yaml
           pattern: 'auth_server: auth\.example\.com:9999'
 
-  - it: lets proxy.teleportConfig override generated teleport.auth_server
+  - it: lets proxy.teleportConfig override generated teleport.authServer
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       proxy:
         teleportConfig:
           teleport:
@@ -57,10 +57,10 @@ tests:
   - it: writes join_params into the generated teleport config
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: iam
-        token_name: proxy-join
+        tokenName: proxy-join
     documentIndex: 0
     asserts:
       - isKind:
@@ -69,30 +69,13 @@ tests:
           path: data.teleport\.yaml
           pattern: 'join_params:\n\s+method: iam\n\s+token_name: proxy-join'
 
-  - it: preserves nested join_params fields in the generated teleport config
+  - it: lets proxy.teleportConfig override generated teleport.joinParams
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
-        method: azure
-        token_name: proxy-join
-        azure:
-          client_id: 11111111-2222-3333-4444-555555555555
-    documentIndex: 0
-    asserts:
-      - isKind:
-          of: ConfigMap
-      - matchRegex:
-          path: data.teleport\.yaml
-          pattern: 'join_params:\n\s+azure:\n\s+client_id: 11111111-2222-3333-4444-555555555555\n\s+method: azure\n\s+token_name: proxy-join'
-
-  - it: lets proxy.teleportConfig override generated teleport.join_params
-    set:
-      clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: generated-token
+        tokenName: generated-token
       proxy:
         teleportConfig:
           teleport:
@@ -113,10 +96,10 @@ tests:
   - it: preserves generated defaults when proxy.teleportConfig overrides only one leaf
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       proxy:
         teleportConfig:
           proxy_service:
@@ -141,43 +124,43 @@ tests:
   - it: fails when join_params.method is empty
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: ""
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
     asserts:
       - failedTemplate:
-          errorMessage: "join_params.method is required"
+          errorMessage: "joinParams.method is required"
 
-  - it: fails when join_params.token_name is empty
+  - it: fails when join_params.tokenName is empty
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
+      authServer: teleport-auth.example.com
       join_params:
         method: kubernetes
-        token_name: ""
+        tokenName: ""
     asserts:
       - failedTemplate:
-          errorMessage: "join_params.token_name is required"
+          errorMessage: "joinParams.tokenName is required"
 
-  - it: fails when join_params.method is 'token'
+  - it: fails when joinParams.method is 'token'
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: "token"
-        token_name: "my-token"
+        tokenName: "my-token"
     asserts:
       - failedTemplate:
           errorMessage: "Secret join methods ('token' and 'bound_keypair') aren't supported by this Helm chart. Please consider the more secure delegated join methods. See https://goteleport.com/docs/reference/deployment/join-methods/"
 
-  - it: fails when join_params.method is 'bound_keypair'
+  - it: fails when joinParams.method is 'bound_keypair'
     set:
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: "bound_keypair" 
-        token_name: "my-token"
+        tokenName: "my-token"
     asserts:
       - failedTemplate:
           errorMessage: "Secret join methods ('token' and 'bound_keypair') aren't supported by this Helm chart. Please consider the more secure delegated join methods. See https://goteleport.com/docs/reference/deployment/join-methods/"
@@ -186,10 +169,10 @@ tests:
     set:
       chartMode: scratch
       clusterName: teleport.example.com
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
     documentIndex: 0
     asserts:
       - isKind:

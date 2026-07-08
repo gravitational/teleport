@@ -1,8 +1,8 @@
 clusterName: test-cluster
-auth_server: teleport-auth.example.com
-join_params:
+authServer: teleport-auth.example.com
+joinParams:
   method: kubernetes
-  token_name: teleport-proxy
+  tokenName: teleport-proxy
 chartMode: aws
 aws:
   region: us-west-2

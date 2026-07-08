@@ -19,26 +19,26 @@ chart, this typically means adding the external IP of this proxy's load-balancer
 to your geography-aware DNS service or putting it behind the load balancer for the Anycast
 VIP used by your existing Teleport cluster.
 
-## `auth_server`
+## `authServer`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`auth_server` the address this proxy should use to contact the Auth
+`authServer` the address this proxy should use to contact the Auth
 service. This should be
 be an <IP>:<PORT> for an internal network path to the auth service. Port
 defaults to 3025 if not specified.
 If running on the same kube cluster as the auth service, consider using the
 teleport-cluster chart instead.
 
-## `join_params`
+## `joinParams`
 
 | Type | Default |
 |------|---------|
-| `object` | `{"method":"kubernetes","token_name":""}` |
+| `object` | `{"method":"kubernetes","tokenName":""}` |
 
-`join_params` are parameters for joining the Teleport Cluster.
+`joinParams` are parameters for joining the Teleport Cluster.
 
 To use this chart, you must pre-provision a Teleport Provision Token this
 proxy can use to authenticate to the cluster. Configure the token name and
@@ -53,82 +53,23 @@ See also:
 To create the token, see docs ([Terraform](../../reference/infrastructure-as-code/terraform-provider/resources/provision_token.mdx) or [tctl](../../reference/cli/tctl.mdx#tctl-tokens-add)):
       `tctl tokens add --type=proxy ...`
 
-### `join_params.method`
+### `joinParams.method`
 
 | Type | Default |
 |------|---------|
 | `string` | `"kubernetes"` |
 
-`join_params.method` How to join the cluster.
+`joinParams.method` How to join the cluster.
 
-Running on eks/aks/gke? Consider cloud-specific Workload Identity instead of Kubernetes:
-* [AWS](../../reference/deployment/join-methods.mdx#aws-iam-role-iam)
-* [Azure](../../reference/deployment/join-methods.mdx)#azure-managed-identity-azure
-* [GCP](../../reference/deployment/join-methods.mdx#gcp-service-account-gcp)
+See [Join Methods](../../reference/deployment/join-methods.mdx)
 
-### `join_params.token_name`
+### `joinParams.tokenName`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`join_params.token_name` The name of the Teleport join token.
-
-If method is 'token' and joinTokenSecret.create is true, token_name is
-actually the token secret value obtained from running `tctl tokens add`.
-This is **NOT** recommended. If possible, use one of the join methods that
-doesn't require a secret or pre-create the secret to keep it out of helm
-values.
-
-## `joinTokenSecret`
-
-`joinTokenSecret` manages the join token secret for when `join_params.method=token`.
-See join_params. The join token is only sensitive for the `token` method, so
-this parameter has no effect for other join methods.
-
-### `joinTokenSecret.create`
-
-| Type | Default |
-|------|---------|
-| `bool` | `true` |
-
-`joinTokenSecret.create` controls whether this chart creates the
-Kubernetes `Secret` containing the Teleport join token.
-
-* If true, set join_params.token_name to the secret value.
-* If false, you must pre-create a Kubernetes Secret with the configured name
-in the Helm release namespace.
-
-### `joinTokenSecret.name`
-
-| Type | Default |
-|------|---------|
-| `string` | `"teleport-proxy-join-token"` |
-
-`joinTokenSecret.name` is the name of the Kubernetes Secret
-containing the Teleport join token used by the chart.
-
-To create your own join token secret, you can use a command like this:
-
-```code
-$ kubectl --namespace teleport create secret generic my-token-secret --from-literal=auth-token=<replace-with-actual-token>
-```
-
-<Admonition type="note">
-  The key used for the auth token inside the secret must be `auth-token`, as in the command above.
-</Admonition>
-
-For example:
-
-```yaml
-joinTokenSecret:
-  create: false
-  name: my-token-secret
-
-joinParams:
-  method: "token"
-  tokenName: ""
-```
+`joinParams.tokenName` The name of the Teleport join token.
 
 ## `teleportVersionOverride`
 
@@ -250,7 +191,11 @@ teleportConfig:
 |------|---------|
 | `string` | `"separate"` |
 
-`proxyListenerMode` controls TLS routing. In 'multiplex' mode, all
+`proxyListenerMode` controls TLS routing.
+This must be set to the same value cluster-wide (i.e. in the
+`teleport-cluster` chart or other instances of this chart.)
+
+In 'multiplex' mode, all
 client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
 The "separate" mode will not utilize TLS routing and operate in
 backwards-compatibility mode.
@@ -409,7 +354,7 @@ Defaults to `{prometheus: default}` which seems to be the common default prometh
 
 | Type | Default |
 |------|---------|
-| `object` | `{"certManager":{"addCommonName":false,"addPublicAddrs":false,"enabled":false,"issuerGroup":"cert-manager.io","issuerKind":"Issuer","issuerName":""},"minReadySeconds":15,"podDisruptionBudget":{"enabled":false,"minAvailable":1},"replicaCount":1,"requireAntiAffinity":false}` |
+| `object` | `{"certManager":{"addCommonName":false,"addPublicAddrs":false,"enabled":false,"issuerGroup":"cert-manager.io","issuerKind":"Issuer","issuerName":""},"minReadySeconds":15,"podDisruptionBudget":{"enabled":false,"minAvailable":1},"replicaCount":2,"requireAntiAffinity":false}` |
 
 `highAvailability` contains settings controlling how Teleport pods are
 replicated and scheduled. This allows Teleport to run in a highly-available
@@ -427,7 +372,7 @@ set `proxy.highAvailability.replicaCount: 1`.
 
 | Type | Default |
 |------|---------|
-| `int` | `1` |
+| `int` | `2` |
 
 `highAvailability.replicaCount` controls the amount of pod replicas. The `highAvailability` comment describes
 the replication requirements.
@@ -676,7 +621,7 @@ NOTE: If affinity is set here, highAvailability.requireAntiAffinity cannot also 
 
 | Type | Default |
 |------|---------|
-| `object` | `{"certSecret":{},"config":{},"deployment":{},"ingress":{},"joinTokenSecret":{},"pod":{},"service":{},"serviceAccount":{}}` |
+| `object` | `{"certSecret":{},"config":{},"deployment":{},"ingress":{},"pod":{},"service":{},"serviceAccount":{}}` |
 
 `annotations` to apply, see [kubernetes annotations](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
@@ -695,14 +640,6 @@ NOTE: If affinity is set here, highAvailability.requireAntiAffinity cannot also 
 | `object` | `{}` |
 
 `annotations.deployment` for the Deployment
-
-### `annotations.joinTokenSecret`
-
-| Type | Default |
-|------|---------|
-| `object` | `{}` |
-
-`annotations.joinTokenSecret` for the join token Secret
 
 ### `annotations.pod`
 
@@ -816,22 +753,6 @@ is true.
 
 `extraLabels.jobPod` are labels to set on the Pods created by the
 Job run by the Helm hook.
-
-### `extraLabels.joinTokenSecret`
-
-| Type | Default |
-|------|---------|
-| `object` | `{}` |
-
-`extraLabels.joinTokenSecret` labels to add to the join token secret
-
-### `extraLabels.persistentVolumeClaim`
-
-| Type | Default |
-|------|---------|
-| `object` | `{}` |
-
-`extraLabels.persistentVolumeClaim` are labels to set on the PersistentVolumeClaim.
 
 ### `extraLabels.pod`
 

@@ -15,15 +15,15 @@
 # VIP used by your existing Teleport cluster.
 clusterName: ""
 
-# auth_server(string) -- the address this proxy should use to contact the Auth
+# authServer(string) -- the address this proxy should use to contact the Auth
 # service. This should be
 # be an <IP>:<PORT> for an internal network path to the auth service. Port
 # defaults to 3025 if not specified.
 # If running on the same kube cluster as the auth service, consider using the
 # teleport-cluster chart instead.
-auth_server: ""
+authServer: ""
 
-# join_params(object) -- are parameters for joining the Teleport Cluster.
+# joinParams(object) -- are parameters for joining the Teleport Cluster.
 #
 # To use this chart, you must pre-provision a Teleport Provision Token this
 # proxy can use to authenticate to the cluster. Configure the token name and
@@ -37,62 +37,19 @@ auth_server: ""
 #
 # To create the token, see docs ([Terraform](../../reference/infrastructure-as-code/terraform-provider/resources/provision_token.mdx) or [tctl](../../reference/cli/tctl.mdx#tctl-tokens-add)):
 #       `tctl tokens add --type=proxy ...`
-join_params:
+joinParams:
 
-# join_params.method(string) -- How to join the cluster.
+# joinParams.method(string) -- How to join the cluster.
 #
 # See [Join Methods](../../reference/deployment/join-methods.mdx)
   method: kubernetes
   
-# join_params.token_name(string) -- The name of the Teleport join token.
-#
-# If method is 'token' and joinTokenSecret.create is true, token_name is
-# actually the token secret value obtained from running `tctl tokens add`.
-# This is **NOT** recommended. If possible, use one of the join methods that
-# doesn't require a secret or pre-create the secret to keep it out of helm
-# values.
-  token_name: ""
+# joinParams.tokenName(string) -- The name of the Teleport join token.
+  tokenName: ""
 
 ##################################################
 # Values that you may need to change.
 ##################################################
-
-# joinTokenSecret -- manages the join token secret for when `join_params.method=token`.
-# See join_params. The join token is only sensitive for the `token` method, so
-# this parameter has no effect for other join methods.
-joinTokenSecret:
-  # joinTokenSecret.create(bool) -- controls whether this chart creates the
-  # Kubernetes `Secret` containing the Teleport join token.
-  #
-  # * If true, set join_params.token_name to the secret value.
-  # * If false, you must pre-create a Kubernetes Secret with the configured name
-  # in the Helm release namespace.
-  create: true
-  # joinTokenSecret.name(string) -- is the name of the Kubernetes Secret
-  # containing the Teleport join token used by the chart.
-  #
-  # To create your own join token secret, you can use a command like this:
-  #
-  # ```code
-  # $ kubectl --namespace teleport create secret generic my-token-secret --from-literal=auth-token=<replace-with-actual-token>
-  # ```
-  #
-  # <Admonition type="note">
-  #   The key used for the auth token inside the secret must be `auth-token`, as in the command above.
-  # </Admonition>
-  #
-  # For example:
-  #
-  # ```yaml
-  # joinTokenSecret:
-  #   create: false
-  #   name: my-token-secret
-  #
-  # joinParams:
-  #   method: "token"
-  #   tokenName: ""
-  # ```
-  name: teleport-proxy-join-token
 
 # teleportVersionOverride(string) -- is the version of teleport image, if
 # different from chart version in Chart.yaml.
@@ -480,8 +437,6 @@ annotations:
   config: {}
   # annotations.deployment(object) -- for the Deployment
   deployment: {}
-  # annotations.joinTokenSecret(object) -- for the join token Secret
-  joinTokenSecret: {}
   # annotations.pod(object) -- for each Pod in the Deployment
   pod: {}
   # annotations.service(object) -- for the Service object
@@ -520,8 +475,6 @@ extraLabels:
   # extraLabels.jobPod(object) -- are labels to set on the Pods created by the
   # Job run by the Helm hook.
   jobPod: {}
-  # extraLabels.joinTokenSecret(object) -- labels to add to the join token secret
-  joinTokenSecret: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
   # Deployment.
   pod: {}

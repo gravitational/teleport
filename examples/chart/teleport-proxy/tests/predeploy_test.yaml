@@ -6,10 +6,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
     asserts:
       - isKind:
           of: ConfigMap
@@ -48,10 +48,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       extraLabels:
         job:
           foo: bar
@@ -78,10 +78,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       extraLabels:
         jobPod:
           foo: bar
@@ -108,10 +108,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       extraLabels:
         config:
           foo: bar
@@ -138,10 +138,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
     documentIndex: 3
     asserts:
       - isKind:
@@ -157,10 +157,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       serviceAccount:
         name: helm-test-sa
     documentIndex: 3
@@ -178,10 +178,10 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-      auth_server: teleport-auth.example.com
-      join_params:
+      authServer: teleport-auth.example.com
+      joinParams:
         method: kubernetes
-        token_name: teleport-proxy
+        tokenName: teleport-proxy
       serviceAccount:
         name: helm-test-sa
         create: false
