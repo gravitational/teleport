@@ -1,4 +1,4 @@
-.version: &version "18.9.2"
+.version: &version "18.11.0-dev.alexh.1"
 
 name: teleport-kube-updater
 apiVersion: v2
