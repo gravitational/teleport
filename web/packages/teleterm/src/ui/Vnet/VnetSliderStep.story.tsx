@@ -21,6 +21,7 @@ import { useEffect } from 'react';
 import { Box } from 'design';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
+  ConnectionStat,
   RecentConnection,
   RecentConnectionKind,
   WindowsServiceStatus,
@@ -47,6 +48,7 @@ type StoryProps = {
   appDnsZones: string[];
   clusters: string[];
   recentConnections: RecentConnection[];
+  connectionStats: ConnectionStat[];
   sshConfigured: boolean;
   fetchStatus:
     | 'success'
@@ -69,6 +71,7 @@ const defaultArgs: StoryProps = {
   appDnsZones: ['teleport.example.com', 'company.test'],
   clusters: ['teleport.example.com'],
   recentConnections: [],
+  connectionStats: [],
   sshConfigured: false,
   fetchStatus: 'success',
   runDiagnostics: 'success',
@@ -245,6 +248,21 @@ function VnetSliderStep(props: StoryProps) {
     then: () => Promise.resolve(),
   })) as unknown as typeof appContext.vnet.getRecentConnections;
 
+  appContext.vnet.getConnectionStats = (() => ({
+    responses: {
+      onMessage: (
+        callback: (response: { stats: ConnectionStat[] }) => void
+      ) => {
+        callback({ stats: props.connectionStats });
+        return () => {};
+      },
+      onNext: () => () => {},
+      onComplete: () => () => {},
+      onError: () => () => {},
+    },
+    then: () => Promise.resolve(),
+  })) as unknown as typeof appContext.vnet.getConnectionStats;
+
   if (props.runDiagnostics === 'processing') {
     appContext.vnet.runDiagnostics = () => pendingPromise;
   } else {
@@ -380,6 +398,66 @@ export const WithRecentConnections: StoryObj<StoryProps> = {
         ),
         // No process identified (e.g. non-macOS), so no icon or "Opened by".
         lastClientProcessPath: '',
+      },
+    ],
+  },
+};
+
+export const WithConnectionStats: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    connectionStats: [
+      {
+        kind: RecentConnectionKind.APP,
+        cluster: 'teleport.example.com',
+        leafCluster: '',
+        displayName: 'grafana.teleport.example.com',
+        port: 0,
+        successfulConnections: 12n,
+        failedConnections: 0n,
+        bytesTx: 1_300_000n,
+        bytesRx: 15_700_000n,
+        bytesTxPerSec: 12_000n,
+        bytesRxPerSec: 250_000n,
+      },
+      {
+        kind: RecentConnectionKind.APP,
+        cluster: 'teleport.example.com',
+        leafCluster: '',
+        displayName: 'multiport.teleport.example.com',
+        port: 8443,
+        successfulConnections: 2n,
+        failedConnections: 3n,
+        bytesTx: 4_200n,
+        bytesRx: 0n,
+        bytesTxPerSec: 0n,
+        bytesRxPerSec: 0n,
+      },
+      {
+        kind: RecentConnectionKind.SSH,
+        cluster: 'teleport.example.com',
+        leafCluster: '',
+        displayName: 'node-01.teleport.example.com:0',
+        port: 0,
+        successfulConnections: 4n,
+        failedConnections: 1n,
+        bytesTx: 52_000n,
+        bytesRx: 1_100_000n,
+        bytesTxPerSec: 0n,
+        bytesRxPerSec: 0n,
+      },
+      {
+        kind: RecentConnectionKind.DATABASE,
+        cluster: 'teleport.example.com',
+        leafCluster: 'leaf.example.com',
+        displayName: 'postgres-main.leaf.example.com',
+        port: 0,
+        successfulConnections: 7n,
+        failedConnections: 0n,
+        bytesTx: 830_000n,
+        bytesRx: 9_400_000n,
+        bytesTxPerSec: 1_500n,
+        bytesRxPerSec: 48_000n,
       },
     ],
   },

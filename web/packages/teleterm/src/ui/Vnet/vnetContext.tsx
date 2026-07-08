@@ -31,6 +31,7 @@ import {
 import { Action } from 'design/Alert';
 import {
   BackgroundItemStatus,
+  ConnectionStat,
   GetServiceInfoResponse,
   RecentConnection,
   WindowsServiceStatus,
@@ -83,6 +84,13 @@ export type VnetContext = {
    * while VNet is running and cleared when it stops.
    */
   recentConnections: RecentConnection[];
+  /**
+   * The aggregated per-target connection statistics reported by the VNet admin
+   * process. All counters are absolute values accumulated since VNet started.
+   * Populated by a stream that is open while VNet is running and cleared when
+   * it stops.
+   */
+  connectionStats: ConnectionStat[];
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
   /**
@@ -299,6 +307,8 @@ export const VnetContextProvider: FC<
   const [recentConnections, setRecentConnections] = useState<
     RecentConnection[]
   >([]);
+
+  const [connectionStats, setConnectionStats] = useState<ConnectionStat[]>([]);
 
   /**
    * Calculates whether the button for running diagnostics should be disabled. If it should be
@@ -562,6 +572,41 @@ export const VnetContextProvider: FC<
     [status.value, vnet, logger]
   );
 
+  useEffect(
+    function subscribeToConnectionStats() {
+      if (status.value !== 'running') {
+        return;
+      }
+
+      const abortController = new AbortController();
+      // aborted distinguishes the error the stream emits when we abort it on
+      // cleanup from a genuine stream error.
+      let aborted = false;
+      const stream = vnet.getConnectionStats(
+        {},
+        { abort: cloneAbortSignal(abortController.signal) }
+      );
+      stream.responses.onMessage(({ stats }) => {
+        setConnectionStats(stats);
+      });
+      stream.responses.onError(error => {
+        if (aborted) {
+          return;
+        }
+        // Keep the last-known stats rather than clearing them on a transient
+        // error.
+        logger.error('Error while streaming VNet connection stats', error);
+      });
+
+      return () => {
+        aborted = true;
+        abortController.abort();
+        setConnectionStats([]);
+      };
+    },
+    [status.value, vnet, logger]
+  );
+
   const autoConfigureSSH = useCallback(async (): Promise<void> => {
     await vnet.autoConfigureSSH({});
     // Refresh the service info and diagnostic attempts because SSH is now configured.
@@ -599,6 +644,7 @@ export const VnetContextProvider: FC<
         serviceInfoAttempt,
         refreshServiceInfoAttempt,
         recentConnections,
+        connectionStats,
         runDiagnostics,
         diagnosticsAttempt,
         getDisabledDiagnosticsReason,

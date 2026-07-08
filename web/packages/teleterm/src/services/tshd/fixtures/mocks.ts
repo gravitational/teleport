@@ -146,6 +146,17 @@ export class MockVnetClient implements VnetClient {
     },
     then: () => Promise.resolve(),
   })) as unknown as VnetClient['getRecentConnections'];
+  // getConnectionStats returns an open stream that emits nothing. Tests and
+  // stories that need stats can override it.
+  getConnectionStats = (() => ({
+    responses: {
+      onMessage: () => () => {},
+      onNext: () => () => {},
+      onComplete: () => () => {},
+      onError: () => () => {},
+    },
+    then: () => Promise.resolve(),
+  })) as unknown as VnetClient['getConnectionStats'];
 }
 
 export class MockAutoUpdateClient implements AutoUpdateClient {

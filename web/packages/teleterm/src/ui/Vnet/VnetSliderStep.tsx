@@ -29,6 +29,7 @@ import { ActionButton } from 'design/Alert';
 import { StepComponentProps } from 'design/StepSlider';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
+  ConnectionStat,
   RecentConnection,
   RecentConnectionKind,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
@@ -167,6 +168,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
         <>
           <VnetStatus />
           <RecentConnectionsList />
+          <ConnectionStatsList />
         </>
       )}
 
@@ -571,4 +573,123 @@ function kindLabel(kind: RecentConnectionKind): string {
     default:
       return '';
   }
+}
+
+/**
+ * ConnectionStatsList shows the aggregated per-target connection statistics
+ * reported by the VNet admin process: successful/failed connection counts,
+ * total bytes transferred, and current throughput. All counters are absolute
+ * values accumulated since VNet started. The list is streamed from the VNet
+ * service and cleared whenever VNet stops.
+ */
+const ConnectionStatsList = () => {
+  const { connectionStats } = useVnetContext();
+
+  if (connectionStats.length === 0) {
+    return null;
+  }
+
+  return (
+    <Box p={textSpacing}>
+      <Text typography="body3" color="text.slightlyMuted" mb={1}>
+        Connection statistics
+      </Text>
+      <Flex flexDirection="column" gap={1}>
+        {connectionStats.map(stat => (
+          <ConnectionStatRow
+            key={[
+              stat.kind,
+              stat.cluster,
+              stat.leafCluster,
+              stat.displayName,
+              stat.port,
+            ].join('/')}
+            stat={stat}
+          />
+        ))}
+      </Flex>
+    </Box>
+  );
+};
+
+const ConnectionStatRow = (props: { stat: ConnectionStat }) => {
+  const {
+    kind,
+    displayName,
+    port,
+    successfulConnections,
+    failedConnections,
+    bytesTx,
+    bytesRx,
+    bytesTxPerSec,
+    bytesRxPerSec,
+  } = props.stat;
+  // The port is only set for multi-port TCP apps.
+  const name = port ? `${displayName}:${port}` : displayName;
+  const hasThroughput = bytesTxPerSec > 0n || bytesRxPerSec > 0n;
+
+  return (
+    <Flex flexDirection="column" minWidth={0}>
+      <Flex alignItems="center" gap={1} minWidth={0}>
+        <ConnectionKindIndicator>{kindLabel(kind)}</ConnectionKindIndicator>
+        <Text
+          typography="body2"
+          title={name}
+          css={`
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          {name}
+        </Text>
+        <Text
+          typography="body3"
+          color="text.muted"
+          title="Successful connections"
+          css={`
+            white-space: nowrap;
+          `}
+        >
+          ✓ {successfulConnections.toString()}
+        </Text>
+        {failedConnections > 0n && (
+          <Text
+            typography="body3"
+            color="error.main"
+            title="Failed connections"
+            css={`
+              white-space: nowrap;
+            `}
+          >
+            ✕ {failedConnections.toString()}
+          </Text>
+        )}
+      </Flex>
+      <Text typography="body3" color="text.muted">
+        ↑ {formatBytes(bytesTx)} ↓ {formatBytes(bytesRx)}
+        {hasThroughput &&
+          ` · ↑ ${formatBytes(bytesTxPerSec)}/s ↓ ${formatBytes(bytesRxPerSec)}/s`}
+      </Text>
+    </Flex>
+  );
+};
+
+/** formatBytes formats a byte count into a human-readable string. */
+function formatBytes(bytes: bigint): string {
+  if (bytes < 1024n) {
+    return `${bytes} B`;
+  }
+  let value = Number(bytes);
+  let unit = 'B';
+  for (const nextUnit of ['KB', 'MB', 'GB', 'TB', 'PB']) {
+    if (value < 1024) {
+      break;
+    }
+    value /= 1024;
+    unit = nextUnit;
+  }
+  return `${value.toFixed(1)} ${unit}`;
 }
