@@ -496,7 +496,13 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 	// only a little wasteful to spin up a local proxy it's fine for now, but if
 	// we rework the flow we should add a way to skip the local proxy when using
 	// a relay even if a connection through the control plane would require it
-	if !profile.RequireKubeLocalProxy() {
+	//
+	// A hardware-key policy also requires the local proxy: the exec-plugin
+	// credentials path can't serialize a hardware-backed key, whereas the local
+	// proxy uses it as an in-process signer and hands kubectl a fresh software
+	// key. Without this, `tsh kubectl` falls through to the exec plugin and
+	// fails with "cannot get software key PEM".
+	if !profile.RequireKubeLocalProxy() && !profile.PrivateKeyPolicy.IsHardwareKeyPolicy() {
 		return nil, nil, false
 	}
 
