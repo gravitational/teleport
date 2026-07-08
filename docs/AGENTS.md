@@ -265,6 +265,39 @@ If you resolved a value by inference (rules 1–3) and later output
 contradicts it (errors referencing a different address, a resource not
 found) stop and re-confirm the value with the user instead of continuing.
 
+### Values that aren't wrapped in `<Var>`
+
+Many guides have not yet been updated to mark every substitutable value
+with `<Var>` (see "Authoring guidance"). Absence of a `<Var>` tag is not a
+signal that a literal value is safe to copy as-is. Before reusing any
+literal value from a guide's text or code fences, ask: **would this value
+be the same for every reader, or does it depend on the reader's own
+account, cluster, or environment?** If it depends on the reader, treat it
+as if it carried `source="user-supplied"` and apply rules 1–4 above,
+even though no `<Var>` tag is present.
+
+Treat the following as reliable signals that an unwrapped literal is a
+stand-in, not a real value:
+
+- Known placeholder domains and hosts: `example.com`, `example.org`,
+  `*.example.teleport.sh`, or any host containing the literal word
+  `example`.
+- Placeholder-shaped identifiers: repeated or sequential digits in an
+  account ID or ARN (`111111111111`, `123456789012`), UUIDs that appear
+  earlier in the same guide as a different example, or resource names
+  that don't match anything you've actually created or queried.
+- Generic human names or roles used as usernames: `joe`, `myuser`,
+  `contractor`, `foo@example.com`, and similar.
+- Names prefixed `my-`/`your-` (`my-kubernetes-cluster`,
+  `your-github-username`), or file paths written as a description rather
+  than a real path (`/path/to/token.file`).
+- Values introduced in prose as "replace X with your own Y" — this is the
+  same instruction a `source="user-supplied"` `<Var>` would carry, just
+  stated in text instead of markup.
+
+When genuinely unsure whether a literal is a placeholder or a fixed value, 
+ask rather than guess; the cost asymmetry is the same as for `<Var>` resolution.
+
 ### Explicit sourcing hints override the rules above
 
 Some `<Var>` tags may carry a `source` attribute (in rendered pages,
