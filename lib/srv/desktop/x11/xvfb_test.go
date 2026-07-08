@@ -176,7 +176,7 @@ func TestGetImage(t *testing.T) {
 		Height: 2,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []byte{0, 0, 0, 0xFF, 0, 0, 0, 0xFF, 0, 0, 0, 0xFF, 0x12, 0x34, 0x56, 0xFF}, image)
+	require.Equal(t, []byte{0, 0, 0, 0xFF, 0, 0, 0, 0xFF, 0, 0, 0, 0xFF, 0x12, 0x34, 0x56, 0xFF}, image.Pix)
 }
 
 func TestInputs(t *testing.T) {

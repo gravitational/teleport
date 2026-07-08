@@ -23,6 +23,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"log"
 	"log/slog"
@@ -42,6 +43,7 @@ import (
 	"github.com/jezek/xgb/composite"
 	"github.com/jezek/xgb/damage"
 	"github.com/jezek/xgb/randr"
+	"github.com/jezek/xgb/xcmisc"
 	"github.com/jezek/xgb/xfixes"
 	"github.com/jezek/xgb/xproto"
 	"github.com/jezek/xgb/xtest"
@@ -577,6 +579,18 @@ func connectToDisplay(display string, cookie []byte) (*xgb.Conn, *xproto.SetupIn
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// Initialize the XCMisc extension for ID re-use - if successful then hook in to xgb.
+	if err = xcmisc.Init(conn); err == nil {
+		conn.SetIDRangeFunc(func(c *xgb.Conn) (uint32, uint32, error) {
+			idRange, err := xcmisc.GetXIDRange(c).Reply()
+			if err != nil || (idRange.StartId == 0 && idRange.Count == 1) { // that range is out of XID
+				return 0, 1, errors.New("no more IDs available")
+			}
+
+			return idRange.StartId, idRange.Count, nil
+		})
+	}
+
 	success = true
 	return conn, setup, nil
 }
@@ -701,7 +715,7 @@ func (x *Backend) GetChanges() (rectangles []xproto.Rectangle, err error) {
 }
 
 // GetImage captures image data for the requested rectangle in RGBA format.
-func (x *Backend) GetImage(rect xproto.Rectangle) ([]byte, error) {
+func (x *Backend) GetImage(rect xproto.Rectangle) (*image.RGBA, error) {
 	x.mu.Lock()
 	drawable := xproto.Drawable(x.captureWindow)
 	x.mu.Unlock()
@@ -719,16 +733,50 @@ func (x *Backend) GetImage(rect xproto.Rectangle) ([]byte, error) {
 		data[i+0], data[i+2] = data[i+2], data[i+0]
 		data[i+3] = 0xff
 	}
-	return data, nil
+	img := &image.RGBA{
+		Pix:    data,
+		Stride: int(rect.Width * 4),
+		Rect:   image.Rect(0, 0, int(rect.Width), int(rect.Height)),
+	}
+	return img, nil
+}
+
+// E0-prefixed Set-1 scancode -> Linux evdev keycode (KEY_* values).
+var e0LinuxKeycode = map[byte]byte{
+	0x1C: 96,  // KP Enter
+	0x1D: 97,  // Right Ctrl
+	0x35: 98,  // KP /
+	0x37: 99,  // Print Screen
+	0x38: 100, // Right Alt / AltGr
+	0x47: 102, // Home
+	0x48: 103, // Up
+	0x49: 104, // Page Up
+	0x4B: 105, // Left
+	0x4D: 106, // Right
+	0x4F: 107, // End
+	0x50: 108, // Down
+	0x51: 109, // Page Down
+	0x52: 110, // Insert
+	0x53: 111, // Delete
+	0x5B: 125, // Left Super/Meta
+	0x5C: 126, // Right Super/Meta
+	0x5D: 127, // Menu/Compose
 }
 
 // SendKeyboardButton sends a key press or release event.
-func (x *Backend) SendKeyboardButton(keycode byte, pressed bool) error {
+func (x *Backend) SendKeyboardButton(keycode uint16, pressed bool) error {
 	eventType := xproto.KeyRelease
 	if pressed {
 		eventType = xproto.KeyPress
 	}
-	err := xtest.FakeInputChecked(x.conn, byte(eventType), keycode+8, xproto.TimeCurrentTime, x.root(), 0, 0, 0).Check()
+	raw := byte(keycode & 0xFF)
+	// extended keycode
+	if keycode&0xFF00 == 0xE000 {
+		if mapped, ok := e0LinuxKeycode[raw]; ok {
+			raw = mapped
+		}
+	}
+	err := xtest.FakeInputChecked(x.conn, byte(eventType), raw+8, xproto.TimeCurrentTime, x.root(), 0, 0, 0).Check()
 	return trace.Wrap(err)
 }
 

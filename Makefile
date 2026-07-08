@@ -1923,7 +1923,7 @@ ensure-wasm-deps: ensure-llvm-macos rustup-toolchain-warning ensure-wasm-bindgen
 ifeq ("$(OS)-$(ARCH)","darwin-arm64")
 ensure-llvm-macos:
 	@if ! command llvm-as --version >/dev/null 2>&1; then \
-		echo "llvm is required, please run 'brew install llvm'"; \
+		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
 		exit 1; \
 	fi
 else

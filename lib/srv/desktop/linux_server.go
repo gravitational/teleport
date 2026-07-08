@@ -632,7 +632,7 @@ func (sess *linuxSession) messageLoop() error {
 				return trace.Wrap(err, "failed to send mouse wheel move.")
 			}
 		case *tdpb.KeyboardButton:
-			if err := sess.backend.SendKeyboardButton(byte(m.KeyCode), m.Pressed); err != nil {
+			if err := sess.backend.SendKeyboardButton(uint16(m.KeyCode), m.Pressed); err != nil {
 				return trace.Wrap(err, "failed to send keyboard button.")
 			}
 		case *tdpb.Ping:
@@ -890,7 +890,7 @@ func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
 			return 0, trace.Wrap(err, "couldn't get image from backend")
 		}
 
-		frames, err := rdpclient.EncodeQOIZ(img, uint16(change.X), uint16(change.Y), change.Width, change.Height)
+		frames, err := rdpclient.EncodeQOIZ(img.Pix, uint16(change.X), uint16(change.Y), change.Width, change.Height)
 		if err != nil {
 			return 0, trace.Wrap(err, "couldn't encode image frame")
 		}
