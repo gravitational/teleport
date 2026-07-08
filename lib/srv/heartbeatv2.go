@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
@@ -51,6 +52,15 @@ type HeartbeatV2Config[T any] struct {
 
 	// -- below values are all optional
 
+	// Announcer is a fallback used to perform basic upsert-style heartbeats
+	// if the control stream is unavailable.
+	//
+	// This field is currently unused as all services migrated to heartbeatV2
+	// have deprecated V1 support. Future heartbeatV2 service migrations would
+	// need to set this field and use it to implement `SupportsFallback` and
+	// `FallbackAnnounce`. See git history prior to this change for exact
+	// code examples.
+	Announcer authclient.Announcer
 	// OnHeartbeat is a per-attempt callback (optional).
 	OnHeartbeat func(error)
 	// AnnounceInterval is the interval at which heartbeats are attempted (optional).
