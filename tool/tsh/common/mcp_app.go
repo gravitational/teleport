@@ -29,6 +29,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -489,6 +490,34 @@ func (c *mcpConnectCommand) run() error {
 	}
 
 	dialer := client.NewMCPServerDialer(tc, c.cf.AppName)
+
+	// Wire up OAuth credentials from `tsh mcp login`, if there are any. The
+	// Authorization header is produced per request so that expired access
+	// tokens get silently refreshed. An explicit -H "Authorization: ..."
+	// always wins.
+	var getAuthHeader func(context.Context) (string, error)
+	if _, ok := httpHeaders["Authorization"]; !ok {
+		credsPath := mcpOAuthTokenPath(c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppName)
+		creds, err := loadMCPOAuthCredentials(credsPath)
+		switch {
+		case err == nil:
+			oauthHTTPClient, err := newMCPOAuthHTTPClient(dialer)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			oauthHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{
+				ClientID:    creds.ClientID,
+				PKCEEnabled: true,
+				HTTPClient:  oauthHTTPClient,
+				TokenStore:  &fileTokenStore{path: credsPath, clientID: creds.ClientID},
+			})
+			oauthHandler.SetBaseURL("http://localhost")
+			getAuthHeader = oauthHandler.GetAuthorizationHeader
+		case !trace.IsNotFound(err):
+			return trace.Wrap(err)
+		}
+	}
+
 	return clientmcp.ProxyStdioConn(
 		c.cf.Context,
 		clientmcp.ProxyStdioConnConfig{
@@ -498,6 +527,7 @@ func (c *mcpConnectCommand) run() error {
 			MakeReconnectUserMessage: makeMCPReconnectUserMessage,
 			AutoReconnect:            c.autoReconnect,
 			HTTPHeaders:              httpHeaders,
+			GetHTTPAuthHeader:        getAuthHeader,
 		},
 	)
 }
