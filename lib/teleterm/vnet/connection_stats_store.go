@@ -23,10 +23,16 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-// connectionStatsStore keeps the latest snapshot of the aggregated per-target
-// connection statistics reported by the VNet admin process. All counters in a
-// snapshot are absolute values accumulated since VNet started, so each
-// snapshot fully replaces the previous one.
+// connectionsReport is a snapshot of VNet connection activity: the aggregated
+// per-target statistics plus a capped window of individual connection records.
+type connectionsReport struct {
+	stats       []*api.ConnectionStat
+	connections []*api.ConnectionRecord
+}
+
+// connectionStatsStore keeps the latest snapshot of VNet connection activity
+// reported by the VNet admin process. Every snapshot is complete and
+// self-contained, so each one fully replaces the previous one.
 //
 // The store is scoped to a single VNet run: Reset activates a fresh session
 // when VNet starts and CloseSession deactivates it when VNet stops. Snapshots
@@ -35,19 +41,19 @@ import (
 type connectionStatsStore struct {
 	mu     sync.Mutex
 	active bool
-	// stats holds the latest snapshot. Stored messages are never mutated in
+	// report holds the latest snapshot. Stored messages are never mutated in
 	// place; every report replaces the whole snapshot, so snapshots handed to
 	// subscribers stay immutable.
-	stats       []*api.ConnectionStat
+	report      connectionsReport
 	subscribers map[*statsSubscriber]struct{}
 }
 
 // statsSubscriber receives the latest snapshot whenever it changes. updates is
 // a coalescing, latest-wins channel of capacity 1: a slow reader may miss
-// intermediate snapshots but always converges to the current statistics, which
-// is safe because every snapshot carries absolute values.
+// intermediate snapshots but always converges to the current state, which is
+// safe because every snapshot is complete and self-contained.
 type statsSubscriber struct {
-	updates chan []*api.ConnectionStat
+	updates chan connectionsReport
 }
 
 func newConnectionStatsStore() *connectionStatsStore {
@@ -56,54 +62,54 @@ func newConnectionStatsStore() *connectionStatsStore {
 	}
 }
 
-// Reset clears the statistics and marks the store active for a new VNet run.
+// Reset clears the snapshot and marks the store active for a new VNet run.
 func (s *connectionStatsStore) Reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.active = true
-	s.stats = nil
+	s.report = connectionsReport{}
 	s.notifyLocked()
 }
 
-// CloseSession clears the statistics, marks the store inactive, and completes
+// CloseSession clears the snapshot, marks the store inactive, and completes
 // all current subscriptions so their streaming handlers return. It is
 // idempotent.
 func (s *connectionStatsStore) CloseSession() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.active = false
-	s.stats = nil
+	s.report = connectionsReport{}
 	for sub := range s.subscribers {
 		close(sub.updates)
 	}
 	s.subscribers = make(map[*statsSubscriber]struct{})
 }
 
-// SetStats replaces the current snapshot with a fresh one reported by the
+// SetReport replaces the current snapshot with a fresh one reported by the
 // admin process.
-func (s *connectionStatsStore) SetStats(stats []*api.ConnectionStat) {
+func (s *connectionStatsStore) SetReport(report connectionsReport) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.active {
 		return
 	}
-	s.stats = stats
+	s.report = report
 	s.notifyLocked()
 }
 
 // Subscribe registers a subscriber and returns it along with the current
 // snapshot. If the store is inactive (VNet is not running), the subscriber's
 // channel is returned already closed.
-func (s *connectionStatsStore) Subscribe() (*statsSubscriber, []*api.ConnectionStat) {
+func (s *connectionStatsStore) Subscribe() (*statsSubscriber, connectionsReport) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	sub := &statsSubscriber{updates: make(chan []*api.ConnectionStat, 1)}
+	sub := &statsSubscriber{updates: make(chan connectionsReport, 1)}
 	if !s.active {
 		close(sub.updates)
-		return sub, nil
+		return sub, connectionsReport{}
 	}
 	s.subscribers[sub] = struct{}{}
-	return sub, s.stats
+	return sub, s.report
 }
 
 // Unsubscribe removes a subscriber. It is safe to call even if the subscriber
@@ -124,14 +130,21 @@ func (s *connectionStatsStore) notifyLocked() {
 		default:
 		}
 		select {
-		case sub.updates <- s.stats:
+		case sub.updates <- s.report:
 		default:
 		}
 	}
 }
 
-// convertConnectionStats converts a snapshot reported by the VNet admin
+// convertConnectionsReport converts a snapshot reported by the VNet admin
 // process to the teleterm API representation streamed to the Electron app.
+func convertConnectionsReport(report *vnetv1.ConnectionsReport) connectionsReport {
+	return connectionsReport{
+		stats:       convertConnectionStats(report.GetStats()),
+		connections: convertConnectionRecords(report.GetConnections()),
+	}
+}
+
 func convertConnectionStats(stats []*vnetv1.ConnectionStat) []*api.ConnectionStat {
 	out := make([]*api.ConnectionStat, 0, len(stats))
 	for _, stat := range stats {
@@ -152,6 +165,29 @@ func convertConnectionStats(stats []*vnetv1.ConnectionStat) []*api.ConnectionSta
 	return out
 }
 
+func convertConnectionRecords(records []*vnetv1.ConnectionRecord) []*api.ConnectionRecord {
+	out := make([]*api.ConnectionRecord, 0, len(records))
+	for _, rec := range records {
+		out = append(out, api.ConnectionRecord_builder{
+			Id:                rec.GetId(),
+			Kind:              convertConnectionKind(rec.GetKind()),
+			Cluster:           rec.GetProfile(),
+			LeafCluster:       rec.GetLeafCluster(),
+			DisplayName:       rec.GetDisplayName(),
+			Port:              rec.GetPort(),
+			LocalPort:         rec.GetLocalPort(),
+			ClientProcessPath: rec.GetClientProcessPath(),
+			StartedAt:         rec.GetStartedAt(),
+			EndedAt:           rec.GetEndedAt(),
+			BytesTx:           rec.GetBytesTx(),
+			BytesRx:           rec.GetBytesRx(),
+			State:             convertConnectionRecordState(rec.GetState()),
+			ErrorMessage:      rec.GetErrorMessage(),
+		}.Build())
+	}
+	return out
+}
+
 func convertConnectionKind(kind vnetv1.ConnectionKind) api.RecentConnectionKind {
 	switch kind {
 	case vnetv1.ConnectionKind_CONNECTION_KIND_APP:
@@ -162,5 +198,18 @@ func convertConnectionKind(kind vnetv1.ConnectionKind) api.RecentConnectionKind 
 		return api.RecentConnectionKind_RECENT_CONNECTION_KIND_DATABASE
 	default:
 		return api.RecentConnectionKind_RECENT_CONNECTION_KIND_UNSPECIFIED
+	}
+}
+
+func convertConnectionRecordState(state vnetv1.ConnectionRecordState) api.ConnectionRecordState {
+	switch state {
+	case vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_ACTIVE:
+		return api.ConnectionRecordState_CONNECTION_RECORD_STATE_ACTIVE
+	case vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_DONE:
+		return api.ConnectionRecordState_CONNECTION_RECORD_STATE_DONE
+	case vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_FAILED:
+		return api.ConnectionRecordState_CONNECTION_RECORD_STATE_FAILED
+	default:
+		return api.ConnectionRecordState_CONNECTION_RECORD_STATE_UNSPECIFIED
 	}
 }

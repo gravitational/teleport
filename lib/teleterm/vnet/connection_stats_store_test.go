@@ -18,22 +18,35 @@ package vnet
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-func connectionStats(displayName string, successful uint64) []*api.ConnectionStat {
-	return []*api.ConnectionStat{
-		api.ConnectionStat_builder{
-			Kind:                  api.RecentConnectionKind_RECENT_CONNECTION_KIND_APP,
-			Cluster:               "root",
-			DisplayName:           displayName,
-			SuccessfulConnections: successful,
-		}.Build(),
+func testConnectionsReport(displayName string, successful uint64) connectionsReport {
+	return connectionsReport{
+		stats: []*api.ConnectionStat{
+			api.ConnectionStat_builder{
+				Kind:                  api.RecentConnectionKind_RECENT_CONNECTION_KIND_APP,
+				Cluster:               "root",
+				DisplayName:           displayName,
+				SuccessfulConnections: successful,
+			}.Build(),
+		},
+		connections: []*api.ConnectionRecord{
+			api.ConnectionRecord_builder{
+				Id:          successful,
+				Kind:        api.RecentConnectionKind_RECENT_CONNECTION_KIND_APP,
+				Cluster:     "root",
+				DisplayName: displayName,
+				State:       api.ConnectionRecordState_CONNECTION_RECORD_STATE_DONE,
+			}.Build(),
+		},
 	}
 }
 
@@ -41,16 +54,19 @@ func TestConnectionStatsStore_snapshotReplaces(t *testing.T) {
 	store := newConnectionStatsStore()
 	store.Reset()
 
-	store.SetStats(connectionStats("a.example.com", 1))
+	store.SetReport(testConnectionsReport("a.example.com", 1))
 	_, snap := store.Subscribe()
-	require.Len(t, snap, 1)
-	assert.Equal(t, uint64(1), snap[0].GetSuccessfulConnections())
+	require.Len(t, snap.stats, 1)
+	require.Len(t, snap.connections, 1)
+	assert.Equal(t, uint64(1), snap.stats[0].GetSuccessfulConnections())
 
 	// A fresh snapshot fully replaces the previous one.
-	store.SetStats(connectionStats("a.example.com", 2))
+	store.SetReport(testConnectionsReport("a.example.com", 2))
 	_, snap = store.Subscribe()
-	require.Len(t, snap, 1)
-	assert.Equal(t, uint64(2), snap[0].GetSuccessfulConnections())
+	require.Len(t, snap.stats, 1)
+	assert.Equal(t, uint64(2), snap.stats[0].GetSuccessfulConnections())
+	require.Len(t, snap.connections, 1)
+	assert.Equal(t, uint64(2), snap.connections[0].GetId())
 }
 
 func TestConnectionStatsStore_subscribersGetUpdates(t *testing.T) {
@@ -59,16 +75,19 @@ func TestConnectionStatsStore_subscribersGetUpdates(t *testing.T) {
 
 	sub, snap := store.Subscribe()
 	defer store.Unsubscribe(sub)
-	require.Empty(t, snap)
+	require.Empty(t, snap.stats)
+	require.Empty(t, snap.connections)
 
-	store.SetStats(connectionStats("a.example.com", 1))
+	store.SetReport(testConnectionsReport("a.example.com", 1))
 	// A second snapshot before the subscriber reads coalesces, latest wins.
-	store.SetStats(connectionStats("a.example.com", 2))
+	store.SetReport(testConnectionsReport("a.example.com", 2))
 
 	select {
 	case snap := <-sub.updates:
-		require.Len(t, snap, 1)
-		assert.Equal(t, uint64(2), snap[0].GetSuccessfulConnections())
+		require.Len(t, snap.stats, 1)
+		assert.Equal(t, uint64(2), snap.stats[0].GetSuccessfulConnections())
+		require.Len(t, snap.connections, 1)
+		assert.Equal(t, uint64(2), snap.connections[0].GetId())
 	default:
 		t.Fatal("expected a pending snapshot")
 	}
@@ -78,24 +97,26 @@ func TestConnectionStatsStore_sessionLifecycle(t *testing.T) {
 	store := newConnectionStatsStore()
 
 	// Snapshots reported while no session is active are dropped.
-	store.SetStats(connectionStats("a.example.com", 1))
+	store.SetReport(testConnectionsReport("a.example.com", 1))
 	sub, snap := store.Subscribe()
-	assert.Empty(t, snap)
+	assert.Empty(t, snap.stats)
 	// The subscriber's channel is returned already closed.
 	_, ok := <-sub.updates
 	assert.False(t, ok)
 
 	store.Reset()
-	store.SetStats(connectionStats("a.example.com", 1))
+	store.SetReport(testConnectionsReport("a.example.com", 1))
 	sub, snap = store.Subscribe()
-	require.Len(t, snap, 1)
+	require.Len(t, snap.stats, 1)
+	require.Len(t, snap.connections, 1)
 
-	// CloseSession clears the statistics and completes subscriptions.
+	// CloseSession clears the snapshot and completes subscriptions.
 	store.CloseSession()
 	_, ok = <-sub.updates
 	assert.False(t, ok)
 	_, snap = store.Subscribe()
-	assert.Empty(t, snap)
+	assert.Empty(t, snap.stats)
+	assert.Empty(t, snap.connections)
 }
 
 func TestConvertConnectionStats(t *testing.T) {
@@ -127,4 +148,57 @@ func TestConvertConnectionStats(t *testing.T) {
 	assert.Equal(t, uint64(200), stat.GetBytesRx())
 	assert.Equal(t, uint64(10), stat.GetBytesTxPerSec())
 	assert.Equal(t, uint64(20), stat.GetBytesRxPerSec())
+}
+
+func TestConvertConnectionRecords(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
+	endedAt := startedAt.Add(time.Minute)
+
+	records := convertConnectionRecords([]*vnetv1.ConnectionRecord{
+		vnetv1.ConnectionRecord_builder{
+			Id:                42,
+			Kind:              vnetv1.ConnectionKind_CONNECTION_KIND_APP,
+			Profile:           "root",
+			LeafCluster:       "leaf",
+			DisplayName:       "app.root.example.com",
+			Port:              8443,
+			LocalPort:         8443,
+			ClientProcessPath: "/usr/bin/curl",
+			StartedAt:         timestamppb.New(startedAt),
+			EndedAt:           timestamppb.New(endedAt),
+			BytesTx:           100,
+			BytesRx:           200,
+			State:             vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_DONE,
+			ErrorMessage:      "conn reset",
+		}.Build(),
+		// An active connection has no end time yet.
+		vnetv1.ConnectionRecord_builder{
+			Id:        43,
+			Kind:      vnetv1.ConnectionKind_CONNECTION_KIND_SSH,
+			StartedAt: timestamppb.New(startedAt),
+			State:     vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_ACTIVE,
+		}.Build(),
+	})
+	require.Len(t, records, 2)
+
+	rec := records[0]
+	assert.Equal(t, uint64(42), rec.GetId())
+	assert.Equal(t, api.RecentConnectionKind_RECENT_CONNECTION_KIND_APP, rec.GetKind())
+	assert.Equal(t, "root", rec.GetCluster())
+	assert.Equal(t, "leaf", rec.GetLeafCluster())
+	assert.Equal(t, "app.root.example.com", rec.GetDisplayName())
+	assert.Equal(t, uint32(8443), rec.GetPort())
+	assert.Equal(t, uint32(8443), rec.GetLocalPort())
+	assert.Equal(t, "/usr/bin/curl", rec.GetClientProcessPath())
+	assert.Equal(t, startedAt, rec.GetStartedAt().AsTime())
+	assert.Equal(t, endedAt, rec.GetEndedAt().AsTime())
+	assert.Equal(t, uint64(100), rec.GetBytesTx())
+	assert.Equal(t, uint64(200), rec.GetBytesRx())
+	assert.Equal(t, api.ConnectionRecordState_CONNECTION_RECORD_STATE_DONE, rec.GetState())
+	assert.Equal(t, "conn reset", rec.GetErrorMessage())
+
+	active := records[1]
+	assert.Equal(t, api.ConnectionRecordState_CONNECTION_RECORD_STATE_ACTIVE, active.GetState())
+	assert.Nil(t, active.GetEndedAt())
+	assert.Empty(t, active.GetErrorMessage())
 }

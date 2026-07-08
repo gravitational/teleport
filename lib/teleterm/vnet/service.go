@@ -450,7 +450,13 @@ func (s *Service) GetConnections(_ *api.GetConnectionsRequest, stream grpc.Serve
 	sub, snapshot := store.Subscribe()
 	defer store.Unsubscribe(sub)
 
-	if err := stream.Send(api.GetConnectionsResponse_builder{Stats: snapshot}.Build()); err != nil {
+	send := func(snapshot connectionsReport) error {
+		return trace.Wrap(stream.Send(api.GetConnectionsResponse_builder{
+			Stats:       snapshot.stats,
+			Connections: snapshot.connections,
+		}.Build()))
+	}
+	if err := send(snapshot); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -463,7 +469,7 @@ func (s *Service) GetConnections(_ *api.GetConnectionsRequest, stream grpc.Serve
 				// VNet stopped and the session was closed.
 				return nil
 			}
-			if err := stream.Send(api.GetConnectionsResponse_builder{Stats: snapshot}.Build()); err != nil {
+			if err := send(snapshot); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -640,11 +646,8 @@ func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1
 // ReportConnections gets called periodically with a fresh snapshot of VNet
 // connection activity whenever it changed. Each snapshot is complete and
 // self-contained, fully replacing the previous one.
-//
-// TODO(tangyatsu): store the individual connection records too, they are
-// currently dropped.
 func (p *clientApplication) ReportConnections(_ context.Context, report *vnetv1.ConnectionsReport) {
-	p.connectionStats.SetStats(convertConnectionStats(report.GetStats()))
+	p.connectionStats.SetReport(convertConnectionsReport(report))
 }
 
 // UserTLSCert returns the user TLS certificate for the given profile.
