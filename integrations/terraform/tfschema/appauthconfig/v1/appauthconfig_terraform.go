@@ -811,7 +811,7 @@ func CopyAppAuthConfigToTerraformPreserveUnknown(ctx context.Context, obj *githu
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AppAuthConfig.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
