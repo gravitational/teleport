@@ -802,11 +802,19 @@ func (sess *linuxSession) handleSessionSelection(m *tdpbv1.SessionSelection) err
 	}
 	sess.cmd = cmd
 	sess.errGroup.Go(func() error {
-		err := cmd.Wait()
-		if err != nil {
-			return trace.Wrap(err, "xsession was terminated with error")
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- cmd.Wait()
+		}()
+		select {
+		case <-sess.ctx.Done():
+			return nil
+		case err := <-errCh:
+			if err != nil {
+				return trace.Wrap(err, "xsession was terminated with error")
+			}
+			return trace.Wrap(errors.New("xsession was terminated"))
 		}
-		return trace.Wrap(errors.New("xsession was terminated"))
 	})
 	return nil
 }
