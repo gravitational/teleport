@@ -70,6 +70,7 @@ struct VerifyApp: App {
 
 	init() {
 		prepareDependencies {
+			// swiftlint:disable:next force_try
 			$0.defaultDatabase = try! AppDatabase.makeLiveDatabase()
 		}
 	}

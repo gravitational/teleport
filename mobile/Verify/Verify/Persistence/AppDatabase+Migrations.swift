@@ -42,14 +42,14 @@ extension AppDatabase {
 		var migrator = DatabaseMigrator()
 
 		migrator.registerMigration("Create initial cluster database table") { db in
-			try db.create(table: "clusters") { t in
-				t.primaryKey("id", .text)
+			try db.create(table: "clusters") { table in
+				table.primaryKey("id", .text)
 					.notNull(onConflict: .replace)
 					// Use the uuid() function that SQLiteData defines in order to support automatic generation of UUIDs
 					// upon insertion.
 					.defaults(sql: "(uuid())")
 
-				t.column("host", .text).notNull()
+				table.column("host", .text).notNull()
 			}
 		}
 
