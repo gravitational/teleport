@@ -18,7 +18,6 @@ package proxy
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -213,38 +212,28 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	var (
-		conn        net.Conn
-		rawResponse []byte
-		err         error
-	)
-
 	// If we're using identity forwarding, we need to add the impersonation
 	// headers to the request before we send the request.
 	if s.useIdentityForwarding {
-		if header, err = internal.IdentityForwardingHeaders(s.ctx, header); err != nil {
+		h, err := internal.IdentityForwardingHeaders(s.ctx, header)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		header = h
 	}
 
 	clone := utilnet.CloneRequest(req)
 	clone.Header = header
-	conn, err = s.Dial(clone)
+	conn, err := s.Dial(clone)
 	if err != nil {
 		return nil, err
 	}
 
-	responseReader := bufio.NewReader(
-		io.MultiReader(
-			bytes.NewBuffer(rawResponse),
-			conn,
-		),
-	)
+	responseReader := bufio.NewReader(conn)
+
 	resp, err := http.ReadResponse(responseReader, nil)
 	if err != nil {
-		if conn != nil {
-			conn.Close()
-		}
+		conn.Close()
 		return nil, err
 	}
 
