@@ -923,7 +923,7 @@ func CopyHealthCheckConfigToTerraformPreserveUnknown(ctx context.Context, obj *g
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -1390,7 +1390,7 @@ func CopyHealthCheckConfigToTerraformPreserveUnknown(ctx context.Context, obj *g
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.timeout"})
 						} else {
-							v := CopyToDuration(diags, obj.Timeout, t, tf.Attrs["timeout"])
+							v := CopyToDuration(diags, obj.Timeout, t, tf.Attrs["timeout"], preserveUnknown)
 							tf.Attrs["timeout"] = v
 						}
 					}
@@ -1399,7 +1399,7 @@ func CopyHealthCheckConfigToTerraformPreserveUnknown(ctx context.Context, obj *g
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.interval"})
 						} else {
-							v := CopyToDuration(diags, obj.Interval, t, tf.Attrs["interval"])
+							v := CopyToDuration(diags, obj.Interval, t, tf.Attrs["interval"], preserveUnknown)
 							tf.Attrs["interval"] = v
 						}
 					}

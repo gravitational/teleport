@@ -23535,7 +23535,7 @@ func CopyProvisionTokenV2ToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.SuggestedLabels"})
 						} else {
-							v := CopyToLabels(diags, obj.SuggestedLabels, t, tf.Attrs["suggested_labels"])
+							v := CopyToLabels(diags, obj.SuggestedLabels, t, tf.Attrs["suggested_labels"], preserveUnknown)
 							tf.Attrs["suggested_labels"] = v
 						}
 					}
@@ -24188,7 +24188,7 @@ func CopyProvisionTokenV2ToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.SuggestedAgentMatcherLabels"})
 						} else {
-							v := CopyToLabels(diags, obj.SuggestedAgentMatcherLabels, t, tf.Attrs["suggested_agent_matcher_labels"])
+							v := CopyToLabels(diags, obj.SuggestedAgentMatcherLabels, t, tf.Attrs["suggested_agent_matcher_labels"], preserveUnknown)
 							tf.Attrs["suggested_agent_matcher_labels"] = v
 						}
 					}
@@ -25131,7 +25131,7 @@ func CopyProvisionTokenV2ToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																if !ok {
 																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.GitLab.Allow.RefProtected"})
 																} else {
-																	v := CopyToBoolOption(diags, obj.RefProtected, t, tf.Attrs["ref_protected"])
+																	v := CopyToBoolOption(diags, obj.RefProtected, t, tf.Attrs["ref_protected"], preserveUnknown)
 																	tf.Attrs["ref_protected"] = v
 																}
 															}
@@ -25140,7 +25140,7 @@ func CopyProvisionTokenV2ToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																if !ok {
 																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.GitLab.Allow.EnvironmentProtected"})
 																} else {
-																	v := CopyToBoolOption(diags, obj.EnvironmentProtected, t, tf.Attrs["environment_protected"])
+																	v := CopyToBoolOption(diags, obj.EnvironmentProtected, t, tf.Attrs["environment_protected"], preserveUnknown)
 																	tf.Attrs["environment_protected"] = v
 																}
 															}
@@ -31158,7 +31158,7 @@ func CopySessionRecordingConfigV2ToTerraformPreserveUnknown(ctx context.Context,
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Spec.ProxyChecksHostKeys"})
 						} else {
-							v := CopyToBoolOption(diags, obj.ProxyChecksHostKeys, t, tf.Attrs["proxy_checks_host_keys"])
+							v := CopyToBoolOption(diags, obj.ProxyChecksHostKeys, t, tf.Attrs["proxy_checks_host_keys"], preserveUnknown)
 							tf.Attrs["proxy_checks_host_keys"] = v
 						}
 					}
@@ -33112,7 +33112,7 @@ func CopyAuthPreferenceV2ToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.DisconnectExpiredCert"})
 						} else {
-							v := CopyToBoolOption(diags, obj.DisconnectExpiredCert, t, tf.Attrs["disconnect_expired_cert"])
+							v := CopyToBoolOption(diags, obj.DisconnectExpiredCert, t, tf.Attrs["disconnect_expired_cert"], preserveUnknown)
 							tf.Attrs["disconnect_expired_cert"] = v
 						}
 					}
@@ -33121,7 +33121,7 @@ func CopyAuthPreferenceV2ToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.AllowLocalAuth"})
 						} else {
-							v := CopyToBoolOption(diags, obj.AllowLocalAuth, t, tf.Attrs["allow_local_auth"])
+							v := CopyToBoolOption(diags, obj.AllowLocalAuth, t, tf.Attrs["allow_local_auth"], preserveUnknown)
 							tf.Attrs["allow_local_auth"] = v
 						}
 					}
@@ -33371,7 +33371,7 @@ func CopyAuthPreferenceV2ToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.AllowPasswordless"})
 						} else {
-							v := CopyToBoolOption(diags, obj.AllowPasswordless, t, tf.Attrs["allow_passwordless"])
+							v := CopyToBoolOption(diags, obj.AllowPasswordless, t, tf.Attrs["allow_passwordless"], preserveUnknown)
 							tf.Attrs["allow_passwordless"] = v
 						}
 					}
@@ -33614,7 +33614,7 @@ func CopyAuthPreferenceV2ToTerraformPreserveUnknown(ctx context.Context, obj *gi
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.IDP.SAML.Enabled"})
 														} else {
-															v := CopyToBoolOption(diags, obj.Enabled, t, tf.Attrs["enabled"])
+															v := CopyToBoolOption(diags, obj.Enabled, t, tf.Attrs["enabled"], preserveUnknown)
 															tf.Attrs["enabled"] = v
 														}
 													}
@@ -33639,7 +33639,7 @@ func CopyAuthPreferenceV2ToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.AllowHeadless"})
 						} else {
-							v := CopyToBoolOption(diags, obj.AllowHeadless, t, tf.Attrs["allow_headless"])
+							v := CopyToBoolOption(diags, obj.AllowHeadless, t, tf.Attrs["allow_headless"], preserveUnknown)
 							tf.Attrs["allow_headless"] = v
 						}
 					}
@@ -34129,7 +34129,7 @@ func CopyAuthPreferenceV2ToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.AllowCLIAuthViaBrowser"})
 						} else {
-							v := CopyToBoolOption(diags, obj.AllowCLIAuthViaBrowser, t, tf.Attrs["allow_cli_auth_via_browser"])
+							v := CopyToBoolOption(diags, obj.AllowCLIAuthViaBrowser, t, tf.Attrs["allow_cli_auth_via_browser"], preserveUnknown)
 							tf.Attrs["allow_cli_auth_via_browser"] = v
 						}
 					}
@@ -39896,7 +39896,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.PortForwarding"})
 										} else {
-											v := CopyToBoolOption(diags, obj.PortForwarding, t, tf.Attrs["port_forwarding"])
+											v := CopyToBoolOption(diags, obj.PortForwarding, t, tf.Attrs["port_forwarding"], preserveUnknown)
 											tf.Attrs["port_forwarding"] = v
 										}
 									}
@@ -40245,7 +40245,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.RecordSession.Desktop"})
 														} else {
-															v := CopyToBoolOption(diags, obj.Desktop, t, tf.Attrs["desktop"])
+															v := CopyToBoolOption(diags, obj.Desktop, t, tf.Attrs["desktop"], preserveUnknown)
 															tf.Attrs["desktop"] = v
 														}
 													}
@@ -40318,7 +40318,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.DesktopClipboard"})
 										} else {
-											v := CopyToBoolOption(diags, obj.DesktopClipboard, t, tf.Attrs["desktop_clipboard"])
+											v := CopyToBoolOption(diags, obj.DesktopClipboard, t, tf.Attrs["desktop_clipboard"], preserveUnknown)
 											tf.Attrs["desktop_clipboard"] = v
 										}
 									}
@@ -40530,7 +40530,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.DesktopDirectorySharing"})
 										} else {
-											v := CopyToBoolOption(diags, obj.DesktopDirectorySharing, t, tf.Attrs["desktop_directory_sharing"])
+											v := CopyToBoolOption(diags, obj.DesktopDirectorySharing, t, tf.Attrs["desktop_directory_sharing"], preserveUnknown)
 											tf.Attrs["desktop_directory_sharing"] = v
 										}
 									}
@@ -40539,7 +40539,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.CreateHostUser"})
 										} else {
-											v := CopyToBoolOption(diags, obj.CreateHostUser, t, tf.Attrs["create_host_user"])
+											v := CopyToBoolOption(diags, obj.CreateHostUser, t, tf.Attrs["create_host_user"], preserveUnknown)
 											tf.Attrs["create_host_user"] = v
 										}
 									}
@@ -40576,7 +40576,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.SSHFileCopy"})
 										} else {
-											v := CopyToBoolOption(diags, obj.SSHFileCopy, t, tf.Attrs["ssh_file_copy"])
+											v := CopyToBoolOption(diags, obj.SSHFileCopy, t, tf.Attrs["ssh_file_copy"], preserveUnknown)
 											tf.Attrs["ssh_file_copy"] = v
 										}
 									}
@@ -40695,7 +40695,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																		if !ok {
 																			diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.IDP.SAML.Enabled"})
 																		} else {
-																			v := CopyToBoolOption(diags, obj.Enabled, t, tf.Attrs["enabled"])
+																			v := CopyToBoolOption(diags, obj.Enabled, t, tf.Attrs["enabled"], preserveUnknown)
 																			tf.Attrs["enabled"] = v
 																		}
 																	}
@@ -40720,7 +40720,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.CreateDesktopUser"})
 										} else {
-											v := CopyToBoolOption(diags, obj.CreateDesktopUser, t, tf.Attrs["create_desktop_user"])
+											v := CopyToBoolOption(diags, obj.CreateDesktopUser, t, tf.Attrs["create_desktop_user"], preserveUnknown)
 											tf.Attrs["create_desktop_user"] = v
 										}
 									}
@@ -40729,7 +40729,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.CreateDatabaseUser"})
 										} else {
-											v := CopyToBoolOption(diags, obj.CreateDatabaseUser, t, tf.Attrs["create_db_user"])
+											v := CopyToBoolOption(diags, obj.CreateDatabaseUser, t, tf.Attrs["create_db_user"], preserveUnknown)
 											tf.Attrs["create_db_user"] = v
 										}
 									}
@@ -40904,7 +40904,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																		if !ok {
 																			diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding.Local.Enabled"})
 																		} else {
-																			v := CopyToBoolOption(diags, obj.Enabled, t, tf.Attrs["enabled"])
+																			v := CopyToBoolOption(diags, obj.Enabled, t, tf.Attrs["enabled"], preserveUnknown)
 																			tf.Attrs["enabled"] = v
 																		}
 																	}
@@ -40948,7 +40948,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																		if !ok {
 																			diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding.Remote.Enabled"})
 																		} else {
-																			v := CopyToBoolOption(diags, obj.Enabled, t, tf.Attrs["enabled"])
+																			v := CopyToBoolOption(diags, obj.Enabled, t, tf.Attrs["enabled"], preserveUnknown)
 																			tf.Attrs["enabled"] = v
 																		}
 																	}
@@ -41095,7 +41095,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.NodeLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.NodeLabels, t, tf.Attrs["node_labels"])
+											v := CopyToLabels(diags, obj.NodeLabels, t, tf.Attrs["node_labels"], preserveUnknown)
 											tf.Attrs["node_labels"] = v
 										}
 									}
@@ -41703,7 +41703,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.Request.Annotations"})
 														} else {
-															v := CopyToTraits(diags, obj.Annotations, t, tf.Attrs["annotations"])
+															v := CopyToTraits(diags, obj.Annotations, t, tf.Attrs["annotations"], preserveUnknown)
 															tf.Attrs["annotations"] = v
 														}
 													}
@@ -42312,7 +42312,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.AppLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.AppLabels, t, tf.Attrs["app_labels"])
+											v := CopyToLabels(diags, obj.AppLabels, t, tf.Attrs["app_labels"], preserveUnknown)
 											tf.Attrs["app_labels"] = v
 										}
 									}
@@ -42321,7 +42321,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.ClusterLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.ClusterLabels, t, tf.Attrs["cluster_labels"])
+											v := CopyToLabels(diags, obj.ClusterLabels, t, tf.Attrs["cluster_labels"], preserveUnknown)
 											tf.Attrs["cluster_labels"] = v
 										}
 									}
@@ -42330,7 +42330,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.KubernetesLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.KubernetesLabels, t, tf.Attrs["kubernetes_labels"])
+											v := CopyToLabels(diags, obj.KubernetesLabels, t, tf.Attrs["kubernetes_labels"], preserveUnknown)
 											tf.Attrs["kubernetes_labels"] = v
 										}
 									}
@@ -42339,7 +42339,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.DatabaseLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.DatabaseLabels, t, tf.Attrs["db_labels"])
+											v := CopyToLabels(diags, obj.DatabaseLabels, t, tf.Attrs["db_labels"], preserveUnknown)
 											tf.Attrs["db_labels"] = v
 										}
 									}
@@ -43201,7 +43201,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.WindowsDesktopLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.WindowsDesktopLabels, t, tf.Attrs["windows_desktop_labels"])
+											v := CopyToLabels(diags, obj.WindowsDesktopLabels, t, tf.Attrs["windows_desktop_labels"], preserveUnknown)
 											tf.Attrs["windows_desktop_labels"] = v
 										}
 									}
@@ -44259,7 +44259,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.DatabaseServiceLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.DatabaseServiceLabels, t, tf.Attrs["db_service_labels"])
+											v := CopyToLabels(diags, obj.DatabaseServiceLabels, t, tf.Attrs["db_service_labels"], preserveUnknown)
 											tf.Attrs["db_service_labels"] = v
 										}
 									}
@@ -44268,7 +44268,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.GroupLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.GroupLabels, t, tf.Attrs["group_labels"])
+											v := CopyToLabels(diags, obj.GroupLabels, t, tf.Attrs["group_labels"], preserveUnknown)
 											tf.Attrs["group_labels"] = v
 										}
 									}
@@ -44730,7 +44730,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																if !ok {
 																	diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.DatabasePermissions.Match"})
 																} else {
-																	v := CopyToLabels(diags, obj.Match, t, tf.Attrs["match"])
+																	v := CopyToLabels(diags, obj.Match, t, tf.Attrs["match"], preserveUnknown)
 																	tf.Attrs["match"] = v
 																}
 															}
@@ -45206,7 +45206,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"])
+											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"], preserveUnknown)
 											tf.Attrs["workload_identity_labels"] = v
 										}
 									}
@@ -45400,7 +45400,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.LinuxDesktopLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.LinuxDesktopLabels, t, tf.Attrs["linux_desktop_labels"])
+											v := CopyToLabels(diags, obj.LinuxDesktopLabels, t, tf.Attrs["linux_desktop_labels"], preserveUnknown)
 											tf.Attrs["linux_desktop_labels"] = v
 										}
 									}
@@ -45437,7 +45437,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.BeamLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.BeamLabels, t, tf.Attrs["beam_labels"])
+											v := CopyToLabels(diags, obj.BeamLabels, t, tf.Attrs["beam_labels"], preserveUnknown)
 											tf.Attrs["beam_labels"] = v
 										}
 									}
@@ -45568,7 +45568,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.NodeLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.NodeLabels, t, tf.Attrs["node_labels"])
+											v := CopyToLabels(diags, obj.NodeLabels, t, tf.Attrs["node_labels"], preserveUnknown)
 											tf.Attrs["node_labels"] = v
 										}
 									}
@@ -46176,7 +46176,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.Request.Annotations"})
 														} else {
-															v := CopyToTraits(diags, obj.Annotations, t, tf.Attrs["annotations"])
+															v := CopyToTraits(diags, obj.Annotations, t, tf.Attrs["annotations"], preserveUnknown)
 															tf.Attrs["annotations"] = v
 														}
 													}
@@ -46785,7 +46785,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.AppLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.AppLabels, t, tf.Attrs["app_labels"])
+											v := CopyToLabels(diags, obj.AppLabels, t, tf.Attrs["app_labels"], preserveUnknown)
 											tf.Attrs["app_labels"] = v
 										}
 									}
@@ -46794,7 +46794,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.ClusterLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.ClusterLabels, t, tf.Attrs["cluster_labels"])
+											v := CopyToLabels(diags, obj.ClusterLabels, t, tf.Attrs["cluster_labels"], preserveUnknown)
 											tf.Attrs["cluster_labels"] = v
 										}
 									}
@@ -46803,7 +46803,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.KubernetesLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.KubernetesLabels, t, tf.Attrs["kubernetes_labels"])
+											v := CopyToLabels(diags, obj.KubernetesLabels, t, tf.Attrs["kubernetes_labels"], preserveUnknown)
 											tf.Attrs["kubernetes_labels"] = v
 										}
 									}
@@ -46812,7 +46812,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.DatabaseLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.DatabaseLabels, t, tf.Attrs["db_labels"])
+											v := CopyToLabels(diags, obj.DatabaseLabels, t, tf.Attrs["db_labels"], preserveUnknown)
 											tf.Attrs["db_labels"] = v
 										}
 									}
@@ -47674,7 +47674,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.WindowsDesktopLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.WindowsDesktopLabels, t, tf.Attrs["windows_desktop_labels"])
+											v := CopyToLabels(diags, obj.WindowsDesktopLabels, t, tf.Attrs["windows_desktop_labels"], preserveUnknown)
 											tf.Attrs["windows_desktop_labels"] = v
 										}
 									}
@@ -48732,7 +48732,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.DatabaseServiceLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.DatabaseServiceLabels, t, tf.Attrs["db_service_labels"])
+											v := CopyToLabels(diags, obj.DatabaseServiceLabels, t, tf.Attrs["db_service_labels"], preserveUnknown)
 											tf.Attrs["db_service_labels"] = v
 										}
 									}
@@ -48741,7 +48741,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.GroupLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.GroupLabels, t, tf.Attrs["group_labels"])
+											v := CopyToLabels(diags, obj.GroupLabels, t, tf.Attrs["group_labels"], preserveUnknown)
 											tf.Attrs["group_labels"] = v
 										}
 									}
@@ -49203,7 +49203,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																if !ok {
 																	diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.DatabasePermissions.Match"})
 																} else {
-																	v := CopyToLabels(diags, obj.Match, t, tf.Attrs["match"])
+																	v := CopyToLabels(diags, obj.Match, t, tf.Attrs["match"], preserveUnknown)
 																	tf.Attrs["match"] = v
 																}
 															}
@@ -49679,7 +49679,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"])
+											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"], preserveUnknown)
 											tf.Attrs["workload_identity_labels"] = v
 										}
 									}
@@ -49873,7 +49873,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.LinuxDesktopLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.LinuxDesktopLabels, t, tf.Attrs["linux_desktop_labels"])
+											v := CopyToLabels(diags, obj.LinuxDesktopLabels, t, tf.Attrs["linux_desktop_labels"], preserveUnknown)
 											tf.Attrs["linux_desktop_labels"] = v
 										}
 									}
@@ -49910,7 +49910,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.BeamLabels"})
 										} else {
-											v := CopyToLabels(diags, obj.BeamLabels, t, tf.Attrs["beam_labels"])
+											v := CopyToLabels(diags, obj.BeamLabels, t, tf.Attrs["beam_labels"], preserveUnknown)
 											tf.Attrs["beam_labels"] = v
 										}
 									}
@@ -51460,7 +51460,7 @@ func CopyUserV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"UserV2.Spec.Traits"})
 						} else {
-							v := CopyToTraits(diags, obj.Traits, t, tf.Attrs["traits"])
+							v := CopyToTraits(diags, obj.Traits, t, tf.Attrs["traits"], preserveUnknown)
 							tf.Attrs["traits"] = v
 						}
 					}
@@ -54828,7 +54828,7 @@ func CopyOIDCConnectorV3ToTerraformPreserveUnknown(ctx context.Context, obj *git
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.RedirectURLs"})
 						} else {
-							v := CopyToStrings(diags, obj.RedirectURLs, t, tf.Attrs["redirect_url"])
+							v := CopyToStrings(diags, obj.RedirectURLs, t, tf.Attrs["redirect_url"], preserveUnknown)
 							tf.Attrs["redirect_url"] = v
 						}
 					}

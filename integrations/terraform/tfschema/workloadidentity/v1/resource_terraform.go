@@ -1212,7 +1212,7 @@ func CopyWorkloadIdentityToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"WorkloadIdentity.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -2097,7 +2097,7 @@ func CopyWorkloadIdentityToTerraformPreserveUnknown(ctx context.Context, obj *gi
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509.maximum_ttl"})
 														} else {
-															v := CopyToDuration(diags, obj.MaximumTtl, t, tf.Attrs["maximum_ttl"])
+															v := CopyToDuration(diags, obj.MaximumTtl, t, tf.Attrs["maximum_ttl"], preserveUnknown)
 															tf.Attrs["maximum_ttl"] = v
 														}
 													}
@@ -2141,7 +2141,7 @@ func CopyWorkloadIdentityToTerraformPreserveUnknown(ctx context.Context, obj *gi
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.jwt.maximum_ttl"})
 														} else {
-															v := CopyToDuration(diags, obj.MaximumTtl, t, tf.Attrs["maximum_ttl"])
+															v := CopyToDuration(diags, obj.MaximumTtl, t, tf.Attrs["maximum_ttl"], preserveUnknown)
 															tf.Attrs["maximum_ttl"] = v
 														}
 													}

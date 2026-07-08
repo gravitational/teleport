@@ -1218,7 +1218,7 @@ func CopyInferenceModelToTerraformPreserveUnknown(ctx context.Context, obj *gith
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"InferenceModel.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -2007,7 +2007,7 @@ func CopyInferenceSecretToTerraformPreserveUnknown(ctx context.Context, obj *git
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"InferenceSecret.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -2594,7 +2594,7 @@ func CopyInferencePolicyToTerraformPreserveUnknown(ctx context.Context, obj *git
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"InferencePolicy.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -3309,7 +3309,7 @@ func CopyClassifierToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"Classifier.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -3497,7 +3497,7 @@ func CopyClassifierToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"Classifier.spec.actions.emit_audit_event"})
 										} else {
-											v := CopyToClassifierActionMode(diags, obj.EmitAuditEvent, t, tf.Attrs["emit_audit_event"])
+											v := CopyToClassifierActionMode(diags, obj.EmitAuditEvent, t, tf.Attrs["emit_audit_event"], preserveUnknown)
 											tf.Attrs["emit_audit_event"] = v
 										}
 									}
@@ -3506,7 +3506,7 @@ func CopyClassifierToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"Classifier.spec.actions.risk_level_floor"})
 										} else {
-											v := CopyToRiskLevel(diags, obj.RiskLevelFloor, t, tf.Attrs["risk_level_floor"])
+											v := CopyToRiskLevel(diags, obj.RiskLevelFloor, t, tf.Attrs["risk_level_floor"], preserveUnknown)
 											tf.Attrs["risk_level_floor"] = v
 										}
 									}
@@ -3515,7 +3515,7 @@ func CopyClassifierToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"Classifier.spec.actions.flag_for_review"})
 										} else {
-											v := CopyToClassifierActionMode(diags, obj.FlagForReview, t, tf.Attrs["flag_for_review"])
+											v := CopyToClassifierActionMode(diags, obj.FlagForReview, t, tf.Attrs["flag_for_review"], preserveUnknown)
 											tf.Attrs["flag_for_review"] = v
 										}
 									}
@@ -4097,7 +4097,7 @@ func CopyRetrievalModelToTerraformPreserveUnknown(ctx context.Context, obj *gith
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"RetrievalModel.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
