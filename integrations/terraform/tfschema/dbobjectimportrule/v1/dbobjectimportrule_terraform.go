@@ -925,7 +925,7 @@ func CopyDatabaseObjectImportRuleToTerraformPreserveUnknown(ctx context.Context,
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"DatabaseObjectImportRule.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}

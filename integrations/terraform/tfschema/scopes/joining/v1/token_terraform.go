@@ -2705,7 +2705,7 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"ScopedToken.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -4969,7 +4969,7 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bound_keypair.onboarding.must_register_before"})
 														} else {
-															v := CopyToTimestamp(diags, obj.MustRegisterBefore, t, tf.Attrs["must_register_before"])
+															v := CopyToTimestamp(diags, obj.MustRegisterBefore, t, tf.Attrs["must_register_before"], preserveUnknown)
 															tf.Attrs["must_register_before"] = v
 														}
 													}
@@ -5077,7 +5077,7 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bound_keypair.rotate_after"})
 										} else {
-											v := CopyToTimestamp(diags, obj.RotateAfter, t, tf.Attrs["rotate_after"])
+											v := CopyToTimestamp(diags, obj.RotateAfter, t, tf.Attrs["rotate_after"], preserveUnknown)
 											tf.Attrs["rotate_after"] = v
 										}
 									}
