@@ -521,8 +521,6 @@ extraLabels:
   jobPod: {}
   # extraLabels.joinTokenSecret(object) - labels to add to the join token secret
   joinTokenSecret: {}
-  # extraLabels.persistentVolumeClaim(object) -- are labels to set on the PersistentVolumeClaim.
-  persistentVolumeClaim: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
   # Deployment.
   pod: {}
