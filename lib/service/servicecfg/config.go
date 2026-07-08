@@ -326,9 +326,6 @@ type ConfigTesting struct {
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
 
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
-
 	// KubeMultiplexerIgnoreSelfConnections signals that Proxy TLS server's listener should
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
 	// connections there.
@@ -636,6 +633,21 @@ func (cfg *Config) SetAuthServerAddresses(addrs []utils.NetAddr) error {
 // SetAuthServerAddress sets the value of authServers to a single value
 func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
 	cfg.authServers = []utils.NetAddr{addr}
+}
+
+// ProxyWebAddr returns the address of the proxy web API: the configured proxy
+// for v3 configs, otherwise the first auth server address.
+//
+// Config validation guarantees one of the two is set. Returns an empty NetAddr
+// if no addresses are configured, which is unreachable for a validated config.
+func (cfg *Config) ProxyWebAddr() utils.NetAddr {
+	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
+		return cfg.ProxyServer
+	}
+	if authServers := cfg.AuthServerAddresses(); len(authServers) > 0 {
+		return authServers[0]
+	}
+	return utils.NetAddr{}
 }
 
 // Token returns token needed to join the auth server

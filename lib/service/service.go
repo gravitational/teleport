@@ -1395,12 +1395,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}
 
-	var resolverAddr utils.NetAddr
-	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
-		resolverAddr = cfg.ProxyServer
-	} else {
-		resolverAddr = cfg.AuthServerAddresses()[0]
-	}
+	resolverAddr := cfg.ProxyWebAddr()
 
 	process.resolver, err = reversetunnelclient.CachingResolver(
 		process.ExitContext(),
