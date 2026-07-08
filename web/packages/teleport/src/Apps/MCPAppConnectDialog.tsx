@@ -93,7 +93,21 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
           <Stack fullWidth gap={2}>
             <Text>
               <Text bold as="span">
-                Step 2
+                Step 2 (optional)
+              </Text>
+              {' - Log in to the MCP server'}
+            </Text>
+            <Box>
+              If this MCP server requires its own authentication run the
+              following and complete the authorization in your browser:
+            </Box>
+            <TextSelectCopy text={`tsh mcp login ${app.name}`} />
+          </Stack>
+
+          <Stack fullWidth gap={2}>
+            <Text>
+              <Text bold as="span">
+                Step 3
               </Text>
               {' - Configure your MCP client'}
             </Text>
