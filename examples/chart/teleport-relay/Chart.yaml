@@ -1,4 +1,4 @@
-.version: &version "18.9.2"
+.version: &version "18.10.1-dev.terraform.3"
 
 name: teleport-relay
 apiVersion: v2
