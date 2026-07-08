@@ -106,6 +106,11 @@ const (
 	maxMaxX509SVIDTTL = time.Hour * 24 * 14
 )
 
+// workloadIdentityRulesDocsURL documents the expression and conditions forms
+// accepted by spec.rules.allow, including the available operators and where
+// to find the full set of workload attributes an expression can reference.
+const workloadIdentityRulesDocsURL = "https://goteleport.com/docs/reference/machine-workload-identity/workload-identity/workload-identity-resource/#rules"
+
 // ValidateWorkloadIdentity validates the WorkloadIdentity object. This is
 // performed prior to writing to the backend.
 func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
@@ -156,7 +161,7 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 				return trace.BadParameter("spec.rules.allow[%d].conditions: is mutually exclusive with expression", i)
 			}
 			if err := expression.Validate(rule.GetExpression()); err != nil {
-				return trace.BadParameter("spec.rules.allow[%d].expression: invalid expression: %s", i, err.Error())
+				return trace.BadParameter("spec.rules.allow[%d].expression: invalid expression: %s, see "+workloadIdentityRulesDocsURL, i, err.Error())
 			}
 		}
 
