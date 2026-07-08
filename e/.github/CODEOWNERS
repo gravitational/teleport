@@ -1,17 +1,17 @@
 # GHA workflows and custom actions control merging and CI/CD processes.
 # Protect the `.github` directory using CODEOWNERS.
-/.github/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @aadc-dev @rosstimothy
-/.environments/ @klizhentas @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
+/.github/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @aadc-dev @rosstimothy @marcin-je
+/.environments/ @klizhentas @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je
 
 # E2E Tests
 /.github/workflows/e2e-* @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @rosstimothy @ryanclark @avatus @ravicious
 
 # Internal Tools files
-/tooling/ @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
-/.sops.yaml @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
-/scripts/check-unencrypted-sops.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
-/scripts/configure-git.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
-/scripts/shared-pre-commit.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
+/tooling/ @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je @marcin-je
+/.sops.yaml @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je
+/scripts/check-unencrypted-sops.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je
+/scripts/configure-git.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je
+/scripts/shared-pre-commit.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je
 
 # Session Summaries
 /tooling/obfuscate-prompts/ @ryanclark @tigrato
@@ -23,5 +23,5 @@
 # Owners for Go dependency updates.
 **/go.mod @russjones @r0mant @zmb3 @rosstimothy
 **/go.sum @russjones @r0mant @zmb3 @rosstimothy
-/tooling/os-package-repo-tool/go.mod @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev
-/tooling/os-package-repo-tool/go.sum @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev
+/tooling/os-package-repo-tool/go.mod @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev @marcin-je
+/tooling/os-package-repo-tool/go.sum @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev @marcin-je
