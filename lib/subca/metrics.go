@@ -17,6 +17,7 @@
 package subca
 
 import (
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
@@ -43,11 +44,12 @@ var (
 	}, []string{"ca_type", "num_certificates", "result"})
 )
 
-func init() {
-	metrics.RegisterPrometheusCollectors(
+// RegisterMetrics registers subca prometheus metrics.
+func RegisterMetrics(registerer prometheus.Registerer) error {
+	return trace.Wrap(metrics.RegisterCollectors(registerer,
 		overrideReadHist,
 		overrideApplyHist,
-	)
+	))
 }
 
 func resultFromError(err error) string {
