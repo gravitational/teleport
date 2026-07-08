@@ -190,11 +190,13 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		return nil, trace.Wrap(err)
 	}
 
-	stderrR, err := cmd.StderrPipe()
+	stderrR, stderrW, err := os.Pipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer stderrW.Close()
 
+	cmd.Stderr = stderrW
 	go func() {
 		childErr, err := reexecutils.ReadChildErrorWithContext(stderrR, nil)
 		if err != nil {
