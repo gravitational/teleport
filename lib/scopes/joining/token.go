@@ -38,6 +38,7 @@ import (
 var rolesSupportingScopes = types.SystemRoles{
 	types.RoleNode,
 	types.RoleKube,
+	types.RoleApp,
 	types.RoleBot,
 }
 

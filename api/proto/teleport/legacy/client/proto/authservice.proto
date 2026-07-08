@@ -826,6 +826,9 @@ message GenerateAppTokenRequest {
   // AuthorityType configures which Teleport authority issues the JWT token.
   // Defaults to JWTSigner ("jwt") if empty.
   string authority_type = 6;
+  // Scope is defined when a scoped service must generate an app token.
+  // It will be used when making scoped rbac decisions
+  string scope = 7;
 }
 
 // GenerateAppTokenResponse contains a signed application token.
