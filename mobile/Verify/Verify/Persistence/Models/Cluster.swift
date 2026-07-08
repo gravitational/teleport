@@ -21,4 +21,5 @@ import SQLiteData
 struct Cluster {
 	let id: UUID
 	var host: String
+	var port: Int
 }
