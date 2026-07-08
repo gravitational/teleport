@@ -41,10 +41,7 @@ join_params:
 
 # join_params.method(string) -- How to join the cluster.
 #
-# Running on eks/aks/gke? Consider cloud-specific Workload Identity instead of Kubernetes:
-# * [AWS](../../reference/deployment/join-methods.mdx#aws-iam-role-iam)
-# * [Azure](../../reference/deployment/join-methods.mdx)#azure-managed-identity-azure
-# * [GCP](../../reference/deployment/join-methods.mdx#gcp-service-account-gcp)
+# See [Join Methods](../../reference/deployment/join-methods.mdx)
   method: kubernetes
   
 # join_params.token_name(string) -- The name of the Teleport join token.
@@ -182,7 +179,11 @@ proxy:
   # ```
   teleportConfig: {}
 
-# proxyListenerMode(string) -- controls TLS routing. In 'multiplex' mode, all
+# proxyListenerMode(string) -- controls TLS routing.
+# This must be set to the same value cluster-wide (i.e. in the
+# `teleport-cluster` chart or other instances of this chart.)
+#
+# In 'multiplex' mode, all
 # client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
 # The "separate" mode will not utilize TLS routing and operate in
 # backwards-compatibility mode.
@@ -326,7 +327,7 @@ highAvailability:
   #
   # WARNING: You **must** meet the replication criteria,
   # else the deployment will result in errors and inconsistent data.
-  replicaCount: 1
+  replicaCount: 2
   # highAvailability.requireAntiAffinity(bool) -- will use 'requiredDuringSchedulingIgnoredDuringExecution' to require that multiple Teleport pods must not be scheduled on the
   # same physical host. This will result in Teleport pods failing to be scheduled in very small clusters or during node downtime, so should be used with caution.
   # Setting 'requireAntiAffinity' to false (the default) uses 'preferredDuringSchedulingIgnoredDuringExecution' to make this a soft requirement.
