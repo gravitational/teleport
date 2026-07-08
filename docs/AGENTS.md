@@ -1,10 +1,29 @@
 # AGENTS.md
 
-Guidance for AI agents reviewing documentation PRs in this repo. Docs live in
-`docs/pages/` and are written in MDX. These guidelines apply to changes under
+Guidance for AI agents working with documentation in this repo. Docs live in
+`docs/pages/` and are written in MDX. These guidelines apply to work under
 `docs/`; for code changes, see the repo-root `AGENTS.md`.
 
-## Review guidelines
+This file covers two distinct jobs. Determine which one applies to your
+current task before reading further, and only follow the rules for that
+mode — the two are not interchangeable and some rules conflict by design.
+
+- **Review Mode:** You are reading a documentation PR as a critic. You do
+  not run commands against live infrastructure and you do not edit files;
+  you produce findings. Covered by "Review guidelines" through "Out of
+  scope" below.
+- **Execution Mode:** You are following a guide's numbered steps against
+  real infrastructure, acting as a reader would. You run commands, resolve
+  `<Var>` placeholders, and check prerequisites. Covered by "Resolving
+  variables and placeholders in guides" and "Prerequisites and permission
+  failures" below.
+
+If it's unclear which mode applies, stop and ask rather than guessing —
+the two modes call for opposite behavior around running commands.
+
+## Review Mode
+
+### Review guidelines
 
 - Focus on accuracy, structure, and conventions. Flag issues; do not rewrite.
 - Keep suggestions targeted. Quote the specific line and propose a minimal fix.
@@ -22,7 +41,7 @@ Guidance for AI agents reviewing documentation PRs in this repo. Docs live in
   issues on the original PR; do not defer findings to the backport phase. A
   finding that only surfaces during backport is a review miss.
 
-## Review output
+### Review output
 
 - Group findings by file, in the order files appear in the diff.
 - Label each finding with a severity:
@@ -45,7 +64,7 @@ Example of a well-formed finding:
 > ## Configure the agent
 > ```
 
-## What to check
+### What to check
 
 - **Style and conventions**
   - The conventions themselves (voice, headings, naming, components, page-type
@@ -113,7 +132,7 @@ Example of a well-formed finding:
     not invent or "correct" tag names; flag unfamiliar tags for human
     verification. See the "Frontmatter and tags" section of `AGENTS-STYLE.md`.
 
-## References
+### References
 
 - Documentation conventions (source of truth):
   [`contributing/documentation-style-guide.md`](contributing/documentation-style-guide.md),
@@ -129,9 +148,11 @@ Example of a well-formed finding:
   conventions the linter cannot verify. Do not attempt to build or lint docs
   from this repo.
 
-## Out of scope
+### Out of scope
 
-Do not do the following in a docs review:
+Do not do the following in a docs review. (This list applies to Review Mode
+only — Execution Mode's whole job is running commands against a live
+cluster; see below.)
 
 - Wholesale rewrites on style or tone grounds.
 - Changes to product behavior described in the docs. If the docs appear to
@@ -139,4 +160,94 @@ Do not do the following in a docs review:
 - Auto-resolving MDX includes (`(!...!)` partials) into inline content.
 - Speculation on provider-specific facts (AWS, Azure, GCP, IdP vendors)
   without a source. Flag uncertainty for a human reviewer instead.
-- Verifying commands against live clusters.
+- Verifying commands against live clusters. A reviewer checks a command
+  for correctness by reading it, not by running it.
+
+## Execution Mode
+
+You are following a guide's steps for real, against live infrastructure, to
+confirm it works as written. This means running commands, resolving
+placeholders, and checking your own permissions before acting — the opposite
+posture from Review Mode above.
+
+### Resolving variables and placeholders in guides
+
+Guides contain `<Var name="..." />` placeholders standing in for values such
+as addresses, tokens, and resource names. Never invent or guess a value for
+a placeholder. Resolve each one using the first rule that applies:
+
+1. **Output of a prior step.** If a command earlier in the guide (or one
+   you already ran in this session) produced the value (a join token, a
+   resource ID, an address printed in command output), reuse that exact
+   value. Example: `<Var name="token" />` after a `tctl tokens add` step
+   refers to the token that command printed.
+2. **Discoverable by command.** If the value describes the current cluster
+   or session: proxy address, cluster name, your roles, existing
+   resources - obtain it with a read-only command and parse the output.
+   Useful commands: `tsh status --format=json`, `tctl status`,
+   `tctl get <resource>`. Example: `<Var name="proxy-address" />` comes
+   from `tsh status`.
+3. **Environment.** If a conventional environment variable clearly
+   provides the value (for example `TELEPORT_PROXY`), use it.
+4. **Otherwise, ask the user and stop until they answer.** Values only the
+   user can choose or know, such as names for new resources, endpoints and
+   credentials of external systems, cloud account identifiers cannot be
+   derived. Ask before proceeding. A wrong guess wastes the entire run;
+   asking costs one exchange.
+
+The same placeholder name refers to the same value everywhere on a page:
+once resolved, reuse it; do not re-derive or re-prompt.
+
+If you resolved a value by inference (rules 1–3) and later output
+contradicts it (errors referencing a different address, a resource not
+found) stop and re-confirm the value with the user instead of continuing.
+
+### Explicit sourcing hints override the rules above
+
+Some `<Var>` tags may carry a `source` attribute (in rendered pages,
+`data-agent-source`). When present, it overrides rules 1–4:
+
+- `source="user-supplied"` - ask the user; the value cannot be derived.
+- `source="command:<cli command>"` - run that command and parse its output.
+- `source="env:<VAR_NAME>"` - read that environment variable; ask if unset.
+- `source="computed"` - reuse a value resolved earlier on the same page.
+
+Most guides do not carry these hints; the numbered rules are the default.
+
+### Prerequisites and permission failures
+
+Before executing a guide's numbered steps, verify its Prerequisites
+section. Confirm you are logged in (`tsh status`) and that each listed
+requirement is met; do not assume a prerequisite is satisfied because it
+is probably true.
+
+Not every prerequisite is a login or a role. Some require
+infrastructure, such as a host to enroll, a network path, or an external
+system. Do not assume such a resource exists, and do not substitute the
+machine you are running on for it. Many guides act on a **separate target
+host**, distinct from the workstation where you run `tsh` and `tctl`; that
+host's requirements (operating system, open ports, network access) may
+differ from your own environment. For example, a guide that enrolls a
+Linux server still expects that server to exist even though you run the
+client commands from macOS or Windows. Before starting the steps, identify
+which machine or resource each step acts on, confirm it exists and meets
+the stated requirements, and stop to ask the user if it is missing or the
+guide is ambiguous about which machine is meant. A wrong assumption here
+wastes the entire run; asking costs one exchange.
+
+If any command fails with an authorization error, such as "access denied",
+"permission denied", a missing verb on a resource, or any RBAC error,
+treat it as a privilege gap, not a configuration problem, a product bug,
+or a documentation error. Do not retry with invented workarounds, do not
+skip the step, and never report the step complete. Instead:
+
+1. Identify the role or permission the step requires. Guides usually name
+   required roles (such as `editor`) in their Prerequisites section.
+2. File an Access Request: `tsh request create --roles=<role>`.
+3. Tell the user what you requested and why, and pause the run until the
+   request is approved or denied.
+
+If a prerequisite or `<Var>` carries an explicit `requires` attribute
+(for example `requires="role:editor"`), check your roles against it with
+`tsh status` before attempting the step, and follow the same
+Access Request procedure if you lack the role.
