@@ -15,7 +15,7 @@
 # VIP used by your existing Teleport cluster.
 clusterName: ""
 
-# auth_server(string) - the address this proxy should use to contact the Auth
+# auth_server(string) -- the address this proxy should use to contact the Auth
 # service. This should be
 # be an <IP>:<PORT> for an internal network path to the auth service. Port
 # defaults to 3025 if not specified.
@@ -271,7 +271,7 @@ acmeURI: ""
 # kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 # ```
 enterprise: false
-# licenseSecretName(string) - overrides name for the Kubernetes secret that stores the Enterprise license
+# licenseSecretName(string) -- overrides name for the Kubernetes secret that stores the Enterprise license
 licenseSecretName: "license"
 
 # chartMode(string) -- introduces cloud-specific settings. At present, these
@@ -418,7 +418,7 @@ image: public.ecr.aws/gravitational/teleport-distroless
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
-# log(object) - is the teleport logging configuration
+# log(object) -- is the teleport logging configuration
 log:
   # log.level(string) -- log level for the Teleport process.
   # Available log levels are: DEBUG, INFO, WARNING, ERROR.
@@ -432,7 +432,7 @@ log:
   # log.format(string) -- is the log format configuration.
   # Possible output values are 'json' and 'text' (default).
   format: text
-  # log.extraFields(array) - other fields to log. Possible extra_fields values include: timestamp, component, caller, and level.
+  # log.extraFields(array) -- other fields to log. Possible extra_fields values include: timestamp, component, caller, and level.
   # All extra fields are included by default.
   extraFields: ["timestamp", "level", "component", "caller"]
 
@@ -519,7 +519,7 @@ extraLabels:
   # extraLabels.jobPod(object) -- are labels to set on the Pods created by the
   # Job run by the Helm hook.
   jobPod: {}
-  # extraLabels.joinTokenSecret(object) - labels to add to the join token secret
+  # extraLabels.joinTokenSecret(object) -- labels to add to the join token secret
   joinTokenSecret: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
   # Deployment.
@@ -588,11 +588,11 @@ ingress:
   # ```
   spec: {}
 
-# extraArgs(array) - adds arguments to 'teleport start' for the main Teleport 
+# extraArgs(array) -- adds arguments to 'teleport start' for the main Teleport 
 # pod
 extraArgs: []
 
-# extraEnv(array) - adds environment variables to the Teleport pod.
+# extraEnv(array) -- adds environment variables to the Teleport pod.
 extraEnv: []
 
 # extraContainers(array) -- to be added to the Teleport pod
@@ -704,7 +704,7 @@ jobResources: {}
 # This has no effect if GOMEMLIMIT is already set through `extraEnv`.
 goMemLimitRatio: 0.9
 
-# podSecurityContext(object) - for any pods created by the chart.
+# podSecurityContext(object) -- for any pods created by the chart.
 # Example:
 # ```yaml
 # fsGroup: 65532
@@ -721,7 +721,7 @@ securityContext: {}
 # priorityClassName(string) -- to add to the deployment
 priorityClassName: ""
 
-# tolerations(array) - for pod assignment
+# tolerations(array) -- for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 tolerations: []
 

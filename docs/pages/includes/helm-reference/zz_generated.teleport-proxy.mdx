@@ -19,6 +19,19 @@ chart, this typically means adding the external IP of this proxy's load-balancer
 to your geography-aware DNS service or putting it behind the load balancer for the Anycast
 VIP used by your existing Teleport cluster.
 
+## `auth_server`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`auth_server` the address this proxy should use to contact the Auth
+service. This should be
+be an <IP>:<PORT> for an internal network path to the auth service. Port
+defaults to 3025 if not specified.
+If running on the same kube cluster as the auth service, consider using the
+teleport-cluster chart instead.
+
 ## `join_params`
 
 | Type | Default |
@@ -317,6 +330,14 @@ You will need to download your Enterprise license from the Teleport dashboard an
 kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 ```
 
+## `licenseSecretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"license"` |
+
+`licenseSecretName` overrides name for the Kubernetes secret that stores the Enterprise license
+
 ## `chartMode`
 
 | Type | Default |
@@ -585,6 +606,14 @@ Else, Teleport will fail to establish TLS connections with external services.
 `tls.existingCASecretKeyName` optional name of an existing key in
 the CA secret which will be used as a trusted CA bundle file.
 
+## `log`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"extraFields":["timestamp","level","component","caller"],"format":"text","level":"INFO","output":"stderr"}` |
+
+`log` is the teleport logging configuration
+
 ### `log.level`
 
 | Type | Default |
@@ -614,6 +643,15 @@ Other supported values: 'stdout', 'stderr' and 'syslog'
 
 `log.format` is the log format configuration.
 Possible output values are 'json' and 'text' (default).
+
+### `log.extraFields`
+
+| Type | Default |
+|------|---------|
+| `array` | `["timestamp","level","component","caller"]` |
+
+`log.extraFields` other fields to log. Possible extra_fields values include: timestamp, component, caller, and level.
+All extra fields are included by default.
 
 ## `disableTopologySpreadConstraints`
 
@@ -778,6 +816,14 @@ is true.
 
 `extraLabels.jobPod` are labels to set on the Pods created by the
 Job run by the Helm hook.
+
+### `extraLabels.joinTokenSecret`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.joinTokenSecret` labels to add to the join token secret
 
 ### `extraLabels.persistentVolumeClaim`
 
@@ -957,6 +1003,23 @@ Example:
 ingressClassName: nginx
 ```
 
+## `extraArgs`
+
+| Type | Default |
+|------|---------|
+| `array` | `[]` |
+
+`extraArgs` adds arguments to 'teleport start' for the main Teleport 
+pod
+
+## `extraEnv`
+
+| Type | Default |
+|------|---------|
+| `array` | `[]` |
+
+`extraEnv` adds environment variables to the Teleport pod.
+
 ## `extraContainers`
 
 | Type | Default |
@@ -1092,6 +1155,18 @@ The value must be between 0 and 1.
 Set to 0 to unset GOMEMLIMIT.
 This has no effect if GOMEMLIMIT is already set through `extraEnv`.
 
+## `podSecurityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`podSecurityContext` for any pods created by the chart.
+Example:
+```yaml
+fsGroup: 65532
+```
+
 ## `securityContext`
 
 | Type | Default |
@@ -1111,6 +1186,15 @@ runAsUser: 99
 | `string` | `""` |
 
 `priorityClassName` to add to the deployment
+
+## `tolerations`
+
+| Type | Default |
+|------|---------|
+| `array` | `[]` |
+
+`tolerations` for pod assignment
+https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 
 ## `probeTimeoutSeconds`
 
