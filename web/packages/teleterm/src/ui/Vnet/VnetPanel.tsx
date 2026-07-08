@@ -323,7 +323,7 @@ const RecentConnectionsList = () => {
       {recentConnections.length === 0 ? (
         <SecondaryText>No connections yet.</SecondaryText>
       ) : (
-        <Flex flexDirection="column" gap={1}>
+        <Flex flexDirection="column">
           {recentConnections.map(connection => (
             <RecentConnectionRow
               key={[
