@@ -56,7 +56,7 @@ type LocalKeyAgent struct {
 	clientStore *Store
 
 	// systemAgent is the system ssh agent
-	systemAgent agent.ExtendedAgent
+	systemAgent sshagent.Client
 
 	// noHosts is a in-memory map used in tests to track which hosts a user has
 	// manually (via keyboard input) refused connecting to.
@@ -166,6 +166,20 @@ the --add-keys-to-agent=yes flag.`)
 		}
 	}
 	return a, nil
+}
+
+// Close releases resources held by the local agent. In particular it closes the
+// connection to the system SSH agent, which is opened in [NewLocalAgent] and
+// would otherwise stay open for the lifetime of the process. Long-running
+// processes that build many agents (such as tshd) must call Close when an agent
+// is no longer needed to avoid exhausting the system agent with connections.
+func (a *LocalKeyAgent) Close() error {
+	if a.systemAgent == nil {
+		return nil
+	}
+	err := a.systemAgent.Close()
+	a.systemAgent = nil
+	return trace.Wrap(err)
 }
 
 // UpdateProxyHost changes the proxy host that the local agent operates on.
