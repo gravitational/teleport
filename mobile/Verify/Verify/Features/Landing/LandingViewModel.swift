@@ -15,6 +15,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Observation
+import SQLiteData
 import SwiftNavigation
 
 @Observable @MainActor
@@ -27,8 +28,20 @@ final class LandingViewModel {
 		case enrollDevice(EnrollDeviceViewModel)
 	}
 
+	@ObservationIgnored
+	@FetchAll
+	var clusters: [Cluster]
+
 	var destination: Destination? = nil
 	var sensoryFeedbackTrigger = false
+}
+
+// MARK: - UI Helper
+
+extension LandingViewModel {
+	var shouldShowPreEnrollmentLanding: Bool {
+		clusters.isEmpty
+	}
 }
 
 // MARK: - User Actions
