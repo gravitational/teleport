@@ -12,7 +12,7 @@
   "scripts": {
     "//": "Remove the postinstall script once https://github.com/alex8088/electron-vite/issues/904 is addressed.",
     "postinstall": "install-electron",
-    "start": "pnpm build-wasm && electron-vite dev",
+    "start": "make -C ../../../ build/tsh && pnpm build-wasm && electron-vite dev",
     "build": "pnpm build-wasm && electron-vite build",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
     "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
