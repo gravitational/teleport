@@ -45,9 +45,10 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.testCmd.Arg("integration", "Name of the integration to test. Use `tctl get integrations` to list integrations.").Required().StringVar(&c.testArgs.integration)
 	c.testCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.testArgs.format, teleport.Text, teleport.JSON, teleport.YAML)
 
-	awsicCmd := integrationsCmd.Command("awsic", "Operate on AWS Identity Center resources synced with the cluster.")
-	c.awsicAccountsCmd = awsicCmd.Command("accounts", "List AWS Identity Center accounts and their permission sets.")
-	c.awsicAccountsCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.awsicArgs.format, teleport.Text, teleport.JSON, teleport.YAML)
+	awsicCmd := integrationsCmd.Command("awsic", "View AWS Identity Center resources synced with the cluster. "+
+		"To configure the AWS Identity Center integration itself, use `tctl plugins install awsic` or `tctl plugins edit awsic`.")
+	awsicAccountsCmd := awsicCmd.Command("accounts", "View AWS Identity Center accounts synced with the cluster.")
+	c.awsicAccountsLsCmd = awsicAccountsCmd.Command("ls", "List AWS Identity Center accounts and their permission sets.")
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
@@ -62,7 +63,7 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 		commandFunc = func(ctx context.Context, client *authclient.Client) error {
 			return c.test(ctx, testClientAdapter{client: client})
 		}
-	case c.awsicAccountsCmd.FullCommand():
+	case c.awsicAccountsLsCmd.FullCommand():
 		commandFunc = c.listAWSICAccounts
 	default:
 		return false, nil
@@ -114,8 +115,7 @@ type Command struct {
 	testCmd  *kingpin.CmdClause
 	testArgs testArgs
 
-	awsicAccountsCmd *kingpin.CmdClause
-	awsicArgs        awsicArgs
+	awsicAccountsLsCmd *kingpin.CmdClause
 
 	// Stdout allows to switch the standard output source. Used in tests.
 	Stdout io.Writer
