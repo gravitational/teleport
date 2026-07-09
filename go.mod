@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.26.4
+go 1.26.5
 
 ignore (
 	./build
@@ -173,6 +173,7 @@ require (
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jcmturner/gokrb5/v8 v8.4.4
+	github.com/jezek/xgb v1.3.1
 	github.com/johannesboyne/gofakes3 v0.0.0-20250916175020-ebf3e50324d3
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531

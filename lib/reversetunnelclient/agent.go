@@ -36,4 +36,9 @@ const (
 	// the local proxy.
 	// This has to be a valid domain name, so it lacks @
 	LocalWindowsDesktop = "remote.windows_desktop.proxy." + constants.APIDomain
+	// LocalLinuxDesktop is a special non-resolvable address that indicates
+	// that clients requests a connection to the linux service endpoint of
+	// the local proxy.
+	// This has to be a valid domain name, so it lacks @
+	LocalLinuxDesktop = "remote.linux_desktop.proxy." + constants.APIDomain
 )

@@ -1,6 +1,6 @@
 module register-app-service
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/gravitational/teleport/api v0.0.0-20251120161518-a8e2cdc30b24

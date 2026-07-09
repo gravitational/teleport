@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/event-handler
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/DataDog/datadog-agent/pkg/template v0.79.1

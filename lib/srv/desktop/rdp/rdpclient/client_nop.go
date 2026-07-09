@@ -71,3 +71,14 @@ func PrepareConnecton(_ string, _ *tdp.Conn, _ *slog.Logger) (tdp.MessageReadWri
 
 // DisableNLA disables NLA in the client configuration.
 func (c *Client) DisableNLA() {}
+
+// EncodeQOIZ encodes changed frame to series of FastPath SetSurface PDUs using QOIZ codec.
+// Resulting frames can be consumed directly by the FastPath processor from IronRDP if qoiz
+// feature is enabled in ironrdp-session crate
+func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]*tdpb.FastPathPDU, error) {
+	return nil, errors.New("the real rdpclient implementation was not included in this build")
+}
+
+func EncodeQOIZAvailable() bool {
+	return false
+}
