@@ -45,6 +45,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -1581,6 +1582,7 @@ var (
 		types.KindNode:                   {},
 		types.KindSAMLIdPServiceProvider: {},
 		types.KindWindowsDesktop:         {},
+		types.KindLinuxDesktop:           {},
 		types.KindMCP:                    {},
 	}
 
@@ -1754,6 +1756,17 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for desktop",
 						"error", err,
 						"resource", d.GetName(),
+					)
+					continue
+				}
+				r.Logins = logins
+			} else if d := r.GetLinuxDesktop(); d != nil {
+				desktop := proto.UnpackLinuxDesktop(d)
+				logins, err := resourceLister.getAllowedLogins(desktop)
+				if err != nil {
+					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for Linux desktop",
+						"error", err,
+						"resource", desktop.GetName(),
 					)
 					continue
 				}
@@ -2528,6 +2541,11 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 		if isCheckable {
 			return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
+	case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+		checkable, isCheckable := rr.(services.AccessCheckable)
+		if isCheckable {
+			return r.CheckAccess(checkable, state)
+		}
 	}
 
 	return trace.BadParameter("could not check access to resource type %T", resource)
@@ -2540,6 +2558,7 @@ func newResourceAccessChecker(authCtx authz.Context, resource string) (*resource
 		types.KindDatabaseServer,
 		types.KindDatabaseService,
 		types.KindWindowsDesktop,
+		types.KindLinuxDesktop,
 		types.KindWindowsDesktopService,
 		types.KindNode,
 		types.KindKubeServer,
@@ -4276,6 +4295,9 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	case proto.UserCertsRequest_WindowsDesktop:
 		// Desktop certs.
 		certReq.Usage = []string{teleport.UsageWindowsDesktopOnly}
+	case proto.UserCertsRequest_LinuxDesktop:
+		// Desktop certs.
+		certReq.Usage = []string{teleport.UsageLinuxDesktopOnly}
 	default:
 		return nil, trace.BadParameter("unsupported cert usage %q", req.Usage)
 	}
@@ -4351,8 +4373,8 @@ func (a *ServerWithRoles) GetAccessRequestAllowedPromotions(ctx context.Context,
 // progressing further and provides better feedback than other protocol-specific
 // failures.
 func verifyUserDeviceForCertIssuance(ctx context.Context, identity tlsca.Identity, usage proto.UserCertsRequest_CertUsage, dt *types.DeviceTrust) error {
-	// Ignore App or WindowsDesktop requests, they do not support device trust.
-	if usage == proto.UserCertsRequest_App || usage == proto.UserCertsRequest_WindowsDesktop {
+	// Ignore App, WindowsDesktop, and LinuxDesktop requests, they do not support device trust.
+	if usage == proto.UserCertsRequest_App || usage == proto.UserCertsRequest_WindowsDesktop || usage == proto.UserCertsRequest_LinuxDesktop {
 		return nil
 	}
 	return trace.Wrap(dtauthz.VerifyTLSUser(ctx, dt, identity))
@@ -7223,6 +7245,8 @@ func sessionTypeFromStartEvent(sessionStart apievents.AuditEvent) types.SessionK
 		return types.AppSessionKind
 	case *apievents.WindowsDesktopSessionStart:
 		return types.WindowsDesktopSessionKind
+	case *apievents.LinuxDesktopSessionStart:
+		return types.LinuxDesktopSessionKind
 	default:
 		return types.UnknownSessionKind
 	}

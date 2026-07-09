@@ -146,6 +146,17 @@ func (s *SyncKeys) Encode() ([]byte, error) {
 
 func (*SyncKeys) validate() error { return nil }
 
+// SessionSelection is sent by client to select one of available sessions for Linux desktop
+type SessionSelection tdpbv1.SessionSelection
+
+func (s *SessionSelection) Encode() ([]byte, error) {
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SessionSelection: proto.ValueOrDefault((*tdpbv1.SessionSelection)(s)),
+	}.Build())
+}
+
+func (*SessionSelection) validate() error { return nil }
+
 // MouseMove contains mouse coordinates.
 type MouseMove tdpbv1.MouseMove
 
@@ -587,6 +598,8 @@ func messageFromEnvelope(e *tdpbv1.Envelope) validatableMessage {
 		return (*Ping)(m.Ping)
 	case *tdpbv1.Envelope_SharedDirectoryRemove:
 		return (*SharedDirectoryRemove)(m.SharedDirectoryRemove)
+	case *tdpbv1.Envelope_SessionSelection:
+		return (*SessionSelection)(e.GetSessionSelection())
 	default:
 		return nil
 	}

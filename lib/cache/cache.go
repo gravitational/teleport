@@ -174,6 +174,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
@@ -263,6 +264,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
@@ -317,6 +319,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindNode},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindWindowsDesktopService},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
@@ -439,6 +442,34 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindDynamicWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
+	return cfg
+}
+
+// ForLinuxDesktop sets up watch configuration for a Linux desktop service.
+func ForLinuxDesktop(cfg Config) Config {
+	var caFilter map[string]string
+	if cfg.ClusterConfig != nil {
+		clusterName, err := cfg.ClusterConfig.GetClusterName(context.TODO())
+		if err == nil {
+			caFilter = types.CertAuthorityFilter{
+				types.HostCA: clusterName.GetClusterName(),
+				types.UserCA: types.Wildcard,
+			}.IntoMap()
+		}
+	}
+	cfg.target = "linux_desktop"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: caFilter},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterAuditConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindLinuxDesktop},
+	}
+	cfg.QueueSize = defaults.LinuxDesktopQueueSize
 	return cfg
 }
 
@@ -704,10 +735,12 @@ type Config struct {
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
 	WebToken services.WebToken
-	// WindowsDesktops is a windows desktop service.
+	// WindowsDesktops is a Windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// DynamicWindowsDesktops is a dynamic Windows desktop service.
 	DynamicWindowsDesktops services.DynamicWindowsDesktops
+	// LinuxDesktops is a Linux desktop service.
+	LinuxDesktops services.LinuxDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 	// UserGroups is a user groups service.

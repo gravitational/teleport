@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	gitserverclient "github.com/gravitational/teleport/api/client/gitserver"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
+	"github.com/gravitational/teleport/api/client/linuxdesktop"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
@@ -92,6 +93,7 @@ import (
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -3048,6 +3050,18 @@ func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (typ
 	return c.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, name)
 }
 
+// LinuxDesktopClient returns a LinuxDesktop client.
+// Clients connecting to older Teleport versions, still get a LinuxDesktop client
+// when calling this method, but all RPCs will return "unknown service" errors
+// (as per the default gRPC behavior).
+func (c *Client) LinuxDesktopClient() *linuxdesktop.Client {
+	return linuxdesktop.NewClient(linuxdesktopv1.NewLinuxDesktopServiceClient(c.conn))
+}
+
+func (c *Client) GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error) {
+	return c.LinuxDesktopClient().GetLinuxDesktop(ctx, name)
+}
+
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient {
@@ -4506,6 +4520,9 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetGitServer(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+	} else if r := resource.GetLinuxDesktop(); r != nil {
+		desktop := proto.UnpackLinuxDesktop(r)
+		return &types.EnrichedResource{ResourceWithLabels: desktop, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}

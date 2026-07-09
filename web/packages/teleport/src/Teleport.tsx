@@ -217,6 +217,11 @@ export function getSharedPrivateRoutes() {
       path={cfg.routes.desktop}
       component={DesktopSession}
     />,
+    <Route
+      key="linuxDesktop"
+      path={cfg.routes.linuxDesktop}
+      component={<DesktopSession />}
+    />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
     <Route
       key="headlessSSO"

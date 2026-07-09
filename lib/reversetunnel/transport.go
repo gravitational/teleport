@@ -227,7 +227,7 @@ func (p *transport) start() {
 		}
 
 	// LocalNode requests are for the single server running in the agent pool.
-	case reversetunnelclient.LocalNode, reversetunnelclient.LocalWindowsDesktop:
+	case reversetunnelclient.LocalNode, reversetunnelclient.LocalWindowsDesktop, reversetunnelclient.LocalLinuxDesktop:
 		// Transport is allocated with both teleport.ComponentReverseTunnelAgent
 		// and teleport.ComponentReverseTunnelServer. However, dialing to this address
 		// only makes sense when running within a teleport.ComponentReverseTunnelAgent.

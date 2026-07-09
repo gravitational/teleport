@@ -477,6 +477,9 @@ const (
 	// KindDynamicWindowsDesktop is a dynamic Windows desktop host.
 	KindDynamicWindowsDesktop = "dynamic_windows_desktop"
 
+	// KindLinuxDesktop is a Linux desktop host.
+	KindLinuxDesktop = "linux_desktop"
+
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
 
@@ -1494,6 +1497,9 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+
+	// LinuxDesktopTunnel is a tunnel where the Linux desktop service dials back to the proxy.
+	LinuxDesktopTunnel TunnelType = "linux_desktop"
 
 	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
 	OktaTunnel TunnelType = "okta"

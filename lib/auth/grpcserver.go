@@ -71,6 +71,7 @@ import (
 	inventorypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -117,6 +118,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/inventory/inventoryv1"
 	issuancev1 "github.com/gravitational/teleport/lib/auth/issuance/v1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
+	"github.com/gravitational/teleport/lib/auth/linuxdesktop/linuxdesktopv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
@@ -299,6 +301,7 @@ var connectedResourceGauges = map[string]prometheus.Gauge{
 	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
 	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
 	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+	constants.KeepAliveLinuxDesktop:          connectedResources.WithLabelValues(constants.KeepAliveLinuxDesktop),
 	teleport.ComponentRelay:                  connectedResources.WithLabelValues(teleport.ComponentRelay),
 }
 
@@ -742,6 +745,10 @@ func validateUserCertsRequest(srv *ScopedServerWithRoles, req *authpb.UserCertsR
 		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
 			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
 		}
+	case authpb.UserCertsRequest_LinuxDesktop:
+		if req.RouteToLinuxDesktop.LinuxDesktop == "" {
+			return trace.BadParameter("missing LinuxDesktop field in a linux-desktop-only UserCertsRequest")
+		}
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
@@ -853,10 +860,11 @@ func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRol
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
-	types.RoleApp:      constants.KeepAliveApp,
-	types.RoleDatabase: constants.KeepAliveDatabase,
-	types.RoleKube:     constants.KeepAliveKube,
-	types.RoleNode:     constants.KeepAliveNode,
+	types.RoleApp:          constants.KeepAliveApp,
+	types.RoleDatabase:     constants.KeepAliveDatabase,
+	types.RoleKube:         constants.KeepAliveKube,
+	types.RoleNode:         constants.KeepAliveNode,
+	types.RoleLinuxDesktop: constants.KeepAliveLinuxDesktop,
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
@@ -2917,7 +2925,7 @@ func userSingleUseCertsGenerate(ctx context.Context, srv *ScopedServerWithRoles,
 	switch req.Usage {
 	case authpb.UserCertsRequest_SSH:
 		resp.SSH = certs.SSH
-	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App:
+	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_LinuxDesktop, authpb.UserCertsRequest_App:
 		resp.TLS = certs.TLS
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
@@ -6391,6 +6399,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	dynamicwindowsv1pb.RegisterDynamicWindowsServiceServer(server, dynamicWindows)
+
+	linuxDesktop, err := linuxdesktopv1.NewService(linuxdesktopv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Reader:     cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	linuxdesktopv1pb.RegisterLinuxDesktopServiceServer(server, linuxDesktop)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
 		Authorizer:       cfg.Authorizer,

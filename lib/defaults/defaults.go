@@ -367,6 +367,9 @@ const (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// LinuxDesktopQueueSize is linux_desktop service watch queue size.
+	LinuxDesktopQueueSize = 128
+
 	// DiscoveryQueueSize is discovery service queue size.
 	DiscoveryQueueSize = 128
 )
@@ -447,6 +450,8 @@ const (
 	RoleDatabase = "db"
 	// RoleWindowsDesktop is a Windows desktop service.
 	RoleWindowsDesktop = "windowsdesktop"
+	// RoleLinuxDesktop is a Linux desktop service.
+	RoleLinuxDesktop = "linuxdesktop"
 	// RoleDiscovery is a discovery service
 	RoleDiscovery = "discovery"
 )

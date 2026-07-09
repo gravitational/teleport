@@ -124,11 +124,12 @@ export interface UnifiedResourceKube {
 }
 
 export type UnifiedResourceDesktop = {
-  kind: 'windows_desktop';
+  kind: 'windows_desktop' | 'linux_desktop';
   os: 'windows' | 'linux' | 'darwin';
   name: string;
   addr: string;
   labels: ResourceLabel[];
+  host_id?: string;
   requiresRequest?: boolean;
 };
 

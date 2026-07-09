@@ -4190,6 +4190,20 @@ message RoleConditions {
   // MCPPermissions defines MCP servers related permissions.
   MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
 
+  // LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
+  repeated string LinuxDesktopLogins = 47 [(gogoproto.jsontag) = "linux_desktop_logins,omitempty"];
+
+  // LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
+  wrappers.LabelValues LinuxDesktopLabels = 48 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "linux_desktop_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+
+  // LinuxDesktopLabelsExpression is a predicate expression used to allow/deny
+  // access to Linux desktops.
+  string LinuxDesktopLabelsExpression = 49 [(gogoproto.jsontag) = "linux_desktop_labels_expression,omitempty"];
+
   // BeamLabels are used in the RBAC system to allow/deny access to beams.
   wrappers.LabelValues BeamLabels = 50 [
     (gogoproto.nullable) = false,
@@ -6482,6 +6496,9 @@ message LockTarget {
   // joined. This is only valid for bot identities, and cannot be used to target
   // `token`-joined bots.
   string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
+
+  // LinuxDesktop specifies the name of a Linux desktop.
+  string LinuxDesktop = 12 [(gogoproto.jsontag) = "linux_desktop,omitempty"];
 }
 
 // LockFilter encodes optional filters to apply when listing Lock resources

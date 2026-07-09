@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -1057,6 +1058,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle, WithSubprotocols(tdpb.ProtocolName)))
 	// GET /webapi/sites/:site/desktopplayback/:sid/ws
 	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(h.desktopPlaybackHandle))
+	// GET /webapi/sites/:site/linuxdesktops/:desktopName/connect/ws?username=<username>&width=<width>&height=<height>
+	h.GET("/webapi/sites/:site/linuxdesktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.linuxDesktopConnectHandle, WithSubprotocols(tdpb.ProtocolName)))
 	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
 
 	// GET a Connection Diagnostics by its name
@@ -3358,6 +3361,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 			types.KindDatabase,
 			types.KindNode,
 			types.KindWindowsDesktop,
+			types.KindLinuxDesktop,
 			types.KindKubernetesCluster,
 			types.KindSAMLIdPServiceProvider,
 			types.KindGitServer,
@@ -3544,7 +3548,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 					return nil, trace.Wrap(err)
 				}
 			}
-			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, logins, enriched.RequiresRequest))
+			unifiedResources = append(unifiedResources, ui.MakeWindowsDesktop(r, logins, enriched.RequiresRequest))
+		case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+			unifiedResources = append(unifiedResources, ui.MakeLinuxDesktop(r.UnwrapT(), enriched.Logins, enriched.RequiresRequest))
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
@@ -3835,6 +3841,8 @@ func (h *Handler) getClusterLocksV2(
 				target.MFADevice = parts[1]
 			case "windows_desktop":
 				target.WindowsDesktop = parts[1]
+			case "linux_desktop":
+				target.LinuxDesktop = parts[1]
 			case "access_request":
 				target.AccessRequest = parts[1]
 			case "device":
