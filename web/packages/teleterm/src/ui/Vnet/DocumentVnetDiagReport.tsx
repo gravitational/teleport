@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import {
+  Box,
   Button,
   Alert as DesignAlert,
   Flex,
@@ -44,7 +45,10 @@ import { P1, P2 } from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { ConnectionStat } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import {
+  ConnectionRecord,
+  ConnectionStat,
+} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
@@ -60,6 +64,7 @@ import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
 
+import { ConnectionRecordRow } from './ConnectionRecordRow';
 import { ConnectionStatRow } from './ConnectionStatRow';
 import { useVnetContext } from './vnetContext';
 
@@ -317,15 +322,44 @@ export function filterAndSortConnectionStats(
 }
 
 /**
- * ConnectionsSection lists all VNet connections from the connection statistics
- * stream, sorted by address with a type badge and filterable by address. It
- * reads the same connectionStats as the VNet panel and renders them with the
- * shared ConnectionStatRow.
+ * targetKey identifies the target a stat or a record belongs to. Both messages
+ * carry the same identifying fields, so it joins the records to their stats.
+ */
+function targetKey(target: ConnectionStat | ConnectionRecord): string {
+  return [
+    target.kind,
+    target.cluster,
+    target.leafCluster,
+    target.displayName,
+    target.port,
+  ].join('/');
+}
+
+/**
+ * ConnectionsSection lists all VNet connections from the connections stream,
+ * sorted by address with a type badge and filterable by address. Each address
+ * shows its aggregated statistics and expands to the individual connections
+ * made to it, newest-first.
  */
 const ConnectionsSection = () => {
-  const { connectionStats } = useVnetContext();
+  const { connectionStats, connectionRecords } = useVnetContext();
   const [filter, setFilter] = useState('');
   const filteredStats = filterAndSortConnectionStats(connectionStats, filter);
+
+  // The records arrive newest-first, so each group keeps that order.
+  const recordsByTarget = useMemo(() => {
+    const grouped = new Map<string, ConnectionRecord[]>();
+    for (const record of connectionRecords) {
+      const key = targetKey(record);
+      const group = grouped.get(key);
+      if (group) {
+        group.push(record);
+      } else {
+        grouped.set(key, [record]);
+      }
+    }
+    return grouped;
+  }, [connectionRecords]);
 
   return (
     <ReportCard>
@@ -358,15 +392,10 @@ const ConnectionsSection = () => {
       ) : (
         <Stack gap={1} fullWidth alignItems="stretch">
           {filteredStats.map(stat => (
-            <ConnectionStatRow
-              key={[
-                stat.kind,
-                stat.cluster,
-                stat.leafCluster,
-                stat.displayName,
-                stat.port,
-              ].join('/')}
+            <ConnectionStatDetails
+              key={targetKey(stat)}
               stat={stat}
+              records={recordsByTarget.get(targetKey(stat)) ?? []}
             />
           ))}
         </Stack>
@@ -374,6 +403,40 @@ const ConnectionsSection = () => {
     </ReportCard>
   );
 };
+
+/**
+ * ConnectionStatDetails shows the aggregated statistics for a single address,
+ * expandable to the individual connections made to it. Only a capped window of
+ * connections is kept, so the list can be empty or cover fewer connections than
+ * the statistics account for.
+ */
+const ConnectionStatDetails = (props: {
+  stat: ConnectionStat;
+  records: ConnectionRecord[];
+}) => (
+  <details>
+    <Summary>
+      <Flex alignItems="center" gap={2} minWidth={0}>
+        <Chevron />
+        <Box flex="1" minWidth={0}>
+          <ConnectionStatRow stat={props.stat} />
+        </Box>
+      </Flex>
+    </Summary>
+
+    <Stack gap={1} fullWidth alignItems="stretch" mt={1} ml={4}>
+      {props.records.length === 0 ? (
+        <P2 m={0} color="text.muted">
+          No individual connections kept.
+        </P2>
+      ) : (
+        props.records.map(record => (
+          <ConnectionRecordRow key={record.id.toString()} record={record} />
+        ))
+      )}
+    </Stack>
+  </details>
+);
 
 /**
  * CheckAttempt displays the result of attempting to run an individual check along with the outputs

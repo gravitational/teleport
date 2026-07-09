@@ -103,7 +103,7 @@ export function kindLabel(kind: RecentConnectionKind): string {
 }
 
 /** formatBytes formats a byte count into a human-readable string. */
-function formatBytes(bytes: bigint): string {
+export function formatBytes(bytes: bigint): string {
   if (bytes < 1024n) {
     return `${bytes} B`;
   }

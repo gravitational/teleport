@@ -20,7 +20,10 @@ import { Meta } from '@storybook/react-vite';
 import { PropsWithChildren, useEffect } from 'react';
 
 import { Box } from 'design';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
+  ConnectionRecord,
+  ConnectionRecordState,
   ConnectionStat,
   RecentConnectionKind,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
@@ -89,6 +92,7 @@ type StoryProps = {
   vnetRunning: boolean;
   reRunDiagnostics: 'success' | 'error' | 'processing';
   connectionStats: ConnectionStat[];
+  connectionRecords: ConnectionRecord[];
 };
 
 const meta: Meta<StoryProps> = {
@@ -151,6 +155,7 @@ const meta: Meta<StoryProps> = {
       options: ['success', 'error', 'processing'],
     },
     connectionStats: { control: { type: 'object' } },
+    connectionRecords: { control: { type: 'object' } },
   },
   args: {
     asText: false,
@@ -222,9 +227,94 @@ const meta: Meta<StoryProps> = {
         bytesRxPerSec: 0n,
       },
     ],
+    connectionRecords: [
+      // Still transferring data.
+      makeConnectionRecord({
+        id: 5n,
+        displayName: 'grafana.teleport.example.com',
+        clientProcessPath: '/usr/bin/curl',
+        localPort: 443,
+        startedAt: secondsAgo(35),
+        bytesTx: 1_200_000n,
+        bytesRx: 15_000_000n,
+        state: ConnectionRecordState.ACTIVE,
+      }),
+      makeConnectionRecord({
+        id: 4n,
+        displayName: 'grafana.teleport.example.com',
+        clientProcessPath: '/Applications/Google Chrome.app/Contents/MacOS/x',
+        localPort: 443,
+        startedAt: secondsAgo(300),
+        endedAt: secondsAgo(120),
+        bytesTx: 100_000n,
+        bytesRx: 700_000n,
+        state: ConnectionRecordState.DONE,
+      }),
+      // Established, but the target sent nothing back: a hint that whatever sits
+      // behind the app service is down.
+      makeConnectionRecord({
+        id: 3n,
+        displayName: 'multiport.teleport.example.com',
+        port: 8443,
+        localPort: 8443,
+        clientProcessPath: '/usr/local/bin/psql',
+        startedAt: secondsAgo(90),
+        endedAt: secondsAgo(90),
+        bytesTx: 4_200n,
+        bytesRx: 0n,
+        state: ConnectionRecordState.DONE,
+      }),
+      // Never established.
+      makeConnectionRecord({
+        id: 2n,
+        displayName: 'multiport.teleport.example.com',
+        port: 8443,
+        localPort: 8443,
+        clientProcessPath: '/usr/local/bin/psql',
+        startedAt: secondsAgo(200),
+        endedAt: secondsAgo(200),
+        state: ConnectionRecordState.FAILED,
+        errorMessage: 'dialing proxy: connection refused',
+      }),
+      makeConnectionRecord({
+        id: 1n,
+        kind: RecentConnectionKind.SSH,
+        displayName: 'node-01.teleport.example.com',
+        localPort: 22,
+        clientProcessPath: '/usr/bin/ssh',
+        startedAt: secondsAgo(600),
+        endedAt: secondsAgo(400),
+        bytesTx: 52_000n,
+        bytesRx: 1_100_000n,
+        state: ConnectionRecordState.DONE,
+      }),
+    ],
   },
 };
 export default meta;
+
+function secondsAgo(seconds: number): Timestamp {
+  return Timestamp.fromDate(new Date(Date.now() - seconds * 1000));
+}
+
+function makeConnectionRecord(
+  record: Partial<ConnectionRecord> & Pick<ConnectionRecord, 'id'>
+): ConnectionRecord {
+  return {
+    kind: RecentConnectionKind.APP,
+    cluster: 'teleport.example.com',
+    leafCluster: '',
+    displayName: '',
+    port: 0,
+    localPort: 0,
+    clientProcessPath: '',
+    bytesTx: 0n,
+    bytesRx: 0n,
+    state: ConnectionRecordState.DONE,
+    errorMessage: '',
+    ...record,
+  };
+}
 
 const Decorator = (props: PropsWithChildren<StoryProps>) => {
   const appContext = new MockAppContext();
@@ -247,9 +337,15 @@ const Decorator = (props: PropsWithChildren<StoryProps>) => {
   appContext.vnet.getConnections = (() => ({
     responses: {
       onMessage: (
-        callback: (response: { stats: ConnectionStat[] }) => void
+        callback: (response: {
+          stats: ConnectionStat[];
+          connections: ConnectionRecord[];
+        }) => void
       ) => {
-        callback({ stats: props.connectionStats });
+        callback({
+          stats: props.connectionStats,
+          connections: props.connectionRecords,
+        });
         return () => {};
       },
       onNext: () => () => {},

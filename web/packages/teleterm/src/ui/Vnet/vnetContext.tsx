@@ -32,6 +32,7 @@ import {
 import { Action } from 'design/Alert';
 import {
   BackgroundItemStatus,
+  ConnectionRecord,
   ConnectionStat,
   GetServiceInfoResponse,
   RecentConnection,
@@ -103,6 +104,13 @@ export type VnetContext = {
    * it stops.
    */
   connectionStats: ConnectionStat[];
+  /**
+   * The individual connections made through VNet, ordered newest-first. Capped,
+   * so older connections are dropped and it does not necessarily cover every
+   * connection accounted for in connectionStats. Populated by the same stream
+   * as connectionStats and cleared when VNet stops.
+   */
+  connectionRecords: ConnectionRecord[];
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
   /**
@@ -326,6 +334,9 @@ export const VnetContextProvider: FC<
   >([]);
 
   const [connectionStats, setConnectionStats] = useState<ConnectionStat[]>([]);
+  const [connectionRecords, setConnectionRecords] = useState<
+    ConnectionRecord[]
+  >([]);
 
   /**
    * Calculates whether the button for running diagnostics should be disabled. If it should be
@@ -603,8 +614,9 @@ export const VnetContextProvider: FC<
         {},
         { abort: cloneAbortSignal(abortController.signal) }
       );
-      stream.responses.onMessage(({ stats }) => {
+      stream.responses.onMessage(({ stats, connections }) => {
         setConnectionStats(stats);
+        setConnectionRecords(connections);
       });
       stream.responses.onError(error => {
         if (aborted) {
@@ -619,6 +631,7 @@ export const VnetContextProvider: FC<
         aborted = true;
         abortController.abort();
         setConnectionStats([]);
+        setConnectionRecords([]);
       };
     },
     [status.value, vnet, logger]
@@ -667,6 +680,7 @@ export const VnetContextProvider: FC<
         refreshServiceInfoAttempt,
         recentConnections,
         connectionStats,
+        connectionRecords,
         runDiagnostics,
         diagnosticsAttempt,
         getDisabledDiagnosticsReason,

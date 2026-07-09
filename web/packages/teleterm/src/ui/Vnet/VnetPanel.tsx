@@ -17,13 +17,7 @@
  */
 
 import { formatDistanceToNow } from 'date-fns';
-import {
-  PropsWithChildren,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
 
 import { Box, ButtonSecondary, ButtonText, Flex, Stack, Text } from 'design';
 import { ChevronRight, Info } from 'design/Icon';
@@ -32,10 +26,10 @@ import { RecentConnection } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vne
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionItem';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
+import { processDisplayName, useAppIcon } from './clientProcess';
 import { kindLabel } from './ConnectionStatRow';
 import { DiagnosticsAlert } from './DiagnosticsAlert';
 import { NetworkGraph } from './NetworkGraph';
@@ -442,81 +436,3 @@ const RecentConnectionRow = (props: { connection: RecentConnection }) => {
     </Flex>
   );
 };
-
-/**
- * appIconCache memoizes resolved icon data URLs by executable path across the
- * lifetime of the renderer. Icons don't change while the app runs, and the
- * recent connections list re-renders on every stream update, so caching avoids
- * repeatedly crossing the IPC boundary for the same program. The empty string
- * (no icon available) is cached too, so unresolved paths aren't retried.
- */
-const appIconCache = new Map<string, Promise<string>>();
-
-/**
- * useAppIcon resolves the icon of the local program at the given executable
- * path to a data URL through the main process. It returns an empty string until
- * the icon loads, or permanently if the platform or path yields no icon; the
- * caller renders the icon only when the string is non-empty.
- */
-function useAppIcon(path: string | undefined): string {
-  const { mainProcessClient } = useAppContext();
-  const [icon, setIcon] = useState('');
-
-  useEffect(() => {
-    if (!path) {
-      setIcon('');
-      return;
-    }
-
-    let cached = appIconCache.get(path);
-    if (!cached) {
-      cached = mainProcessClient.getAppIcon(path);
-      appIconCache.set(path, cached);
-    }
-
-    let canceled = false;
-    cached.then(
-      dataUrl => {
-        if (!canceled) {
-          setIcon(dataUrl);
-        }
-      },
-      () => {
-        // getAppIcon already logs failures in the main process and resolves to
-        // an empty string, so a rejection here is unexpected; drop the cached
-        // entry so a later render can retry.
-        appIconCache.delete(path);
-      }
-    );
-    return () => {
-      canceled = true;
-    };
-  }, [path, mainProcessClient]);
-
-  return icon;
-}
-
-/**
- * processDisplayName returns a human-friendly name for a local process
- * executable path, used to show which program opened a connection.
- *
- * For macOS app bundles it uses the name of the outermost .app bundle, e.g.
- * "Google Chrome" for a deeply nested helper executable
- * (".../Google Chrome.app/.../Google Chrome Helper.app/Contents/MacOS/..."),
- * rather than the executable's own basename ("Google Chrome Helper"). This
- * mirrors the icon lookup in the main process' getAppIcon handler. Otherwise it
- * uses the executable's basename with its first letter capitalized, e.g. "Curl"
- * for "/usr/bin/curl".
- */
-function processDisplayName(path: string): string {
-  if (!path) {
-    return '';
-  }
-  const appBundle = path.match(/^(?:.*?\/)?([^/]+)\.app(?:\/|$)/);
-  if (appBundle) {
-    return appBundle[1];
-  }
-  const segments = path.split('/');
-  const segment = segments[segments.length - 1] || path;
-  return segment[0].toUpperCase() + segment.substring(1);
-}
