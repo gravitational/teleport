@@ -94,6 +94,11 @@ var (
 		},
 		[]string{teleport.TagCacheComponent},
 	)
+
+	// cacheHealthReporter aggregates health reports from all cache
+	// instances sharing a target label before publishing cacheHealth, so
+	// concurrent caches don't clobber each other's values.
+	cacheHealthReporter = newHealthReporter(cacheHealth)
 )
 
 // highVolumeResources is the set of cached resources that tend to produce high
@@ -607,10 +612,8 @@ func (c *Cache) setInitError(err error) {
 		c.firstTimeInitOnce.Do(func() {
 			close(c.firstTimeInitC)
 		})
-		cacheHealth.WithLabelValues(c.target).Set(1.0)
-	} else {
-		cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
+	cacheHealthReporter.report(c, err == nil)
 }
 
 // FirstInit returns a channel that is closed when the cache successfully initializes for the first time.
@@ -1543,6 +1546,7 @@ func (c *Cache) isClosing() bool {
 // Close closes all outstanding and active cache operations
 func (c *Cache) Close() error {
 	c.closed.Store(true)
+	cacheHealthReporter.deregister(c)
 	c.cancel()
 	c.eventsFanout.Close()
 	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
