@@ -51,74 +51,82 @@ export const ConnectionRecordRow = (props: { record: ConnectionRecord }) => {
   const isFailed = state === ConnectionRecordState.FAILED;
 
   return (
-    <Flex alignItems="center" gap={2} minWidth={0}>
-      <ConnectionStatusIndicator
-        status={connectionStatus(state)}
-        title={stateLabel(state)}
-      />
-      {appIcon && (
-        <img
-          src={appIcon}
-          alt=""
-          css={`
-            max-height: 16px;
-            object-fit: contain;
-          `}
+    <Flex flexDirection="column" gap={1} minWidth={0}>
+      <Flex alignItems="center" gap={2} minWidth={0}>
+        <ConnectionStatusIndicator
+          status={connectionStatus(state)}
+          title={stateLabel(state)}
         />
+        {appIcon && (
+          <img
+            src={appIcon}
+            alt=""
+            css={`
+              max-height: 16px;
+              object-fit: contain;
+            `}
+          />
+        )}
+        <Text
+          typography="body3"
+          title={clientProcessPath}
+          css={`
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          {openedBy}
+        </Text>
+
+        {/*
+          The byte counts are always shown, also for a failed connection: a
+          connection that was established but transferred nothing back is a
+          strong hint that the target itself is unreachable beyond VNet.
+        */}
+        <Text
+          typography="body3"
+          color="text.muted"
+          css={`
+            flex: 1;
+            white-space: nowrap;
+          `}
+        >
+          ↓ {formatBytes(bytesRx)} ↑ {formatBytes(bytesTx)}
+        </Text>
+
+        <Text
+          typography="body3"
+          color="text.muted"
+          title={
+            startedAtDate &&
+            `Started at ${startedAtDate.toLocaleString()}, dialed port ${localPort}`
+          }
+          css={`
+            white-space: nowrap;
+          `}
+        >
+          Active for {formatDuration(startedAt, endedAt)}
+        </Text>
+      </Flex>
+
+      {errorMessage && (
+        <Text
+          typography="body3"
+          color={isFailed ? 'error.main' : 'text.muted'}
+          title={errorMessage}
+          ml={6}
+          css={`
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          {errorMessage}
+        </Text>
       )}
-      <Text
-        typography="body3"
-        title={clientProcessPath}
-        css={`
-          white-space: nowrap;
-        `}
-      >
-        {openedBy}
-      </Text>
-
-      {/*
-        The byte counts are always shown, also for a failed connection: a
-        connection that was established but transferred nothing back is a strong
-        hint that the target itself is unreachable beyond VNet.
-      */}
-      <Text
-        typography="body3"
-        color="text.muted"
-        css={`
-          white-space: nowrap;
-        `}
-      >
-        ↑ {formatBytes(bytesTx)} ↓ {formatBytes(bytesRx)}
-      </Text>
-
-      <Text
-        typography="body3"
-        color={isFailed ? 'error.main' : 'text.muted'}
-        title={errorMessage}
-        css={`
-          flex: 1;
-          min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        `}
-      >
-        {errorMessage}
-      </Text>
-
-      <Text
-        typography="body3"
-        color="text.muted"
-        title={
-          startedAtDate &&
-          `Started at ${startedAtDate.toLocaleString()}, dialed port ${localPort}`
-        }
-        css={`
-          white-space: nowrap;
-        `}
-      >
-        {formatDuration(startedAt, endedAt)}
-      </Text>
     </Flex>
   );
 };

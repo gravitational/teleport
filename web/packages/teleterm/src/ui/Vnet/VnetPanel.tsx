@@ -317,24 +317,22 @@ const RecentConnectionsList = () => {
     <Box p={textSpacing}>
       <Flex justifyContent="space-between" alignItems="center" gap={2}>
         <SectionLabel>Recent connections</SectionLabel>
-        {hasConnections && (
-          <ButtonText
-            size="small"
-            onClick={() => {
-              const report = diagnosticsAttempt.data;
-              openReport(report);
-              closePanel();
-            }}
-            css={`
-              flex-shrink: 0;
-              gap: 2px;
-              min-height: 0;
-            `}
-          >
-            Show all
-            <ChevronRight size="small" />
-          </ButtonText>
-        )}
+        <ButtonText
+          size="small"
+          onClick={() => {
+            const report = diagnosticsAttempt.data;
+            openReport(report);
+            closePanel();
+          }}
+          css={`
+            flex-shrink: 0;
+            gap: 2px;
+            min-height: 0;
+          `}
+        >
+          Show all
+          <ChevronRight size="small" />
+        </ButtonText>
       </Flex>
       {!hasConnections ? (
         <SecondaryText>No connections yet.</SecondaryText>

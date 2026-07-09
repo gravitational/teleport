@@ -28,7 +28,7 @@ import {
   Input,
   Link,
   Stack,
-  Text,
+  H2,
 } from 'design';
 import { AlertProps } from 'design/Alert/Alert';
 import Table, { Cell, TextCell } from 'design/DataTable';
@@ -63,6 +63,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
+import { NetworkGraph } from 'teleterm/ui/Vnet/NetworkGraph';
 
 import { ConnectionRecordRow } from './ConnectionRecordRow';
 import { ConnectionStatRow } from './ConnectionStatRow';
@@ -294,7 +295,9 @@ export function DocumentVnetDiagReport(props: {
             </Stack>
           </Details>
         </ReportCard>
-
+        {/*<ReportCard>*/}
+        {/**/}
+        {/*</ReportCard>*/}
         <ConnectionsSection />
       </Stack>
     </Document>
@@ -363,43 +366,49 @@ const ConnectionsSection = () => {
 
   return (
     <ReportCard>
-      <Flex
-        gap={2}
-        flexWrap="wrap"
-        justifyContent="space-between"
-        alignItems="center"
-      >
-        <Text typography="body3" color="text.slightlyMuted">
-          Connections
-        </Text>
-        <Input
-          size="small"
-          width="220px"
-          placeholder="Search address"
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-        />
-      </Flex>
-
-      {connectionStats.length === 0 ? (
-        <P2 m={0} color="text.muted">
-          No connections yet.
-        </P2>
-      ) : filteredStats.length === 0 ? (
-        <P2 m={0} color="text.muted">
-          No connections match the filter.
-        </P2>
-      ) : (
-        <Stack gap={1} fullWidth alignItems="stretch">
-          {filteredStats.map(stat => (
-            <ConnectionStatDetails
-              key={targetKey(stat)}
-              stat={stat}
-              records={recordsByTarget.get(targetKey(stat)) ?? []}
-            />
-          ))}
+      <Stack gap={1}>
+        <Stack gap={2} width="100%" fullWidth maxWidth="600px">
+          <H2>Network activity</H2>
+          <NetworkGraph />
         </Stack>
-      )}
+        <Flex
+          width="100%"
+          mt={3}
+          gap={2}
+          flexWrap="wrap"
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          <H2 color="text.slightlyMuted">Connections</H2>
+          <Input
+            size="small"
+            width="220px"
+            placeholder="Search address"
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+          />
+        </Flex>
+
+        {connectionStats.length === 0 ? (
+          <P2 m={0} color="text.muted">
+            No connections yet.
+          </P2>
+        ) : filteredStats.length === 0 ? (
+          <P2 m={0} color="text.muted">
+            No connections match the filter.
+          </P2>
+        ) : (
+          <Stack gap={1} fullWidth alignItems="stretch">
+            {filteredStats.map(stat => (
+              <ConnectionStatDetails
+                key={targetKey(stat)}
+                stat={stat}
+                records={recordsByTarget.get(targetKey(stat)) ?? []}
+              />
+            ))}
+          </Stack>
+        )}
+      </Stack>
     </ReportCard>
   );
 };
@@ -965,6 +974,7 @@ const Chevron = styled(ChevronRight).attrs({ size: 'medium' })`
 `;
 
 const Summary = styled.summary`
+  list-style: none;
   cursor: pointer;
 `;
 

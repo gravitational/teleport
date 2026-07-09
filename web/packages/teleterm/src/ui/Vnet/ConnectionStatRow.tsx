@@ -21,6 +21,7 @@ import {
   ConnectionStat,
   RecentConnectionKind,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { pluralize } from 'shared/utils/text';
 
 import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionItem';
 
@@ -38,17 +39,24 @@ export const ConnectionStatRow = (props: { stat: ConnectionStat }) => {
   } = props.stat;
   // The port is only set for multi-port TCP apps.
   const name = port ? `${displayName}:${port}` : displayName;
-  const hasThroughput = bytesTxPerSec > 0n || bytesRxPerSec > 0n;
 
   return (
-    <Flex flexDirection="column" minWidth={0}>
-      <Flex alignItems="center" gap={1} minWidth={0}>
-        <ConnectionKindIndicator>{kindLabel(kind)}</ConnectionKindIndicator>
+    <Flex alignItems="center" gap={1} minWidth={0}>
+      <ConnectionKindIndicator
+        css={`
+          padding: 3px 6px;
+          font-weight: 600;
+        `}
+      >
+        {kindLabel(kind)}
+      </ConnectionKindIndicator>
+      <Flex flexDirection="column" flex="1" minWidth={0}>
         <Text
           typography="body2"
           title={name}
+          mt={1}
           css={`
-            flex: 1;
+            line-height: normal;
             min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -57,34 +65,47 @@ export const ConnectionStatRow = (props: { stat: ConnectionStat }) => {
         >
           {name}
         </Text>
-        <Text
-          typography="body3"
-          color="text.muted"
-          title="Successful connections"
-          css={`
-            white-space: nowrap;
-          `}
-        >
-          ✓ {successfulConnections.toString()}
-        </Text>
-        {failedConnections > 0n && (
+        <Flex alignItems="center" gap={1} minWidth={0}>
           <Text
             typography="body3"
-            color="error.main"
-            title="Failed connections"
+            color="text.muted"
+            title="Successful connections"
             css={`
+              flex-shrink: 0;
               white-space: nowrap;
             `}
           >
-            ✕ {failedConnections.toString()}
+            {successfulConnections.toString()}{' '}
+            {pluralize(Number(successfulConnections), 'connection')}
           </Text>
-        )}
+          {failedConnections > 0n && (
+            <Text
+              typography="body3"
+              color="error.main"
+              title="Failed connections"
+              css={`
+                flex-shrink: 0;
+                white-space: nowrap;
+              `}
+            >
+              · ✕ {failedConnections.toString()}
+            </Text>
+          )}
+          <Text
+            typography="body3"
+            color="text.muted"
+            css={`
+              min-width: 0;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            `}
+          >
+            · ↓ {formatBytes(bytesRx)} · ↑ {formatBytes(bytesTx)}
+            {` · ↓ ${formatBytes(bytesRxPerSec)}/s · ↑ ${formatBytes(bytesTxPerSec)}/s`}
+          </Text>
+        </Flex>
       </Flex>
-      <Text typography="body3" color="text.muted">
-        ↑ {formatBytes(bytesTx)} ↓ {formatBytes(bytesRx)}
-        {hasThroughput &&
-          ` · ↑ ${formatBytes(bytesTxPerSec)}/s ↓ ${formatBytes(bytesRxPerSec)}/s`}
-      </Text>
     </Flex>
   );
 };

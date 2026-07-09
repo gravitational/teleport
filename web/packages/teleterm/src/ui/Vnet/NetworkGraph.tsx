@@ -20,6 +20,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Flex, Text } from 'design';
+import { ConnectionStat } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+
+import { useVnetContext } from './vnetContext';
 
 /** Number of samples kept in the rolling window. */
 const SAMPLE_COUNT = 60;
@@ -41,13 +44,21 @@ interface Sample {
  * scrolling area charts, in the style of the Network tab in macOS Activity
  * Monitor. The most recent sample is on the right; older samples scroll off to
  * the left.
- *
- * TODO: The data is currently mocked. Wire it up to real per-second throughput
- * reported by the VNet service.
  */
 export const NetworkGraph = () => {
-  const samples = useMockThroughput();
+  const { connectionStats } = useVnetContext();
+  const samples = useThroughput(connectionStats);
   const theme = useTheme();
+
+  // Cumulative bytes transferred over all targets since VNet started. Shown in
+  // the legend alongside the current per-second rate. Summed as bigint to keep
+  // the full uint64 range from the counters.
+  const totalDown = Number(
+    connectionStats.reduce((sum, s) => sum + s.bytesRx, 0n)
+  );
+  const totalUp = Number(
+    connectionStats.reduce((sum, s) => sum + s.bytesTx, 0n)
+  );
 
   const downColor = theme.colors.interactive.solid.accent.default;
   const upColor = theme.colors.interactive.solid.danger.default;
@@ -56,7 +67,9 @@ export const NetworkGraph = () => {
   // the middle and equal up/down rates reach equally far from it. Scale to the
   // largest value currently in the window so the graph stays readable
   // regardless of absolute throughput; guard against an all-zero window to
-  // avoid dividing by zero.
+  // avoid dividing by zero. The peak feeds a logarithmic curve (see scale), so
+  // low and high throughput stay legible at once and a single spike doesn't
+  // flatten everything else against it.
   const peak = Math.max(1, ...samples.flatMap(s => [s.down, s.up])) * 1.1;
 
   const latest = samples[samples.length - 1];
@@ -72,6 +85,7 @@ export const NetworkGraph = () => {
           width: 100%;
           height: ${VIEW_HEIGHT}px;
           display: block;
+          padding-block: 10px;
           background: ${theme.colors.levels.sunken};
           border-radius: ${theme.radii[2]}px;
         `}
@@ -102,24 +116,67 @@ export const NetworkGraph = () => {
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-      <Flex gap={3}>
-        <Legend color={downColor} label="Received" value={latest.down} />
-        <Legend color={upColor} label="Sent" value={latest.up} />
+      <Flex gap={2}>
+        <Legend
+          color={downColor}
+          label="Received"
+          value={latest.down}
+          total={totalDown}
+        />
+        <Legend
+          color={upColor}
+          label="Sent"
+          value={latest.up}
+          total={totalUp}
+        />
       </Flex>
     </Flex>
   );
 };
 
-const Legend = (props: { color: string; label: string; value: number }) => (
+const Legend = (props: {
+  color: string;
+  label: string;
+  value: number;
+  total: number;
+}) => (
   <Flex alignItems="center" gap={1}>
     <svg width={8} height={8} aria-hidden>
       <circle cx={4} cy={4} r={4} fill={props.color} />
     </svg>
     <Text typography="body3" color="text.slightlyMuted">
-      {props.label}: {formatThroughput(props.value)}
+      {props.label} {formatThroughput(props.value)} · {formatBytes(props.total)}{' '}
+      total
     </Text>
   </Flex>
 );
+
+/**
+ * FLOOR_BYTES_PER_SEC anchors the bottom of the logarithmic scale. Throughput at
+ * or below it renders as idle. It's set to 1 byte/sec so that any real traffic
+ * registers: apps often transfer only a few KB spread over several seconds, i.e.
+ * a few hundred bytes/sec, and those must still show up on the graph.
+ */
+const FLOOR_BYTES_PER_SEC = 1;
+
+/**
+ * scale maps a throughput value to a [0, 1] fraction of the graph's half-height
+ * on a logarithmic curve anchored at FLOOR_BYTES_PER_SEC and topped at peak.
+ * Linear scaling makes any low throughput vanish whenever a larger sample sits
+ * in the window (e.g. after an iperf burst); the log curve keeps both legible.
+ * Because peak tracks the window maximum, a lone small transfer still fills the
+ * graph relative to itself — the exact rate is in the legend below.
+ */
+function scale(value: number, peak: number): number {
+  if (value <= FLOOR_BYTES_PER_SEC) {
+    return 0;
+  }
+  const top = Math.max(peak, FLOOR_BYTES_PER_SEC * 2);
+  const fraction =
+    (Math.log(value) - Math.log(FLOOR_BYTES_PER_SEC)) /
+    (Math.log(top) - Math.log(FLOOR_BYTES_PER_SEC));
+  return Math.min(1, fraction);
+}
 
 /**
  * Area draws a single filled, scrolling series inside the graph's viewBox,
@@ -142,7 +199,7 @@ const Area = (props: {
 
   const points = samples.map((sample, i) => {
     const x = i * stepX;
-    const y = center + sign * (selector(sample) / peak) * halfHeight;
+    const y = center + sign * scale(selector(sample), peak) * halfHeight;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   });
 
@@ -164,23 +221,32 @@ const Area = (props: {
 };
 
 /**
- * useMockThroughput keeps a rolling window of fake throughput samples, adding a
- * new one on a fixed interval. It exists only until real data is available; see
- * the TODO on NetworkGraph.
+ * useThroughput keeps a rolling window of total VNet throughput samples. Once a
+ * second it sums the per-target per-second byte counters most recently reported
+ * by the VNet service and appends the total as a new sample. Sampling on a fixed
+ * interval (rather than per reported update) keeps the graph scrolling at a
+ * steady cadence even while throughput is idle, when the service reports no
+ * fresh stats.
  */
-function useMockThroughput(): Sample[] {
+function useThroughput(connectionStats: ConnectionStat[]): Sample[] {
   const [samples, setSamples] = useState<Sample[]>(() =>
     Array.from({ length: SAMPLE_COUNT }, () => ({ down: 0, up: 0 }))
   );
-  // Keep the smoothed values between ticks so the mock series drift rather than
-  // jump, which reads more like real traffic.
-  const lastRef = useRef<Sample>({ down: 0, up: 0 });
+  // Read the latest stats through a ref inside the interval so the ticker keeps
+  // a stable identity yet always samples the most recently reported values.
+  const statsRef = useRef(connectionStats);
+  statsRef.current = connectionStats;
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const next = nextMockSample(lastRef.current);
-      lastRef.current = next;
-      setSamples(prev => [...prev.slice(1), next]);
+      const sample = statsRef.current.reduce<Sample>(
+        (total, stat) => ({
+          down: total.down + Number(stat.bytesRxPerSec),
+          up: total.up + Number(stat.bytesTxPerSec),
+        }),
+        { down: 0, up: 0 }
+      );
+      setSamples(prev => [...prev.slice(1), sample]);
     }, SAMPLE_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
@@ -188,27 +254,10 @@ function useMockThroughput(): Sample[] {
   return samples;
 }
 
-/**
- * nextMockSample produces a plausible-looking next throughput sample by nudging
- * the previous one and occasionally spiking, so the graph has visible motion.
- */
-function nextMockSample(prev: Sample): Sample {
-  const drift = (value: number, ceiling: number) => {
-    const spike = Math.random() < 0.15 ? ceiling * Math.random() : 0;
-    const wander = (Math.random() - 0.5) * ceiling * 0.4;
-    return Math.max(0, Math.min(ceiling, value * 0.7 + wander + spike));
-  };
-  return {
-    // Downlink is typically heavier than uplink.
-    down: drift(prev.down, 5 * 1024 * 1024),
-    up: drift(prev.up, 1024 * 1024),
-  };
-}
-
-/** formatThroughput renders a bytes-per-second rate in a compact, human form. */
-function formatThroughput(bytesPerSecond: number): string {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = bytesPerSecond;
+/** formatBytes renders a byte count in a compact, human form. */
+function formatBytes(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
   let unit = 0;
   while (value >= 1024 && unit < units.length - 1) {
     value /= 1024;
@@ -216,5 +265,10 @@ function formatThroughput(bytesPerSecond: number): string {
   }
   const rounded =
     value >= 100 || unit === 0 ? Math.round(value) : value.toFixed(1);
-  return `${rounded} ${units[unit]}/s`;
+  return `${rounded} ${units[unit]}`;
+}
+
+/** formatThroughput renders a bytes-per-second rate in a compact, human form. */
+function formatThroughput(bytesPerSecond: number): string {
+  return `${formatBytes(bytesPerSecond)}/s`;
 }
