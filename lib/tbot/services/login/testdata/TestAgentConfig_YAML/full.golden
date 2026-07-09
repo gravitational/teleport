@@ -1,0 +1,6 @@
+name: login-agent
+destination:
+  type: directory
+  path: /opt/machine-id
+credential_ttl: 1m0s
+renewal_interval: 30s

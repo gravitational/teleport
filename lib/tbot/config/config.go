@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/services/login"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -458,6 +459,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 		case beams.VNetServiceType:
 			v := &beams.VNetServiceConfig{}
 			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case login.AgentServiceType:
+			v := &login.AgentConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
