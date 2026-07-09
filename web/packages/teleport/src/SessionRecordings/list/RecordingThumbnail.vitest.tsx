@@ -1,3 +1,4 @@
+import { expect, test, afterEach } from 'vitest';
 /**
  * Teleport
  * Copyright (C) 2025 Gravitational, Inc.

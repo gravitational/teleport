@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@testing-library/jest-dom';
 import {
   createThemeSystem,
   TELEPORT_THEME,
@@ -34,7 +33,6 @@ import {
   waitForElementToBeRemoved,
   within,
 } from '@testing-library/react';
-import 'jest-styled-components';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, JsonBodyType } from 'msw';
 import { setupServer } from 'msw/node';
@@ -80,9 +78,7 @@ function render(
  updates / timeouts to finish.
  */
 function tick() {
-  return new Promise<void>(res =>
-    jest.requireActual('timers').setImmediate(res)
-  );
+  return new Promise<void>(res => setTimeout(res, 0));
 }
 
 screen.debug = () => {

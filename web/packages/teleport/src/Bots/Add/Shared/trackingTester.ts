@@ -16,21 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { mockFn } from 'build/testMock';
+
 import { userEventService } from 'teleport/services/userEvent';
 
 beforeAll(() => {
-  jest.spyOn(userEventService, 'captureIntegrationEnrollEvent');
+  mockFn.spyOn(userEventService, 'captureIntegrationEnrollEvent');
 });
 
 afterEach(() => {
-  jest.mocked(userEventService.captureIntegrationEnrollEvent).mockClear();
+  mockFn.mocked(userEventService.captureIntegrationEnrollEvent).mockClear();
 });
 
 export function trackingTester() {
   let nextIndex = 0;
 
   const assertTracking = (data: unknown) => {
-    const { calls } = jest.mocked(
+    const { calls } = mockFn.mocked(
       userEventService.captureIntegrationEnrollEvent
     ).mock;
 

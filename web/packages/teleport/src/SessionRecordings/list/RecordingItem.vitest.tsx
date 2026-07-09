@@ -19,6 +19,7 @@
 import { format } from 'date-fns';
 import { act } from 'react';
 import { MemoryRouter } from 'react-router';
+import { vi, test, afterEach, expect, beforeEach } from 'vitest';
 
 import {
   enableMswServer,
@@ -235,7 +236,7 @@ test('renders all view modes with all densities', async () => {
 });
 
 test('shows thumbnail not available if it fails to load', async () => {
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(thumbnailError());
 
@@ -263,7 +264,7 @@ test('shows non-interactive session message for non-playable recordings', async 
 });
 
 test('allows custom action slot', async () => {
-  const actionComponent = jest
+  const actionComponent = vi
     .fn()
     .mockReturnValue(
       <button data-testid="custom-action">Custom Action</button>

@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,17 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { MockInstance } from 'vitest';
+/**
+ * Runner-agnostic mock API for the jest -> vitest migration: Jest's `jest` under
+ * Jest, Vitest's `vi` under Vitest. Shared helpers that run under both use this
+ * rather than importing `vitest` (which breaks Jest) or a bare `jest`/`vi` (only
+ * one exists at a time). Hoisted `vi.mock`/`jest.mock` can't go through it.
+ */
 
-import { mockFn } from 'build/testMock';
+// jest/vi are runner-injected scoped globals (Jest doesn't put `jest` on
+// globalThis); the declarations shadow them so this type-checks under either.
+declare const jest: unknown;
+declare const vi: unknown;
 
-import * as UserContext from 'teleport/User/UserContext';
-import { UserContextValue } from 'teleport/User/UserContext';
-
-export const mockUserContextProviderWith = (
-  data: UserContextValue
-): MockInstance => {
-  const hookSpy = mockFn.spyOn(UserContext, 'useUser');
-  hookSpy.mockReturnValue(data);
-  return hookSpy;
-};
+export const mockFn = (
+  typeof jest !== 'undefined' ? jest : vi
+) as (typeof import('vitest'))['vi'];

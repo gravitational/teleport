@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { MockInstance } from 'vitest';
+import fs from 'node:fs';
 
-import { mockFn } from 'build/testMock';
+import { createVitestConfig } from './web/packages/build/vitest/config';
 
-import * as UserContext from 'teleport/User/UserContext';
-import { UserContextValue } from 'teleport/User/UserContext';
+// Gradual migration: Vitest runs only *.vitest.{ts,tsx}; everything still on
+// *.test.{ts,tsx} keeps running under Jest.
+const include = ['web/**/*.vitest.{ts,tsx}'];
 
-export const mockUserContextProviderWith = (
-  data: UserContextValue
-): MockInstance => {
-  const hookSpy = mockFn.spyOn(UserContext, 'useUser');
-  hookSpy.mockReturnValue(data);
-  return hookSpy;
-};
+// Include enterprise tests when the e/ directory is present.
+if (fs.existsSync('e/web')) {
+  include.push('e/web/**/*.vitest.{ts,tsx}');
+}
+
+export default createVitestConfig(include);
