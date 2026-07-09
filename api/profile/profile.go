@@ -183,7 +183,13 @@ func (p *Profile) Expiry() (time.Time, bool) {
 // RequireKubeLocalProxy returns true if this profile indicates a local proxy
 // is required for kube access.
 func (p *Profile) RequireKubeLocalProxy() bool {
-	return p.KubeProxyAddr == p.WebProxyAddr && p.TLSRoutingConnUpgradeRequired
+	if p.PrivateKeyPolicy.IsHardwareKeyPolicy() {
+		return true
+	}
+	if p.KubeProxyAddr != p.WebProxyAddr {
+		return false
+	}
+	return p.TLSRoutingConnUpgradeRequired
 }
 
 func certPoolFromProfile(p *Profile) (*x509.CertPool, error) {

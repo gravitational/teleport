@@ -458,12 +458,7 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 		return nil, nil, false
 	}
 
-	// A hardware-key policy also requires the local proxy: the exec-plugin
-	// credentials path can't serialize a hardware-backed key, whereas the local
-	// proxy uses it as an in-process signer and hands kubectl a fresh software
-	// key. Without this, `tsh kubectl` falls through to the exec plugin and
-	// fails with "cannot get software key PEM".
-	if !profile.RequireKubeLocalProxy() && !profile.PrivateKeyPolicy.IsHardwareKeyPolicy() {
+	if !profile.RequireKubeLocalProxy() {
 		return nil, nil, false
 	}
 
