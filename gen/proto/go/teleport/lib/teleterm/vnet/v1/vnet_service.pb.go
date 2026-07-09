@@ -1497,8 +1497,9 @@ type ConnectionRecord struct {
 	BytesRx uint64 `protobuf:"varint,12,opt,name=bytes_rx,json=bytesRx,proto3" json:"bytes_rx,omitempty"`
 	// state is the state of the connection.
 	State ConnectionRecordState `protobuf:"varint,13,opt,name=state,proto3,enum=teleport.lib.teleterm.vnet.v1.ConnectionRecordState" json:"state,omitempty"`
-	// error_message is the reason a FAILED connection could not be established, or
-	// the mid-stream error a DONE connection ended with. Empty otherwise.
+	// error_message is the reason a FAILED connection could not be established.
+	// Empty otherwise, including for DONE connections: once established, a
+	// connection is a success no matter how it ended.
 	ErrorMessage  string `protobuf:"bytes,14,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1746,8 +1747,9 @@ type ConnectionRecord_builder struct {
 	BytesRx uint64
 	// state is the state of the connection.
 	State ConnectionRecordState
-	// error_message is the reason a FAILED connection could not be established, or
-	// the mid-stream error a DONE connection ended with. Empty otherwise.
+	// error_message is the reason a FAILED connection could not be established.
+	// Empty otherwise, including for DONE connections: once established, a
+	// connection is a success no matter how it ended.
 	ErrorMessage string
 }
 

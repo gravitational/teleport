@@ -196,8 +196,9 @@ func TestStatsCollector_recordStates(t *testing.T) {
 	key := testStatsKey("app.root.example.com")
 	ctx := context.Background()
 
-	// Established, then ended with a mid-stream error: done, but the error is
-	// kept.
+	// Established, then ended with a mid-stream error: done, and the teardown
+	// error is not recorded (the connection was a success no matter how it
+	// ended).
 	att := c.begin(ctx, key, 1234)
 	_, err := att.instrument(nopConnector)()
 	require.NoError(t, err)
@@ -217,7 +218,7 @@ func TestStatsCollector_recordStates(t *testing.T) {
 	require.Equal(t, vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_FAILED, records[0].GetState())
 	require.Contains(t, records[0].GetErrorMessage(), "proxy dial failed")
 	require.Equal(t, vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_DONE, records[1].GetState())
-	require.Contains(t, records[1].GetErrorMessage(), "conn reset")
+	require.Empty(t, records[1].GetErrorMessage())
 }
 
 func TestStatsCollector_recordEviction(t *testing.T) {

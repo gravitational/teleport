@@ -251,24 +251,28 @@ func (a *connAttempt) success() {
 // finish must be called with the handler's final error after the attempt has
 // ended.
 //
-// A connection that was established is recorded as done, keeping any error it
-// ended with mid-stream. A connection that was never established is counted and
-// recorded as failed, unless it ended with a benign context cancelation: the
-// client going away is not a failure of the target, and is not worth a record.
+// A connection that was established is recorded as done. A connection that was
+// never established is counted and recorded as failed, unless it ended with a
+// benign context cancelation: the client going away is not a failure of the
+// target, and is not worth a record.
 func (a *connAttempt) finish(err error) {
 	a.c.mu.Lock()
 	defer a.c.mu.Unlock()
 	now := a.c.clock.Now()
 
 	if a.established {
+		// An established connection counts as a success no matter how it ended.
+		// Whatever error it ends with is a teardown error, one side closing the
+		// socket: an EOF, a reset from the client going away (e.g. iperf3 killed
+		// with Ctrl-C), a canceled context. None of it is a failure of the
+		// target, and which teardown errors even surface is not deterministic
+		// (the proxy filters an EOF but not a reset), so it is not recorded.
+		// Errors are only recorded for connections that never established.
 		if a.record == nil {
 			return
 		}
 		a.record.endedAt = now
 		a.record.state = vnetv1.ConnectionRecordState_CONNECTION_RECORD_STATE_DONE
-		if err != nil && !errors.Is(err, context.Canceled) {
-			a.record.errMsg = err.Error()
-		}
 		return
 	}
 

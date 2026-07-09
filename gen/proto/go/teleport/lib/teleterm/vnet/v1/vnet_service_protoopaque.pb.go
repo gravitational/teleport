@@ -1691,8 +1691,9 @@ type ConnectionRecord_builder struct {
 	BytesRx uint64
 	// state is the state of the connection.
 	State ConnectionRecordState
-	// error_message is the reason a FAILED connection could not be established, or
-	// the mid-stream error a DONE connection ended with. Empty otherwise.
+	// error_message is the reason a FAILED connection could not be established.
+	// Empty otherwise, including for DONE connections: once established, a
+	// connection is a success no matter how it ended.
 	ErrorMessage string
 }
 
