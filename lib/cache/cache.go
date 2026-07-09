@@ -593,6 +593,10 @@ type Cache struct {
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
+
+	// healthReporter contributes this cache's health to the aggregate metric
+	// for its target.
+	healthReporter *cacheHealthReporter
 }
 
 var _ authclient.Cache = (*Cache)(nil)
@@ -607,10 +611,8 @@ func (c *Cache) setInitError(err error) {
 		c.firstTimeInitOnce.Do(func() {
 			close(c.firstTimeInitC)
 		})
-		cacheHealth.WithLabelValues(c.target).Set(1.0)
-	} else {
-		cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
+	c.healthReporter.report(err == nil)
 }
 
 // FirstInit returns a channel that is closed when the cache successfully initializes for the first time.
@@ -985,6 +987,7 @@ func New(config Config) (*Cache, error) {
 			teleport.ComponentKey, config.Component,
 			"target", config.target,
 		),
+		healthReporter: cacheHealthMetric.newReporter(config.target),
 	}
 
 	if config.Unstarted {
@@ -1543,6 +1546,7 @@ func (c *Cache) isClosing() bool {
 // Close closes all outstanding and active cache operations
 func (c *Cache) Close() error {
 	c.closed.Store(true)
+	c.healthReporter.close()
 	c.cancel()
 	c.eventsFanout.Close()
 	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
