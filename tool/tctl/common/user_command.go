@@ -55,6 +55,7 @@ type UserCommand struct {
 	login                     string
 	allowedLogins             []string
 	allowedWindowsLogins      []string
+	allowedLinuxDesktopLogins []string
 	allowedKubeUsers          []string
 	allowedKubeGroups         []string
 	allowedDatabaseUsers      []string
@@ -96,6 +97,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	u.userAdd.Flag("logins", "List of allowed SSH logins for the new user").StringsVar(&u.allowedLogins)
 	u.userAdd.Flag("windows-logins", "List of allowed Windows logins for the new user").StringsVar(&u.allowedWindowsLogins)
+	u.userAdd.Flag("linux-desktop-logins", "List of allowed Linux desktop logins for the new user").StringsVar(&u.allowedLinuxDesktopLogins)
 	u.userAdd.Flag("kubernetes-users", "List of allowed Kubernetes users for the new user").StringsVar(&u.allowedKubeUsers)
 	u.userAdd.Flag("kubernetes-groups", "List of allowed Kubernetes groups for the new user").StringsVar(&u.allowedKubeGroups)
 	u.userAdd.Flag("db-users", "List of allowed database users for the new user").StringsVar(&u.allowedDatabaseUsers)
@@ -125,6 +127,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 		StringsVar(&u.allowedLogins)
 	u.userUpdate.Flag("set-windows-logins", "List of allowed Windows logins for the user, replaces current Windows logins").
 		StringsVar(&u.allowedWindowsLogins)
+	u.userUpdate.Flag("set-linux-desktop-logins", "List of allowed Linux desktop logins for the user, replaces current Linux logins").
+		StringsVar(&u.allowedLinuxDesktopLogins)
 	u.userUpdate.Flag("set-kubernetes-users", "List of allowed Kubernetes users for the user, replaces current Kubernetes users").
 		StringsVar(&u.allowedKubeUsers)
 	u.userUpdate.Flag("set-kubernetes-groups", "List of allowed Kubernetes groups for the user, replaces current Kubernetes groups").
@@ -255,6 +259,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 	u.allowedRoles = flattenSlice(u.allowedRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
 	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
+	u.allowedLinuxDesktopLogins = flattenSlice(u.allowedLinuxDesktopLogins)
 
 	// Validate roles (server does not do this yet).
 	for _, roleName := range u.allowedRoles {
@@ -294,6 +299,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 	traits := map[string][]string{
 		constants.TraitLogins:             u.allowedLogins,
 		constants.TraitWindowsLogins:      u.allowedWindowsLogins,
+		constants.TraitLinuxDesktopLogins: u.allowedLinuxDesktopLogins,
 		constants.TraitKubeUsers:          flattenSlice(u.allowedKubeUsers),
 		constants.TraitKubeGroups:         flattenSlice(u.allowedKubeGroups),
 		constants.TraitDBUsers:            flattenSlice(u.allowedDatabaseUsers),
@@ -412,6 +418,11 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 		windowsLogins := flattenSlice(u.allowedWindowsLogins)
 		user.SetWindowsLogins(windowsLogins)
 		updateMessages["Windows logins"] = windowsLogins
+	}
+	if len(u.allowedLinuxDesktopLogins) > 0 {
+		linuxDesktopLogins := flattenSlice(u.allowedLinuxDesktopLogins)
+		user.SetLinuxDesktopLogins(linuxDesktopLogins)
+		updateMessages["Linux desktop logins"] = linuxDesktopLogins
 	}
 	if len(u.allowedKubeUsers) > 0 {
 		kubeUsers := flattenSlice(u.allowedKubeUsers)
