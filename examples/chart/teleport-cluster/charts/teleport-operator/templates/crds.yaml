@@ -12,19 +12,25 @@ have everything functional in a single "helm install", hence the rube goldberg
 mechanism to try to guess what to do with the CRDs (see the implementation of
 shouldInstallCRDs in _helpers.yaml for more details). */ -}}
 {{- if eq (include "teleport-cluster.operator.shouldInstallCRDs" . ) "true" -}}
-{{ $currentScope := .}}
+{{ $ctx := . }}
 {{- $crdValidationSupport := semverCompare ">=1.25.0-0" .Capabilities.KubeVersion.Version -}}
 {{ range $path, $_ :=  .Files.Glob  "operator-crds/*" }}
-  {{- with $currentScope}}
+  {{- with $ctx }}
     {{- $raw := (.Files.Get $path | fromYaml) -}}
     {{- if not $crdValidationSupport -}}
       {{- range $version := $raw.spec.versions -}}
         {{- $_ := unset $version.schema.openAPIV3Schema "x-kubernetes-validations" -}}
       {{- end -}}
     {{- end -}}
-    {{- $injectedCRD := mustMergeOverwrite $raw (include "teleport-cluster.operator.crdOverrides" $currentScope | fromYaml) -}}
-    {{- toYaml $injectedCRD -}}
-  {{- end }}
+    {{- $injectedCRD := mustMergeOverwrite $raw (include "teleport-cluster.operator.crdOverrides" $ctx | fromYaml) -}}
+    {{/* Only render the CRD if the operator deployment is unscoped, or if the CRD is scoped.
+         This makes sure we don't deploy unscoped CRDs on a scoped operator.
+         Note: scopedCRD is a string. */}}
+    {{- $scopedCRD := (dig "metadata" "annotations" "resources.teleport.dev/scoped" "unknown" $raw) -}}
+    {{- if or (not .Values.scoped) (eq $scopedCRD "true") -}}
+      {{- toYaml $injectedCRD }}
 ---
+    {{- end }}
+  {{- end }}
 {{ end }}
 {{- end -}}
