@@ -17,8 +17,8 @@ shouldInstallCRDs in _helpers.yaml for more details). */ -}}
 {{ range $path, $_ :=  .Files.Glob  "operator-crds/*" }}
   {{- with $ctx }}
     {{- $raw := (.Files.Get $path | fromYaml) -}}
-    {{- range $version := $raw.spec.versions -}}
-      {{- if not $crdValidationSupport -}}
+    {{- if not $crdValidationSupport -}}
+      {{- range $version := $raw.spec.versions -}}
         {{- $_ := unset $version.schema.openAPIV3Schema "x-kubernetes-validations" -}}
       {{- end -}}
     {{- end -}}
@@ -28,9 +28,9 @@ shouldInstallCRDs in _helpers.yaml for more details). */ -}}
          Note: scopedCRD is a string. */}}
     {{- $scopedCRD := (dig "metadata" "annotations" "resources.teleport.dev/scoped" "unknown" $raw) -}}
     {{- if or (not .Values.scoped) (eq $scopedCRD "true") -}}
-      {{- toYaml $injectedCRD -}}
+      {{- toYaml $injectedCRD }}
+---
     {{- end }}
   {{- end }}
----
 {{ end }}
 {{- end -}}
