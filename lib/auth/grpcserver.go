@@ -6710,7 +6710,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	issuancev1pb.RegisterIssuanceServiceServer(server, issuanceSvc)
 
-	if !cfg.AuthServer.modules.Features().Cloud {
+	if !modules.GetModules().Features().Cloud {
 		// start a workload cluster service that returns errors for all RPCs when not running on Teleport Cloud
 		workloadclusterv1pb.RegisterWorkloadClusterServiceServer(server, workloadclusterv1.NewService())
 		// start a client IP restriction service that returns errors for all RPCs when not running on Teleport Cloud
