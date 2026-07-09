@@ -273,6 +273,155 @@ func TestAccessListValidateWithMembers_basic(t *testing.T) {
 		})
 	}
 
+	t.Run("scoped access lists are validated", func(t *testing.T) {
+		newScopedAccessList := func(name string) *accesslist.AccessList {
+			accessList := newAccessList(t, name, clock)
+			accessList.Scope = "/eng"
+			accessList.Spec.MembershipRequires = accesslist.Requires{}
+			accessList.Spec.OwnershipRequires = accesslist.Requires{}
+			accessList.Spec.Grants.Roles = nil
+			accessList.Spec.Grants.Traits = nil
+			accessList.Spec.OwnerGrants.Roles = nil
+			accessList.Spec.OwnerGrants.Traits = nil
+			return accessList
+		}
+
+		t.Run("valid with user owners", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list")
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+			require.NoError(t, err)
+		})
+
+		t.Run("scoped role grant scope must be equal or descendant", func(t *testing.T) {
+			testCases := []struct {
+				name       string
+				grantScope string
+				wantErr    string
+			}{
+				{
+					name:       "equal scope is allowed",
+					grantScope: "/eng/platform",
+				},
+				{
+					name:       "descendant scope is allowed",
+					grantScope: "/eng/platform/team",
+				},
+				{
+					name:       "ancestor scope is rejected",
+					grantScope: "/eng",
+					wantErr:    `scoped role grant has scope "/eng" that is not a sub-scope of the access list's scope "/eng/platform"`,
+				},
+				{
+					name:       "sibling scope is rejected",
+					grantScope: "/eng/infra",
+					wantErr:    `scoped role grant has scope "/eng/infra" that is not a sub-scope of the access list's scope "/eng/platform"`,
+				},
+				{
+					name:       "root scope is rejected",
+					grantScope: "/",
+					wantErr:    "root scope cannot be used as a scope of effect",
+				},
+			}
+
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					accessList := newScopedAccessList("test_scoped_access_list_grant_scope")
+					accessList.Scope = "/eng/platform"
+					accessList.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{{Role: "role", Scope: tc.grantScope}}
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					if tc.wantErr != "" {
+						require.ErrorContains(t, err, tc.wantErr)
+						return
+					}
+					require.NoError(t, err)
+				})
+			}
+		})
+
+		t.Run("owner scoped role grant scope must be equal or descendant", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_owner_grant_scope")
+			accessList.Scope = "/eng/platform"
+			accessList.Spec.OwnerGrants.ScopedRoles = []accesslist.ScopedRoleGrant{{Role: "role", Scope: "/eng"}}
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, `scoped role grant has scope "/eng" that is not a sub-scope of the access list's scope "/eng/platform"`)
+		})
+
+		t.Run("invalid scope is rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_invalid_scope")
+			accessList.Scope = "not-a-scope"
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, "access list has invalid scope")
+		})
+
+		t.Run("requirements are rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_requires")
+			accessList.Spec.MembershipRequires = accesslist.Requires{Roles: []string{"role"}}
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, "scoped access lists cannot contain non-empty membership_requires or ownership_requires blocks")
+		})
+
+		t.Run("unscoped role grants are rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_roles")
+			accessList.Spec.Grants.Roles = []string{"role"}
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, "scoped access lists cannot grant unscoped roles")
+		})
+
+		t.Run("owner unscoped role grants are rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_owner_roles")
+			accessList.Spec.OwnerGrants.Roles = []string{"role"}
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, "scoped access lists cannot grant unscoped roles")
+		})
+
+		t.Run("trait grants are rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_traits")
+			accessList.Spec.Grants.Traits = map[string][]string{"trait": {"value"}}
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, "scoped access lists cannot grant traits")
+		})
+
+		t.Run("owner trait grants are rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_owner_traits")
+			accessList.Spec.OwnerGrants.Traits = map[string][]string{"trait": {"value"}}
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, "scoped access lists cannot grant traits")
+		})
+
+		t.Run("nested list owners are rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_owner_list")
+			accessList.Spec.Owners = []accesslist.Owner{{Name: "owner-list", MembershipKind: accesslist.MembershipKindList}}
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, "access list owners are not yet supported for scoped access lists")
+		})
+
+		t.Run("scoped list owners are rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_scoped_owner_list")
+			accessList.Spec.Owners = []accesslist.Owner{{Name: "/eng::owner-list", MembershipKind: accesslist.MembershipKindScopedList}}
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, "access list owners are not yet supported for scoped access lists")
+		})
+
+		t.Run("members are rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_members")
+			member := newAccessListMember(t, accessList.GetName(), "alice", accesslist.MembershipKindUser, clock)
+
+			err := ValidateAccessListWithMembers(ctx, nil, accessList, []*accesslist.AccessListMember{member}, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, "scoped access list members are not yet supported")
+		})
+	})
+
 	t.Run("scoped role grants are validated", func(t *testing.T) {
 		newScopedAccessList := func(name string) *accesslist.AccessList {
 			accessList := newAccessList(t, name, clock)
