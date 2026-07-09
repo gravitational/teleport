@@ -27,6 +27,14 @@ struct PostEnrollmentLandingView: View {
 			Section {
 				ForEach(clusters) { cluster in
 					clusterView(for: cluster)
+						.listRowInsets(EdgeInsets(
+							top: .xsmall,
+							leading: .zero,
+							bottom: .xsmall,
+							trailing: .zero,
+						))
+						.listRowSeparator(.hidden)
+						.listRowBackground(Color.clear)
 				}
 				.onDelete { indexSet in
 					Task { await didDeleteClustersAtIndex(indexSet) }
@@ -35,9 +43,8 @@ struct PostEnrollmentLandingView: View {
 				Text("Clusters")
 			}
 		}
-		.padding(.horizontal)
-		.background(Color.Background.depth3)
-		.navigationTitle("Teleport")
+		.listStyle(.plain)
+		.scrollContentBackground(.hidden)
 	}
 }
 
@@ -46,11 +53,18 @@ extension PostEnrollmentLandingView {
 		Button {
 			Task { await didTapOnCluster(cluster) }
 		} label: {
-			HStack(alignment: .firstTextBaseline) {
+			HStack(alignment: .firstTextBaseline, spacing: .small) {
 				Text(cluster.host)
 					.frame(maxWidth: .infinity, alignment: .leading)
 				Image(systemName: "arrow.up.right.square")
 			}
+			.foregroundStyle(.tint)
+			.padding()
+			.background(
+				RoundedRectangle(cornerRadius: .small)
+					.fill(Color.Background.depth2),
+			)
+			.contentShape(Rectangle())
 		}
 	}
 }
@@ -59,15 +73,15 @@ extension PostEnrollmentLandingView {
 	@Previewable @State
 	var clusters = [
 		Cluster(id: UUID(), host: "production.teleport.sh", port: 443),
-		Cluster(id: UUID(), host: "stating.teleport.sh", port: 8080),
+		Cluster(id: UUID(), host: "a-very-long-staging-cluster-name.teleport.example.com", port: 8080),
 		Cluster(id: UUID(), host: "dev.teleport.sh", port: 2048),
 	]
 
-	NavigationStack {
-		PostEnrollmentLandingView(
-			clusters: clusters,
-			didTapOnCluster: { print("User tapped on \($0.host)") },
-			didDeleteClustersAtIndex: { clusters.remove(atOffsets: $0) },
-		)
-	}
+	PostEnrollmentLandingView(
+		clusters: clusters,
+		didTapOnCluster: { print("User tapped on \($0.host)") },
+		didDeleteClustersAtIndex: { clusters.remove(atOffsets: $0) },
+	)
+	.padding(.horizontal)
+	.background(Color.Background.depth3)
 }

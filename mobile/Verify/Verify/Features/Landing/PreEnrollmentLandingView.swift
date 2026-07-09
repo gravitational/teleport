@@ -20,24 +20,16 @@ struct PreEnrollmentLandingView: View {
 	var onScanQRCodeTapped: () -> Void
 
 	var body: some View {
-		VStack(spacing: .zero) {
-			Image(.logo)
-				.resizable()
-				.scaledToFit()
-				.frame(maxWidth: .infinity, maxHeight: 44, alignment: .leading)
-			ScrollView {
-				VStack(spacing: .large) {
-					Icon(systemName: "viewfinder")
-						.padding(.top, .xlarge)
-					titleBlock
-					instructionSteps
-					scanQRCodeButton
-				}
+		ScrollView {
+			VStack(spacing: .large) {
+				Icon(systemName: "viewfinder")
+					.padding(.top, .xlarge)
+				titleBlock
+				instructionSteps
+				scanQRCodeButton
 			}
-			.scrollBounceBehavior(.basedOnSize)
 		}
-		.padding(.horizontal)
-		.background(Color.Background.depth3)
+		.scrollBounceBehavior(.basedOnSize)
 	}
 }
 
@@ -108,4 +100,6 @@ extension PreEnrollmentLandingView {
 
 #Preview("Pre Enrollment") {
 	PreEnrollmentLandingView {}
+		.padding(.horizontal)
+		.background(Color.Background.depth3)
 }

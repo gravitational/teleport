@@ -23,7 +23,11 @@ struct LandingView: View {
 
 	var body: some View {
 		NavigationStack {
-			Group {
+			VStack(spacing: .zero) {
+				Image(.logo)
+					.resizable()
+					.scaledToFit()
+					.frame(maxWidth: .infinity, maxHeight: 44, alignment: .leading)
 				if viewModel.shouldShowPreEnrollmentLanding {
 					PreEnrollmentLandingView(
 						onScanQRCodeTapped: viewModel.userTappedOnScanQRCode,
@@ -36,6 +40,8 @@ struct LandingView: View {
 					)
 				}
 			}
+			.padding(.horizontal)
+			.background(Color.Background.depth3)
 
 			// MARK: Navigation
 
