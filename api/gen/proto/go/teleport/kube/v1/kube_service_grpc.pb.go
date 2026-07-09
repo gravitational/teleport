@@ -141,3 +141,193 @@ var KubeService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "teleport/kube/v1/kube_service.proto",
 }
+
+const (
+	KubeClusterService_GetKubeCluster_FullMethodName    = "/teleport.kube.v1.KubeClusterService/GetKubeCluster"
+	KubeClusterService_ListKubeClusters_FullMethodName  = "/teleport.kube.v1.KubeClusterService/ListKubeClusters"
+	KubeClusterService_DeleteKubeCluster_FullMethodName = "/teleport.kube.v1.KubeClusterService/DeleteKubeCluster"
+)
+
+// KubeClusterServiceClient is the client API for KubeClusterService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// The KubeClusterService provides methods for interacting with KubeCluster resources within
+// the Teleport backend.
+type KubeClusterServiceClient interface {
+	// Fetches a kube cluster resource from the backend.
+	GetKubeCluster(ctx context.Context, in *GetKubeClusterRequest, opts ...grpc.CallOption) (*GetKubeClusterResponse, error)
+	// Lists kube cluster resources within the backend.
+	ListKubeClusters(ctx context.Context, in *ListKubeClustersRequest, opts ...grpc.CallOption) (*ListKubeClustersResponse, error)
+	// Deletes a kube cluster resource from the backend.
+	DeleteKubeCluster(ctx context.Context, in *DeleteKubeClusterRequest, opts ...grpc.CallOption) (*DeleteKubeClusterResponse, error)
+}
+
+type kubeClusterServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewKubeClusterServiceClient(cc grpc.ClientConnInterface) KubeClusterServiceClient {
+	return &kubeClusterServiceClient{cc}
+}
+
+func (c *kubeClusterServiceClient) GetKubeCluster(ctx context.Context, in *GetKubeClusterRequest, opts ...grpc.CallOption) (*GetKubeClusterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetKubeClusterResponse)
+	err := c.cc.Invoke(ctx, KubeClusterService_GetKubeCluster_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *kubeClusterServiceClient) ListKubeClusters(ctx context.Context, in *ListKubeClustersRequest, opts ...grpc.CallOption) (*ListKubeClustersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListKubeClustersResponse)
+	err := c.cc.Invoke(ctx, KubeClusterService_ListKubeClusters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *kubeClusterServiceClient) DeleteKubeCluster(ctx context.Context, in *DeleteKubeClusterRequest, opts ...grpc.CallOption) (*DeleteKubeClusterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteKubeClusterResponse)
+	err := c.cc.Invoke(ctx, KubeClusterService_DeleteKubeCluster_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// KubeClusterServiceServer is the server API for KubeClusterService service.
+// All implementations must embed UnimplementedKubeClusterServiceServer
+// for forward compatibility.
+//
+// The KubeClusterService provides methods for interacting with KubeCluster resources within
+// the Teleport backend.
+type KubeClusterServiceServer interface {
+	// Fetches a kube cluster resource from the backend.
+	GetKubeCluster(context.Context, *GetKubeClusterRequest) (*GetKubeClusterResponse, error)
+	// Lists kube cluster resources within the backend.
+	ListKubeClusters(context.Context, *ListKubeClustersRequest) (*ListKubeClustersResponse, error)
+	// Deletes a kube cluster resource from the backend.
+	DeleteKubeCluster(context.Context, *DeleteKubeClusterRequest) (*DeleteKubeClusterResponse, error)
+	mustEmbedUnimplementedKubeClusterServiceServer()
+}
+
+// UnimplementedKubeClusterServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedKubeClusterServiceServer struct{}
+
+func (UnimplementedKubeClusterServiceServer) GetKubeCluster(context.Context, *GetKubeClusterRequest) (*GetKubeClusterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetKubeCluster not implemented")
+}
+func (UnimplementedKubeClusterServiceServer) ListKubeClusters(context.Context, *ListKubeClustersRequest) (*ListKubeClustersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListKubeClusters not implemented")
+}
+func (UnimplementedKubeClusterServiceServer) DeleteKubeCluster(context.Context, *DeleteKubeClusterRequest) (*DeleteKubeClusterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteKubeCluster not implemented")
+}
+func (UnimplementedKubeClusterServiceServer) mustEmbedUnimplementedKubeClusterServiceServer() {}
+func (UnimplementedKubeClusterServiceServer) testEmbeddedByValue()                            {}
+
+// UnsafeKubeClusterServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to KubeClusterServiceServer will
+// result in compilation errors.
+type UnsafeKubeClusterServiceServer interface {
+	mustEmbedUnimplementedKubeClusterServiceServer()
+}
+
+func RegisterKubeClusterServiceServer(s grpc.ServiceRegistrar, srv KubeClusterServiceServer) {
+	// If the following call panics, it indicates UnimplementedKubeClusterServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&KubeClusterService_ServiceDesc, srv)
+}
+
+func _KubeClusterService_GetKubeCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetKubeClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KubeClusterServiceServer).GetKubeCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: KubeClusterService_GetKubeCluster_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KubeClusterServiceServer).GetKubeCluster(ctx, req.(*GetKubeClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _KubeClusterService_ListKubeClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListKubeClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KubeClusterServiceServer).ListKubeClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: KubeClusterService_ListKubeClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KubeClusterServiceServer).ListKubeClusters(ctx, req.(*ListKubeClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _KubeClusterService_DeleteKubeCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteKubeClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KubeClusterServiceServer).DeleteKubeCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: KubeClusterService_DeleteKubeCluster_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KubeClusterServiceServer).DeleteKubeCluster(ctx, req.(*DeleteKubeClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// KubeClusterService_ServiceDesc is the grpc.ServiceDesc for KubeClusterService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var KubeClusterService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "teleport.kube.v1.KubeClusterService",
+	HandlerType: (*KubeClusterServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetKubeCluster",
+			Handler:    _KubeClusterService_GetKubeCluster_Handler,
+		},
+		{
+			MethodName: "ListKubeClusters",
+			Handler:    _KubeClusterService_ListKubeClusters_Handler,
+		},
+		{
+			MethodName: "DeleteKubeCluster",
+			Handler:    _KubeClusterService_DeleteKubeCluster_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "teleport/kube/v1/kube_service.proto",
+}

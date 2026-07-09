@@ -17,15 +17,26 @@ syntax = "proto3";
 package teleport.kube.v1;
 
 import "teleport/legacy/types/types.proto";
+import "teleport/scopes/v1/scopes.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1;kubev1";
 
 // KubeService provides methods to list Kubernetes resources when users are not allowed
 // to access the underlying cluster or resources but their `search_as_roles` allow.
-//
 service KubeService {
   // ListKubernetesResources lists the Kubernetes resources without leaking details.
   rpc ListKubernetesResources(ListKubernetesResourcesRequest) returns (ListKubernetesResourcesResponse);
+}
+
+// The KubeClusterService provides methods for interacting with KubeCluster resources within
+// the Teleport backend.
+service KubeClusterService {
+  // Fetches a kube cluster resource from the backend.
+  rpc GetKubeCluster(GetKubeClusterRequest) returns (GetKubeClusterResponse);
+  // Lists kube cluster resources within the backend.
+  rpc ListKubeClusters(ListKubeClustersRequest) returns (ListKubeClustersResponse);
+  // Deletes a kube cluster resource from the backend.
+  rpc DeleteKubeCluster(DeleteKubeClusterRequest) returns (DeleteKubeClusterResponse);
 }
 
 // ListKubernetesResourcesRequest defines a request to retrieve resources paginated. Only
@@ -77,3 +88,65 @@ message ListKubernetesResourcesResponse {
   // TotalCount is the total number of resources available after filter, if any.
   int32 total_count = 3;
 }
+
+// The request for fetching a specific scoped or unscoped kube cluster resource.
+message GetKubeClusterRequest {
+  // The name of the kube cluster resource.
+  string name = 1;
+  // The scope the kube cluster resource belongs to. Can be empty.
+  string scope = 2;
+}
+
+// The response for fetching a kube cluster.
+message GetKubeClusterResponse {
+  types.KubernetesClusterV3 cluster = 1;
+}
+
+// The request to list kube cluster resources within the backend.
+message ListKubeClustersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+
+  // The possible sort modes for listing kube cluster resources.
+  enum SortMode {
+    SORT_MODE_UNSPECIFIED = 0;
+  }
+
+  // Specifies the sorting type for the results.
+  SortMode sort_mode = 3;
+
+  // Specifies sort direction
+  bool is_sort_descending = 4;
+
+  // A collection of fields to filter kube clusters.
+  message ListKubeClustersFilter {}
+  // A collection of fields to filter kube clusters.
+  ListKubeClustersFilter filter = 5;
+
+  // Filters kube clusters by scope.
+  teleport.scopes.v1.Filter scope_filter = 6;
+}
+
+// The response for listing kube cluster resources within the backend.
+message ListKubeClustersResponse {
+  // The page of kube clusters that matched the request.
+  repeated types.KubernetesClusterV3 clusters = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// The request for deleting a specific scoped or unscoped kube cluster resource.
+message DeleteKubeClusterRequest {
+  // The name of the kube cluster resource.
+  string name = 1;
+  // The scope the kube cluster resource belongs to. Can be empty.
+  string scope = 2;
+}
+
+// The response for deleting a specific scoped or unscoped kube cluster resource.
+message DeleteKubeClusterResponse {}
