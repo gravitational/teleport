@@ -539,3 +539,19 @@ func (p fieldPath) withoutIndexes() fieldPath {
 	}
 	return result
 }
+
+func ProviderBlock(majorVersion int64, proxyAddr string) string {
+	return fmt.Sprintf(`terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> %d.0"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = %q
+}
+`, majorVersion, proxyAddr)
+}
