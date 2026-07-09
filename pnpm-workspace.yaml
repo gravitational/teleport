@@ -58,3 +58,11 @@ minimumReleaseAgeExclude:
   - '@gravitational/swc-plugin-styled-components'
 # The pnpm team releases new versions pretty often, and we don't need to stay at the freshest version at all times.
 updateNotifier: false
+supportedArchitectures:
+  os:
+  - darwin
+  - linux
+  - current
+  cpu:
+  - arm64
+  - current
