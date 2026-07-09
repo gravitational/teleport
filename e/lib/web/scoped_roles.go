@@ -52,9 +52,9 @@ func listRootScopedRoles(ctx context.Context, clt scopedRoleLister, values url.V
 	resp, err := clt.ListScopedRoles(ctx, scopedaccessv1.ListScopedRolesRequest_builder{
 		PageSize:  limit,
 		PageToken: values.Get("startKey"),
-		ResourceScope: scopesv1.Filter_builder{
+		ScopeFilter: scopesv1.Filter_builder{
 			Scope: scopes.Root,
-			Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+			Mode:  scopesv1.Mode_MODE_ANCESTORS,
 		}.Build(),
 		NameFilter: values.Get("filter"),
 	}.Build())
