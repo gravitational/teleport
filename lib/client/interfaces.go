@@ -141,6 +141,9 @@ type KeyRing struct {
 	// WindowsDesktopTLSCredentials are TLS credentials for desktop access.
 	// Map key is the desktop name.
 	WindowsDesktopTLSCredentials map[string]TLSCredential
+	// LinuxDesktopTLSCredentials are TLS credentials for desktop access.
+	// Map key is the desktop name.
+	LinuxDesktopTLSCredentials map[string]TLSCredential
 	// TrustedCerts is a list of trusted certificate authorities
 	TrustedCerts []authclient.TrustedCerts
 }
@@ -190,6 +193,7 @@ func NewKeyRing(sshPriv, tlsPriv *keys.PrivateKey) *KeyRing {
 		DBTLSCredentials:             make(map[string]TLSCredential),
 		AppTLSCredentials:            make(map[string]TLSCredential),
 		WindowsDesktopTLSCredentials: make(map[string]TLSCredential),
+		LinuxDesktopTLSCredentials:   make(map[string]TLSCredential),
 	}
 }
 

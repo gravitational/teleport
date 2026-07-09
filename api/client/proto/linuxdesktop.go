@@ -36,16 +36,16 @@ func PackLinuxDesktop(desktop *linuxdesktopv1.LinuxDesktop) isPaginatedResource_
 
 // UnpackLinuxDesktop converts a wire-format LinuxDesktop resource back into an  linuxdesktopv1.LinuxDesktop instance.
 func UnpackLinuxDesktop(src *LinuxDesktop) types.ResourceWithLabels {
-	spec := &linuxdesktopv1.LinuxDesktopSpec{}
-	spec.SetAddr(src.Addr)
-	spec.SetHostname(src.Hostname)
-	spec.SetProxyIds(src.ProxyIds)
-
-	dst := &linuxdesktopv1.LinuxDesktop{}
-	dst.SetKind(src.Kind)
-	dst.SetSubKind(src.SubKind)
-	dst.SetVersion(src.Version)
-	dst.SetMetadata(types.LegacyTo153Metadata(src.Metadata))
-	dst.SetSpec(spec)
+	dst := linuxdesktopv1.LinuxDesktop_builder{
+		Kind:     src.Kind,
+		SubKind:  src.SubKind,
+		Version:  src.Version,
+		Metadata: types.LegacyTo153Metadata(src.Metadata),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
+			Addr:     src.Addr,
+			Hostname: src.Hostname,
+			ProxyIds: src.ProxyIds,
+		}.Build(),
+	}.Build()
 	return types.ProtoResource153ToLegacy(dst)
 }

@@ -479,7 +479,7 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 	case SessionIdentifier:
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
-		case *events.SessionEnd, *events.WindowsDesktopSessionEnd, *events.DatabaseSessionEnd:
+		case *events.SessionEnd, *events.WindowsDesktopSessionEnd, *events.LinuxDesktopSessionEnd, *events.DatabaseSessionEnd:
 			session = ctx.Session
 		}
 		v, origErr := predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
