@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/sortmap"
 )
@@ -161,9 +162,96 @@ func (c *Cache[T, K]) Get(key K) (T, bool) {
 	return c.cfg.Clone(value), true
 }
 
-// PoliciesApplicableToResourceScope iterates over the cached items using policy-application rules (i.e.
-// a descending iteration from root, through the leaf of the specified scope).
-func (c *Cache[T, K]) PoliciesApplicableToResourceScope(scope string, opts ...Option[T, K]) iter.Seq[ScopedItems[T]] {
+// ResourcesMatchingScopeFilter returns an iterator over the cached items whose scope matches the given
+// primary scope filter, selecting the appropriate traversal strategy for the filter's mode. This is the
+// cache-side counterpart to [scopes.MatchScope]: it must select exactly the set of items that MatchScope
+// would accept for the same filter, so that the indexed traversal and a naive per-item match agree.
+//
+// An empty/unspecified filter and MODE_ALL are both treated as "match everything" (the scoped equivalent
+// of a get-all), consistent with MatchScope's wildcard handling. The filter is validated via [scopes.ValidateFilter]
+// before use, so callers do not need to pre-validate.
+//
+// NOTE: currently MODE_UNSCOPED is treated as a valid input that happens to match nothing, which has been
+// judged to be the most consistent behavior. Especially if we decide to start supporting unscoped resources
+// in this cache in the future.
+func (c *Cache[T, K]) ResourcesMatchingScopeFilter(filter *scopesv1.Filter, opts ...Option[T, K]) (iter.Seq[ScopedItems[T]], error) {
+	if err := scopes.ValidateFilter(filter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	scope := filter.GetScope()
+	switch filter.GetMode() {
+	case scopesv1.Mode_MODE_UNSPECIFIED, scopesv1.Mode_MODE_ALL:
+		// wildcard: yield everything (an exhaustive iteration from root).
+		return c.ScopeAndDescendants(scopes.Root, opts...), nil
+	case scopesv1.Mode_MODE_EXACT:
+		return c.ExactScope(scope, opts...), nil
+	case scopesv1.Mode_MODE_DESCENDANTS:
+		return c.ScopeAndDescendants(scope, opts...), nil
+	case scopesv1.Mode_MODE_ANCESTORS, scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE: //nolint:staticcheck // SA1019. Deprecated mode retained as equivalent for backwards compatibility.
+		return c.ScopeAndAncestors(scope, opts...), nil
+	case scopesv1.Mode_MODE_RELATIVES:
+		return c.ScopeAndRelatives(scope, opts...), nil
+	case scopesv1.Mode_MODE_UNSCOPED:
+		// scoped caches only contain scoped resources, so an unscoped filter matches nothing.
+		return func(yield func(ScopedItems[T]) bool) {}, nil
+	default:
+		return nil, trace.BadParameter("unsupported scope filter mode %v (this is a bug)", filter.GetMode())
+	}
+}
+
+// ExactScope iterates over the cached items at exactly the given scope, with no ancestors or descendants.
+// This corresponds to scopesv1.Mode_MODE_EXACT.
+func (c *Cache[T, K]) ExactScope(scope string, opts ...Option[T, K]) iter.Seq[ScopedItems[T]] {
+	return func(yield func(ScopedItems[T]) bool) {
+		c.rw.RLock()
+		defer c.rw.RUnlock()
+
+		var options options[T, K]
+		for _, opt := range opts {
+			opt(&options)
+		}
+
+		if c.root == nil {
+			return
+		}
+
+		// keep track of the segments visited
+		var visited []string
+
+		// search for start position, beginning at the root
+		current := c.root
+
+		descender := newDescender(options.cursor)
+		defer descender.Stop()
+
+		for segment := range scopes.DescendingSegments(scope) {
+			// get next scope if it exists
+			var ok bool
+			current, ok = current.children.Get(segment)
+			if !ok {
+				// the target scope does not exist, nothing to yield.
+				return
+			}
+
+			// advance the descender to the next scope
+			descender.Descend(segment)
+
+			// update visited segments
+			visited = append(visited, segment)
+		}
+
+		// yield only the members at exactly the target scope (no recursion into descendants).
+		if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.items, c.cfg.Clone, options.filter) {
+			return
+		}
+	}
+}
+
+// ScopeAndAncestors iterates over the cached items at the given scope and all of its ancestors (i.e.
+// a descending iteration from root, through the leaf of the specified scope). This corresponds to
+// scopesv1.Mode_MODE_ANCESTORS.
+func (c *Cache[T, K]) ScopeAndAncestors(scope string, opts ...Option[T, K]) iter.Seq[ScopedItems[T]] {
 	return func(yield func(ScopedItems[T]) bool) {
 		c.rw.RLock()
 		defer c.rw.RUnlock()
@@ -212,9 +300,10 @@ func (c *Cache[T, K]) PoliciesApplicableToResourceScope(scope string, opts ...Op
 	}
 }
 
-// ResourcesSubjectToPolicyScope iterates over the cached items using resources-subjugation rules (i.e.
-// an exhaustive descending iteration of the specified scope and all of its descendants).
-func (c *Cache[T, K]) ResourcesSubjectToPolicyScope(scope string, opts ...Option[T, K]) iter.Seq[ScopedItems[T]] {
+// ScopeAndDescendants iterates over the cached items at the given scope and all of its descendants (i.e.
+// an exhaustive descending iteration of the specified scope and all of its descendants). This corresponds
+// to scopesv1.Mode_MODE_DESCENDANTS.
+func (c *Cache[T, K]) ScopeAndDescendants(scope string, opts ...Option[T, K]) iter.Seq[ScopedItems[T]] {
 	return func(yield func(ScopedItems[T]) bool) {
 		c.rw.RLock()
 		defer c.rw.RUnlock()
@@ -261,13 +350,13 @@ func (c *Cache[T, K]) ResourcesSubjectToPolicyScope(scope string, opts ...Option
 	}
 }
 
-// AllNonOrthogonalResources returns all resources at scopes non-orhthogonal to the given scope.  For example, given the
+// ScopeAndRelatives returns all resources at scopes non-orhthogonal to the given scope.  For example, given the
 // scope '/foo', this will return resources at '/', '/foo', '/foo/bar', etc, but not '/bar'. This operation is less typical
-// than either PoliciesApplicableToResourceScope or ResourcesSubjectToPolicyScope.  Currently, the only operation that wants
+// than either ScopeAndAncestors or ScopeAndDescendants.  Currently, the only operation that wants
 // this kind of query is scope pin generation, which must discover all policies that might apply to access at the pinned scope
 // *or* any of its sub-scopes. This can reasonably be thought of as producing the union of the result of both the
-// PoliciesApplicableToResourceScope and ResourcesSubjectToPolicyScope methods.
-func (c *Cache[T, K]) AllNonOrthogonalResources(scope string, opts ...Option[T, K]) iter.Seq[ScopedItems[T]] {
+// ScopeAndAncestors and ScopeAndDescendants methods, and corresponds to scopesv1.Mode_MODE_RELATIVES.
+func (c *Cache[T, K]) ScopeAndRelatives(scope string, opts ...Option[T, K]) iter.Seq[ScopedItems[T]] {
 	return func(yield func(ScopedItems[T]) bool) {
 		c.rw.RLock()
 		defer c.rw.RUnlock()

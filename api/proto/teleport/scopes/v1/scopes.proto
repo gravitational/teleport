@@ -92,30 +92,74 @@ message SystemRoles {
   repeated string additional = 2;
 }
 
-// Mode determines the mode of scoping when a query specifies a scope. When a query specifies a scope,
-// one of two questions is typically trying to be answered.  Either, what resources are "in" and/or "subject to"
-// a given scope, or what policies are "applicable to" a given scope.
+// Mode determines how a Filter matches resource scopes relative to the scope specified by the
+// filter. Most modes select resources by their relationship to Filter.Scope (exact, descendants,
+// ancestors, or all relatives). Two special modes (MODE_UNSCOPED and MODE_ALL) do not select by
+// relationship and instead match the unscoped subset or everything the caller may see, respectively.
+//
+// NOTE: Our internals treat an unspecified filter and a MODE_ALL filter is both being "match all",
+// *however* the API/authz layer treats them differently. A MODE_ALL filter is interpreted as being
+// intentional. However, an omitted filter is replaced by an identity-dependent default (MODE_EXACT
+// for scoped callers and MODE_UNSCOPED for unscoped callers). This conservative defaulting is a key
+// component of the backwards comatibility and safety story for scope-enabled APIs. Any callsite being
+// updated to use an inclusive filtering mode like MODE_ALL must be carefully validated to ensure that
+// it is safe in the context of issues like the "confused deputy" problem.
 enum Mode {
-  // MODE_UNSPECIFIED indicates that no scope-based filtering has been specified.
-  MODE_UNSPECIFIED = 0;
+  reserved 1;
+  reserved "MODE_RESOURCES_SUBJECT_TO_SCOPE";
 
-  // MODE_RESOURCES_SUBJECT_TO_SCOPE matches scopes by the resource subjugation rules. In the
-  // terminology of scope comparison, this means Equivalent and Descendant scopes. This is the mode that most
-  // user-facing scoped queries should use, as it intuitively answers the question of "what is the contents of
-  // scope X?". See the 'lib/scopes' package for more detailed discussion of scope comparison/heirarchy.
-  MODE_RESOURCES_SUBJECT_TO_SCOPE = 1;
+  // MODE_UNSPECIFIED indicates that no scope-based filtering has been specified. Cache/backend impls
+  // treat this as equivalent to MODE_ALL. The API/authz layer replaces this with one of MODE_EXACT or
+  // MODE_UNSCOPED depending on whether the caller is scoped or unscoped, respectively.
+  MODE_UNSPECIFIED = 0;
 
   // MODE_POLICIES_APPLICABLE_TO_SCOPE matches scopes by the policy application rules. In the
   // terminology of scope comparison, this means Ancestor and Equivalent scopes. This is the mode that most caching
   // and access-control related queries should use as it answers the question "what policies might affect access to
   // this resource at scope X?". See the 'lib/scopes' package for more detailed discussion of scope comparison/heirarchy.
-  MODE_POLICIES_APPLICABLE_TO_SCOPE = 2;
+  MODE_POLICIES_APPLICABLE_TO_SCOPE = 2 [deprecated = true];
+
+  // MODE_EXACT matches resources in the exact scope specified by Filter.Scope (Equivalent only). This is
+  // the minimal/safe default for watch/list requests initiated by scoped callers that do not specify an
+  // explicit filter.
+  MODE_EXACT = 3;
+
+  // MODE_DESCENDANTS matches the scope specified by Filter.Scope and all of its descendants. For example,
+  // a Filter.Scope of `/staging/west` would match `/staging/west` and `/staging/west/test`, but not
+  // `/staging` or `/prod/west`.
+  MODE_DESCENDANTS = 4;
+
+  // MODE_ANCESTORS matches the scope specified by Filter.Scope and all of its ancestors. For example,
+  // a Filter.Scope of `/staging/west` would match `/staging/west` and `/staging`, but not
+  // `/staging/west/test` or `/prod/west`.
+  MODE_ANCESTORS = 5;
+
+  // MODE_RELATIVES matches the scope specified by Filter.Scope, all of its ancestors, and all of its
+  // descendants (i.e. any non-orthogonal scope). For example, a Filter.Scope of `/staging/west` would match
+  // `/staging/west`, `/staging`, and `/staging/west/test, but not `/prod/west`.
+  MODE_RELATIVES = 6;
+
+  // MODE_UNSCOPED matches unscoped resources only. Filter.Scope must be empty when this mode is selected.
+  // This is the safe default for watch/list requests initiated by unscoped callers that do not specify an
+  // explicit filter.
+  MODE_UNSCOPED = 7;
+
+  // MODE_ALL matches all resources that the caller has permission to see (scoped and unscoped). Filter.Scope
+  // must be empty when this mode is selected. This is the mode that most exhaustive user-facing views (e.g. `tctl get`)
+  // should use.
+  MODE_ALL = 8;
 }
 
-// Filter is a query parameter that matches other scopes based on a specified scope and mode. Used for
-// filtering resources that are subject to or policies that apply to a given scope.
+// Filter is a query parameter that matches scopes based on a specified scope and mode. See the
+// Mode enum for the semantics of each matching mode, and the 'lib/scopes' package (MatchScope/ValidateFilter)
+// for the authoritative matching and validation logic.
+//
+// Conventionally, list and watch requests for scope-aware types include a `scope_filter` field of this type
+// which matches the resource scope of the associated resource type. Some APIs may also support additional
+// filters (e.g. scoped roles can be filtered by assignable scope).
 message Filter {
-  // Scope is the scope value to match against.
+  // Scope is the scope value to match against. Must be empty for MODE_UNSCOPED, MODE_ALL, and
+  // MODE_UNSPECIFIED, and non-empty for all relationship-based modes.
   string scope = 1;
 
   // Mode determines the mode of matching.
