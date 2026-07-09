@@ -115,6 +115,7 @@ export default class TtyTerminal implements TerminalSearcher {
       convertEol: this._convertEol,
       cursorBlink: false,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      screenReaderMode: true,
       theme: this.options.theme,
       allowProposedApi: true, // required for customizing SearchAddon properties
     });
