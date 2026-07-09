@@ -3848,7 +3848,7 @@ func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespace
 
 // UpsertNode upserts a node.
 func (g *GRPCServer) UpsertNode(ctx context.Context, node *types.ServerV2) (*types.KeepAlive, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3862,7 +3862,7 @@ func (g *GRPCServer) UpsertNode(ctx context.Context, node *types.ServerV2) (*typ
 	}
 	node.SetAddr(utils.ReplaceLocalhost(node.GetAddr(), p.Addr.String()))
 
-	keepAlive, err := auth.ServerWithRoles.UpsertNode(ctx, node)
+	keepAlive, err := auth.UpsertNode(ctx, node)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

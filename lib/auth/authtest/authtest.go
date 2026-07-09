@@ -1293,6 +1293,7 @@ func TestScopePinnedHost(clusterName, hostID, scope string, roles ...types.Syste
 			ServerFQDN:  serverFQDN,
 			ScopePin:    pin,
 			Identity: tlsca.Identity{
+				Username: serverFQDN,
 				ScopePin: pin,
 			},
 		},
