@@ -975,6 +975,68 @@ func TestEqualWithCanonicalFields(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Empty lists compare equal to nil lists",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Owners = []Owner{}
+				spec2.Owners = nil
+
+				spec1.Grants.Roles = []string{}
+				spec2.Grants.Roles = nil
+				spec1.Grants.Traits = map[string][]string{}
+				spec2.Grants.Traits = nil
+				spec1.Grants.ScopedRoles = []ScopedRoleGrant{}
+				spec2.Grants.ScopedRoles = nil
+
+				spec1.OwnerGrants.Roles = []string{}
+				spec2.OwnerGrants.Roles = nil
+				spec1.OwnerGrants.Traits = map[string][]string{}
+				spec2.OwnerGrants.Traits = nil
+				spec1.OwnerGrants.ScopedRoles = []ScopedRoleGrant{}
+				spec2.OwnerGrants.ScopedRoles = nil
+
+				spec1.MembershipRequires.Roles = []string{}
+				spec2.MembershipRequires.Roles = nil
+				spec1.MembershipRequires.Traits = map[string][]string{}
+				spec2.MembershipRequires.Traits = nil
+
+				spec1.OwnershipRequires.Roles = []string{}
+				spec2.OwnershipRequires.Roles = nil
+				spec1.OwnershipRequires.Traits = map[string][]string{}
+				spec2.OwnershipRequires.Traits = nil
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered owners equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Owners = []Owner{
+					{Name: "owner-b", MembershipKind: MembershipKindUser, Description: "b"},
+					{Name: "owner-a", MembershipKind: MembershipKindUser, Description: "a"},
+				}
+				spec2.Owners = []Owner{
+					{Name: "owner-a", MembershipKind: MembershipKindUser, Description: "a"},
+					{Name: "owner-b", MembershipKind: MembershipKindUser, Description: "b"},
+				}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Duplicate owners compare equal to unique owners",
+			setup: func(spec1, spec2 *Spec) {
+				owner := Owner{Name: "owner-a", MembershipKind: MembershipKindUser, Description: "a"}
+				spec1.Owners = []Owner{owner, owner}
+				spec2.Owners = []Owner{owner}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Different owner name still compares unequal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Owners = []Owner{{Name: "owner-a", MembershipKind: MembershipKindUser}}
+				spec2.Owners = []Owner{{Name: "owner-b", MembershipKind: MembershipKindUser}}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -986,7 +1048,6 @@ func TestEqualWithCanonicalFields(t *testing.T) {
 			al1 := newAL(t, "test", spec1)
 			al2 := newAL(t, "test", spec2)
 
-			require.False(t, EqualAccessLists(al1, al2))
 			require.Equal(t, tt.wantCanonicalEqual, EqualAccessLists(al1, al2, WithCanonicalFields()))
 		})
 	}

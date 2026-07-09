@@ -780,7 +780,7 @@ func WithIgnoreOktaUserManagedFields() EqualAccessListsOption {
 //
 // The following fields are canonicalized: Grants (roles/traits/scopedRoles),
 // OwnerGrants (roles/traits/scopedRoles), MembershipRequires (roles/traits),
-// and OwnershipRequires (roles/traits).
+// OwnershipRequires (roles/traits) and Owners.
 //
 // Note: This option reorders and de-duplicates the listed slice fields. As with
 // [WithIgnoreEphemeralFields], the input Access Lists are cloned (unless
@@ -841,10 +841,45 @@ func canonicalizeAccessList(a *AccessList) {
 		return
 	}
 
+	canonicalizeOwners(&a.Spec.Owners)
 	canonicalizeGrants(&a.Spec.Grants)
 	canonicalizeGrants(&a.Spec.OwnerGrants)
 	canonicalizeRequires(&a.Spec.MembershipRequires)
 	canonicalizeRequires(&a.Spec.OwnershipRequires)
+}
+
+// canonicalize the owner of an access list.
+// NOTE: Please to not use this function outside of the canonicalize flow. If
+// similar functionality is needed elsewhere, please consider using derive based
+// functions instead.
+func canonicalizeOwner(a, b Owner) int {
+	if a.Name != b.Name {
+		return strings.Compare(a.Name, b.Name)
+	}
+	if a.MembershipKind != b.MembershipKind {
+		return strings.Compare(a.MembershipKind, b.MembershipKind)
+	}
+	if a.Description != b.Description {
+		return strings.Compare(a.Description, b.Description)
+	}
+	if a.Title != b.Title {
+		return strings.Compare(a.Title, b.Title)
+	}
+
+	// If WithIgnoreEphemeralFields is used - the fields will be reset and equal.
+	return strings.Compare(a.IneligibleStatus, b.IneligibleStatus)
+}
+
+func canonicalizeOwners(o *[]Owner) {
+	slices.SortFunc(*o, canonicalizeOwner)
+
+	*o = slices.CompactFunc(*o, func(a, b Owner) bool {
+		return canonicalizeOwner(a, b) == 0
+	})
+
+	if len(*o) == 0 {
+		*o = nil
+	}
 }
 
 func canonicalizeGrants(g *Grants) {
@@ -854,8 +889,14 @@ func canonicalizeGrants(g *Grants) {
 
 	slices.Sort(g.Roles)
 	g.Roles = slices.Compact(g.Roles)
+	if len(g.Roles) == 0 {
+		g.Roles = nil
+	}
 
 	trait.Merge(g.Traits, nil)
+	if len(g.Traits) == 0 {
+		g.Traits = nil
+	}
 
 	slices.SortFunc(g.ScopedRoles, func(a, b ScopedRoleGrant) int {
 		if a.Role == b.Role {
@@ -865,6 +906,9 @@ func canonicalizeGrants(g *Grants) {
 	})
 
 	g.ScopedRoles = slices.Compact(g.ScopedRoles)
+	if len(g.ScopedRoles) == 0 {
+		g.ScopedRoles = nil
+	}
 }
 
 func canonicalizeRequires(r *Requires) {
@@ -874,6 +918,12 @@ func canonicalizeRequires(r *Requires) {
 
 	slices.Sort(r.Roles)
 	r.Roles = slices.Compact(r.Roles)
+	if len(r.Roles) == 0 {
+		r.Roles = nil
+	}
 
 	trait.Merge(r.Traits, nil)
+	if len(r.Traits) == 0 {
+		r.Traits = nil
+	}
 }
