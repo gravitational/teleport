@@ -977,6 +977,12 @@ func StrongValidateBot(b *pb.Bot) error {
 			return trace.Wrap(err, "scope:")
 		}
 
+		// TODO(strideynet): Switch to `scopes.StrongValidateResourceName` when
+		// it is merged.
+		if err := scopes.StrongValidateSegment(b.GetMetadata().GetName()); err != nil {
+			return trace.Wrap(err, "metadata.name:")
+		}
+
 		// Validate unsupported fields aren't set.
 		if len(b.GetSpec().GetRoles()) > 0 {
 			return trace.BadParameter("spec.roles: cannot be set on scoped bot")

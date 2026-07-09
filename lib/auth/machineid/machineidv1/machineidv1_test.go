@@ -2909,6 +2909,26 @@ func TestStrongValidateBot(t *testing.T) {
 			assertError: isBadParam,
 		},
 		{
+			name:        "scoped bot with name containing scope-key encoding character",
+			bot:         newScopedBot(func(b *machineidv1pb.Bot) { b.GetMetadata().SetName("test+bot") }),
+			assertError: isBadParam,
+		},
+		{
+			name:        "scoped bot with name containing space",
+			bot:         newScopedBot(func(b *machineidv1pb.Bot) { b.GetMetadata().SetName("test bot") }),
+			assertError: isBadParam,
+		},
+		{
+			name:        "scoped bot with uppercase name",
+			bot:         newScopedBot(func(b *machineidv1pb.Bot) { b.GetMetadata().SetName("Test-Bot") }),
+			assertError: isBadParam,
+		},
+		{
+			name:        "scoped bot with single-character name",
+			bot:         newScopedBot(func(b *machineidv1pb.Bot) { b.GetMetadata().SetName("x") }),
+			assertError: isBadParam,
+		},
+		{
 			name: "scoped bot with roles set",
 			bot: newScopedBot(func(b *machineidv1pb.Bot) {
 				b.GetSpec().SetRoles([]string{"some-role"})
