@@ -472,12 +472,14 @@ func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
 		return os.IsNotExist(err)
 	}, 5*time.Second, 50*time.Millisecond, "expected orphan A's directory to be removed")
 
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(got) == 5
+	}, 5*time.Second, 50*time.Millisecond, "expected all 5 orphan events delivered through B's handler")
+
 	cancel()
 	require.ErrorIs(t, <-runErr, context.Canceled)
-
-	mu.Lock()
-	defer mu.Unlock()
-	require.Len(t, got, 5, "expected all 5 orphan events delivered through B's handler")
 }
 
 func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
@@ -582,6 +584,46 @@ func TestOrphanAdoption_PromotesFailedToDeadLetter(t *testing.T) {
 
 	cancel()
 	require.ErrorIs(t, <-runErr, context.Canceled)
+}
+
+func TestMigrateOrphanQueue_PreservesAttempts(t *testing.T) {
+	t.Parallel()
+
+	a, err := newSQLiteQueue(Config{
+		Path:        filepath.Join(t.TempDir(), "a"),
+		MaxAttempts: 10,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = a.Close() })
+	require.NoError(t, a.Enqueue(newTestEvent(42)))
+
+	items, err := a.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	for range 2 {
+		promoted, err := a.processFailedDeliveries(t.Context(), items)
+		require.NoError(t, err)
+		require.Equal(t, 0, promoted)
+	}
+
+	b, err := newSQLiteQueue(Config{Path: filepath.Join(t.TempDir(), "b")})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = b.Close() })
+
+	require.NoError(t, b.migrateOrphanQueue(t.Context(), a.db))
+
+	empty, err := isQueueEmpty(a.db)
+	require.NoError(t, err)
+	require.True(t, empty, "A's audit_queue should be empty after migration")
+
+	migrated, err := b.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, migrated, 1)
+	require.Equal(t, int64(42), migrated[0].Event.GetIndex())
+
+	var attempts int
+	require.NoError(t, b.db.QueryRow("SELECT attempts FROM audit_queue").Scan(&attempts))
+	require.Equal(t, 2, attempts, "attempt count should carry over during migration")
 }
 
 func TestOrphanAdoption_SkipsLockedQueue(t *testing.T) {
@@ -766,7 +808,7 @@ func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 	require.Len(t, items, 2)
 
 	for i := 0; i < 2; i++ {
-		promoted, err := q.processFailedDeliveries(t.Context(), q.db, items)
+		promoted, err := q.processFailedDeliveries(t.Context(), items)
 		require.NoError(t, err)
 		require.Equal(t, 0, promoted, "should not be exhausted after attempt %d", i+1)
 		remaining, err := q.fetch(10)
@@ -774,7 +816,7 @@ func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 		require.Len(t, remaining, 2, "items should still be in audit_queue after attempt %d", i+1)
 	}
 
-	promoted, err := q.processFailedDeliveries(t.Context(), q.db, items)
+	promoted, err := q.processFailedDeliveries(t.Context(), items)
 	require.NoError(t, err)
 	require.Equal(t, 2, promoted)
 
@@ -892,7 +934,7 @@ func TestDeadLetterSweep_DrainsEntireBacklog(t *testing.T) {
 	items, err := q.fetch(total)
 	require.NoError(t, err)
 	require.Len(t, items, total)
-	promoted, err := q.processFailedDeliveries(ctx, q.db, items)
+	promoted, err := q.processFailedDeliveries(ctx, items)
 	require.NoError(t, err)
 	require.Equal(t, total, promoted)
 
@@ -932,7 +974,7 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	items, err := q.fetch(1)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	promoted, err := q.processFailedDeliveries(t.Context(), q.db, items)
+	promoted, err := q.processFailedDeliveries(t.Context(), items)
 	require.NoError(t, err)
 	require.Equal(t, 1, promoted)
 
