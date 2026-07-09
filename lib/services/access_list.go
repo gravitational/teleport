@@ -77,6 +77,8 @@ type AccessLists interface {
 	UpdateAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 	// DeleteAccessList removes the specified access list resource.
 	DeleteAccessList(context.Context, string) error
+	// DeleteAccessList removes the specified access list resource.
+	DeleteAccessListV2(context.Context, *accesslistv1.DeleteAccessListRequest) error
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
@@ -96,10 +98,16 @@ type AccessListsInternal interface {
 
 	// CleanupAccessListStatus removes invalid Status.OwnerOf and Status.MemberOf references.
 	CleanupAccessListStatus(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
+	// CleanupAccessListStatusV2 removes invalid Status.(Scoped)OwnerOf and Status.(Scoped)MemberOf references.
+	CleanupAccessListStatusV2(ctx context.Context, accessListName accesslists.NormalizedSQN) (*accesslist.AccessList, error)
 
 	// EnsureNestedAccessListStatuses goes over all nested owners and nested members of the named
 	// access list and ensures nested lists' statuses owner_of/member_of contain the access list name.
 	EnsureNestedAccessListStatuses(ctx context.Context, accessListName string) error
+	// EnsureNestedAccessListStatusesV2 goes over all nested owners and nested members of the named
+	// access list and ensures nested lists' statuses (scoped_)owner_of/(scoped_)member_of contain
+	// the access list name.
+	EnsureNestedAccessListStatusesV2(ctx context.Context, accessListName accesslists.NormalizedSQN) error
 
 	// InsertAccessListCollection inserts a complete collection of access lists and their members from a single
 	// upstream source (e.g. EntraID) using a batch operation for improved performance.
@@ -222,8 +230,12 @@ type AccessListMembers interface {
 	UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 	// DeleteAccessListMember hard deletes the specified access list member resource.
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
+	// DeleteAccessListMemberV2 hard deletes the specified access list member resource.
+	DeleteAccessListMemberV2(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) error
 	// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 	DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error
+	// DeleteAllAccessListMembersForAccessListV2 hard deletes all access list members for an access list.
+	DeleteAllAccessListMembersForAccessListV2(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersForAccessListRequest) error
 }
 
 // MarshalAccessListMember marshals the access list member resource to JSON.
@@ -287,6 +299,8 @@ type AccessListReviews interface {
 
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error
+	// DeleteAccessListReviewV2 will delete an access list review from the backend.
+	DeleteAccessListReviewV2(ctx context.Context, req *accesslistv1.DeleteAccessListReviewRequest) error
 }
 
 // MarshalAccessListReview marshals the access list review resource to JSON.
