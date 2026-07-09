@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1105,7 +1106,7 @@ func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string) {
 		return
 	}
 
-	migrateErr := q.migrateOrphanDB(ctx, db)
+	migrateErr := q.migrateOrphanDB(ctx, db, filepath.Base(path))
 	if err := db.Close(); err != nil {
 		slog.ErrorContext(q.ctx,
 			"Failed to close orphan SQLite database.",
@@ -1140,32 +1141,42 @@ func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string) {
 		)
 		return
 	}
+	q.clearOrphanWatermarks(ctx, filepath.Base(path))
 	orphansAdopted.Inc()
 	slog.InfoContext(q.ctx, "Adopted orphaned audit-queue directory.", "path", path)
 }
 
-func (q *sqliteQueue) migrateOrphanDB(ctx context.Context, db *sql.DB) error {
-	if err := q.migrateOrphanQueue(ctx, db); err != nil {
+func (q *sqliteQueue) migrateOrphanDB(ctx context.Context, db *sql.DB, name string) error {
+	if err := q.migrateOrphanQueue(ctx, db, name); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(q.migrateOrphanDeadLetter(ctx, db))
+	return trace.Wrap(q.migrateOrphanDeadLetter(ctx, db, name))
 }
 
-func (q *sqliteQueue) migrateOrphanQueue(ctx context.Context, orphan *sql.DB) error {
-	return q.migrateOrphanTable(ctx, orphan, auditQueueTable,
-		"SELECT id, payload, attempts FROM audit_queue ORDER BY id ASC LIMIT ?",
+func (q *sqliteQueue) migrateOrphanQueue(ctx context.Context, orphan *sql.DB, name string) error {
+	return q.migrateOrphanTable(ctx, orphan, name, auditQueueTable,
+		"SELECT id, payload, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?",
 		"INSERT INTO audit_queue (payload, attempts) VALUES (?, ?)",
 	)
 }
 
-func (q *sqliteQueue) migrateOrphanDeadLetter(ctx context.Context, orphan *sql.DB) error {
-	return q.migrateOrphanTable(ctx, orphan, auditDeadLetterTable,
-		"SELECT id, payload, failed_at FROM audit_dead_letter ORDER BY id ASC LIMIT ?",
+func (q *sqliteQueue) migrateOrphanDeadLetter(ctx context.Context, orphan *sql.DB, name string) error {
+	return q.migrateOrphanTable(ctx, orphan, name, auditDeadLetterTable,
+		"SELECT id, payload, failed_at FROM audit_dead_letter WHERE id > ? ORDER BY id ASC LIMIT ?",
 		"INSERT INTO audit_dead_letter (payload, failed_at) VALUES (?, ?)",
 	)
 }
 
-func (q *sqliteQueue) migrateOrphanTable(ctx context.Context, orphan *sql.DB, table, selectSQL, insertSQL string) error {
+func orphanWatermarkKey(name, table string) string {
+	return "orphan_migration:" + name + ":" + table
+}
+
+func (q *sqliteQueue) migrateOrphanTable(ctx context.Context, orphan *sql.DB, name, table, selectSQL, insertSQL string) error {
+	watermarkKey := orphanWatermarkKey(name, table)
+	watermark, err := q.readOrphanWatermark(ctx, watermarkKey)
+	if err != nil {
+		return trace.Wrap(err, "reading orphan %s watermark", table)
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return trace.Wrap(err)
@@ -1173,16 +1184,20 @@ func (q *sqliteQueue) migrateOrphanTable(ctx context.Context, orphan *sql.DB, ta
 		if err := q.ctx.Err(); err != nil {
 			return trace.Wrap(err)
 		}
-		batch, err := fetchOrphanRows(ctx, orphan, selectSQL, dequeueBatchSize)
+		batch, err := fetchOrphanRows(ctx, orphan, selectSQL, watermark, dequeueBatchSize)
 		if err != nil {
 			return trace.Wrap(err, "fetching orphan %s rows", table)
 		}
 		if len(batch) == 0 {
 			return nil
 		}
-		if err := q.insertMigratedBatch(ctx, insertSQL, batch); err != nil {
+
+		maxID := batch[len(batch)-1].id
+		if err := q.insertMigratedBatch(ctx, insertSQL, batch, watermarkKey, maxID); err != nil {
 			return trace.Wrap(err, "migrating orphan %s rows", table)
 		}
+		watermark = maxID
+
 		ids := make([]int64, len(batch))
 		for i, r := range batch {
 			ids[i] = r.id
@@ -1193,13 +1208,41 @@ func (q *sqliteQueue) migrateOrphanTable(ctx context.Context, orphan *sql.DB, ta
 	}
 }
 
+func (q *sqliteQueue) readOrphanWatermark(ctx context.Context, key string) (int64, error) {
+	var value string
+	err := q.db.QueryRowContext(ctx,
+		"SELECT value FROM teleport_info WHERE key = ?", key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	watermark, err := strconv.ParseInt(value, 10, 64)
+	return watermark, trace.Wrap(err)
+}
+
+func (q *sqliteQueue) clearOrphanWatermarks(ctx context.Context, name string) {
+	if _, err := q.db.ExecContext(ctx,
+		"DELETE FROM teleport_info WHERE key IN (?, ?)",
+		orphanWatermarkKey(name, auditQueueTable),
+		orphanWatermarkKey(name, auditDeadLetterTable),
+	); err != nil {
+		slog.ErrorContext(q.ctx,
+			"Failed to clear orphan migration watermarks.",
+			"orphan", name,
+			"error", err,
+		)
+	}
+}
+
 type migratedRow struct {
 	id     int64
 	values []any
 }
 
-func fetchOrphanRows(ctx context.Context, db *sql.DB, selectSQL string, limit int) ([]migratedRow, error) {
-	rows, err := db.QueryContext(ctx, selectSQL, limit)
+func fetchOrphanRows(ctx context.Context, db *sql.DB, selectSQL string, afterID int64, limit int) ([]migratedRow, error) {
+	rows, err := db.QueryContext(ctx, selectSQL, afterID, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1224,7 +1267,7 @@ func fetchOrphanRows(ctx context.Context, db *sql.DB, selectSQL string, limit in
 	return out, trace.Wrap(rows.Err())
 }
 
-func (q *sqliteQueue) insertMigratedBatch(ctx context.Context, insertSQL string, batch []migratedRow) error {
+func (q *sqliteQueue) insertMigratedBatch(ctx context.Context, insertSQL string, batch []migratedRow, watermarkKey string, maxID int64) error {
 	tx, err := q.db.BeginTx(ctx, nil)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1239,6 +1282,12 @@ func (q *sqliteQueue) insertMigratedBatch(ctx context.Context, insertSQL string,
 		if _, err := stmt.ExecContext(ctx, r.values...); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	if _, err := tx.ExecContext(ctx,
+		"INSERT OR REPLACE INTO teleport_info (key, value) VALUES (?, ?)",
+		watermarkKey, strconv.FormatInt(maxID, 10),
+	); err != nil {
+		return trace.Wrap(err)
 	}
 	return trace.Wrap(tx.Commit())
 }

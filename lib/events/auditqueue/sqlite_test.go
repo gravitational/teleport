@@ -610,7 +610,7 @@ func TestMigrateOrphanQueue_PreservesAttempts(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = b.Close() })
 
-	require.NoError(t, b.migrateOrphanQueue(t.Context(), a.db))
+	require.NoError(t, b.migrateOrphanQueue(t.Context(), a.db, "a"))
 
 	empty, err := isQueueEmpty(a.db)
 	require.NoError(t, err)
@@ -624,6 +624,104 @@ func TestMigrateOrphanQueue_PreservesAttempts(t *testing.T) {
 	var attempts int
 	require.NoError(t, b.db.QueryRow("SELECT attempts FROM audit_queue").Scan(&attempts))
 	require.Equal(t, 2, attempts, "attempt count should carry over during migration")
+}
+
+func TestMigrateOrphanQueue_WatermarkPreventsDuplicates(t *testing.T) {
+	t.Parallel()
+
+	a, err := newSQLiteQueue(Config{Path: filepath.Join(t.TempDir(), "a")})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = a.Close() })
+	for i := int64(0); i < 3; i++ {
+		require.NoError(t, a.Enqueue(newTestEvent(i)))
+	}
+
+	original, err := fetchOrphanRows(t.Context(), a.db,
+		"SELECT id, payload, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?", 0, 10)
+	require.NoError(t, err)
+	require.Len(t, original, 3)
+
+	b, err := newSQLiteQueue(Config{Path: filepath.Join(t.TempDir(), "b")})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = b.Close() })
+
+	require.NoError(t, b.migrateOrphanQueue(t.Context(), a.db, "orphan-a"))
+
+	// Restore the rows with their original ids, as if the orphan-side
+	// deletes had never committed.
+	for _, r := range original {
+		args := append([]any{r.id}, r.values...)
+		_, err := a.db.Exec("INSERT INTO audit_queue (id, payload, attempts) VALUES (?, ?, ?)", args...)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, b.migrateOrphanQueue(t.Context(), a.db, "orphan-a"))
+
+	var count int
+	require.NoError(t, b.db.QueryRow("SELECT COUNT(*) FROM audit_queue").Scan(&count))
+	require.Equal(t, 3, count, "watermark should prevent re-migrating already-copied rows")
+}
+
+func TestMigrateOrphanDB_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	a, err := newSQLiteQueue(Config{Path: filepath.Join(t.TempDir(), "a")})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = a.Close() })
+	for i := int64(0); i < 5; i++ {
+		require.NoError(t, a.Enqueue(newTestEvent(i)))
+	}
+
+	// Give every row a distinct nonzero aux value so a column swap or row
+	// mix-up during migration cannot compare equal.
+	_, err = a.db.Exec("UPDATE audit_queue SET attempts = id * 3")
+	require.NoError(t, err)
+	_, err = a.db.Exec(
+		"INSERT INTO audit_dead_letter (payload, failed_at) SELECT payload, id * 1000 FROM audit_queue WHERE id > 3")
+	require.NoError(t, err)
+	_, err = a.db.Exec("DELETE FROM audit_queue WHERE id > 3")
+	require.NoError(t, err)
+
+	const selectQueue = "SELECT id, payload, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?"
+	const selectDeadLetter = "SELECT id, payload, failed_at FROM audit_dead_letter WHERE id > ? ORDER BY id ASC LIMIT ?"
+
+	wantQueue, err := fetchOrphanRows(t.Context(), a.db, selectQueue, 0, 100)
+	require.NoError(t, err)
+	require.Len(t, wantQueue, 3)
+	wantDeadLetter, err := fetchOrphanRows(t.Context(), a.db, selectDeadLetter, 0, 100)
+	require.NoError(t, err)
+	require.Len(t, wantDeadLetter, 2)
+
+	b, err := newSQLiteQueue(Config{Path: filepath.Join(t.TempDir(), "b")})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = b.Close() })
+
+	require.NoError(t, b.migrateOrphanDB(t.Context(), a.db, "orphan-a"))
+
+	gotQueue, err := fetchOrphanRows(t.Context(), b.db, selectQueue, 0, 100)
+	require.NoError(t, err)
+	gotDeadLetter, err := fetchOrphanRows(t.Context(), b.db, selectDeadLetter, 0, 100)
+	require.NoError(t, err)
+
+	values := func(rows []migratedRow) [][]any {
+		out := make([][]any, len(rows))
+		for i, r := range rows {
+			out[i] = r.values
+		}
+		return out
+	}
+	require.Equal(t, values(wantQueue), values(gotQueue),
+		"audit_queue payloads and attempts should round-trip byte-for-byte")
+	require.Equal(t, values(wantDeadLetter), values(gotDeadLetter),
+		"audit_dead_letter payloads and failed_at should round-trip byte-for-byte")
+
+	items, err := b.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, items, 3)
+	for i, item := range items {
+		require.Equal(t, int64(i), item.Event.GetIndex(),
+			"migrated payloads should still unmarshal to the original events in order")
+	}
 }
 
 func TestOrphanAdoption_SkipsLockedQueue(t *testing.T) {
