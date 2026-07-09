@@ -167,6 +167,44 @@ func StrongValidateSegment(segment string) error {
 	return nil
 }
 
+// StrongValidateResourceName checks if a scoped resource name is valid according to all resource name
+// formatting rules. Scoped resource names follow the same character restrictions as scope segments, but
+// are not subject to the maximum segment length limit. This function *must* be called on all scoped
+// resource name values received from user input and/or cluster-external sources. Use of this function
+// should be avoided when checking the validity of names from the control-plane in logic that may be run
+// agent-side.
+func StrongValidateResourceName(name string) error {
+	if name == "" {
+		return trace.BadParameter("name is empty")
+	}
+
+	if len(name) < minSegmentSize {
+		return trace.BadParameter("name %q is too short (min characters %d)", name, minSegmentSize)
+	}
+
+	// check for uppercase characters separately. this would be caught by the regex, but its better
+	// UX to call out uppercase characters specifically since its a common mistake.
+	for _, r := range name {
+		if unicode.IsUpper(r) {
+			return trace.BadParameter("name %q contains uppercase character(s)", name)
+		}
+	}
+
+	if !segmentRegexp.MatchString(name) {
+		return trace.BadParameter("name %q is malformed", name)
+	}
+
+	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
+	// construct a weak check that rejects something that would otherwise pass a strong check. strong
+	// validation is not used in perf-critical paths, so there isn't any real downside to a little
+	// defensiveness here.
+	if err := WeakValidateSegment(name); err != nil {
+		return trace.BadParameter("name would not pass weak validation: %v", err)
+	}
+
+	return nil
+}
+
 // WeakValidateSegment performs a weak form of validation on a scope segment. This is useful primarily for ensuring
 // that segments received from trusted sources haven't been altered beyond our ability to reason effectively
 // about them (e.g. due to significant version drift). Prefer using [StrongValidateSegment] for segments received from

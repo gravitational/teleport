@@ -64,7 +64,7 @@ func (q QualifiedName) StrongValidate() error {
 		return trace.BadParameter("scope-qualified name %q has invalid scope: %v", q, err)
 	}
 
-	if err := StrongValidateSegment(q.Name); err != nil {
+	if err := StrongValidateResourceName(q.Name); err != nil {
 		return trace.BadParameter("scope-qualified name %q has invalid name: %v", q, err)
 	}
 
