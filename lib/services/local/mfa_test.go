@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,6 +55,7 @@ func TestMFAService_CRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	want := newValidatedMFAChallenge()
+	want.GetMetadata().SetName(chal.GetMetadata().GetName())
 	want.GetSpec().SetTargetCluster(targetCluster)
 
 	require.Empty(
@@ -110,6 +112,20 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			targetCluster: &defaultTargetCluster,
 			chal:          newValidatedMFAChallenge(),
 			wantErr:       nil,
+		},
+		{
+			name:          "valid challenge with tls_session_id",
+			targetCluster: &defaultTargetCluster,
+			chal: func() *mfav2.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.GetSpec().SetPayload(
+					mfav2.SessionIdentifyingPayload_builder{
+						TlsSessionId: []byte("tls-session-id"),
+					}.Build(),
+				)
+				return c
+			}(),
+			wantErr: nil,
 		},
 		{
 			name:          "missing target cluster",
@@ -192,7 +208,20 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 				c.GetSpec().SetPayload(payload)
 				return c
 			}(),
-			wantErr: trace.BadParameter("ssh_session_id must be set"),
+			wantErr: trace.BadParameter("ssh_session_id must not be empty"),
+		},
+		{
+			name:          "empty tls_session_id",
+			targetCluster: &defaultTargetCluster,
+			chal: func() *mfav2.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				payload := mfav2.SessionIdentifyingPayload_builder{
+					TlsSessionId: []byte(""),
+				}.Build()
+				c.GetSpec().SetPayload(payload)
+				return c
+			}(),
+			wantErr: trace.BadParameter("tls_session_id must not be empty"),
 		},
 		{
 			name:          "missing source_cluster",
@@ -363,7 +392,7 @@ func newValidatedMFAChallenge() *mfav2.ValidatedMFAChallenge {
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
 		Metadata: headerv1.Metadata_builder{
-			Name: "test-challenge",
+			Name: "test-challenge-" + uuid.NewString(),
 		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload: mfav2.SessionIdentifyingPayload_builder{
