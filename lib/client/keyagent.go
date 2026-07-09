@@ -29,6 +29,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -55,6 +56,11 @@ type LocalKeyAgent struct {
 	// clientStore is the local storage backend for the client.
 	clientStore *Store
 
+	// systemAgentMu guards systemAgent. Close closes and clears systemAgent
+	// while other goroutines that share this agent – e.g. through a client
+	// handed out by clientcache – may still read it, so all access must be
+	// synchronized.
+	systemAgentMu sync.Mutex
 	// systemAgent is the system ssh agent
 	systemAgent sshagent.Client
 
@@ -174,12 +180,24 @@ the --add-keys-to-agent=yes flag.`)
 // processes that build many agents (such as tshd) must call Close when an agent
 // is no longer needed to avoid exhausting the system agent with connections.
 func (a *LocalKeyAgent) Close() error {
+	a.systemAgentMu.Lock()
+	defer a.systemAgentMu.Unlock()
 	if a.systemAgent == nil {
 		return nil
 	}
 	err := a.systemAgent.Close()
 	a.systemAgent = nil
 	return trace.Wrap(err)
+}
+
+// getSystemAgent returns the connection to the system SSH agent, or nil if
+// there is none (never configured, or already released by [LocalKeyAgent.Close]).
+// Callers read the connection under the lock and then use the returned value, so
+// they never touch the systemAgent field concurrently with Close.
+func (a *LocalKeyAgent) getSystemAgent() sshagent.Client {
+	a.systemAgentMu.Lock()
+	defer a.systemAgentMu.Unlock()
+	return a.systemAgent
 }
 
 // UpdateProxyHost changes the proxy host that the local agent operates on.
@@ -232,9 +250,9 @@ func (a *LocalKeyAgent) LoadKeyRing(keyRing KeyRing) error {
 
 	a.log.InfoContext(context.Background(), "Loading SSH key", "user", a.username, "cluster", keyRing.ClusterName)
 	agents := []agent.ExtendedAgent{a.ExtendedAgent}
-	if a.systemAgent != nil {
+	if systemAgent := a.getSystemAgent(); systemAgent != nil {
 		if canAddToSystemAgent(agentKey) {
-			agents = append(agents, a.systemAgent)
+			agents = append(agents, systemAgent)
 		} else {
 			a.log.InfoContext(context.Background(), "Skipping adding key to SSH system agent for non-standard key type",
 				"key_type", logutils.TypeAttr(agentKey.PrivateKey),
@@ -277,8 +295,8 @@ func (a *LocalKeyAgent) LoadKeyRing(keyRing KeyRing) error {
 // teleport ssh agent and the system agent.
 func (a *LocalKeyAgent) UnloadKeyRing(keyRing KeyRingIndex) error {
 	agents := []agent.Agent{a.ExtendedAgent}
-	if a.systemAgent != nil {
-		agents = append(agents, a.systemAgent)
+	if systemAgent := a.getSystemAgent(); systemAgent != nil {
+		agents = append(agents, systemAgent)
 	}
 
 	// iterate over all agents we have and unload keys matching the given key
@@ -306,8 +324,8 @@ func (a *LocalKeyAgent) UnloadKeyRing(keyRing KeyRingIndex) error {
 // the system agent.
 func (a *LocalKeyAgent) UnloadKeys() error {
 	agents := []agent.ExtendedAgent{a.ExtendedAgent}
-	if a.systemAgent != nil {
-		agents = append(agents, a.systemAgent)
+	if systemAgent := a.getSystemAgent(); systemAgent != nil {
+		agents = append(agents, systemAgent)
 	}
 
 	// iterate over all agents we have and unload keys
@@ -688,8 +706,8 @@ func (a *LocalKeyAgent) Signers() ([]ssh.Signer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if a.systemAgent != nil {
-		sshAgentSigners, err := a.systemAgent.Signers()
+	if systemAgent := a.getSystemAgent(); systemAgent != nil {
+		sshAgentSigners, err := systemAgent.Signers()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

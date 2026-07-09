@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -288,6 +289,67 @@ func TestGetClosesSystemAgentConnection(t *testing.T) {
 			assert.Zero(t, conns.open.Load())
 		}, 5*time.Second, 10*time.Millisecond,
 			"Clear must close the system agent connections of cached clients")
+	})
+
+	t.Run("evicting a client while it is in use is race-free", func(t *testing.T) {
+		startFakeSystemAgent(t)
+
+		// Capture the TeleportClient the cache builds so the test can drive the
+		// same LocalKeyAgent the cached client shares while the cache closes it.
+		var built atomic.Pointer[client.TeleportClient]
+		capturingNewClientFunc := func(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
+			tc, err := newClientFunc(ctx, profileName, leafClusterName)
+			if err == nil {
+				built.Store(tc)
+			}
+			return tc, err
+		}
+
+		cache, err := New(Config{
+			NewClientFunc: capturingNewClientFunc,
+			RetryWithReloginFunc: func(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
+				return fn()
+			},
+			Logger: slog.New(slog.DiscardHandler),
+		})
+		require.NoError(t, err)
+
+		_, err = cache.Get(t.Context(), "root", "")
+		require.NoError(t, err)
+		tc := built.Load()
+		require.NotNil(t, tc)
+
+		// UnloadKeys reads the system agent connection that Clear closes, and
+		// both act on the same LocalKeyAgent because the cache shares one client
+		// with its callers. Have several goroutines read it continuously across
+		// the eviction: each signals once it is already looping, so the read and
+		// Clear's close of systemAgent are provably concurrent and -race reports
+		// any unsynchronized access on the shared agent.
+		const readers = 8
+		var ready, done sync.WaitGroup
+		ready.Add(readers)
+		done.Add(readers)
+		stop := make(chan struct{})
+		for range readers {
+			go func() {
+				defer done.Done()
+				_ = tc.LocalAgent().UnloadKeys()
+				ready.Done()
+				for {
+					select {
+					case <-stop:
+						return
+					default:
+						_ = tc.LocalAgent().UnloadKeys()
+					}
+				}
+			}()
+		}
+
+		ready.Wait()
+		require.NoError(t, cache.Clear())
+		close(stop)
+		done.Wait()
 	})
 }
 
