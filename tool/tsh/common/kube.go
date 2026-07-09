@@ -834,7 +834,7 @@ func isNetworkError(err error) bool {
 }
 
 func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Profile) error {
-	if profile.RequireKubeLocalProxy() || profile.PrivateKeyPolicy.IsHardwareKeyPolicy() {
+	if profile.RequireKubeLocalProxy() {
 		// If we're inside an active `tsh proxy kube --exec` shell.
 		// Reaching this exec plugin means a Kubernetes client bypassed the local proxy,
 		// typically because KUBECONFIG was overridden (e.g. by a shell startup file).
@@ -1442,7 +1442,7 @@ func matchClustersByNameOrDiscoveredName(name string, clusters types.KubeCluster
 
 func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient, names []string) {
 	if tc.Profile().RequireKubeLocalProxy() {
-		c.printLocalProxyUserMessage(cf, names)
+		c.printLocalProxyUserMessage(cf, names, tc.Profile().PrivateKeyPolicy.IsHardwareKeyPolicy())
 		return
 	}
 
@@ -1460,7 +1460,7 @@ Select a context and try 'kubectl version' to test the connection.
 	}
 }
 
-func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []string) {
+func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []string, hardwareKey bool) {
 	switch {
 	case c.kubeCluster != "":
 		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.`, c.kubeCluster)
@@ -1469,6 +1469,22 @@ func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []strin
 %v`, strings.Join(names, "\n"))
 	case c.all:
 		fmt.Fprintf(cf.Stdout(), "Logged into all Kubernetes clusters available.")
+	}
+
+	if hardwareKey {
+		fmt.Fprintf(cf.Stdout(), `
+
+This cluster requires a hardware-backed private key, which native Kubernetes
+clients cannot use directly, so Kubernetes access must go through a local proxy.
+
+To access the cluster, use "tsh kubectl" to run the Kubernetes client:
+  tsh kubectl version
+
+Or, start a local proxy with "tsh proxy kube" and use the kubeconfig it provides
+with your native Kubernetes clients:
+  tsh proxy kube -p 8443
+`)
+		return
 	}
 
 	fmt.Fprintf(cf.Stdout(), `
