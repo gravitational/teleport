@@ -3269,13 +3269,13 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 	} else {
 		// nil err means the user has explicit read + list permissions and can
 		// get all requests.
-		return a.authServer.ListAccessRequests(ctx, req)
+		return a.authServer.fetchAccessRequests(ctx, req, nil)
 	}
 
 	// users can always view their own access requests unless the read or list
 	// verbs are explicitly denied
 	if req.Filter.User != "" && a.currentUserAction(req.Filter.User) == nil {
-		return a.authServer.ListAccessRequests(ctx, req)
+		return a.authServer.fetchAccessRequests(ctx, req, nil)
 	}
 
 	// user does not have read/list permissions and is not specifically requesting only
@@ -3302,13 +3302,13 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 			return &proto.ListAccessRequestsResponse{}, nil
 		}
 		req.Filter.User = a.context.User.GetName()
-		return a.authServer.ListAccessRequests(ctx, req)
+		return a.authServer.fetchAccessRequests(ctx, req, nil)
 	}
 
 	// aggregate all requests that the caller owns and/or is able to review. Note that we perform all filtering via the
 	// passed-in matcher since the pagination key format varies by sort index and is an internal implementation detail
 	// of the access request cache.
-	rsp, err := a.authServer.ListMatchingAccessRequests(ctx, req, func(accessRequest *types.AccessRequestV3) (matches bool) {
+	return a.authServer.fetchAccessRequests(ctx, req, func(accessRequest *types.AccessRequestV3) (matches bool) {
 		if accessRequest.GetUser() == a.context.User.GetName() {
 			return true
 		}
@@ -3325,8 +3325,6 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 
 		return canReview
 	})
-
-	return rsp, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
@@ -4377,6 +4375,9 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	case proto.UserCertsRequest_WindowsDesktop:
 		// Desktop certs.
 		certReq.Usage = []string{teleport.UsageWindowsDesktopOnly}
+	case proto.UserCertsRequest_LinuxDesktop:
+		// Desktop certs.
+		certReq.Usage = []string{teleport.UsageLinuxDesktopOnly}
 	default:
 		return nil, trace.BadParameter("unsupported cert usage %q", req.Usage)
 	}
@@ -4452,8 +4453,8 @@ func (a *ServerWithRoles) GetAccessRequestAllowedPromotions(ctx context.Context,
 // progressing further and provides better feedback than other protocol-specific
 // failures.
 func verifyUserDeviceForCertIssuance(ctx context.Context, identity tlsca.Identity, usage proto.UserCertsRequest_CertUsage, dt *types.DeviceTrust) error {
-	// Ignore App or WindowsDesktop requests, they do not support device trust.
-	if usage == proto.UserCertsRequest_App || usage == proto.UserCertsRequest_WindowsDesktop {
+	// Ignore App, WindowsDesktop, and LinuxDesktop requests, they do not support device trust.
+	if usage == proto.UserCertsRequest_App || usage == proto.UserCertsRequest_WindowsDesktop || usage == proto.UserCertsRequest_LinuxDesktop {
 		return nil
 	}
 	return trace.Wrap(dtauthz.VerifyTLSUser(ctx, dt, identity))
@@ -7223,6 +7224,8 @@ func sessionTypeFromStartEvent(sessionStart apievents.AuditEvent) types.SessionK
 		return types.AppSessionKind
 	case *apievents.WindowsDesktopSessionStart:
 		return types.WindowsDesktopSessionKind
+	case *apievents.LinuxDesktopSessionStart:
+		return types.LinuxDesktopSessionKind
 	default:
 		return types.UnknownSessionKind
 	}

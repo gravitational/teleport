@@ -40,7 +40,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
@@ -842,7 +841,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 
 	groups, err := authCtx.Checker.DesktopGroups(desktop)
 	if err != nil && !trace.IsAccessDenied(err) {
-		startEvent := audit.makeSessionStart(err)
+		startEvent := audit.makeWindowsSessionStart(err)
 		s.record(ctx, recorder, startEvent)
 		s.emit(ctx, startEvent)
 		return trace.Wrap(err)
@@ -897,8 +896,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	// Set the send and receive auditors prior to initializing the
 	// client so that we capture all relevant data in the session recording.
 	delay := timer()
-	sendInterceptor := asInterceptor(s.makeTDPSendAuditor(ctx, recorder, delay, audit))
-	receiveInterceptor := asInterceptor(s.makeTDPReceiveAuditor(ctx, recorder, delay, audit))
+	sendInterceptor := asInterceptor(makeTDPSendAuditor(ctx, s, s.cfg.Clock, s.cfg.Logger, recorder, delay, audit))
+	receiveInterceptor := asInterceptor(makeTDPReceiveAuditor(ctx, s, s.cfg.Clock, s.cfg.Logger, recorder, delay, audit))
 
 	// TODO(rhammonds): Remove in v20
 	// Some v18 and older clients assume that TDP connections support only a single
@@ -944,12 +943,12 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	var windowsUser string
 	if rdpc != nil {
 		windowsUser = rdpc.GetClientUsername()
-		audit.windowsUser = windowsUser
+		audit.targetUser = windowsUser
 	}
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	if err != nil {
-		startEvent := audit.makeSessionStart(err)
+		startEvent := audit.makeWindowsSessionStart(err)
 		s.record(ctx, recorder, startEvent)
 		s.emit(ctx, startEvent)
 		return trace.Wrap(err)
@@ -1020,13 +1019,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
-		startEvent := audit.makeSessionStart(err)
+		startEvent := audit.makeWindowsSessionStart(err)
 		s.record(ctx, recorder, startEvent)
 		s.emit(ctx, startEvent)
 		return trace.Wrap(err)
 	}
 
-	startEvent := audit.makeSessionStart(nil)
+	startEvent := audit.makeWindowsSessionStart(nil)
 	startEvent.AllowUserCreation = createUsers
 
 	// Parse some information about the cert, which we'll use in order to enhance
@@ -1044,7 +1043,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 
 	// ctx may have been canceled, so emit with a separate context
 	audit.teardown(context.Background())
-	endEvent := audit.makeSessionEnd(recordSession)
+	endEvent := audit.makeWindowsSessionEnd(recordSession)
 	s.record(context.Background(), recorder, endEvent)
 	s.emit(context.Background(), endEvent)
 
@@ -1079,122 +1078,6 @@ func populateCertMetadata(metadata *events.WindowsCertificateMetadata, cert *x50
 	metadata.KeyUsage = int32(cert.KeyUsage)
 	metadata.ExtendedKeyUsage = slices.Map(cert.ExtKeyUsage, func(eku x509.ExtKeyUsage) int32 { return int32(eku) })
 	metadata.EnhancedKeyUsage = enhancedKeyUsages
-}
-
-func (s *WindowsService) recordEvent(ctx context.Context, t time.Time, delay int64, m tdp.Message, recorder libevents.SessionPreparerRecorder) {
-	data, err := m.Encode()
-	if err != nil {
-		s.cfg.Logger.ErrorContext(ctx, "could not record message due to encoding error", "error", err, "type", logutils.TypeAttr(m))
-		return
-	}
-	e := &events.DesktopRecording{
-		Metadata: events.Metadata{
-			Type: libevents.DesktopRecordingEvent,
-			Time: t,
-		},
-		TDPBMessage:       data,
-		DelayMilliseconds: delay,
-	}
-
-	if len(data) > constants.MaxProtoMessageSizeBytes {
-		// Technically a PNG frame is unbounded and could be too big for a single protobuf.
-		// In practice though, Windows limits RDP bitmaps to 64x64 pixels, and we compress
-		// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest
-		// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
-		// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
-		s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(data), "type", logutils.TypeAttr(m))
-	} else {
-		if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
-			s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
-		}
-	}
-}
-
-func (s *WindowsService) makeTDPSendAuditor(
-	ctx context.Context,
-	recorder libevents.SessionPreparerRecorder,
-	delay func() int64,
-	audit *desktopSessionAuditor,
-) func(m tdp.Message) error {
-	return func(msg tdp.Message) error {
-		switch m := msg.(type) {
-		case *tdpb.ServerHello, *tdpb.FastPathPDU, *tdpb.PNGFrame, *tdpb.Alert:
-			s.recordEvent(ctx, s.cfg.Clock.Now().UTC().Round(time.Millisecond), delay(), m, recorder)
-		case *tdpb.ClipboardData:
-			// the TDP send handler emits a clipboard receive event, because we
-			// received clipboard data from the remote desktop and are sending
-			// it on the TDP connection
-			rxEvent := audit.makeClipboardReceive(int32(len(m.Data)))
-			s.emit(ctx, rxEvent)
-		case *tdpb.SharedDirectoryAcknowledge:
-			s.emit(ctx, audit.makeSharedDirectoryStart(m))
-		case *tdpb.SharedDirectoryRequest:
-			switch req := m.Operation.(type) {
-			case *tdpbv1.SharedDirectoryRequest_Write_:
-				errorEvent := audit.onSharedDirectoryWriteRequest(completionID(m.CompletionId), directoryID(m.DirectoryId), req.Write)
-				if errorEvent != nil {
-					// if we can't audit due to a full cache, abort the connection
-					// as a security measure
-					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
-					s.emit(ctx, errorEvent)
-					return err
-				}
-			case *tdpbv1.SharedDirectoryRequest_Read_:
-				errorEvent := audit.onSharedDirectoryReadRequest(completionID(m.CompletionId), directoryID(m.DirectoryId), req.Read)
-				if errorEvent != nil {
-					// if we can't audit due to a full cache, abort the connection
-					// as a security measure
-					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
-					s.emit(ctx, errorEvent)
-					return err
-				}
-			}
-		}
-		return nil
-	}
-}
-
-func (s *WindowsService) makeTDPReceiveAuditor(
-	ctx context.Context,
-	recorder libevents.SessionPreparerRecorder,
-	delay func() int64,
-	audit *desktopSessionAuditor,
-) func(m tdp.Message) error {
-	return func(m tdp.Message) error {
-		switch msg := m.(type) {
-		case *tdpb.ClientScreenSpec, *tdpb.MouseButton, *tdpb.MouseMove:
-			s.recordEvent(ctx, s.cfg.Clock.Now().UTC().Round(time.Millisecond), delay(), m, recorder)
-		case *tdpb.ClipboardData:
-			// the TDP receive handler emits a clipboard send event, because we
-			// received clipboard data from the user (over TDP) and are sending
-			// it to the remote desktop
-			sendEvent := audit.makeClipboardSend(int32(len(msg.Data)))
-			s.emit(ctx, sendEvent)
-		case *tdpb.SharedDirectoryAnnounce:
-			errorEvent := audit.onSharedDirectoryAnnounce(m.(*tdpb.SharedDirectoryAnnounce))
-			if errorEvent != nil {
-				// if we can't audit due to a full cache, abort the connection
-				// as a security measure
-				err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
-				s.emit(ctx, errorEvent)
-				return err
-			}
-		case *tdpb.SharedDirectoryRemove:
-			// This doesn't yield an audit event for removal. It just cleans up
-			// the directory entry from the audit cache.
-			audit.onSharedDirectoryRemove(msg)
-		case *tdpb.SharedDirectoryResponse:
-			// shared directory audit events can be noisy, so we use a compactor
-			// to retain and delay them in an attempt to coalesce contiguous events
-			switch op := msg.Operation.(type) {
-			case *tdpbv1.SharedDirectoryResponse_Read_:
-				audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(directoryID(msg.DirectoryId), completionID(msg.CompletionId), msg.ErrorCode, op.Read))
-			case *tdpbv1.SharedDirectoryResponse_Write_:
-				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(directoryID(msg.DirectoryId), completionID(msg.CompletionId), msg.ErrorCode, op.Write))
-			}
-		}
-		return nil
-	}
 }
 
 func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {

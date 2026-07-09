@@ -1276,6 +1276,27 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED]: {
+    type: 'linux.desktop.session.start',
+    desc: 'Linux Desktop Session Started',
+    format: ({ user, desktop_name, sid, linux_user }) => {
+      return `User [${user}] started session [${sid}] on Linux desktop [${linux_user}@${desktop_name}]`;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED]: {
+    type: 'linux.desktop.session.start',
+    desc: 'Linux Desktop Session Denied',
+    format: ({ user, desktop_name, linux_user }) => {
+      return `User [${user}] was denied access to Linux desktop [${linux_user}@${desktop_name}]`;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_ENDED]: {
+    type: 'linux.desktop.session.end',
+    desc: 'Linux Desktop Session Ended',
+    format: ({ user, desktop_name, sid, linux_user }) => {
+      return `Session [${sid}] for Linux desktop [${linux_user}@${desktop_name}] has ended for user [${user}]`;
+    },
+  },
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
     type: 'desktop.clipboard.receive',
     desc: 'Clipboard Data Received',

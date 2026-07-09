@@ -95,6 +95,10 @@ type FileConfig struct {
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
 
+	// LinuxDesktop is the "linux_desktop_service" that defines the
+	// configuration for Linux Desktop Access.
+	LinuxDesktop LinuxDesktopService `yaml:"linux_desktop_service,omitempty"`
+
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
 
@@ -2949,6 +2953,29 @@ func (wds *WindowsDesktopService) Check() error {
 	}
 
 	return nil
+}
+
+// LinuxDesktopService contains configuration for linux_desktop_service.
+type LinuxDesktopService struct {
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// Labels are the configured linux desktops service labels.
+	Labels    map[string]string `yaml:"labels,omitempty"`
+	XSessions XSessions         `yaml:"xsessions,omitempty"`
+	// SessionWrapper is an optional path to the X session wrapper script used to
+	// launch sessions (e.g. /etc/X11/Xsession). When empty, a set of well-known
+	// wrapper paths is probed.
+	SessionWrapper string `yaml:"session_wrapper,omitempty"`
+}
+
+// Enabled returns true if the Linux desktop service is enabled.
+func (s *LinuxDesktopService) Enabled() bool {
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	return err == nil && v
+}
+
+type XSessions struct {
+	Included string `yaml:"included,omitempty"`
+	Excluded string `yaml:"excluded,omitempty"`
 }
 
 // WindowsHostLabelRule describes how a set of labels should be applied to
