@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 
 	gwebsocket "github.com/gorilla/websocket"
@@ -40,10 +41,23 @@ type WebsocketRoundTripper struct {
 	// conn is the websocket network connection to the remote server.
 	conn *gwebsocket.Conn
 
+	// cleanups contains objects that should be closed when the roundtripper is
+	// no longer used. Cleared by [WebsocketRoundTripper.Cleanup].
+	cleanups []io.Closer
+
 	// onConnected is a hook that happens when connection was successfully established,
 	// can be used to propagate established connection somewhere else - we are using it
 	// to set underlying connection of the native k8s websocket executor.
 	onConnected func(conn *gwebsocket.Conn)
+}
+
+// Cleanup ensures that every connection that was opened by this roundtripper is
+// closed.
+func (w *WebsocketRoundTripper) Cleanup() {
+	for _, closer := range w.cleanups {
+		_ = closer.Close()
+	}
+	w.cleanups = nil
 }
 
 // NewWebsocketRoundTripperWithDialer creates a new WebsocketRoundTripper that will
@@ -103,6 +117,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 		}
 		return nil, &httpstream.UpgradeFailureError{Cause: err}
 	}
+	w.cleanups = append(w.cleanups, wsConn)
 	w.conn = wsConn
 	if w.onConnected != nil {
 		w.onConnected(wsConn)
