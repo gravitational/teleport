@@ -14,19 +14,31 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
+import Foundation
 import Observation
+import OSLog
 import SQLiteData
 import SwiftNavigation
 
 @Observable @MainActor
 final class LandingViewModel {
+	static let logger = Logger.forType(LandingView.self)
+
 	// swiftformat:sort
 	@CasePathable
 	enum Destination {
 		case cameraScanner(EnrollCameraScannerViewModel)
-		case deepLinkParsingAlert(errorMessage: String)
 		case enrollDevice(EnrollDeviceViewModel)
+		case notice(AlertState<Void>)
 	}
+
+	@ObservationIgnored
+	@Dependency(\.openURL)
+	var openURL
+
+	@ObservationIgnored
+	@Dependency(\.defaultDatabase)
+	var database
 
 	@ObservationIgnored
 	@FetchAll
@@ -50,6 +62,42 @@ extension LandingViewModel {
 	func userTappedOnScanQRCode() {
 		destination = .cameraScanner(EnrollCameraScannerViewModel(delegate: self))
 	}
+
+	func userTapped(onCluster cluster: Cluster) async {
+		if let url = cluster.url {
+			await openURL(url)
+		} else {
+			destination = .notice(AlertState(
+				title: {
+					TextState("Bad URL")
+				},
+				message: {
+					TextState("Could not build a valid HTTPS URL for \(cluster.host):\(String(cluster.port))")
+				},
+			))
+		}
+	}
+
+	func userDeletedClusters(at indexSet: IndexSet) async {
+		let clustersToDelete = clusters.values(at: indexSet)
+		do {
+			try await database.write { db in
+				for clusterToDelete in clustersToDelete {
+					try Cluster.delete(clusterToDelete).execute(db)
+				}
+			}
+		} catch {
+			Self.logger.warning("Failed to delete clusters: \(error)")
+			destination = .notice(AlertState(
+				title: {
+					TextState("Could Not Delete Clusters")
+				},
+				message: {
+					TextState("An error occurred when trying to deregister the cluster from your device.")
+				},
+			))
+		}
+	}
 }
 
 // MARK: - Programmatic Navigation
@@ -60,7 +108,11 @@ extension LandingViewModel {
 	}
 
 	func showParserError(errorMessage: String) {
-		destination = .deepLinkParsingAlert(errorMessage: errorMessage)
+		destination = .notice(AlertState(
+			title: {
+				TextState(errorMessage)
+			},
+		))
 	}
 }
 

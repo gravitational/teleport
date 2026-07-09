@@ -25,9 +25,15 @@ struct LandingView: View {
 		NavigationStack {
 			Group {
 				if viewModel.shouldShowPreEnrollmentLanding {
-					PreEnrollmentLandingView(onScanQRCodeTapped: viewModel.userTappedOnScanQRCode)
+					PreEnrollmentLandingView(
+						onScanQRCodeTapped: viewModel.userTappedOnScanQRCode,
+					)
 				} else {
-					PostEnrollmentLandingView(clusters: viewModel.clusters)
+					PostEnrollmentLandingView(
+						clusters: viewModel.clusters,
+						didTapOnCluster: viewModel.userTapped(onCluster:),
+						didDeleteClustersAtIndex: viewModel.userDeletedClusters(at:),
+					)
 				}
 			}
 
@@ -39,15 +45,7 @@ struct LandingView: View {
 			.sheet(item: $viewModel.destination.cameraScanner, id: \.presentationID) { enrollCameraScannerViewModel in
 				EnrollCameraScannerView(viewModel: enrollCameraScannerViewModel)
 			}
-			.alert(
-				item: $viewModel.destination.deepLinkParsingAlert,
-				title: { errorMessage in
-					Text(errorMessage)
-				},
-				actions: { _ in
-					Button("OK") {}
-				},
-			)
+			.alert($viewModel.destination.notice) { _ in }
 
 			// MARK: Haptics
 
