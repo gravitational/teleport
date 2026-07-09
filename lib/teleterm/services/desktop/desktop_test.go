@@ -17,11 +17,15 @@
 package desktop
 
 import (
+	"net"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -33,11 +37,9 @@ func TestSetDirectory(t *testing.T) {
 	session, err := NewSession(desktopURI, login)
 	require.NoError(t, err)
 
-	// Clean state, share the directory.
 	err = session.SetSharedDirectory(path)
 	require.NoError(t, err)
 
-	// Attempt to share another directory.
 	err = session.SetSharedDirectory("any_path")
 	require.True(t, trace.IsAlreadyExists(err))
 }
@@ -57,4 +59,139 @@ func TestGetDirectory(t *testing.T) {
 	require.NoError(t, err)
 	_, err = access.Stat("")
 	require.NoError(t, err)
+}
+
+func TestTDPBInBandMFA_MessageExchange(t *testing.T) {
+	t.Parallel()
+
+	clientPipe, serverPipe := net.Pipe()
+	defer clientPipe.Close()
+	defer serverPipe.Close()
+
+	go func() {
+		conn := tdp.NewConn(serverPipe, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+
+		msg, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		if _, ok := msg.(*tdpb.ClientHello); !ok {
+			return
+		}
+
+		if err := conn.WriteMessage((*tdpb.AuthPrompt)(newAuthPrompt())); err != nil {
+			return
+		}
+
+		resp, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		mfaResp, ok := resp.(*tdpb.MFAPromptResponse)
+		if !ok {
+			return
+		}
+		if (*tdpbv1.MFAPromptResponse)(mfaResp).GetReference().GetChallengeName() != "test-challenge" {
+			return
+		}
+
+		if err := conn.WriteMessage(&tdpb.SessionEstablishing{}); err != nil {
+			return
+		}
+		if err := conn.WriteMessage(&tdpb.ServerHello{ClipboardEnabled: true}); err != nil {
+			return
+		}
+	}()
+
+	conn := tdp.NewConn(clientPipe, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+
+	if err := conn.WriteMessage(newTestClientHello()); err != nil {
+		t.Fatalf("failed to send ClientHello: %v", err)
+	}
+
+	msg, err := conn.ReadMessage()
+	require.NoError(t, err)
+
+	authPrompt, ok := msg.(*tdpb.AuthPrompt)
+	require.True(t, ok, "expected AuthPrompt, got %T", msg)
+	require.NotNil(t, (*tdpbv1.AuthPrompt)(authPrompt).GetMfaPrompt())
+
+	if err := conn.WriteMessage(
+		(*tdpb.MFAPromptResponse)(tdpbv1.MFAPromptResponse_builder{
+			Reference: tdpbv1.MFAPromptResponseReference_builder{
+				ChallengeName: "test-challenge",
+			}.Build(),
+		}.Build()),
+	); err != nil {
+		t.Fatalf("failed to send MFAPromptResponse: %v", err)
+	}
+
+	msg, err = conn.ReadMessage()
+	require.NoError(t, err)
+	if _, ok := msg.(*tdpb.SessionEstablishing); !ok {
+		t.Fatalf("expected SessionEstablishing, got %T", msg)
+	}
+
+	msg, err = conn.ReadMessage()
+	require.NoError(t, err)
+	serverHello, ok := msg.(*tdpb.ServerHello)
+	require.True(t, ok, "expected ServerHello, got %T", msg)
+	require.True(t, serverHello.ClipboardEnabled)
+}
+
+func TestTDPBNoMFA_MessageExchange(t *testing.T) {
+	t.Parallel()
+
+	clientPipe, serverPipe := net.Pipe()
+	defer clientPipe.Close()
+	defer serverPipe.Close()
+
+	go func() {
+		conn := tdp.NewConn(serverPipe, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+
+		if _, err := conn.ReadMessage(); err != nil {
+			return
+		}
+
+		if err := conn.WriteMessage(&tdpb.SessionEstablishing{}); err != nil {
+			return
+		}
+		if err := conn.WriteMessage(&tdpb.ServerHello{ClipboardEnabled: true}); err != nil {
+			return
+		}
+	}()
+
+	conn := tdp.NewConn(clientPipe, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+
+	if err := conn.WriteMessage(newTestClientHello()); err != nil {
+		t.Fatalf("failed to send ClientHello: %v", err)
+	}
+
+	msg, err := conn.ReadMessage()
+	require.NoError(t, err)
+	if _, ok := msg.(*tdpb.SessionEstablishing); !ok {
+		t.Fatalf("expected SessionEstablishing, got %T", msg)
+	}
+
+	msg, err = conn.ReadMessage()
+	require.NoError(t, err)
+	serverHello, ok := msg.(*tdpb.ServerHello)
+	require.True(t, ok, "expected ServerHello, got %T", msg)
+	require.True(t, serverHello.ClipboardEnabled)
+}
+
+func newAuthPrompt() *tdpbv1.AuthPrompt {
+	return tdpbv1.AuthPrompt_builder{
+		MfaPrompt: &tdpbv1.MFAPrompt{},
+	}.Build()
+}
+
+func newTestClientHello() *tdpb.ClientHello {
+	return &tdpb.ClientHello{
+		Username: login,
+		ScreenSpec: tdpbv1.ClientScreenSpec_builder{
+			Width:  1920,
+			Height: 1080,
+		}.Build(),
+	}
 }

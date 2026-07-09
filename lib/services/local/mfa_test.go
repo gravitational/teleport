@@ -112,6 +112,26 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr:       nil,
 		},
 		{
+			name:          "valid challenge with tls_session_id",
+			targetCluster: &defaultTargetCluster,
+			chal: mfav2.ValidatedMFAChallenge_builder{
+				Kind:    types.KindValidatedMFAChallenge,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test-challenge-tls",
+				}.Build(),
+				Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+					Payload: mfav2.SessionIdentifyingPayload_builder{
+						TlsSessionId: []byte("tls-session-id"),
+					}.Build(),
+					SourceCluster: "src",
+					TargetCluster: "tgt",
+					Username:      "alice",
+				}.Build(),
+			}.Build(),
+			wantErr: nil,
+		},
+		{
 			name:          "missing target cluster",
 			targetCluster: &emptyTargetCluster,
 			wantErr:       trace.BadParameter("param targetCluster must not be empty"),
@@ -192,7 +212,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 				c.GetSpec().SetPayload(payload)
 				return c
 			}(),
-			wantErr: trace.BadParameter("ssh_session_id must be set"),
+			wantErr: trace.BadParameter("payload must have ssh_session_id or tls_session_id"),
 		},
 		{
 			name:          "missing source_cluster",

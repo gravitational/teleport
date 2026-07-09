@@ -308,7 +308,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 					SshSessionId: []byte{},
 				}.Build(),
 			}.Build(),
-			expectedError: trace.BadParameter("empty SshSessionId in payload"),
+			expectedError: trace.BadParameter("empty SessionIdentifyingPayload: must have ssh_session_id or tls_session_id"),
 		},
 		{
 			name: "empty SshSessionId in payload",
@@ -317,7 +317,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 					SshSessionId: []byte{},
 				}.Build(),
 			}.Build(),
-			expectedError: trace.BadParameter("empty SshSessionId in payload"),
+			expectedError: trace.BadParameter("empty SessionIdentifyingPayload: must have ssh_session_id or tls_session_id"),
 		},
 		{
 			name: "SSO challenge missing SsoClientRedirectUrl",
@@ -1078,7 +1078,7 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				TargetCluster: targetCluster,
 				Username:      "test-user",
 			}.Build(),
-			expectedError: trace.BadParameter("empty SshSessionId in payload"),
+			expectedError: trace.BadParameter("empty SessionIdentifyingPayload: must have ssh_session_id or tls_session_id"),
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -1298,7 +1298,7 @@ func TestVerifyValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				Payload:       mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte{}}.Build(),
 				SourceCluster: sourceCluster,
 			}.Build(),
-			expectedError: trace.BadParameter("empty SshSessionId in payload"),
+			expectedError: trace.BadParameter("empty SessionIdentifyingPayload: must have ssh_session_id or tls_session_id"),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

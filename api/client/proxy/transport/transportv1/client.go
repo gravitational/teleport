@@ -75,15 +75,15 @@ const (
 // WindowsDesktopSessionConfig defines configuration parameters
 // required to proxy a Windows desktop connection.
 type WindowsDesktopSessionConfig struct {
-	Cluster     string
-	DesktopName string
-	DesktopCert tls.Certificate
-	RootCAs     *x509.CertPool
-	Protocol    string
+	Cluster              string
+	DesktopName          string
+	RootCAs              *x509.CertPool
+	Protocols            []string
+	VerifyConnection     func(tls.ConnectionState) error
+	GetClientCertificate func(*tls.CertificateRequestInfo) (*tls.Certificate, error)
 }
 
 // ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
-// The caller is required to pass a valid desktop certificate.
 func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, config WindowsDesktopSessionConfig) (*tls.Conn, error) {
 	connCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	stop := context.AfterFunc(ctx, cancel)
@@ -110,6 +110,14 @@ func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, config WindowsD
 }
 
 func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel context.CancelFunc, stream grpc.BidiStreamingClient[transportv1pb.ProxyWindowsDesktopSessionRequest, transportv1pb.ProxyWindowsDesktopSessionResponse], config WindowsDesktopSessionConfig) (*tls.Conn, error) {
+	switch {
+	case config.VerifyConnection == nil:
+		return nil, trace.BadParameter("VerifyConnection must not be nil")
+
+	case config.GetClientCertificate == nil:
+		return nil, trace.BadParameter("GetClientCertificate must not be nil")
+	}
+
 	err := stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{
 		DialTarget: &transportv1pb.TargetWindowsDesktop{
 			DesktopName: config.DesktopName,
@@ -127,11 +135,13 @@ func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel cont
 
 	conn := streamutils.NewConn(desktopReadWriter, &net.TCPAddr{}, &net.TCPAddr{})
 	tlsConfig := &tls.Config{
-		ServerName:   config.DesktopName + DesktopSNISuffix,
-		NextProtos:   []string{config.Protocol},
-		Certificates: []tls.Certificate{config.DesktopCert},
-		RootCAs:      config.RootCAs,
+		ServerName:           config.DesktopName + DesktopSNISuffix,
+		NextProtos:           config.Protocols,
+		RootCAs:              config.RootCAs,
+		VerifyConnection:     config.VerifyConnection,
+		GetClientCertificate: config.GetClientCertificate,
 	}
+
 	tlsConn := tls.Client(conn, tlsConfig)
 	if err = tlsConn.HandshakeContext(ctx); err != nil {
 		return nil, trace.Wrap(err)

@@ -81,8 +81,8 @@ func clampUint64ToUint32(val uint64) uint32 {
 	return uint32(val)
 }
 
-// TranslateToLegacy converts a TDPB (Modern) message to one or more TDP (Legacy) messages.
-func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
+// TranslateToTDP converts a TDPB message to one or more TDP messages.
+func TranslateToTDP(msg tdp.Message) ([]tdp.Message, error) {
 	switch m := msg.(type) {
 	case *PNGFrame:
 		return []tdp.Message{legacy.PNG2Frame(m.Data)}, nil
@@ -285,13 +285,17 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 			ScreenWidth:   uint16(m.ActivationSpec.GetScreenWidth()),
 			ScreenHeight:  uint16(m.ActivationSpec.GetScreenHeight()),
 		}}, nil
+	case *SessionEstablishing:
+		// SessionEstablishing is a signaling message for modern clients.
+		// Legacy TDP clients don't understand it and don't need it, so drop silently.
+		return nil, nil
 	default:
 		return nil, trace.Errorf("Could not translate to TDP. Encountered unexpected message type %T", m)
 	}
 }
 
-// TranslateToModern converts a TDP (Legacy) message to one or more TDPB (Modern) messages.
-func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
+// TranslateToTDPB converts a TDP message to one or more TDPB messages.
+func TranslateToTDPB(msg tdp.Message) ([]tdp.Message, error) {
 	switch m := msg.(type) {
 	case legacy.ClientScreenSpec:
 		return []tdp.Message{&ClientScreenSpec{
