@@ -224,6 +224,22 @@ func noHistoryShell(t *testing.T) string {
 	return shell
 }
 
+func newTestInventoryHandle(t *testing.T, clt *authclient.Client, hostID string, role types.SystemRole) inventory.DownstreamHandle {
+	t.Helper()
+	handle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
+		func(_ context.Context) (*authproto.UpstreamInventoryHello, error) {
+			return authproto.UpstreamInventoryHello_builder{
+				ServerID: hostID,
+				Version:  teleport.Version,
+				Services: types.SystemRoles{role}.StringSlice(),
+				Hostname: "test",
+			}.Build(), nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handle.Close()) })
+	return handle
+}
+
 func newWebSuite(t *testing.T) *WebSuite {
 	return newWebSuiteWithConfig(t, webSuiteConfig{})
 }
@@ -403,6 +419,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// create SSH service:
 	nodeDataDir := t.TempDir()
+	inventoryHandle := newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)
 	node, err := regular.New(
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -423,6 +440,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetInventoryControlHandle(inventoryHandle),
 	)
 	require.NoError(t, err)
 	s.node = node
@@ -680,6 +698,9 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		if err := s.node.Close(); err != nil {
 			errors = append(errors, err)
 		}
+		// Close the inventory handle so its control stream doesn't block
+		// s.server.Shutdown's graceful stop below.
+		inventoryHandle.Close()
 		s.webServer.Close()
 		if err := s.proxy.Close(); err != nil {
 			errors = append(errors, err)
@@ -763,6 +784,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, uuid, types.RoleNode)),
 	)
 	require.NoError(t, err)
 	require.NoError(t, node.Start())
@@ -9133,6 +9155,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
 	)
 	require.NoError(t, err)
 
