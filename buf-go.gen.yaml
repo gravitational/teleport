@@ -22,6 +22,12 @@ inputs:
       - api/proto/teleport/legacy/client/proto/requestable_roles.proto
 
 plugins:
+  # TODO(espadolini): get rid of protoopaque-retag-protoc-gen-go and switch the
+  # code generation back to opaque once there's no more tools that consume or
+  # make use of the open API. As of the time of writing, they should be
+  # build.assets/tooling/cmd/resource-ref-generator (reading source code) and
+  # github.com/gravitational/protoc-gen-terraform (generating source code that
+  # accesses exported fields).
   - local:
       - sh
       - -c
