@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1130,30 +1131,68 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 			t.Parallel()
 
 			authServer, service, _, user := setupAuthServer(t, nil)
-			ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
 
-			chal := mfav2.ValidatedMFAChallenge_builder{
-				Kind:     types.KindValidatedMFAChallenge,
-				Version:  types.V1,
-				Metadata: headerv1.Metadata_builder{Name: chalName}.Build(),
-				Spec: mfav2.ValidatedMFAChallengeSpec_builder{
-					Payload:       tc.payload,
-					SourceCluster: sourceCluster,
-					TargetCluster: targetCluster,
-					Username:      user.GetName(),
-				}.Build(),
-			}.Build()
-			_, err := authServer.Auth().CreateValidatedMFAChallenge(ctx, targetCluster, chal)
-			require.NoError(t, err)
+			ctx, cancel := context.WithTimeout(
+				authz.ContextWithUser(
+					t.Context(),
+					authtest.TestBuiltin(types.RoleNode).I,
+				),
+				5*time.Second,
+			)
+			defer cancel()
 
-			resp, err := service.VerifyValidatedMFAChallenge(ctx, mfav2.VerifyValidatedMFAChallengeRequest_builder{
-				Username:      user.GetName(),
-				Name:          chalName,
-				Payload:       tc.payload,
-				SourceCluster: sourceCluster,
-			}.Build())
-			require.NoError(t, err)
-			require.NotNil(t, resp)
+			group, ctx := errgroup.WithContext(ctx)
+
+			// Start a goroutine to create the ValidatedMFAChallenge, to simulate the expected real-world sequence of
+			// events where the challenge is created before it is verified, but not necessarily immediately before.
+			group.Go(func() error {
+				chal := mfav2.ValidatedMFAChallenge_builder{
+					Kind:    types.KindValidatedMFAChallenge,
+					Version: types.V1,
+					Metadata: headerv1.Metadata_builder{
+						Name: chalName,
+					}.Build(),
+					Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+						Payload:       tc.payload,
+						SourceCluster: sourceCluster,
+						TargetCluster: targetCluster,
+						Username:      user.GetName(),
+					}.Build(),
+				}.Build()
+
+				if _, err := authServer.Auth().CreateValidatedMFAChallenge(ctx, targetCluster, chal); err != nil {
+					return trace.Wrap(err)
+				}
+
+				return nil
+			})
+
+			// Start a goroutine to verify the ValidatedMFAChallenge, which will wait until the challenge is created by
+			// the first goroutine.
+			group.Go(func() error {
+				resp, err := service.VerifyValidatedMFAChallenge(
+					ctx,
+					mfav2.VerifyValidatedMFAChallengeRequest_builder{
+						Username:      user.GetName(),
+						Name:          chalName,
+						Payload:       tc.payload,
+						SourceCluster: sourceCluster,
+					}.Build(),
+				)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				if resp == nil {
+					return trace.BadParameter("expected non-nil response")
+				}
+
+				return nil
+			})
+
+			// Wait for both goroutines to complete and check for errors. The fact that the verify goroutine does not
+			// return an error indicates that the challenge was successfully verified async after it was created.
+			require.NoError(t, group.Wait())
 		})
 	}
 }
