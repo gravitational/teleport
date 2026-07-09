@@ -1074,7 +1074,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	timeout := time.After(30 * time.Second)
 	for {
 		unseen := slices.Clone(assignmentIDs)
-		for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, adminClient.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
+		for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, adminClient.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build()) {
 			require.NoError(t, err)
 			id := assignment.GetMetadata().GetName()
 			unseen = slices.DeleteFunc(unseen, func(unseenID string) bool { return id == unseenID })

@@ -29,7 +29,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -218,21 +217,6 @@ func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv
 	return token, nil
 }
 
-func evalScopeFilter(filter *scopesv1.Filter, scope string) bool {
-	if filter == nil {
-		return true
-	}
-
-	switch filter.Mode {
-	case scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
-		return scopes.ResourceScope(scope).IsSubjectToScopeOfEffect(filter.Scope)
-	case scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
-		return scopes.ScopeOfEffect(scope).AppliesToResourceScope(filter.Scope)
-	}
-
-	return true
-}
-
 // ListScopedTokens retrieves a paginated list of scoped join tokens.
 func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error) {
 	// we only want to return filters if at least one of the filters
@@ -240,10 +224,10 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 	// backend can choose to perform a simple list operation instead
 	// of a list with filter
 	switch {
-	case req.ResourceScope != nil:
-	case req.AssignedScope != nil:
-	case len(req.Roles) > 0:
-	case len(req.Labels) > 0:
+	case req.HasScopeFilter():
+	case req.HasAssignedScopeFilter():
+	case len(req.GetRoles()) > 0:
+	case len(req.GetLabels()) > 0:
 	default:
 		tokens, cursor, err := s.svc.ListResources(ctx, int(req.GetLimit()), req.GetCursor())
 
@@ -259,17 +243,12 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 		}, nil
 	}
 
-	if req.GetAssignedScope().GetScope() != "" {
-		if err := scopes.WeakValidate(req.GetAssignedScope().GetScope()); err != nil {
-			return nil, trace.BadParameter("invalid scope for assigned filter: %s", req.GetAssignedScope().GetScope())
-		}
-
+	if err := scopes.ValidateFilter(req.GetAssignedScopeFilter()); err != nil {
+		return nil, trace.Wrap(err, "invalid assigned scope filter")
 	}
 
-	if req.GetResourceScope().GetScope() != "" {
-		if err := scopes.WeakValidate(req.GetResourceScope().GetScope()); err != nil {
-			return nil, trace.BadParameter("invalid scope for resource filter: %s", req.GetResourceScope().GetScope())
-		}
+	if err := scopes.ValidateFilter(req.GetScopeFilter()); err != nil {
+		return nil, trace.Wrap(err, "invalid scope filter")
 	}
 
 	filterRoles, err := types.NewTeleportRoles(req.GetRoles())
@@ -289,11 +268,11 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 			}
 		}
 
-		if !evalScopeFilter(req.GetAssignedScope(), token.Spec.AssignedScope) {
+		if !scopes.MatchScope(req.GetAssignedScopeFilter(), token.GetSpec().GetAssignedScope()) {
 			return false
 		}
 
-		if !evalScopeFilter(req.GetResourceScope(), token.Scope) {
+		if !scopes.MatchScope(req.GetScopeFilter(), token.GetScope()) {
 			return false
 		}
 
