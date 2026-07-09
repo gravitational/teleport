@@ -361,6 +361,19 @@ func makeBotCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any, att
 	}
 }
 
+// botUserNameFromToken returns the name of the backing User resource for the
+// bot referenced by the given provision token. Scoped bots are namespaced by
+// their scope, so their user name is derived from both the scope and the bot
+// name; unscoped bots use the bare bot name.
+func botUserNameFromToken(token provision.Token) (string, error) {
+	botName, botScope := token.GetBot()
+	if botScope == "" {
+		return machineidv1.BotResourceName(botName), nil
+	}
+	username, err := machineidv1.ScopedBotResourceName(botScope, botName)
+	return username, trace.Wrap(err)
+}
+
 // GenerateBotCertsForJoin generates and returns bot certificates as the result
 // of a cluster join attempt.
 func (a *Server) GenerateBotCertsForJoin(
@@ -427,11 +440,11 @@ func (a *Server) GenerateBotCertsForJoin(
 		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
 	}
 
-	// TODO(strideynet): scoped bots are currently looked up by their bare name
-	// and scope-checked via the BotScopeLabel below. Once scoped bots are
-	// namespaced by scope in the backend, the bare name is no longer a unique
-	// identifier and this lookup must key on the scope-qualified name instead.
-	user, err := a.GetUserOrLoginState(ctx, machineidv1.BotResourceName(botName))
+	botUserName, err := botUserNameFromToken(token)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	user, err := a.GetUserOrLoginState(ctx, botUserName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -471,7 +484,7 @@ func (a *Server) GenerateBotCertsForJoin(
 	certs, botInstanceID, err := a.generateInitialBotCerts(
 		ctx,
 		botName,
-		machineidv1.BotResourceName(botName),
+		botUserName,
 		params.RemoteAddr,
 		params.PublicSSHKey,
 		params.PublicTLSKey,
@@ -568,6 +581,13 @@ func (a *Server) GenerateHostCertsForJoin(
 
 func (a *Server) emitBotJoinEvent(ctx context.Context, token provision.Token, params *join.BotCertsParams, botInstanceID string) {
 	botName, botScope := token.GetBot()
+	botUserName, err := botUserNameFromToken(token)
+	if err != nil {
+		// The join audit event is best-effort: fall back to the bare bot user
+		// name rather than dropping the event.
+		a.logger.WarnContext(ctx, "Failed to determine bot user name for join audit event", "error", err)
+		botUserName = machineidv1.BotResourceName(botName)
+	}
 	joinEvent := &apievents.BotJoin{
 		Metadata: apievents.Metadata{
 			Type: events.BotJoinEvent,
@@ -579,7 +599,7 @@ func (a *Server) emitBotJoinEvent(ctx context.Context, token provision.Token, pa
 		BotName:   botName,
 		Method:    string(token.GetJoinMethod()),
 		TokenName: token.GetSafeName(),
-		UserName:  machineidv1.BotResourceName(botName),
+		UserName:  botUserName,
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: params.RemoteAddr,
 		},
@@ -587,7 +607,6 @@ func (a *Server) emitBotJoinEvent(ctx context.Context, token provision.Token, pa
 		BotInstanceID: botInstanceID,
 	}
 
-	var err error
 	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(

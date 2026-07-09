@@ -73,6 +73,13 @@ func BotResourceName(botName string) string {
 	return services.BotResourceName(botName)
 }
 
+// ScopedBotResourceName returns the name of the backing User resource for a
+// scoped bot identified by the given scope and name. See
+// [services.ScopedBotResourceName] for the encoding and its caveats.
+func ScopedBotResourceName(scope, botName string) (string, error) {
+	return services.ScopedBotResourceName(scope, botName)
+}
+
 // Cache is the subset of the cached resources that the Service queries.
 type Cache interface {
 	// GetUser returns a user by name.
@@ -195,7 +202,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.BadParameter("bot_name: must be non-empty")
 	}
 
-	bot, err := bs.getBot(ctx, req.GetBotName())
+	bot, err := bs.getBot(ctx, req.GetScope(), req.GetBotName())
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching bot")
 	}
@@ -215,14 +222,24 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 }
 
 func (bs *BotService) getBot(
-	ctx context.Context, botName string,
+	ctx context.Context, scope, botName string,
 ) (*pb.Bot, error) {
-	user, err := bs.cache.GetUser(ctx, BotResourceName(botName), false)
+	// Scoped bots are namespaced by scope: the backing User name encodes the
+	// scope, so the lookup key differs for scoped vs unscoped bots.
+	resourceName := BotResourceName(botName)
+	if scope != "" {
+		var err error
+		resourceName, err = ScopedBotResourceName(scope, botName)
+		if err != nil {
+			return nil, trace.Wrap(err, "building scoped bot resource name")
+		}
+	}
+	user, err := bs.cache.GetUser(ctx, resourceName, false)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching bot user")
 	}
 
-	if scope, _ := user.GetLabel(types.BotScopeLabel); scope != "" {
+	if botScope, _ := user.GetLabel(types.BotScopeLabel); botScope != "" {
 		bot, err := scopedBotFromUser(user)
 		if err != nil {
 			return nil, trace.Wrap(err, "converting from resources")
@@ -486,29 +503,27 @@ func UpsertBot(
 		return nil, trace.Wrap(err, "validating bot")
 	}
 
-	// Fetch pre-existing user, we'll use this to preserve generation and
-	// check for scope transitions.
-	existingUser, err := backend.GetUser(
-		ctx, BotResourceName(bot.GetMetadata().GetName()), false,
-	)
+	// Scoped bots are namespaced by scope: the backing User name encodes the
+	// scope, so build the lookup key accordingly. Because scope is part of the
+	// bot's identity, an upsert under a different scope addresses a different
+	// bot (they coexist) rather than transitioning one bot's scope, so no
+	// scope-transition guard is needed.
+	resourceName := BotResourceName(bot.GetMetadata().GetName())
+	if bot.GetScope() != "" {
+		var err error
+		resourceName, err = ScopedBotResourceName(bot.GetScope(), bot.GetMetadata().GetName())
+		if err != nil {
+			return nil, trace.Wrap(err, "building scoped bot resource name")
+		}
+	}
+
+	// Fetch pre-existing user, we'll use this to preserve generation.
+	existingUser, err := backend.GetUser(ctx, resourceName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		// We'll happily ignore a not-found error, in this case, we have an
 		// upsert for a non-existent bot. If we have any other kind of error,
 		// we want to propagate this up.
 		return nil, trace.Wrap(err, "fetching existing bot user")
-	}
-	if existingUser != nil {
-		// If the bot already exists, we need to check that the upsert does not
-		// cause a scope transition (i.e change of scope, including from/to
-		// unscoped). This is because our RBAC does not account for this.
-		// This restriction may be loosened in future if we evaluate pre-upsert
-		// and post-upsert scope authz.
-		existingScope, _ := existingUser.GetLabel(types.BotScopeLabel)
-		if existingScope != bot.GetScope() {
-			return nil, trace.BadParameter(
-				"upserts cannot cause the scope of a bot to change, delete and recreate the bot to change its scope",
-			)
-		}
 	}
 
 	// Create User (and maybe Role if unscoped) from the Bot.
@@ -682,6 +697,13 @@ func (bs *BotService) UpdateBot(
 		return nil, trace.BadParameter("update_mask.paths: must be non-empty")
 	}
 
+	// Scoped bots have no updatable fields (roles/traits/max_session_ttl cannot
+	// be set on them) and are namespaced by scope rather than stored at the bare
+	// name, so the Update RPC does not support them.
+	if req.GetBot().GetScope() != "" {
+		return nil, trace.BadParameter("cannot update scoped bot")
+	}
+
 	user, err := bs.backend.GetUser(ctx, BotResourceName(req.GetBot().GetMetadata().GetName()), false)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting bot user")
@@ -843,10 +865,18 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.Wrap(err)
 	}
 
+	// Scoped bots are namespaced by scope: the backing User name encodes the
+	// scope, so build the lookup key accordingly.
+	resourceName := BotResourceName(req.GetBotName())
+	if reqScope := req.GetScope(); reqScope != "" {
+		resourceName, err = ScopedBotResourceName(reqScope, req.GetBotName())
+		if err != nil {
+			return nil, trace.Wrap(err, "building scoped bot resource name")
+		}
+	}
+
 	// Fetch user to determine if bot is scoped or unscoped.
-	user, err := bs.backend.GetUser(
-		ctx, BotResourceName(req.GetBotName()), false,
-	)
+	user, err := bs.backend.GetUser(ctx, resourceName, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -945,6 +975,12 @@ func StrongValidateBot(b *pb.Bot) error {
 		// Validate scope-specific fields
 		if err := scopes.StrongValidate(b.GetScope()); err != nil {
 			return trace.Wrap(err, "scope:")
+		}
+
+		// TODO(strideynet): Switch to `scopes.StrongValidateResourceName` when
+		// it is merged.
+		if err := scopes.StrongValidateSegment(b.GetMetadata().GetName()); err != nil {
+			return trace.Wrap(err, "metadata.name:")
 		}
 
 		// Validate unsupported fields aren't set.
@@ -1163,8 +1199,14 @@ func scopedBotToUser(bot *pb.Bot, now time.Time, createdBy string) (types.User, 
 		return nil, trace.BadParameter("scopedBotToUser called on unscoped bot")
 	}
 
-	// Setup user
-	user, err := types.NewUser(BotResourceName(bot.GetMetadata().GetName()))
+	// Setup user. Scoped bots are namespaced by their scope, so the backing
+	// User name encodes both the scope and the name (the bare name is no longer
+	// a unique identifier).
+	resourceName, err := ScopedBotResourceName(bot.GetScope(), bot.GetMetadata().GetName())
+	if err != nil {
+		return nil, trace.Wrap(err, "building scoped bot resource name")
+	}
+	user, err := types.NewUser(resourceName)
 	if err != nil {
 		return nil, trace.Wrap(err, "new user")
 	}

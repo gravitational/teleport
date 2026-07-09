@@ -1177,7 +1177,13 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 
 // TestScopedBot returns a TestIdentity for a scoped bot user
 func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity {
-	userName := fmt.Sprintf("bot-%s", botName)
+	// Scoped bots are namespaced by scope: the backing User name (and thus the
+	// cert username) encodes the scope, so it must match what the bot service
+	// persists rather than the bare "bot-<name>" form.
+	userName, err := services.ScopedBotResourceName(scope, botName)
+	if err != nil {
+		panic(fmt.Sprintf("TestScopedBot: invalid scope %q: %v", scope, err))
+	}
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: userName,

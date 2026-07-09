@@ -26,6 +26,7 @@ import (
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -235,4 +236,32 @@ func (o *ListBotInstancesRequestOptions) GetFilterFn() func(*machineidv1.BotInst
 // given named bot.
 func BotResourceName(botName string) string {
 	return BotUserPrefix + strings.ReplaceAll(botName, " ", "-")
+}
+
+// ScopedBotResourceName returns the name of the backing User resource for a
+// scoped bot identified by the given scope and name. Scoped bots are namespaced
+// by their scope so that the same bot name may be reused across different
+// scopes; the backing User name therefore encodes both the scope and the name.
+//
+// The scope is encoded with [scopes.EncodeForKey], which is collision-free and
+// reversible: the encoded separator ("+") cannot appear within a valid scope,
+// so distinct scopes always produce distinct encodings (and it round-trips via
+// [scopes.DecodeFromKey]). The encoded scope ends with a "+" separator, which
+// delimits it from the trailing bot name. Returns an error if the scope is not
+// valid for encoding.
+//
+// Note: scoped bots are reconstructed from the scope/name stored in User
+// labels, not by parsing this username, so the username is only an identity key.
+// [scopes.EncodeForKey] is itself currently a placeholder intended to be
+// replaced with a stronger implementation; centralizing the encoding here means
+// that swap is transparent to bots.
+func ScopedBotResourceName(scope, botName string) (string, error) {
+	encodedScope, err := scopes.EncodeForKey(scope)
+	if err != nil {
+		return "", trace.Wrap(err, "encoding scope for bot resource name")
+	}
+	// TODO(strideynet): seperator between encoded scope and bot name ???
+	// Not strictly necessary as we do not need to recover scope from name?
+	// However, probably nice if what we have is recoverable ?
+	return BotResourceName(encodedScope + botName), nil
 }
