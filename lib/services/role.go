@@ -913,7 +913,7 @@ func ApplyValueTraitsWithContext(val string, ctx RoleTemplateContext) ([]string,
 		// verify that internal traits match the supported variables
 		if namespace == teleport.TraitInternalPrefix {
 			switch name {
-			case constants.TraitLogins, constants.TraitWindowsLogins,
+			case constants.TraitLogins, constants.TraitWindowsLogins, constants.TraitLinuxDesktopLogins,
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,

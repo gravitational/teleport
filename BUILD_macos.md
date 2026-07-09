@@ -52,7 +52,15 @@ and updates are welcome!
         ```shell
         node --version
         ```
+1. Install `llvm`:
 
+   ```shell
+   brew install llvm
+
+   # Update PATH and apply changes to shell
+   echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> ~/.zshrc
+   source ~/.zshrc
+   ```
 1. Install `libfido2`:
 
     ```shell

@@ -22,15 +22,9 @@ import SwiftNavigation
 @Observable
 @MainActor
 class EnrollDeviceViewModel {
-	// swiftformat:sort
-	@CasePathable
-	enum Destination {
-		case loadingSheet
-	}
-
-	var destination: Destination? = nil
 	var loadingState: LoadingState<String> = .idle
 	private let deepLink: EnrollMobileDeviceDeepLink
+	let eventStackViewModel = EventStackViewModel<String>()
 
 	@ObservationIgnored
 	@Dependency(\.enrollClient)
@@ -48,7 +42,6 @@ class EnrollDeviceViewModel {
 
 	func requestEnrollToken() async {
 		loadingState = .loading
-		destination = .loadingSheet
 		let defaultHTTPSPort = 443
 		do {
 			/*
@@ -63,9 +56,38 @@ class EnrollDeviceViewModel {
 			 )
 			  */
 
-			try await Task.sleep(for: .seconds(1))
+			// The code that follows in this function is for demonstration purposes only.
+			eventStackViewModel.clearAllEvents()
+			eventStackViewModel.addEvent(id: "initial-request", message: "Requesting enrollment pairing token.")
+			try await Task.sleep(for: .milliseconds(2000))
+			eventStackViewModel.updateEvent(
+				id: "initial-request",
+				message: "Initial request for enrollment pairing token timed out.",
+				status: .failure,
+			)
+			try await Task.sleep(for: .milliseconds(400))
+			eventStackViewModel.addEvent(
+				id: "retry-request",
+				message: "Retrying...",
+			)
+			try await Task.sleep(for: .milliseconds(1000))
+			eventStackViewModel.updateEvent(
+				id: "retry-request",
+				message: "Received enrollment pairing token.",
+				status: .success,
+			)
+			try await Task.sleep(for: .milliseconds(400))
+			eventStackViewModel.addEvent(
+				id: "enrollment-request",
+				message: "Requesting enrollment...",
+			)
+			try await Task.sleep(for: .milliseconds(2000))
+			eventStackViewModel.updateEvent(
+				id: "enrollment-request",
+				message: "Device enrolled!",
+				status: .success
+			)
 			loadingState = .success("fake-token-\(defaultHTTPSPort)")
-			destination = nil
 		} catch {
 			loadingState = .failure(error)
 		}

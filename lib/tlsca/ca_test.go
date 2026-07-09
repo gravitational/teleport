@@ -219,6 +219,7 @@ func TestJoinAttributes(t *testing.T) {
 		Groups:        []string{"bot-bernard"},
 		BotName:       "bernard",
 		BotInstanceID: "1234-5678",
+		BotScope:      "/foo",
 		BotInternal:   true,
 		Expires:       expires,
 		JoinAttributes: workloadidentityv1pb.JoinAttrs_builder{

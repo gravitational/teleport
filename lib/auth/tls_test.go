@@ -4540,12 +4540,12 @@ func TestEventsNodePresence(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-
+	nodeName := "node1." + testSrv.ClusterName()
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      "node1",
+			Name:      nodeName,
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.ServerSpecV2{
@@ -4556,7 +4556,7 @@ func TestEventsNodePresence(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
-			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, testSrv.ClusterName()),
+			Username: nodeName,
 		},
 	})
 	require.NoError(t, err)
