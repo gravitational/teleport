@@ -226,11 +226,17 @@ func checkValidatedMFAChallenge(chal *mfav2.ValidatedMFAChallenge) error {
 
 type validatedMFAChallengeParser struct {
 	baseParser
+
+	filter types.ValidatedMFAChallengeFilter
 }
 
-func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
+func newValidatedMFAChallengeParser(filter map[string]string) *validatedMFAChallengeParser {
+	var mfaFilter types.ValidatedMFAChallengeFilter
+	mfaFilter.FromMap(filter)
+
 	return &validatedMFAChallengeParser{
 		baseParser: newBaseParser(backend.ExactKey(types.KindValidatedMFAChallenge)),
+		filter:     mfaFilter,
 	}
 }
 
@@ -268,6 +274,10 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if !p.filter.Match(chal.GetSpec().GetTargetCluster()) {
+			return nil, nil
 		}
 
 	default:

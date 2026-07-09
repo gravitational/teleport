@@ -17,6 +17,15 @@ limitations under the License.
 package testlib
 
 import (
+	"context"
+	"fmt"
+	"sync"
+
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport/e/api/cloud"
+	cloudv1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -24,11 +33,92 @@ import (
 
 func init() {
 	NewPlugin = func(mod modules.Modules) (plugin.Plugin, error) {
-		return eauth.NewPlugin(
+		p, err := eauth.NewPlugin(
 			eauth.Config{
 				License: eauth.ValidLicense{},
 				Modules: mod,
 			},
 		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Enterprise resources that proxy to the Teleport Cloud API (e.g.
+		// client_ip_restriction) are only registered when the cluster runs in
+		// Cloud mode and need a cloud client to talk to. There is no Cloud API
+		// backend in tests, so we wire in an in-memory fake.
+		if mod.Features().Cloud {
+			p.EnableCloud(newFakeCloudClient())
+		}
+		return p, nil
 	}
+}
+
+// fakeCloudClient is an in-memory implementation of the Teleport Cloud
+// TenantsServiceClient used by enterprise services that proxy to Cloud. It only
+// implements the ClientIPRestriction RPCs; every other method falls through to
+// the embedded cloud.MockedClient, which returns trace.NotImplemented rather
+// than panicking.
+type fakeCloudClient struct {
+	*cloud.MockedClient
+
+	mu  sync.Mutex
+	cir *cloudv1.ClientIPRestriction // nil means the singleton is not set.
+	rev int
+}
+
+func newFakeCloudClient() *fakeCloudClient {
+	return &fakeCloudClient{MockedClient: &cloud.MockedClient{}}
+}
+
+// store saves the restriction with a fresh revision so callers waiting for a
+// revision change observe one. Status is intentionally left unset: the provider
+// excludes it from the Terraform schema (RFD 153) and never reads it. Must be
+// called with f.mu held.
+func (f *fakeCloudClient) store(cidrs []string) *cloudv1.ClientIPRestriction {
+	f.rev++
+	f.cir = &cloudv1.ClientIPRestriction{
+		Cidrs:    cidrs,
+		Revision: fmt.Sprintf("rev-%d", f.rev),
+	}
+	return f.cir
+}
+
+func (f *fakeCloudClient) GetClientIPRestriction(_ context.Context, _ *cloudv1.GetClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.GetClientIPRestrictionResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cir == nil {
+		return nil, trace.NotFound("client_ip_restriction not found")
+	}
+	return &cloudv1.GetClientIPRestrictionResponse{ClientIpRestriction: f.cir}, nil
+}
+
+func (f *fakeCloudClient) CreateClientIPRestriction(_ context.Context, in *cloudv1.CreateClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.CreateClientIPRestrictionResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cir != nil {
+		return nil, trace.AlreadyExists("client_ip_restriction already exists")
+	}
+	return &cloudv1.CreateClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs())}, nil
+}
+
+func (f *fakeCloudClient) UpdateClientIPRestriction(_ context.Context, in *cloudv1.UpdateClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.UpdateClientIPRestrictionResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cir == nil {
+		return nil, trace.NotFound("client_ip_restriction not found")
+	}
+	return &cloudv1.UpdateClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs())}, nil
+}
+
+func (f *fakeCloudClient) UpsertClientIPRestriction(_ context.Context, in *cloudv1.UpsertClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.UpsertClientIPRestrictionResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return &cloudv1.UpsertClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs())}, nil
+}
+
+func (f *fakeCloudClient) DeleteClientIPRestriction(_ context.Context, _ *cloudv1.DeleteClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.DeleteClientIPRestrictionResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cir = nil
+	return &cloudv1.DeleteClientIPRestrictionResponse{}, nil
 }

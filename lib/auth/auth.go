@@ -71,6 +71,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -5691,6 +5692,8 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 			KubernetesHeartbeats:          true,
 			KubernetesCleanup:             true,
 			RelayServerHeartbeatsCleanup:  true,
+			LinuxDesktopHeartbeats:        true,
+			LinuxDesktopCleanup:           true,
 		}.Build(),
 	}.Build()
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
@@ -6849,6 +6852,27 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	})
 
 	return lease, nil
+}
+
+// UpsertLinuxDesktop upserts a Linux desktop resource.
+func (a *Server) UpsertLinuxDesktop(ctx context.Context, desktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	updated, err := a.Services.LinuxDesktops.UpsertLinuxDesktop(ctx, desktop)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetMetadata().GetName(),
+		Kind:   usagereporter.ResourceKindLinuxDesktop,
+		Static: false,
+	})
+
+	return updated, nil
+}
+
+// DeleteLinuxDesktop deletes the Linux desktop resource by name.
+func (a *Server) DeleteLinuxDesktop(ctx context.Context, name string) error {
+	return trace.Wrap(a.Services.LinuxDesktops.DeleteLinuxDesktop(ctx, name))
 }
 
 // UnconditionalUpdateApplicationServer implements [services.PresenceInternal]
@@ -8146,6 +8170,16 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 		noMFAAccessErr = checker.CheckAccess(resp.Desktops[0],
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
+
+	case *proto.IsMFARequiredRequest_LinuxDesktop:
+		desktop, err := a.GetLinuxDesktop(ctx, t.LinuxDesktop.GetLinuxDesktop())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		noMFAAccessErr = checker.CheckAccess(types.ProtoResource153ToLegacy(desktop),
+			services.AccessState{},
+			services.NewLinuxDesktopLoginMatcher(t.LinuxDesktop.GetLogin()))
 
 	case *proto.IsMFARequiredRequest_App:
 		if t.App.Name == "" {
