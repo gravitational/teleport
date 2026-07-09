@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+
+# Mock tctl binary for teleport-access-review evals, simulating a cluster where
+# the access-review endpoint is NOT deployed (e.g. Identity Security disabled or
+# the cluster too old). The subcommand exists, but the query fails with the
+# endpoint-unavailable error. status/--help still work so the skill gets there.
+
+import os, sys
+
+dir = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+
+
+def read(filename):
+    with open(os.path.join(dir, filename)) as f:
+        print(f.read(), end="")
+
+
+if args[:1] == ["status"]:
+    read("tsh-status.txt")
+elif args[:1] == ["access-review"]:
+    if "--help" in args:
+        print("usage: tctl access-review --query=QUERY [<flags>]\n")
+        print("Review which identities can access which resources.")
+    else:
+        print(
+            "ERROR: access-review is unavailable on this cluster. This usually "
+            "means Identity Security is not enabled, or that the access-review "
+            "endpoint is not yet available on this cluster.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+else:
+    print(f"mock-tctl: unrecognized command: {' '.join(args)}", file=sys.stderr)
+    sys.exit(1)
