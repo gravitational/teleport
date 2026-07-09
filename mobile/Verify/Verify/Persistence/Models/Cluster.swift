@@ -18,14 +18,22 @@ import Foundation
 import SQLiteData
 
 @Table("clusters")
-struct Cluster {
+struct Cluster: Identifiable {
 	let id: UUID
 	var host: String
 	var port: Int
 }
 
+// MARK: - CustomDebugStringConvertible
+
 extension Cluster: CustomDebugStringConvertible {
 	var debugDescription: String {
 		"\(id):\(host):\(port)"
+	}
+}
+
+extension Cluster {
+	var url: URL? {
+		URL(string: "https://\(host):\(port)")
 	}
 }
