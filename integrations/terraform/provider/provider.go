@@ -553,8 +553,8 @@ func (p *Provider) configureLog() {
 // GetResources returns the map of provider resources
 func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
 	return map[string]tfsdk.ResourceType{
-		"teleport_app": resourceTeleportType[*apitypes.AppV3]{
-			newResourceClient: func(c *client.Client) resourceClient[*apitypes.AppV3] {
+		"teleport_app": resourceTeleportType[apitypes.AppV3, NameIdentifier]{
+			newResourceClient: func(c *client.Client) resourceClient[apitypes.AppV3, NameIdentifier] {
 				return appClient{client: c}
 			},
 			kind:        apitypes.KindApp,
@@ -571,8 +571,20 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 				}
 				return d
 			},
-			resourceName: func(st *apitypes.AppV3) string {
-				return st.GetMetadata().Name
+			identifierFromResource: func(av *apitypes.AppV3) NameIdentifier {
+				return NameIdentifier{Name: av.GetMetadata().Name}
+			},
+			identifierFromState: func(ctx context.Context, s tfsdk.State) (NameIdentifier, diag.Diagnostics) {
+				var id types.String
+				diags := s.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
+				if diags.HasError() {
+					return NameIdentifier{}, diags
+				}
+
+				return NameIdentifier{Name: id.Value}, diags
+			},
+			identifierFromImportID: func(s string) (NameIdentifier, error) {
+				return NameIdentifier{Name: s}, nil
 			},
 			resourceRevision: func(st *apitypes.AppV3) string {
 				return st.GetMetadata().Revision
@@ -601,13 +613,27 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_login_rule":                 resourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
-		"teleport_access_list": resourceTeleportType[*accesslist.AccessList]{
-			newResourceClient: func(c *client.Client) resourceClient[*accesslist.AccessList] {
+		"teleport_access_list": resourceTeleportType[accesslist.AccessList, NameIdentifier]{
+			newResourceClient: func(c *client.Client) resourceClient[accesslist.AccessList, NameIdentifier] {
 				return accessListClient{client: c}
 			},
-			kind:           apitypes.KindAccessList,
-			schema:         accesslistv1schema.GenSchemaAccessList,
-			identifierPath: path.Root("header").AtName("metadata").AtName("name"),
+			kind:   apitypes.KindAccessList,
+			schema: accesslistv1schema.GenSchemaAccessList,
+			identifierFromResource: func(al *accesslist.AccessList) NameIdentifier {
+				return NameIdentifier{Name: al.GetMetadata().Name}
+			},
+			identifierFromImportID: func(s string) (NameIdentifier, error) {
+				return NameIdentifier{Name: s}, nil
+			},
+			identifierFromState: func(ctx context.Context, s tfsdk.State) (NameIdentifier, diag.Diagnostics) {
+				var id types.String
+				diags := s.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
+				if diags.HasError() {
+					return NameIdentifier{}, diags
+				}
+
+				return NameIdentifier{Name: id.Value}, diags
+			},
 			toTerraform: func(ctx context.Context, list *accesslist.AccessList, object *types.Object) diag.Diagnostics {
 				accessList := accesslistconvertv1.ToProto(list)
 				return accesslistv1schema.CopyAccessListToTerraform(ctx, accessList, object)
@@ -633,9 +659,6 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 				*list = *converted
 				return d
 			},
-			resourceName: func(st *accesslist.AccessList) string {
-				return st.GetMetadata().Name
-			},
 			resourceRevision: func(st *accesslist.AccessList) string {
 				return st.GetMetadata().Revision
 			},
@@ -643,7 +666,66 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 				current.Spec.Audit.NextAuditDate = previous.Spec.Audit.NextAuditDate
 			},
 		},
-		"teleport_access_list_member":     resourceTeleportMemberType{},
+		"teleport_access_list_member": resourceTeleportType[accesslist.AccessListMember, CompositeIdentifier]{
+			newResourceClient: func(c *client.Client) resourceClient[accesslist.AccessListMember, CompositeIdentifier] {
+				return accessListMemberClient{client: c}
+			},
+			kind:   apitypes.KindAccessListMember,
+			schema: accesslistv1schema.GenSchemaMember,
+			identifierFromResource: func(alm *accesslist.AccessListMember) CompositeIdentifier {
+				return CompositeIdentifier{Prefix: alm.Spec.AccessList, Name: alm.GetMetadata().Name}
+			},
+			identifierFromImportID: func(s string) (CompositeIdentifier, error) {
+				prefix, name, err := parseID(s)
+				if err != nil {
+					return CompositeIdentifier{}, trace.Wrap(err)
+				}
+				return CompositeIdentifier{Prefix: prefix, Name: name}, nil
+			},
+			identifierFromState: func(ctx context.Context, s tfsdk.State) (CompositeIdentifier, diag.Diagnostics) {
+				var prefix types.String
+				diags := s.GetAttribute(ctx, path.Root("spec").AtName("access_list"), &prefix)
+				if diags.HasError() {
+					return CompositeIdentifier{}, diags
+				}
+
+				var id types.String
+				diags.Append(s.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)...)
+				if diags.HasError() {
+					return CompositeIdentifier{}, diags
+				}
+
+				return CompositeIdentifier{Prefix: prefix.Value, Name: id.Value}, diags
+			},
+			toTerraform: func(ctx context.Context, member *accesslist.AccessListMember, object *types.Object) diag.Diagnostics {
+				accessList := accesslistconvertv1.ToMemberProto(member)
+				return accesslistv1schema.CopyMemberToTerraform(ctx, accessList, object)
+			},
+			fromTerraform: func(ctx context.Context, object types.Object, list *accesslist.AccessListMember) diag.Diagnostics {
+				var member accesslistv1.Member
+				d := accesslistv1schema.CopyMemberFromTerraform(ctx, object, &member)
+				if d.HasError() {
+					return d
+				}
+
+				converted, err := accesslistconvertv1.FromMemberProto(&member)
+				if err != nil {
+					d.Append(diagFromWrappedErr(fmt.Sprintf("Error reading %q", apitypes.KindAccessListMember), trace.Errorf("Cannot convert %T to AccessListMember: %s", &member, err), apitypes.KindAccessListMember))
+					return d
+				}
+
+				if err := converted.CheckAndSetDefaults(); err != nil {
+					d.Append(diagFromWrappedErr(fmt.Sprintf("Error updating %q", apitypes.KindAccessListMember), err, apitypes.KindAccessListMember))
+					return d
+				}
+
+				*list = *converted
+				return d
+			},
+			resourceRevision: func(st *accesslist.AccessListMember) string {
+				return st.GetMetadata().Revision
+			},
+		},
 		"teleport_server":                 resourceTeleportServerType{},
 		"teleport_installer":              resourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule": resourceTeleportAccessMonitoringRuleType{},
@@ -659,8 +741,8 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_inference_policy":       resourceTeleportInferencePolicyType{},
 		"teleport_classifier":             resourceTeleportClassifierType{},
 		"teleport_retrieval_model":        resourceTeleportRetrievalModelType{},
-		"teleport_scoped_token": resourceTeleportType[*joiningv1.ScopedToken]{
-			newResourceClient: func(c *client.Client) resourceClient[*joiningv1.ScopedToken] {
+		"teleport_scoped_token": resourceTeleportType[joiningv1.ScopedToken, NameIdentifier]{
+			newResourceClient: func(c *client.Client) resourceClient[joiningv1.ScopedToken, NameIdentifier] {
 				return scopedTokenClient{client: c}
 			},
 			kind:        apitypes.KindScopedToken,
@@ -674,8 +756,46 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 				token.SetKind(apitypes.KindScopedToken)
 				return d
 			},
-			resourceName: func(st *joiningv1.ScopedToken) string {
-				return st.GetMetadata().GetName()
+			identifierFromState: func(ctx context.Context, s tfsdk.State) (NameIdentifier, diag.Diagnostics) {
+				var scope types.String
+				diags := s.GetAttribute(ctx, path.Root("scope"), &scope)
+				if diags.HasError() {
+					return NameIdentifier{}, diags
+				}
+
+				var id types.String
+				diags.Append(s.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)...)
+				if diags.HasError() {
+					return NameIdentifier{}, diags
+				}
+
+				return NameIdentifier{Name: id.Value}, diags
+
+				// TODO(tross): validate the sqn once ScopedTokens are namespaced
+				// sqn := scopes.QualifiedName{Scope: scope.Value, Name: id.Value}
+				// if err := sqn.WeakValidate(); err != nil {
+				// 	diags.Append(diagFromWrappedErr("malformed scoped token name", trace.Wrap(err), apitypes.KindScopedToken))
+				// 	return ScopeQualifiedNameIdentifier{}, diags
+				// }
+				// return ScopeQualifiedNameIdentifier{SQN: sqn}, diags
+			},
+			identifierFromResource: func(st *joiningv1.ScopedToken) NameIdentifier {
+				return NameIdentifier{Name: st.GetMetadata().GetName()}
+			},
+			identifierFromImportID: func(s string) (NameIdentifier, error) {
+				// TODO(tross): consume SQNs once ScopedTokens and namespaced
+				// sqn, err := scopes.ParseQualifiedName(s)
+				// if err != nil {
+				// 	return ScopeQualifiedNameIdentifier{}, trace.Wrap(err)
+				// }
+
+				// if err := sqn.StrongValidate(); err != nil {
+				// 	return ScopeQualifiedNameIdentifier{}, trace.Wrap(err)
+				// }
+
+				// return ScopeQualifiedNameIdentifier{SQN: scopes.QualifiedName{Name: s}}, nil
+				//
+				return NameIdentifier{Name: s}, nil
 			},
 			resourceRevision: func(st *joiningv1.ScopedToken) string {
 				return st.GetMetadata().GetRevision()
@@ -691,14 +811,23 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 // GetDataSources returns the map of provider data sources
 func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
-		"teleport_app": dataSourceTeleportType[*apitypes.AppV3]{
-			newDataSourceClient: func(c *client.Client) dataSourceClient[*apitypes.AppV3] {
+		"teleport_app": dataSourceTeleportType[apitypes.AppV3, NameIdentifier]{
+			newDataSourceClient: func(c *client.Client) dataSourceClient[apitypes.AppV3, NameIdentifier] {
 				return appClient{client: c}
 			},
 			RetryConfig: p.RetryConfig,
 			kind:        apitypes.KindApp,
 			schema:      tfschema.GenSchemaAppV3,
 			toTerraform: tfschema.CopyAppV3ToTerraform,
+			identifier: func(ctx context.Context, c tfsdk.Config) (NameIdentifier, diag.Diagnostics) {
+				var id types.String
+				diags := c.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
+				if diags.HasError() {
+					return NameIdentifier{}, diags
+				}
+
+				return NameIdentifier{Name: id.Value}, diags
+			},
 		},
 		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            dataSourceTeleportAuthPreferenceType{},
@@ -722,14 +851,22 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_login_rule":                 dataSourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
-		"teleport_access_list": dataSourceTeleportType[*accesslist.AccessList]{
-			newDataSourceClient: func(c *client.Client) dataSourceClient[*accesslist.AccessList] {
+		"teleport_access_list": dataSourceTeleportType[accesslist.AccessList, NameIdentifier]{
+			newDataSourceClient: func(c *client.Client) dataSourceClient[accesslist.AccessList, NameIdentifier] {
 				return accessListClient{client: c}
 			},
-			RetryConfig:    p.RetryConfig,
-			kind:           apitypes.KindAccessList,
-			identifierPath: path.Root("header").AtName("metadata").AtName("name"),
-			schema:         accesslistv1schema.GenSchemaAccessList,
+			RetryConfig: p.RetryConfig,
+			kind:        apitypes.KindAccessList,
+			identifier: func(ctx context.Context, c tfsdk.Config) (NameIdentifier, diag.Diagnostics) {
+				var id types.String
+				diags := c.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
+				if diags.HasError() {
+					return NameIdentifier{}, diags
+				}
+
+				return NameIdentifier{Name: id.Value}, diags
+			},
+			schema: accesslistv1schema.GenSchemaAccessList,
 			toTerraform: func(ctx context.Context, list *accesslist.AccessList, object *types.Object) diag.Diagnostics {
 				accessList := accesslistconvertv1.ToProto(list)
 				return accesslistv1schema.CopyAccessListToTerraform(ctx, accessList, object)
@@ -745,9 +882,32 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_health_check_config":    dataSourceTeleportHealthCheckConfigType{},
 		"teleport_vnet_config":            dataSourceTeleportVnetConfigType{},
 		"teleport_integration":            dataSourceTeleportIntegrationType{},
-		"teleport_scoped_token": dataSourceTeleportType[*joiningv1.ScopedToken]{
-			newDataSourceClient: func(c *client.Client) dataSourceClient[*joiningv1.ScopedToken] {
+		"teleport_scoped_token": dataSourceTeleportType[joiningv1.ScopedToken, NameIdentifier]{
+			newDataSourceClient: func(c *client.Client) dataSourceClient[joiningv1.ScopedToken, NameIdentifier] {
 				return scopedTokenClient{client: c}
+			},
+			identifier: func(ctx context.Context, c tfsdk.Config) (NameIdentifier, diag.Diagnostics) {
+				var id types.String
+				diags := c.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
+				if diags.HasError() {
+					return NameIdentifier{}, diags
+				}
+
+				return NameIdentifier{Name: id.Value}, diags
+
+				// TODO(tross): Consume SQNs once ScopedTokens are namespaced
+				// var scope types.String
+				// diags.Append(c.GetAttribute(ctx, path.Root("scope"), &scope)...)
+				// if diags.HasError() {
+				// 	return ScopeQualifiedNameIdentifier{}, diags
+				// }
+
+				// sqn := scopes.QualifiedName{Name: id.Value, Scope: scope.Value}
+				// if err := sqn.WeakValidate(); err != nil {
+				// 	diags.Append(diagFromWrappedErr("malformed scoped token name", trace.Wrap(err), apitypes.KindScopedToken))
+				// 	return ScopeQualifiedNameIdentifier{}, diags
+				// }
+				// return ScopeQualifiedNameIdentifier{SQN: sqn}, diags
 			},
 			RetryConfig: p.RetryConfig,
 			kind:        apitypes.KindScopedToken,
