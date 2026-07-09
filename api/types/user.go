@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -178,6 +179,10 @@ type User interface {
 	GetWeakestDevice() MFADeviceKind
 	// Clone creats a copy of the user.
 	Clone() User
+	// GetDelegator returns the head of the user's delegation chain.
+	GetDelegation() *delegationv1.Delegation
+	// SetDelegation sets the head of the user's delegation chain.
+	SetDelegation(*delegationv1.Delegation)
 }
 
 // NewUser creates new empty user
@@ -698,6 +703,14 @@ func (u *UserV2) SetWeakestDevice(state MFADeviceKind) {
 
 func (u *UserV2) GetWeakestDevice() MFADeviceKind {
 	return u.Status.MfaWeakestDevice
+}
+
+func (u *UserV2) GetDelegation() *delegationv1.Delegation {
+	return DelegationFromLegacy(u.Status.Delegation)
+}
+
+func (u *UserV2) SetDelegation(d *delegationv1.Delegation) {
+	u.Status.Delegation = DelegationToLegacy(d)
 }
 
 // IsEmpty returns true if there's no info about who created this user

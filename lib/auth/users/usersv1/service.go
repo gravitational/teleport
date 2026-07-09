@@ -280,6 +280,9 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		})
 	}
 
+	// Delegation is server-controlled.
+	req.GetUser().SetDelegation(nil)
+
 	created, err := s.backend.CreateUser(ctx, req.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -360,9 +363,16 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		omitEditorEvent = true
 	}
 
-	if prevUser != nil {
+	if prevUser == nil {
+		// Delegation is server-controlled. The backend will reject the update
+		// with a revision mismatch anyway, but best to be "belt and braces".
+		req.GetUser().SetDelegation(nil)
+	} else {
 		// Preserve the users' created by information.
 		req.GetUser().SetCreatedBy(prevUser.GetCreatedBy())
+
+		// Delegation is server-controlled and immutable.
+		req.GetUser().SetDelegation(prevUser.GetDelegation())
 	}
 
 	if err = okta.CheckAccess(authCtx, prevUser, types.VerbUpdate); err != nil {
@@ -448,6 +458,13 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		// don't return error here since this call is for event emitting purposes only
 		s.logger.WarnContext(ctx, "Failed getting previous user during update", "error", err)
 		omitEditorEvent = true
+	}
+
+	// Delegation is server-controlled.
+	if prevUser == nil {
+		req.GetUser().SetDelegation(nil)
+	} else {
+		req.GetUser().SetDelegation(prevUser.GetDelegation())
 	}
 
 	verb := types.VerbUpdate

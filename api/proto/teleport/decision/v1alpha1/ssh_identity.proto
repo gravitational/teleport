@@ -18,6 +18,7 @@ package teleport.decision.v1alpha1;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/decision/v1alpha1/tls_identity.proto";
+import "teleport/delegation/v1/delegation.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/scopes/v1/scopes.proto";
 import "teleport/trait/v1/trait.proto";
@@ -194,6 +195,9 @@ message SSHIdentity {
   // BotScope is the scope of the Machine ID bot this identity was issued to,
   // if any. Empty for unscoped bots and non-bot identities.
   string bot_scope = 42;
+
+  // Delegation contains the delegation chain of this TLS identity.
+  teleport.delegation.v1.Delegation delegation = 43;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type
