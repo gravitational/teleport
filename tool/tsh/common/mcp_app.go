@@ -21,6 +21,7 @@ package common
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -512,7 +513,12 @@ func (c *mcpConnectCommand) run() error {
 				TokenStore:  &fileTokenStore{path: credsPath, clientID: creds.ClientID},
 			})
 			oauthHandler.SetBaseURL("http://localhost")
-			getAuthHeader = oauthHandler.GetAuthorizationHeader
+			source := &mcpOAuthHeaderSource{
+				appName:   c.cf.AppName,
+				credsPath: credsPath,
+				refresh:   oauthHandler.RefreshToken,
+			}
+			getAuthHeader = source.GetAuthHeader
 		case !trace.IsNotFound(err):
 			return trace.Wrap(err)
 		}
@@ -549,7 +555,12 @@ func parseHTTPHeaders(headerArgs []string) (map[string]string, error) {
 
 func makeMCPReconnectUserMessage(err error) string {
 	var userMessage string
+	var loginRequiredErr *mcpOAuthLoginRequiredError
 	switch {
+	case errors.As(err, &loginRequiredErr):
+		userMessage = fmt.Sprintf("Authentication with MCP server %q is required or has expired."+
+			" Run `tsh mcp login %s` in your terminal and complete the authorization in your browser, then retry.",
+			loginRequiredErr.appName, loginRequiredErr.appName)
 	case clientmcp.IsLikelyTemporaryNetworkError(err):
 		userMessage = "A network error occurred while trying to connect to Teleport." +
 			" This issue is likely temporary — the server may be unavailable, or your internet connection may be unstable." +
