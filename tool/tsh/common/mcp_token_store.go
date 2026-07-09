@@ -21,13 +21,17 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // mcpOAuthCredentials is everything tsh needs to authorize requests to an
@@ -46,17 +50,30 @@ func mcpOAuthTokenPath(homePath, proxyHost, cluster, appName string) string {
 }
 
 // saveMCPOAuthCredentials writes the credentials with owner-only permissions.
-// TODO(mcp-oauth): atomic write + file locking, for concurrent tsh processes
-// sharing one rotating refresh token.
+// The write is atomic (temp file + rename) so that concurrent readers never
+// observe a partially written file.
 func saveMCPOAuthCredentials(path string, creds *mcpOAuthCredentials) error {
 	data, err := json.MarshalIndent(creds, "", "  ")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	return trace.ConvertSystemError(os.WriteFile(path, data, 0o600))
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer os.Remove(tmp.Name()) // no-op after successful rename
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return trace.ConvertSystemError(err)
+	}
+	if err := tmp.Close(); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return trace.ConvertSystemError(os.Rename(tmp.Name(), path))
 }
 
 // loadMCPOAuthCredentials returns trace.NotFound when no credentials are
@@ -103,4 +120,95 @@ func (s *fileTokenStore) SaveToken(ctx context.Context, token *mcpclienttranspor
 		ClientID: s.clientID,
 		Token:    *token,
 	}))
+}
+
+// mcpOAuthRefreshLockTimeout is how long a process waits for the refresh
+// lock. It matches the refresh HTTP client timeout: a process waiting on the
+// lock should outlast the lock holder's worst-case refresh rather than give
+// up early.
+const mcpOAuthRefreshLockTimeout = 30 * time.Second
+
+// mcpOAuthHeaderSource produces the Authorization header for requests to an
+// OAuth-protected MCP server, refreshing the stored token when it expires.
+//
+// Concurrent tsh processes (one per MCP client) share one refresh token,
+// which the authorization server may rotate on use: refreshing twice with
+// the same refresh token wedges the loser. So refresh is single-flight
+// across processes: take an exclusive file lock, re-read the file (another
+// process may have refreshed while we waited), and only refresh if the
+// stored token is still expired. Same pattern as tsh's kube credentials
+// lock and known_hosts locking.
+type mcpOAuthHeaderSource struct {
+	appName   string
+	credsPath string
+	// refresh exchanges a refresh token for a new token and persists it.
+	// Wired to mcp-go's OAuthHandler.RefreshToken, which saves through
+	// fileTokenStore.
+	refresh func(context.Context, string) (*mcpclienttransport.Token, error)
+}
+
+func (s *mcpOAuthHeaderSource) GetAuthHeader(ctx context.Context) (string, error) {
+	// Fast path: a valid token on disk, no locking.
+	creds, err := loadMCPOAuthCredentials(s.credsPath)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if !creds.Token.IsExpired() && creds.Token.AccessToken != "" {
+		return bearerAuthHeader(&creds.Token), nil
+	}
+
+	unlock, err := utils.FSTryWriteLockTimeout(ctx, s.credsPath+".lock", mcpOAuthRefreshLockTimeout)
+	if err != nil {
+		return "", trace.Wrap(err, "waiting for the MCP OAuth token refresh lock")
+	}
+	defer unlock()
+
+	// Re-check under the lock: if another process already refreshed while
+	// we waited, use its token instead of refreshing again.
+	creds, err = loadMCPOAuthCredentials(s.credsPath)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if !creds.Token.IsExpired() && creds.Token.AccessToken != "" {
+		return bearerAuthHeader(&creds.Token), nil
+	}
+	if creds.Token.RefreshToken == "" {
+		return "", trace.Wrap(&mcpOAuthLoginRequiredError{appName: s.appName})
+	}
+
+	token, err := s.refresh(ctx, creds.Token.RefreshToken)
+	if err != nil {
+		return "", trace.Wrap(&mcpOAuthLoginRequiredError{appName: s.appName, reason: err})
+	}
+	return bearerAuthHeader(token), nil
+}
+
+// mcpOAuthLoginRequiredError means the stored OAuth token can no longer be
+// used (no refresh token, or the refresh was rejected) and the user has to
+// run `tsh mcp login` again. makeMCPReconnectUserMessage recognizes it to
+// show the exact fix command in the MCP client.
+type mcpOAuthLoginRequiredError struct {
+	appName string
+	reason  error
+}
+
+func (e *mcpOAuthLoginRequiredError) Error() string {
+	msg := fmt.Sprintf("authentication with MCP server %q has expired, run `tsh mcp login %s` to log in again", e.appName, e.appName)
+	if e.reason != nil {
+		msg += ": " + e.reason.Error()
+	}
+	return msg
+}
+
+func (e *mcpOAuthLoginRequiredError) Unwrap() error { return e.reason }
+
+// bearerAuthHeader formats the Authorization header value. Per RFC 6749 §5.1
+// token_type is case-insensitive; normalize to "Bearer" for strict servers,
+// same as mcp-go does.
+func bearerAuthHeader(token *mcpclienttransport.Token) string {
+	tokenType := token.TokenType
+	if tokenType == "" || strings.EqualFold(tokenType, "bearer") {
+		tokenType = "Bearer"
+	}
+	return tokenType + " " + token.AccessToken
 }
