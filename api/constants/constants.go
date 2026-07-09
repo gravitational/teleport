@@ -422,6 +422,10 @@ const (
 	// to store allowed Windows logins.
 	TraitWindowsLogins = "windows_logins"
 
+	// TraitLinuxDesktopLogins is the name of the role variable used
+	// to store allowed Linux desktop logins.
+	TraitLinuxDesktopLogins = "linux_desktop_logins"
+
 	// TraitKubeGroups is the name the role variable used to store
 	// allowed kubernetes groups
 	TraitKubeGroups = "kubernetes_groups"
