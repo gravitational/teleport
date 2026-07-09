@@ -21,11 +21,14 @@
     "@vitejs/plugin-react-swc": "^4.3.1",
     "babel-plugin-styled-components": "^2.3.0",
     "globals": "^17.7.0",
+    "happy-dom": "^20.10.6",
     "jest-environment-jsdom": "^30.4.1",
     "jest-fail-on-console": "^3.3.4",
+    "jest-styled-components": "^7.4.0",
     "jsdom": "^29.1.1",
     "rollup-plugin-visualizer": "^7.0.1",
     "vite-plugin-compression2": "^2.5.3",
-    "vite-plugin-wasm": "^3.6.0"
+    "vite-plugin-wasm": "^3.6.0",
+    "vitest-fail-on-console": "^0.10.1"
   }
 }

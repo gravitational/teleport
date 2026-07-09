@@ -18,6 +18,7 @@
 
 import { http, HttpResponse } from 'msw';
 import { generatePath, MemoryRouter } from 'react-router';
+import { vi, beforeEach, afterEach, describe, expect, it } from 'vitest';
 
 import {
   enableMswServer,
@@ -90,10 +91,10 @@ const defaultState: RecordingsListState = {
 };
 
 const mockHandlers = {
-  onFilterChange: jest.fn(),
-  onPageChange: jest.fn(),
-  onSearchChange: jest.fn(),
-  onSortChange: jest.fn(),
+  onFilterChange: vi.fn(),
+  onPageChange: vi.fn(),
+  onSearchChange: vi.fn(),
+  onSortChange: vi.fn(),
 };
 
 const listRecordingsUrl = generatePath(cfg.api.clusterEventsRecordingsPath, {

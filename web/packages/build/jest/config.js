@@ -30,6 +30,7 @@ module.exports = {
     // mock ironrdp wasm module
     '^shared/libs/ironrdp/pkg/ironrdp_bg.wasm\\?inline$':
       '<rootDir>/web/packages/shared/libs/ironrdp/mock_ironrdp.js',
+    '^build/(.*)$': '<rootDir>/web/packages/build/$1',
     '^shared/(.*)$': '<rootDir>/web/packages/shared/$1',
     '^design($|/.*)': '<rootDir>/web/packages/design/src/$1',
     '^teleport($|/.*)': '<rootDir>/web/packages/teleport/src/$1',

@@ -18,6 +18,7 @@
 
 import { http, HttpResponse } from 'msw';
 import { generatePath, MemoryRouter } from 'react-router';
+import { vi, test, afterEach, expect, beforeEach } from 'vitest';
 
 import {
   createDeferredResponse,
@@ -98,7 +99,7 @@ test('displays loading indicator while fetching data', async () => {
 });
 
 test('displays error message when request fails', async () => {
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   const errorMessage = 'Failed to fetch recordings';
 
@@ -123,7 +124,7 @@ test('displays error message when request fails', async () => {
 });
 
 test('retries the request on retry button click', async () => {
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   const errorMessage = 'Failed to fetch recordings';
 
@@ -169,7 +170,7 @@ test('retries the request on retry button click', async () => {
 });
 
 test('displays an error message on connection failure', async () => {
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(
     http.get(listRecordingsUrl, () => {

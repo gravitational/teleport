@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 /**
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -266,7 +267,7 @@ describe('visibility', () => {
 
     // Should only render markers visible in the viewport (with 100px buffer)
     // At this zoom and offset, should see markers starting from 9 seconds
-    expect(fillTextCalls.length).toBe(8); // 9s, 10s, 11s, 12s, 13s, 14s, 15s, 16s
+    expect(fillTextCalls).toHaveLength(8); // 9s, 10s, 11s, 12s, 13s, 14s, 15s, 16s
 
     // Check that we're seeing markers in the expected range
     const visibleTexts = fillTextCalls.map(call => call.props.text);
@@ -304,7 +305,7 @@ describe('sub-tick rendering', () => {
 
     // At high zoom with 1-second intervals, should have 7 sub-ticks per interval
     // 10 intervals × 7 sub-ticks = 70 sub-ticks total
-    expect(subTickCalls.length).toBe(70);
+    expect(subTickCalls).toHaveLength(70);
   });
 });
 
@@ -333,9 +334,9 @@ describe('label spacing', () => {
 
     // At very low zoom, should show 60-second intervals with label skipping
     // Should render 11 tick marks (one every 60s for 10 minutes)
-    expect(fillRectCalls.length).toBe(11);
+    expect(fillRectCalls).toHaveLength(11);
     // Should show only 4 labels due to label skipping
-    expect(fillTextCalls.length).toBe(4);
+    expect(fillTextCalls).toHaveLength(4);
 
     expect(fillTextCalls[0].props.text).toBe('0:00');
     expect(fillTextCalls[1].props.text).toBe('3:00');
@@ -366,7 +367,7 @@ describe('label spacing', () => {
     );
 
     // When markers are well-spaced, should show all labels
-    expect(fillTextCalls.length).toBe(fillRectCalls.length);
+    expect(fillTextCalls).toHaveLength(fillRectCalls.length);
   });
 
   it('should render tick marks even when labels are hidden', () => {
@@ -391,7 +392,7 @@ describe('label spacing', () => {
     );
 
     // Should render 6 tick marks (one every 60s for 5 minutes)
-    expect(fillRectCalls.length).toBe(6);
+    expect(fillRectCalls).toHaveLength(6);
   });
 
   it('should use 30-second intervals when very zoomed out', () => {
@@ -415,7 +416,7 @@ describe('label spacing', () => {
 
     // Should use 30-second intervals when pixelsPerSecond < 5
     // With label skipping (every 10th marker), should show 7 labels
-    expect(fillTextCalls.length).toBe(7);
+    expect(fillTextCalls).toHaveLength(7);
   });
 
   it('should use 60-second intervals when extremely zoomed out', () => {
@@ -439,6 +440,6 @@ describe('label spacing', () => {
 
     // Should use 60-second intervals when pixelsPerSecond < 2
     // With label skipping (every 10th marker), should show 7 labels
-    expect(fillTextCalls.length).toBe(7);
+    expect(fillTextCalls).toHaveLength(7);
   });
 });

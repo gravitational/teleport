@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 /**
  * Teleport
  * Copyright (C) 2025 Gravitational, Inc.
