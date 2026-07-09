@@ -94,7 +94,100 @@ var (
 		},
 		[]string{teleport.TagCacheComponent},
 	)
+
+	// cacheHealthMetric aggregates the health of every cache instance sharing a
+	// metric target into the cacheHealth gauge.
+	cacheHealthMetric = newCacheHealthTracker(cacheHealth)
 )
+
+// cacheHealthTracker aggregates the health of all cache instances that share
+// the same metric target ("auth", "proxy", "node", ...) and reports a single
+// value per target to a gauge.
+//
+// The cacheHealth gauge is a process-global GaugeVec keyed only by target, so
+// multiple caches with the same target would otherwise write to the same series
+// and clobber each other's value (e.g. a healthy cache being overwritten by an
+// unhealthy sibling, or a closed cache leaving a stale value behind). The
+// tracker instead records the health of each individual cache instance and
+// derives the reported value from all of them.
+//
+// This is the Go implementation of the Metric machine modeled in
+// formalmethods/cachehealth/PSrc/System.p.
+type cacheHealthTracker struct {
+	gauge *prometheus.GaugeVec
+
+	mu sync.Mutex
+	// health maps a target to the last reported health of each cache instance
+	// reporting to that target.
+	health map[string]map[*Cache]bool
+}
+
+func newCacheHealthTracker(gauge *prometheus.GaugeVec) *cacheHealthTracker {
+	return &cacheHealthTracker{
+		gauge:  gauge,
+		health: make(map[string]map[*Cache]bool),
+	}
+}
+
+// setHealth records the health of a single cache instance and updates the
+// aggregate gauge for its target. It corresponds to the eReport event in
+// System.p.
+func (t *cacheHealthTracker) setHealth(c *Cache, healthy bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	instances := t.health[c.target]
+	if instances == nil {
+		instances = make(map[*Cache]bool)
+		t.health[c.target] = instances
+	}
+	instances[c] = healthy
+	t.updateGaugeLocked(c.target)
+}
+
+// deregister removes a cache instance from its target and updates the aggregate
+// gauge. It is called when a cache is closed and corresponds to the
+// eDeregister event in System.p.
+func (t *cacheHealthTracker) deregister(c *Cache) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	instances := t.health[c.target]
+	if instances == nil {
+		return
+	}
+	delete(instances, c)
+	if len(instances) == 0 {
+		delete(t.health, c.target)
+	}
+	t.updateGaugeLocked(c.target)
+}
+
+func (t *cacheHealthTracker) updateGaugeLocked(target string) {
+	if t.anyHealthyLocked(target) {
+		t.gauge.WithLabelValues(target).Set(1.0)
+	} else {
+		t.gauge.WithLabelValues(target).Set(0.0)
+	}
+}
+
+// anyHealthyLocked reports whether a target should be considered healthy. It
+// mirrors anyHealthy() in System.p: a target with no caches reporting to it is
+// considered healthy (a valid state, and an alternative to deleting the
+// metric), and a target with caches reporting is healthy if any one of them is
+// healthy.
+func (t *cacheHealthTracker) anyHealthyLocked(target string) bool {
+	instances := t.health[target]
+	if len(instances) == 0 {
+		return true
+	}
+	for _, healthy := range instances {
+		if healthy {
+			return true
+		}
+	}
+	return false
+}
 
 // highVolumeResources is the set of cached resources that tend to produce high
 // event volumes (e.g. heartbeat resources). high volume events, and the watchers that
@@ -607,10 +700,16 @@ func (c *Cache) setInitError(err error) {
 		c.firstTimeInitOnce.Do(func() {
 			close(c.firstTimeInitC)
 		})
-		cacheHealth.WithLabelValues(c.target).Set(1.0)
-	} else {
-		cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
+	cacheHealthMetric.setHealth(c, err == nil)
+}
+
+// deregisterHealth removes this cache instance from the aggregate health
+// metric for its target. It must be called when the cache is closed so that a
+// stale value is not left behind and sibling caches sharing the target continue
+// to report accurately.
+func (c *Cache) deregisterHealth() {
+	cacheHealthMetric.deregister(c)
 }
 
 // FirstInit returns a channel that is closed when the cache successfully initializes for the first time.
@@ -1548,6 +1647,7 @@ func (c *Cache) Close() error {
 	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
 		f.Close()
 	})
+	c.deregisterHealth()
 	return nil
 }
 
