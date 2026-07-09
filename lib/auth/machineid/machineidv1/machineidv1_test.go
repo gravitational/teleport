@@ -3237,6 +3237,7 @@ func TestBotInstanceService_DeleteBotInstance(t *testing.T) {
 			_, err = client.BotInstanceServiceClient().DeleteBotInstance(ctx, machineidv1pb.DeleteBotInstanceRequest_builder{
 				BotName:    tt.instance.GetSpec().GetBotName(),
 				InstanceId: tt.instance.GetSpec().GetInstanceId(),
+				BotScope:   tt.instance.GetScope(),
 			}.Build())
 			tt.assertError(t, err)
 		})
@@ -3361,6 +3362,7 @@ func TestBotInstanceService_GetBotInstance(t *testing.T) {
 			got, err := client.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
 				BotName:    tt.instance.GetSpec().GetBotName(),
 				InstanceId: tt.instance.GetSpec().GetInstanceId(),
+				BotScope:   tt.instance.GetScope(),
 			}.Build())
 			tt.assertError(t, err)
 			if err == nil {
@@ -3527,6 +3529,52 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 		got := listAll(t, client.BotInstanceServiceClient())
 		require.Empty(t, got)
 	})
+
+	t.Run("scope filter with bot name returns that bot's instances", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestUser(unscopedUser.GetName()))
+		require.NoError(t, err)
+
+		want := grantedInstances[0]
+		res, err := client.BotInstanceServiceClient().ListBotInstancesV2(t.Context(), machineidv1pb.ListBotInstancesV2Request_builder{
+			PageSize: 100,
+			Filter: machineidv1pb.ListBotInstancesV2Request_Filters_builder{
+				BotName:  want.GetSpec().GetBotName(),
+				BotScope: "/scopes/granted",
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		require.Len(t, res.GetBotInstances(), 1)
+		require.Equal(t, want.GetSpec().GetInstanceId(), res.GetBotInstances()[0].GetSpec().GetInstanceId())
+	})
+
+	t.Run("scope filter without bot name is rejected", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestUser(unscopedUser.GetName()))
+		require.NoError(t, err)
+
+		// bot_scope only qualifies bot_name; it cannot be used as a standalone
+		// scope filter.
+		_, err = client.BotInstanceServiceClient().ListBotInstancesV2(t.Context(), machineidv1pb.ListBotInstancesV2Request_builder{
+			PageSize: 100,
+			Filter: machineidv1pb.ListBotInstancesV2Request_Filters_builder{
+				BotScope: "/scopes/granted",
+			}.Build(),
+		}.Build())
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
+	})
+
+	t.Run("non-canonical scope filter is rejected", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestUser(unscopedUser.GetName()))
+		require.NoError(t, err)
+
+		_, err = client.BotInstanceServiceClient().ListBotInstancesV2(t.Context(), machineidv1pb.ListBotInstancesV2Request_builder{
+			PageSize: 100,
+			Filter: machineidv1pb.ListBotInstancesV2Request_Filters_builder{
+				BotName:  grantedInstances[0].GetSpec().GetBotName(),
+				BotScope: "/scopes/granted/",
+			}.Build(),
+		}.Build())
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
+	})
 }
 
 func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
@@ -3643,13 +3691,14 @@ func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
 		}.Build())
 		require.NoError(t, err)
 
-		got, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
-			BotName:    botName,
-			InstanceId: instanceID,
-		}.Build())
-		require.NoError(t, err)
-		require.NotNil(t, got.GetStatus().GetInitialHeartbeat())
-		require.Equal(t, "scoped-host", got.GetStatus().GetInitialHeartbeat().GetHostname())
+		// The heartbeat lands in the backend and replicates to cache-backed
+		// reads through the scoped event watch, so allow for propagation.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			got, err := srv.Auth().Cache.GetBotInstance(ctx, "/scopes/test", botName, instanceID)
+			require.NoError(t, err)
+			require.NotNil(t, got.GetStatus().GetInitialHeartbeat())
+			require.Equal(t, "scoped-host", got.GetStatus().GetInitialHeartbeat().GetHostname())
+		}, 5*time.Second, 100*time.Millisecond)
 	})
 }
 

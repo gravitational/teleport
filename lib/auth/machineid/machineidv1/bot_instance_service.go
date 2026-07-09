@@ -33,6 +33,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -58,8 +59,10 @@ const (
 
 // BotInstancesCache is the subset of the cached resources that the Service queries.
 type BotInstancesCache interface {
-	// GetBotInstance returns the specified BotInstance resource.
-	GetBotInstance(ctx context.Context, botName, instanceID string) (*pb.BotInstance, error)
+	// GetBotInstance returns the specified BotInstance resource. A bot is
+	// identified by (botScope, botName); botScope is empty for instances of
+	// unscoped bots.
+	GetBotInstance(ctx context.Context, botScope, botName, instanceID string) (*pb.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
 	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*pb.BotInstance, string, error)
@@ -129,7 +132,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	instance, err := b.backend.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
+	instance, err := b.backend.GetBotInstance(ctx, req.GetBotScope(), req.GetBotName(), req.GetInstanceId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,7 +140,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	ruleCtx.Resource153 = instance
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
-		instance.GetScope(),
+		req.GetBotScope(),
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx,
@@ -158,7 +161,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	}
 
 	if err := b.backend.DeleteBotInstance(
-		ctx, instance.GetSpec().GetBotName(), instance.GetSpec().GetInstanceId(),
+		ctx, req.GetBotScope(), req.GetBotName(), req.GetInstanceId(),
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -182,7 +185,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := b.cache.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
+	res, err := b.cache.GetBotInstance(ctx, req.GetBotScope(), req.GetBotName(), req.GetInstanceId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -241,6 +244,21 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		return nil, trace.Wrap(err)
 	}
 
+	if filterBotScope := req.GetFilter().GetBotScope(); filterBotScope != "" {
+		// bot_scope is only designed to scope-qualify bot_name. If we want to
+		// introduce actual scope-filtering down the line, we'll introduce a
+		// new field with more control (i.e. exact, descendent)
+		if req.GetFilter().GetBotName() == "" {
+			return nil, trace.BadParameter(
+				"bot_scope filter requires bot_name",
+			)
+		}
+
+		if err := scopes.StrongValidate(filterBotScope); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	botInstances, nextToken, err := b.cache.ListBotInstances(
 		ctx,
 		int(req.GetPageSize()),
@@ -249,6 +267,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 			SortField:        req.GetSortField(),
 			SortDesc:         req.GetSortDesc(),
 			FilterBotName:    req.GetFilter().GetBotName(),
+			FilterBotScope:   req.GetFilter().GetBotScope(),
 			FilterSearchTerm: req.GetFilter().GetSearchTerm(),
 			FilterQuery:      req.GetFilter().GetQuery(),
 			FilterFn: func(botInstance *pb.BotInstance) bool {
@@ -322,6 +341,18 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		}
 	}
 
+	// A scoped bot's instances are stored namespaced by the bot's scope, which
+	// is encoded into the identity as BotScope. Certificates issued before the
+	// BotScope field existed lack it, so fall back to the scope pin - correct
+	// for those certs because bots are always pinned to their scope of origin.
+	// TODO(strideynet): remove the ScopePin fallback once sufficient time has
+	// passed that all bot certs carry BotScope. It must be removed before bots
+	// can be pinned to a scope other than their scope of origin.
+	botScope := ident.BotScope
+	if botScope == "" && ident.ScopePin != nil {
+		botScope = ident.ScopePin.GetScope()
+	}
+
 	b.logger.DebugContext(
 		ctx,
 		"Received bot instance heartbeat",
@@ -329,7 +360,7 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		"bot_instance", botInstanceID,
 		"heartbeat", logutils.StringerAttr(req.GetHeartbeat()),
 	)
-	_, err = b.backend.PatchBotInstance(ctx, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
+	_, err = b.backend.PatchBotInstance(ctx, botScope, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
 		if !instance.HasStatus() {
 			instance.SetStatus(&pb.BotInstanceStatus{})
 		}

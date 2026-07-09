@@ -18,8 +18,9 @@ package cache
 
 import (
 	"context"
-	"strconv"
+	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,507 +31,378 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestBotInstanceCache tests that CRUD operations on bot instances resources are
-// replicated from the backend to the cache.
+// replicated from the backend to the cache. Instances of scoped bots live in a
+// scope-namespaced backend range, so create/update/delete events for them must
+// round-trip through the cache's event watcher just like unscoped instances.
 func TestBotInstanceCache(t *testing.T) {
 	t.Parallel()
 
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
+	for _, botScope := range []string{"", "/scopes/test"} {
+		t.Run(fmt.Sprintf("scope=%q", botScope), func(t *testing.T) {
+			t.Parallel()
 
-	testResources153(t, p, testFuncs[*machineidv1.BotInstance]{
-		newResource: func(key string) (*machineidv1.BotInstance, error) {
-			return machineidv1.BotInstance_builder{
+			p := newTestPack(t, ForAuth)
+			t.Cleanup(p.Close)
+
+			testResources153(t, p, testFuncs[*machineidv1.BotInstance]{
+				newResource: func(key string) (*machineidv1.BotInstance, error) {
+					return machineidv1.BotInstance_builder{
+						Kind:     types.KindBotInstance,
+						Version:  types.V1,
+						Scope:    botScope,
+						Metadata: &headerv1.Metadata{},
+						Spec: machineidv1.BotInstanceSpec_builder{
+							BotName:    "bot-1",
+							InstanceId: key,
+						}.Build(),
+						Status: &machineidv1.BotInstanceStatus{},
+					}.Build(), nil
+				},
+				cacheGet: func(ctx context.Context, key string) (*machineidv1.BotInstance, error) {
+					return p.cache.GetBotInstance(ctx, botScope, "bot-1", key)
+				},
+				cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
+					return p.cache.ListBotInstances(ctx, pageSize, pageToken, nil)
+				},
+				create: func(ctx context.Context, resource *machineidv1.BotInstance) error {
+					_, err := p.botInstanceService.CreateBotInstance(ctx, resource)
+					return err
+				},
+				list: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
+					return p.botInstanceService.ListBotInstances(ctx, pageSize, pageToken, nil)
+				},
+				update: func(ctx context.Context, bi *machineidv1.BotInstance) error {
+					_, err := p.botInstanceService.PatchBotInstance(ctx, botScope, "bot-1", bi.GetMetadata().GetName(), func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+						return bi, nil
+					})
+					return err
+				},
+				delete: func(ctx context.Context, key string) error {
+					return p.botInstanceService.DeleteBotInstance(ctx, botScope, "bot-1", key)
+				},
+				deleteAll: func(ctx context.Context) error {
+					return p.botInstanceService.DeleteAllBotInstances(ctx)
+				},
+			})
+		})
+	}
+}
+
+// TestBotInstanceCacheBackendTokenParity verifies that the cache lister and
+// the backend lister agree on the ordering of the unified scoped+unscoped
+// listing and mint interchangeable page tokens. genericLister falls back to
+// the backend lister with the caller's token verbatim when the cache is
+// unhealthy, so a token minted by one side must resume correctly against the
+// other.
+func TestBotInstanceCacheBackendTokenParity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+
+		instances := []struct {
+			botScope string
+			botName  string
+		}{
+			{botScope: "", botName: "bot-a"},
+			{botScope: "", botName: "bot-b"},
+			{botScope: "/bar", botName: "bot-c"},
+			{botScope: "/foo", botName: "bot-d"},
+		}
+		for _, i := range instances {
+			_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 				Kind:     types.KindBotInstance,
 				Version:  types.V1,
+				Scope:    i.botScope,
 				Metadata: &headerv1.Metadata{},
 				Spec: machineidv1.BotInstanceSpec_builder{
-					BotName:    "bot-1",
-					InstanceId: key,
+					BotName:    i.botName,
+					InstanceId: uuid.New().String(),
 				}.Build(),
 				Status: &machineidv1.BotInstanceStatus{},
-			}.Build(), nil
-		},
-		cacheGet: func(ctx context.Context, key string) (*machineidv1.BotInstance, error) {
-			return p.cache.GetBotInstance(ctx, "bot-1", key)
-		},
-		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
-			return p.cache.ListBotInstances(ctx, pageSize, pageToken, nil)
-		},
-		create: func(ctx context.Context, resource *machineidv1.BotInstance) error {
-			_, err := p.botInstanceService.CreateBotInstance(ctx, resource)
-			return err
-		},
-		list: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
-			return p.botInstanceService.ListBotInstances(ctx, pageSize, pageToken, nil)
-		},
-		update: func(ctx context.Context, bi *machineidv1.BotInstance) error {
-			_, err := p.botInstanceService.PatchBotInstance(ctx, "bot-1", bi.GetMetadata().GetName(), func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-				return bi, nil
-			})
-			return err
-		},
-		delete: func(ctx context.Context, key string) error {
-			return p.botInstanceService.DeleteBotInstance(ctx, "bot-1", key)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.botInstanceService.DeleteAllBotInstances(ctx)
-		},
+			}.Build())
+			require.NoError(t, err)
+		}
+
+		synctest.Wait()
+
+		names := func(instances []*machineidv1.BotInstance) []string {
+			out := make([]string, 0, len(instances))
+			for _, b := range instances {
+				out = append(out, b.GetSpec().GetBotName())
+			}
+			return out
+		}
+
+		// Both listings order unscoped instances first, then scoped grouped by
+		// scope.
+		wantOrder := []string{"bot-a", "bot-b", "bot-c", "bot-d"}
+		fromCache, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Equal(t, wantOrder, names(fromCache))
+		fromBackend, _, err := p.botInstanceService.ListBotInstances(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Equal(t, wantOrder, names(fromBackend))
+
+		// Page tokens are interchangeable whether the next item is unscoped
+		// (pageSize 1) or scoped (pageSize 3).
+		for _, pageSize := range []int{1, 3} {
+			cachePage, cacheToken, err := p.cache.ListBotInstances(ctx, pageSize, "", nil)
+			require.NoError(t, err)
+			require.Equal(t, wantOrder[:pageSize], names(cachePage))
+			backendPage, backendToken, err := p.botInstanceService.ListBotInstances(ctx, pageSize, "", nil)
+			require.NoError(t, err)
+			require.Equal(t, wantOrder[:pageSize], names(backendPage))
+			require.Equal(t, backendToken, cacheToken)
+
+			rest, _, err := p.botInstanceService.ListBotInstances(ctx, 0, cacheToken, nil)
+			require.NoError(t, err)
+			require.Equal(t, wantOrder[pageSize:], names(rest))
+			rest, _, err = p.cache.ListBotInstances(ctx, 0, backendToken, nil)
+			require.NoError(t, err)
+			require.Equal(t, wantOrder[pageSize:], names(rest))
+		}
 	})
 }
 
-// TestBotInstanceCachePaging tests that items from the cache are paginated.
-func TestBotInstanceCachePaging(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	for _, n := range []int{5, 1, 3, 4, 2} {
-		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
-			Kind:     types.KindBotInstance,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{},
-			Spec: machineidv1.BotInstanceSpec_builder{
-				BotName:    "bot-1",
-				InstanceId: "instance-" + strconv.Itoa(n),
-			}.Build(),
-			Status: &machineidv1.BotInstanceStatus{},
-		}.Build())
-		require.NoError(t, err)
-	}
-
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
-		require.NoError(t, err)
-		require.Len(t, results, 5)
-	}, 10*time.Second, 100*time.Millisecond)
-
-	// page size equal to total items
-	results, nextPageToken, err := p.cache.ListBotInstances(ctx, 0, "", nil)
-	require.NoError(t, err)
-	require.Empty(t, nextPageToken)
-	require.Len(t, results, 5)
-	require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
-	require.Equal(t, "instance-2", results[1].GetMetadata().GetName())
-	require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
-	require.Equal(t, "instance-4", results[3].GetMetadata().GetName())
-	require.Equal(t, "instance-5", results[4].GetMetadata().GetName())
-
-	// page size smaller than total items
-	results, nextPageToken, err = p.cache.ListBotInstances(ctx, 3, "", nil)
-	require.NoError(t, err)
-	require.Equal(t, "bot-1/instance-4", nextPageToken)
-	require.Len(t, results, 3)
-	require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
-	require.Equal(t, "instance-2", results[1].GetMetadata().GetName())
-	require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
-
-	// next page
-	results, nextPageToken, err = p.cache.ListBotInstances(ctx, 3, nextPageToken, nil)
-	require.NoError(t, err)
-	require.Empty(t, nextPageToken)
-	require.Len(t, results, 2)
-	require.Equal(t, "instance-4", results[0].GetMetadata().GetName())
-	require.Equal(t, "instance-5", results[1].GetMetadata().GetName())
+type botInstanceSpec struct {
+	scope, botName, id string
+	hostname, version  string
+	activeAt           int64
 }
 
-// TestBotInstanceCacheBotFilter tests that cache items are filtered by bot name.
-func TestBotInstanceCacheBotFilter(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	for n := range 10 {
-		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
-			Kind:     types.KindBotInstance,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{},
-			Spec: machineidv1.BotInstanceSpec_builder{
-				BotName:    "bot-" + strconv.Itoa(n%2),
-				InstanceId: "instance-" + strconv.Itoa(n),
-			}.Build(),
-			Status: &machineidv1.BotInstanceStatus{},
-		}.Build())
-		require.NoError(t, err)
-	}
-
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
-		require.NoError(t, err)
-		require.Len(t, results, 10)
-	}, 10*time.Second, 100*time.Millisecond)
-
-	results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		FilterBotName: "bot-1",
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 5)
-
-	for _, b := range results {
-		require.Equal(t, "bot-1", b.GetSpec().GetBotName())
-	}
-}
-
-// TestBotInstanceCacheSearchFilter tests that cache items are filtered by
-// search term.
-func TestBotInstanceCacheSearchFilter(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	for n := range 10 {
-		instance := machineidv1.BotInstance_builder{
-			Kind:     types.KindBotInstance,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{},
-			Spec: machineidv1.BotInstanceSpec_builder{
-				BotName:    "bot-1",
-				InstanceId: "instance-" + strconv.Itoa(n+1),
-			}.Build(),
-			Status: machineidv1.BotInstanceStatus_builder{
-				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					machineidv1.BotInstanceStatusHeartbeat_builder{
-						Hostname: "host-" + strconv.Itoa(n%2),
-					}.Build(),
-				},
-			}.Build(),
+func buildBotInstance(s botInstanceSpec) *machineidv1.BotInstance {
+	status := &machineidv1.BotInstanceStatus{}
+	if s.hostname != "" || s.version != "" || s.activeAt != 0 {
+		status = machineidv1.BotInstanceStatus_builder{
+			LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
+				machineidv1.BotInstanceStatusHeartbeat_builder{
+					Hostname:   s.hostname,
+					Version:    s.version,
+					RecordedAt: &timestamppb.Timestamp{Seconds: s.activeAt},
+				}.Build(),
+			},
 		}.Build()
-
-		_, err := p.botInstanceService.CreateBotInstance(ctx, instance)
-		require.NoError(t, err)
 	}
-
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
-		require.NoError(t, err)
-		require.Len(t, results, 10)
-	}, 10*time.Second, 100*time.Millisecond)
-
-	results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		FilterSearchTerm: "host-1",
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 5)
+	return machineidv1.BotInstance_builder{
+		Kind:     types.KindBotInstance,
+		Version:  types.V1,
+		Scope:    s.scope,
+		Metadata: &headerv1.Metadata{},
+		Spec: machineidv1.BotInstanceSpec_builder{
+			BotName:    s.botName,
+			InstanceId: s.id,
+		}.Build(),
+		Status: status,
+	}.Build()
 }
 
-// TestBotInstanceCacheQueryFilter tests that cache items are filtered by query.
-func TestBotInstanceCacheQueryFilter(t *testing.T) {
+// TestBotInstanceCacheList exercises Cache.ListBotInstances across filtering and
+// sorting.
+func TestBotInstanceCacheList(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	{
-		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
-			Kind:     types.KindBotInstance,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{},
-			Spec: machineidv1.BotInstanceSpec_builder{
-				BotName:    "bot-1",
-				InstanceId: "00000000-0000-0000-0000-000000000000",
-			}.Build(),
-			Status: machineidv1.BotInstanceStatus_builder{
-				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					machineidv1.BotInstanceStatusHeartbeat_builder{
-						Hostname: "host-1",
-					}.Build(),
-				},
-			}.Build(),
-		}.Build())
-		require.NoError(t, err)
+	botInstanceIDs := func(instances []*machineidv1.BotInstance) []string {
+		out := make([]string, 0, len(instances))
+		for _, b := range instances {
+			out = append(out, b.GetSpec().GetInstanceId())
+		}
+		return out
 	}
 
-	{
-		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
-			Kind:     types.KindBotInstance,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{},
-			Spec: machineidv1.BotInstanceSpec_builder{
-				BotName:    "bot-1",
-				InstanceId: uuid.New().String(),
-			}.Build(),
-			Status: machineidv1.BotInstanceStatus_builder{
-				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					machineidv1.BotInstanceStatusHeartbeat_builder{
-						Hostname: "host-2",
-					}.Build(),
-				},
-			}.Build(),
-		}.Build())
-		require.NoError(t, err)
+	sortInstances := []botInstanceSpec{
+		{botName: "alpha", id: "i-a", activeAt: 200, version: "2.0.0", hostname: "host-2"},
+		{botName: "beta", id: "i-b", activeAt: 100, version: "2.0.0-rc1", hostname: "host-3"},
+		{scope: "/east", botName: "alpha", id: "i-c", activeAt: 300, version: "1.0.0", hostname: "host-1"},
 	}
 
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
-		require.NoError(t, err)
-		require.Len(t, results, 2)
-	}, 10*time.Second, 100*time.Millisecond)
-
-	results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		FilterQuery: `status.latest_heartbeat.hostname == "host-1"`,
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 1)
-	require.Equal(t, "00000000-0000-0000-0000-000000000000", results[0].GetSpec().GetInstanceId())
-}
-
-// TestBotInstanceCacheSorting tests that cache items are sorted.
-func TestBotInstanceCacheSorting(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	items := []struct {
-		botName           string
-		instanceId        string
-		recordedAtSeconds int64
-		version           string
-		hostname          string
-	}{
-		{"bot-1", "instance-1", 2, "2.0.0", "hostname-2"},
-		{"bot-1", "instance-3", 1, "2.0.0-rc1", "hostname-3"},
-		{"bot-2", "instance-2", 3, "1.0.0", "hostname-1"},
-	}
-
-	for _, b := range items {
-		instance := machineidv1.BotInstance_builder{
-			Kind:     types.KindBotInstance,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{},
-			Spec: machineidv1.BotInstanceSpec_builder{
-				BotName:    b.botName,
-				InstanceId: b.instanceId,
-			}.Build(),
-			Status: machineidv1.BotInstanceStatus_builder{
-				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					machineidv1.BotInstanceStatusHeartbeat_builder{
-						RecordedAt: &timestamppb.Timestamp{
-							Seconds: b.recordedAtSeconds,
-						},
-						Version:  b.version,
-						Hostname: b.hostname,
-					}.Build(),
-				},
-			}.Build(),
-		}.Build()
-
-		_, err := p.botInstanceService.CreateBotInstance(ctx, instance)
-		require.NoError(t, err)
-	}
-
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
-		require.NoError(t, err)
-		require.Len(t, results, 3)
-	}, 10*time.Second, 100*time.Millisecond)
-
-	t.Run("sort ascending by active_at_latest", func(t *testing.T) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-			SortField: "active_at_latest",
-			SortDesc:  false,
-		})
-		require.NoError(t, err)
-		require.Len(t, results, 3)
-		assert.Equal(t, "instance-3", results[0].GetMetadata().GetName())
-		assert.Equal(t, "instance-1", results[1].GetMetadata().GetName())
-		assert.Equal(t, "instance-2", results[2].GetMetadata().GetName())
-	})
-
-	t.Run("sort descending by active_at_latest", func(t *testing.T) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-			SortField: "active_at_latest",
-			SortDesc:  true,
-		})
-		require.NoError(t, err)
-		require.Len(t, results, 3)
-		assert.Equal(t, "instance-2", results[0].GetMetadata().GetName())
-		assert.Equal(t, "instance-1", results[1].GetMetadata().GetName())
-		assert.Equal(t, "instance-3", results[2].GetMetadata().GetName())
-	})
-
-	t.Run("sort ascending by bot_name", func(t *testing.T) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil) // empty sort should default to `bot_name:asc`
-		require.NoError(t, err)
-		require.Len(t, results, 3)
-		assert.Equal(t, "instance-1", results[0].GetMetadata().GetName())
-		assert.Equal(t, "instance-3", results[1].GetMetadata().GetName())
-		assert.Equal(t, "instance-2", results[2].GetMetadata().GetName())
-	})
-
-	t.Run("sort descending by bot_name", func(t *testing.T) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-			SortField: "bot_name",
-			SortDesc:  true,
-		})
-		require.NoError(t, err)
-		require.Len(t, results, 3)
-		assert.Equal(t, "instance-2", results[0].GetMetadata().GetName())
-		assert.Equal(t, "instance-3", results[1].GetMetadata().GetName())
-		assert.Equal(t, "instance-1", results[2].GetMetadata().GetName())
-	})
-
-	t.Run("sort ascending by version", func(t *testing.T) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-			SortField: "version_latest",
-			SortDesc:  false,
-		})
-		require.NoError(t, err)
-		require.Len(t, results, 3)
-		assert.Equal(t, "instance-2", results[0].GetMetadata().GetName())
-		assert.Equal(t, "instance-3", results[1].GetMetadata().GetName())
-		assert.Equal(t, "instance-1", results[2].GetMetadata().GetName())
-	})
-
-	t.Run("sort descending by version", func(t *testing.T) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-			SortField: "version_latest",
-			SortDesc:  true,
-		})
-		require.NoError(t, err)
-		require.Len(t, results, 3)
-		assert.Equal(t, "instance-1", results[0].GetMetadata().GetName())
-		assert.Equal(t, "instance-3", results[1].GetMetadata().GetName())
-		assert.Equal(t, "instance-2", results[2].GetMetadata().GetName())
-	})
-
-	t.Run("sort ascending by hostname", func(t *testing.T) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-			SortField: "host_name_latest",
-			SortDesc:  false,
-		})
-		require.NoError(t, err)
-		require.Len(t, results, 3)
-		require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
-		require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
-		require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
-	})
-
-	t.Run("sort descending by hostname", func(t *testing.T) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-			SortField: "host_name_latest",
-			SortDesc:  true,
-		})
-		require.NoError(t, err)
-		require.Len(t, results, 3)
-		require.Equal(t, "instance-3", results[0].GetMetadata().GetName())
-		require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
-		require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
-	})
-
-	t.Run("sort invalid field", func(t *testing.T) {
-		_, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-			SortField: "blah",
-		})
-		require.Error(t, err)
-		assert.ErrorContains(t, err, `unsupported sort "blah" but expected bot_name, active_at_latest, version_latest or host_name_latest`)
-	})
-}
-
-// TestBotInstanceCacheFilterFn tests that FilterFn is applied during cache
-// iteration and that pages are filled correctly even when some items are
-// filtered out.
-func TestBotInstanceCacheFilterFn(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	// Create 10 instances across two bots: bot-0 and bot-1.
-	for n := range 10 {
-		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
-			Kind:     types.KindBotInstance,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{},
-			Spec: machineidv1.BotInstanceSpec_builder{
-				BotName:    "bot-" + strconv.Itoa(n%2),
-				InstanceId: "instance-" + strconv.Itoa(n),
-			}.Build(),
-			Status: &machineidv1.BotInstanceStatus{},
-		}.Build())
-		require.NoError(t, err)
-	}
-
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
-		require.NoError(t, err)
-		require.Len(t, results, 10)
-	}, 10*time.Second, 100*time.Millisecond)
-
-	// FilterFn that only accepts even-numbered instances.
-	filterFn := func(b *machineidv1.BotInstance) bool {
+	evenFilter := func(b *machineidv1.BotInstance) bool {
 		id := b.GetSpec().GetInstanceId()
-		n := id[len(id)-1]
-		return n == '0' || n == '2' || n == '4' || n == '6' || n == '8'
+		return (id[len(id)-1]-'0')%2 == 0
 	}
 
-	// FilterFn alone: all even instances across both bots.
-	results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		FilterFn: filterFn,
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 5)
-
-	// Pages should be full: request 3 items with a filter that accepts half.
-	results, nextPageToken, err := p.cache.ListBotInstances(ctx, 3, "", &services.ListBotInstancesRequestOptions{
-		FilterFn: filterFn,
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 3)
-	require.NotEmpty(t, nextPageToken)
-
-	// Next page should contain the remaining 2 items.
-	results, nextPageToken, err = p.cache.ListBotInstances(ctx, 3, nextPageToken, &services.ListBotInstancesRequestOptions{
-		FilterFn: filterFn,
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 2)
-	require.Empty(t, nextPageToken)
-
-	// FilterFn composed with FilterBotName: bot-0 has instances 0,2,4,6,8
-	// (even-numbered), all of which pass the FilterFn. bot-1 has instances
-	// 1,3,5,7,9 (odd-numbered), none of which pass the FilterFn.
-	results, _, err = p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		FilterBotName: "bot-0",
-		FilterFn:      filterFn,
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 5)
-	for _, b := range results {
-		require.Equal(t, "bot-0", b.GetSpec().GetBotName())
+	filterFnInstances := []botInstanceSpec{
+		{botName: "bot", id: "i-0"},
+		{botName: "bot", id: "i-1"},
+		{botName: "bot", id: "i-2"},
+		{botName: "bot", id: "i-3"},
+		{scope: "/s", botName: "bot", id: "i-4"},
+		{scope: "/s", botName: "bot", id: "i-5"},
 	}
 
-	// bot-1 instances are all odd-numbered, so FilterFn rejects them all.
-	results, _, err = p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		FilterBotName: "bot-1",
-		FilterFn:      filterFn,
-	})
-	require.NoError(t, err)
-	require.Empty(t, results)
+	tests := []struct {
+		name      string
+		instances []botInstanceSpec
+		opts      *services.ListBotInstancesRequestOptions
+		want      []string
+		wantErr   string
+	}{
+		{
+			name: "no filter spans all scopes, unscoped first",
+			instances: []botInstanceSpec{
+				{botName: "bot-a", id: "u1"},
+				{scope: "/foo", botName: "bot-b", id: "s1"},
+				{botName: "bot-c", id: "u2"},
+			},
+			want: []string{"u1", "u2", "s1"},
+		},
+		{
+			name: "bot name filter matches only the unscoped bot of that name",
+			instances: []botInstanceSpec{
+				{botName: "web", id: "web-a"},
+				{botName: "web", id: "web-b"},
+				{scope: "/prod", botName: "web", id: "web-c"},
+				{botName: "db", id: "db-a"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterBotName: "web"},
+			want: []string{"web-a", "web-b"},
+		},
+		{
+			name: "bot name and scope filter matches the scoped bot",
+			instances: []botInstanceSpec{
+				{botName: "web", id: "web-u"},
+				{scope: "/prod", botName: "web", id: "web-p1"},
+				{scope: "/prod", botName: "web", id: "web-p2"},
+				{scope: "/prod", botName: "api", id: "api-p"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterBotName: "web", FilterBotScope: "/prod"},
+			want: []string{"web-p1", "web-p2"},
+		},
+		{
+			name: "search term matches across scopes",
+			instances: []botInstanceSpec{
+				{botName: "runner", id: "r1", hostname: "host-match"},
+				{scope: "/foo", botName: "runner", id: "r2", hostname: "host-match"},
+				{botName: "runner", id: "r3", hostname: "host-other"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterSearchTerm: "host-match"},
+			want: []string{"r1", "r2"},
+		},
+		{
+			name: "predicate query matches across scopes",
+			instances: []botInstanceSpec{
+				{botName: "q", id: "q1", hostname: "host-1"},
+				{scope: "/foo", botName: "q", id: "q2", hostname: "host-1"},
+				{botName: "q", id: "q3", hostname: "host-2"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterQuery: `status.latest_heartbeat.hostname == "host-1"`},
+			want: []string{"q1", "q2"},
+		},
+		{
+			name:      "sort by bot_name ascending groups unscoped before scoped",
+			instances: sortInstances,
+			opts:      &services.ListBotInstancesRequestOptions{SortField: "bot_name"},
+			want:      []string{"i-a", "i-b", "i-c"},
+		},
+		{
+			name:      "sort by bot_name descending",
+			instances: sortInstances,
+			opts:      &services.ListBotInstancesRequestOptions{SortField: "bot_name", SortDesc: true},
+			want:      []string{"i-c", "i-b", "i-a"},
+		},
+		{
+			name:      "sort by active_at ascending is global across scopes",
+			instances: sortInstances,
+			opts:      &services.ListBotInstancesRequestOptions{SortField: "active_at_latest"},
+			want:      []string{"i-b", "i-a", "i-c"},
+		},
+		{
+			name:      "sort by active_at descending",
+			instances: sortInstances,
+			opts:      &services.ListBotInstancesRequestOptions{SortField: "active_at_latest", SortDesc: true},
+			want:      []string{"i-c", "i-a", "i-b"},
+		},
+		{
+			name:      "sort by version ascending is global across scopes",
+			instances: sortInstances,
+			opts:      &services.ListBotInstancesRequestOptions{SortField: "version_latest"},
+			want:      []string{"i-c", "i-b", "i-a"},
+		},
+		{
+			name:      "sort by version descending",
+			instances: sortInstances,
+			opts:      &services.ListBotInstancesRequestOptions{SortField: "version_latest", SortDesc: true},
+			want:      []string{"i-a", "i-b", "i-c"},
+		},
+		{
+			name:      "sort by host_name ascending is global across scopes",
+			instances: sortInstances,
+			opts:      &services.ListBotInstancesRequestOptions{SortField: "host_name_latest"},
+			want:      []string{"i-c", "i-a", "i-b"},
+		},
+		{
+			name:      "sort by host_name descending",
+			instances: sortInstances,
+			opts:      &services.ListBotInstancesRequestOptions{SortField: "host_name_latest", SortDesc: true},
+			want:      []string{"i-b", "i-a", "i-c"},
+		},
+		{
+			name:      "unsupported sort field is rejected",
+			instances: []botInstanceSpec{{botName: "bot", id: "x1"}},
+			opts:      &services.ListBotInstancesRequestOptions{SortField: "nope"},
+			wantErr:   `unsupported sort "nope"`,
+		},
+		{
+			name:      "filter fn spans scopes",
+			instances: filterFnInstances,
+			opts:      &services.ListBotInstancesRequestOptions{FilterFn: evenFilter},
+			want:      []string{"i-0", "i-2", "i-4"},
+		},
+		{
+			name:      "filter fn combined with bot name filter",
+			instances: filterFnInstances,
+			opts:      &services.ListBotInstancesRequestOptions{FilterBotName: "bot", FilterFn: evenFilter},
+			want:      []string{"i-0", "i-2"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+
+				p := newTestPack(t, ForAuth)
+				t.Cleanup(p.Close)
+
+				for _, s := range tc.instances {
+					_, err := p.botInstanceService.CreateBotInstance(ctx, buildBotInstance(s))
+					require.NoError(t, err)
+				}
+
+				synctest.Wait()
+
+				got, _, err := p.cache.ListBotInstances(ctx, 0, "", tc.opts)
+				if tc.wantErr != "" {
+					assert.ErrorContains(t, err, tc.wantErr)
+					return
+				}
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, botInstanceIDs(got))
+
+				// Also assert that pagination produces the same results (in
+				// particular, we're looking for cursor keys not lining up
+				// leading to skipped entries)
+				paged, err := stream.Collect(
+					clientutils.ResourcesWithPageSize(
+						ctx,
+						func(ctx context.Context, pageSize int, token string) ([]*machineidv1.BotInstance, string, error) {
+							return p.cache.ListBotInstances(ctx, pageSize, token, tc.opts)
+						},
+						2,
+					),
+				)
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, botInstanceIDs(paged))
+			})
+		})
+	}
 }
 
 // TestBotInstanceCacheFallback tests that requests fallback to the upstream when the cache is unhealthy.

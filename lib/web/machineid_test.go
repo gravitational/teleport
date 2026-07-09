@@ -883,7 +883,7 @@ func TestListBotInstancesPaging(t *testing.T) {
 
 					// remove instances before next test
 					for n := range tc.numInstances {
-						err = env.server.Auth().DeleteBotInstance(ctx, "bot-1", "instance-"+strconv.Itoa(n))
+						err = env.server.Auth().DeleteBotInstance(ctx, "", "bot-1", "instance-"+strconv.Itoa(n))
 						require.NoError(t, err)
 					}
 				})
@@ -1130,7 +1130,7 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 					assert.Equal(t, "00000000-0000-0000-0000-000000000000", instances.BotInstances[0].InstanceId)
 
 					// remove before next test
-					err = env.server.Auth().DeleteBotInstance(ctx, spec.GetBotName(), spec.GetInstanceId())
+					err = env.server.Auth().DeleteBotInstance(ctx, "", spec.GetBotName(), spec.GetInstanceId())
 					require.NoError(t, err)
 				})
 			}
