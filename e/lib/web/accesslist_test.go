@@ -262,6 +262,15 @@ func TestGetAccessList(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
+	displayUser, err := types.NewUser("llama")
+	require.NoError(t, err)
+	displayUser.SetTraits(map[string][]string{
+		"displayName": {"Llama Display"},
+		"email":       {"llama@example.com"},
+	})
+	_, err = authClient.UpsertUser(context.Background(), displayUser)
+	require.NoError(t, err)
+
 	accessList, err := accesslist.NewAccessList(header.Metadata{Name: "accesslist-1"}, accesslist.Spec{
 		Title: "access list 1",
 		Audit: accesslist.Audit{NextAuditDate: s.clock.Now()},
@@ -301,11 +310,24 @@ func TestGetAccessList(t *testing.T) {
 	// Set the ineligibleStatus back, because `upsert's` does not preserve ineligible reasons.
 	createdMember.Spec.IneligibleStatus = member.Spec.IneligibleStatus
 
+	adderUser, err := types.NewUser(createdMember.Spec.AddedBy)
+	require.NoError(t, err)
+	adderUser.SetTraits(map[string][]string{
+		"displayName": {"Adder Display"},
+		"email":       {"adder@example.com"},
+	})
+	_, err = authClient.UpsertUser(context.Background(), adderUser)
+	require.NoError(t, err)
+
 	accessListResp := getAccessList(t, webPack, s, createdAccessList.GetName())
 	require.Empty(t, cmp.Diff(createdAccessList, accessListResp.AccessList.AccessList, accessListCmpOpts))
 	// Members are returned by the API.
 	require.Len(t, accessListResp.AccessList.Members, 1)
 	require.Equal(t, createdMember.Spec, accessListResp.AccessList.Members[0])
+	require.Equal(t, map[string]types.UserDisplay{
+		"llama":                    {Primary: "Llama Display", Secondary: "llama@example.com"},
+		createdMember.Spec.AddedBy: {Primary: "Adder Display", Secondary: "adder@example.com"},
+	}, accessListResp.AccessList.UserDisplays)
 
 	t.Run("returns members across multiple pages", func(t *testing.T) {
 		pagedAccessList, err := authClient.AccessListClient().UpsertAccessList(t.Context(), newAccessList(t, "paged-accesslist"))
@@ -335,6 +357,98 @@ func TestGetAccessList(t *testing.T) {
 		require.Equal(t, "member-0000", accessListResp.AccessList.Members[0].Name)
 		require.Equal(t, fmt.Sprintf("member-%04d", memberCount-1), accessListResp.AccessList.Members[memberCount-1].Name)
 	})
+}
+
+func TestCollectAccessListUserDisplays(t *testing.T) {
+	accessList := &accesslist.AccessList{
+		Status: accesslist.Status{
+			OwnerDisplays: map[string]types.UserDisplay{
+				"owner": {Primary: "Owner Display", Secondary: "owner@example.com"},
+			},
+		},
+	}
+	members := []*accesslist.AccessListMember{
+		{
+			Spec: accesslist.AccessListMemberSpec{
+				Name:    "member",
+				AddedBy: "adder",
+			},
+			Status: &accesslist.AccessListMemberStatus{
+				Display:        &types.UserDisplay{Primary: "Member Display", Secondary: "member@example.com"},
+				AddedByDisplay: &types.UserDisplay{},
+			},
+		},
+		{
+			Spec: accesslist.AccessListMemberSpec{
+				Name: "missing-display",
+			},
+		},
+	}
+
+	require.Equal(t, map[string]types.UserDisplay{
+		"member": {Primary: "Member Display", Secondary: "member@example.com"},
+		"adder":  {},
+		"owner":  {Primary: "Owner Display", Secondary: "owner@example.com"},
+	}, collectAccessListUserDisplays(accessList, members))
+}
+
+func TestUpsertAccessListUserDisplays(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(&modulestest.Modules{
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+		}),
+	)
+	owner := createUser(t, s, "llama")
+	ownerWebClt := s.newAuthWebPack(t, owner.GetName(), skipUserCreation()).clt
+
+	adminClient := s.newAdminAuthClient(ctx, t)
+
+	// The owner is also the adder for members added through the web handler.
+	owner.SetTraits(map[string][]string{
+		"displayName": {"Llama Display"},
+		"email":       {"llama@example.com"},
+	})
+	_, err := adminClient.UpsertUser(ctx, owner)
+	require.NoError(t, err)
+
+	memberUser, err := types.NewUser("display-member")
+	require.NoError(t, err)
+	memberUser.SetTraits(map[string][]string{
+		"displayName": {"Member Display"},
+		"email":       {"member@example.com"},
+	})
+	_, err = adminClient.UpsertUser(ctx, memberUser)
+	require.NoError(t, err)
+
+	svc := s.testAuthServer.AuthServer.AuthServer.AccessListsInternal
+	accessList, err := svc.UpsertAccessList(ctx, newAccessList(t, "display-list",
+		withOwners([]accesslist.Owner{{Name: owner.GetName()}}),
+	))
+	require.NoError(t, err)
+
+	memberSpec := newAccessListMemberSpec(t, "display-member", withExpires(time.Now().Add(time.Hour)), withReason("reason"))
+	resp, err := testUpdateAccessList(t, ownerWebClt, accessList.GetName(), accessList.Spec, memberSpec)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var accessListResp ui.AccessListResponse
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
+
+	// The upsert response carries owner, member, and added_by displays (AC-11b).
+	require.Equal(t, map[string]types.UserDisplay{
+		"llama":          {Primary: "Llama Display", Secondary: "llama@example.com"},
+		"display-member": {Primary: "Member Display", Secondary: "member@example.com"},
+	}, accessListResp.AccessList.UserDisplays)
 }
 
 func TestDeleteAccessList(t *testing.T) {

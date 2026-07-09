@@ -569,7 +569,9 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 
 	result.Status.CurrentUserAssignments = &currentAssignments
 
-	return conv.ToProto(result), nil
+	resp := conv.ToProto(result)
+	resp.GetStatus().SetOwnerDisplays(collectOwnerDisplays(result.GetOwners(), userLookup))
+	return resp, nil
 }
 
 // getAllUsers returns all users known to Teleport.
@@ -993,6 +995,7 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 	userLookup := makeUserLookup(users)
 
 	members := applyMembersIneligibleStatus(results, retrievedAccessList.GetMembershipRequires(), s.clock, userLookup)
+	applyMembersUserDisplayStatus(members, results, userLookup)
 
 	return accesslistv1.ListAccessListMembersResponse_builder{
 		Members:       members,
@@ -1802,6 +1805,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	userLookup := makeUserLookup(users)
 
 	updatedProtoMembers := applyMembersIneligibleStatus(updatedMembers, updatedAccessList.GetMembershipRequires(), s.clock, userLookup)
+	applyMembersUserDisplayStatus(updatedProtoMembers, updatedMembers, userLookup)
 	updatedOwners := applyOwnersIneligibleStatus(updatedAccessList, s.clock, userLookup)
 	updatedAccessList.SetOwners(updatedOwners)
 
@@ -1811,8 +1815,11 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	updatedAccessList.Status.CurrentUserAssignments = &currentAssignments
 
 	// Return the updated access list and members.
+	protoAccessList := conv.ToProto(updatedAccessList)
+	protoAccessList.GetStatus().SetOwnerDisplays(collectOwnerDisplays(updatedOwners, userLookup))
+
 	return accesslistv1.UpsertAccessListWithMembersResponse_builder{
-		AccessList: conv.ToProto(updatedAccessList),
+		AccessList: protoAccessList,
 		Members:    updatedProtoMembers,
 	}.Build(), updated, accessListModified, modified, nil
 }
@@ -2896,6 +2903,48 @@ func applyOwnersIneligibleStatus(accessList *accesslist.AccessList, clock clockw
 	}
 
 	return updatedOwners
+}
+
+func collectOwnerDisplays(owners []accesslist.Owner, userLookup map[string]types.User) map[string]*accesslistv1.UserDisplay {
+	displays := make(map[string]*accesslistv1.UserDisplay, len(owners))
+	for _, owner := range owners {
+		if !owner.IsMembershipKindUser() {
+			continue
+		}
+		if display := userDisplayProto(owner.Name, userLookup); display != nil {
+			displays[owner.Name] = display
+		}
+	}
+	return displays
+}
+
+func applyMembersUserDisplayStatus(protoMembers []*accesslistv1.Member, members []*accesslist.AccessListMember, userLookup map[string]types.User) {
+	for i, member := range members {
+		applyMemberUserDisplayStatus(protoMembers[i], member, userLookup)
+	}
+}
+
+func applyMemberUserDisplayStatus(protoMember *accesslistv1.Member, member *accesslist.AccessListMember, userLookup map[string]types.User) {
+	status := &accesslistv1.MemberStatus{}
+	if member.IsUser() {
+		if display := userDisplayProto(member.Spec.Name, userLookup); display != nil {
+			status.SetDisplay(display)
+		}
+	}
+	if display := userDisplayProto(member.Spec.AddedBy, userLookup); display != nil {
+		status.SetAddedByDisplay(display)
+	}
+	if status.GetDisplay() != nil || status.GetAddedByDisplay() != nil {
+		protoMember.SetStatus(status)
+	}
+}
+
+func userDisplayProto(username string, userLookup map[string]types.User) *accesslistv1.UserDisplay {
+	user, ok := userLookup[username]
+	if !ok {
+		return nil
+	}
+	return conv.ToUserDisplayProto(user.GetDisplay())
 }
 
 type memberOptions struct {

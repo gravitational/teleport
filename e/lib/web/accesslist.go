@@ -205,10 +205,34 @@ func (p *Plugin) getAccessList(_ http.ResponseWriter, r *http.Request, params ht
 			MemberListCount:        accessList.GetStatus().MemberListCount,
 			InheritedMemberGrants:  *inheritedGrants,
 			CurrentUserAssignments: accessList.GetStatus().CurrentUserAssignments,
+			UserDisplays:           collectAccessListUserDisplays(accessList, members),
 		},
 	}
 
 	return resp, nil
+}
+
+func collectAccessListUserDisplays(accessList *accesslist.AccessList, members []*accesslist.AccessListMember) map[string]types.UserDisplay {
+	displays := make(map[string]types.UserDisplay)
+	addDisplay := func(username string, display *types.UserDisplay) {
+		if display == nil {
+			return
+		}
+		displays[username] = *display
+	}
+
+	for _, member := range members {
+		if member.Status == nil {
+			continue
+		}
+		addDisplay(member.Spec.Name, member.Status.Display)
+		addDisplay(member.Spec.AddedBy, member.Status.AddedByDisplay)
+	}
+
+	for username, display := range accessList.GetStatus().OwnerDisplays {
+		displays[username] = display
+	}
+	return displays
 }
 
 func fillMemberListTitles(ctx context.Context, accessListClient services.AccessLists, members []*accesslist.AccessListMember) {
@@ -326,6 +350,7 @@ func (p *Plugin) upsertAccessList(_ http.ResponseWriter, r *http.Request, params
 			AccessList:             createdAccessList,
 			Members:                memberSpecs,
 			CurrentUserAssignments: createdAccessList.GetStatus().CurrentUserAssignments,
+			UserDisplays:           collectAccessListUserDisplays(createdAccessList, updatedMembers),
 		},
 	}, nil
 }

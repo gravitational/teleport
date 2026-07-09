@@ -3,6 +3,7 @@ package ui
 import (
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
@@ -27,6 +28,8 @@ type AccessList struct {
 	CurrentUserAssignments *accesslist.CurrentUserAssignments `json:"current_user_assignments"`
 	// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
 	UserAssignments *accesslist.UserAssignments `json:"user_assignments,omitempty"`
+	// UserDisplays contains display values keyed by username.
+	UserDisplays map[string]types.UserDisplay `json:"user_displays,omitempty"`
 }
 
 // AccessListResponse is a UI representation of an access list response.

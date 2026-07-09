@@ -53,12 +53,16 @@ const (
 	member3           = "member3"
 	externalMember1   = "externalMember1"
 	externalMember2   = "membeexternalMember2r3"
+
+	testDisplayNameTrait = "displayName"
+	testEmailTrait       = "email"
 )
 
 // cmpOpts are general cmpOpts for all comparisons.
 var cmpOpts = []cmp.Option{
 	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-	cmpopts.IgnoreFields(accesslist.Status{}, "CurrentUserAssignments", "UserAssignments"),
+	cmpopts.IgnoreFields(accesslist.Status{}, "CurrentUserAssignments", "UserAssignments", "OwnerDisplays"),
+	cmpopts.IgnoreFields(accesslist.AccessListMember{}, "Status"),
 	cmpopts.SortSlices(func(a, b *accesslist.AccessList) bool {
 		return a.GetName() < b.GetName()
 	}),
@@ -837,6 +841,44 @@ func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
 	require.Empty(t, cmp.Diff(a1.Spec.Owners, mustFromProto(t, getAccessList, conv.WithOwnersIneligibleStatusField(getAccessList.GetSpec().GetOwners())).GetOwners(), cmpOpts...))
 }
 
+func TestService_GetAccessListOwnerDisplays(t *testing.T) {
+	t.Parallel()
+	c := initSvc(t)
+
+	const (
+		displayOwnerName = "display-owner"
+		emptyOwnerName   = "empty-owner"
+		missingOwnerName = "missing-owner"
+		listOwnerName    = "list-owner"
+	)
+	createDisplayUser(t, c.testEnv.identity, displayOwnerName, "Display Owner", "display-owner@example.com")
+	createDisplayUser(t, c.testEnv.identity, emptyOwnerName, "", "")
+	_, err := c.svc.UpsertAccessList(c.userCtx, accesslistv1.UpsertAccessListRequest_builder{AccessList: conv.ToProto(newAccessList(t, listOwnerName, c.clock))}.Build())
+	require.NoError(t, err)
+
+	a1 := newAccessList(t, "1", c.clock)
+	a1.Spec.Owners = []accesslist.Owner{
+		{Name: displayOwnerName, MembershipKind: accesslist.MembershipKindUser},
+		{Name: emptyOwnerName, MembershipKind: accesslist.MembershipKindUser},
+		{Name: missingOwnerName, MembershipKind: accesslist.MembershipKindUser},
+		{Name: listOwnerName, MembershipKind: accesslist.MembershipKindList},
+	}
+	_, err = c.svc.UpsertAccessList(c.userCtx, accesslistv1.UpsertAccessListRequest_builder{AccessList: conv.ToProto(a1)}.Build())
+	require.NoError(t, err)
+
+	getAccessList, err := c.svc.GetAccessList(c.userCtx, accesslistv1.GetAccessListRequest_builder{Name: a1.GetName()}.Build())
+	require.NoError(t, err)
+
+	require.Equal(t, map[string]*accesslistv1.UserDisplay{
+		displayOwnerName: accesslistv1.UserDisplay_builder{Primary: "Display Owner", Secondary: "display-owner@example.com"}.Build(),
+		emptyOwnerName:   {},
+	}, getAccessList.GetStatus().GetOwnerDisplays())
+
+	storedAccessList, err := c.testEnv.accessLists.GetAccessList(c.userCtx, a1.GetName())
+	require.NoError(t, err)
+	require.Empty(t, storedAccessList.Status.OwnerDisplays)
+}
+
 func TestService_UpsertAndGetAccessList_MembersIneligibleReason(t *testing.T) {
 	c := initSvc(t)
 
@@ -892,6 +934,111 @@ func TestService_UpsertAndGetAccessList_MembersIneligibleReason(t *testing.T) {
 		members = append(members, mustFromMemberProto(t, member, conv.WithMemberIneligibleStatusField(member)))
 	}
 	require.Empty(t, cmp.Diff(membersToCreate, members, cmpOpts...))
+}
+
+func TestService_ListAccessListMembersUserDisplays(t *testing.T) {
+	t.Parallel()
+	c := initSvc(t)
+
+	const (
+		displayMemberName = "display-member"
+		emptyMemberName   = "empty-member"
+		missingMemberName = "missing-member"
+		listMemberName    = "list-member"
+		adderName         = "display-adder"
+		missingAdderName  = "missing-adder"
+	)
+	createDisplayUser(t, c.testEnv.identity, displayMemberName, "Display Member", "display-member@example.com")
+	createDisplayUser(t, c.testEnv.identity, emptyMemberName, "", "")
+	createDisplayUser(t, c.testEnv.identity, adderName, "Display Adder", "display-adder@example.com")
+	_, err := c.svc.UpsertAccessList(c.userCtx, accesslistv1.UpsertAccessListRequest_builder{AccessList: conv.ToProto(newAccessList(t, listMemberName, c.clock))}.Build())
+	require.NoError(t, err)
+
+	a1 := newAccessList(t, "1", c.clock)
+	_, err = c.svc.UpsertAccessList(c.userCtx, accesslistv1.UpsertAccessListRequest_builder{AccessList: conv.ToProto(a1)}.Build())
+	require.NoError(t, err)
+
+	membersToCreate := []*accesslist.AccessListMember{
+		newAccessListMember(t, a1.GetName(), displayMemberName, accesslist.MembershipKindUser, c.clock),
+		newAccessListMember(t, a1.GetName(), emptyMemberName, accesslist.MembershipKindUser, c.clock),
+		newAccessListMember(t, a1.GetName(), missingMemberName, accesslist.MembershipKindUser, c.clock),
+		newAccessListMember(t, a1.GetName(), listMemberName, accesslist.MembershipKindList, c.clock),
+	}
+	membersToCreate[0].Spec.AddedBy = adderName
+	membersToCreate[1].Spec.AddedBy = missingAdderName
+	membersToCreate[2].Spec.AddedBy = missingAdderName
+	membersToCreate[3].Spec.AddedBy = adderName
+
+	for _, member := range membersToCreate {
+		_, err := c.testEnv.accessLists.UpsertAccessListMember(c.userCtx, member)
+		require.NoError(t, err)
+	}
+
+	getMembers, err := c.svc.ListAccessListMembers(c.userCtx, accesslistv1.ListAccessListMembersRequest_builder{PageSize: 0, AccessList: a1.GetName()}.Build())
+	require.NoError(t, err)
+
+	membersByName := make(map[string]*accesslistv1.Member, len(getMembers.GetMembers()))
+	for _, member := range getMembers.GetMembers() {
+		membersByName[member.GetSpec().GetName()] = member
+	}
+
+	require.Equal(t, accesslistv1.UserDisplay_builder{Primary: "Display Member", Secondary: "display-member@example.com"}.Build(), membersByName[displayMemberName].GetStatus().GetDisplay())
+	require.Equal(t, accesslistv1.UserDisplay_builder{Primary: "Display Adder", Secondary: "display-adder@example.com"}.Build(), membersByName[displayMemberName].GetStatus().GetAddedByDisplay())
+	require.Equal(t, &accesslistv1.UserDisplay{}, membersByName[emptyMemberName].GetStatus().GetDisplay())
+	require.Nil(t, membersByName[emptyMemberName].GetStatus().GetAddedByDisplay())
+	require.Nil(t, membersByName[missingMemberName].GetStatus().GetDisplay())
+	require.Nil(t, membersByName[missingMemberName].GetStatus().GetAddedByDisplay())
+	require.Nil(t, membersByName[listMemberName].GetStatus().GetDisplay())
+	require.Equal(t, accesslistv1.UserDisplay_builder{Primary: "Display Adder", Secondary: "display-adder@example.com"}.Build(), membersByName[listMemberName].GetStatus().GetAddedByDisplay())
+
+	storedMember, err := c.testEnv.accessLists.GetAccessListMember(c.userCtx, a1.GetName(), displayMemberName)
+	require.NoError(t, err)
+	require.Nil(t, storedMember.Status)
+}
+
+func TestService_UpsertAccessListWithMembersUserDisplays(t *testing.T) {
+	t.Parallel()
+	c := initSvc(t, withDisabledReconcilers())
+
+	const (
+		displayOwnerName  = "display-owner"
+		displayMemberName = "display-member"
+	)
+	createDisplayUser(t, c.testEnv.identity, displayOwnerName, "Display Owner", "display-owner@example.com")
+	createDisplayUser(t, c.testEnv.identity, displayMemberName, "Display Member", "display-member@example.com")
+	// Freshly added members get AddedBy set to the calling user (testUser).
+	createDisplayUser(t, c.testEnv.identity, testUser, "Test User", "test-user@example.com")
+
+	a1 := newAccessList(t, "1", c.clock)
+	a1.Spec.Owners = []accesslist.Owner{
+		{Name: displayOwnerName, MembershipKind: accesslist.MembershipKindUser},
+	}
+	member := newAccessListMember(t, a1.GetName(), displayMemberName, accesslist.MembershipKindUser, c.clock)
+
+	resp, err := c.svc.UpsertAccessListWithMembers(c.userCtx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
+		AccessList: conv.ToProto(a1),
+		Members:    conv.ToMembersProto([]*accesslist.AccessListMember{member}),
+	}.Build())
+	require.NoError(t, err)
+
+	// Owner displays ride the response access list status (AC-11b).
+	require.Equal(t, map[string]*accesslistv1.UserDisplay{
+		displayOwnerName: accesslistv1.UserDisplay_builder{Primary: "Display Owner", Secondary: "display-owner@example.com"}.Build(),
+	}, resp.GetAccessList().GetStatus().GetOwnerDisplays())
+
+	// Member and added_by displays ride each response member status.
+	require.Len(t, resp.GetMembers(), 1)
+	memberStatus := resp.GetMembers()[0].GetStatus()
+	require.Equal(t, accesslistv1.UserDisplay_builder{Primary: "Display Member", Secondary: "display-member@example.com"}.Build(), memberStatus.GetDisplay())
+	require.Equal(t, accesslistv1.UserDisplay_builder{Primary: "Test User", Secondary: "test-user@example.com"}.Build(), memberStatus.GetAddedByDisplay())
+
+	// Displays are response-only and never persisted.
+	storedAccessList, err := c.testEnv.accessLists.GetAccessList(c.userCtx, a1.GetName())
+	require.NoError(t, err)
+	require.Empty(t, storedAccessList.Status.OwnerDisplays)
+	storedMember, err := c.testEnv.accessLists.GetAccessListMember(c.userCtx, a1.GetName(), displayMemberName)
+	require.NoError(t, err)
+	require.Nil(t, storedMember.Status)
 }
 
 func TestService_DeleteAccessList(t *testing.T) {
@@ -4239,6 +4386,28 @@ func newAccessListMemberWithIneligibleReason(t *testing.T, accessListName, membe
 	member.Spec.IneligibleStatus = ineligibleReason
 
 	return member
+}
+
+func createDisplayUser(t *testing.T, identity services.Identity, username, primary, secondary string) {
+	t.Helper()
+
+	user, err := identity.GetUser(t.Context(), username, false)
+	if trace.IsNotFound(err) {
+		user, err = types.NewUser(username)
+		require.NoError(t, err)
+	} else {
+		require.NoError(t, err)
+	}
+	traits := map[string][]string{}
+	if primary != "" {
+		traits[testDisplayNameTrait] = []string{primary}
+	}
+	if secondary != "" {
+		traits[testEmailTrait] = []string{secondary}
+	}
+	user.SetTraits(traits)
+	_, err = identity.UpsertUser(t.Context(), user)
+	require.NoError(t, err)
 }
 
 func mustFromProto(t *testing.T, accessList *accesslistv1.AccessList, opts ...conv.AccessListOption) *accesslist.AccessList {
