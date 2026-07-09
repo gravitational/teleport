@@ -167,6 +167,26 @@ func StrongValidateSegment(segment string) error {
 	return nil
 }
 
+// WeakValidateSegment performs a weak form of validation on a scope segment. This is useful primarily for ensuring
+// that segments received from trusted sources haven't been altered beyond our ability to reason effectively
+// about them (e.g. due to significant version drift). Prefer using [StrongValidateSegment] for segments received from
+// external sources (e.g. user input or identity provider).
+func WeakValidateSegment(segment string) error {
+	// check for spaces and control characters
+	for _, b := range []byte(segment) {
+		if !isNonSpacePrintableASCII(b) {
+			return trace.BadParameter("segment %q contains invalid character", segment)
+		}
+	}
+
+	// check for breaking characters
+	if strings.ContainsAny(segment, breakingChars) {
+		return trace.BadParameter("segment %q contains invalid character", segment)
+	}
+
+	return nil
+}
+
 // StrongValidateResourceName checks if a scoped resource name is valid according to all resource name
 // formatting rules. Scoped resource names follow the same character restrictions as scope segments, but
 // are not subject to the maximum segment length limit. This function *must* be called on all scoped
@@ -192,34 +212,6 @@ func StrongValidateResourceName(name string) error {
 
 	if !segmentRegexp.MatchString(name) {
 		return trace.BadParameter("name %q is malformed", name)
-	}
-
-	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
-	// construct a weak check that rejects something that would otherwise pass a strong check. strong
-	// validation is not used in perf-critical paths, so there isn't any real downside to a little
-	// defensiveness here.
-	if err := WeakValidateSegment(name); err != nil {
-		return trace.BadParameter("name would not pass weak validation: %v", err)
-	}
-
-	return nil
-}
-
-// WeakValidateSegment performs a weak form of validation on a scope segment. This is useful primarily for ensuring
-// that segments received from trusted sources haven't been altered beyond our ability to reason effectively
-// about them (e.g. due to significant version drift). Prefer using [StrongValidateSegment] for segments received from
-// external sources (e.g. user input or identity provider).
-func WeakValidateSegment(segment string) error {
-	// check for spaces and control characters
-	for _, b := range []byte(segment) {
-		if !isNonSpacePrintableASCII(b) {
-			return trace.BadParameter("segment %q contains invalid character", segment)
-		}
-	}
-
-	// check for breaking characters
-	if strings.ContainsAny(segment, breakingChars) {
-		return trace.BadParameter("segment %q contains invalid character", segment)
 	}
 
 	return nil

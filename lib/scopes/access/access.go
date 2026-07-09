@@ -157,7 +157,7 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		return trace.Wrap(err)
 	}
 
-	if err := validateRoleName(role.GetMetadata().GetName()); err != nil {
+	if err := scopes.StrongValidateResourceName(role.GetMetadata().GetName()); err != nil {
 		return trace.BadParameter("scoped role name %q does not conform to resource naming rules: %v", role.GetMetadata().GetName(), err)
 	}
 
@@ -372,10 +372,6 @@ func validateLock(lock *scopedaccessv1.Lock) error {
 	return nil
 }
 
-func validateRoleName(name string) error {
-	return trace.Wrap(scopes.StrongValidateResourceName(name))
-}
-
 // commonValidateRole performs the subset of role validation common to both weak and strong validation.
 func commonValidateRole(role *scopedaccessv1.ScopedRole) error {
 	if role.GetMetadata().GetName() == "" {
@@ -513,7 +509,7 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 			return trace.BadParameter("scoped role assignment %q is missing role in sub-assignment %d", assignment.GetMetadata().GetName(), i)
 		}
 
-		if err := validateRoleName(subAssignment.GetRole()); err != nil {
+		if err := scopes.StrongValidateResourceName(subAssignment.GetRole()); err != nil {
 			return trace.BadParameter("scoped role assignment %q has invalid role name in sub-assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
 		}
 
