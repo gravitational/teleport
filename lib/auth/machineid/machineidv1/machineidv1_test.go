@@ -2814,6 +2814,144 @@ func TestDeleteBot(t *testing.T) {
 	}
 }
 
+// TestBotScopeNamespacing is an integration test focused on the scope
+// namespacing of bots: bots sharing a name coexist independently when they
+// live in different scopes (or one is unscoped), because the backing User is
+// keyed on (scope, name). Authorization behavior and per-RPC edge cases are
+// covered by the individual RPC tests, so everything here runs as admin.
+func TestBotScopeNamespacing(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
+	ctx := context.Background()
+
+	client, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	botSvc := client.BotServiceClient()
+
+	const botName = "shared-name"
+
+	newBot := func(scope, description string) *machineidv1pb.Bot {
+		return machineidv1pb.Bot_builder{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name:        botName,
+				Description: description,
+			}.Build(),
+			Spec:  &machineidv1pb.BotSpec{},
+			Scope: scope,
+		}.Build()
+	}
+	getBot := func(scope string) (*machineidv1pb.Bot, error) {
+		return botSvc.GetBot(ctx, machineidv1pb.GetBotRequest_builder{
+			BotName: botName,
+			Scope:   scope,
+		}.Build())
+	}
+
+	// All four bots share a name but live in distinct namespaces: unscoped,
+	// two sibling scopes, and the siblings' parent scope (whose encoded key
+	// is a prefix of theirs).
+	variants := []struct {
+		scope        string
+		description  string
+		wantUserName string
+	}{
+		{scope: "", description: "unscoped", wantUserName: "bot-shared-name"},
+		{scope: "/scopes", description: "parent", wantUserName: "bot-++scopes+shared-name"},
+		{scope: "/scopes/alpha", description: "alpha", wantUserName: "bot-++scopes+alpha+shared-name"},
+		{scope: "/scopes/beta", description: "beta", wantUserName: "bot-++scopes+beta+shared-name"},
+	}
+
+	// Creating each must succeed despite the shared name, and each must land
+	// on its own backing User.
+	created := map[string]*machineidv1pb.Bot{}
+	for _, v := range variants {
+		bot, err := botSvc.CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+			Bot: newBot(v.scope, v.description),
+		}.Build())
+		require.NoError(t, err, "creating bot in scope %q", v.scope)
+		require.Equal(t, v.wantUserName, bot.GetStatus().GetUserName(), "backing user for scope %q", v.scope)
+		created[v.scope] = bot
+	}
+
+	// A duplicate within the same namespace is still rejected.
+	for _, scope := range []string{"", "/scopes/alpha"} {
+		_, err = botSvc.CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+			Bot: newBot(scope, "duplicate"),
+		}.Build())
+		require.True(t, trace.IsAlreadyExists(err), "duplicate in scope %q: expected already exists, got: %v", scope, err)
+	}
+
+	// GetBot with (name, scope) must return exactly the bot of that
+	// namespace.
+	for _, v := range variants {
+		got, err := getBot(v.scope)
+		require.NoError(t, err, "getting bot in scope %q", v.scope)
+		require.Empty(t, cmp.Diff(created[v.scope], got, protocmp.Transform()), "bot in scope %q", v.scope)
+	}
+	// A scope holding no such bot misses, even though the name exists in
+	// other scopes.
+	_, err = getBot("/scopes/gamma")
+	require.True(t, trace.IsNotFound(err), "expected not found, got: %v", err)
+
+	// ListBots returns all four as distinct bots.
+	listResp, err := botSvc.ListBots(ctx, &machineidv1pb.ListBotsRequest{})
+	require.NoError(t, err)
+	gotScopes := []string{}
+	for _, b := range listResp.GetBots() {
+		if b.GetMetadata().GetName() == botName {
+			gotScopes = append(gotScopes, b.GetScope())
+		}
+	}
+	require.ElementsMatch(t, []string{"", "/scopes", "/scopes/alpha", "/scopes/beta"}, gotScopes)
+
+	// Upsert addresses a single namespace: only the alpha bot changes.
+	upserted, err := botSvc.UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
+		Bot: newBot("/scopes/alpha", "alpha updated"),
+	}.Build())
+	require.NoError(t, err)
+	require.Equal(t, "alpha updated", upserted.GetMetadata().GetDescription())
+	require.Equal(t, "bot-++scopes+alpha+shared-name", upserted.GetStatus().GetUserName())
+	for _, v := range variants {
+		if v.scope == "/scopes/alpha" {
+			continue
+		}
+		got, err := getBot(v.scope)
+		require.NoError(t, err)
+		require.Equal(t, v.description, got.GetMetadata().GetDescription(),
+			"bot in scope %q must be untouched by the upsert", v.scope)
+	}
+
+	// Deleting one namespace's bot must leave the same-named neighbours
+	// intact.
+	_, err = botSvc.DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
+		BotName: botName,
+		Scope:   "/scopes/alpha",
+	}.Build())
+	require.NoError(t, err)
+	_, err = srv.Auth().GetUser(ctx, "bot-++scopes+alpha+shared-name", false)
+	require.True(t, trace.IsNotFound(err), "expected backing user to be deleted, got: %v", err)
+	_, err = getBot("/scopes/alpha")
+	require.True(t, trace.IsNotFound(err), "expected not found, got: %v", err)
+	for _, scope := range []string{"", "/scopes", "/scopes/beta"} {
+		_, err := getBot(scope)
+		require.NoError(t, err, "bot in scope %q must survive the delete", scope)
+	}
+
+	// Same story deleting the unscoped bot.
+	_, err = botSvc.DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
+		BotName: botName,
+	}.Build())
+	require.NoError(t, err)
+	_, err = getBot("")
+	require.True(t, trace.IsNotFound(err), "expected not found, got: %v", err)
+	for _, scope := range []string{"/scopes", "/scopes/beta"} {
+		_, err := getBot(scope)
+		require.NoError(t, err, "bot in scope %q must survive the delete", scope)
+	}
+}
+
 func TestStrongValidateBot(t *testing.T) {
 	newBot := func(mutate func(bot *machineidv1pb.Bot)) *machineidv1pb.Bot {
 		bot := machineidv1pb.Bot_builder{
