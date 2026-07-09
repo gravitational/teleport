@@ -19,6 +19,7 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
@@ -82,6 +84,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -181,8 +185,10 @@ type ForwarderConfig struct {
 	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 	// It is used to determine if the cluster is licensed for Kubernetes usage.
 	ClusterFeatures ClusterFeaturesGetter
-	// Scope that the forwarder is pinned to.
+	// Scope is the scope the forwarder is pinned to if a full scope pin is not present.
 	Scope string
+	// ScopePin is the scope and scoped role assignments the forwarder is pinned to.
+	ScopePin *scopesv1.Pin
 }
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
@@ -282,7 +288,26 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.log == nil {
 		f.log = slog.Default()
 	}
+
+	if f.ScopePin != nil {
+		if err := pinning.WeakValidate(f.ScopePin); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if f.Scope != "" {
+		if err := scopes.WeakValidate(f.Scope); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if f.ScopePin.GetScope() != "" && f.Scope != "" {
+		return trace.BadParameter("either a scope pin or a bare scope must be set for a scoped kube forwarder, not both")
+	}
 	return nil
+}
+
+// GetScope returns the scope the forwarder is pinned to whether it's a bare scope or a scope pin.
+func (f *ForwarderConfig) GetScope() string {
+	return cmp.Or(f.ScopePin.GetScope(), f.Scope)
 }
 
 // transportCacheTTL is the TTL for the transport cache.

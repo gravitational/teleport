@@ -1,5 +1,41 @@
 # Changelog
 
+## 18.10.0 (07/07/26)
+
+### Directory sharing enhancements for Windows desktop access
+
+Teleport now supports sharing multiple directories in a single RDP session. In
+addition, users will be able to unmount shared directories without terminating
+the session.
+
+### Windows sessions summaries
+
+Identity Security now supports AI summarization for Windows desktop access
+session recordings.
+
+### Other fixes and improvements
+
+* Resolve connectivity issues with the Redshift database through the MCP. [#68337](https://github.com/gravitational/teleport/pull/68337)
+* Updated dependencies (addresses GO-2026-5547 and GO-2026-5694). [#68152](https://github.com/gravitational/teleport/pull/68152)
+* Kubernetes resource RBAC now honors a wildcard (`*`) verb regardless of its position in the `verbs` list, including when introduced via trait templating. [#68143](https://github.com/gravitational/teleport/pull/68143)
+* Added the Sub CA `tctl auth update-override` command, a user-friendly alternative over `tctl create -f` or `tctl edit ca_overrides`. [#68189](https://github.com/gravitational/teleport/pull/68189)
+* Kubernetes: adding an ephemeral container to a pod (`pods/ephemeralcontainers`) now requires both the `exec` and `patch`/`update` verbs in the same role's `kubernetes_resources`. Previously only `patch`/`update` was required. [#68159](https://github.com/gravitational/teleport/pull/68159)
+* Invalid role expressions are now rejected at creation time. [#67607](https://github.com/gravitational/teleport/pull/67607)
+* Reject wildcards in role.allow.request.search_as_roles and role.allow.review_requests.preview_as_roles at creation time. [#67607](https://github.com/gravitational/teleport/pull/67607)
+* Add missing validation for role.allow.require_session_join and role.allow.join_sessions fields. [#67607](https://github.com/gravitational/teleport/pull/67607)
+* Improved the rate of Azure VM auto-discovery and enrollment. [#67941](https://github.com/gravitational/teleport/pull/67941)
+* Fixed cloud-hosted Slack plugin exposing credentials in request URLs. [#68017](https://github.com/gravitational/teleport/pull/68017)
+* Fix an issue where the WebUI would prompt for MFA multiple times for admin actions (or outright fail for select commands) when `sso` is the only allowed second factor on the cluster. [#67867](https://github.com/gravitational/teleport/pull/67867)
+* Prevent misrouting when multiple apps share the same public address. [#67947](https://github.com/gravitational/teleport/pull/67947)
+* Fix MFA prompts to show correct --mfa-mode values for webauthn authenticators. [#67971](https://github.com/gravitational/teleport/pull/67971)
+* Fixed HTTP application access connections returning repeated 403 errors after certificate renewal. When the certificate behind a long-lived connection expires, the proxy now sends `Connection: close` so the client reestablishes the connection with a renewed certificate instead of reusing a dead one. [#68099](https://github.com/gravitational/teleport/pull/68099)
+* Add "tsh apps logins" command to query available logins for the given cloud application (currently only AWS is supported). [#68052](https://github.com/gravitational/teleport/pull/68052)
+* Added the Sub CA `tctl auth delete-override` command, a user-friendly alternative over `tctl edit ca_overrides` or `tctl rm ca_overrides`. [#68014](https://github.com/gravitational/teleport/pull/68014)
+
+Enterprise:
+* Changed Sub CA RPCs to emit audit error events for all failures.
+* Fixed Access List review badge not appearing on the main page for users who are both an owner and a member of an Access List.
+
 ## 18.9.2 (06/26/26)
 
 * Fixed desktop connection failures to Windows 11 / Windows Server 2025 instances. [#67483](https://github.com/gravitational/teleport/pull/67483)
