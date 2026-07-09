@@ -43,7 +43,8 @@ func TestKubernetesCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := NewKubernetesService(backend)
+	service, err := NewKubernetesService(backend)
+	require.NoError(t, err)
 
 	// Create a couple kube clusters.
 	kubeCluster1, err := types.NewKubernetesClusterV3(types.Metadata{

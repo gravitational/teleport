@@ -381,7 +381,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.webTokenS = idService
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
-	p.kubernetes = local.NewKubernetesService(p.backend)
+	p.kubernetes, err = local.NewKubernetesService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)

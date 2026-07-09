@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -38,14 +39,40 @@ import (
 type KubernetesService struct {
 	backend.Backend
 	logger *slog.Logger
+	svc    *generic.ScopeAwareService[types.KubeCluster]
+}
+
+type kubeCluster struct {
+	types.KubeCluster
 }
 
 // NewKubernetesService creates a new KubernetesService.
-func NewKubernetesService(backend backend.Backend) *KubernetesService {
-	return &KubernetesService{
-		Backend: backend,
-		logger:  slog.With(teleport.ComponentKey, "KubernetesService"),
+func NewKubernetesService(b backend.Backend) (*KubernetesService, error) {
+	svc, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[types.KubeCluster]{
+		Backend:               b,
+		ResourceKind:          types.KindKubernetesCluster,
+		UnscopedBackendPrefix: backend.NewKey(kubernetesPrefix),
+		ScopedBackendPrefix:   backend.NewKey("scoped", kubernetesPrefix),
+		MarshalFunc: func(kc types.KubeCluster, option ...services.MarshalOption) ([]byte, error) {
+			return services.MarshalKubeCluster(kc, option...)
+		},
+		UnmarshalFunc: func(bytes []byte, option ...services.MarshalOption) (types.KubeCluster, error) {
+			cluster, err := services.UnmarshalKubeCluster(bytes, option...)
+			if err != nil {
+				return kubeCluster{}, trace.Wrap(err)
+			}
+			return cluster, nil
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	return &KubernetesService{
+		Backend: b,
+		logger:  slog.With(teleport.ComponentKey, "KubernetesService"),
+		svc:     svc,
+	}, nil
 }
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
@@ -61,62 +88,44 @@ func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
 func (s *KubernetesService) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	return generic.CollectPageAndCursor(s.RangeKubernetesClusters(ctx, start, ""), limit, types.KubeCluster.GetName)
+	return s.svc.ListResources(ctx, limit, start)
+}
+
+// ListKubeClusters returns a page of registered kube clusters respecting scope filters.
+func (s *KubernetesService) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	filterFn := func(kc types.KubeCluster) bool {
+		return scopes.MatchScope(scopeFilter, kc.GetScope())
+	}
+
+	return s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), filterFn)
 }
 
 // RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
 func (s *KubernetesService) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-	mapFn := func(item backend.Item) (types.KubeCluster, bool) {
-		cluster, err := services.UnmarshalKubeCluster(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal kubernetes cluster",
-				"key", item.Key,
-				"error", err,
-			)
-			return nil, false
-		}
-		return cluster, true
-	}
-
-	kubernetesKey := backend.NewKey(kubernetesPrefix)
-	startKey := kubernetesKey.AppendKey(backend.KeyFromString(start))
-	endKey := backend.RangeEnd(kubernetesKey)
-	if end != "" {
-		endKey = kubernetesKey.AppendKey(backend.KeyFromString(end)).ExactKey()
-	}
-
-	return stream.TakeWhile(
-		stream.FilterMap(
-			s.Backend.Items(ctx, backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-			mapFn,
-		),
-		func(cluster types.KubeCluster) bool {
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			return end == "" || cluster.GetName() < end
-		})
+	return s.svc.Resources(ctx, start, end)
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
 func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	item, err := s.Get(ctx, backend.NewKey(kubernetesPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("kubernetes cluster %q doesn't exist", name)
+	return s.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{Name: name}.Build())
+}
+
+// GetKubeCluster returns the specified kubernetes cluster resource.
+func (s *KubernetesService) GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (types.KubeCluster, error) {
+	sqn := scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}
+	if sqn.Scope != "" {
+		if err := sqn.WeakValidate(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err)
 	}
-	cluster, err := services.UnmarshalKubeCluster(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return cluster, nil
+	return s.svc.GetResource(ctx, sqn)
 }
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -124,24 +133,9 @@ func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster
 	if err := validateKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.MarshalKubeCluster(cluster)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.NewKey(kubernetesPrefix, cluster.GetName()),
-		Value:   value,
-		Expires: cluster.Expiry(),
-	}
-	_, err = s.Create(ctx, item)
-	if trace.IsAlreadyExists(err) {
-		return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
-	}
 
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	_, err := s.svc.CreateResource(ctx, cluster)
+	return trace.Wrap(err)
 }
 
 // UpdateKubernetesCluster updates an existing kubernetes cluster resource.
@@ -149,47 +143,20 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 	if err := validateKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
 	}
-	rev := cluster.GetRevision()
-	value, err := services.MarshalKubeCluster(cluster)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:      backend.NewKey(kubernetesPrefix, cluster.GetName()),
-		Value:    value,
-		Expires:  cluster.Expiry(),
-		Revision: rev,
-	}
-	_, err = s.Update(ctx, item)
-	if trace.IsNotFound(err) {
-		return trace.NotFound("kubernetes cluster %q doesn't exist", cluster.GetName())
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	_, err := s.svc.UpdateResource(ctx, cluster)
+	return trace.Wrap(err)
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
 func (s *KubernetesService) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.NewKey(kubernetesPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("kubernetes cluster %q doesn't exist", name)
-		}
-		return trace.Wrap(err)
-	}
-	return nil
+	return s.svc.DeleteResource(ctx, scopes.QualifiedName{
+		Name: name,
+	})
 }
 
 // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
 func (s *KubernetesService) DeleteAllKubernetesClusters(ctx context.Context) error {
-	startKey := backend.ExactKey(kubernetesPrefix)
-	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return s.svc.DeleteAllResources(ctx)
 }
 
 func validateKubeCluster(cluster types.KubeCluster) error {
