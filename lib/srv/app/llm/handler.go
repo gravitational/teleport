@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/app/llm/anthropic"
+	"github.com/gravitational/teleport/lib/srv/app/llm/bedrock"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 )
@@ -151,14 +152,15 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	case types.LLMFormatAnthropic:
 		h.handleRequest(
 			sessionCtx, w, r,
-			func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
+			func(app types.Application, r *http.Request) (*http.Request, RequestInfo, error) {
 				return anthropic.NewRequest(&llmrequest.Config{
-					LLM:               llm,
+					App:               app,
 					DownstreamRequest: r,
 					ProviderURL:       h.anthropicProviderURL,
 					GetAPIKeyFunc: func() string {
 						return h.anthropicApiKey
 					},
+					SignBedrockRequest: h.signBedrockRequest,
 				})
 			},
 			func(l *slog.Logger, w http.ResponseWriter) (UpstreamRecorder, error) {
@@ -171,6 +173,15 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	return nil
+}
+
+func (h *Handler) signBedrockRequest(ctx context.Context, app types.Application, request *http.Request, requestBody []byte) error {
+	return trace.Wrap(bedrock.SignRequest(ctx, bedrock.SignRequestOptions{
+		App:         app,
+		Credentials: h.cfg.AWSConfigProvider,
+		Request:     request,
+		RequestBody: requestBody,
+	}))
 }
 
 // WriteErrorFunc is function used to write an error into the downstream request.
@@ -189,7 +200,7 @@ type RequestInfo interface {
 }
 
 // NewUpstreamRequestFunc function used to create a new upstream request.
-type NewUpstreamRequestFunc func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error)
+type NewUpstreamRequestFunc func(app types.Application, r *http.Request) (*http.Request, RequestInfo, error)
 
 // NewUpstreamRecoderFunc function used to initialize a upstream response
 // recorder.
@@ -252,7 +263,7 @@ func (h *Handler) handleRequest(
 	}()
 
 	var req *http.Request
-	req, info, err = newRequestFunc(llm, r)
+	req, info, err = newRequestFunc(sessionCtx.App, r)
 	if err != nil {
 		log.ErrorContext(r.Context(), "failed to rewrite request", "error", err)
 		if werr := writeErrorFunc(w, err); werr != nil {

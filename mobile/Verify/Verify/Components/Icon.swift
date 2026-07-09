@@ -40,8 +40,8 @@ struct Icon: View {
 		systemName: String,
 		iconScale: CGFloat = 0.45,
 		foreground: some ShapeStyle = .foreground,
-		fillStyle: some ShapeStyle = .background,
-		strokeStyle: some ShapeStyle = .separator,
+		fillStyle: some ShapeStyle = Color.Background.depth2,
+		strokeStyle: some ShapeStyle = Color.neutral1,
 		maxWidth: CGFloat? = .xlarge * 2,
 	) {
 		self.systemName = systemName

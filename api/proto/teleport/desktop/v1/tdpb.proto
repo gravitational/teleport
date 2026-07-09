@@ -338,6 +338,33 @@ message Ping {
   bytes uuid = 1;
 }
 
+// Sent by the server to request authentication from the client before session establishment.
+message AuthPrompt {
+  oneof prompt {
+    MFAPrompt mfa_prompt = 1;
+  }
+}
+
+// Indicates MFA is required for the session. The client performs the MFA ceremony and responds with
+// MFAPromptResponse.
+message MFAPrompt {}
+
+// Client response to an AuthPrompt containing MFAPrompt.
+message MFAPromptResponse {
+  oneof response {
+    MFAPromptResponseReference reference = 1;
+  }
+}
+
+// Instructs the server to verify the MFA challenge with the MFA service.
+message MFAPromptResponseReference {
+  // The name of the MFA challenge created by the client.
+  string challenge_name = 1;
+}
+
+// Sent by the server to indicate the session backend is being established and no additional authentication is required.
+message SessionEstablishing {}
+
 // Envelope wraps all messages that are allowed to be sent on the wire.
 message Envelope {
   oneof payload {
@@ -363,5 +390,8 @@ message Envelope {
     Ping ping = 20;
     SharedDirectoryRemove shared_directory_remove = 21;
     SessionSelection session_selection = 22;
+    AuthPrompt auth_prompt = 23;
+    MFAPromptResponse mfa_prompt_response = 24;
+    SessionEstablishing session_establishing = 25;
   }
 }

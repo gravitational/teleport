@@ -18,6 +18,10 @@ package anthropic
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,17 +38,27 @@ import (
 func TestNewRequest(t *testing.T) {
 	apiKey := "random-api-key"
 
+	signAWSRequest := func(_ context.Context, _ types.Application, req *http.Request, reqBody []byte) error {
+		hash := sha256.New()
+		hash.Write(reqBody)
+		req.Header.Set("X-Amz-Content-Sha256", hex.EncodeToString(hash.Sum(nil)))
+		req.Header.Set("Authorization", "AWS4-HMAC-SHA256 Credential=test")
+		return nil
+	}
+
 	for name, tc := range map[string]struct {
-		llm             *types.LLM
+		llm             types.Application
 		request         func() *http.Request
+		signAWSRequest  func(context.Context, types.Application, *http.Request, []byte) error
 		expectedError   require.ErrorAssertionFunc
 		expectedRequest require.ValueAssertionFunc
 		expectedInfo    require.ValueAssertionFunc
 	}{
 		"successful messages": {
-			llm: &types.LLM{
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
-			},
+			}, nil /* appAWS */),
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -69,9 +83,10 @@ func TestNewRequest(t *testing.T) {
 			},
 		},
 		"includes single /v1 prefix": {
-			llm: &types.LLM{
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
-			},
+			}, nil /* appAWS */),
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -88,12 +103,13 @@ func TestNewRequest(t *testing.T) {
 			expectedInfo: require.NotNil,
 		},
 		"convert model name": {
-			llm: &types.LLM{
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
 				Models: []*types.LLM_Model{
 					{ProviderName: "claude-opus-4-8", Name: "claude-sonnet-4-20250514"},
 				},
-			},
+			}, nil /* appAWS */),
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -116,13 +132,14 @@ func TestNewRequest(t *testing.T) {
 			},
 		},
 		"fallback model name": {
-			llm: &types.LLM{
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
 				Models: []*types.LLM_Model{
 					{ProviderName: "claude-opus-4-8", Name: "claude-sonnet-4-20250514"},
 				},
 				FallbackModel: "claude-sonnet-4-20250514",
-			},
+			}, nil /* appAWS */),
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -145,12 +162,13 @@ func TestNewRequest(t *testing.T) {
 			},
 		},
 		"unsupported model name": {
-			llm: &types.LLM{
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
 				Models: []*types.LLM_Model{
 					{ProviderName: "claude-opus-4-8", Name: "claude-sonnet-4-20250514"},
 				},
-			},
+			}, nil /* appAWS */),
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -168,9 +186,10 @@ func TestNewRequest(t *testing.T) {
 			},
 		},
 		"exceeds max tokens": {
-			llm: &types.LLM{
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
-			},
+			}, nil /* appAWS */),
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -188,9 +207,10 @@ func TestNewRequest(t *testing.T) {
 			},
 		},
 		"request exceeds max size": {
-			llm: &types.LLM{
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
-			},
+			}, nil /* appAWS */),
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -210,9 +230,10 @@ func TestNewRequest(t *testing.T) {
 			},
 		},
 		"unsupported endpoint": {
-			llm: &types.LLM{
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
-			},
+			}, nil /* appAWS */),
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -226,9 +247,136 @@ func TestNewRequest(t *testing.T) {
 			expectedInfo:    require.NotNil,
 		},
 		"unsupported method": {
-			llm: &types.LLM{
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
+			}, nil /* appAWS */),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodGet,
+					"/messages",
+					nil,
+				)
+				return r
 			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"bedrock successful messages": {
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
+				Provider: types.LLMProviderAWSBedrock,
+				Models: []*types.LLM_Model{
+					{ProviderName: "us.anthropic.claude-sonnet-4-20250514-v1:0", Name: "claude-sonnet-4-20250514"},
+				},
+			}, &types.AppAWS{
+				Region: "us-west-2",
+			}),
+			signAWSRequest: signAWSRequest,
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/messages",
+					strings.NewReader(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"Hello"}]}`),
+				)
+				return r
+			},
+			expectedError: require.NoError,
+			expectedRequest: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, _ := i1.(*http.Request)
+				require.Equal(tt, "bedrock-mantle.us-west-2.api.aws", req.URL.Host)
+				require.Equal(tt, "/anthropic/v1/messages", req.URL.Path)
+				require.NotEmpty(tt, req.Header.Get("anthropic-version"))
+				require.NotEmpty(tt, req.Header.Get("content-type"))
+				require.Empty(tt, req.Header.Get("x-api-key"))
+				require.NotEmpty(tt, req.Header.Get("Authorization"))
+
+				body, err := io.ReadAll(req.Body)
+				require.NoError(tt, err)
+				require.Contains(tt, string(body), "us.anthropic.claude-sonnet-4-20250514-v1:0")
+				bodyHash := sha256.Sum256(body)
+				require.Equal(tt, hex.EncodeToString(bodyHash[:]), req.Header.Get("X-Amz-Content-Sha256"))
+			},
+			expectedInfo: func(tt require.TestingT, i1 any, i2 ...any) {
+				info, _ := i1.(*RequestInfo)
+				require.Equal(tt, "claude-sonnet-4-20250514", info.RequestedModel())
+				require.Equal(tt, "us.anthropic.claude-sonnet-4-20250514-v1:0", info.ProviderModel())
+			},
+		},
+		"bedrock signer failure": {
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
+				Provider: types.LLMProviderAWSBedrock,
+			}, &types.AppAWS{
+				Region: "us-west-2",
+			}),
+			signAWSRequest: func(ctx context.Context, a types.Application, r *http.Request, b []byte) error {
+				return errors.New("signing failed")
+			},
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/messages",
+					strings.NewReader(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"Hello"}]}`),
+				)
+				return r
+			},
+			expectedError: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err)
+				// The signing failure cause must not reach clients.
+				require.NotContains(tt, err.Error(), "signing failed")
+			},
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"bedrock missing signer": {
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
+				Provider: types.LLMProviderAWSBedrock,
+			}, &types.AppAWS{
+				Region: "us-west-2",
+			}),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/messages",
+					strings.NewReader(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"Hello"}]}`),
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"bedrock unsupported endpoint": {
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
+				Provider: types.LLMProviderAWSBedrock,
+			}, &types.AppAWS{
+				Region: "us-west-2",
+			}),
+			signAWSRequest: signAWSRequest,
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/complete",
+					strings.NewReader(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"Hello"}]}`),
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"bedrock unsupported method": {
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
+				Provider: types.LLMProviderAWSBedrock,
+			}, &types.AppAWS{
+				Region: "us-west-2",
+			}),
+			signAWSRequest: signAWSRequest,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodGet,
@@ -244,17 +392,27 @@ func TestNewRequest(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			req, info, err := NewRequest(&llmrequest.Config{
-				LLM:               tc.llm,
+				App:               tc.llm,
 				DownstreamRequest: tc.request(),
 				GetAPIKeyFunc: func() string {
 					return apiKey
 				},
+				SignBedrockRequest: tc.signAWSRequest,
 			})
 			tc.expectedError(t, err)
 			tc.expectedRequest(t, req)
 			tc.expectedInfo(t, info)
 		})
 	}
+}
+
+func newApp(t *testing.T, llm *types.LLM, appAWS *types.AppAWS) types.Application {
+	app, err := types.NewAppV3(types.Metadata{Name: "llm-app"}, types.AppSpecV3{
+		LLM: llm,
+		AWS: appAWS,
+	})
+	require.NoError(t, err)
+	return app
 }
 
 // buildRequestBody returns a valid messages API request body whose total size
@@ -274,12 +432,16 @@ func buildRequestBody(fillerBytes int) []byte {
 func BenchmarkNewRequest(b *testing.B) {
 	// Maps the requested model to a provider model so the conversion path
 	// (the common case in production) is exercised.
-	llm := &types.LLM{
-		Provider: types.LLMProviderAnthropic,
-		Models: []*types.LLM_Model{
-			{ProviderName: "claude-opus-4-8", Name: "claude-sonnet-4-20250514"},
+	app, err := types.NewAppV3(types.Metadata{Name: "benchmark-app"}, types.AppSpecV3{
+		LLM: &types.LLM{
+			Format:   types.LLMFormatAnthropic,
+			Provider: types.LLMProviderAnthropic,
+			Models: []*types.LLM_Model{
+				{ProviderName: "claude-opus-4-8", Name: "claude-sonnet-4-20250514"},
+			},
 		},
-	}
+	})
+	require.NoError(b, err)
 
 	for _, bc := range []struct {
 		name string
@@ -301,7 +463,7 @@ func BenchmarkNewRequest(b *testing.B) {
 			for b.Loop() {
 				r.Body = io.NopCloser(bytes.NewReader(bc.body))
 				if _, _, err := NewRequest(&llmrequest.Config{
-					LLM:               llm,
+					App:               app,
 					DownstreamRequest: r,
 					GetAPIKeyFunc:     func() string { return "" },
 				}); err != nil {

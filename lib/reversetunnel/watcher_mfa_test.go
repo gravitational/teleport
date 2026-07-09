@@ -22,6 +22,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"testing/synctest"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -33,8 +34,10 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func TestValidatedMFAChallengeWatcher_Success(t *testing.T) {
@@ -93,6 +96,71 @@ func TestValidatedMFAChallengeWatcher_UsesTargetClusterFilter(t *testing.T) {
 		(&types.ValidatedMFAChallengeFilter{TargetCluster: "leaf-a"}).IntoMap(),
 		watch.Kinds[0].Filter,
 	)
+}
+
+func TestValidatedMFAChallengeWatcher_FilterBlocksNonMatchingEvents(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		bk, err := memory.New(memory.Config{Context: ctx})
+		require.NoError(t, err)
+		t.Cleanup(func() { bk.Close() })
+
+		mfaSvc, err := local.NewMFAService(bk)
+		require.NoError(t, err)
+
+		chalLeafA := newValidatedMFAChallengeWithTargetCluster("challenge-leaf-a", "leaf-a")
+		chalLeafB := newValidatedMFAChallengeWithTargetCluster("challenge-leaf-b", "leaf-b")
+
+		// Create challenges before the watcher so CurrentResources exercises the list filter.
+		_, err = mfaSvc.CreateValidatedMFAChallenge(ctx, "leaf-a", chalLeafA)
+		require.NoError(t, err)
+		_, err = mfaSvc.CreateValidatedMFAChallenge(ctx, "leaf-b", chalLeafB)
+		require.NoError(t, err)
+
+		eventsSvc := local.NewEventsService(bk)
+
+		watcher, err := reversetunnel.NewValidatedMFAChallengeWatcher(
+			ctx,
+			reversetunnel.ValidatedMFAChallengeWatcherConfig{
+				ValidatedMFAChallengeLister: &mockValidatedMFAChallengeLister{
+					challenges: []*mfav2.ValidatedMFAChallenge{chalLeafA, chalLeafB},
+				},
+				ClusterName: "leaf-a",
+				ResourceWatcherConfig: &services.ResourceWatcherConfig{
+					Client:    eventsSvc,
+					Clock:     clockwork.NewRealClock(),
+					Component: "test-watcher-filter",
+				},
+			},
+		)
+		require.NoError(t, err)
+		t.Cleanup(watcher.Close)
+
+		require.NoError(t, watcher.WaitInitialization())
+		synctest.Wait()
+
+		resources, err := watcher.CurrentResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		require.Equal(t, "challenge-leaf-a", resources[0].GetMetadata().GetName())
+		require.Equal(t, "leaf-a", resources[0].GetSpec().GetTargetCluster())
+
+		// Create a new challenge for leaf-b after watcher init to exercise the event stream filter.
+		chalLeafB2 := newValidatedMFAChallengeWithTargetCluster("challenge-leaf-b-2", "leaf-b")
+		_, err = mfaSvc.CreateValidatedMFAChallenge(ctx, "leaf-b", chalLeafB2)
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		// If the event filter is broken, the non-matching challenge would appear in CurrentResources.
+		resources, err = watcher.CurrentResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		require.Equal(t, "challenge-leaf-a", resources[0].GetMetadata().GetName())
+	})
 }
 
 func TestNewValidatedMFAChallengeWatcher_Validation(t *testing.T) {

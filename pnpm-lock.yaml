@@ -28,8 +28,8 @@ importers:
         specifier: ^5.2.8
         version: 5.2.8
       '@gravitational/design-system':
-        specifier: https://github.com/gravitational/design-system/releases/download/v0.1.2/design-system.tgz
-        version: https://github.com/gravitational/design-system/releases/download/v0.1.2/design-system.tgz(@emotion/react@11.14.0(@types/react@19.2.17)(react@19.2.7))(@fontsource/ubuntu@5.2.8)(@tanstack/react-query@5.101.2(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tslib@2.8.1)(typescript@6.0.3)(zod@4.4.3)
+        specifier: https://github.com/gravitational/design-system/releases/download/v0.1.3/design-system.tgz
+        version: https://github.com/gravitational/design-system/releases/download/v0.1.3/design-system.tgz(@emotion/react@11.14.0(@types/react@19.2.17)(react@19.2.7))(@fontsource/ubuntu@5.2.8)(@tanstack/react-query@5.101.2(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tslib@2.8.1)(zod@4.4.3)
       '@grpc/grpc-js':
         specifier: 1.14.4
         version: 1.14.4
@@ -97,8 +97,8 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7
       react-router:
-        specifier: ^7.15.1
-        version: 7.15.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^8.1.0
+        version: 8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react-select:
         specifier: ^5.10.2
         version: 5.10.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -429,6 +429,9 @@ importers:
       babel-plugin-transform-vite-meta-env:
         specifier: ^1.0.3
         version: 1.0.3
+      babel-plugin-transform-vite-meta-hot:
+        specifier: ^1.0.0
+        version: 1.0.0
       jest-websocket-mock:
         specifier: ^2.5.0
         version: 2.5.0
@@ -2204,9 +2207,9 @@ packages:
   '@fontsource/ubuntu@5.2.8':
     resolution: {integrity: sha512-esSJCpgigwWOm4Ug9f7AMozUyBq5Iobea5C9QYsl2OlCb62wZABBUbXahHLdFv5Ru4lJCD9tUX6xEAeLwUTNBg==}
 
-  '@gravitational/design-system@https://github.com/gravitational/design-system/releases/download/v0.1.2/design-system.tgz':
-    resolution: {integrity: sha512-VDrm1gneGq+56j8naiCUGQFoIddU8HI3xyNUTgfHUtn39BVscQjkvY/PpwaFtzNa9gwMlAGqH+EdqdTkDAFXfw==, tarball: https://github.com/gravitational/design-system/releases/download/v0.1.2/design-system.tgz}
-    version: 0.1.2
+  '@gravitational/design-system@https://github.com/gravitational/design-system/releases/download/v0.1.3/design-system.tgz':
+    resolution: {integrity: sha512-3JCC8uktM8ZFRom6vhg5TH6e8atC/7PSLL49hcQgkNr4ZdFI5LmxnnwMZlyxR/Juj3t1KRxOreT6exDWVZI0uA==, tarball: https://github.com/gravitational/design-system/releases/download/v0.1.3/design-system.tgz}
+    version: 0.1.3
     hasBin: true
     peerDependencies:
       '@emotion/react': '>=11'
@@ -4769,6 +4772,9 @@ packages:
   babel-plugin-transform-vite-meta-env@1.0.3:
     resolution: {integrity: sha512-eyfuDEXrMu667TQpmctHeTlJrZA6jXYHyEJFjcM0yEa60LS/LXlOg2PBbMb8DVS+V9CnTj/j9itdlDVMcY2zEg==}
 
+  babel-plugin-transform-vite-meta-hot@1.0.0:
+    resolution: {integrity: sha512-qF7T46bDG5UPPOfy4MFgQJyd3mZvm1sGOR2gZ4lIHy6DEcxAVTIt39/adAn89il44CvwestshuEybKPMR+L/Tg==}
+
   babel-preset-current-node-syntax@1.2.0:
     resolution: {integrity: sha512-E/VlAEzRrsLEb2+dv8yp3bo4scof3l9nR4lrld+Iy5NyVqgVYUJnDAmunkhPMisRI32Qc4iRiz425d8vM++2fg==}
     peerDependencies:
@@ -5068,6 +5074,9 @@ packages:
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
+
+  cookie-es@3.1.1:
+    resolution: {integrity: sha512-UaXxwISYJPTr9hwQxMFYZ7kNhSXboMXP+Z3TRX6f1/NyaGPfuNUZOWP1pUEb75B2HjfklIYLVRfWiFZJyC6Npg==}
 
   cookie@1.1.1:
     resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
@@ -7020,12 +7029,12 @@ packages:
   react-is@19.2.7:
     resolution: {integrity: sha512-kZFnouyVv7eP/Phmrlo9FK+zcAdriZJvzxXHF1Sl1P377WSGe2G/JxVolhTrB/jeV47lKImhNUsijjHAAbcl/A==}
 
-  react-router@7.15.1:
-    resolution: {integrity: sha512-R8rl9HhgikFYoPJymnUtPXWbnDb3oget6lQnfIoupbt61aT9aOhRkDsY2XRhZRyX1Z/8a5sL74fXmFNm3NRK5A==}
-    engines: {node: '>=20.0.0'}
+  react-router@8.1.0:
+    resolution: {integrity: sha512-Mdfi61uObuvWNN9OhChOC0HV6YWOIfKRzEWOvCHRSuQg8IM+Nv10edaM/2HE8ZixBpUTdQbruyWqC3sDkkh9vw==}
+    engines: {node: '>=22.22.0'}
     peerDependencies:
-      react: '>=18'
-      react-dom: '>=18'
+      react: '>=19.2.7'
+      react-dom: '>=19.2.7'
     peerDependenciesMeta:
       react-dom:
         optional: true
@@ -7245,9 +7254,6 @@ packages:
   serialize-error@7.0.1:
     resolution: {integrity: sha512-8I8TjW5KMOKsZQTvoxjuSIa7foAwPWGOts+6o7sgjz41/qMD9VQHEDxi6PBvK2l0MXUmqZyNpUK+T2tQaaElvw==}
     engines: {node: '>=10'}
-
-  set-cookie-parser@2.7.2:
-    resolution: {integrity: sha512-oeM1lpU/UvhTxw+g3cIfxXHyJRc/uidd3yK1P242gzHds0udQBYzs3y8j4gCCW+ZJ7ad0yctld8RYO+bdurlvw==}
 
   set-cookie-parser@3.1.0:
     resolution: {integrity: sha512-kjnC1DXBHcxaOaOXBHBeRtltsDG2nUiUni+jP92M9gYdW12rsmx92UsfpH7o5tDRs7I1ZZPSQJQGv3UaRfCiuw==}
@@ -7629,6 +7635,11 @@ packages:
   type-fest@5.6.0:
     resolution: {integrity: sha512-8ZiHFm91orbSAe2PSAiSVBVko18pbhbiB3U9GglSzF/zCGkR+rxpHx6sEMCUm4kxY4LjDIUGgCfUMtwfZfjfUA==}
     engines: {node: '>=20'}
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
 
   typescript@6.0.3:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
@@ -9007,7 +9018,7 @@ snapshots:
   '@cbor-extract/cbor-extract-win32-x64@2.2.2':
     optional: true
 
-  '@chakra-ui/cli@3.35.0(@chakra-ui/react@3.35.0(@emotion/react@11.14.0(@types/react@19.2.17)(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@6.0.3)':
+  '@chakra-ui/cli@3.35.0(@chakra-ui/react@3.35.0(@emotion/react@11.14.0(@types/react@19.2.17)(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@5.9.3)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/parser': 7.29.7
@@ -9033,7 +9044,7 @@ snapshots:
       prettier: 3.8.1
       recast: 0.23.11
       scule: 1.3.0
-      tsconfck: 3.1.6(typescript@6.0.3)
+      tsconfck: 3.1.6(typescript@5.9.3)
       zod: 3.25.76
     transitivePeerDependencies:
       - supports-color
@@ -9890,10 +9901,10 @@ snapshots:
 
   '@fontsource/ubuntu@5.2.8': {}
 
-  '@gravitational/design-system@https://github.com/gravitational/design-system/releases/download/v0.1.2/design-system.tgz(@emotion/react@11.14.0(@types/react@19.2.17)(react@19.2.7))(@fontsource/ubuntu@5.2.8)(@tanstack/react-query@5.101.2(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tslib@2.8.1)(typescript@6.0.3)(zod@4.4.3)':
+  '@gravitational/design-system@https://github.com/gravitational/design-system/releases/download/v0.1.3/design-system.tgz(@emotion/react@11.14.0(@types/react@19.2.17)(react@19.2.7))(@fontsource/ubuntu@5.2.8)(@tanstack/react-query@5.101.2(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tslib@2.8.1)(zod@4.4.3)':
     dependencies:
       '@ark-ui/react': 5.37.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@chakra-ui/cli': 3.35.0(@chakra-ui/react@3.35.0(@emotion/react@11.14.0(@types/react@19.2.17)(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@6.0.3)
+      '@chakra-ui/cli': 3.35.0(@chakra-ui/react@3.35.0(@emotion/react@11.14.0(@types/react@19.2.17)(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@5.9.3)
       '@chakra-ui/react': 3.35.0(@emotion/react@11.14.0(@types/react@19.2.17)(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@emotion/react': 11.14.0(@types/react@19.2.17)(react@19.2.7)
       '@fontsource/ubuntu': 5.2.8
@@ -9906,10 +9917,10 @@ snapshots:
       react-dom: 19.2.7(react@19.2.7)
       react-hook-form: 7.80.0(react@19.2.7)
       tslib: 2.8.1
+      typescript: 5.9.3
       zod: 4.4.3
     transitivePeerDependencies:
       - supports-color
-      - typescript
 
   '@gravitational/swc-plugin-jsx-marker@https://github.com/gravitational/design-system/releases/download/@gravitational/swc-plugin-jsx-marker@0.1.0/swc-plugin-jsx-marker.tgz':
     dependencies:
@@ -13052,6 +13063,11 @@ snapshots:
       '@babel/runtime': 7.29.7
       '@types/babel__core': 7.20.5
 
+  babel-plugin-transform-vite-meta-hot@1.0.0:
+    dependencies:
+      '@babel/runtime': 7.29.7
+      '@types/babel__core': 7.20.5
+
   babel-preset-current-node-syntax@1.2.0(@babel/core@7.29.7):
     dependencies:
       '@babel/core': 7.29.7
@@ -13357,6 +13373,8 @@ snapshots:
   convert-source-map@1.9.0: {}
 
   convert-source-map@2.0.0: {}
+
+  cookie-es@3.1.1: {}
 
   cookie@1.1.1: {}
 
@@ -15700,11 +15718,10 @@ snapshots:
 
   react-is@19.2.7: {}
 
-  react-router@7.15.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
-      cookie: 1.1.1
+      cookie-es: 3.1.1
       react: 19.2.7
-      set-cookie-parser: 2.7.2
     optionalDependencies:
       react-dom: 19.2.7(react@19.2.7)
 
@@ -15940,8 +15957,6 @@ snapshots:
     dependencies:
       type-fest: 0.13.1
     optional: true
-
-  set-cookie-parser@2.7.2: {}
 
   set-cookie-parser@3.1.0: {}
 
@@ -16295,9 +16310,9 @@ snapshots:
 
   ts-dedent@2.3.0: {}
 
-  tsconfck@3.1.6(typescript@6.0.3):
+  tsconfck@3.1.6(typescript@5.9.3):
     optionalDependencies:
-      typescript: 6.0.3
+      typescript: 5.9.3
 
   tsconfig-paths@4.2.0:
     dependencies:
@@ -16327,6 +16342,8 @@ snapshots:
   type-fest@5.6.0:
     dependencies:
       tagged-tag: 1.0.0
+
+  typescript@5.9.3: {}
 
   typescript@6.0.3: {}
 

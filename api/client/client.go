@@ -1776,6 +1776,7 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		URI:           req.URI,
 		Expires:       req.Expires,
 		AuthorityType: string(req.AuthorityType),
+		Scope:         req.Scope,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -3091,6 +3092,10 @@ func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (typ
 // (as per the default gRPC behavior).
 func (c *Client) LinuxDesktopClient() *linuxdesktop.Client {
 	return linuxdesktop.NewClient(linuxdesktopv1.NewLinuxDesktopServiceClient(c.conn))
+}
+
+func (c *Client) GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error) {
+	return c.LinuxDesktopClient().GetLinuxDesktop(ctx, name)
 }
 
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying

@@ -194,6 +194,11 @@ func TestCheckSCPAllowed(t *testing.T) {
 			command: "\tscp foo bar",
 			assert:  require.True,
 		},
+		{
+			name:    "other bash commands aren't affected",
+			command: "echo $((1+1))",
+			assert:  require.False,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
