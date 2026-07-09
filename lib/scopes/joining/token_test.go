@@ -119,7 +119,7 @@ func TestValidateScopedToken(t *testing.T) {
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.GetMetadata().SetName("")
 			},
-			expectedStrongErr: "missing name",
+			expectedStrongErr: "name is empty",
 		},
 		{
 			name: "missing spec",
@@ -1048,7 +1048,7 @@ func TestValidateScopedToken(t *testing.T) {
 			modFn: func(st *joiningv1.ScopedToken) {
 				st.GetMetadata().SetName("testing:testing")
 			},
-			expectedStrongErr: "scoped token names cannot contain colons",
+			expectedStrongErr: `name "testing:testing" is malformed`,
 		},
 	}
 

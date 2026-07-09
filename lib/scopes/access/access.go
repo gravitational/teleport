@@ -158,7 +158,7 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	}
 
 	if err := validateRoleName(role.GetMetadata().GetName()); err != nil {
-		return trace.BadParameter("scoped role name %q does not conform to segment naming rules: %v", role.GetMetadata().GetName(), err)
+		return trace.BadParameter("scoped role name %q does not conform to resource naming rules: %v", role.GetMetadata().GetName(), err)
 	}
 
 	if err := scopes.StrongValidate(role.GetScope()); err != nil {
@@ -373,10 +373,7 @@ func validateLock(lock *scopedaccessv1.Lock) error {
 }
 
 func validateRoleName(name string) error {
-	// note: having the scope name be validated as a segment name is a bit of an arbitrary choice, but its basically
-	// equivalent to what we would want from a standalone name requirement, and there may even be some future benefit
-	// if we ever need to encode a role assignment as a scope-like name.
-	return trace.Wrap(scopes.StrongValidateSegment(name))
+	return trace.Wrap(scopes.StrongValidateResourceName(name))
 }
 
 // commonValidateRole performs the subset of role validation common to both weak and strong validation.
@@ -478,8 +475,8 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q has invalid sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
 	}
 
-	if err := scopes.StrongValidateSegment(assignment.GetMetadata().GetName()); err != nil {
-		return trace.BadParameter("scoped role assignment name %q does not conform to segment naming rules: %v", assignment.GetMetadata().GetName(), err)
+	if err := scopes.StrongValidateResourceName(assignment.GetMetadata().GetName()); err != nil {
+		return trace.BadParameter("scoped role assignment name %q does not conform to resource naming rules: %v", assignment.GetMetadata().GetName(), err)
 	}
 
 	if err := scopes.StrongValidate(assignment.GetScope()); err != nil {
