@@ -6050,6 +6050,7 @@ type testTLSServerOptions struct {
 	clock           clockwork.Clock
 	bufconnListener bool
 	scopesFeatures  scopes.Features
+	emitter         eventtypes.Emitter
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -6084,6 +6085,14 @@ func withScopesFeatures(scopesFeatures scopes.Features) testTLSServerOption {
 	}
 }
 
+// withEmitter replaces the audit event emitter before the server starts
+// serving, which is the only time it is safe to do so.
+func withEmitter(emitter eventtypes.Emitter) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.emitter = emitter
+	}
+}
+
 // newTestTLSServer is a helper that returns a *authtest.TLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs.
 //
@@ -6105,6 +6114,10 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	if options.emitter != nil {
+		as.AuthServer.SetEmitter(options.emitter)
+	}
 
 	var tlsServerOpts []authtest.TestTLSServerOption
 	if options.accessGraph != nil {
