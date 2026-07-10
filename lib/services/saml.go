@@ -226,7 +226,7 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 	if params.MFA {
 		mfa := connector.GetMFASettings()
 		if mfa == nil {
-			return "", nil, trace.BadParameter("MFA set and MFA settings missing in the connector")
+			return "", nil, trace.BadParameter("MFA set and MFA settings missing in the connector (this is a bug)")
 		}
 		rawEntityDescriptor, url = mfa.EntityDescriptor, mfa.EntityDescriptorUrl
 	}

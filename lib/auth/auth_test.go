@@ -1540,6 +1540,19 @@ func TestOIDCConnector(t *testing.T) {
 func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
 	t.Parallel()
 
+	const loginEntityDescriptor = `
+		<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://login.idp.test/metadata">
+			<IDPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+				<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://login.idp.test/sso/saml"></SingleSignOnService>
+			</IDPSSODescriptor>
+		</EntityDescriptor>`
+	const mfaEntityDescriptor = `
+		<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://mfa.idp.test/metadata">
+			<IDPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+				<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://mfa.idp.test/sso/saml"></SingleSignOnService>
+			</IDPSSODescriptor>
+		</EntityDescriptor>`
+
 	s := newAuthSuite(t)
 	t.Cleanup(func() { _ = s.a.Close() })
 
@@ -1550,18 +1563,24 @@ func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
 	role, err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
-	const slowPath = "/slow"
+	const loginMetadataPath = "/test_metadata_login"
+	const mfaMetadataPath = "/test_metadata_mfa"
+	const badMetadtaPath = "/test_metadata_bad"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == slowPath {
-			time.Sleep(1 * time.Hour)
+		switch r.URL.Path {
+		case loginMetadataPath:
+			w.Write([]byte(loginEntityDescriptor))
+		case mfaMetadataPath:
+			w.Write([]byte(mfaEntityDescriptor))
+		default:
+			http.Error(w, "upstream response should not be exposed", http.StatusForbidden)
 		}
-		http.Error(w, "upstream response should not be exposed", http.StatusForbidden)
 	}))
 	t.Cleanup(server.Close)
 
 	samlConnector, err := types.NewSAMLConnector("fetch-entity-descriptor-url-errors", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "https://teleport.example.com/v1/webapi/saml/acs",
-		EntityDescriptorURL:      server.URL + "/test_metadata",
+		EntityDescriptorURL:      server.URL + badMetadtaPath,
 		AttributesToRoles: []types.AttributeMapping{
 			{Name: "groups", Value: "admin", Roles: []string{role.GetName()}},
 		},
@@ -1572,6 +1591,29 @@ func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
 	require.ErrorIs(t, err, services.ErrFailedToFetchEntityDescriptor)
 	// Make sure the error doesn't leak any extra info about the download failure.
 	require.Equal(t, services.ErrFailedToFetchEntityDescriptor.Error(), err.Error())
+
+	// Let's create a valid connector to check updates.
+	samlConnector.SetEntityDescriptorURL(server.URL + loginMetadataPath)
+	createdSAMLConnector, err := s.a.CreateSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	// Now let's check MFA entity descriptor fetching errors sanitization.
+	createdSAMLConnector.SetMFASettings(&types.SAMLConnectorMFASettings{
+		Enabled:             true,
+		EntityDescriptorUrl: server.URL + badMetadtaPath,
+	})
+	_, err = s.a.UpdateSAMLConnector(ctx, createdSAMLConnector)
+	require.ErrorIs(t, err, services.ErrFailedToFetchEntityDescriptor)
+	// Make sure the error doesn't leak any extra info about the download failure.
+	require.Equal(t, services.ErrFailedToFetchEntityDescriptor.Error(), err.Error())
+
+	// Verify it passes when URLs are OK.
+	createdSAMLConnector.SetMFASettings(&types.SAMLConnectorMFASettings{
+		Enabled:             true,
+		EntityDescriptorUrl: server.URL + mfaMetadataPath,
+	})
+	_, err = s.a.UpdateSAMLConnector(ctx, createdSAMLConnector)
+	require.NoError(t, err)
 }
 
 func TestSAMLConnector(t *testing.T) {
