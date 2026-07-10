@@ -51,11 +51,12 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install pinned helm-unittest plugin
+        shell: bash
         run: |
           set -euo pipefail
           plugin_version="$(cat "${HELM_UNITTEST_VERSION_FILE}")"
           desired_version="${plugin_version#v}"
-          current_version="$(helm plugin list | grep '^unittest\t' | cut -f2)"
+          current_version="$(helm plugin list 2>/dev/null | awk '$1=="unittest"{print $2; found=1} END {if (!found) print ""}')"
 
           # Ensure we're running the correct unittest plugin, even if the
           # buildbox has a different version. Without this, plugin upgrades that
