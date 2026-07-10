@@ -26,7 +26,6 @@ const nameField: { [kind in SessionKind]: string } = {
   db: 'database_name',
   app: 'app_name',
   desktop: 'desktop_name',
-  linuxdesktop: 'desktop_name',
 };
 
 export default function makeSession(json): Session {

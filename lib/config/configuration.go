@@ -716,7 +716,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
 		&cfg.Apps.Limiter,
-		&cfg.LinuxDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -774,11 +773,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	if fc.WindowsDesktop.Enabled() {
 		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if fc.LinuxDesktop.Enabled() {
-		if err := applyLinuxDesktopConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2551,35 +2545,6 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	return nil
 }
 
-// applyLinuxDesktopConfig applies file configuration for the "linux_desktop_service" section.
-func applyLinuxDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
-	cfg.LinuxDesktop.Enabled = true
-
-	if fc.LinuxDesktop.Labels != nil {
-		cfg.LinuxDesktop.Labels = maps.Clone(fc.LinuxDesktop.Labels)
-	}
-
-	if fc.LinuxDesktop.XSessions.Included != "" {
-		r, err := regexp.Compile(fc.LinuxDesktop.XSessions.Included)
-		if err != nil {
-			return trace.BadParameter("invalid pattern for included sessions: %s", fc.LinuxDesktop.XSessions.Included)
-		}
-		cfg.LinuxDesktop.IncludedSessions = r
-	}
-
-	if fc.LinuxDesktop.XSessions.Excluded != "" {
-		r, err := regexp.Compile(fc.LinuxDesktop.XSessions.Excluded)
-		if err != nil {
-			return trace.BadParameter("invalid pattern for excluded sessions: %s", fc.LinuxDesktop.XSessions.Excluded)
-		}
-		cfg.LinuxDesktop.ExcludedSessions = r
-	}
-
-	cfg.LinuxDesktop.SessionWrapper = fc.LinuxDesktop.SessionWrapper
-
-	return nil
-}
-
 func staticHostsWithAddress(ws WindowsDesktopService) ([]servicecfg.WindowsHost, error) {
 	var hostsWithAddress []servicecfg.WindowsHost
 	var cfgHosts []WindowsHost
@@ -3280,7 +3245,6 @@ func validateRoles(roles string) error {
 			defaults.RoleApp,
 			defaults.RoleDatabase,
 			defaults.RoleWindowsDesktop,
-			defaults.RoleLinuxDesktop,
 			defaults.RoleDiscovery:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)

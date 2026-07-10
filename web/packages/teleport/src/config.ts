@@ -143,7 +143,6 @@ export const ossRoutes = {
   databases: '/web/cluster/:clusterId/databases',
   desktops: '/web/cluster/:clusterId/desktops',
   desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
-  linuxDesktop: '/web/cluster/:clusterId/linux_desktops/:desktopName/:username',
   users: '/web/users',
   bots: '/web/bots',
   bot: '/web/bot/:botName',
@@ -375,8 +374,6 @@ const cfg = {
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
-    linuxDesktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/linuxdesktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
@@ -1105,14 +1102,6 @@ const cfg = {
 
   getDesktopRoute({ clusterId, username, desktopName }) {
     return generatePath(cfg.routes.desktop, {
-      clusterId,
-      desktopName,
-      username,
-    });
-  },
-
-  getLinuxDesktopRoute({ clusterId, username, desktopName }) {
-    return generatePath(cfg.routes.linuxDesktop, {
       clusterId,
       desktopName,
       username,

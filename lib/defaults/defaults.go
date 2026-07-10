@@ -450,8 +450,6 @@ const (
 	RoleDatabase = "db"
 	// RoleWindowsDesktop is a Windows desktop service.
 	RoleWindowsDesktop = "windowsdesktop"
-	// RoleLinuxDesktop is a Linux desktop service.
-	RoleLinuxDesktop = "linuxdesktop"
 	// RoleDiscovery is a discovery service
 	RoleDiscovery = "discovery"
 )

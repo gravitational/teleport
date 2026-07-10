@@ -186,10 +186,12 @@ export function makeUnifiedResourceViewItemLinuxDesktop(
     ActionButton: ui.ActionButton,
     labels: resource.labels,
     cardViewProps: {
-      primaryDesc: 'Linux Desktop',
+      primaryDesc: 'Linux',
+      secondaryDesc: resource.addr,
     },
     listViewProps: {
-      resourceType: 'Linux Desktop',
+      resourceType: 'Linux',
+      addr: resource.addr,
     },
     requiresRequest: resource.requiresRequest,
   };

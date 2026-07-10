@@ -146,8 +146,6 @@ RUN apt-get -y update && \
         tree \
         unzip \
         xauth \
-        xclip \
-        xvfb \
         zip \
         zlib1g-dev \
         && \

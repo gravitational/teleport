@@ -127,9 +127,6 @@ type Config struct {
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
-	// LinuxDesktop defines the Linux desktop service configuration.
-	LinuxDesktop LinuxDesktopConfig
-
 	// Discovery defines the discovery service configuration.
 	Discovery DiscoveryConfig
 
@@ -458,7 +455,6 @@ func DisableLongRunningServices(cfg *Config) {
 	cfg.Kube.Enabled = false
 	cfg.Apps.Enabled = false
 	cfg.WindowsDesktop.Enabled = false
-	cfg.LinuxDesktop.Enabled = false
 	cfg.Databases.Enabled = false
 	cfg.Okta.Enabled = false
 }
@@ -581,8 +577,6 @@ func (cfg *Config) CheckServicesForSELinux() bool {
 	case cfg.Okta.Enabled:
 		fallthrough
 	case cfg.Proxy.Enabled:
-		fallthrough
-	case cfg.LinuxDesktop.Enabled:
 		fallthrough
 	case cfg.WindowsDesktop.Enabled:
 		return false
@@ -798,10 +792,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.WindowsDesktop.Enabled = false
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
-	// Linux desktop service is disabled by default.
-	cfg.LinuxDesktop.Enabled = false
-	defaults.ConfigureLimiter(&cfg.LinuxDesktop.ConnLimiter)
-
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
 	cfg.AuthConnectionConfig = *DefaultRatioAuthConnectionConfig(defaults.MaxWatcherBackoff)
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
@@ -988,7 +978,6 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
 		cfg.WindowsDesktop.Enabled,
-		cfg.LinuxDesktop.Enabled,
 		cfg.Discovery.Enabled,
 		cfg.Okta.Enabled,
 		cfg.Jamf.Enabled(),
@@ -1002,7 +991,7 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, linux_desktop_service, discovery_service, okta_service or jamf_service",
+		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service",
 	)
 }
 

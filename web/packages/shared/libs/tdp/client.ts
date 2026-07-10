@@ -162,7 +162,6 @@ type ConnectPolicy = { mode: 'tdpb' } | { mode: 'tdp' };
 type ServerCapabilities = {
   directoryRemoval: boolean;
   multidirectorySharing: boolean;
-  availableSessions: string[];
 };
 
 export interface Logger {
@@ -542,7 +541,6 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.emit(TdpClientEvent.SERVER_CAPABILITIES, {
       directoryRemoval: hello.directoryRemovalSupport,
       multidirectorySharing: hello.multidirectorySharingSupported,
-      availableSessions: hello.sessions,
     });
     this.handleRdpConnectionActivated(hello.activationEvent);
   }
@@ -887,10 +885,6 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
     this.transport.send(data);
-  }
-
-  sendSessionSelection(session: string) {
-    this.send(this.codec.encodeSessionSelection(session));
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
