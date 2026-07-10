@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -453,6 +454,59 @@ func testAtomicWriteConcurrent(t *testing.T, newBackend Constructor) {
 	n, err := strconv.Atoi(string(counterItem.Value))
 	require.NoError(t, err)
 	require.Equal(t, increments, n)
+
+	// We expect exactly one of these two concurrent writes to succeed and the
+	// other to fail, if they both succeed it means that there's a flaw in the
+	// atomic write implementation. This is unfortunately not exhaustively
+	// testable, so the best we can do is try a few times.
+	key1, key2 := prefix("/key1"), prefix("/key2")
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	for i := range 10 {
+		errs := make(chan error, 2)
+		wg.Go(func() {
+			_, err := bk.AtomicWrite(ctx, []backend.ConditionalAction{{
+				Key:       key1,
+				Condition: backend.NotExists(),
+				Action:    backend.Nop(),
+			}, {
+				Key:       key2,
+				Condition: backend.Whatever(),
+				Action:    backend.Put(backend.Item{Value: []byte("a")}),
+			}})
+			errs <- err
+		})
+		wg.Go(func() {
+			_, err := bk.AtomicWrite(ctx, []backend.ConditionalAction{{
+				Key:       key2,
+				Condition: backend.NotExists(),
+				Action:    backend.Nop(),
+			}, {
+				Key:       key1,
+				Condition: backend.Whatever(),
+				Action:    backend.Put(backend.Item{Value: []byte("a")}),
+			}})
+			errs <- err
+		})
+		err1, err2 := <-errs, <-errs
+		if err1 == nil && err2 == nil {
+			require.FailNowf(t, "conflicting concurrent atomic writes both succeeded", "attempt %d", i+1)
+		} else if err1 != nil && err2 != nil {
+			require.FailNowf(t, "conflicting concurrent atomic writes both failed", "attempt %d, errs %v %v", i+1, err1, err2)
+		}
+
+		err = bk.Delete(ctx, key1)
+		if trace.IsNotFound(err) {
+			err = nil
+		}
+		require.NoError(t, err)
+
+		err = bk.Delete(ctx, key2)
+		if trace.IsNotFound(err) {
+			err = nil
+		}
+		require.NoError(t, err)
+	}
 }
 
 // testAtomicWriteNonConflicting verifies that non-conflicting but overlapping transactions all succeed
