@@ -475,18 +475,35 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Username: req.User,
-		Roles:    req.Roles,
-		Traits:   req.Traits,
-		// Propagate AllowedResourceAccessIDs from the req, so AccessChecker
-		// doesn't fall back to role-based checks alone if resource-level restrictions
-		// are present on caller's identity.
-		AllowedResourceAccessIDs: req.NewWebSessionRequest.RequestedResourceAccessIDs,
-		DelegationSessionID:      req.DelegationSessionID,
-	}, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var checkerContext *services.ScopedAccessCheckerContext
+	if req.Identity.ScopePin != nil {
+		if req.DelegationSessionID != "" {
+			return nil, trace.AccessDenied("scoped identities do not support delegation session ID")
+		}
+		if len(req.RequestedResourceAccessIDs) != 0 {
+			return nil, trace.AccessDenied("scoped identities do not support requested resource access IDs")
+		}
+
+		accessInfo := services.ScopePinnedAccessInfoFromUserState(user, req.Identity.ScopePin)
+		checkerContext, err = services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		checker, err := services.NewAccessChecker(&services.AccessInfo{
+			Username: req.User,
+			Roles:    req.Roles,
+			Traits:   req.Traits,
+			// Propagate AllowedResourceAccessIDs from the req, so AccessChecker
+			// doesn't fall back to role-based checks alone if resource-level restrictions
+			// are present on caller's identity.
+			AllowedResourceAccessIDs: req.NewWebSessionRequest.RequestedResourceAccessIDs,
+			DelegationSessionID:      req.DelegationSessionID,
+		}, clusterName.GetClusterName(), a)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		checkerContext = services.NewScopedAccessCheckerContextFromUnscoped(checker)
 	}
 
 	sessionID := req.SuggestedSessionID
@@ -529,7 +546,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		User:           user,
 		LoginIP:        req.LoginIP,
 		TLSPublicKey:   tlsPublicKey,
-		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
+		CheckerContext: checkerContext,
 		TTL:            req.SessionTTL,
 		Traits:         req.Traits,
 		ActiveRequests: req.AccessRequests,
