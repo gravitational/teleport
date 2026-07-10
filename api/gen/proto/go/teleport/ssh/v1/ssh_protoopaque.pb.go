@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/ssh/v1/ssh.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package sshpb
 

@@ -2,7 +2,10 @@ module github.com/gravitational/teleport/build.assets/tooling
 
 go 1.26.5
 
-tool github.com/gravitational/teleport/build.assets/tooling/cmd/helm-janitor
+tool (
+	github.com/gravitational/teleport/build.assets/tooling/cmd/helm-janitor
+	github.com/gravitational/teleport/build.assets/tooling/cmd/protoopaque-retag-protoc-gen-go
+)
 
 require (
 	buf.build/go/bufplugin v0.10.0

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/scopes/access/v1/service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package accessv1
 
