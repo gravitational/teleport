@@ -6487,11 +6487,11 @@ func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server ty
 }
 
 // DeleteApplicationServer deletes specified application server.
-func (a *ServerWithRoles) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+func (a *ServerWithRoles) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string, scope ...string) error {
 	if err := a.actionNamespace(namespace, types.KindAppServer, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteApplicationServer(ctx, namespace, hostID, name)
+	return a.authServer.DeleteApplicationServer(ctx, namespace, hostID, name, scope...)
 }
 
 // DeleteAllApplicationServers deletes all registered application servers.

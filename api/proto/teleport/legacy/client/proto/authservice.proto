@@ -775,6 +775,9 @@ message DeleteApplicationServerRequest {
   string HostID = 2 [(gogoproto.jsontag) = "host_id"];
   // Name is the name of the application to delete.
   string Name = 3 [(gogoproto.jsontag) = "name"];
+  // Scope is the scope of the application to delete. Empty for unscoped
+  // applications.
+  string Scope = 4 [(gogoproto.jsontag) = "scope,omitempty"];
 }
 
 // DeleteAllApplicationServersRequest are the parameters used to remove all applications.

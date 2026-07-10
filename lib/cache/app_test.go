@@ -165,7 +165,7 @@ var appServerRangeFuncs = rangeServersWithTargetNameFuncs[types.AppServer]{
 		return err
 	},
 	delete: func(ctx context.Context, presence services.Presence, s types.AppServer) error {
-		return presence.DeleteApplicationServer(ctx, s.GetNamespace(), s.GetHostID(), s.GetName())
+		return presence.DeleteApplicationServer(ctx, s.GetNamespace(), s.GetHostID(), s.GetName(), s.GetScope())
 	},
 	rangeByName: (*Cache).RangeApplicationServersWithName,
 }

@@ -1138,7 +1138,7 @@ type OktaAccessPoint interface {
 	DeleteOktaAssignment(ctx context.Context, name string) error
 
 	// DeleteApplicationServer removes specified application server.
-	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string, scope ...string) error
 
 	// UpsertLock creates or updates a given lock
 	UpsertLock(ctx context.Context, lock types.Lock) error
@@ -2003,8 +2003,8 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 }
 
 // DeleteApplicationServer removes specified application server.
-func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
-	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
+func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string, scope ...string) error {
+	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name, scope...)
 }
 
 // UpsertOktaAssignment creates or updates an Okta assignment resource.

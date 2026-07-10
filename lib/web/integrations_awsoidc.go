@@ -1206,7 +1206,7 @@ func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.NotFound("app %s is not using integration %s", integrationAppServer.GetName(), integrationName)
 	}
 
-	if err := clt.DeleteApplicationServer(ctx, apidefaults.Namespace, integrationAppServer.GetHostID(), integrationName); err != nil {
+	if err := clt.DeleteApplicationServer(ctx, apidefaults.Namespace, integrationAppServer.GetHostID(), integrationName, integrationAppServer.GetScope()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -1704,7 +1704,7 @@ func (g *GRPCServer) DeleteApplicationServer(ctx context.Context, req *authpb.De
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName())
+	err = auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName(), req.GetScope())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -551,7 +551,14 @@ func newWatcher(ctx context.Context, resourceCache *UnifiedResourceCache, cfg Re
 
 // resourceName is a unique name to be used as a key in the resources map
 func resourceKey(resource types.Resource) string {
-	return resource.GetName() + "/" + resource.GetKind()
+	key := resource.GetName() + "/" + resource.GetKind()
+	switch r := resource.(type) {
+	case types.AppServer:
+		if scope := r.GetScope(); scope != "" {
+			key += "/" + scope
+		}
+	}
+	return key
 }
 
 type resourceSortKey struct {
@@ -583,6 +590,9 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 				name = sanitizedFriendlyName + "/" + app.GetName()
 			} else {
 				name = app.GetName()
+			}
+			if scope := r.GetScope(); scope != "" {
+				name = name + "/" + scope
 			}
 			kind = types.KindApp
 		}

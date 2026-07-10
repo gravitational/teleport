@@ -3857,7 +3857,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	))
 
 	// Delete an app server.
-	err = clt.DeleteApplicationServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+	err = clt.DeleteApplicationServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName(), server1.GetScope())
 	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
@@ -4093,7 +4093,7 @@ func TestAppServersCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer1.GetName()))
+	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer1.GetName(), appServer1.GetScope()))
 
 	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindAppServer,
@@ -4146,7 +4146,7 @@ func TestAppServersCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer2.GetName()))
+	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer2.GetName(), appServer2.GetScope()))
 
 	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindAppServer,

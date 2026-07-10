@@ -1931,7 +1931,7 @@ func syncTestAppServerWatcher(t *testing.T) {
 	require.Empty(t, diffAppServers(appServers, current))
 
 	// Delete the first app server, ensure watcher correctly removes the entry
-	err = presence.DeleteApplicationServer(ctx, "default", appServers[0].GetHostID(), appServers[0].GetName())
+	err = presence.DeleteApplicationServer(ctx, "default", appServers[0].GetHostID(), appServers[0].GetName(), appServers[0].GetScope())
 	require.NoError(t, err)
 
 	synctest.Wait()

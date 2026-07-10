@@ -463,7 +463,7 @@ func (s *ServicesTestSuite) AppServerCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.AppServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Remove the application.
-	err = s.PresenceS.DeleteApplicationServer(ctx, server.Metadata.Namespace, server.GetHostID(), server.GetName())
+	err = s.PresenceS.DeleteApplicationServer(ctx, server.Metadata.Namespace, server.GetHostID(), server.GetName(), server.GetScope())
 	require.NoError(t, err)
 
 	// Now expect no applications to be returned.

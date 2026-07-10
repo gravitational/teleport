@@ -155,7 +155,7 @@ func deleteAppServer(ctx context.Context, client *authclient.Client, ref service
 	}
 
 	for _, server := range appServers {
-		if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
+		if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName(), server.GetScope()); err != nil {
 			return trace.Wrap(err)
 		}
 	}

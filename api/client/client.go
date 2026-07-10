@@ -1589,12 +1589,27 @@ func (c *Client) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	return keepAlive, nil
 }
 
-// DeleteApplicationServer removes specified application server.
-func (c *Client) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+// DeleteApplicationServer removes specified application server. The scope must
+// be set for scoped application servers and empty or omitted otherwise.
+//
+// TODO(williamo/scopes): scope is variadic only for submodule e compatibility
+// At most one scope may be provided.
+// Flip this to a plain string parameter once all callers pass the scope explicitly.
+func (c *Client) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string, scope ...string) error {
+	var appScope string
+	switch len(scope) {
+	case 0: // unscoped
+	case 1:
+		appScope = scope[0]
+	default:
+		return trace.BadParameter("expected at most 1 scope, got %d", len(scope))
+	}
+
 	_, err := c.grpc.DeleteApplicationServer(ctx, &proto.DeleteApplicationServerRequest{
 		Namespace: namespace,
 		HostID:    hostID,
 		Name:      name,
+		Scope:     appScope,
 	})
 	return trace.Wrap(err)
 }

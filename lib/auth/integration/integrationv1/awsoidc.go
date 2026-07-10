@@ -171,7 +171,7 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 				"integration", ig.GetName())
 
 			err := s.backend.DeleteApplicationServer(ctx,
-				appServer.GetNamespace(), appServer.GetHostID(), appServer.GetName())
+				appServer.GetNamespace(), appServer.GetHostID(), appServer.GetName(), appServer.GetScope())
 
 			if err != nil && !trace.IsNotFound(err) {
 				return trace.Wrap(err)

@@ -277,20 +277,32 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 }
 
 // removeAppServer deletes app server for the specified app.
-func (s *Server) removeAppServer(ctx context.Context, name string) error {
+func (s *Server) removeAppServer(ctx context.Context, name, scope string) error {
 	return s.c.AuthClient.DeleteApplicationServer(ctx, apidefaults.Namespace,
-		s.c.HostID, name)
+		s.c.HostID, name, scope)
+}
+
+// appScope returns the scope of the named app.
+func (s *Server) appScope(name string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if app, ok := s.apps[name]; ok {
+		return app.GetScope()
+	}
+	return ""
 }
 
 // stopAndRemoveApp uninitializes and deletes the app with the specified name.
 func (s *Server) stopAndRemoveApp(ctx context.Context, name string) error {
+	scope := s.appScope(name)
+
 	if err := s.stopApp(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Heartbeat is stopped but if we don't remove this app server,
 	// it can linger for up to ~10m until its TTL expires.
-	if err := s.removeAppServer(ctx, name); err != nil && !trace.IsNotFound(err) {
+	if err := s.removeAppServer(ctx, name, scope); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -564,7 +576,7 @@ func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
 		if currentApps[name] {
 			continue
 		}
-		if err := s.removeAppServer(ctx, name); err != nil {
+		if err := s.removeAppServer(ctx, name, server.GetScope()); err != nil {
 			if !trace.IsNotFound(err) {
 				s.log.WarnContext(ctx, "Failed to remove orphaned app server.", "app", name, "error", err)
 			}
@@ -626,9 +638,10 @@ func (s *Server) close(ctx context.Context) error {
 			}
 
 			if shouldDeleteApps {
+				scope := s.apps[name].GetScope()
 				g.Go(func() error {
 					log.DebugContext(ctx, "Deleting app")
-					if err := s.removeAppServer(gctx, name); err != nil {
+					if err := s.removeAppServer(gctx, name, scope); err != nil {
 						log.WarnContext(ctx, "Failed to delete app.", "error", err)
 					} else {
 						log.DebugContext(ctx, "Deleted app")

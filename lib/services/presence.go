@@ -145,8 +145,14 @@ type Presence interface {
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 	// UpsertApplicationServer registers an application server.
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
-	// DeleteApplicationServer deletes specified application server.
-	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+	// DeleteApplicationServer deletes specified application server. The scope
+	// must be set for scoped application servers and empty or omitted
+	// otherwise.
+	//
+	// TODO(williamo/scopes): scope is variadic only so that the e submodule,
+	// which still calls this method without a scope argument, keeps compiling
+	// until it is updated.
+	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string, scope ...string) error
 	// DeleteAllApplicationServers removes all registered application servers.
 	DeleteAllApplicationServers(context.Context, string) error
 

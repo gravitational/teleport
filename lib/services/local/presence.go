@@ -56,6 +56,28 @@ type PresenceService struct {
 	backend.Backend
 
 	relayServers *generic.ServiceWrapper[*presencev1.RelayServer]
+	appServers   *generic.ScopeAwareService[types.AppServer]
+}
+
+// appServerServiceForHost returns a [*generic.Service] prefixed for the app
+// servers of a single host:
+//   - unscoped: /appServers/<namespace>/<host-uuid>/<name>
+//   - scoped:   /scoped/appServers/<encoded-scope>/<namespace>/<host-uuid>/<name>
+//
+// Since an app server represents a single proxied application, there may be
+// multiple app servers on a single host, so the hostID prefix is needed.
+func appServerServiceForHost(
+	appServers *generic.ScopeAwareService[types.AppServer],
+	scope, namespace, hostID string,
+) (*generic.Service[types.AppServer], error) {
+	service, err := appServers.WithScopePrefix(scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	service = service.WithPrefix(namespace, hostID)
+
+	return service, nil
 }
 
 var _ services.PresenceInternal = (*PresenceService)(nil)
@@ -77,12 +99,26 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 	if err != nil {
 		panic("impossible: failed to construct relay_server service wrapper")
 	}
+
+	appServers, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[types.AppServer]{
+		Backend:               b,
+		ResourceKind:          types.KindAppServer,
+		UnscopedBackendPrefix: backend.NewKey(appServersPrefix),
+		ScopedBackendPrefix:   backend.NewKey(scopedPrefix, appServersPrefix),
+		MarshalFunc:           services.MarshalAppServer,
+		UnmarshalFunc:         services.UnmarshalAppServer,
+	})
+	if err != nil {
+		panic("impossible: failed to construct app_server service wrapper")
+	}
+
 	return &PresenceService{
 		logger:  slog.With(teleport.ComponentKey, "Presence"),
 		jitter:  retryutils.FullJitter,
 		Backend: b,
 
 		relayServers: relayServers,
+		appServers:   appServers,
 	}
 }
 
@@ -1197,31 +1233,8 @@ func (s *PresenceService) GetApplicationServers(ctx context.Context, namespace s
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace")
 	}
-	servers, err := s.getApplicationServers(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return servers, nil
-}
 
-func (s *PresenceService) getApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	startKey := backend.ExactKey(appServersPrefix, namespace)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make([]types.AppServer, len(result.Items))
-	for i, item := range result.Items {
-		server, err := services.UnmarshalAppServer(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[i] = server
-	}
-	return servers, nil
+	return stream.Collect(s.appServers.Resources(ctx, "", ""))
 }
 
 // RangeApplicationServersWithName returns an iterator over application servers for a given app name.
@@ -1229,25 +1242,13 @@ func (s *PresenceService) RangeApplicationServersWithName(ctx context.Context, a
 	if appName == "" {
 		return stream.Fail[types.AppServer](trace.BadParameter("missing application name"))
 	}
-
-	mapFn := func(item backend.Item) (types.AppServer, bool) {
-		server, err := services.UnmarshalAppServer(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal application server", "key", item.Key, "error", err)
-			return nil, false
-		}
+	// s.appServers.Upser
+	mapFn := func(server types.AppServer) (types.AppServer, bool) {
 		app := server.GetApp()
 		return server, app != nil && app.GetName() == appName
 	}
 
-	startKey := backend.ExactKey(appServersPrefix, apidefaults.Namespace)
-	endKey := backend.RangeEnd(startKey)
-
-	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
+	return stream.FilterMap(s.appServers.Resources(ctx, "", ""), mapFn)
 }
 
 // UpsertApplicationServer registers an application server.
@@ -1259,36 +1260,25 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 		return nil, trace.Wrap(err)
 	}
 
-	rev := server.GetRevision()
-	value, err := services.MarshalAppServer(server)
+	svc, err := appServerServiceForHost(s.appServers, server.GetScope(), server.GetNamespace(), server.GetHostID())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Since an app server represents a single proxied application, there may
-	// be multiple database servers on a single host, so they are stored under
-	// the following path in the backend:
-	//   /appServers/<namespace>/<host-uuid>/<name>
-	_, err = s.Put(ctx, backend.Item{
-		Key: backend.NewKey(appServersPrefix,
-			server.GetNamespace(),
-			server.GetHostID(),
-			server.GetName()),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: rev,
-	})
+	upserted, err := svc.UpsertResource(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if server.Expiry().IsZero() {
+
+	if upserted.Expiry().IsZero() {
 		return &types.KeepAlive{}, nil
 	}
+
 	return &types.KeepAlive{
 		Type:      types.KeepAlive_APP,
 		Name:      server.GetName(),
 		Namespace: server.GetNamespace(),
 		HostID:    server.GetHostID(),
-		Expires:   server.Expiry(),
+		Expires:   upserted.Expiry(),
 	}, nil
 }
 
@@ -1301,43 +1291,43 @@ func (s *PresenceService) UnconditionalUpdateApplicationServer(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
-	value, err := services.MarshalAppServer(server)
+	svc, err := appServerServiceForHost(s.appServers, server.GetScope(), server.GetNamespace(), server.GetHostID())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Since an app server represents a single proxied application, there may
-	// be multiple database servers on a single host, so they are stored under
-	// the following path in the backend:
-	//   /appServers/<namespace>/<host-uuid>/<name>
-	lease, err := s.Update(ctx, backend.Item{
-		Key: backend.NewKey(appServersPrefix,
-			server.GetNamespace(),
-			server.GetHostID(),
-			server.GetName(),
-		),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: server.GetRevision(),
-	})
+	updated, err := svc.UpdateResource(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	server.SetRevision(lease.Revision)
-	return server, nil
+	return updated, nil
 }
 
-// DeleteApplicationServer removes specified application server.
-func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
-	key := backend.NewKey(appServersPrefix, namespace, hostID, name)
-	return s.Delete(ctx, key)
+// DeleteApplicationServer removes specified application server. The scope must
+// be set for scoped application servers and empty or omitted otherwise.
+// scope is variadic only for e submodule compatibility, see
+// [services.Presence]. A single scope at most may be provided.
+func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string, scope ...string) error {
+	var appScope string
+	switch len(scope) {
+	case 0: // unscoped
+	case 1:
+		appScope = scope[0]
+	default:
+		return trace.BadParameter("expected at most 1 scope, got %d", len(scope))
+	}
+
+	svc, err := appServerServiceForHost(s.appServers, appScope, namespace, hostID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(svc.DeleteResource(ctx, name))
 }
 
 // DeleteAllApplicationServers removes all registered application servers.
 func (s *PresenceService) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
-	startKey := backend.ExactKey(appServersPrefix, namespace)
-	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(s.appServers.DeleteAllResources(ctx))
 }
 
 // KeepAliveServer updates expiry time of a server resource.

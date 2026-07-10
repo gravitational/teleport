@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -1495,7 +1496,10 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 
 func newAppServerV3Parser() *appServerV3Parser {
 	return &appServerV3Parser{
-		baseParser: newBaseParser(backend.NewKey(appServersPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(
+			backend.NewKey(appServersPrefix, apidefaults.Namespace),
+			backend.NewKey(scopedPrefix, appServersPrefix),
+		),
 	}
 }
 
@@ -1506,6 +1510,35 @@ type appServerV3Parser struct {
 func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		// Scoped app servers live under
+		// /scoped/appServers/<encoded-scope>/<namespace>/<host-id>/<name>.
+		scopedAppServersKey := backend.NewKey(scopedPrefix, appServersPrefix)
+		if event.Item.Key.HasPrefix(scopedAppServersKey) {
+			components := event.Item.Key.TrimPrefix(scopedAppServersKey).Components()
+			if len(components) != 4 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			scope, err := scopes.DecodeFromKey(components[0])
+			if err != nil {
+				return nil, trace.Wrap(err, "failed decoding scope from app server key %q", event.Item.Key.String())
+			}
+			return &types.AppServerV3{
+				Kind:    types.KindAppServer,
+				Version: types.V3,
+				Metadata: types.Metadata{
+					Name:      components[3],
+					Namespace: components[1],
+					// The host ID is stored in the description for compatibility
+					// with resource header stubs; some caches rely on it
+					Description: components[2],
+				},
+				Scope: scope,
+				Spec: types.AppServerSpecV3{
+					HostID: components[2],
+				},
+			}, nil
+		}
+
 		components := event.Item.Key.TrimPrefix(backend.NewKey(appServersPrefix, apidefaults.Namespace)).Components()
 		if len(components) != 2 {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
