@@ -1535,7 +1535,11 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 			logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
 			tunnelClient, pingResponse, err := process.newClientThroughProxy(tlsConfig, sshClientConfig, connector.Role(), connector.ClusterName(), connector.ClientGetPool)
 			if err != nil {
-				return nil, nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
+				errMsg := fmt.Sprintf("Failed to connect to Proxy Server through tunnel: %v", err)
+				if hint := proxyTunnelConnectionHint(proxyServer); hint != "" {
+					errMsg = fmt.Sprintf("%s. %s", errMsg, hint)
+				}
+				return nil, nil, trace.Errorf("%s", errMsg)
 			}
 
 			logger.DebugContext(process.ExitContext(), "Connected to Auth Server through tunnel.")
@@ -1550,6 +1554,23 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 	}
 
 	return nil, nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
+}
+
+func proxyTunnelConnectionHint(proxyServer utils.NetAddr) string {
+	if !strings.HasSuffix(proxyServer.Host(), "."+defaults.CloudDomainSuffix) {
+		return ""
+	}
+
+	if proxyServer.Port(defaults.HTTPListenPort) != defaults.HTTPListenPort {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"If your network does not allow %d, set proxy_server to \"%s:%d\"",
+		defaults.HTTPListenPort,
+		proxyServer.Host(),
+		defaults.CloudProxyListenPort,
+	)
 }
 
 func (process *TeleportProcess) breakerConfigForRole(role types.SystemRole) breaker.Config {
