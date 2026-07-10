@@ -50,6 +50,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -682,6 +683,11 @@ func (c *Client) CrownJewelsClient() services.CrownJewels {
 // StaticHostUserClient returns a client for managing static host user resources.
 func (c *Client) StaticHostUserClient() services.StaticHostUser {
 	return c.APIClient.StaticHostUserClient()
+}
+
+// KubeClusterServiceClient returns a client for managing KubeCluster resources.
+func (c *Client) KubeClusterServiceClient() kubev1.KubeClusterServiceClient {
+	return c.APIClient.KubeClusterServiceClient()
 }
 
 // DeleteStaticTokens deletes static tokens
@@ -2002,4 +2008,7 @@ type ClientI interface {
 
 	// BeamServiceClient returns a client for the beam service.
 	BeamServiceClient() beamsv1.BeamServiceClient
+
+	// KubeClusterServiceClient returns a client for the kube service.
+	KubeClusterServiceClient() kubev1.KubeClusterServiceClient
 }

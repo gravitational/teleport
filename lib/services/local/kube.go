@@ -109,6 +109,19 @@ func (s *KubernetesService) RangeKubernetesClusters(ctx context.Context, start, 
 	return s.svc.Resources(ctx, start, end)
 }
 
+// RangeKubeClusters returns kubernetes clusters within the range [start, end).
+func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest, start, end string) iter.Seq2[types.KubeCluster, error] {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return stream.Fail[types.KubeCluster](trace.Wrap(err))
+	}
+	filterFn := func(kc types.KubeCluster) (types.KubeCluster, bool) {
+		return kc, scopes.MatchScope(scopeFilter, kc.GetScope())
+	}
+
+	return stream.FilterMap(s.svc.Resources(ctx, start, end), filterFn)
+}
+
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
 func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	return s.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{Name: name}.Build())
@@ -154,9 +167,27 @@ func (s *KubernetesService) DeleteKubernetesCluster(ctx context.Context, name st
 	})
 }
 
+// DeleteKubeCluster removes the specified kubernetes cluster resource.
+func (s *KubernetesService) DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) error {
+	return s.svc.DeleteResource(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	})
+}
+
 // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
 func (s *KubernetesService) DeleteAllKubernetesClusters(ctx context.Context) error {
 	return s.svc.DeleteAllResources(ctx)
+}
+
+// DeleteAllKubeClusters removes all kubernetes cluster resources within the given scope.
+func (s *KubernetesService) DeleteAllKubeClusters(ctx context.Context, scope string) error {
+	svc, err := s.svc.WithScopePrefix(scope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return svc.DeleteAllResources(ctx)
 }
 
 func validateKubeCluster(cluster types.KubeCluster) error {

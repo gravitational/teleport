@@ -102,6 +102,7 @@ type Services struct {
 	services.BeamsConfigService
 	services.SubCAService
 	services.EnrollPairing
+	services.KubeClusterService
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.

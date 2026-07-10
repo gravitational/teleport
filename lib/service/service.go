@@ -75,7 +75,7 @@ import (
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	publicdevicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
-	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -3215,6 +3215,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AppAuthConfig = services.AppAuthConfig
 	cfg.Summarizer = services.Summarizer
 	cfg.SubCAService = services.SubCAService
+	cfg.KubeClusterUpstream = services.KubeClusterService
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3266,6 +3267,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.HealthCheckConfig = client
 	cfg.AppAuthConfig = client
 	cfg.SubCAService = client
+	cfg.KubeClusterUpstream = services.NewKubeClusterClientAdapter(client.KubeServiceClient())
 
 	return accesspoint.NewCache(cfg)
 }
@@ -7726,7 +7728,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	kubeproto.RegisterKubeServiceServer(server, kubeServer)
+	kubev1.RegisterKubeServiceServer(server, kubeServer)
 
 	process.RegisterCriticalFunc("proxy.grpc.secure", func() error {
 		process.logger.InfoContext(process.ExitContext(), "Starting proxy gRPC server.", "listen_address", cfg.listener.Addr())

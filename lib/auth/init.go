@@ -292,6 +292,8 @@ type InitConfig struct {
 
 	// Kubernetes is a service that manages kubernetes cluster resources.
 	Kubernetes services.Kubernetes
+	// KubeClusterService is a service that manages kube cluster resources.
+	KubeClusterService services.KubeClusterService
 
 	// AssertionReplayService is a service that mitigates SSO assertion replay.
 	*local.AssertionReplayService
