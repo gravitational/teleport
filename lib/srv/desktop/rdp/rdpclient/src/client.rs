@@ -26,7 +26,9 @@ use crate::{
 use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
-use ironrdp_connector::connection_activation::ConnectionActivationState;
+use ironrdp_connector::connection_activation::{
+    ConnectionActivationFactory, ConnectionActivationState,
+};
 use ironrdp_connector::credssp::KerberosConfig;
 use ironrdp_connector::{
     Config, ConnectorError, ConnectorErrorKind, Credentials, DesktopSize, SmartCardIdentity,
@@ -102,6 +104,7 @@ pub struct Client {
     function_receiver: Option<FunctionReceiver>,
     x224_processor: Arc<Mutex<x224::Processor>>,
     pending_resize: Arc<Mutex<PendingResize>>,
+    activation_factory: ConnectionActivationFactory,
 }
 
 /// A global, static tokio runtime for use by `Client`.
@@ -269,8 +272,8 @@ impl Client {
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
+            connection_result.message_channel_id,
             connection_result.share_id,
-            connection_result.connection_activation,
         )));
 
         Ok(Self {
@@ -281,6 +284,7 @@ impl Client {
             function_receiver,
             x224_processor,
             pending_resize,
+            activation_factory: connection_result.activation_factory,
         })
     }
 
@@ -323,6 +327,7 @@ impl Client {
             read_stream,
             self.x224_processor.clone(),
             self.client_handle.clone(),
+            self.activation_factory.clone(),
         );
 
         let write_loop_handle = Client::run_write_loop(
@@ -349,6 +354,7 @@ impl Client {
         mut read_stream: RdpReadStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_requester: ClientHandle,
+        activation_factory: ConnectionActivationFactory,
     ) -> ClientResult<Option<DisconnectDescription>> {
         loop {
             let (action, mut frame) = read_stream.read_pdu().await?;
@@ -377,15 +383,16 @@ impl Client {
                             ProcessorOutput::Disconnect(reason) => {
                                 return Ok(Some(reason));
                             }
-                            ProcessorOutput::DeactivateAll(mut sequence) => {
+                            ProcessorOutput::DeactivateAll => {
                                 // Execute the Deactivation-Reactivation Sequence:
                                 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432
                                 debug!("Received Server Deactivate All PDU, executing Deactivation-Reactivation Sequence");
+                                let mut sequence = activation_factory.create();
                                 let mut buf = WriteBuf::new();
                                 loop {
                                     let written = single_sequence_step_read(
                                         &mut read_stream,
-                                        sequence.as_mut(),
+                                        &mut sequence,
                                         &mut buf,
                                     )
                                     .await?;
@@ -397,8 +404,6 @@ impl Client {
                                     }
 
                                     if let ConnectionActivationState::Finalized {
-                                        io_channel_id,
-                                        user_channel_id,
                                         desktop_size,
                                         ..
                                     } = sequence.connection_activation_state()
@@ -408,8 +413,8 @@ impl Client {
                                         // connection result in [`Self::connect`].
                                         Self::send_connection_activated(
                                             cgo_handle,
-                                            io_channel_id,
-                                            user_channel_id,
+                                            activation_factory.io_channel_id(),
+                                            activation_factory.user_channel_id(),
                                             desktop_size,
                                         )
                                         .await?;
