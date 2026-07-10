@@ -94,7 +94,92 @@ var (
 		},
 		[]string{teleport.TagCacheComponent},
 	)
+
+	// cacheHealthReporter aggregates the health of all running cache instances
+	// into the cacheHealth metric, keyed by target.
+	cacheHealthReporter = newHealthReporter(cacheHealth)
 )
+
+// healthReporter tracks the health of running cache instances and reports an
+// aggregated value into a per-target gauge (teleport_cache_health).
+//
+// More than one cache with the same target can be running at the same time.
+// For example, enabling or disabling External Audit Storage in Teleport Cloud
+// starts a new TeleportProcess before the old one is shut down, and the Okta
+// plugin (which owns an "okta" cache) can be restarted on a host CA rotation.
+// During these overlaps the old and new caches share the same metric label, so
+// a naive "set the gauge on every health change" approach lets a shutting-down
+// instance clobber the value written by a freshly started one, leaving the
+// metric stuck reporting unhealthy until the surviving cache happens to reset.
+//
+// To avoid that, each instance's health is tracked individually. The gauge for
+// a target is healthy if any running instance for that target is healthy, and
+// the metric is removed entirely once no instances for the target remain, so a
+// stale value can never linger after all caches with that target have stopped.
+type healthReporter struct {
+	gauge *prometheus.GaugeVec
+
+	mu sync.Mutex
+	// targets maps a cache target to the set of running cache instances for
+	// that target and their most recently reported health.
+	targets map[string]map[*Cache]bool
+}
+
+func newHealthReporter(gauge *prometheus.GaugeVec) *healthReporter {
+	return &healthReporter{
+		gauge:   gauge,
+		targets: make(map[string]map[*Cache]bool),
+	}
+}
+
+// setHealth records the health of a single cache instance and refreshes the
+// aggregated metric for the instance's target.
+func (r *healthReporter) setHealth(c *Cache, healthy bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	instances := r.targets[c.target]
+	if instances == nil {
+		instances = make(map[*Cache]bool)
+		r.targets[c.target] = instances
+	}
+	instances[c] = healthy
+	r.refresh(c.target)
+}
+
+// remove deregisters a cache instance. If it was the last running instance for
+// its target, the metric for that target is deleted; otherwise the aggregated
+// value is recomputed from the instances that are still running.
+func (r *healthReporter) remove(c *Cache) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	instances := r.targets[c.target]
+	if _, ok := instances[c]; !ok {
+		return
+	}
+	delete(instances, c)
+	if len(instances) == 0 {
+		delete(r.targets, c.target)
+		r.gauge.DeleteLabelValues(c.target)
+		return
+	}
+	r.refresh(c.target)
+}
+
+// refresh recomputes the aggregated gauge value for target. The cache for a
+// target is reported healthy if any running instance is healthy. The caller
+// must hold r.mu.
+func (r *healthReporter) refresh(target string) {
+	healthy := 0.0
+	for _, ok := range r.targets[target] {
+		if ok {
+			healthy = 1.0
+			break
+		}
+	}
+	r.gauge.WithLabelValues(target).Set(healthy)
+}
 
 // highVolumeResources is the set of cached resources that tend to produce high
 // event volumes (e.g. heartbeat resources). high volume events, and the watchers that
@@ -607,9 +692,9 @@ func (c *Cache) setInitError(err error) {
 		c.firstTimeInitOnce.Do(func() {
 			close(c.firstTimeInitC)
 		})
-		cacheHealth.WithLabelValues(c.target).Set(1.0)
+		cacheHealthReporter.setHealth(c, true)
 	} else {
-		cacheHealth.WithLabelValues(c.target).Set(0.0)
+		cacheHealthReporter.setHealth(c, false)
 	}
 }
 
@@ -1544,6 +1629,7 @@ func (c *Cache) isClosing() bool {
 func (c *Cache) Close() error {
 	c.closed.Store(true)
 	c.cancel()
+	cacheHealthReporter.remove(c)
 	c.eventsFanout.Close()
 	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
 		f.Close()
