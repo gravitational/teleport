@@ -50,16 +50,8 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	acl3m1 := newAccessListMember(t, acl3.GetName(), acl1.GetName(), accesslist.MembershipKindList, clock)
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members: map[string][]*accesslist.AccessListMember{
-			acl1.GetName(): {acl1m1},
-			acl2.GetName(): {acl2m1},
-			acl3.GetName(): {},
-		},
-		accessLists: map[string]*accesslist.AccessList{
-			acl1.GetName(): acl1,
-			acl2.GetName(): acl2,
-			acl3.GetName(): acl3,
-		},
+		members:     mockAccessListMembers(acl1m1, acl2m1),
+		accessLists: mockAccessLists(acl1, acl2, acl3),
 	}
 
 	// Circular references should not be allowed.
@@ -70,8 +62,8 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	require.ErrorIs(t, err, ErrCyclicMembership)
 
 	// By removing acl3 as a member of acl2, the relationship should be valid.
-	accessListAndMembersGetter.members[acl2.GetName()] = []*accesslist.AccessListMember{}
-	accessListAndMembersGetter.accessLists[acl3.GetName()].Status.MemberOf = []string{}
+	accessListAndMembersGetter.members[ScopeQualifiedName(acl2)] = []*accesslist.AccessListMember{}
+	accessListAndMembersGetter.accessLists[ScopeQualifiedName(acl3)].Status.MemberOf = []string{}
 	err = ValidateAccessListMember(ctx, acl3, acl3m1, accessListAndMembersGetter)
 	require.NoError(t, err)
 
@@ -92,14 +84,8 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	acl4.Status.OwnerOf = append(acl4.Status.OwnerOf, acl5.GetName())
 
 	accessListAndMembersGetter = &mockAccessListAndMembersGetter{
-		members: map[string][]*accesslist.AccessListMember{
-			acl4.GetName(): {acl4m1},
-			acl5.GetName(): {},
-		},
-		accessLists: map[string]*accesslist.AccessList{
-			acl4.GetName(): acl4,
-			acl5.GetName(): acl5,
-		},
+		members:     mockAccessListMembers(acl4m1),
+		accessLists: mockAccessLists(acl4, acl5),
 	}
 
 	err = ValidateAccessListWithMembers(ctx, nil, acl5, []*accesslist.AccessListMember{acl4m1}, accessListAndMembersGetter)
@@ -121,25 +107,25 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	}
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members:     make(map[string][]*accesslist.AccessListMember),
-		accessLists: make(map[string]*accesslist.AccessList),
+		members:     make(map[NormalizedSQN][]*accesslist.AccessListMember),
+		accessLists: make(map[NormalizedSQN]*accesslist.AccessList),
 	}
 
 	// Create members up to MaxAllowedDepth
 	for i := range accesslist.MaxAllowedDepth {
 		member := newAccessListMember(t, acls[i].GetName(), acls[i+1].GetName(), accesslist.MembershipKindList, clock)
 		acls[i+1].Status.MemberOf = append(acls[i+1].Status.MemberOf, acls[i].GetName())
-		accessListAndMembersGetter.members[acls[i].GetName()] = []*accesslist.AccessListMember{member}
-		accessListAndMembersGetter.accessLists[acls[i].GetName()] = acls[i]
+		accessListAndMembersGetter.members[ScopeQualifiedName(acls[i])] = []*accesslist.AccessListMember{member}
+		accessListAndMembersGetter.accessLists[ScopeQualifiedName(acls[i])] = acls[i]
 	}
 	// Set remaining Access Lists' members to empty slices
 	for i := accesslist.MaxAllowedDepth; i < numAcls; i++ {
-		accessListAndMembersGetter.members[acls[i].GetName()] = []*accesslist.AccessListMember{}
-		accessListAndMembersGetter.accessLists[acls[i].GetName()] = acls[i]
+		accessListAndMembersGetter.members[ScopeQualifiedName(acls[i])] = []*accesslist.AccessListMember{}
+		accessListAndMembersGetter.accessLists[ScopeQualifiedName(acls[i])] = acls[i]
 	}
 
 	// Should be valid with existing member < MaxAllowedDepth
-	err := ValidateAccessListMember(ctx, acls[accesslist.MaxAllowedDepth-1], accessListAndMembersGetter.members[acls[accesslist.MaxAllowedDepth-1].GetName()][0], accessListAndMembersGetter)
+	err := ValidateAccessListMember(ctx, acls[accesslist.MaxAllowedDepth-1], accessListAndMembersGetter.members[ScopeQualifiedName(acls[accesslist.MaxAllowedDepth-1])][0], accessListAndMembersGetter)
 	require.NoError(t, err)
 
 	// Now, attempt to add a member that increases the depth beyond MaxAllowedDepth
@@ -521,24 +507,22 @@ func TestAccessListValidateWithMembers_members(t *testing.T) {
 	}
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members: map[string][]*accesslist.AccessListMember{
-			rootAcl.GetName(): {},
+		members: map[NormalizedSQN][]*accesslist.AccessListMember{
+			ScopeQualifiedName(rootAcl): {},
 		},
-		accessLists: map[string]*accesslist.AccessList{
-			rootAcl.GetName(): rootAcl,
-		},
+		accessLists: mockAccessLists(rootAcl),
 	}
 	for i := range accesslist.MaxAllowedDepth + 1 {
 		if i < accesslist.MaxAllowedDepth {
-			accessListAndMembersGetter.members[nestedAcls[i].GetName()] = []*accesslist.AccessListMember{members[i]}
+			accessListAndMembersGetter.members[ScopeQualifiedName(nestedAcls[i])] = []*accesslist.AccessListMember{members[i]}
 		}
-		accessListAndMembersGetter.accessLists[nestedAcls[i].GetName()] = nestedAcls[i]
+		accessListAndMembersGetter.accessLists[ScopeQualifiedName(nestedAcls[i])] = nestedAcls[i]
 	}
 
 	// Should validate successfully, as acl-0 -> acl-10 is a valid hierarchy of depth 10.
 	err := ValidateAccessListWithMembers(ctx, nil, rootAcl, []*accesslist.AccessListMember{}, accessListAndMembersGetter)
 	require.NoError(t, err)
-	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls[0], []*accesslist.AccessListMember{accessListAndMembersGetter.members[nestedAcls[0].GetName()][0]}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls[0], []*accesslist.AccessListMember{accessListAndMembersGetter.members[ScopeQualifiedName(nestedAcls[0])][0]}, accessListAndMembersGetter)
 	require.NoError(t, err)
 
 	// Calling `ValidateAccessListWithMembers`, with `rootAclm1`, should fail, as it would exceed the maximum nesting depth.
@@ -565,33 +549,33 @@ func TestAccessListValidateWithMembers_members(t *testing.T) {
 	}
 
 	accessListAndMembersGetter = &mockAccessListAndMembersGetter{
-		members:     map[string][]*accesslist.AccessListMember{},
-		accessLists: map[string]*accesslist.AccessList{},
+		members:     map[NormalizedSQN][]*accesslist.AccessListMember{},
+		accessLists: map[NormalizedSQN]*accesslist.AccessList{},
 	}
 
 	// Create the members for the first hierarchy.
 	for i := range Length {
 		member := newAccessListMember(t, nestedAcls1[i].GetName(), nestedAcls1[i+1].GetName(), accesslist.MembershipKindList, clock)
 		nestedAcls1[i+1].Status.MemberOf = append(nestedAcls1[i+1].Status.MemberOf, nestedAcls1[i].GetName())
-		accessListAndMembersGetter.members[nestedAcls1[i].GetName()] = []*accesslist.AccessListMember{member}
-		accessListAndMembersGetter.accessLists[nestedAcls1[i].GetName()] = nestedAcls1[i]
+		accessListAndMembersGetter.members[ScopeQualifiedName(nestedAcls1[i])] = []*accesslist.AccessListMember{member}
+		accessListAndMembersGetter.accessLists[ScopeQualifiedName(nestedAcls1[i])] = nestedAcls1[i]
 	}
 
 	// Create the members for the second hierarchy.
 	for i := range Length {
 		member := newAccessListMember(t, nestedAcls2[i].GetName(), nestedAcls2[i+1].GetName(), accesslist.MembershipKindList, clock)
 		nestedAcls2[i+1].Status.MemberOf = append(nestedAcls2[i+1].Status.MemberOf, nestedAcls2[i].GetName())
-		accessListAndMembersGetter.members[nestedAcls2[i].GetName()] = []*accesslist.AccessListMember{member}
-		accessListAndMembersGetter.accessLists[nestedAcls2[i].GetName()] = nestedAcls2[i]
+		accessListAndMembersGetter.members[ScopeQualifiedName(nestedAcls2[i])] = []*accesslist.AccessListMember{member}
+		accessListAndMembersGetter.accessLists[ScopeQualifiedName(nestedAcls2[i])] = nestedAcls2[i]
 	}
 
 	// For the first hierarchy
 	nestedAcls1Last := nestedAcls1[len(nestedAcls1)-1]
-	accessListAndMembersGetter.accessLists[nestedAcls1Last.GetName()] = nestedAcls1Last
+	accessListAndMembersGetter.accessLists[ScopeQualifiedName(nestedAcls1Last)] = nestedAcls1Last
 
 	// For the second hierarchy
 	nestedAcls2Last := nestedAcls2[len(nestedAcls2)-1]
-	accessListAndMembersGetter.accessLists[nestedAcls2Last.GetName()] = nestedAcls2Last
+	accessListAndMembersGetter.accessLists[ScopeQualifiedName(nestedAcls2Last)] = nestedAcls2Last
 
 	// Should validate successfully when adding another list, as both hierarchies are valid.
 	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
@@ -614,9 +598,9 @@ func Test_ValidateAccessListWithMembers_audit(t *testing.T) {
 	var accessList *accesslist.AccessList
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members: map[string][]*accesslist.AccessListMember{},
-		accessLists: map[string]*accesslist.AccessList{
-			accessListName: accessList,
+		members: map[NormalizedSQN][]*accesslist.AccessListMember{},
+		accessLists: map[NormalizedSQN]*accesslist.AccessList{
+			{Name: accessListName}: accessList,
 		},
 	}
 

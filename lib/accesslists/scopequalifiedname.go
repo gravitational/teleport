@@ -21,10 +21,36 @@ import (
 	"github.com/gravitational/teleport/lib/scopes"
 )
 
-// ScopeQualifiedName returns the scope-qualified name of the given access list.
-func ScopeQualifiedName(list *accesslist.AccessList) scopes.QualifiedName {
+// NormalizedSQN is a scope-qualified name that has been normalized for
+// comparisons and usage as a map key.
+type NormalizedSQN struct {
+	// Scope is the resource's normalized scope path, e.g. "/staging/west".
+	Scope string
+	// Name is the resource's name within its scope, e.g. "mylist".
+	Name string
+}
+
+// NormalizeSQN returns a scope-qualified name that has been normalized for
+// comparisons and usage as a map key.
+func NormalizeSQN(sqn scopes.QualifiedName) NormalizedSQN {
+	return NormalizedSQN{
+		Scope: scopes.NormalizeForEquality(sqn.Scope),
+		Name:  sqn.Name,
+	}
+}
+
+// ToScopesQualifiedName converts the NormalizedSQN to a [scopes.QualifiedName].
+func (n NormalizedSQN) ToScopesQualifiedName() scopes.QualifiedName {
 	return scopes.QualifiedName{
+		Scope: n.Scope,
+		Name:  n.Name,
+	}
+}
+
+// ScopeQualifiedName returns the normalized scope-qualified name of the given access list.
+func ScopeQualifiedName(list *accesslist.AccessList) NormalizedSQN {
+	return NormalizeSQN(scopes.QualifiedName{
 		Scope: list.Scope,
 		Name:  list.Metadata.Name,
-	}
+	})
 }
