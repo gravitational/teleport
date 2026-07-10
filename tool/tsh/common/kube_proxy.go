@@ -24,10 +24,12 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
@@ -36,7 +38,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -327,10 +328,15 @@ type kubeLocalProxy struct {
 	// forwardProxy is a HTTPS forward proxy used as proxy-url for the
 	// Kubernetes clients.
 	forwardProxy *alpnproxy.ForwardProxy
+	// certIssuer issues per-cluster certificates, reusing a single MFA ceremony across issuances.
+	// It is shared between the initial cert load and the middleware cert reissuer
+	// so the reusable MFA response and the old-auth-server fallback state carry over.
+	certIssuer *kubeCertIssuer
 }
 
 func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters, originalKubeConfig *clientcmdapi.Config, port, overrideContext string) (*kubeLocalProxy, error) {
-	certs, err := loadKubeUserCerts(cf.Context, tc, clusters)
+	certIssuer := newKubeCertIssuer(tc)
+	certs, err := loadKubeUserCerts(cf.Context, tc, clusters, certIssuer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -363,10 +369,11 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 	}
 
 	kubeProxy := &kubeLocalProxy{
-		tc:        tc,
-		clusters:  clusters,
-		clientKey: localClientKey,
-		localCAs:  cas,
+		tc:         tc,
+		clusters:   clusters,
+		clientKey:  localClientKey,
+		localCAs:   cas,
+		certIssuer: certIssuer,
 	}
 
 	kubeMiddleware := alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
@@ -513,7 +520,7 @@ func (k *kubeLocalProxy) WriteKubeConfig() error {
 	return trace.Wrap(kubeconfig.Save(k.KubeConfigPath(), *k.kubeconfig))
 }
 
-func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, error) {
+func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters, certIssuer *kubeCertIssuer) (alpnproxy.KubeClientCerts, error) {
 	ctx, span := tc.Tracer.Start(ctx, "loadKubeUserCerts")
 	defer span.End()
 
@@ -529,13 +536,13 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	}
 	defer clusterClient.Close()
 
-	// TODO for best performance, load one kube cert at a time.
 	kubeKeys, err := loadKubeKeys(tc, clusters.TeleportClusters())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	certs := make(alpnproxy.KubeClientCerts)
+	var missing kubeconfig.LocalProxyClusters
 	for _, cluster := range clusters {
 		// Try load from store.
 		if key := kubeKeys[cluster.TeleportCluster]; key != nil {
@@ -549,16 +556,18 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 				return nil, trace.Wrap(err)
 			}
 		}
-
-		// Try issue.
-		cert, err := issueKubeCert(ctx, tc, clusterClient, cluster.TeleportCluster, cluster.KubeCluster)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		logger.DebugContext(ctx, "Client cert issued for cluster", "cluster", cluster)
-		certs.Add(cluster.TeleportCluster, cluster.KubeCluster, cert)
+		missing = append(missing, cluster)
 	}
+	if len(missing) == 0 {
+		return certs, nil
+	}
+
+	certIssuer.setClusterClient(clusterClient)
+	issued, err := certIssuer.issueCerts(ctx, missing)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	maps.Copy(certs, issued)
 	return certs, nil
 }
 
@@ -589,7 +598,14 @@ func kubeCertFromKeyRing(keyRing *client.KeyRing, kubeCluster string) (tls.Certi
 // getCertReissuer returns a function that can reissue with MFA user certificate for accessing kubernetes cluster.
 // If required it performs relogin procedure.
 func (k *kubeLocalProxy) getCertReissuer(tc *client.TeleportClient) func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+	// Reissues are serialized: when certs for many clusters expire together (mfa_verification_interval),
+	// the first reissue runs the one MFA ceremony and the rest replay its reusable response instead of prompting again.
+	var reissueMu sync.Mutex
+
 	return func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+		reissueMu.Lock()
+		defer reissueMu.Unlock()
+
 		var clusterClient *client.ClusterClient
 		var currentContext string
 
@@ -621,48 +637,9 @@ func (k *kubeLocalProxy) getCertReissuer(tc *client.TeleportClient) func(ctx con
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 
-		return issueKubeCert(ctx, tc, clusterClient, teleportCluster, kubeCluster)
+		k.certIssuer.setClusterClient(clusterClient)
+		return k.certIssuer.issueCert(ctx, teleportCluster, kubeCluster, nil /*mfaCheck*/)
 	}
-}
-
-func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient *client.ClusterClient, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-	requesterName := proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
-	if tc.AllowHeadless {
-		requesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS
-	}
-
-	result, err := clusterClient.IssueUserCertsWithMFA(
-		ctx,
-		client.ReissueParams{
-			RouteToCluster:    teleportCluster,
-			KubernetesCluster: kubeCluster,
-			RequesterName:     requesterName,
-			TTL:               tc.KeyTTL,
-		},
-	)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	// Save it if MFA was not required.
-	if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-		if err := tc.LocalAgent().AddKubeKeyRing(result.KeyRing); err != nil {
-			return tls.Certificate{}, trace.Wrap(err)
-		}
-	}
-
-	cert, err := result.KeyRing.KubeTLSCert(kubeCluster)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	// Set leaf so we don't have to parse it on each request.
-	leaf, err := utils.TLSCertLeaf(cert)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	cert.Leaf = leaf
-
-	return cert, nil
 }
 
 // checkMultipleClusterSelections takes a map of name selectors to matched
