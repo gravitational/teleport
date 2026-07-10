@@ -241,6 +241,11 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 			return trace.BadParameter("scoped role %q has invalid defaults.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
 		}
 	}
+	if s := role.GetSpec().GetApp().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid app.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
+		}
+	}
 
 	// verify that create_host_user_mode is a recognized value
 	if mode := role.GetSpec().GetSsh().GetHostUserCreation().GetMode(); mode != "" {
@@ -295,6 +300,13 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
+	// verify that lock.Mode is a recognized value for App
+	if lock := role.GetSpec().GetApp().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid app.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
 	// verify that kube labels are well-formed
 	for _, label := range role.GetSpec().GetKube().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
@@ -306,6 +318,19 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
 			return trace.BadParameter("scoped role %q has invalid kube label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
+		}
+	}
+
+	for _, label := range role.GetSpec().GetApp().GetLabels() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// node labels. we likely will support such things in the future, but its best to disallow
+		// them until that has landed.
+
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
+			return trace.BadParameter("scoped role %q has invalid kube label name %q", role.GetMetadata().GetName(), label.GetName())
+		}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("scoped role %q has invalid app label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
 		}
 	}
 

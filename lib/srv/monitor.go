@@ -164,12 +164,76 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 
 	identity := authzCtx.Identity.GetIdentity()
 	checker := authzCtx.Checker
+	return c.monitorConn(ctx, monitorParams{
+		lockTargets:           authzCtx.LockTargets(),
+		lockingMode:           checker.LockingMode(authPref.GetLockingMode()),
+		disconnectExpiredCert: authzCtx.GetDisconnectCertExpiry(authPref),
+		clientIdleTimeout:     checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		teleportUser:          identity.Username,
+		originClusterName:     identity.OriginClusterName,
+		idleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
+	}, conn)
+}
 
-	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+type ScopedSessionControls interface {
+	AdjustClientIdleTimeout(time.Duration) (time.Duration, error)
+	AdjustDisconnectExpiredCert(bool) bool
+	LockingMode(constants.LockingMode) constants.LockingMode
+}
 
+// MonitorConnScoped is the scoped-identity variant of [ConnectionMonitor.MonitorConn].
+func (c *ConnectionMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *authz.ScopedContext, granting ScopedSessionControls, conn net.Conn) (context.Context, net.Conn, error) {
+	authPref, err := c.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return ctx, conn, trace.Wrap(err)
+	}
+	netConfig, err := c.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return ctx, conn, trace.Wrap(err)
+	}
+
+	idleTimeout, err := granting.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+	if err != nil {
+		return ctx, conn, trace.Wrap(err)
+	}
+
+	var disconnectExpiredCert time.Time
+	if granting.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		disconnectExpiredCert = scopedCtx.GetDisconnectCertExpiryTime()
+	}
+
+	identity := scopedCtx.Identity.GetIdentity()
+	return c.monitorConn(ctx, monitorParams{
+		lockTargets:           scopedCtx.LockTargets(),
+		lockingMode:           granting.LockingMode(authPref.GetLockingMode()),
+		disconnectExpiredCert: disconnectExpiredCert,
+		clientIdleTimeout:     idleTimeout,
+		teleportUser:          identity.Username,
+		originClusterName:     identity.OriginClusterName,
+		idleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
+	}, conn)
+}
+
+// monitorParams holds the per-connection session-control values resolved from a scoped
+// or unscoped identity, used to configure connection monitoring.
+type monitorParams struct {
+	lockTargets           []types.LockTarget
+	lockingMode           constants.LockingMode
+	disconnectExpiredCert time.Time
+	clientIdleTimeout     time.Duration
+	teleportUser          string
+	originClusterName     string
+	idleTimeoutMessage    string
+}
+
+// monitorConn wraps conn in a tracking connection and starts monitoring it with the
+// provided per-connection session controls. When the client connection is closed the
+// monitor goroutine exits.
+func (c *ConnectionMonitor) monitorConn(ctx context.Context, params monitorParams, conn net.Conn) (context.Context, net.Conn, error) {
 	tconn, ok := getTrackingReadConn(conn)
 	if !ok {
 		tctx, cancel := context.WithCancelCause(ctx)
+		var err error
 		tconn, err = NewTrackingReadConn(TrackingReadConnConfig{
 			Conn:    conn,
 			Clock:   c.cfg.Clock,
@@ -181,24 +245,23 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 		}
 	}
 
-	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
 	if err := StartMonitor(MonitorConfig{
 		LockWatcher:           c.cfg.LockWatcher,
-		LockTargets:           authzCtx.LockTargets(),
-		LockingMode:           authzCtx.Checker.LockingMode(authPref.GetLockingMode()),
-		DisconnectExpiredCert: authzCtx.GetDisconnectCertExpiry(authPref),
-		ClientIdleTimeout:     idleTimeout,
+		LockTargets:           params.lockTargets,
+		LockingMode:           params.lockingMode,
+		DisconnectExpiredCert: params.disconnectExpiredCert,
+		ClientIdleTimeout:     params.clientIdleTimeout,
 		Conn:                  tconn,
 		Tracker:               tconn,
 		Context:               ctx,
 		Clock:                 c.cfg.Clock,
 		ServerID:              c.cfg.ServerID,
-		TeleportUser:          identity.Username,
-		UserOriginClusterName: identity.OriginClusterName,
+		TeleportUser:          params.teleportUser,
+		UserOriginClusterName: params.originClusterName,
 		Emitter:               c.cfg.Emitter,
 		EmitterContext:        c.cfg.EmitterContext,
 		Logger:                c.cfg.Logger,
-		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
+		IdleTimeoutMessage:    params.idleTimeoutMessage,
 		MonitorCloseChannel:   c.cfg.MonitorCloseChannel,
 	}); err != nil {
 		return ctx, conn, trace.Wrap(err)

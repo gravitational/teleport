@@ -360,6 +360,12 @@ func (c *ScopedAccessCheckerContext) decision(checkers stream.Stream[*ScopedAcce
 		switch {
 		case err == nil:
 			return nil
+		case !c.isScoped():
+			// This surfaces requirements like trusted device and session MFA
+			// that only the unscoped checker can produce right now.
+			// Rather than masking them into an explicit deny,
+			// return errors here that unscoped checkers return.
+			return trace.Wrap(err)
 		case IsAccessExplicitlyDenied(err):
 			return trace.Wrap(err)
 		default:

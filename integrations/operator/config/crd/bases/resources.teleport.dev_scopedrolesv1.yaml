@@ -56,6 +56,16 @@ spec:
                 description: The App Access specific configuration for a scoped role.
                 nullable: true
                 properties:
+                  client_idle_timeout:
+                    description: Overrides the defaults block idle timeout specifically
+                      for app sessions. Must be a valid Go duration string (e.g. "30m",
+                      "1h"). If empty, the defaults block value (or global default)
+                      applies.
+                    type: string
+                  disconnect_expired_cert:
+                    description: DisconnectExpiredCert controls whether App sessions
+                      are disconnected when the user certificate expires.
+                    type: boolean
                   label_expression:
                     description: LabelExpression is an optional predicate expression
                       evaluated against an application's labels.
@@ -76,6 +86,16 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  lock:
+                    description: Lock configures the role's locking behavior for app
+                      sessions.
+                    nullable: true
+                    properties:
+                      mode:
+                        description: 'Allowed values: strict or best_effort. Defaults
+                          to value cluster wide auth preference if not set.'
+                        type: string
+                    type: object
                 type: object
               assignable_scopes:
                 description: AssignableScopes is a list of scopes to which this role

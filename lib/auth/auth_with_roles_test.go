@@ -13727,6 +13727,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Policy: {Enabled: true},
 				entitlements.K8s:    {Enabled: true},
+				entitlements.App:    {Enabled: true},
 			},
 		},
 	}), withClock(clock))
@@ -13749,6 +13750,14 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				Kube: scopedaccessv1.ScopedRoleKube_builder{
 					Users:  []string{"kube_user"},
 					Groups: []string{"kube_group"},
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						}.Build(),
+					},
+				}.Build(),
+				App: scopedaccessv1.ScopedRoleApp_builder{
 					Labels: []*labelv1.Label{
 						labelv1.Label_builder{
 							Name:   types.Wildcard,
@@ -13790,6 +13799,20 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	require.NoError(t, err)
 
 	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+
+	scopedApp, err := types.NewAppV3(types.Metadata{
+		Name:   "test-app",
+		Labels: map[string]string{"env": "test"},
+	}, types.AppSpecV3{URI: "http://localhost:8080"})
+	require.NoError(t, err)
+	scopedApp.Scope = scope
+	scopedApp.Spec.PublicAddr = scopedapp.ScopedAppPublicAddr(scope, "test-app", "proxy.example.com")
+	scopedAppServer, err := types.NewAppServerV3FromApp(scopedApp, "test-app-host", "test-app-hostid")
+	require.NoError(t, err)
+	scopedAppServer.Scope = scope
+	_, err = srv.Auth().UpsertApplicationServer(ctx, scopedAppServer)
+	require.NoError(t, err)
+
 	tts := []struct {
 		name       string
 		req        proto.UserCertsRequest
@@ -13867,25 +13890,52 @@ func TestScopedUserCertGeneration(t *testing.T) {
 		{
 			name: "app session creation",
 			req: proto.UserCertsRequest{
-				SSHPublicKey:      sshPubKey,
-				TLSPublicKey:      tlsPubKey,
-				Username:          username,
-				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
-				Expires:           time.Now().Add(time.Hour),
+				SSHPublicKey:  sshPubKey,
+				TLSPublicKey:  tlsPubKey,
+				Username:      username,
+				Usage:         proto.UserCertsRequest_App,
+				RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+				Expires:       time.Now().Add(time.Hour),
 				RouteToApp: proto.RouteToApp{
-					Name: "app-name",
+					Name:        "test-app",
+					PublicAddr:  scopedApp.GetPublicAddr(),
+					ClusterName: srv.ClusterName(),
+				},
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err)
+				require.Equal(t, "test-app", identity.RouteToApp.Name)
+				require.Equal(t, scopedApp.GetPublicAddr(), identity.RouteToApp.PublicAddr)
+				// An app session is created and linked to the certificate.
+				require.NotEmpty(t, identity.RouteToApp.SessionID)
+			},
+		},
+		{
+			name: "app with AWS role ARN is rejected",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:  sshPubKey,
+				TLSPublicKey:  tlsPubKey,
+				Username:      username,
+				Usage:         proto.UserCertsRequest_App,
+				RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+				Expires:       time.Now().Add(time.Hour),
+				RouteToApp: proto.RouteToApp{
+					Name:        "test-app",
+					PublicAddr:  scopedApp.GetPublicAddr(),
+					ClusterName: srv.ClusterName(),
+					AWSRoleARN:  "arn:aws:iam::123456789012:role/example",
 				},
 			},
 			assertErr: func(t *testing.T, err error) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
-				require.ErrorContains(t, err, "creating app session")
 				require.ErrorContains(t, err, "scoped identities not supported")
+				require.ErrorContains(t, err, "generating scoped user cert for cloud app access")
 			},
 		},
 		{
-			name: "for non-kube usage",
+			name: "for non-kube non-app usage",
 			req: proto.UserCertsRequest{
 				SSHPublicKey: sshPubKey,
 				TLSPublicKey: tlsPubKey,
@@ -13896,7 +13946,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
 				require.ErrorContains(t, err, "scoped identities not supported")
-				require.ErrorContains(t, err, "generating scoped user cert for non-kubernetes usage")
+				require.ErrorContains(t, err, "generating scoped user cert for non-kubernetes and non-app usage")
 			},
 		},
 		{
@@ -13917,7 +13967,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				require.ErrorContains(t, err, "scoped identities not supported")
 				// TODO (eriktate/scopes): remove the nonKubeErr check if/when we stop restricting usages for scoped
 				// user cert gen
-				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for non-kubernetes usage")
+				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for non-kubernetes and non-app usage")
 				accessGraphErr := strings.Contains(err.Error(), "access graph is not permitted")
 				require.True(t, nonKubeErr || accessGraphErr, "expected error due to unsupported scoped certificate usage or unsupported scoped access graph usage")
 			},

@@ -213,6 +213,17 @@ message ScopedRoleApp {
   // LabelExpression is an optional predicate expression evaluated against an
   // application's labels.
   string label_expression = 2;
+
+  // Overrides the defaults block idle timeout specifically for app sessions.
+  // Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+  // (or global default) applies.
+  string client_idle_timeout = 3;
+
+  // DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires.
+  optional bool disconnect_expired_cert = 4;
+
+  // Lock configures the role's locking behavior for app sessions.
+  Lock lock = 5;
 }
 
 // ScopedRule maps resources to verbs. This is the underlying type used to describe
