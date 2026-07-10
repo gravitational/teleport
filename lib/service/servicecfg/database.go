@@ -192,6 +192,7 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			KDCHostName:            d.AD.KDCHostName,
 			LDAPServiceAccountName: d.AD.LDAPServiceAccountName,
 			LDAPServiceAccountSID:  d.AD.LDAPServiceAccountSID,
+			PKIDomain:              d.AD.PKIDomain,
 		},
 		Azure: types.Azure{
 			ResourceID:    d.Azure.ResourceID,
@@ -340,6 +341,9 @@ type DatabaseAD struct {
 	LDAPServiceAccountName string
 	// LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
 	LDAPServiceAccountSID string
+	// PKIDomain is the Active Directory domain where CRLs are published.
+	// (Optional, defaults to Domain.)
+	PKIDomain string
 }
 
 // DatabaseAzure contains Azure database configuration.

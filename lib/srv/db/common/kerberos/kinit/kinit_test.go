@@ -174,27 +174,49 @@ func (m *mockConnector) GetActiveDirectorySID(ctx context.Context, username stri
 }
 
 func TestGetCertificate(t *testing.T) {
-	auth := &mockAuthClient{
-		generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-			require.NotEmpty(t, request.CRLDomain)
-
-			csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			require.Equal(t, "CN=alice", csr.Subject.String())
-			require.Len(t, csr.Extensions, 3)
-			return generateDatabaseCert(ctx, request)
+	for _, tt := range []struct {
+		name          string
+		domain        string
+		pkiDomain     string
+		wantCRLDomain string
+	}{
+		{
+			name:          "CRL domain defaults to domain",
+			domain:        "example.com",
+			wantCRLDomain: "example.com",
 		},
-	}
+		{
+			name:          "pki_domain overrides CRL domain",
+			domain:        "child.example.com",
+			pkiDomain:     "example.com",
+			wantCRLDomain: "example.com",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			auth := &mockAuthClient{
+				generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+					require.Equal(t, tt.wantCRLDomain, request.CRLDomain)
 
-	getter := &dbCertGetter{
-		logger:        slog.New(slog.DiscardHandler),
-		auth:          auth,
-		domain:        "example.com",
-		ldapConnector: &mockConnector{},
-	}
+					csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					require.Equal(t, "CN=alice", csr.Subject.String())
+					require.Len(t, csr.Extensions, 3)
+					return generateDatabaseCert(ctx, request)
+				},
+			}
 
-	_, err := getter.getCertificate(context.Background(), "alice")
-	require.NoError(t, err)
+			getter := &dbCertGetter{
+				logger:        slog.New(slog.DiscardHandler),
+				auth:          auth,
+				domain:        tt.domain,
+				pkiDomain:     tt.pkiDomain,
+				ldapConnector: &mockConnector{},
+			}
+
+			_, err := getter.getCertificate(context.Background(), "alice")
+			require.NoError(t, err)
+		})
+	}
 }

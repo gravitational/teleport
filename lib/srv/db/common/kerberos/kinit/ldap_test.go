@@ -88,36 +88,58 @@ func (m *mockAuthClient) GetClusterName(ctx context.Context) (types.ClusterName,
 }
 
 func TestTLSConfigForLDAP(t *testing.T) {
-	auth := &mockAuthClient{
-		generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-			require.NotEmpty(t, request.CRLDomain)
-
-			csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			require.Equal(t, "CN=test-user", csr.Subject.String())
-			require.Len(t, csr.Extensions, 3)
-			return generateDatabaseCert(ctx, request)
+	for _, tt := range []struct {
+		name          string
+		domain        string
+		pkiDomain     string
+		wantCRLDomain string
+	}{
+		{
+			name:          "CRL domain defaults to domain",
+			domain:        "example.com",
+			wantCRLDomain: "example.com",
 		},
+		{
+			name:          "pki_domain overrides CRL domain",
+			domain:        "child.example.com",
+			pkiDomain:     "example.com",
+			wantCRLDomain: "example.com",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			auth := &mockAuthClient{
+				generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+					require.Equal(t, tt.wantCRLDomain, request.CRLDomain)
+
+					csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					require.Equal(t, "CN=test-user", csr.Subject.String())
+					require.Len(t, csr.Extensions, 3)
+					return generateDatabaseCert(ctx, request)
+				},
+			}
+
+			adConfig := types.AD{
+				Domain:                 tt.domain,
+				PKIDomain:              tt.pkiDomain,
+				LDAPCert:               fixtures.TLSCACertPEM,
+				KDCHostName:            "ldap.example.com",
+				LDAPServiceAccountName: "DOMAIN\\test-user",
+				LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
+			}
+
+			connector, err := newLDAPConnector(slog.Default(), auth, adConfig)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			tlsConfig, err := connector.tlsConfigForLDAP(ctx, "test-cluster")
+			require.NoError(t, err)
+			require.NotNil(t, tlsConfig)
+			require.Equal(t, "ldap.example.com", tlsConfig.ServerName)
+			require.NotEmpty(t, tlsConfig.Certificates)
+			require.NotNil(t, tlsConfig.RootCAs)
+		})
 	}
-
-	adConfig := types.AD{
-		Domain:                 "example.com",
-		LDAPCert:               fixtures.TLSCACertPEM,
-		KDCHostName:            "ldap.example.com",
-		LDAPServiceAccountName: "DOMAIN\\test-user",
-		LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
-	}
-
-	connector, err := newLDAPConnector(slog.Default(), auth, adConfig)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	tlsConfig, err := connector.tlsConfigForLDAP(ctx, "test-cluster")
-	require.NoError(t, err)
-	require.NotNil(t, tlsConfig)
-	require.Equal(t, "ldap.example.com", tlsConfig.ServerName)
-	require.NotEmpty(t, tlsConfig.Certificates)
-	require.NotNil(t, tlsConfig.RootCAs)
 }

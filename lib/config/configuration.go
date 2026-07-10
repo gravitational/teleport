@@ -1982,6 +1982,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				KDCHostName:            database.AD.KDCHostName,
 				LDAPServiceAccountName: database.AD.LDAPServiceAccountName,
 				LDAPServiceAccountSID:  database.AD.LDAPServiceAccountSID,
+				PKIDomain:              database.AD.PKIDomain,
 			},
 			Azure: servicecfg.DatabaseAzure{
 				ResourceID:    database.Azure.ResourceID,

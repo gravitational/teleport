@@ -63,6 +63,13 @@ spec:
                     description: LDAPServiceAccountSID is the SID of service account
                       for performing LDAP queries. Required for x509 Auth / PKINIT.
                     type: string
+                  pki_domain:
+                    description: PKIDomain optionally configures a separate Active
+                      Directory domain for PKI operations. If empty, Domain is used.
+                      This can be useful for cases where PKI is configured in a root
+                      domain but Teleport is used to provide access to resources in
+                      a child domain.
+                    type: string
                   spn:
                     description: SPN is the service principal name for the database.
                     type: string

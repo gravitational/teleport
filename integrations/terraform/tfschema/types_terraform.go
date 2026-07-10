@@ -144,6 +144,11 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"pki_domain": {
+							Description: "PKIDomain optionally configures a separate Active Directory domain for PKI operations. If empty, Domain is used. This can be useful for cases where PKI is configured in a root domain but Teleport is used to provide access to resources in a child domain.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"spn": {
 							Description: "SPN is the service principal name for the database.",
 							Optional:    true,
@@ -7807,6 +7812,23 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["pki_domain"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AD.PKIDomain"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AD.PKIDomain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.PKIDomain = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -10392,6 +10414,28 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 											v.Value = string(obj.LDAPServiceAccountSID)
 											v.Unknown = false
 											tf.Attrs["ldap_service_account_sid"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["pki_domain"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AD.PKIDomain"})
+										} else {
+											v, ok := tf.Attrs["pki_domain"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AD.PKIDomain", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AD.PKIDomain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.PKIDomain) == ""
+											}
+											v.Value = string(obj.PKIDomain)
+											v.Unknown = false
+											tf.Attrs["pki_domain"] = v
 										}
 									}
 								}

@@ -2252,6 +2252,9 @@ type DatabaseAD struct {
 	LDAPServiceAccountName string `yaml:"ldap_service_account_name,omitempty"`
 	// LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
 	LDAPServiceAccountSID string `yaml:"ldap_service_account_sid,omitempty"`
+	// PKIDomain is the Active Directory domain where CRLs are published.
+	// (Optional, defaults to Domain.)
+	PKIDomain string `yaml:"pki_domain,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
