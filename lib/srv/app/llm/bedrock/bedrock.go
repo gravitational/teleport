@@ -98,32 +98,43 @@ func SignRequest(ctx context.Context, opts SignRequestOptions) error {
 	return nil
 }
 
-// BuildURL builds the Bedrock URL address.
-func BuildURL(log *slog.Logger, app types.Application) (*url.URL, error) {
-	format := app.GetLLM().Format
-	region := resolveRegion(context.Background(), log, app)
-	// https://docs.aws.amazon.com/bedrock/latest/userguide/endpoints.html
-	host := "bedrock-mantle." + region + ".api.aws"
-
-	switch format {
-	case types.LLMFormatAnthropic:
-		// Messages API: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-messages-api.html
-		return &url.URL{
-			Scheme: "https",
-			Host:   host,
-			Path:   "/anthropic/v1",
-		}, nil
-	case types.LLMFormatOpenAI:
-		// Responses API: https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
-		// Chat completions API: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html
-		return &url.URL{
-			Scheme: "https",
-			Host:   host,
-			Path:   "/v1",
-		}, nil
-	default:
-		return nil, trace.BadParameter("format %q not supported on AWS Bedrock", format)
+// BuildURL builds the Anthropic-compatible Bedrock URL address.
+//
+// Messages API: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-messages-api.html
+func BuildAnthropicURL(log *slog.Logger, app types.Application) *url.URL {
+	return &url.URL{
+		Scheme: "https",
+		Host:   buildMantleEndpoint(log, app),
+		Path:   "/anthropic/v1",
 	}
+}
+
+// BuildURL builds the OpenAI-compatible Bedrock URL address.
+//
+// Responses API: https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
+// Chat completions API: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html
+func BuildOpenAIURL(log *slog.Logger, app types.Application, isResponses bool) *url.URL {
+	if isResponses {
+		return &url.URL{
+			Scheme: "https",
+			Host:   buildMantleEndpoint(log, app),
+			Path:   "/openai/v1",
+		}
+	}
+
+	return &url.URL{
+		Scheme: "https",
+		Host:   buildMantleEndpoint(log, app),
+		Path:   "/v1",
+	}
+}
+
+// buildMantleEndpoint builds Bedrock mantle address.
+//
+// https://docs.aws.amazon.com/bedrock/latest/userguide/endpoints.html
+func buildMantleEndpoint(log *slog.Logger, app types.Application) string {
+	region := resolveRegion(context.Background(), log, app)
+	return "bedrock-mantle." + region + ".api.aws"
 }
 
 // resolveRegion resolves which AWS region to use.
