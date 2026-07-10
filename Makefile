@@ -1938,8 +1938,8 @@ ensure-llvm-macos:
 	fi
 
 else
-WASM_CC = $(CC)
-WASM_AR = $(AR)
+WASM_CC = clang
+WASM_AR = llvm-ar
 ensure-llvm-macos:
 endif
 
