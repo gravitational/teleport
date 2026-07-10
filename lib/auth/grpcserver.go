@@ -6162,11 +6162,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	machineidv1pb.RegisterSPIFFEFederationServiceServer(server, spiffeFederationService)
 
 	workloadIdentityResourceService, err := workloadidentityv1.NewResourceService(&workloadidentityv1.ResourceServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services.WorkloadIdentities,
-		Cache:      cfg.AuthServer.Cache,
-		Emitter:    cfg.Emitter,
-		Clock:      cfg.AuthServer.GetClock(),
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Backend:          cfg.AuthServer.Services.WorkloadIdentities,
+		Cache:            cfg.AuthServer.Cache,
+		Emitter:          cfg.Emitter,
+		Clock:            cfg.AuthServer.GetClock(),
+		ScopesFeatures:   cfg.AuthServer.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity resource service")
@@ -6179,6 +6180,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	workloadIdentityIssuanceService, err := workloadidentityv1.NewIssuanceService(&workloadidentityv1.IssuanceServiceConfig{
 		Authorizer:                 cfg.Authorizer,
+		ScopedAuthorizer:           cfg.ScopedAuthorizer,
 		Cache:                      cfg.AuthServer.Cache,
 		Emitter:                    cfg.Emitter,
 		Clock:                      cfg.AuthServer.GetClock(),

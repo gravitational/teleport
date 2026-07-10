@@ -20,7 +20,7 @@
 // 	protoc        (unknown)
 // source: teleport/lib/vnet/diag/v1/diag.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package diagv1
 

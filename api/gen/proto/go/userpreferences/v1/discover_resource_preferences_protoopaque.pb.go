@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/userpreferences/v1/discover_resource_preferences.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package userpreferencesv1
 

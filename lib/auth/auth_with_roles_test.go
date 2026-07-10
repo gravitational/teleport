@@ -96,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/okta/oktatest"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -5813,7 +5814,7 @@ func TestScopedServerWithRolesGenerateAppToken(t *testing.T) {
 			// A scoped user is currently not allowed to be created with create permissions on jwt tokens.
 			// We pass in a rules here just to check that the decision api will reject the user properly
 			name:      "scoped user is denied",
-			server:    newScopePinnedTestServerWithScopedUser(t, srv, "scoped-user", scope, []*scopedaccessv1.ScopedRule{}),
+			server:    newScopePinnedTestServerWithScopedUser(t, srv, "scoped-user", scope, scopedaccessv1.ScopedRoleSpec_builder{AssignableScopes: []string{scope}}.Build()),
 			reqScope:  scope,
 			expectErr: true,
 		},
@@ -6094,6 +6095,119 @@ func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostI
 
 		_, err = s.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
+	}
+}
+
+func TestListResources_ScopedApps(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+
+	const scope = "/test"
+	const childScope = "/test/child"
+	const otherScope = "/other"
+
+	createAppServer := func(t *testing.T, name, scope string, labels map[string]string) {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+			types.AppSpecV3{URI: "http://localhost:8080"},
+			scope)
+		require.NoError(t, err)
+		if scope != "" {
+			app.Spec.PublicAddr = scopedapp.ScopedAppPublicAddr(scope, name, "proxy.example.com")
+		}
+		server, err := types.NewAppServerV3FromApp(app, name+"-host", name+"-hostid")
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// Create apps in various scopes with differing labels
+	createAppServer(t, "prod-app", scope, map[string]string{"env": "prod"})
+	createAppServer(t, "dev-app", scope, map[string]string{"env": "dev"})
+	createAppServer(t, "dev-child-app", childScope, map[string]string{"env": "dev"})
+	createAppServer(t, "other-scope-app", otherScope, map[string]string{"env": "prod"})
+	createAppServer(t, "unscoped-app", "", map[string]string{"env": "prod"})
+
+	appLabels := func(env string) *scopedaccessv1.ScopedRoleApp {
+		return scopedaccessv1.ScopedRoleApp_builder{
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{
+					Name:   "env",
+					Values: []string{env},
+				}.Build(),
+			},
+		}.Build()
+	}
+	appLabelExpression := func(expr string) *scopedaccessv1.ScopedRoleApp {
+		return scopedaccessv1.ScopedRoleApp_builder{LabelExpression: expr}.Build()
+	}
+
+	// scopedAppUser creates a scope-pinned user whose scoped role grants the given app block.
+	scopedAppUser := func(username, scope string, app *scopedaccessv1.ScopedRoleApp) *auth.ScopedServerWithRoles {
+		return newScopePinnedTestServerWithScopedUser(t, srv.AuthServer, username, scope,
+			scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scope},
+				App:              app,
+			}.Build())
+	}
+
+	cases := []struct {
+		name             string
+		server           *auth.ScopedServerWithRoles
+		appNamesExpected []string
+	}{
+		{
+			name:             "prod labels in scope " + scope,
+			server:           scopedAppUser("test-prod-label", scope, appLabels("prod")),
+			appNamesExpected: []string{"prod-app"},
+		},
+		{
+			name:             "dev label in " + scope,
+			server:           scopedAppUser("test-dev-label", scope, appLabels("dev")),
+			appNamesExpected: []string{"dev-app", "dev-child-app"},
+		},
+		{
+			name:             "dev label expression in " + scope,
+			server:           scopedAppUser("test-dev-expression", scope, appLabelExpression(`contains(labels["env"], "dev")`)),
+			appNamesExpected: []string{"dev-app", "dev-child-app"},
+		},
+		{
+			name:             "label expression in " + scope,
+			server:           scopedAppUser("test-prod-expression", scope, appLabelExpression(`contains(labels["env"], "prod")`)),
+			appNamesExpected: []string{"prod-app"},
+		},
+		{
+			name:             "label expression in " + childScope,
+			server:           scopedAppUser("test-child-prod-expr", childScope, appLabelExpression(`contains(labels["env"], "prod")`)),
+			appNamesExpected: []string{},
+		},
+		{
+			name:             "label expression in " + otherScope,
+			server:           scopedAppUser("other-prod-expression", otherScope, appLabelExpression(`contains(labels["env"], "prod")`)),
+			appNamesExpected: []string{"other-scope-app"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tc.server.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			})
+			require.NoError(t, err)
+
+			var names []string
+			for _, r := range res.Resources {
+				names = append(names, r.GetName())
+				require.NotEqual(t, "unscoped-app", r.GetName())
+			}
+
+			require.ElementsMatch(t, tc.appNamesExpected, names)
+		})
 	}
 }
 
@@ -9124,7 +9238,7 @@ func newScopedTestServerWithUnscopedUser(t *testing.T, srv *authtest.AuthServer,
 	return scoped
 }
 
-func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServer, username, scope string, rules []*scopedaccessv1.ScopedRule) *auth.ScopedServerWithRoles {
+func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServer, username, scope string, spec *scopedaccessv1.ScopedRoleSpec) *auth.ScopedServerWithRoles {
 	t.Helper()
 	ctx := t.Context()
 
@@ -9139,10 +9253,7 @@ func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServ
 			Version:  types.V1,
 			Metadata: headerv1.Metadata_builder{Name: roleName}.Build(),
 			Scope:    scope,
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
-				Rules:            rules,
-				AssignableScopes: []string{scope},
-			}.Build(),
+			Spec:     spec,
 		}.Build(),
 	}.Build())
 	require.NoError(t, err)
@@ -9335,8 +9446,12 @@ func TestUpsertNode(t *testing.T) {
 			// Scoped roles cannot be created with node write permissions, so a scoped
 			// user never holds node:create/update and Decision should fail. Change this in the future
 			// if we ever let scoped users permissions for nodes.
-			name:      "scoped user denied",
-			server:    newScopePinnedTestServerWithScopedUser(t, authsrv, "scoped-user", "/staging", nil),
+			name: "scoped user denied",
+			server: newScopePinnedTestServerWithScopedUser(t, authsrv, "scoped-user", "/staging",
+				scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{
+						"/staging"},
+				}.Build()),
 			nodeName:  otherID,
 			nodeScope: "/staging",
 			shouldErr: true,

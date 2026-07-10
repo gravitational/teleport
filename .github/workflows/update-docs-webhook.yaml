@@ -30,11 +30,11 @@ jobs:
           cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
           existing-gh-secrets: "${{ toJSON(secrets) }}"
           existing-gh-variables: "${{ toJSON(vars) }}"
-          # values: |
-          #   AMPLIFY_DOCS_DEPLOY_HOOK,secret
+          values: |
+            AMPLIFY_DOCS_DEPLOY_HOOK,secret
       - name: Call deployment webhook
         env:
-          WEBHOOK_URL: ${{ secrets.AMPLIFY_DOCS_DEPLOY_HOOK }}
+          WEBHOOK_URL: ${{ env.AMPLIFY_DOCS_DEPLOY_HOOK }}
         run: |
           if curl -X POST --silent --fail --show-error "$WEBHOOK_URL" > /dev/null; then
             echo "Triggered successfully"

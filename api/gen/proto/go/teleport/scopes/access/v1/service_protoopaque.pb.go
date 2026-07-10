@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/scopes/access/v1/service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package accessv1
 
@@ -168,14 +168,14 @@ func (b0 GetScopedRoleResponse_builder) Build() *GetScopedRoleResponse {
 
 // ListScopedRolesRequest is the request to list scoped roles.
 type ListScopedRolesRequest struct {
-	state                      protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_PageSize        int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3"`
-	xxx_hidden_PageToken       string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3"`
-	xxx_hidden_ResourceScope   *v1.Filter             `protobuf:"bytes,3,opt,name=resource_scope,json=resourceScope,proto3"`
-	xxx_hidden_AssignableScope *v1.Filter             `protobuf:"bytes,4,opt,name=assignable_scope,json=assignableScope,proto3"`
-	xxx_hidden_NameFilter      string                 `protobuf:"bytes,5,opt,name=name_filter,json=nameFilter,proto3"`
-	unknownFields              protoimpl.UnknownFields
-	sizeCache                  protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3"`
+	xxx_hidden_PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3"`
+	xxx_hidden_ResourceScope *v1.Filter             `protobuf:"bytes,3,opt,name=resource_scope,json=resourceScope,proto3"`
+	xxx_hidden_NameFilter    string                 `protobuf:"bytes,5,opt,name=name_filter,json=nameFilter,proto3"`
+	xxx_hidden_ScopeFilter   *v1.Filter             `protobuf:"bytes,6,opt,name=scope_filter,json=scopeFilter,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *ListScopedRolesRequest) Reset() {
@@ -217,16 +217,10 @@ func (x *ListScopedRolesRequest) GetPageToken() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in teleport/scopes/access/v1/service.proto.
 func (x *ListScopedRolesRequest) GetResourceScope() *v1.Filter {
 	if x != nil {
 		return x.xxx_hidden_ResourceScope
-	}
-	return nil
-}
-
-func (x *ListScopedRolesRequest) GetAssignableScope() *v1.Filter {
-	if x != nil {
-		return x.xxx_hidden_AssignableScope
 	}
 	return nil
 }
@@ -238,6 +232,13 @@ func (x *ListScopedRolesRequest) GetNameFilter() string {
 	return ""
 }
 
+func (x *ListScopedRolesRequest) GetScopeFilter() *v1.Filter {
+	if x != nil {
+		return x.xxx_hidden_ScopeFilter
+	}
+	return nil
+}
+
 func (x *ListScopedRolesRequest) SetPageSize(v int32) {
 	x.xxx_hidden_PageSize = v
 }
@@ -246,18 +247,20 @@ func (x *ListScopedRolesRequest) SetPageToken(v string) {
 	x.xxx_hidden_PageToken = v
 }
 
+// Deprecated: Marked as deprecated in teleport/scopes/access/v1/service.proto.
 func (x *ListScopedRolesRequest) SetResourceScope(v *v1.Filter) {
 	x.xxx_hidden_ResourceScope = v
-}
-
-func (x *ListScopedRolesRequest) SetAssignableScope(v *v1.Filter) {
-	x.xxx_hidden_AssignableScope = v
 }
 
 func (x *ListScopedRolesRequest) SetNameFilter(v string) {
 	x.xxx_hidden_NameFilter = v
 }
 
+func (x *ListScopedRolesRequest) SetScopeFilter(v *v1.Filter) {
+	x.xxx_hidden_ScopeFilter = v
+}
+
+// Deprecated: Marked as deprecated in teleport/scopes/access/v1/service.proto.
 func (x *ListScopedRolesRequest) HasResourceScope() bool {
 	if x == nil {
 		return false
@@ -265,19 +268,20 @@ func (x *ListScopedRolesRequest) HasResourceScope() bool {
 	return x.xxx_hidden_ResourceScope != nil
 }
 
-func (x *ListScopedRolesRequest) HasAssignableScope() bool {
+func (x *ListScopedRolesRequest) HasScopeFilter() bool {
 	if x == nil {
 		return false
 	}
-	return x.xxx_hidden_AssignableScope != nil
+	return x.xxx_hidden_ScopeFilter != nil
 }
 
+// Deprecated: Marked as deprecated in teleport/scopes/access/v1/service.proto.
 func (x *ListScopedRolesRequest) ClearResourceScope() {
 	x.xxx_hidden_ResourceScope = nil
 }
 
-func (x *ListScopedRolesRequest) ClearAssignableScope() {
-	x.xxx_hidden_AssignableScope = nil
+func (x *ListScopedRolesRequest) ClearScopeFilter() {
+	x.xxx_hidden_ScopeFilter = nil
 }
 
 type ListScopedRolesRequest_builder struct {
@@ -288,12 +292,17 @@ type ListScopedRolesRequest_builder struct {
 	// PageToken is the pagination cursor used to start from where a previous request left off.
 	PageToken string
 	// ResourceScope filters roles by their resource scope if specified.
+	//
+	// Deprecated: Marked as deprecated in teleport/scopes/access/v1/service.proto.
 	ResourceScope *v1.Filter
-	// AssignableScope filters roles by their assignable scope if specified.
-	AssignableScope *v1.Filter
 	// NameFilter filters roles by their name using a case-insensitive substring
 	// match if specified.
 	NameFilter string
+	// ScopeFilter is the primary scope filter. Filtering is performed against the scope of the
+	// resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+	// a scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`) should
+	// specify mode ALL.
+	ScopeFilter *v1.Filter
 }
 
 func (b0 ListScopedRolesRequest_builder) Build() *ListScopedRolesRequest {
@@ -303,8 +312,8 @@ func (b0 ListScopedRolesRequest_builder) Build() *ListScopedRolesRequest {
 	x.xxx_hidden_PageSize = b.PageSize
 	x.xxx_hidden_PageToken = b.PageToken
 	x.xxx_hidden_ResourceScope = b.ResourceScope
-	x.xxx_hidden_AssignableScope = b.AssignableScope
 	x.xxx_hidden_NameFilter = b.NameFilter
+	x.xxx_hidden_ScopeFilter = b.ScopeFilter
 	return m0
 }
 
@@ -1071,11 +1080,11 @@ type ListScopedRoleAssignmentsRequest struct {
 	state                           protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_PageSize             int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3"`
 	xxx_hidden_PageToken            string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3"`
-	xxx_hidden_ResourceScope        *v1.Filter             `protobuf:"bytes,3,opt,name=resource_scope,json=resourceScope,proto3"`
-	xxx_hidden_AssignedScope        *v1.Filter             `protobuf:"bytes,4,opt,name=assigned_scope,json=assignedScope,proto3"`
 	xxx_hidden_User                 string                 `protobuf:"bytes,5,opt,name=user,proto3"`
 	xxx_hidden_Role                 string                 `protobuf:"bytes,6,opt,name=role,proto3"`
 	xxx_hidden_AllCallerAssignments bool                   `protobuf:"varint,7,opt,name=all_caller_assignments,json=allCallerAssignments,proto3"`
+	xxx_hidden_ScopeFilter          *v1.Filter             `protobuf:"bytes,8,opt,name=scope_filter,json=scopeFilter,proto3"`
+	xxx_hidden_AssignedScopeFilter  *v1.Filter             `protobuf:"bytes,9,opt,name=assigned_scope_filter,json=assignedScopeFilter,proto3"`
 	unknownFields                   protoimpl.UnknownFields
 	sizeCache                       protoimpl.SizeCache
 }
@@ -1119,20 +1128,6 @@ func (x *ListScopedRoleAssignmentsRequest) GetPageToken() string {
 	return ""
 }
 
-func (x *ListScopedRoleAssignmentsRequest) GetResourceScope() *v1.Filter {
-	if x != nil {
-		return x.xxx_hidden_ResourceScope
-	}
-	return nil
-}
-
-func (x *ListScopedRoleAssignmentsRequest) GetAssignedScope() *v1.Filter {
-	if x != nil {
-		return x.xxx_hidden_AssignedScope
-	}
-	return nil
-}
-
 func (x *ListScopedRoleAssignmentsRequest) GetUser() string {
 	if x != nil {
 		return x.xxx_hidden_User
@@ -1154,20 +1149,26 @@ func (x *ListScopedRoleAssignmentsRequest) GetAllCallerAssignments() bool {
 	return false
 }
 
+func (x *ListScopedRoleAssignmentsRequest) GetScopeFilter() *v1.Filter {
+	if x != nil {
+		return x.xxx_hidden_ScopeFilter
+	}
+	return nil
+}
+
+func (x *ListScopedRoleAssignmentsRequest) GetAssignedScopeFilter() *v1.Filter {
+	if x != nil {
+		return x.xxx_hidden_AssignedScopeFilter
+	}
+	return nil
+}
+
 func (x *ListScopedRoleAssignmentsRequest) SetPageSize(v int32) {
 	x.xxx_hidden_PageSize = v
 }
 
 func (x *ListScopedRoleAssignmentsRequest) SetPageToken(v string) {
 	x.xxx_hidden_PageToken = v
-}
-
-func (x *ListScopedRoleAssignmentsRequest) SetResourceScope(v *v1.Filter) {
-	x.xxx_hidden_ResourceScope = v
-}
-
-func (x *ListScopedRoleAssignmentsRequest) SetAssignedScope(v *v1.Filter) {
-	x.xxx_hidden_AssignedScope = v
 }
 
 func (x *ListScopedRoleAssignmentsRequest) SetUser(v string) {
@@ -1182,26 +1183,34 @@ func (x *ListScopedRoleAssignmentsRequest) SetAllCallerAssignments(v bool) {
 	x.xxx_hidden_AllCallerAssignments = v
 }
 
-func (x *ListScopedRoleAssignmentsRequest) HasResourceScope() bool {
+func (x *ListScopedRoleAssignmentsRequest) SetScopeFilter(v *v1.Filter) {
+	x.xxx_hidden_ScopeFilter = v
+}
+
+func (x *ListScopedRoleAssignmentsRequest) SetAssignedScopeFilter(v *v1.Filter) {
+	x.xxx_hidden_AssignedScopeFilter = v
+}
+
+func (x *ListScopedRoleAssignmentsRequest) HasScopeFilter() bool {
 	if x == nil {
 		return false
 	}
-	return x.xxx_hidden_ResourceScope != nil
+	return x.xxx_hidden_ScopeFilter != nil
 }
 
-func (x *ListScopedRoleAssignmentsRequest) HasAssignedScope() bool {
+func (x *ListScopedRoleAssignmentsRequest) HasAssignedScopeFilter() bool {
 	if x == nil {
 		return false
 	}
-	return x.xxx_hidden_AssignedScope != nil
+	return x.xxx_hidden_AssignedScopeFilter != nil
 }
 
-func (x *ListScopedRoleAssignmentsRequest) ClearResourceScope() {
-	x.xxx_hidden_ResourceScope = nil
+func (x *ListScopedRoleAssignmentsRequest) ClearScopeFilter() {
+	x.xxx_hidden_ScopeFilter = nil
 }
 
-func (x *ListScopedRoleAssignmentsRequest) ClearAssignedScope() {
-	x.xxx_hidden_AssignedScope = nil
+func (x *ListScopedRoleAssignmentsRequest) ClearAssignedScopeFilter() {
+	x.xxx_hidden_AssignedScopeFilter = nil
 }
 
 type ListScopedRoleAssignmentsRequest_builder struct {
@@ -1211,11 +1220,6 @@ type ListScopedRoleAssignmentsRequest_builder struct {
 	PageSize int32
 	// PageToken is the pagination cursor used to start from where a previous request left off.
 	PageToken string
-	// ResourceScope filters assignments by their resource scope if specified.
-	ResourceScope *v1.Filter
-	// AssignedScope filters assignments by the scopes they assign to if specified (note: matches assignment
-	// resources with 1 or more maching scopes, not all scopes within the assignment will necessarily match).
-	AssignedScope *v1.Filter
 	// User optionally limits the list to assignments for a specific user.
 	User string
 	// Role optionally limits the list to assignments for a specific role.
@@ -1225,6 +1229,15 @@ type ListScopedRoleAssignmentsRequest_builder struct {
 	// is specifically used to support users discovering where they have been granted privileges across scopes,
 	// and is not intended for general use.
 	AllCallerAssignments bool
+	// ScopeFilter is the primary scope filter. Filtering is performed against the scope of the
+	// resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+	// a scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`) should
+	// specify mode ALL.
+	ScopeFilter *v1.Filter
+	// AssignedScopeFilter filters assignments by the scopes they assign to if specified (note: matches
+	// assignment resources with 1 or more matching scopes, not all scopes within the assignment will
+	// necessarily match).
+	AssignedScopeFilter *v1.Filter
 }
 
 func (b0 ListScopedRoleAssignmentsRequest_builder) Build() *ListScopedRoleAssignmentsRequest {
@@ -1233,11 +1246,11 @@ func (b0 ListScopedRoleAssignmentsRequest_builder) Build() *ListScopedRoleAssign
 	_, _ = b, x
 	x.xxx_hidden_PageSize = b.PageSize
 	x.xxx_hidden_PageToken = b.PageToken
-	x.xxx_hidden_ResourceScope = b.ResourceScope
-	x.xxx_hidden_AssignedScope = b.AssignedScope
 	x.xxx_hidden_User = b.User
 	x.xxx_hidden_Role = b.Role
 	x.xxx_hidden_AllCallerAssignments = b.AllCallerAssignments
+	x.xxx_hidden_ScopeFilter = b.ScopeFilter
+	x.xxx_hidden_AssignedScopeFilter = b.AssignedScopeFilter
 	return m0
 }
 
@@ -1878,15 +1891,15 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\x14GetScopedRoleRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"R\n" +
 	"\x15GetScopedRoleResponse\x129\n" +
-	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"\xff\x01\n" +
+	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"\x93\x02\n" +
 	"\x16ListScopedRolesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\x12A\n" +
-	"\x0eresource_scope\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rresourceScope\x12E\n" +
-	"\x10assignable_scope\x18\x04 \x01(\v2\x1a.teleport.scopes.v1.FilterR\x0fassignableScope\x12\x1f\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12E\n" +
+	"\x0eresource_scope\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterB\x02\x18\x01R\rresourceScope\x12\x1f\n" +
 	"\vname_filter\x18\x05 \x01(\tR\n" +
-	"nameFilter\"~\n" +
+	"nameFilter\x12=\n" +
+	"\fscope_filter\x18\x06 \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilterJ\x04\b\x04\x10\x05R\x10assignable_scope\"~\n" +
 	"\x17ListScopedRolesResponse\x12;\n" +
 	"\x05roles\x18\x01 \x03(\v2%.teleport.scopes.access.v1.ScopedRoleR\x05roles\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"T\n" +
@@ -1912,16 +1925,16 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\x1fGetScopedRoleAssignmentResponse\x12O\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
-	"assignment\"\xc2\x02\n" +
+	"assignment\"\xf7\x02\n" +
 	" ListScopedRoleAssignmentsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\x12A\n" +
-	"\x0eresource_scope\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rresourceScope\x12A\n" +
-	"\x0eassigned_scope\x18\x04 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rassignedScope\x12\x12\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x12\n" +
 	"\x04user\x18\x05 \x01(\tR\x04user\x12\x12\n" +
 	"\x04role\x18\x06 \x01(\tR\x04role\x124\n" +
-	"\x16all_caller_assignments\x18\a \x01(\bR\x14allCallerAssignments\"\x9e\x01\n" +
+	"\x16all_caller_assignments\x18\a \x01(\bR\x14allCallerAssignments\x12=\n" +
+	"\fscope_filter\x18\b \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\x12N\n" +
+	"\x15assigned_scope_filter\x18\t \x01(\v2\x1a.teleport.scopes.v1.FilterR\x13assignedScopeFilterJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\x0eresource_scopeR\x0eassigned_scope\"\x9e\x01\n" +
 	"!ListScopedRoleAssignmentsResponse\x12Q\n" +
 	"\vassignments\x18\x01 \x03(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\vassignments\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x8a\x01\n" +
@@ -2001,7 +2014,7 @@ var file_teleport_scopes_access_v1_service_proto_goTypes = []any{
 var file_teleport_scopes_access_v1_service_proto_depIdxs = []int32{
 	24, // 0: teleport.scopes.access.v1.GetScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
 	25, // 1: teleport.scopes.access.v1.ListScopedRolesRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
-	25, // 2: teleport.scopes.access.v1.ListScopedRolesRequest.assignable_scope:type_name -> teleport.scopes.v1.Filter
+	25, // 2: teleport.scopes.access.v1.ListScopedRolesRequest.scope_filter:type_name -> teleport.scopes.v1.Filter
 	24, // 3: teleport.scopes.access.v1.ListScopedRolesResponse.roles:type_name -> teleport.scopes.access.v1.ScopedRole
 	24, // 4: teleport.scopes.access.v1.CreateScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
 	24, // 5: teleport.scopes.access.v1.CreateScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
@@ -2010,8 +2023,8 @@ var file_teleport_scopes_access_v1_service_proto_depIdxs = []int32{
 	24, // 8: teleport.scopes.access.v1.UpsertScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
 	24, // 9: teleport.scopes.access.v1.UpsertScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
 	26, // 10: teleport.scopes.access.v1.GetScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
-	25, // 11: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
-	25, // 12: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.assigned_scope:type_name -> teleport.scopes.v1.Filter
+	25, // 11: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.scope_filter:type_name -> teleport.scopes.v1.Filter
+	25, // 12: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.assigned_scope_filter:type_name -> teleport.scopes.v1.Filter
 	26, // 13: teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse.assignments:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
 	26, // 14: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
 	26, // 15: teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/identitycenter/v1/service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package identitycenterv1
 
