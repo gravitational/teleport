@@ -1,4 +1,4 @@
-# Azure Discovery Terraform module
+## Azure Discovery Terraform module
 
 This Terraform module creates the Azure and Teleport cluster resources necessary for a Teleport cluster to discover Azure virtual machines:
 
