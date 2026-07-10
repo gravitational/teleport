@@ -89,6 +89,8 @@ plugins:
       - apilevelMteleport/devicetrust/v1/user_certificates.proto=API_HYBRID
       - apilevelMteleport/discoveryconfig/v1/discoveryconfig.proto=API_HYBRID
       - apilevelMteleport/discoveryconfig/v1/discoveryconfig_service.proto=API_HYBRID
+      - apilevelMteleport/discoveryservice/v1/discovery_service.proto=API_HYBRID
+      - apilevelMteleport/discoveryservice/v1/service.proto=API_HYBRID
       - apilevelMteleport/dynamicwindows/v1/dynamicwindows_service.proto=API_HYBRID
       - apilevelMteleport/embedding/v1/embedding.proto=API_HYBRID
       - apilevelMteleport/externalauditstorage/v1/externalauditstorage.proto=API_HYBRID

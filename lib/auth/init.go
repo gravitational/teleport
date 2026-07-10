@@ -278,6 +278,10 @@ type InitConfig struct {
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
 
+	// DiscoveryServices is a service that manages Discovery Service
+	// configuration heartbeats.
+	DiscoveryServices services.DiscoveryServices
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 

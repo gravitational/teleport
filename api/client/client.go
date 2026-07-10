@@ -84,6 +84,7 @@ import (
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	discoveryservicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryservice/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
@@ -4257,6 +4258,48 @@ func (c *Client) DeleteRelayServer(ctx context.Context, name string) error {
 		Name: name,
 	}
 	_, err := c.PresenceServiceClient().DeleteRelayServer(ctx, req)
+	return trace.Wrap(err)
+}
+
+// UpsertDiscoveryService upserts a discovery service configuration heartbeat.
+func (c *Client) UpsertDiscoveryService(ctx context.Context, svc *discoveryservicepb.DiscoveryService) (*discoveryservicepb.DiscoveryService, error) {
+	resp, err := discoveryservicepb.NewDiscoveryServiceServiceClient(c.conn).UpsertDiscoveryService(ctx, discoveryservicepb.UpsertDiscoveryServiceRequest_builder{
+		DiscoveryService: svc,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetDiscoveryService returns the discovery service configuration heartbeat with a given name.
+func (c *Client) GetDiscoveryService(ctx context.Context, name string) (*discoveryservicepb.DiscoveryService, error) {
+	resp, err := discoveryservicepb.NewDiscoveryServiceServiceClient(c.conn).GetDiscoveryService(ctx, discoveryservicepb.GetDiscoveryServiceRequest_builder{
+		Name: name,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// ListDiscoveryServices returns a paginated list of discovery service configuration heartbeats.
+func (c *Client) ListDiscoveryServices(ctx context.Context, pageSize int, pageToken string) (_ []*discoveryservicepb.DiscoveryService, nextPageToken string, _ error) {
+	resp, err := discoveryservicepb.NewDiscoveryServiceServiceClient(c.conn).ListDiscoveryServices(ctx, discoveryservicepb.ListDiscoveryServicesRequest_builder{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	}.Build())
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.GetDiscoveryServices(), resp.GetNextPageToken(), nil
+}
+
+// DeleteDiscoveryService deletes a discovery service configuration heartbeat by name.
+func (c *Client) DeleteDiscoveryService(ctx context.Context, name string) error {
+	_, err := discoveryservicepb.NewDiscoveryServiceServiceClient(c.conn).DeleteDiscoveryService(ctx, discoveryservicepb.DeleteDiscoveryServiceRequest_builder{
+		Name: name,
+	}.Build())
 	return trace.Wrap(err)
 }
 

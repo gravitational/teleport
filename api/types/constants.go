@@ -727,6 +727,10 @@ const (
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
 
+	// KindDiscoveryService is the resource kind for a Discovery Service
+	// configuration heartbeat.
+	KindDiscoveryService = "discovery_service"
+
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
 

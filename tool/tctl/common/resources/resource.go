@@ -64,6 +64,7 @@ func Handlers() map[string]Handler {
 		types.KindDatabaseObject:                     databaseObjectHandler(),
 		types.KindDatabaseObjectImportRule:           databaseObjectImportRuleHandler(),
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
+		types.KindDiscoveryService:                   discoveryServiceHandler(),
 		types.KindDynamicWindowsDesktop:              dynamicWindowsDesktopHandler(),
 		types.KindExternalAuditStorage:               externalAuditStorageHandler(),
 		types.KindGitServer:                          gitServerHandler(),

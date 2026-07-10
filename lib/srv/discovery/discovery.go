@@ -154,6 +154,12 @@ type Config struct {
 	Log *slog.Logger
 	// ServerID identifies the Teleport instance where this service runs.
 	ServerID string
+	// Hostname is the hostname of the machine running this service, reported
+	// on the configuration heartbeat for troubleshooting.
+	Hostname string
+	// DiscoveryServiceAnnouncer upserts this service's configuration
+	// heartbeat resource. Nil disables heartbeating.
+	DiscoveryServiceAnnouncer Announcer
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
 	// onKubernetesClusterReconcile is called after each Kubernetes cluster resource reconciliation.
@@ -2061,6 +2067,9 @@ func (s *Server) submitFetchEvent(cloudProvider, resourceType string) {
 
 // Start starts the discovery service.
 func (s *Server) Start() error {
+	if s.DiscoveryServiceAnnouncer != nil {
+		s.startHeartbeatAnnouncer()
+	}
 	if s.ec2Watcher != nil {
 		go s.startAWSServerDiscovery()
 		go s.reconciler.run(s.ctx)
