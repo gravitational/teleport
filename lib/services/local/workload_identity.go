@@ -32,12 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-const (
-	workloadIdentityPrefix = "workload_identity"
-	// scopedPrefix is the top-level key range under which scoped resources are
-	// stored, namespaced by their encoded scope.
-	scopedPrefix = "scoped"
-)
+const workloadIdentityPrefix = "workload_identity"
 
 // WorkloadIdentityService exposes backend functionality for storing
 // WorkloadIdentity resources
