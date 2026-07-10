@@ -53,10 +53,10 @@ jobs:
       - name: Install pinned helm-unittest plugin
         shell: bash
         run: |
-          set -euo pipefail
+          set -xeuo pipefail
           plugin_version="$(cat "${HELM_UNITTEST_VERSION_FILE}")"
           desired_version="${plugin_version#v}"
-          current_version="$(helm plugin list | (grep '^unitt3est\t' || true) | cut -f2)"
+          current_version="$(helm plugin list | (grep '^unittest\t' || true) | cut -f2)"
 
           # Ensure we're running the correct unittest plugin, even if the
           # buildbox has a different version. Without this, plugin upgrades that
@@ -73,6 +73,7 @@ jobs:
 
           mkdir -p "${HELM_PLUGINS}"
           rm -rf "${HELM_PLUGINS}/helm-unittest"
+          rm -rf "${HELM_PLUGINS}/helm3-unittest"
           helm plugin install https://github.com/helm-unittest/helm-unittest --version "$plugin_version"
           helm plugin list
 
