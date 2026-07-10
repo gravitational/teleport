@@ -73,6 +73,7 @@ import (
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventorypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	linuxdesktopv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -124,6 +125,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/inventory/inventoryv1"
 	issuancev1 "github.com/gravitational/teleport/lib/auth/issuance/v1"
+	kubesvc "github.com/gravitational/teleport/lib/auth/kube"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
 	"github.com/gravitational/teleport/lib/auth/linuxdesktop/linuxdesktopv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
@@ -6745,6 +6747,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		// start a client IP restriction service that returns errors for all RPCs when not running on Teleport Cloud
 		clientiprestrictionv1pb.RegisterClientIPRestrictionServiceServer(server, clientiprestrictionv1.NewService())
 	}
+
+	kubeSvc, err := kubesvc.NewService(&kubesvc.Config{
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		ClusterWriter:    cfg.AuthServer,
+		ClusterReader:    cfg.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "instantiating kubev1 cluster service")
+	}
+	kubev1.RegisterKubeClusterServiceServer(server, kubeSvc)
 
 	return authServer, nil
 }
