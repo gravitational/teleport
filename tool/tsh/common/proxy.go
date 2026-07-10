@@ -658,7 +658,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 		}
 	}
 
-	return trace.Wrap(combined.Execute(cf.ProxyStatusOutput(), templateData))
+	return trace.Wrap(combined.Execute(cf.Stdout(), templateData))
 }
 
 func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
