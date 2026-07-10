@@ -459,6 +459,8 @@ type CLIConf struct {
 
 	// OverrideStdout allows to switch standard output source for resource command. Used in tests.
 	OverrideStdout io.Writer
+	// proxyStatusOutputWriter is where human-oriented proxy status messages are written.
+	proxyStatusOutputWriter io.Writer
 	// overrideStderr allows to switch standard error source for resource command. Used in tests.
 	overrideStderr io.Writer
 	// overrideStdin allows to switch standard in source for resource command. Used in tests.
@@ -721,6 +723,20 @@ func (c *CLIConf) Stdout() io.Writer {
 	return os.Stdout
 }
 
+// ProxyStatusOutput returns the writer used for human-oriented proxy status
+// messages.
+//
+// This must be distinct from Stdout so that shell pipelines like
+// `echo 'kubectl config view' | tsh proxy kube my-cluster --exec | yq` can
+// suppress or redirect proxy status text without also changing the command's
+// actual stdout stream.
+func (c *CLIConf) ProxyStatusOutput() io.Writer {
+	if c.proxyStatusOutputWriter != nil {
+		return c.proxyStatusOutputWriter
+	}
+	return c.Stdout()
+}
+
 // Stderr returns the stderr writer.
 func (c *CLIConf) Stderr() io.Writer {
 	if c.overrideStderr != nil {
@@ -838,6 +854,11 @@ const (
 	mcpClientConfigEnvVar     = "TELEPORT_MCP_CLIENT_CONFIG"
 	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
 	toolsCheckUpdateEnvVar    = "TELEPORT_TOOLS_CHECK_UPDATE"
+	proxyStatusOutputEnvVar   = "TSH_PROXY_STATUS_OUTPUT"
+
+	proxyStatusOutputStdout = "stdout"
+	proxyStatusOutputStderr = "stderr"
+	proxyStatusOutputNone   = "none"
 
 	clusterHelp = "Specify the Teleport cluster to connect."
 	browserHelp = "Set to 'none' to suppress browser opening on login."
@@ -914,6 +935,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile, traceProfile string
+	proxyStatusOutput := proxyStatusOutputStdout
 
 	// configure CLI argument parser:
 	cf.kingpinApp = utils.InitCLIParser("tsh", "Teleport Command Line Client.").Interspersed(true)
@@ -1124,6 +1146,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
+	proxy.Flag("proxy-status-output", fmt.Sprintf("Select where proxy status messages are printed. Valid values are %q, %q, and %q.", proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)).Envar(proxyStatusOutputEnvVar).Default(proxyStatusOutputStdout).EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1688,6 +1711,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			return trace.Wrap(err)
 		}
 	}
+	configureProxyStatusOutput(&cf, proxyStatusOutput)
 
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
@@ -6495,6 +6519,17 @@ func onHeadlessApprove(cf *CLIConf) error {
 		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
+}
+
+func configureProxyStatusOutput(cf *CLIConf, proxyStatusOutput string) {
+	switch proxyStatusOutput {
+	case proxyStatusOutputStderr:
+		cf.proxyStatusOutputWriter = cf.Stderr()
+	case proxyStatusOutputNone:
+		cf.proxyStatusOutputWriter = io.Discard
+	case "", proxyStatusOutputStdout:
+		cf.proxyStatusOutputWriter = cf.Stdout()
+	}
 }
 
 var mlockModes = []string{mlockModeNo, mlockModeAuto, mlockModeBestEffort, mlockModeStrict}
