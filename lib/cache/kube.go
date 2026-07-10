@@ -27,11 +27,13 @@ import (
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -299,6 +301,31 @@ func (c *Cache) RangeKubernetesClusters(ctx context.Context, start, end string) 
 	}
 }
 
+// RangeKubeClusters returns kubernetes clusters within the range [start, end).
+func (c *Cache) RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error] {
+	ctx, span := c.Tracer.Start(ctx, "cache/RangeKubeClusters")
+	defer span.End()
+	scopeFilter := req.GetScopeFilter()
+	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
+		cache:      c,
+		collection: c.collections.kubeClusters,
+		index:      kubeClusterNameIndex,
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+			return c.KubeClusterUpstream.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+				PageSize:    int32(pageSize),
+				PageToken:   pageToken,
+				ScopeFilter: scopeFilter,
+			}.Build())
+		},
+		filter: func(cluster types.KubeCluster) bool {
+			return scopes.MatchScope(scopeFilter, cluster.GetScope())
+		},
+		nextToken: types.KubeCluster.GetName,
+	}
+
+	return lister.Range(ctx, startKey, endKey)
+}
+
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
 func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesCluster")
@@ -321,6 +348,26 @@ func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.Ku
 	}
 
 	return k.Copy(), nil
+}
+
+// GetKubeCluster returns the specified kubernetes cluster resource.
+func (c *Cache) GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (types.KubeCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeCluster")
+	defer span.End()
+
+	clusterCursor := scopes.MakeResourceCursor(req.GetScope(), req.GetName())
+
+	getter := genericGetter[types.KubeCluster, kubeClusterIndex]{
+		cache:      c,
+		collection: c.collections.kubeClusters,
+		index:      kubeClusterNameIndex,
+		upstreamGet: func(ctx context.Context, _ string) (types.KubeCluster, error) {
+			return c.KubeClusterUpstream.GetKubeCluster(ctx, req)
+		},
+	}
+
+	out, err := getter.get(ctx, clusterCursor)
+	return out.Copy(), trace.Wrap(err)
 }
 
 type kubeWaitingContainerIndex string
