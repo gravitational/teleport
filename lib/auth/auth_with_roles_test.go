@@ -56,6 +56,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -3460,7 +3461,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 
 	scopedCluster, err := types.NewKubernetesClusterV3(
 		types.Metadata{
-			Name: "scoped-cluster",
+			Name: "cluster",
 			Labels: map[string]string{
 				types.CloudLabel: types.CloudAWS,
 			},
@@ -3533,7 +3534,8 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		AgentPinEnabled: true,
 	}))
 
-	scopedIdent := authtest.TestScopePinnedHost(srv.ClusterName(), "scoped-host", "/test", types.RoleKube)
+	const scope = "/test"
+	scopedIdent := authtest.TestScopePinnedHost(srv.ClusterName(), "scoped-host", scope, types.RoleKube)
 	scopedKubeClient, err := srv.NewClient(scopedIdent)
 	require.NoError(t, err)
 
@@ -3559,9 +3561,9 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 	scopedKubeCluster := &types.KubernetesClusterV3{
 		Kind:    types.KindKubernetesCluster,
 		Version: types.V3,
-		Scope:   "/test",
+		Scope:   scope,
 		Metadata: types.Metadata{
-			Name: "scoped-" + clusterName,
+			Name: clusterName,
 			Labels: map[string]string{
 				"env": "test",
 			},
@@ -3635,9 +3637,12 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDeniedError")
 
 		// scoped kube clients SHOULD be able to fetch a scoped kube cluster
-		scopedCluster, err = scopedKubeClient.GetKubernetesCluster(ctx, "scoped-"+clusterName)
+		res, err := scopedKubeClient.KubeServiceClient().GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+			Scope: scope,
+			Name:  clusterName,
+		}.Build())
 		require.NoError(t, err)
-		require.NotNil(t, scopedCluster)
+		require.NotNil(t, res.GetCluster())
 	})
 
 	t.Run("GetKubernetesClusters", func(t *testing.T) {
@@ -3646,7 +3651,7 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, clusters, 2)
 
-		// scoped kube clients SHOULD be able to list a kube clusters
+		// scoped kube clients SHOULD be able to list all kube clusters
 		scopedClusters, err := scopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Len(t, scopedClusters, 1)
