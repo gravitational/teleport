@@ -102,11 +102,21 @@ Use `tctl` to create the role:
 $ tctl create -f client-ip-restriction-editor.yaml
 ```
 
-Assign the role to a user. Replace `alice` with the Teleport username and
-include any roles that user already needs:
+Assign the role to a user. Open the user resource in your editor, replacing
+`alice` with the Teleport username:
 
 ```code
-$ tctl users update --set-roles editor,client-ip-restriction-editor alice
+$ tctl edit users/alice
+```
+
+Add `client-ip-restriction-editor` to `spec.roles`, then save and close the
+editor to apply the change:
+
+```diff
+  spec:
+    roles:
+      - access
++     - client-ip-restriction-editor
 ```
 
 ## Step 2/2. Manage the IP allowlist
