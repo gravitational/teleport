@@ -677,6 +677,15 @@
           },
           {
             "resources": [
+              "discovery_service"
+            ],
+            "verbs": [
+              "list",
+              "read"
+            ]
+          },
+          {
+            "resources": [
               "login_rule"
             ],
             "verbs": [
@@ -830,6 +839,15 @@
               "read",
               "update",
               "delete"
+            ]
+          },
+          {
+            "resources": [
+              "discovery_service"
+            ],
+            "verbs": [
+              "list",
+              "read"
             ]
           },
           {

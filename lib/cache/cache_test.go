@@ -50,6 +50,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	discoveryservicev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryservice/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -162,6 +163,7 @@ type testPack struct {
 	integrations            *local.IntegrationsService
 	userTasks               *local.UserTasksService
 	discoveryConfigs        *local.DiscoveryConfigService
+	discoveryServices       *local.DiscoveryServiceService
 	userLoginStates         *local.UserLoginStateService
 	secReports              *local.SecReportsService
 	accessLists             *local.AccessListService
@@ -422,6 +424,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.discoveryConfigs = dcSvc
 
+	dsSvc, err := local.NewDiscoveryServiceService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.discoveryServices = dsSvc
+
 	ulsSvc, err := local.NewUserLoginStateService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -606,6 +614,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Integrations:            p.integrations,
 		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
+		DiscoveryServices:       p.discoveryServices,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
@@ -882,6 +891,7 @@ func TestCompletenessInit(t *testing.T) {
 			Integrations:            p.integrations,
 			UserTasks:               p.userTasks,
 			DiscoveryConfigs:        p.discoveryConfigs,
+			DiscoveryServices:       p.discoveryServices,
 			UserLoginStates:         p.userLoginStates,
 			SecReports:              p.secReports,
 			AccessLists:             p.accessLists,
@@ -977,6 +987,7 @@ func TestCompletenessReset(t *testing.T) {
 		Integrations:            p.integrations,
 		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
+		DiscoveryServices:       p.discoveryServices,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
@@ -1147,6 +1158,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Integrations:            p.integrations,
 		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
+		DiscoveryServices:       p.discoveryServices,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
@@ -1254,6 +1266,7 @@ func initStrategy(t *testing.T) {
 		Integrations:            p.integrations,
 		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
+		DiscoveryServices:       p.discoveryServices,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
@@ -2026,6 +2039,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		scopedaccess.KindScopedRole:                 types.Resource153ToLegacy(&scopedaccessv1.ScopedRole{}),
 		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
+		types.KindDiscoveryService:                  types.ProtoResource153ToLegacy(new(discoveryservicev1.DiscoveryService)),
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
 		types.KindInferenceModel:                    types.Resource153ToLegacy(new(summaryv1.InferenceModel)),
@@ -2054,7 +2068,9 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 
 				// unwrap the RFD 153 resource if necessary
 				switch uw := event.Resource.(type) {
-				case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
+				case types.Resource153UnwrapperT[*discoveryservicev1.DiscoveryService]:
+				require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*discoveryservicev1.DiscoveryService]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+			case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))

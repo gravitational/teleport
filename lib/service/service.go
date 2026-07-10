@@ -3152,6 +3152,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Databases = services.Databases
 	cfg.DelegationSessions = services.DelegationSessions
 	cfg.DiscoveryConfigs = services.DiscoveryConfigs
+	cfg.DiscoveryServices = services.DiscoveryServices
 	cfg.DynamicAccess = services.DynamicAccessExt
 	cfg.Events = services.Events
 	cfg.Integrations = services.Integrations
@@ -3212,6 +3213,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.DatabaseServices = client
 	cfg.Databases = client
 	cfg.DiscoveryConfigs = client.DiscoveryConfigClient()
+	cfg.DiscoveryServices = client
 	cfg.DynamicAccess = client
 	cfg.Events = client
 	cfg.Integrations = client

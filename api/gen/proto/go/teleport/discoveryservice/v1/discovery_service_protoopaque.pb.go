@@ -229,6 +229,7 @@ type DiscoveryServiceSpec struct {
 	xxx_hidden_DiscardedMatchers     *[]*DiscardedMatcher       `protobuf:"bytes,6,rep,name=discarded_matchers,json=discardedMatchers,proto3"`
 	xxx_hidden_BoundDiscoveryConfigs *[]*DiscoveryConfigBinding `protobuf:"bytes,7,rep,name=bound_discovery_configs,json=boundDiscoveryConfigs,proto3"`
 	xxx_hidden_MatchersTruncated     bool                       `protobuf:"varint,8,opt,name=matchers_truncated,json=matchersTruncated,proto3"`
+	xxx_hidden_StaticMatcherCounts   map[string]int32           `protobuf:"bytes,9,rep,name=static_matcher_counts,json=staticMatcherCounts,proto3" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	unknownFields                    protoimpl.UnknownFields
 	sizeCache                        protoimpl.SizeCache
 }
@@ -318,6 +319,13 @@ func (x *DiscoveryServiceSpec) GetMatchersTruncated() bool {
 	return false
 }
 
+func (x *DiscoveryServiceSpec) GetStaticMatcherCounts() map[string]int32 {
+	if x != nil {
+		return x.xxx_hidden_StaticMatcherCounts
+	}
+	return nil
+}
+
 func (x *DiscoveryServiceSpec) SetHostname(v string) {
 	x.xxx_hidden_Hostname = v
 }
@@ -348,6 +356,10 @@ func (x *DiscoveryServiceSpec) SetBoundDiscoveryConfigs(v []*DiscoveryConfigBind
 
 func (x *DiscoveryServiceSpec) SetMatchersTruncated(v bool) {
 	x.xxx_hidden_MatchersTruncated = v
+}
+
+func (x *DiscoveryServiceSpec) SetStaticMatcherCounts(v map[string]int32) {
+	x.xxx_hidden_StaticMatcherCounts = v
 }
 
 func (x *DiscoveryServiceSpec) HasPollInterval() bool {
@@ -403,6 +415,10 @@ type DiscoveryServiceSpec_builder struct {
 	// counts because the payload exceeded the size budget; consumers must then
 	// treat matcher visibility as partial rather than authoritative.
 	MatchersTruncated bool
+	// static_matcher_counts carries per-cloud effective matcher counts (keys:
+	// "aws", "azure", "gcp", "kube", "access_graph") when matchers_truncated is
+	// set, so consumers retain scale information after detail is dropped.
+	StaticMatcherCounts map[string]int32
 }
 
 func (b0 DiscoveryServiceSpec_builder) Build() *DiscoveryServiceSpec {
@@ -417,6 +433,7 @@ func (b0 DiscoveryServiceSpec_builder) Build() *DiscoveryServiceSpec {
 	x.xxx_hidden_DiscardedMatchers = &b.DiscardedMatchers
 	x.xxx_hidden_BoundDiscoveryConfigs = &b.BoundDiscoveryConfigs
 	x.xxx_hidden_MatchersTruncated = b.MatchersTruncated
+	x.xxx_hidden_StaticMatcherCounts = b.StaticMatcherCounts
 	return m0
 }
 
@@ -841,7 +858,7 @@ const file_teleport_discoveryservice_v1_discovery_service_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12F\n" +
 	"\x04spec\x18\x05 \x01(\v22.teleport.discoveryservice.v1.DiscoveryServiceSpecR\x04spec\x12L\n" +
-	"\x06status\x18\x06 \x01(\v24.teleport.discoveryservice.v1.DiscoveryServiceStatusR\x06status\"\x99\x04\n" +
+	"\x06status\x18\x06 \x01(\v24.teleport.discoveryservice.v1.DiscoveryServiceStatusR\x06status\"\xe2\x05\n" +
 	"\x14DiscoveryServiceSpec\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12)\n" +
 	"\x10teleport_version\x18\x02 \x01(\tR\x0fteleportVersion\x12'\n" +
@@ -850,7 +867,11 @@ const file_teleport_discoveryservice_v1_discovery_service_proto_rawDesc = "" +
 	"\x0fstatic_matchers\x18\x05 \x01(\v2,.teleport.discoveryservice.v1.StaticMatchersR\x0estaticMatchers\x12]\n" +
 	"\x12discarded_matchers\x18\x06 \x03(\v2..teleport.discoveryservice.v1.DiscardedMatcherR\x11discardedMatchers\x12l\n" +
 	"\x17bound_discovery_configs\x18\a \x03(\v24.teleport.discoveryservice.v1.DiscoveryConfigBindingR\x15boundDiscoveryConfigs\x12-\n" +
-	"\x12matchers_truncated\x18\b \x01(\bR\x11matchersTruncated\"\xee\x01\n" +
+	"\x12matchers_truncated\x18\b \x01(\bR\x11matchersTruncated\x12\x7f\n" +
+	"\x15static_matcher_counts\x18\t \x03(\v2K.teleport.discoveryservice.v1.DiscoveryServiceSpec.StaticMatcherCountsEntryR\x13staticMatcherCounts\x1aF\n" +
+	"\x18StaticMatcherCountsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xee\x01\n" +
 	"\x0eStaticMatchers\x12#\n" +
 	"\x03aws\x18\x01 \x03(\v2\x11.types.AWSMatcherR\x03aws\x12)\n" +
 	"\x05azure\x18\x02 \x03(\v2\x13.types.AzureMatcherR\x05azure\x12#\n" +
@@ -869,7 +890,7 @@ const file_teleport_discoveryservice_v1_discovery_service_proto_rawDesc = "" +
 	"\x0fdiscarded_total\x18\x05 \x01(\x05R\x0ediscardedTotal\"\x18\n" +
 	"\x16DiscoveryServiceStatusBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryservice/v1;discoveryservicev1b\x06proto3"
 
-var file_teleport_discoveryservice_v1_discovery_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_discoveryservice_v1_discovery_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_discoveryservice_v1_discovery_service_proto_goTypes = []any{
 	(*DiscoveryService)(nil),        // 0: teleport.discoveryservice.v1.DiscoveryService
 	(*DiscoveryServiceSpec)(nil),    // 1: teleport.discoveryservice.v1.DiscoveryServiceSpec
@@ -877,33 +898,35 @@ var file_teleport_discoveryservice_v1_discovery_service_proto_goTypes = []any{
 	(*DiscardedMatcher)(nil),        // 3: teleport.discoveryservice.v1.DiscardedMatcher
 	(*DiscoveryConfigBinding)(nil),  // 4: teleport.discoveryservice.v1.DiscoveryConfigBinding
 	(*DiscoveryServiceStatus)(nil),  // 5: teleport.discoveryservice.v1.DiscoveryServiceStatus
-	(*v1.Metadata)(nil),             // 6: teleport.header.v1.Metadata
-	(*durationpb.Duration)(nil),     // 7: google.protobuf.Duration
-	(*types.AWSMatcher)(nil),        // 8: types.AWSMatcher
-	(*types.AzureMatcher)(nil),      // 9: types.AzureMatcher
-	(*types.GCPMatcher)(nil),        // 10: types.GCPMatcher
-	(*types.KubernetesMatcher)(nil), // 11: types.KubernetesMatcher
-	(*types.AccessGraphSync)(nil),   // 12: types.AccessGraphSync
+	nil,                             // 6: teleport.discoveryservice.v1.DiscoveryServiceSpec.StaticMatcherCountsEntry
+	(*v1.Metadata)(nil),             // 7: teleport.header.v1.Metadata
+	(*durationpb.Duration)(nil),     // 8: google.protobuf.Duration
+	(*types.AWSMatcher)(nil),        // 9: types.AWSMatcher
+	(*types.AzureMatcher)(nil),      // 10: types.AzureMatcher
+	(*types.GCPMatcher)(nil),        // 11: types.GCPMatcher
+	(*types.KubernetesMatcher)(nil), // 12: types.KubernetesMatcher
+	(*types.AccessGraphSync)(nil),   // 13: types.AccessGraphSync
 }
 var file_teleport_discoveryservice_v1_discovery_service_proto_depIdxs = []int32{
-	6,  // 0: teleport.discoveryservice.v1.DiscoveryService.metadata:type_name -> teleport.header.v1.Metadata
+	7,  // 0: teleport.discoveryservice.v1.DiscoveryService.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.discoveryservice.v1.DiscoveryService.spec:type_name -> teleport.discoveryservice.v1.DiscoveryServiceSpec
 	5,  // 2: teleport.discoveryservice.v1.DiscoveryService.status:type_name -> teleport.discoveryservice.v1.DiscoveryServiceStatus
-	7,  // 3: teleport.discoveryservice.v1.DiscoveryServiceSpec.poll_interval:type_name -> google.protobuf.Duration
+	8,  // 3: teleport.discoveryservice.v1.DiscoveryServiceSpec.poll_interval:type_name -> google.protobuf.Duration
 	2,  // 4: teleport.discoveryservice.v1.DiscoveryServiceSpec.static_matchers:type_name -> teleport.discoveryservice.v1.StaticMatchers
 	3,  // 5: teleport.discoveryservice.v1.DiscoveryServiceSpec.discarded_matchers:type_name -> teleport.discoveryservice.v1.DiscardedMatcher
 	4,  // 6: teleport.discoveryservice.v1.DiscoveryServiceSpec.bound_discovery_configs:type_name -> teleport.discoveryservice.v1.DiscoveryConfigBinding
-	8,  // 7: teleport.discoveryservice.v1.StaticMatchers.aws:type_name -> types.AWSMatcher
-	9,  // 8: teleport.discoveryservice.v1.StaticMatchers.azure:type_name -> types.AzureMatcher
-	10, // 9: teleport.discoveryservice.v1.StaticMatchers.gcp:type_name -> types.GCPMatcher
-	11, // 10: teleport.discoveryservice.v1.StaticMatchers.kube:type_name -> types.KubernetesMatcher
-	12, // 11: teleport.discoveryservice.v1.StaticMatchers.access_graph:type_name -> types.AccessGraphSync
-	3,  // 12: teleport.discoveryservice.v1.DiscoveryConfigBinding.discarded_matchers:type_name -> teleport.discoveryservice.v1.DiscardedMatcher
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	6,  // 7: teleport.discoveryservice.v1.DiscoveryServiceSpec.static_matcher_counts:type_name -> teleport.discoveryservice.v1.DiscoveryServiceSpec.StaticMatcherCountsEntry
+	9,  // 8: teleport.discoveryservice.v1.StaticMatchers.aws:type_name -> types.AWSMatcher
+	10, // 9: teleport.discoveryservice.v1.StaticMatchers.azure:type_name -> types.AzureMatcher
+	11, // 10: teleport.discoveryservice.v1.StaticMatchers.gcp:type_name -> types.GCPMatcher
+	12, // 11: teleport.discoveryservice.v1.StaticMatchers.kube:type_name -> types.KubernetesMatcher
+	13, // 12: teleport.discoveryservice.v1.StaticMatchers.access_graph:type_name -> types.AccessGraphSync
+	3,  // 13: teleport.discoveryservice.v1.DiscoveryConfigBinding.discarded_matchers:type_name -> teleport.discoveryservice.v1.DiscardedMatcher
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_teleport_discoveryservice_v1_discovery_service_proto_init() }
@@ -917,7 +940,7 @@ func file_teleport_discoveryservice_v1_discovery_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_discoveryservice_v1_discovery_service_proto_rawDesc), len(file_teleport_discoveryservice_v1_discovery_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

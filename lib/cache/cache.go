@@ -189,6 +189,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindUserLoginState},
 		{Kind: types.KindDiscoveryConfig},
+		{Kind: types.KindDiscoveryService},
 		{Kind: types.KindAuditQuery},
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
@@ -490,6 +491,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindDatabase},
 		{Kind: types.KindApp},
 		{Kind: types.KindDiscoveryConfig},
+		{Kind: types.KindDiscoveryService},
 		{Kind: types.KindIntegration},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindProxy},
@@ -758,6 +760,8 @@ type Config struct {
 	Integrations services.Integrations
 	// DiscoveryConfigs is a DiscoveryConfigs service.
 	DiscoveryConfigs services.DiscoveryConfigs
+	// DiscoveryServices manages Discovery Service configuration heartbeats.
+	DiscoveryServices services.DiscoveryServices
 	// UserLoginStates is the user login state service.
 	UserLoginStates services.UserLoginStates
 	// UserTasks is the user tasks service.

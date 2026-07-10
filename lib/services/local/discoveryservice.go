@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	discoveryservicev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryservice/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -72,4 +73,46 @@ func (s *DiscoveryServiceService) UpsertDiscoveryService(ctx context.Context, sv
 // DeleteDiscoveryService implements [services.DiscoveryServices].
 func (s *DiscoveryServiceService) DeleteDiscoveryService(ctx context.Context, name string) error {
 	return s.svc.DeleteResource(ctx, name)
+}
+
+func newDiscoveryServiceParser() resourceParser {
+	return discoveryServiceParser{}
+}
+
+type discoveryServiceParser struct{}
+
+// parse implements [resourceParser].
+func (discoveryServiceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return types.Resource153ToLegacy(discoveryservicev1.DiscoveryService_builder{
+			Kind:    types.KindDiscoveryService,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: event.Item.Key.TrimPrefix(backend.ExactKey(discoveryServicesPrefix)).String(),
+			}.Build(),
+		}.Build()), nil
+	case types.OpPut:
+		r, err := services.UnmarshalDiscoveryService(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is unknown or not supported (this is a bug)", event.Type)
+	}
+}
+
+// match implements [resourceParser].
+func (discoveryServiceParser) match(key backend.Key) bool {
+	return key.HasPrefix(backend.ExactKey(discoveryServicesPrefix))
+}
+
+// prefixes implements [resourceParser].
+func (discoveryServiceParser) prefixes() []backend.Key {
+	return []backend.Key{backend.ExactKey(discoveryServicesPrefix)}
 }

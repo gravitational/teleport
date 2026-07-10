@@ -85,6 +85,7 @@ type Config struct {
 	Databases               services.Databases
 	DelegationSessions      services.DelegationSessions
 	DiscoveryConfigs        services.DiscoveryConfigs
+	DiscoveryServices       services.DiscoveryServices
 	DynamicAccess           services.DynamicAccessCore
 	Events                  types.Events
 	Integrations            services.Integrations
@@ -178,6 +179,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		DatabaseServices:        cfg.DatabaseServices,
 		Databases:               cfg.Databases,
 		DiscoveryConfigs:        cfg.DiscoveryConfigs,
+		DiscoveryServices:       cfg.DiscoveryServices,
 		DynamicAccess:           cfg.DynamicAccess,
 		Events:                  cfg.Events,
 		Integrations:            cfg.Integrations,

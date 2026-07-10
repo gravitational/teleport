@@ -89,6 +89,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		ServerID:                  conn.HostUUID(),
 		Hostname:                  process.Config.Hostname,
 		DiscoveryServiceAnnouncer: conn.Client,
+		OnHeartbeat:               process.OnHeartbeat(teleport.ComponentDiscovery),
 		Log:                       process.logger,
 		ClusterName:               conn.ClusterName(),
 		ClusterFeatures:           process.GetClusterFeatures,
@@ -118,11 +119,6 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		return trace.Wrap(err)
 	}
 	logger.InfoContext(process.ExitContext(), "Discovery service has successfully started")
-
-	// The Discovery service doesn't have heartbeats so we cannot use them to check health.
-	// For now, we just mark ourselves ready all the time on startup.
-	// If we don't, a process only running the Discovery service will never report ready.
-	process.OnHeartbeat(teleport.ComponentDiscovery)(nil)
 
 	if err := discoveryService.Wait(); err != nil {
 		return trace.Wrap(err)

@@ -1874,6 +1874,9 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater
 
+	// DiscoveryServices manages Discovery Service configuration heartbeats.
+	services.DiscoveryServices
+
 	// CrownJewelServiceClient returns a Crown Jewel service client.
 	CrownJewelServiceClient() *crownjewel.Client
 

@@ -283,6 +283,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRotatedKeyParser()
 		case types.KindRelayServer:
 			parser = newRelayServerParser()
+		case types.KindDiscoveryService:
+			parser = newDiscoveryServiceParser()
 		case types.KindScopedToken:
 			parser = newScopedTokenParser()
 		case types.KindAppAuthConfig:

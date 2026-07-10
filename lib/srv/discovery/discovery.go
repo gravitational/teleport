@@ -160,6 +160,9 @@ type Config struct {
 	// DiscoveryServiceAnnouncer upserts this service's configuration
 	// heartbeat resource. Nil disables heartbeating.
 	DiscoveryServiceAnnouncer Announcer
+	// OnHeartbeat is called after each heartbeat announce attempt with its
+	// outcome (nil on success), driving process health reporting.
+	OnHeartbeat func(error)
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
 	// onKubernetesClusterReconcile is called after each Kubernetes cluster resource reconciliation.

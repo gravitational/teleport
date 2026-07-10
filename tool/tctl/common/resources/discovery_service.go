@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -70,7 +72,7 @@ func (c *discoveryServiceCollection) WriteText(w io.Writer, verbose bool) error 
 			svc.GetMetadata().GetName(),
 			svc.GetSpec().GetHostname(),
 			svc.GetSpec().GetDiscoveryGroup(),
-			staticMatcherSummary(svc.GetSpec().GetStaticMatchers()),
+			staticMatcherSummary(svc.GetSpec()),
 			bindingSummary(svc.GetSpec().GetBoundDiscoveryConfigs()),
 		})
 	}
@@ -78,7 +80,22 @@ func (c *discoveryServiceCollection) WriteText(w io.Writer, verbose bool) error 
 }
 
 // staticMatcherSummary renders per-cloud matcher counts, e.g. "aws(2),gcp(1)".
-func staticMatcherSummary(m *discoveryservicev1.StaticMatchers) string {
+// When the spec reports truncation, counts come from static_matcher_counts and
+// are marked so partial visibility is never mistaken for the full picture.
+func staticMatcherSummary(spec *discoveryservicev1.DiscoveryServiceSpec) string {
+	if spec.GetMatchersTruncated() {
+		counts := spec.GetStaticMatcherCounts()
+		clouds := slices.Sorted(maps.Keys(counts))
+		parts := make([]string, 0, len(clouds))
+		for _, cloud := range clouds {
+			parts = append(parts, fmt.Sprintf("%s(%d)", cloud, counts[cloud]))
+		}
+		if len(parts) == 0 {
+			return "(truncated)"
+		}
+		return strings.Join(parts, ",") + " (truncated)"
+	}
+	m := spec.GetStaticMatchers()
 	var parts []string
 	if n := len(m.GetAws()); n > 0 {
 		parts = append(parts, fmt.Sprintf("aws(%d)", n))

@@ -80,6 +80,10 @@ message DiscoveryServiceSpec {
   // counts because the payload exceeded the size budget; consumers must then
   // treat matcher visibility as partial rather than authoritative.
   bool matchers_truncated = 8;
+  // static_matcher_counts carries per-cloud effective matcher counts (keys:
+  // "aws", "azure", "gcp", "kube", "access_graph") when matchers_truncated is
+  // set, so consumers retain scale information after detail is dropped.
+  map<string, int32> static_matcher_counts = 9;
 }
 
 // StaticMatchers is the effective set of matchers loaded from the Discovery
