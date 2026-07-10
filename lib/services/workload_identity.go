@@ -38,9 +38,10 @@ import (
 // interface may also be implemented by a client to allow remote and local
 // consumers to access the resource in a similar way.
 type WorkloadIdentities interface {
-	// GetWorkloadIdentity gets a SPIFFE Federation by name.
+	// GetWorkloadIdentity gets a WorkloadIdentity by the name and scope in the
+	// request. An empty scope addresses an unscoped WorkloadIdentity.
 	GetWorkloadIdentity(
-		ctx context.Context, name string,
+		ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
 	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
 	// range [start, end), ordered by the given sort field and direction.
@@ -54,8 +55,9 @@ type WorkloadIdentities interface {
 	CreateWorkloadIdentity(
 		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
-	// DeleteWorkloadIdentity deletes a SPIFFE Federation by name.
-	DeleteWorkloadIdentity(ctx context.Context, name string) error
+	// DeleteWorkloadIdentity deletes a WorkloadIdentity by the name and scope in
+	// the request.
+	DeleteWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.DeleteWorkloadIdentityRequest) error
 	// UpdateWorkloadIdentity updates a specific WorkloadIdentity. The resource must
 	// already exist, and, condition update semantics are used - e.g the submitted
 	// resource must have a revision matching the revision of the resource in the
@@ -77,10 +79,10 @@ type WorkloadIdentities interface {
 	) ([]backend.ConditionalAction, error)
 
 	// AppendDeleteWorkloadIdentityActions adds conditional actions to an atomic
-	// write to delete a WorkloadIdentity.
+	// write to delete a WorkloadIdentity given its scope-qualified name.
 	AppendDeleteWorkloadIdentityActions(
 		actions []backend.ConditionalAction,
-		name string,
+		name scopes.QualifiedName,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
 }
@@ -143,6 +145,14 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 		}
 		if err := validateScopedSPIFFEID(s.GetScope(), s.GetSpec().GetSpiffe().GetId()); err != nil {
 			return trace.Wrap(err)
+		}
+
+		// TODO(strideynet): For now we only constrict the naming of scoped
+		// workload identities - however - we should consider rolling out a
+		// write-side restriction to unscoped workload identities in a major
+		// version.
+		if err := scopes.StrongValidateSegment(s.GetMetadata().GetName()); err != nil {
+			return trace.Wrap(err, "metadata.name:")
 		}
 	}
 
@@ -281,9 +291,7 @@ const (
 func WorkloadIdentityKey(sortField WorkloadIdentitySortField) (func(*workloadidentityv1pb.WorkloadIdentity) string, error) {
 	switch sortField {
 	case "", WorkloadIdentitySortFieldName:
-		return func(wi *workloadidentityv1pb.WorkloadIdentity) string {
-			return wi.GetMetadata().GetName()
-		}, nil
+		return workloadIdentityCursor, nil
 	case WorkloadIdentitySortFieldSPIFFEID:
 		return workloadIdentitySPIFFEIDKey, nil
 	default:
@@ -291,14 +299,21 @@ func WorkloadIdentityKey(sortField WorkloadIdentitySortField) (func(*workloadide
 	}
 }
 
+// workloadIdentityCursor returns the canonical resource cursor for a
+// WorkloadIdentity, used both as its in-memory cache index key and as its
+// pagination cursor, so it must be stable and unique per resource.
+func workloadIdentityCursor(wi *workloadidentityv1pb.WorkloadIdentity) string {
+	return scopes.MakeResourceCursor(wi.GetScope(), wi.GetMetadata().GetName())
+}
+
 // workloadIdentitySPIFFEIDKey returns the ordering key for the spiffe_id sort.
 func workloadIdentitySPIFFEIDKey(wi *workloadidentityv1pb.WorkloadIdentity) string {
-	name := wi.GetMetadata().GetName()
 	// Sort case-insensitively to keep /spiffe-1 and /Spiffe-1 together.
 	spiffeID := cases.Fold().String(wi.GetSpec().GetSpiffe().GetId())
 	// Encode to avoid ambiguity; "a/b" + "/" + "c" vs. "a" + "/" + "b/c". Base32
 	// hex maintains the original ordering.
 	spiffeID = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(spiffeID))
-	// SPIFFE IDs may not be unique, so append the resource name.
-	return spiffeID + "/" + name
+	// SPIFFE IDs may not be unique, so append the resource cursor, which
+	// uniquely identifies the resource across scopes.
+	return spiffeID + "/" + workloadIdentityCursor(wi)
 }

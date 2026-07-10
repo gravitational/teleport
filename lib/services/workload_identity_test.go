@@ -17,6 +17,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func TestWorkloadIdentityMarshaling(t *testing.T) {
@@ -63,6 +65,77 @@ func TestWorkloadIdentityMarshaling(t *testing.T) {
 			require.Empty(t, cmp.Diff(tc.in, got, protocmp.Transform()))
 		})
 	}
+}
+
+func TestWorkloadIdentityKey(t *testing.T) {
+	t.Parallel()
+
+	newWI := func(scope, name string) *workloadidentityv1pb.WorkloadIdentity {
+		return workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:    types.KindWorkloadIdentity,
+			Version: types.V1,
+			Scope:   scope,
+			Metadata: headerv1.Metadata_builder{
+				Name: name,
+			}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					Id: "/example",
+				}.Build(),
+			}.Build(),
+		}.Build()
+	}
+
+	// A scope that cannot be encoded safely, as may be read from invalid
+	// stored data. The key funcs degrade to the invalid-scope cursor for it.
+	badScope := "/foo bar"
+
+	testCases := []struct {
+		name      string
+		sortField WorkloadIdentitySortField
+		in        *workloadidentityv1pb.WorkloadIdentity
+		want      string
+	}{
+		{
+			name:      "name - unscoped",
+			sortField: WorkloadIdentitySortFieldName,
+			in:        newWI("", "example"),
+			want:      "example",
+		},
+		{
+			name:      "name - scoped",
+			sortField: WorkloadIdentitySortFieldName,
+			in:        newWI("/aa/bb", "example"),
+			want:      scopes.MakeResourceCursor("/aa/bb", "example"),
+		},
+		{
+			name:      "name - invalid scope",
+			sortField: WorkloadIdentitySortFieldName,
+			in:        newWI(badScope, "example"),
+			want:      scopes.MakeResourceCursor(badScope, "example"),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			keyFn, err := WorkloadIdentityKey(tc.sortField)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, keyFn(tc.in))
+		})
+	}
+
+	t.Run("spiffe_id - invalid scope", func(t *testing.T) {
+		keyFn, err := WorkloadIdentityKey(WorkloadIdentitySortFieldSPIFFEID)
+		require.NoError(t, err)
+		// The spiffe_id key appends the resource cursor, so it degrades to the
+		// invalid-scope cursor too.
+		key := keyFn(newWI(badScope, "example"))
+		require.True(t, strings.HasSuffix(key, "/"+scopes.MakeResourceCursor(badScope, "example")), "key: %q", key)
+	})
+
+	t.Run("unsupported sort field", func(t *testing.T) {
+		_, err := WorkloadIdentityKey("bogus")
+		require.Error(t, err)
+	})
 }
 
 func TestValidateWorkloadIdentity(t *testing.T) {
@@ -361,6 +434,23 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 				}.Build(),
 			}.Build(),
 			requireErr: require.NoError,
+		},
+		{
+			name: "scoped name must be valid segment",
+			in: workloadidentityv1pb.WorkloadIdentity_builder{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: "example::",
+				}.Build(),
+				Scope: "/security/eu",
+				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+						Id: "/security/eu/_/k8s/cluster-a",
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			requireErr: errContains("segment \"example::\" is malformed"),
 		},
 		{
 			name: "scoped success with templated spiffe id",
