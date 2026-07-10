@@ -1922,10 +1922,15 @@ ensure-wasm-deps: ensure-llvm-macos rustup-toolchain-warning ensure-wasm-bindgen
 .PHONY: ensure-llvm-macos
 ifeq ("$(OS)-$(ARCH)","darwin-arm64")
 BREW_DIR = $(shell brew --prefix)
+unexport BREW_DIR
 LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
+unexport LLVM_PREFIX
 LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
+unexport LLVM_DIR
 CC = $(LLVM_DIR)/bin/clang
+unexport CC
 AR = $(LLVM_DIR)/bin/llvm-ar
+unexport AR
 ensure-llvm-macos:
 	@if [[ "${BREW_DIR}" = "${LLVM_DIR}" ]]; then \
 		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
@@ -1940,6 +1945,7 @@ WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
   in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
 ' Cargo.lock)
+unexport WASM_BINDGEN_VERSION
 
 # Opt-in isolation (WASM_BINDGEN_ISOLATE=1): install and run the wasm-bindgen CLI
 # from a per-version path under target/ rather than the shared ~/.cargo/bin. 
@@ -1956,6 +1962,7 @@ print-wasm-bindgen-version:
 	@echo $(WASM_BINDGEN_VERSION)
 
 RUST_TOOLCHAIN_VERSION = $(shell awk '$$1 == "channel" && $$2 == "=" { gsub(/"/, "", $$3); print $$3 }' rust-toolchain.toml )
+unexport RUST_TOOLCHAIN_VERSION
 
 .PHONY: print-rust-toolchain-version
 print-rust-toolchain-version:
