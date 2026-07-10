@@ -56,7 +56,7 @@ jobs:
           set -xeuo pipefail
           plugin_version="$(cat "${HELM_UNITTEST_VERSION_FILE}")"
           desired_version="${plugin_version#v}"
-          current_version="$(helm plugin list | (grep '^unittest\t' || true) | cut -f2)"
+          current_version="$(helm plugin list | (grep -P '^unittest\t' || true) | cut -f2)"
 
           # Ensure we're running the correct unittest plugin, even if the
           # buildbox has a different version. Without this, plugin upgrades that
