@@ -217,7 +217,7 @@ export const defaultRule: Rule = {
   actor: '',
 };
 
-export function getRoleYaml(
+function getRoleYaml(
   botName: string,
   labels: ResourceLabel[],
   login: string
