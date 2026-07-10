@@ -25,29 +25,40 @@ locals {
     : local.legacy_aws_matchers
   )
 
+  organization = local.organization_deployment ? {
+    organization_id      = local.aws_organization_id
+    organizational_units = var.aws_organization_discovery.organizational_units
+  } : null
+  assume_role = (
+    local.organization_deployment
+    ? {
+      role_name = var.aws_child_account_iam_role_name
+    }
+    : var.discovery_service_iam_credential_source.trust_role != null
+    ? {
+      role_arn = one(aws_iam_role.teleport_discovery_service[*].arn)
+      external_id = (
+        var.discovery_service_iam_credential_source.trust_role.external_id != ""
+        ? var.discovery_service_iam_credential_source.trust_role.external_id
+        : null
+      )
+    }
+    : null
+  )
+
   aws_matchers = [
     for matcher in local.effective_aws_matchers : merge(
       {
-        types   = matcher.types
-        regions = matcher.regions
-        tags    = try(matcher.tags, { "*" : ["*"] })
-        assume_role = (
-          var.discovery_service_iam_credential_source.trust_role != null
-          ? {
-            role_arn = one(aws_iam_role.teleport_discovery_service[*].arn)
-            external_id = (
-              var.discovery_service_iam_credential_source.trust_role.external_id != ""
-              ? var.discovery_service_iam_credential_source.trust_role.external_id
-              : null
-            )
-          }
-          : null
-        )
+        types       = matcher.types
+        regions     = matcher.regions
+        tags        = try(matcher.tags, { "*" : ["*"] })
+        assume_role = local.assume_role
         integration = (
           var.discovery_service_iam_credential_source.use_oidc_integration
-          ? try(teleport_integration.aws_oidc[0].metadata.name, local.teleport_integration_name)
+          ? local.integration_name
           : null
         )
+        organization = local.organization
       },
       contains(matcher.types, "ec2") ? {
         install = {
@@ -115,6 +126,30 @@ resource "teleport_discovery_config" "aws" {
         && !var.discovery_service_iam_credential_source.use_oidc_integration
       )
       error_message = "The Discovery Service running in a Teleport Cloud cluster must use OIDC integration credentials. Either set discovery_service_iam_credential_source.use_oidc_integration to true or set teleport_discovery_group_name to a discovery group that is not `cloud-discovery-group`."
+    }
+    precondition {
+      condition = !(
+        !var.discovery_service_iam_credential_source.use_oidc_integration
+        && try(var.discovery_service_iam_credential_source.trust_role.role_arn, "") == ""
+      ) || var.aws_organization_discovery != null
+      error_message = "If the discovery service is to assume the discovery IAM role without OIDC (`use_oidc_integration` is set to false), then `trust_role.role_arn` must be set to a non-empty value."
+    }
+    precondition {
+      condition = local.single_account_deployment || alltrue([
+        for matcher in local.effective_aws_matchers : length(matcher.types) == 1 && matcher.types[0] == "ec2"
+      ])
+      error_message = "AWS Organization discovery is only supported for EC2 resources. Remove any non-EC2 entries from aws_matchers (or the legacy match_aws_resource_types), or disable organization-wide discovery."
+    }
+    precondition {
+      condition     = local.single_account_deployment || var.discovery_service_iam_credential_source.trust_role == null
+      error_message = "AWS Organization discovery does not support assuming another role (`discovery_service_iam_credential_source.trust_role`). Remove trust_role or disable organization-wide discovery."
+    }
+    precondition {
+      condition = (
+        !local.organization_discovery_without_integration
+        || var.aws_organization_discovery_iam_principal_arn != ""
+      )
+      error_message = "AWS Organization discovery without OIDC Integration requires aws_organization_discovery_iam_principal_arn value to be set. Its value must be the ARN of the AWS identity which is used by the Discovery Service."
     }
   }
 
