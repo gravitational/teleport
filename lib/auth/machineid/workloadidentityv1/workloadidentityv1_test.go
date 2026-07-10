@@ -57,6 +57,7 @@ import (
 
 	apiproto "github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -141,7 +142,10 @@ type issuanceTestPack struct {
 }
 
 func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
-	srv, eventRecorder := newTestTLSServer(t)
+	// Scopes are enabled so the issuance RPCs (which authorize via the scoped
+	// authorizer) can serve both unscoped and scoped identities. Unscoped
+	// issuance is unaffected by enabling the feature.
+	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	clock := srv.Auth().GetClock()
 	fakeClock, ok := clock.(*clockwork.FakeClock)
 	require.True(t, ok, "expected to be a clockwork.FakeClock but got %T", clock)
@@ -656,6 +660,59 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 		}
 		return attrs
 	}
+
+	// Scoped issuance setup: a user authorized to issue using foo=bar-labeled
+	// WorkloadIdentities within its scope, plus scoped resources for the
+	// scoped table cases below.
+	adminClient, err := tp.srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const scopedScope = "/scopes/test"
+	const otherScope = "/scopes/other"
+	scopedIssuer := newScopedWorkloadIdentityIssuer(
+		t, tp.srv, adminClient, "scoped-issuer", scopedScope,
+		map[string][]string{"foo": {"bar"}},
+	)
+	scopedIssuerClient, err := tp.srv.NewClient(authtest.TestScopedUser(scopedIssuer, scopedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = scopedIssuerClient.Close() })
+
+	// A user whose verb and label grants are split across two scoped roles in
+	// the same scope. Issuance requires a single role to hold both grants.
+	splitRulesRole := createScopedWorkloadIdentityRole(
+		t, adminClient, "split-rules-role", scopedScope,
+		[]string{types.VerbReadNoSecrets, types.VerbList}, nil,
+	)
+	splitLabelsRole := createScopedWorkloadIdentityRole(
+		t, adminClient, "split-labels-role", scopedScope,
+		nil, map[string][]string{"foo": {"bar"}},
+	)
+	splitGrantIssuer := createScopedWorkloadIdentityUser(
+		t, tp.srv, adminClient, "split-grant-issuer", scopedScope,
+		splitRulesRole, splitLabelsRole,
+	)
+	splitGrantClient, err := tp.srv.NewClient(authtest.TestScopedUser(splitGrantIssuer, scopedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = splitGrantClient.Close() })
+
+	// A WorkloadIdentity in the issuer's scope it can access (label match).
+	scopedWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("scoped-wi", scopedScope, scopedScope+"/_/foo", map[string]string{"foo": "bar"}))
+	require.NoError(t, err)
+	// A WorkloadIdentity in the issuer's scope it cannot access (label mismatch).
+	unmatchedWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("unmatched-wi", scopedScope, scopedScope+"/_/nope", map[string]string{"foo": "other"}))
+	require.NoError(t, err)
+	// A WorkloadIdentity in a scope the issuer is not assigned to.
+	otherScopeWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("other-scope-wi", otherScope, otherScope+"/_/foo", map[string]string{"foo": "bar"}))
+	require.NoError(t, err)
+	// A WorkloadIdentity whose templated SPIFFE ID can be made to escape its
+	// scope at issuance time.
+	templateEscapeWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("template-escape-wi", scopedScope, scopedScope+"/_/{{ workload.kubernetes.namespace }}", map[string]string{"foo": "bar"}))
+	require.NoError(t, err)
+
 	tests := []struct {
 		name       string
 		client     *authclient.Client
@@ -663,6 +720,96 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 		requireErr require.ErrorAssertionFunc
 		assert     func(*testing.T, *workloadidentityv1pb.IssueWorkloadIdentityResponse)
 	}{
+		{
+			name:   "scoped success",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          scopedWI.GetMetadata().GetName(),
+				Scope:         scopedScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				require.Equal(t, "spiffe://localhost/scopes/test/_/foo", res.GetCredential().GetSpiffeId())
+			},
+		},
+		{
+			// Addressing a scoped WorkloadIdentity without the matching scope
+			// (here, as unscoped) must not reveal its existence.
+			name:   "scoped scope mismatch is not found",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          scopedWI.GetMetadata().GetName(),
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+			},
+		},
+		{
+			// The issuer holds the rules in the resource's scope but the resource's
+			// labels do not match its workload_identity label selector.
+			name:   "scoped label mismatch denied",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          unmatchedWI.GetMetadata().GetName(),
+				Scope:         scopedScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+			},
+		},
+		{
+			// The issuer is not assigned any role in the resource's scope.
+			name:   "scoped cross-scope denied",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          otherScopeWI.GetMetadata().GetName(),
+				Scope:         otherScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+			},
+		},
+		{
+			// The verb and label grants are split across two roles in the
+			// scope; scoped roles are evaluated in isolation, so a single role
+			// must hold both grants and issuance is denied.
+			name:   "scoped split-role grants denied",
+			client: splitGrantClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          scopedWI.GetMetadata().GetName(),
+				Scope:         scopedScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+			},
+		},
+		{
+			// Defense-in-depth: templating renders a SPIFFE ID that escapes the
+			// scope (two separators), which the rendered-ID re-validation rejects.
+			name:   "scoped templating escape rejected",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          templateEscapeWI.GetMetadata().GetName(),
+				Scope:         scopedScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(func(attrs *workloadidentityv1pb.WorkloadAttrs) {
+					attrs.GetKubernetes().SetNamespace("escaped/_/elevated")
+				}),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			},
+		},
 		{
 			name:   "jwt svid",
 			client: wilcardAccessClient,
@@ -1483,6 +1630,27 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 		}
 		return attrs
 	}
+	// Scoped issuance setup: an issuer scoped to one scope, with
+	// identically-labeled WorkloadIdentities in two scopes.
+	adminClient, err := tp.srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const scopedScope = "/scopes/test"
+	const otherScope = "/scopes/other"
+	scopedIssuer := newScopedWorkloadIdentityIssuer(
+		t, tp.srv, adminClient, "scoped-issuer", scopedScope,
+		map[string][]string{"scoped": {"plural"}},
+	)
+	scopedIssuerClient, err := tp.srv.NewClient(authtest.TestScopedUser(scopedIssuer, scopedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = scopedIssuerClient.Close() })
+	_, err = tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("scoped-plural-a", scopedScope, scopedScope+"/_/a", map[string]string{"scoped": "plural"}))
+	require.NoError(t, err)
+	_, err = tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("scoped-plural-other", otherScope, otherScope+"/_/b", map[string]string{"scoped": "plural"}))
+	require.NoError(t, err)
+
 	tests := []struct {
 		name       string
 		client     *authclient.Client
@@ -1490,6 +1658,33 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 		requireErr require.ErrorAssertionFunc
 		assert     func(*testing.T, *workloadidentityv1pb.IssueWorkloadIdentitiesResponse)
 	}{
+		{
+			// Only the identity in the issuer's scope is issued; the
+			// identically-labeled one in the other scope is filtered out by
+			// per-item scope authz.
+			name:   "scoped filtered by scope",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentitiesRequest_builder{
+				LabelSelectors: []*workloadidentityv1pb.LabelSelector{
+					workloadidentityv1pb.LabelSelector_builder{
+						Key:    "scoped",
+						Values: []string{"plural"},
+					}.Build(),
+				},
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{
+					Audiences: []string{"example.com"},
+				}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentitiesResponse) {
+				issued := []string{}
+				for _, cred := range res.GetCredentials() {
+					issued = append(issued, cred.GetWorkloadIdentityName())
+				}
+				require.ElementsMatch(t, []string{"scoped-plural-a"}, issued)
+			},
+		},
 		{
 			name:   "jwt svid",
 			client: client,
@@ -4499,4 +4694,136 @@ func scopedWorkloadIdentity(name, scope, spiffeID string) *workloadidentityv1pb.
 			}.Build(),
 		}.Build(),
 	}.Build()
+}
+
+// scopedWorkloadIdentityWithLabels is like scopedWorkloadIdentity but also sets
+// resource labels, used to exercise workload_identity label-selector grants on
+// scoped roles.
+func scopedWorkloadIdentityWithLabels(name, scope, spiffeID string, labels map[string]string) *workloadidentityv1pb.WorkloadIdentity {
+	wi := scopedWorkloadIdentity(name, scope, spiffeID)
+	wi.GetMetadata().SetLabels(labels)
+	return wi
+}
+
+// createScopedWorkloadIdentityRole creates a scoped role assignable within the
+// given scope, granting the given rule verbs for the workload_identity kind
+// (if any) and the given workload_identity label selector (if any). Returns
+// the role name.
+func createScopedWorkloadIdentityRole(
+	t *testing.T,
+	adminClient *authclient.Client,
+	roleName string,
+	scope string,
+	verbs []string,
+	labels map[string][]string,
+) string {
+	t.Helper()
+	ctx := t.Context()
+
+	spec := scopedaccessv1.ScopedRoleSpec_builder{
+		AssignableScopes: []string{scope},
+	}
+	if len(verbs) > 0 {
+		spec.Rules = []*scopedaccessv1.ScopedRule{
+			scopedaccessv1.ScopedRule_builder{
+				Resources: []string{types.KindWorkloadIdentity},
+				Verbs:     verbs,
+			}.Build(),
+		}
+	}
+	if len(labels) > 0 {
+		wiLabels := make([]*labelv1.Label, 0, len(labels))
+		for labelName, values := range labels {
+			wiLabels = append(wiLabels, labelv1.Label_builder{Name: labelName, Values: values}.Build())
+		}
+		spec.WorkloadIdentity = scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+			Labels: wiLabels,
+		}.Build()
+	}
+
+	role, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: roleName,
+			}.Build(),
+			Scope: "/scopes",
+			Spec:  spec.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	return role.GetRole().GetMetadata().GetName()
+}
+
+// createScopedWorkloadIdentityUser creates a user assigned the given scoped
+// roles within the given scope, and waits for the assignment to propagate to
+// the cache used by the authorizer. It returns the username, which can be used
+// with authtest.TestScopedUser to mint a client pinned to that scope.
+func createScopedWorkloadIdentityUser(
+	t *testing.T,
+	srv *authtest.TLSServer,
+	adminClient *authclient.Client,
+	username string,
+	scope string,
+	roleNames ...string,
+) string {
+	t.Helper()
+	ctx := t.Context()
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), username)
+	require.NoError(t, err)
+
+	assignments := make([]*scopedaccessv1.Assignment, 0, len(roleNames))
+	for _, roleName := range roleNames {
+		assignments = append(assignments, scopedaccessv1.Assignment_builder{Role: roleName, Scope: scope}.Build())
+	}
+	resp, err := adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: uuid.NewString(),
+			}.Build(),
+			Scope: "/scopes",
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				User:        user.GetName(),
+				Assignments: assignments,
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait for the assignment to propagate to the cache used by the authorizer.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+			Name:    resp.GetAssignment().GetMetadata().GetName(),
+			SubKind: resp.GetAssignment().GetSubKind(),
+		}.Build())
+		require.NoError(t, err)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	return user.GetName()
+}
+
+// newScopedWorkloadIdentityIssuer creates a user assigned a single scoped role
+// that grants both the rules (read_no_secrets + list) and the workload_identity
+// label selector required to issue SVIDs using scoped WorkloadIdentities within
+// the given scope. It returns the username, which can be used with
+// authtest.TestScopedUser to mint a client pinned to that scope.
+func newScopedWorkloadIdentityIssuer(
+	t *testing.T,
+	srv *authtest.TLSServer,
+	adminClient *authclient.Client,
+	username string,
+	scope string,
+	labels map[string][]string,
+) string {
+	t.Helper()
+	role := createScopedWorkloadIdentityRole(
+		t, adminClient, username+"-role", scope,
+		[]string{types.VerbReadNoSecrets, types.VerbList}, labels,
+	)
+	return createScopedWorkloadIdentityUser(t, srv, adminClient, username, scope, role)
 }
