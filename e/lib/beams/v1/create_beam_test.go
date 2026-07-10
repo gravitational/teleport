@@ -149,7 +149,7 @@ func TestCreateBeam(t *testing.T) {
 	require.Equal(t, botResourceName, role.GetName())
 	require.True(t, types.IsSystemResource(role), "beam bot role must be a system resource")
 
-	workloadIdentity, err := pack.workloadIdentity.GetWorkloadIdentity(t.Context(), beam.GetStatus().GetWorkloadIdentityName())
+	workloadIdentity, err := pack.workloadIdentity.GetWorkloadIdentity(t.Context(), workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: beam.GetStatus().GetWorkloadIdentityName()}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(
 		workloadidentityv1pb.WorkloadIdentity_builder{

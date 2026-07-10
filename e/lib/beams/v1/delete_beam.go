@@ -15,6 +15,7 @@ import (
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/scopes"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
@@ -115,7 +116,7 @@ func (s *BeamsService) deleteBeam(ctx context.Context, beam *beamsv1.Beam) error
 	// Delete the workload identity.
 	actions, err = s.workloadIdentityWriter.AppendDeleteWorkloadIdentityActions(
 		actions,
-		beam.GetStatus().GetWorkloadIdentityName(),
+		scopes.QualifiedName{Name: beam.GetStatus().GetWorkloadIdentityName()},
 		backend.Whatever(),
 	)
 	if err != nil {

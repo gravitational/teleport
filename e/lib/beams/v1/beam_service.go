@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/beams/v1/alias"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -151,7 +152,7 @@ type WorkloadIdentityWriter interface {
 
 	AppendDeleteWorkloadIdentityActions(
 		actions []backend.ConditionalAction,
-		name string,
+		name scopes.QualifiedName,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
 }
