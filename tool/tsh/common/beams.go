@@ -26,7 +26,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"

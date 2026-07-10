@@ -24,8 +24,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
