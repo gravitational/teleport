@@ -85,7 +85,7 @@ or more label *values* (i.e., either a string or a list).
 
 If both the key and the value of a label are wildcards, `*`, the Teleport
 Kubernetes Service allows the user to access Kubernetes clusters with all
-tags:
+labels:
 
 ```yaml
 spec:
@@ -174,7 +174,7 @@ to do this depends on how you have launched the service:
   e.g.:
 
     ```code
-    $ helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
+    $ helm upgrade teleport-agent teleport/teleport-kube-agent --set kubeClusterName={CLUSTER?}\
       --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
       --set labels.env=prod --set labels.region=us-west-1
     ```
@@ -402,7 +402,7 @@ subjects:
 
 You can specify Kubernetes groups and users for each Teleport user individually,
 rather than hardcoding this information into your Teleport roles. To do so, you
-can add template variables to Teleport your roles, and the Teleport Auth Service
+can add template variables to your Teleport roles, and the Teleport Auth Service
 will populate them with information from each authenticating user.
 
 For more information on how template variable expansion works in Teleport roles,
@@ -689,7 +689,7 @@ version: v7
 spec:
   allow:
     kubernetes_labels:
-      - "*": "*"
+        "*": "*"
     kubernetes_resources:
       - kind: pod
         namespace: "*"
