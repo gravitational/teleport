@@ -1588,9 +1588,9 @@ func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.a.CreateSAMLConnector(ctx, samlConnector)
-	require.ErrorIs(t, err, services.ErrFailedToFetchEntityDescriptor)
+	require.ErrorIs(t, err, services.ErrFailedToFetchOrParseEntityDescriptor)
 	// Make sure the error doesn't leak any extra info about the download failure.
-	require.Equal(t, services.ErrFailedToFetchEntityDescriptor.Error(), err.Error())
+	require.Equal(t, services.ErrFailedToFetchOrParseEntityDescriptor.Error(), err.Error())
 
 	// Let's create a valid connector to check updates.
 	samlConnector.SetEntityDescriptorURL(server.URL + loginMetadataPath)
@@ -1603,9 +1603,9 @@ func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
 		EntityDescriptorUrl: server.URL + badMetadtaPath,
 	})
 	_, err = s.a.UpdateSAMLConnector(ctx, createdSAMLConnector)
-	require.ErrorIs(t, err, services.ErrFailedToFetchEntityDescriptor)
+	require.ErrorIs(t, err, services.ErrFailedToFetchOrParseEntityDescriptor)
 	// Make sure the error doesn't leak any extra info about the download failure.
-	require.Equal(t, services.ErrFailedToFetchEntityDescriptor.Error(), err.Error())
+	require.Equal(t, services.ErrFailedToFetchOrParseEntityDescriptor.Error(), err.Error())
 
 	// Verify it passes when URLs are OK.
 	createdSAMLConnector.SetMFASettings(&types.SAMLConnectorMFASettings{

@@ -59,9 +59,9 @@ const (
 	ErrMsgHowToFixMissingOAuthCreds = "You must specify the OAuth credentials (obtain the existing one with `tctl get saml --with-secrets`)."
 )
 
-// ErrFailedToFetchEntityDescriptor is returned on any error while downloading SAML entity
-// descriptor in entity_descriptor_url is set during the connector validation.
-var ErrFailedToFetchEntityDescriptor = &trace.BadParameterError{Message: "failed to fetch entity descriptor"}
+// ErrFailedToFetchOrParseEntityDescriptor is returned on any error while downloading and parsing
+// SAML entity descriptor if entity_descriptor_url is set during the connector validation.
+var ErrFailedToFetchOrParseEntityDescriptor = &trace.BadParameterError{Message: "failed to fetch or parse entity descriptor"}
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
@@ -250,7 +250,7 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 		} else {
 			log.ErrorContext(ctx, "Failed to fetch or parse SAML entity descriptor", "error", err)
 		}
-		err = trace.Wrap(ErrFailedToFetchEntityDescriptor)
+		err = trace.Wrap(ErrFailedToFetchOrParseEntityDescriptor)
 	}()
 
 	if url != "" && !params.Options.NoFollowURLs {

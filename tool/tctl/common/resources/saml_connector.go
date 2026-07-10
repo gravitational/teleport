@@ -94,7 +94,7 @@ func createSAMLConnector(ctx context.Context, client *authclient.Client, raw ser
 	// Create services.SAMLConnector from raw YAML to extract the connector name.
 	conn, err := services.UnmarshalSAMLConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
-		if errors.Is(err, services.ErrFailedToFetchEntityDescriptor) {
+		if errors.Is(err, services.ErrFailedToFetchOrParseEntityDescriptor) {
 			return trace.BadParameter("%s (re-run with --debug for more details)", err)
 		}
 		return trace.Wrap(err)
@@ -128,7 +128,7 @@ func createSAMLConnector(ctx context.Context, client *authclient.Client, raw ser
 func updateSAMLConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
 	conn, err := services.UnmarshalSAMLConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
-		if errors.Is(err, services.ErrFailedToFetchEntityDescriptor) {
+		if errors.Is(err, services.ErrFailedToFetchOrParseEntityDescriptor) {
 			return trace.BadParameter("%s (re-run with --debug for more details)", err)
 		}
 		return trace.Wrap(err)

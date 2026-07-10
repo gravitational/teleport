@@ -571,9 +571,9 @@ func Test_ValidateSAMLConnector_error_sanitization(t *testing.T) {
 				tc.setEntityDescriptorURL(samlConnector, server.URL+"/test_metadata")
 
 				err = ValidateSAMLConnector(samlConnector, roleGetter, testOpts...)
-				require.ErrorIs(t, err, ErrFailedToFetchEntityDescriptor)
+				require.ErrorIs(t, err, ErrFailedToFetchOrParseEntityDescriptor)
 				// Make sure the error doesn't leak any extra info about the download failure.
-				require.Equal(t, ErrFailedToFetchEntityDescriptor.Error(), err.Error())
+				require.Equal(t, ErrFailedToFetchOrParseEntityDescriptor.Error(), err.Error())
 
 				// Verify that it also doesn't leak any message specific to timeout.
 				tc.setEntityDescriptorURL(samlConnector, server.URL+slowPath)
@@ -599,9 +599,9 @@ func Test_ValidateSAMLConnector_error_sanitization(t *testing.T) {
 				synctest.Wait()
 				select {
 				case err := <-errCh:
-					require.ErrorIs(t, err, ErrFailedToFetchEntityDescriptor)
+					require.ErrorIs(t, err, ErrFailedToFetchOrParseEntityDescriptor)
 					// Make sure the error doesn't leak any extra info about the timeout.
-					require.Equal(t, ErrFailedToFetchEntityDescriptor.Error(), err.Error())
+					require.Equal(t, ErrFailedToFetchOrParseEntityDescriptor.Error(), err.Error())
 				default:
 					t.Fatal("expected ValidateSAMLConnector to already timeout")
 				}
@@ -674,9 +674,9 @@ func Test_ValidateSAMLConnector_blocksHTTPSRedirectDowngrade(t *testing.T) {
 			err = ValidateSAMLConnector(samlConnector, roleSet{role: nil},
 				types.SAMLConnectorValidationHTTPTransport(redirectingServer.Client().Transport),
 			)
-			require.ErrorIs(t, err, ErrFailedToFetchEntityDescriptor)
+			require.ErrorIs(t, err, ErrFailedToFetchOrParseEntityDescriptor)
 			// Make sure there is no any extra information in the error.
-			require.Equal(t, ErrFailedToFetchEntityDescriptor.Error(), err.Error())
+			require.Equal(t, ErrFailedToFetchOrParseEntityDescriptor.Error(), err.Error())
 			require.Zero(t, downgradedRequestsCnt.Load())
 		})
 	}
