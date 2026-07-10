@@ -264,7 +264,7 @@ RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
-COPY build.assets/helm-unittest.version /tmp/helm-unittest.version
+COPY helm-unittest.version /tmp/helm-unittest.version
 # Install the helm-unittest plugin for the ci user. Both consumers --
 # `make test-helm` (via build.assets/Makefile) and the unit-tests-helm GitHub
 # workflow -- set HELM_PLUGINS=/home/ci/.local/share/helm/plugins.
