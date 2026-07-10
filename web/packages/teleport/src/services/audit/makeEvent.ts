@@ -636,6 +636,26 @@ export const formatters: Formatters = {
       return `User [${user}] has disconnected from application [${app_name}]`;
     },
   },
+  [eventCodes.APP_SESSION_HTTP_REQUEST]: {
+    type: 'http.request',
+    desc: 'App HTTP Request',
+    format: ({ method, url }) => `HTTP request recorded: ${method} ${url}`,
+  },
+  [eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK]: {
+    type: 'http.request.body_chunk',
+    desc: 'App HTTP Request Body',
+    format: () => 'HTTP request body chunk recorded',
+  },
+  [eventCodes.APP_SESSION_HTTP_RESPONSE]: {
+    type: 'http.response',
+    desc: 'App HTTP Response',
+    format: ({ status_code }) => `HTTP response recorded: ${status_code}`,
+  },
+  [eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK]: {
+    type: 'http.response.body_chunk',
+    desc: 'App HTTP Response Body',
+    format: () => 'HTTP response body chunk recorded',
+  },
   [eventCodes.APP_SESSION_CHUNK]: {
     type: 'app.session.chunk',
     desc: 'App Session Data',
@@ -1254,6 +1274,27 @@ export const formatters: Formatters = {
       }
       let message = `Session [${sid}] for Windows desktop ${desktopMessage} has ended for user [${user}]`;
       return message;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED]: {
+    type: 'linux.desktop.session.start',
+    desc: 'Linux Desktop Session Started',
+    format: ({ user, desktop_name, sid, linux_user }) => {
+      return `User [${user}] started session [${sid}] on Linux desktop [${linux_user}@${desktop_name}]`;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED]: {
+    type: 'linux.desktop.session.start',
+    desc: 'Linux Desktop Session Denied',
+    format: ({ user, desktop_name, linux_user }) => {
+      return `User [${user}] was denied access to Linux desktop [${linux_user}@${desktop_name}]`;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_ENDED]: {
+    type: 'linux.desktop.session.end',
+    desc: 'Linux Desktop Session Ended',
+    format: ({ user, desktop_name, sid, linux_user }) => {
+      return `Session [${sid}] for Linux desktop [${linux_user}@${desktop_name}] has ended for user [${user}]`;
     },
   },
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {

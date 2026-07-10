@@ -4005,6 +4005,66 @@ Example:
 }
 ```
 
+## http.request
+
+App HTTP Request
+
+Example:
+
+```json
+{
+  "code": "T2015I",
+  "event": "http.request",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## http.request.body_chunk
+
+App HTTP Request Body
+
+Example:
+
+```json
+{
+  "code": "T2016I",
+  "event": "http.request.body_chunk",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## http.response
+
+App HTTP Response
+
+Example:
+
+```json
+{
+  "code": "T2017I",
+  "event": "http.response",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## http.response.body_chunk
+
+App HTTP Response Body
+
+Example:
+
+```json
+{
+  "code": "T2018I",
+  "event": "http.response.body_chunk",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
 ## inference_model.create
 
 Inference Model Created
@@ -4557,6 +4617,55 @@ Example:
   "time": "2022-09-08T15:42:36.005Z",
   "uid": "fe631a5a-6418-49d6-99e7-5280654663ec",
   "user": "05ff66c9-a948-42f4-af0e-a1b6ba62561e.root"
+}
+```
+
+## linux.desktop.session.end
+
+Linux Desktop Session Ended
+
+Example:
+
+```json
+{
+  "code": "TDP08I",
+  "event": "linux.desktop.session.end",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## linux.desktop.session.start
+
+There are multiple events with the `linux.desktop.session.start` type.
+
+### TDP07I
+
+Linux Desktop Session Started
+
+Example:
+
+```json
+{
+  "code": "TDP07I",
+  "event": "linux.desktop.session.start",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### TDP07W
+
+Linux Desktop Session Denied
+
+Example:
+
+```json
+{
+  "code": "TDP07W",
+  "event": "linux.desktop.session.start",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 

@@ -47,6 +47,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -1013,6 +1014,119 @@ func TestScopedAndUnscopedNodeResource(t *testing.T) {
 			case <-time.After(100 * time.Millisecond):
 			}
 		}
+	})
+}
+
+// TestScopedAndUnscopedWorkloadIdentityResource exercises tctl get/rm on workload
+// identities, which are double-registered as both a scoped and unscoped resource
+// handler to support a mix of scope-qualified and classic interactions.
+func TestScopedAndUnscopedWorkloadIdentityResource(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{DataDir: t.TempDir()},
+		Proxy: config.Proxy{
+			Service: config.Service{EnabledFlag: "true"},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	wiClient := clt.WorkloadIdentityResourceServiceClient()
+
+	// unscopedWI has no scope (classic behavior).
+	_, err = wiClient.UpsertWorkloadIdentity(ctx, workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+		WorkloadIdentity: workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: "classic-wi"}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: "/unscoped"}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// scopedWI lives in scope "/staging" so SQN lookups with "/staging::staging-wi" succeed.
+	_, err = wiClient.UpsertWorkloadIdentity(ctx, workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+		WorkloadIdentity: workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: "staging-wi"}.Build(),
+			Scope:    "/staging",
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: "/staging/_/svc"}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait until both workload identities appear via the list (cache propagation).
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "classic-wi")
+		require.Contains(t, buf.String(), "staging-wi")
+	}, 30*time.Second, 100*time.Millisecond)
+
+	t.Run("list all shows scope-qualified name for scoped identities", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "--format=text"})
+		require.NoError(t, err)
+		out := buf.String()
+		// Scoped identities are shown as a scope-qualified name; unscoped ones
+		// keep their bare name.
+		require.Contains(t, out, "/staging::staging-wi")
+		require.Contains(t, out, "classic-wi")
+	})
+
+	t.Run("single-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "workload_identity/classic-wi", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "classic-wi")
+	})
+
+	t.Run("two-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "classic-wi", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "classic-wi")
+	})
+
+	t.Run("scope-qualified get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "/staging::staging-wi", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "staging-wi")
+	})
+
+	t.Run("scope-qualified get with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "/prod::staging-wi", "--format=json"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch, got: %v", err)
+	})
+
+	t.Run("scope-qualified delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", types.KindWorkloadIdentity, "/staging::staging-wi"})
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "/staging::staging-wi", "--format=json"})
+			require.True(t, trace.IsNotFound(err), "expected NotFound waiting for staging-wi deletion, got: %v", err)
+		}, 30*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("unscoped delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "workload_identity/classic-wi"})
+		require.NoError(t, err)
 	})
 }
 

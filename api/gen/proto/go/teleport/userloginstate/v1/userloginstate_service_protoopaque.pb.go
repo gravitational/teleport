@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/userloginstate/v1/userloginstate_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package userloginstatev1
 

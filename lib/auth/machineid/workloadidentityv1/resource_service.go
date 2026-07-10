@@ -35,32 +35,38 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
+// workloadIdentityReader is the interface used to serve reads, satisfied by
+// the cache.
 type workloadIdentityReader interface {
-	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
+	GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest) (*workloadidentityv1pb.WorkloadIdentity, error)
 	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 }
 
+// workloadIdentityReadWriter is the interface used to mutate the authoritative
+// backend, which namespaces resources by scope.
 type workloadIdentityReadWriter interface {
-	workloadIdentityReader
-
 	CreateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 	UpdateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
-	DeleteWorkloadIdentity(ctx context.Context, name string) error
+	DeleteWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.DeleteWorkloadIdentityRequest) error
 	UpsertWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 }
 
 // ResourceServiceConfig holds configuration options for the ResourceService.
 type ResourceServiceConfig struct {
-	Authorizer authz.Authorizer
-	Backend    workloadIdentityReadWriter
-	Cache      workloadIdentityReader
-	Clock      clockwork.Clock
-	Emitter    apievents.Emitter
-	Logger     *slog.Logger
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Backend          workloadIdentityReadWriter
+	Cache            workloadIdentityReader
+	Clock            clockwork.Clock
+	Emitter          apievents.Emitter
+	Logger           *slog.Logger
+	// ScopesFeatures dictates whether scoped workload identity functionality
+	// is enabled.
+	ScopesFeatures scopes.Features
 }
 
 // ResourceService is the gRPC service for managing workload identity resources.
@@ -68,12 +74,13 @@ type ResourceServiceConfig struct {
 type ResourceService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityResourceServiceServer
 
-	authorizer authz.Authorizer
-	backend    workloadIdentityReadWriter
-	cache      workloadIdentityReader
-	clock      clockwork.Clock
-	emitter    apievents.Emitter
-	logger     *slog.Logger
+	scopedAuthorizer authz.ScopedAuthorizer
+	backend          workloadIdentityReadWriter
+	cache            workloadIdentityReader
+	clock            clockwork.Clock
+	emitter          apievents.Emitter
+	logger           *slog.Logger
+	scopesFeatures   scopes.Features
 }
 
 // NewResourceService returns a new instance of the ResourceService.
@@ -83,8 +90,8 @@ func NewResourceService(cfg *ResourceServiceConfig) (*ResourceService, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Cache == nil:
 		return nil, trace.BadParameter("cache service is required")
-	case cfg.Authorizer == nil:
-		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	}
@@ -96,12 +103,13 @@ func NewResourceService(cfg *ResourceServiceConfig) (*ResourceService, error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	return &ResourceService{
-		authorizer: cfg.Authorizer,
-		backend:    cfg.Backend,
-		cache:      cfg.Cache,
-		clock:      cfg.Clock,
-		emitter:    cfg.Emitter,
-		logger:     cfg.Logger,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		backend:          cfg.Backend,
+		cache:            cfg.Cache,
+		clock:            cfg.Clock,
+		emitter:          cfg.Emitter,
+		logger:           cfg.Logger,
+		scopesFeatures:   cfg.ScopesFeatures,
 	}, nil
 }
 
@@ -110,11 +118,17 @@ func NewResourceService(cfg *ResourceServiceConfig) (*ResourceService, error) {
 func (s *ResourceService) GetWorkloadIdentity(
 	ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead); err != nil {
+
+	// Check if it's feasible that the user has access before hitting the
+	// cluster state backend.
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
+		&ruleCtx, types.KindWorkloadIdentity, types.VerbReadNoSecrets,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -122,9 +136,20 @@ func (s *ResourceService) GetWorkloadIdentity(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	resource, err := s.cache.GetWorkloadIdentity(ctx, req.GetName())
+	resource, err := s.cache.GetWorkloadIdentity(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx.Resource153 = resource
+	if err := authCtx.CheckerContext.Decision(
+		ctx, resource.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbReadNoSecrets)
+		},
+	); err != nil {
+		// Return NotFound rather than AccessDenied to avoid leaking the
+		// existence of the workload identity.
+		return nil, trace.NotFound("workload_identity %q not found", req.GetName())
 	}
 
 	return resource, nil
@@ -149,11 +174,19 @@ func (s *ResourceService) ListWorkloadIdentities(
 func (s *ResourceService) ListWorkloadIdentitiesV2(
 	ctx context.Context, req *workloadidentityv1pb.ListWorkloadIdentitiesV2Request,
 ) (*workloadidentityv1pb.ListWorkloadIdentitiesResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead, types.VerbList); err != nil {
+
+	// Check generally if this user may have the ability to list workload
+	// identities - ignoring where conditions.
+	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
+		new(authCtx.RuleContext()),
+		types.KindWorkloadIdentity,
+		types.VerbReadNoSecrets,
+		types.VerbList,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -180,6 +213,24 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 		})
 	}
 
+	// Filter out any workload identities the caller cannot access within their
+	// scope.
+	items = stream.FilterMap(items, func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
+		ruleCtx := authCtx.RuleContext()
+		ruleCtx.Resource153 = wi
+		if err := authCtx.CheckerContext.Decision(ctx, wi.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(
+				&ruleCtx,
+				types.KindWorkloadIdentity,
+				types.VerbReadNoSecrets,
+				types.VerbList,
+			)
+		}); err != nil {
+			return nil, false
+		}
+		return wi, true
+	})
+
 	resources, nextToken, err := generic.CollectPageAndCursor(items, int(req.GetPageSize()), keyFn)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -196,14 +247,8 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 func (s *ResourceService) DeleteWorkloadIdentity(
 	ctx context.Context, req *workloadidentityv1pb.DeleteWorkloadIdentityRequest,
 ) (*emptypb.Empty, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -211,7 +256,24 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	if err := s.backend.DeleteWorkloadIdentity(ctx, req.GetName()); err != nil {
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.Decision(
+		ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbDelete)
+		},
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Admin action MFA can only be enforced on unscoped identities.
+	// TODO(strideynet): When scoped identities support MFA, enforce it here.
+	if unscoped, ok := authCtx.UnscopedContext(); ok {
+		if err := unscoped.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := s.backend.DeleteWorkloadIdentity(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -223,7 +285,8 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetName(),
+			Name:  req.GetName(),
+			Scope: req.GetScope(),
 		},
 	}); err != nil {
 		s.logger.ErrorContext(
@@ -240,15 +303,33 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 func (s *ResourceService) CreateWorkloadIdentity(
 	ctx context.Context, req *workloadidentityv1pb.CreateWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbCreate); err != nil {
+
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource153 = req.GetWorkloadIdentity()
+	if err := authCtx.CheckerContext.Decision(
+		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbCreate)
+		},
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
+
+	if req.GetWorkloadIdentity().GetScope() != "" {
+		if err := s.scopesFeatures.AssertEnabled(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Admin action MFA can only be enforced on unscoped identities.
+	// TODO(strideynet): When scoped identities support MFA, enforce it here.
+	if unscoped, ok := authCtx.UnscopedContext(); ok {
+		if err := unscoped.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	created, err := s.backend.CreateWorkloadIdentity(ctx, req.GetWorkloadIdentity())
@@ -264,7 +345,8 @@ func (s *ResourceService) CreateWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
+			Name:  req.GetWorkloadIdentity().GetMetadata().GetName(),
+			Scope: req.GetWorkloadIdentity().GetScope(),
 		},
 	}
 	evt.WorkloadIdentityData, err = resourceToStruct(created)
@@ -290,15 +372,33 @@ func (s *ResourceService) CreateWorkloadIdentity(
 func (s *ResourceService) UpdateWorkloadIdentity(
 	ctx context.Context, req *workloadidentityv1pb.UpdateWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbUpdate); err != nil {
+
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource153 = req.GetWorkloadIdentity()
+	if err := authCtx.CheckerContext.Decision(
+		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbUpdate)
+		},
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
+
+	if req.GetWorkloadIdentity().GetScope() != "" {
+		if err := s.scopesFeatures.AssertEnabled(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Admin action MFA can only be enforced on unscoped identities.
+	// TODO(strideynet): When scoped identities support MFA, enforce it here.
+	if unscoped, ok := authCtx.UnscopedContext(); ok {
+		if err := unscoped.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	created, err := s.backend.UpdateWorkloadIdentity(ctx, req.GetWorkloadIdentity())
@@ -314,7 +414,8 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
+			Name:  req.GetWorkloadIdentity().GetMetadata().GetName(),
+			Scope: req.GetWorkloadIdentity().GetScope(),
 		},
 	}
 	evt.WorkloadIdentityData, err = resourceToStruct(created)
@@ -340,17 +441,33 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 func (s *ResourceService) UpsertWorkloadIdentity(
 	ctx context.Context, req *workloadidentityv1pb.UpsertWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(
-		types.KindWorkloadIdentity, types.VerbCreate, types.VerbUpdate,
+
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource153 = req.GetWorkloadIdentity()
+	if err := authCtx.CheckerContext.Decision(
+		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbCreate, types.VerbUpdate)
+		},
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
+
+	if req.GetWorkloadIdentity().GetScope() != "" {
+		if err := s.scopesFeatures.AssertEnabled(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Admin action MFA can only be enforced on unscoped identities.
+	// TODO(strideynet): When scoped identities support MFA, enforce it here.
+	if unscoped, ok := authCtx.UnscopedContext(); ok {
+		if err := unscoped.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	created, err := s.backend.UpsertWorkloadIdentity(ctx, req.GetWorkloadIdentity())
@@ -366,7 +483,8 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetWorkloadIdentity().GetMetadata().GetName(),
+			Name:  req.GetWorkloadIdentity().GetMetadata().GetName(),
+			Scope: req.GetWorkloadIdentity().GetScope(),
 		},
 	}
 	evt.WorkloadIdentityData, err = resourceToStruct(created)

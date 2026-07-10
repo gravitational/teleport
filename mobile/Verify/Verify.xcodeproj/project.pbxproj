@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 0C94C8CD2FA35ED900C13C9A /* libresolv.9.tbd */; };
+		CD65C8012FF711CE002FB1CD /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = CD65C8002FF711CE002FB1CD /* IdentifiedCollections */; };
 		CD7999232FE33AE000133048 /* Core.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD79991B2FE33AE000133048 /* Core.framework */; };
 		CD7999242FE33AE000133048 /* Core.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CD79991B2FE33AE000133048 /* Core.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CD79992C2FE33F0600133048 /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CD79992B2FE33EFF00133048 /* libresolv.9.tbd */; };
@@ -95,6 +96,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */,
+				CD65C8012FF711CE002FB1CD /* IdentifiedCollections in Frameworks */,
 				CD7999232FE33AE000133048 /* Core.framework in Frameworks */,
 				CD7999D62FE9C9F300133048 /* SwiftUINavigation in Frameworks */,
 			);
@@ -188,6 +190,7 @@
 			name = Verify;
 			packageProductDependencies = (
 				CD7999D52FE9C9F300133048 /* SwiftUINavigation */,
+				CD65C8002FF711CE002FB1CD /* IdentifiedCollections */,
 			);
 			productName = Verify;
 			productReference = 0C94C8522FA232E600C13C9A /* Verify.app */;
@@ -281,6 +284,7 @@
 				CDDEB8752FE1F5F10052BC27 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */,
 				CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */,
 				CD7999D42FE9C9F300133048 /* XCRemoteSwiftPackageReference "swift-navigation" */,
+				CD65C7FF2FF711CE002FB1CD /* XCRemoteSwiftPackageReference "swift-identified-collections" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0C94C8532FA232E600C13C9A /* Products */;
@@ -828,6 +832,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		CD65C7FF2FF711CE002FB1CD /* XCRemoteSwiftPackageReference "swift-identified-collections" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-identified-collections";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.1;
+			};
+		};
 		CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-dependencies";
@@ -855,6 +867,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		CD65C8002FF711CE002FB1CD /* IdentifiedCollections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD65C7FF2FF711CE002FB1CD /* XCRemoteSwiftPackageReference "swift-identified-collections" */;
+			productName = IdentifiedCollections;
+		};
 		CD7999282FE33B7E00133048 /* SwiftLintBuildToolPlugin */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CDDEB8752FE1F5F10052BC27 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */;

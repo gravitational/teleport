@@ -439,6 +439,14 @@ const (
 	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
 	// is sent and fails.
 	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
+	// AppSessionHTTPRequestEvent is emitted when a proxied HTTP request is received.
+	AppSessionHTTPRequestEvent = "http.request"
+	// AppSessionHTTPRequestBodyChunkEvent is emitted for each chunk of a proxied HTTP request body.
+	AppSessionHTTPRequestBodyChunkEvent = "http.request.body_chunk"
+	// AppSessionHTTPResponseEvent is emitted when a proxied HTTP response is received.
+	AppSessionHTTPResponseEvent = "http.response"
+	// AppSessionHTTPResponseBodyChunkEvent is emitted for each chunk of a proxied HTTP response body.
+	AppSessionHTTPResponseBodyChunkEvent = "http.response.body_chunk"
 
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
@@ -608,6 +616,13 @@ const (
 	// WindowsDesktopSessionEndEvent is emitted when a user disconnects
 	// from a desktop.
 	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
+
+	// LinuxDesktopSessionStartEvent is emitted when a user attempts
+	// to connect to a desktop.
+	LinuxDesktopSessionStartEvent = "linux.desktop.session.start"
+	// LinuxDesktopSessionEndEvent is emitted when a user disconnects
+	// from a desktop.
+	LinuxDesktopSessionEndEvent = "linux.desktop.session.end"
 
 	// CertificateCreateEvent is emitted when a certificate is issued.
 	CertificateCreateEvent = "cert.create"
@@ -1100,6 +1115,7 @@ const (
 var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
+	LinuxDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
 
 	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.

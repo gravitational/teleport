@@ -152,7 +152,7 @@ integration '<Var name="my-integration"/>' has been created
 To validate the integration without making a mutating AWS change, run:
 
 ```code
-$ tctl integrations test --integration=<Var name="my-integration"/>
+$ tctl integrations test <Var name="my-integration"/>
 ```
 
 If the integration is working, the command returns the AWS account ID and caller ARN from AWS STS `GetCallerIdentity`.

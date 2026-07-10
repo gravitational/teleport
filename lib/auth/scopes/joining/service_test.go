@@ -159,8 +159,8 @@ func TestScopedJoiningService(t *testing.T) {
 		// list tokens while filtering their resource scope
 		res, err := service.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
 			WithSecrets: true,
-			ResourceScope: scopesv1.Filter_builder{
-				Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 				Scope: "/staging/cc",
 			}.Build(),
 		}.Build())

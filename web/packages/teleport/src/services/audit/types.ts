@@ -57,6 +57,10 @@ export const eventCodes = {
   APP_SESSION_START_FAILURE: 'T2007E',
   APP_SESSION_END: 'T2011I',
   APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
+  APP_SESSION_HTTP_REQUEST: 'T2015I',
+  APP_SESSION_HTTP_REQUEST_BODY_CHUNK: 'T2016I',
+  APP_SESSION_HTTP_RESPONSE: 'T2017I',
+  APP_SESSION_HTTP_RESPONSE_BODY_CHUNK: 'T2018I',
   APP_CREATED: 'TAP03I',
   APP_UPDATED: 'TAP04I',
   APP_DELETED: 'TAP05I',
@@ -121,6 +125,9 @@ export const eventCodes = {
   DESKTOP_SHARED_DIRECTORY_READ_FAILURE: 'TDP05W',
   DESKTOP_SHARED_DIRECTORY_WRITE: 'TDP06I',
   DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE: 'TDP06W',
+  LINUX_DESKTOP_SESSION_STARTED: 'TDP07I',
+  LINUX_DESKTOP_SESSION_STARTED_FAILED: 'TDP07W',
+  LINUX_DESKTOP_SESSION_ENDED: 'TDP08I',
   DEVICE_CREATE: 'TV001I',
   DEVICE_DELETE: 'TV002I',
   DEVICE_ENROLL_TOKEN_CREATE: 'TV003I',
@@ -698,6 +705,31 @@ export type RawEvents = {
       app_name: string;
     }
   >;
+  [eventCodes.APP_SESSION_HTTP_REQUEST]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_REQUEST,
+    {
+      method: string;
+      url: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK,
+    {
+      request_id: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_HTTP_RESPONSE]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_RESPONSE,
+    {
+      status_code: number;
+    }
+  >;
+  [eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK,
+    {
+      request_id: string;
+    }
+  >;
   [eventCodes.APP_SESSION_CHUNK]: RawEvent<
     typeof eventCodes.APP_SESSION_CHUNK,
     {
@@ -1269,6 +1301,33 @@ export type RawEvents = {
       sid: string;
       windows_user: string;
       windows_domain: string;
+    }
+  >;
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_STARTED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
+  [eventCodes.LINUX_DESKTOP_SESSION_ENDED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_ENDED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
     }
   >;
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: RawEvent<

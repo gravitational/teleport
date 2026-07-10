@@ -197,6 +197,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionDynamoDBRequest{}
 	case AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent:
 		e = &events.AppSessionLLMRequest{}
+	case AppSessionHTTPRequestEvent:
+		e = &events.AppSessionHTTPRequest{}
+	case AppSessionHTTPRequestBodyChunkEvent:
+		e = &events.AppSessionHTTPRequestBodyChunk{}
+	case AppSessionHTTPResponseEvent:
+		e = &events.AppSessionHTTPResponse{}
+	case AppSessionHTTPResponseBodyChunkEvent:
+		e = &events.AppSessionHTTPResponseBodyChunk{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -304,6 +312,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case LinuxDesktopSessionStartEvent:
+		e = &events.LinuxDesktopSessionStart{}
+	case LinuxDesktopSessionEndEvent:
+		e = &events.LinuxDesktopSessionEnd{}
 	case DesktopRecordingEvent:
 		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:

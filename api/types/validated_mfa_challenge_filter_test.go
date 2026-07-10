@@ -111,16 +111,16 @@ func TestValidatedMFAChallengeFilterMatch(t *testing.T) {
 		want          bool
 	}{
 		{
-			name:          "empty filter matches nothing",
+			name:          "empty filter matches all challenges",
 			filter:        types.ValidatedMFAChallengeFilter{},
 			targetCluster: "root",
-			want:          false,
+			want:          true,
 		},
 		{
-			name:          "empty filter and target cluster matches nothing",
+			name:          "empty filter and empty target cluster matches",
 			filter:        types.ValidatedMFAChallengeFilter{},
 			targetCluster: "",
-			want:          false,
+			want:          true,
 		},
 		{
 			name: "matching target cluster",

@@ -523,3 +523,89 @@ func TestKubeConversion(t *testing.T) {
 		})
 	}
 }
+
+// TestAppConversion verifies that the scoped role app block converts its labels and
+// label_expression into the classic role's AppLabels/AppLabelsExpression conditions.
+func TestAppConversion(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		app    *scopedaccessv1.ScopedRoleApp
+		expect types.RoleConditions
+	}{
+		{
+			name:   "empty conditions",
+			app:    &scopedaccessv1.ScopedRoleApp{},
+			expect: types.RoleConditions{},
+		},
+		{
+			name: "labels only",
+			app: scopedaccessv1.ScopedRoleApp_builder{
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   "env",
+						Values: []string{"prod", "staging"},
+					}.Build(),
+					labelv1.Label_builder{
+						Name:   "team",
+						Values: []string{"blue"},
+					}.Build(),
+				},
+			}.Build(),
+			expect: types.RoleConditions{
+				AppLabels: types.Labels{
+					"env":  apiutils.Strings{"prod", "staging"},
+					"team": apiutils.Strings{"blue"},
+				},
+			},
+		},
+		{
+			name: "label expression only",
+			app: scopedaccessv1.ScopedRoleApp_builder{
+				LabelExpression: `contains(labels["env"], "prod")`,
+			}.Build(),
+			expect: types.RoleConditions{
+				AppLabelsExpression: `contains(labels["env"], "prod")`,
+			},
+		},
+		{
+			name: "labels and expression",
+			app: scopedaccessv1.ScopedRoleApp_builder{
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   "env",
+						Values: []string{"prod"},
+					}.Build(),
+				},
+				LabelExpression: `contains(labels["team"], "blue")`,
+			}.Build(),
+			expect: types.RoleConditions{
+				AppLabels: types.Labels{
+					"env": apiutils.Strings{"prod"},
+				},
+				AppLabelsExpression: `contains(labels["team"], "blue")`,
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			role, err := ScopedRoleToRole(scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/foo",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					App:              tt.app,
+					AssignableScopes: []string{"/foo/bar"},
+				}.Build(),
+				Version: types.V1,
+			}.Build(), "/foo/bar")
+			require.NoError(t, err)
+			tt.expect.Namespaces = []string{"default"}
+			require.Empty(t, cmp.Diff(tt.expect, role.GetRoleConditions(types.Allow)))
+		})
+	}
+}

@@ -112,6 +112,9 @@ const (
 	// desktop service.
 	KeepAliveWindowsDesktopService = "windows_desktop_service"
 
+	// KeepAliveLinuxDesktop is the keep alive type for a Linux desktop.
+	KeepAliveLinuxDesktop = "linux_desktop"
+
 	// KeepAliveKube is the keep alive type for Kubernetes server
 	KeepAliveKube = "kube"
 
@@ -418,6 +421,10 @@ const (
 	// TraitWindowsLogins is the name of the role variable used
 	// to store allowed Windows logins.
 	TraitWindowsLogins = "windows_logins"
+
+	// TraitLinuxDesktopLogins is the name of the role variable used
+	// to store allowed Linux desktop logins.
+	TraitLinuxDesktopLogins = "linux_desktop_logins"
 
 	// TraitKubeGroups is the name the role variable used to store
 	// allowed kubernetes groups
