@@ -82,7 +82,7 @@ var (
 			Name:      "health",
 			Help:      "Whether the cache for a particular Teleport service is healthy.",
 		},
-		[]string{teleport.TagCacheComponent},
+		[]string{teleport.TagCacheComponent, teleport.TagCacheName},
 	)
 
 	cacheLastReset = prometheus.NewGaugeVec(
@@ -92,7 +92,7 @@ var (
 			Name:      "last_reset_seconds",
 			Help:      "The unix time in seconds that the last cache reset was performed.",
 		},
-		[]string{teleport.TagCacheComponent},
+		[]string{teleport.TagCacheComponent, teleport.TagCacheName},
 	)
 )
 
@@ -597,6 +597,24 @@ type Cache struct {
 
 var _ authclient.Cache = (*Cache)(nil)
 
+// metricLabelValues returns the label values that identify this cache instance
+// for the health and last-reset metrics. The target (cache_component) is not
+// unique on its own: multiple caches can share a target (for example, a proxy
+// runs one remote-proxy cache per trusted cluster). The per-instance
+// MetricComponent (cache_name) is included so that these caches report their
+// own metrics instead of clobbering each other's series.
+func (c *Cache) metricLabelValues() []string {
+	return []string{c.target, c.MetricComponent}
+}
+
+// deleteMetrics removes this cache instance's metric series. It is called on
+// Close so that transient caches (for example, per trusted cluster) don't leak
+// stale series after they are torn down.
+func (c *Cache) deleteMetrics() {
+	cacheHealth.DeleteLabelValues(c.metricLabelValues()...)
+	cacheLastReset.DeleteLabelValues(c.metricLabelValues()...)
+}
+
 func (c *Cache) setInitError(err error) {
 	c.initOnce.Do(func() {
 		c.initErr = err
@@ -607,9 +625,9 @@ func (c *Cache) setInitError(err error) {
 		c.firstTimeInitOnce.Do(func() {
 			close(c.firstTimeInitC)
 		})
-		cacheHealth.WithLabelValues(c.target).Set(1.0)
+		cacheHealth.WithLabelValues(c.metricLabelValues()...).Set(1.0)
 	} else {
-		cacheHealth.WithLabelValues(c.target).Set(0.0)
+		cacheHealth.WithLabelValues(c.metricLabelValues()...).Set(0.0)
 	}
 }
 
@@ -1212,7 +1230,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
-	cacheLastReset.WithLabelValues(c.target).SetToCurrentTime()
+	cacheLastReset.WithLabelValues(c.metricLabelValues()...).SetToCurrentTime()
 	requestKinds := c.Config.Watches
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,
@@ -1548,6 +1566,7 @@ func (c *Cache) Close() error {
 	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
 		f.Close()
 	})
+	c.deleteMetrics()
 	return nil
 }
 

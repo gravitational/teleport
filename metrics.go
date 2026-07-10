@@ -332,6 +332,12 @@ const (
 	// TagCacheComponent is a prometheus label for the cache component
 	TagCacheComponent = "cache_component"
 
+	// TagCacheName is a prometheus label that uniquely identifies a single
+	// cache instance. Multiple caches can share a TagCacheComponent (for
+	// example, a proxy runs one remote-proxy cache per trusted cluster), so
+	// this label distinguishes their per-instance metrics.
+	TagCacheName = "cache_name"
+
 	// TagType is a prometheus label for type of resource or tunnel connected
 	TagType = "type"
 
