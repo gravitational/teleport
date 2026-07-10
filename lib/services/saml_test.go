@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -556,7 +557,7 @@ func Test_ValidateSAMLConnector_error_sanitization(t *testing.T) {
 				require.NoError(t, err)
 
 				testOpts := []types.SAMLConnectorValidationOption{
-					types.SAMLConnectorValidationHTTPClient(listener.MakeHTTPClient()),
+					types.SAMLConnectorValidationHTTPTransport(listener.MakeHTTPClient().Transport),
 				}
 
 				// Create a roleSet with <nil> role values as ValidateSAMLConnector only checks if the role
@@ -615,6 +616,68 @@ func Test_ValidateSAMLConnector_error_sanitization(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, entityDescriptor, tc.getEntityDescriptor(samlConnector))
 			})
+		})
+	}
+}
+
+func Test_ValidateSAMLConnector_blocksHTTPSRedirectDowngrade(t *testing.T) {
+	t.Parallel()
+
+	const role = "existing-test-role"
+
+	var downgradedRequestsCnt atomic.Int64
+	downgradedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		downgradedRequestsCnt.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(downgradedServer.Close)
+
+	redirectingServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, downgradedServer.URL, http.StatusFound)
+	}))
+	t.Cleanup(redirectingServer.Close)
+
+	for _, tc := range []struct {
+		name string
+		spec types.SAMLConnectorSpecV2
+	}{
+		{
+			name: "root entity descriptor URL",
+			spec: types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "https://teleport.example.com/v1/webapi/saml/acs",
+				EntityDescriptorURL:      redirectingServer.URL,
+				AttributesToRoles: []types.AttributeMapping{
+					{Name: "groups", Value: "admin", Roles: []string{role}},
+				},
+			},
+		},
+		{
+			name: "MFA entity descriptor URL",
+			spec: types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "https://teleport.example.com/v1/webapi/saml/acs",
+				Issuer:                   "https://idp.example.com",
+				SSO:                      "https://idp.example.com/sso",
+				AttributesToRoles: []types.AttributeMapping{
+					{Name: "groups", Value: "admin", Roles: []string{role}},
+				},
+				MFASettings: &types.SAMLConnectorMFASettings{
+					Enabled:             true,
+					EntityDescriptorUrl: redirectingServer.URL,
+				},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			samlConnector, err := types.NewSAMLConnector("redirect-downgrade", tc.spec)
+			require.NoError(t, err)
+
+			err = ValidateSAMLConnector(samlConnector, roleSet{role: nil},
+				types.SAMLConnectorValidationHTTPTransport(redirectingServer.Client().Transport),
+			)
+			require.ErrorIs(t, err, ErrFailedToFetchEntityDescriptor)
+			// Make sure there is no any extra information in the error.
+			require.Equal(t, ErrFailedToFetchEntityDescriptor.Error(), err.Error())
+			require.Zero(t, downgradedRequestsCnt.Load())
 		})
 	}
 }

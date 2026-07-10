@@ -785,14 +785,12 @@ type SAMLConnectorValidationOptions struct {
 	// endpoints like /webapi/ping which must not hang or fail.
 	NoFollowURLs bool
 	WithSecrets  bool
-	// HTTPClient used to fetch entity descriptor during the validation.
-	HTTPClient *http.Client
+	// Transport used to fetch entity descriptor during the validation.
+	Transport http.RoundTripper
 }
 
 func NewSAMLConnectorValidationOptions(opts []SAMLConnectorValidationOption) SAMLConnectorValidationOptions {
-	options := SAMLConnectorValidationOptions{
-		HTTPClient: http.DefaultClient,
-	}
+	options := SAMLConnectorValidationOptions{}
 	for _, o := range opts {
 		o(&options)
 	}
@@ -818,10 +816,10 @@ func SAMLConnectorValidationWithSecrets(withSecrets bool) SAMLConnectorValidatio
 	}
 }
 
-// SAMLConnectorValidationHTTPClient sets HTTP client used to fetch entity descriptor during the
-// validation.
-func SAMLConnectorValidationHTTPClient(httpClient *http.Client) SAMLConnectorValidationOption {
+// SAMLConnectorValidationHTTPTransport sets HTTP transport used to fetch entity descriptor during
+// the validation.
+func SAMLConnectorValidationHTTPTransport(transport http.RoundTripper) SAMLConnectorValidationOption {
 	return func(opts *SAMLConnectorValidationOptions) {
-		opts.HTTPClient = httpClient
+		opts.Transport = transport
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/xml"
+	"errors"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -253,13 +254,26 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 	}()
 
 	if url != "" && !params.Options.NoFollowURLs {
+		httpClient := &http.Client{
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) != 0 && strings.EqualFold(via[len(via)-1].URL.Scheme, "https") && !strings.EqualFold(req.URL.Scheme, "https") {
+					return errors.New("connection downgrade not allowed for URL: " + req.URL.String())
+				}
+				if len(via) >= 10 {
+					return errors.New("stopped after 10 redirects")
+				}
+				return nil
+			},
+			Transport: params.Options.Transport,
+		}
+
 		ctx, cancel := context.WithTimeout(ctx, defaults.DefaultIOTimeout)
 		defer cancel()
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
 			return "", nil, trace.Wrap(err)
 		}
-		resp, err := params.Options.HTTPClient.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			return "", nil, trace.Wrap(err)
 		}
