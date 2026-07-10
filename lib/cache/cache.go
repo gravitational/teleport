@@ -94,6 +94,12 @@ var (
 		},
 		[]string{teleport.TagCacheComponent},
 	)
+
+	// cacheHealthReporter derives the cacheHealth gauge from the health of the
+	// individual cache instances currently running for each target, so that
+	// overlapping instances that share a target don't clobber each other's
+	// value on the shared series.
+	cacheHealthReporter = newHealthReporter(cacheHealth)
 )
 
 // highVolumeResources is the set of cached resources that tend to produce high
@@ -593,6 +599,11 @@ type Cache struct {
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
+
+	// id is a process-unique identifier for this cache instance, used to track
+	// its contribution to the shared cacheHealth metric independently from
+	// other instances that share the same target.
+	id uint64
 }
 
 var _ authclient.Cache = (*Cache)(nil)
@@ -607,10 +618,13 @@ func (c *Cache) setInitError(err error) {
 		c.firstTimeInitOnce.Do(func() {
 			close(c.firstTimeInitC)
 		})
-		cacheHealth.WithLabelValues(c.target).Set(1.0)
-	} else {
-		cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
+	// Report this instance's health individually so that other instances
+	// sharing the same target don't clobber the shared metric. setInitError is
+	// only ever called from the update goroutine, whose deferred Close removes
+	// this instance's contribution once it stops, so the reported value always
+	// reflects the instances that are still running.
+	cacheHealthReporter.setHealth(c.target, c.id, err == nil)
 }
 
 // FirstInit returns a channel that is closed when the cache successfully initializes for the first time.
@@ -972,6 +986,7 @@ func New(config Config) (*Cache, error) {
 	}
 
 	cs := &Cache{
+		id:                    nextCacheID(),
 		ctx:                   ctx,
 		cancel:                cancel,
 		Config:                config,
@@ -1548,6 +1563,13 @@ func (c *Cache) Close() error {
 	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
 		f.Close()
 	})
+	// Stop this instance from contributing to the shared cacheHealth metric so
+	// that a stale unhealthy value written on the way down can't linger and so
+	// the value keeps reflecting any other instances still running for this
+	// target. This is idempotent, and because the update goroutine defers a
+	// call to Close it is guaranteed to run after this instance's final health
+	// report.
+	cacheHealthReporter.remove(c.target, c.id)
 	return nil
 }
 
