@@ -249,10 +249,11 @@ func (b0 UpsertWorkloadIdentityRequest_builder) Build() *UpsertWorkloadIdentityR
 
 // The request for GetWorkloadIdentity.
 type GetWorkloadIdentityRequest struct {
-	state           protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Name string                 `protobuf:"bytes,1,opt,name=name,proto3"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name  string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	xxx_hidden_Scope string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetWorkloadIdentityRequest) Reset() {
@@ -287,8 +288,19 @@ func (x *GetWorkloadIdentityRequest) GetName() string {
 	return ""
 }
 
+func (x *GetWorkloadIdentityRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *GetWorkloadIdentityRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
+}
+
+func (x *GetWorkloadIdentityRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type GetWorkloadIdentityRequest_builder struct {
@@ -296,6 +308,10 @@ type GetWorkloadIdentityRequest_builder struct {
 
 	// The name of the workload identity to retrieve.
 	Name string
+	// The scope the workload identity is expected to belong to. If unset, the
+	// workload identity is expected to be unscoped. If the named workload
+	// identity does not belong to this scope, a not found error is returned.
+	Scope string
 }
 
 func (b0 GetWorkloadIdentityRequest_builder) Build() *GetWorkloadIdentityRequest {
@@ -303,15 +319,17 @@ func (b0 GetWorkloadIdentityRequest_builder) Build() *GetWorkloadIdentityRequest
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
 // The request for DeleteWorkloadIdentity.
 type DeleteWorkloadIdentityRequest struct {
-	state           protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Name string                 `protobuf:"bytes,1,opt,name=name,proto3"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name  string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	xxx_hidden_Scope string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *DeleteWorkloadIdentityRequest) Reset() {
@@ -346,8 +364,19 @@ func (x *DeleteWorkloadIdentityRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteWorkloadIdentityRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *DeleteWorkloadIdentityRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
+}
+
+func (x *DeleteWorkloadIdentityRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type DeleteWorkloadIdentityRequest_builder struct {
@@ -355,6 +384,10 @@ type DeleteWorkloadIdentityRequest_builder struct {
 
 	// The name of the workload identity to delete.
 	Name string
+	// The scope the workload identity is expected to belong to. If unset, the
+	// workload identity is expected to be unscoped. If the named workload
+	// identity does not belong to this scope, a not found error is returned.
+	Scope string
 }
 
 func (b0 DeleteWorkloadIdentityRequest_builder) Build() *DeleteWorkloadIdentityRequest {
@@ -362,6 +395,7 @@ func (b0 DeleteWorkloadIdentityRequest_builder) Build() *DeleteWorkloadIdentityR
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -647,11 +681,13 @@ const file_teleport_workloadidentity_v1_resource_service_proto_rawDesc = "" +
 	"\x1dUpdateWorkloadIdentityRequest\x12[\n" +
 	"\x11workload_identity\x18\x01 \x01(\v2..teleport.workloadidentity.v1.WorkloadIdentityR\x10workloadIdentity\"|\n" +
 	"\x1dUpsertWorkloadIdentityRequest\x12[\n" +
-	"\x11workload_identity\x18\x01 \x01(\v2..teleport.workloadidentity.v1.WorkloadIdentityR\x10workloadIdentity\"0\n" +
+	"\x11workload_identity\x18\x01 \x01(\v2..teleport.workloadidentity.v1.WorkloadIdentityR\x10workloadIdentity\"F\n" +
 	"\x1aGetWorkloadIdentityRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"3\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"I\n" +
 	"\x1dDeleteWorkloadIdentityRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"[\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"[\n" +
 	"\x1dListWorkloadIdentitiesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
