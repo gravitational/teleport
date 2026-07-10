@@ -636,7 +636,11 @@ func (k *kubeLocalProxy) getCertReissuer(tc *client.TeleportClient) func(ctx con
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 
-		return k.certIssuer.issueCert(ctx, clusterClient, teleportCluster, kubeCluster, nil /*mfaCheck*/)
+		cert, err := k.certIssuer.issueCert(ctx, clusterClient, teleportCluster, kubeCluster, nil /*mfaCheck*/)
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err)
+		}
+		return *cert, nil
 	}
 }
 
