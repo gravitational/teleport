@@ -232,6 +232,12 @@ func (c *ScopedAccessChecker) Kube() *KubeAccessChecker {
 	return &KubeAccessChecker{checker: c}
 }
 
+// App returns an app-specific access checker backed by this checker. All app-specific methods
+// live on [AppAccessChecker].
+func (c *ScopedAccessChecker) App() *AppAccessChecker {
+	return &AppAccessChecker{checker: c}
+}
+
 // AccessInfo returns the AccessInfo that this access checker is based on.
 func (c *ScopedAccessChecker) AccessInfo() *AccessInfo {
 	if !c.isScoped() {
