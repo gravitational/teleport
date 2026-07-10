@@ -86,13 +86,15 @@ prerequisites that the default standalone chart does not provide:
 - The Auth Service needs a highly available backend. The default standalone mode
   stores cluster state in SQLite on a `ReadWriteOnce` volume, which cannot be
   shared safely across pods. Use a cloud chart mode (`aws`, `gcp`, or `azure`),
-  or configure an external backend such as DynamoDB, Firestore, or etcd. See
-  [Storage backends](backends.mdx) and the
+  which disables local persistence automatically, or configure an external backend such as DynamoDB, Firestore, or etcd.
+  With an external backend you must also set `persistence.enabled: false` and store session recordings on highly
+  available storage such as S3 or GCS. Otherwise every Auth Service replica
+  references the same `ReadWriteOnce` volume, causing multi-attach or scheduling failures.
+  See [Storage backends](backends.mdx) and the
   [High Availability guide](../../installation/self-hosted/deployments/high-availability.mdx).
-- The Proxy Service needs a shared TLS certificate source. Unless you enable
-  cert-manager (`highAvailability.certManager`), provide an existing secret
-  (`tls.existingSecretName`), or use an ingress (`ingress.enabled`), the chart
-  keeps the Proxy Service at a single replica regardless of the value below.
+- The Proxy Service needs a shared TLS certificate source.
+  Unless you enable cert-manager (`highAvailability.certManager`), provide an existing secret (`tls.existingSecretName`),
+  or use an ingress (`ingress.enabled`), the chart keeps the Proxy Service at a single replica regardless of the value below.
 
 Once those prerequisites are in place, set the replica count with
 `highAvailability.replicaCount`, which corresponds to the `2x` in the
