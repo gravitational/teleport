@@ -2,7 +2,7 @@ apiVersion: v2
 name: teleport-plugin-jira
 description: A Helm chart for the Teleport Jira Plugin
 type: application
-version: &version "19.0.0-hugoopupd.6"
+version: &version "19.0.0-hugoopupd.7"
 appVersion: *version
 
 dependencies:

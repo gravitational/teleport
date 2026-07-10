@@ -2,7 +2,7 @@ apiVersion: v2
 name: teleport-plugin-pagerduty
 description: A Helm chart for the Teleport Pagerduty Plugin
 type: application
-version: &version "19.0.0-hugoopupd.6"
+version: &version "19.0.0-hugoopupd.7"
 appVersion: *version
 
 dependencies:

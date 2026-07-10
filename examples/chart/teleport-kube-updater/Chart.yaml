@@ -1,6 +1,6 @@
 name: teleport-kube-updater
 apiVersion: v2
-version: &version "19.0.0-hugoopupd.6"
+version: &version "19.0.0-hugoopupd.7"
 appVersion: *version
 type: library
 description: |

@@ -1,6 +1,6 @@
 name: teleport-cluster
 apiVersion: v2
-version: &version "19.0.0-hugoopupd.6"
+version: &version "19.0.0-hugoopupd.7"
 appVersion: *version
 description: Teleport is an access platform for your infrastructure
 icon: https://goteleport.com/static/teleport-symbol-bimi.svg

@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-hugoopupd.6"
+const Version = "19.0.0-hugoopupd.7"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "hugoopupd.6"
+const VersionPreRelease = "hugoopupd.7"
 const VersionMetadata = ""
