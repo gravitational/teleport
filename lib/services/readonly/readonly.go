@@ -49,6 +49,7 @@ type AuthPreference interface {
 	GetDefaultSessionTTL() types.Duration
 	GetHardwareKeySerialNumberValidation() (*types.HardwareKeySerialNumberValidation, error)
 	GetAllowPasswordless() bool
+	GetEncryptExternalCredentials() bool
 	GetStableUNIXUserConfig() *types.StableUNIXUserConfig
 
 	GetRevision() string

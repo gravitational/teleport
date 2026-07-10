@@ -1426,7 +1426,7 @@ func migrateGitHubIntegrationStatus(ctx context.Context, asrv *Server) error {
 			if ig.GetSubKind() != types.SubKindGitHub {
 				continue
 			}
-			if ig.GetStatus().GitHub != nil {
+			if gh := ig.GetStatus().GitHub; gh != nil && gh.ClientID != "" {
 				continue
 			}
 			if err := populateGitHubIntegrationStatus(ctx, asrv, ig); err != nil {

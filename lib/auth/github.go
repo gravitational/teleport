@@ -43,6 +43,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/credentialencryption"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -900,16 +901,23 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 // TODO(greedy52) save and use refresh token for token refresh support.
 func (a *Server) saveGitHubOAuthCredentials(ctx context.Context, username, clientID string, token *oauth2.Token, githubUser *GithubUserResponse, logger *slog.Logger) error {
 	ghCreds := userexternalcredentialsv1.GitHubOAuthCredentials_builder{
-		AccessToken:  token.AccessToken,
-		RefreshToken: token.RefreshToken,
-		Username:     githubUser.Login,
-		UserId:       githubUser.getIDStr(),
+		Username: githubUser.Login,
+		UserId:   githubUser.getIDStr(),
+	}
+
+	if a.credentialEncryptionEnabled() {
+		encryptedTokens, err := a.EncryptTokens(ctx, token.AccessToken, token.RefreshToken)
+		if err != nil {
+			return trace.Wrap(err, "encrypting GitHub tokens")
+		}
+		ghCreds.EncryptedTokens = encryptedTokens
+	} else {
+		ghCreds.AccessToken = token.AccessToken
+		ghCreds.RefreshToken = token.RefreshToken
 	}
 	if !token.Expiry.IsZero() {
 		ghCreds.AccessTokenExpiry = timestamppb.New(token.Expiry)
 	}
-	// GitHub refresh tokens expire after 6 months.
-	// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens
 	if token.RefreshToken != "" {
 		refreshExpiry := token.Extra("refresh_token_expires_in")
 		if seconds, ok := refreshExpiry.(float64); ok && seconds > 0 {
@@ -924,8 +932,6 @@ func (a *Server) saveGitHubOAuthCredentials(ctx context.Context, username, clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Set initial credential TTL using the default. The integration's
-	// max_credential_ttl takes effect on subsequent token refreshes.
 	creds.GetMetadata().Expires = timestamppb.New(time.Now().Add(7 * 24 * time.Hour))
 
 	if _, err := a.UserExternalCredentials.UpsertUserExternalCredentials(ctx, creds); err != nil {
@@ -936,6 +942,40 @@ func (a *Server) saveGitHubOAuthCredentials(ctx context.Context, username, clien
 		"client_id", clientID,
 	)
 	return nil
+}
+
+// credentialEncryptionEnabled checks if credential encryption is enabled
+// via cluster_auth_preference.
+func (a *Server) credentialEncryptionEnabled() bool {
+	authPref, err := a.GetReadOnlyAuthPreference(context.TODO())
+	if err != nil {
+		return false
+	}
+	return authPref.GetEncryptExternalCredentials()
+}
+
+// EncryptionEnabled implements gitserverv1.TokenEncryptor.
+func (a *Server) EncryptionEnabled() bool {
+	return a.credentialEncryptionEnabled()
+}
+
+// EncryptTokens implements gitserverv1.TokenEncryptor.
+func (a *Server) EncryptTokens(ctx context.Context, accessToken, refreshToken string) ([]byte, error) {
+	encryptor := credentialencryption.NewEncryptor(a.keyStore, a.bk)
+	return encryptor.Encrypt(ctx, credentialencryption.TokenData{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	})
+}
+
+// DecryptTokens implements gitserverv1.TokenEncryptor.
+func (a *Server) DecryptTokens(ctx context.Context, ciphertext []byte) (string, string, error) {
+	encryptor := credentialencryption.NewEncryptor(a.keyStore, a.bk)
+	data, err := encryptor.Decrypt(ctx, ciphertext)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	return data.AccessToken, data.RefreshToken, nil
 }
 
 // buildAPIEndpoint takes a URL of a GitHub API endpoint and returns only

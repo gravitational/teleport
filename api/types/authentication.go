@@ -208,6 +208,9 @@ type AuthPreference interface {
 	// algorithm suite is incompatible with [params].
 	CheckSignatureAlgorithmSuite(SignatureAlgorithmSuiteParams) error
 
+	// GetEncryptExternalCredentials returns if external credential encryption is enabled.
+	GetEncryptExternalCredentials() bool
+
 	// GetStableUNIXUserConfig returns the stable UNIX user configuration.
 	GetStableUNIXUserConfig() *StableUNIXUserConfig
 	// SetStableUNIXUserConfig sets the stable UNIX user configuration.
@@ -717,6 +720,14 @@ func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorith
 }
 
 // GetStableUNIXUserConfig implements [AuthPreference].
+// GetEncryptExternalCredentials implements [AuthPreference].
+func (c *AuthPreferenceV2) GetEncryptExternalCredentials() bool {
+	if c == nil {
+		return false
+	}
+	return c.Spec.EncryptExternalCredentials
+}
+
 func (c *AuthPreferenceV2) GetStableUNIXUserConfig() *StableUNIXUserConfig {
 	if c == nil {
 		return nil

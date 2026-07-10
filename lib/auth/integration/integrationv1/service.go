@@ -267,10 +267,16 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if s.modules.BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("GitHub integration requires a Teleport Enterprise license")
 		}
+		// Save the ClientID before createGitHubCredentials replaces
+		// the inline IdSecret with a StaticCredentialsRef.
+		var clientID string
+		if idSecret := req.Integration.GetCredentials().GetIdSecret(); idSecret != nil {
+			clientID = idSecret.Id
+		}
 		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		setGitHubIntegrationStatus(req.Integration, "")
+		setGitHubIntegrationStatus(req.Integration, clientID)
 	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
 		if err := awscommon.ValidIntegrationName(req.Integration.GetName()); err != nil {
 			return nil, trace.Wrap(err)

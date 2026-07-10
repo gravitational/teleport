@@ -6752,7 +6752,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			}
 			return cert, nil
 		},
-		Clock: cfg.AuthServer.clock,
+		TokenEncryptor: cfg.AuthServer,
+		Clock:          cfg.AuthServer.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

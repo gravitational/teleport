@@ -58,27 +58,36 @@ type CredentialsBackend interface {
 type CertVerifier func(certDER []byte) (*x509.Certificate, error)
 
 // CredentialsServiceConfig holds configuration for GitCredentialsService.
+// TokenEncryptor encrypts and decrypts credential tokens.
+type TokenEncryptor interface {
+	EncryptionEnabled() bool
+	EncryptTokens(ctx context.Context, accessToken, refreshToken string) ([]byte, error)
+	DecryptTokens(ctx context.Context, ciphertext []byte) (accessToken, refreshToken string, err error)
+}
+
 type CredentialsServiceConfig struct {
-	Authorizer   authz.Authorizer
-	Cache        CredentialsCache
-	Backend      CredentialsBackend
-	Emitter      apievents.Emitter
-	CertVerifier CertVerifier
-	Logger       *slog.Logger
-	Clock        clockwork.Clock
+	Authorizer     authz.Authorizer
+	Cache          CredentialsCache
+	Backend        CredentialsBackend
+	Emitter        apievents.Emitter
+	CertVerifier   CertVerifier
+	TokenEncryptor TokenEncryptor
+	Logger         *slog.Logger
+	Clock          clockwork.Clock
 }
 
 // CredentialsService implements the GitCredentialsService gRPC service.
 type CredentialsService struct {
 	pb.UnimplementedGitCredentialsServiceServer
 
-	authorizer   authz.Authorizer
-	cache        CredentialsCache
-	backend      CredentialsBackend
-	emitter      apievents.Emitter
-	certVerifier CertVerifier
-	logger       *slog.Logger
-	clock        clockwork.Clock
+	authorizer     authz.Authorizer
+	cache          CredentialsCache
+	backend        CredentialsBackend
+	emitter        apievents.Emitter
+	certVerifier   CertVerifier
+	tokenEncryptor TokenEncryptor
+	logger         *slog.Logger
+	clock          clockwork.Clock
 }
 
 // NewCredentialsService creates a new GitCredentialsService.
@@ -105,13 +114,14 @@ func NewCredentialsService(cfg CredentialsServiceConfig) (*CredentialsService, e
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	return &CredentialsService{
-		authorizer:   cfg.Authorizer,
-		cache:        cfg.Cache,
-		backend:      cfg.Backend,
-		emitter:      cfg.Emitter,
-		certVerifier: cfg.CertVerifier,
-		logger:       cfg.Logger,
-		clock:        cfg.Clock,
+		authorizer:     cfg.Authorizer,
+		cache:          cfg.Cache,
+		backend:        cfg.Backend,
+		emitter:        cfg.Emitter,
+		certVerifier:   cfg.CertVerifier,
+		tokenEncryptor: cfg.TokenEncryptor,
+		logger:         cfg.Logger,
+		clock:          cfg.Clock,
 	}, nil
 }
 
@@ -303,13 +313,13 @@ func (s *CredentialsService) GenerateGitHubAppToken(ctx context.Context, in *pb.
 		return nil, trace.NotFound("no GitHub OAuth credentials found for user %v", identity.Username)
 	}
 
-	accessToken := githubOAuth.GetAccessToken()
+	accessToken, refreshToken, err := s.getTokens(ctx, githubOAuth)
+	if err != nil {
+		return nil, trace.Wrap(err, "reading GitHub tokens")
+	}
 
-	// Proactively refresh the token if it expires within 5 minutes, ensuring
-	// the returned token is usable for at least one session chunk.
 	if expiry := githubOAuth.GetAccessTokenExpiry(); expiry != nil && expiry.IsValid() {
 		if s.clock.Now().Add(5 * time.Minute).After(expiry.AsTime()) {
-			refreshToken := githubOAuth.GetRefreshToken()
 			if refreshToken == "" {
 				return nil, trace.AccessDenied("GitHub access token expired and no refresh token available for user %v; re-run 'tsh git login'", identity.Username)
 			}
@@ -366,17 +376,42 @@ func (s *CredentialsService) refreshGitHubToken(ctx context.Context, ig types.In
 
 const defaultMaxCredentialTTL = 7 * 24 * time.Hour
 
+// getTokens extracts the access and refresh tokens, decrypting if needed.
+func (s *CredentialsService) getTokens(ctx context.Context, ghCreds *userexternalcredentialsv1.GitHubOAuthCredentials) (accessToken, refreshToken string, err error) {
+	if encrypted := ghCreds.GetEncryptedTokens(); len(encrypted) > 0 {
+		accessToken, refreshToken, err = s.tokenEncryptor.DecryptTokens(ctx, encrypted)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		return accessToken, refreshToken, nil
+	}
+	return ghCreds.GetAccessToken(), ghCreds.GetRefreshToken(), nil
+}
+
 func (s *CredentialsService) saveRefreshedCredentials(ctx context.Context, ig types.Integration, creds *userexternalcredentialsv1.UserExternalCredentials, token *oauth2.Token) {
 	ghCreds := creds.GetSpec().GetGithubOauth()
 	if ghCreds == nil {
 		return
 	}
-	ghCreds.SetAccessToken(token.AccessToken)
+
+	if s.tokenEncryptor.EncryptionEnabled() {
+		encrypted, err := s.tokenEncryptor.EncryptTokens(ctx, token.AccessToken, token.RefreshToken)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to encrypt refreshed tokens", "error", err)
+			return
+		}
+		ghCreds.SetEncryptedTokens(encrypted)
+		ghCreds.SetAccessToken("")
+		ghCreds.SetRefreshToken("")
+	} else {
+		ghCreds.SetAccessToken(token.AccessToken)
+		if token.RefreshToken != "" {
+			ghCreds.SetRefreshToken(token.RefreshToken)
+		}
+	}
+
 	if !token.Expiry.IsZero() {
 		ghCreds.SetAccessTokenExpiry(timestamppb.New(token.Expiry))
-	}
-	if token.RefreshToken != "" {
-		ghCreds.SetRefreshToken(token.RefreshToken)
 	}
 
 	ttl := defaultMaxCredentialTTL

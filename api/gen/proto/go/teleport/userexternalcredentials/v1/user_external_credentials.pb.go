@@ -324,6 +324,7 @@ type GitHubOAuthCredentials struct {
 	xxx_hidden_RefreshTokenExpiry *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=refresh_token_expiry,json=refreshTokenExpiry,proto3"`
 	xxx_hidden_Username           string                 `protobuf:"bytes,5,opt,name=username,proto3"`
 	xxx_hidden_UserId             string                 `protobuf:"bytes,6,opt,name=user_id,json=userId,proto3"`
+	xxx_hidden_EncryptedTokens    []byte                 `protobuf:"bytes,7,opt,name=encrypted_tokens,json=encryptedTokens,proto3"`
 	unknownFields                 protoimpl.UnknownFields
 	sizeCache                     protoimpl.SizeCache
 }
@@ -395,6 +396,13 @@ func (x *GitHubOAuthCredentials) GetUserId() string {
 	return ""
 }
 
+func (x *GitHubOAuthCredentials) GetEncryptedTokens() []byte {
+	if x != nil {
+		return x.xxx_hidden_EncryptedTokens
+	}
+	return nil
+}
+
 func (x *GitHubOAuthCredentials) SetAccessToken(v string) {
 	x.xxx_hidden_AccessToken = v
 }
@@ -417,6 +425,13 @@ func (x *GitHubOAuthCredentials) SetUsername(v string) {
 
 func (x *GitHubOAuthCredentials) SetUserId(v string) {
 	x.xxx_hidden_UserId = v
+}
+
+func (x *GitHubOAuthCredentials) SetEncryptedTokens(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_EncryptedTokens = v
 }
 
 func (x *GitHubOAuthCredentials) HasAccessTokenExpiry() bool {
@@ -444,6 +459,7 @@ func (x *GitHubOAuthCredentials) ClearRefreshTokenExpiry() {
 type GitHubOAuthCredentials_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// access_token and refresh_token are empty when encrypted_tokens is set.
 	AccessToken        string
 	AccessTokenExpiry  *timestamppb.Timestamp
 	RefreshToken       string
@@ -452,6 +468,10 @@ type GitHubOAuthCredentials_builder struct {
 	Username string
 	// user_id is the GitHub user ID obtained during the OAuth flow.
 	UserId string
+	// encrypted_tokens holds the access_token and refresh_token encrypted
+	// together with a Teleport CA key. Decryption requires the CA private
+	// key, which may be backed by HSM/KMS.
+	EncryptedTokens []byte
 }
 
 func (b0 GitHubOAuthCredentials_builder) Build() *GitHubOAuthCredentials {
@@ -464,6 +484,7 @@ func (b0 GitHubOAuthCredentials_builder) Build() *GitHubOAuthCredentials {
 	x.xxx_hidden_RefreshTokenExpiry = b.RefreshTokenExpiry
 	x.xxx_hidden_Username = b.Username
 	x.xxx_hidden_UserId = b.UserId
+	x.xxx_hidden_EncryptedTokens = b.EncryptedTokens
 	return m0
 }
 
@@ -481,14 +502,15 @@ const file_teleport_userexternalcredentials_v1_user_external_credentials_proto_r
 	"\x1bUserExternalCredentialsSpec\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12`\n" +
 	"\fgithub_oauth\x18\x02 \x01(\v2;.teleport.userexternalcredentials.v1.GitHubOAuthCredentialsH\x00R\vgithubOauthB\r\n" +
-	"\vcredentials\"\xaf\x02\n" +
+	"\vcredentials\"\xda\x02\n" +
 	"\x16GitHubOAuthCredentials\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12J\n" +
 	"\x13access_token_expiry\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x11accessTokenExpiry\x12#\n" +
 	"\rrefresh_token\x18\x03 \x01(\tR\frefreshToken\x12L\n" +
 	"\x14refresh_token_expiry\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x12refreshTokenExpiry\x12\x1a\n" +
 	"\busername\x18\x05 \x01(\tR\busername\x12\x17\n" +
-	"\auser_id\x18\x06 \x01(\tR\x06userIdBrZpgithub.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1;userexternalcredentialsv1b\x06proto3"
+	"\auser_id\x18\x06 \x01(\tR\x06userId\x12)\n" +
+	"\x10encrypted_tokens\x18\a \x01(\fR\x0fencryptedTokensBrZpgithub.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1;userexternalcredentialsv1b\x06proto3"
 
 var file_teleport_userexternalcredentials_v1_user_external_credentials_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_userexternalcredentials_v1_user_external_credentials_proto_goTypes = []any{

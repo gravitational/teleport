@@ -2886,6 +2886,12 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "allow_cli_auth_via_browser,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // EncryptExternalCredentials enables encryption at rest for user external
+  // credentials (e.g. GitHub OAuth tokens) using a keystore-managed encryption
+  // key. With HSM/KMS-backed keystores, the decryption key never leaves
+  // hardware, protecting credentials from admin-level backend access.
+  bool encrypt_external_credentials = 25 [(gogoproto.jsontag) = "encrypt_external_credentials,omitempty"];
 }
 
 // StableUNIXUserConfig contains the cluster-wide configuration for stable UNIX

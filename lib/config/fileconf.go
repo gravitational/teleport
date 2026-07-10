@@ -1268,6 +1268,10 @@ type AuthenticationConfig struct {
 
 	// StableUNIXUserConfig is [types.AuthPreferenceSpecV2.StableUnixUserConfig].
 	StableUNIXUserConfig *StableUNIXUserConfig `yaml:"stable_unix_user_config,omitempty"`
+
+	// EncryptExternalCredentials enables encryption at rest for user external
+	// credentials (e.g. GitHub OAuth tokens).
+	EncryptExternalCredentials bool `yaml:"encrypt_external_credentials,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1346,8 +1350,9 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		DeviceTrust:             dt,
 		DefaultSessionTTL:       a.DefaultSessionTTL,
 		HardwareKey:             h,
-		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
-		StableUnixUserConfig:    stableUNIXUserConfig,
+		SignatureAlgorithmSuite:     a.SignatureAlgorithmSuite,
+		StableUnixUserConfig:       stableUNIXUserConfig,
+		EncryptExternalCredentials: a.EncryptExternalCredentials,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
