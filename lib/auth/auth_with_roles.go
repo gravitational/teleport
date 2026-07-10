@@ -1149,7 +1149,7 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 	}
 
 	if a.hasBuiltinRole(types.RoleNode) {
-		callerID, _ := getBuiltinServerID(a.scopedContext.Identity)
+		callerID, _ := getLocalServerID(a.scopedContext.Identity)
 		if s.GetName() != callerID {
 			return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
 		}
@@ -2328,7 +2328,7 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 	}
 
 	switch req.ResourceType {
-	case types.KindKubeServer, types.KindKubernetesCluster:
+	case types.KindKubeServer, types.KindKubernetesCluster, types.KindAppServer:
 	default:
 		return nil, trace.AccessDenied("resource kind %q not supported for scoped identities", req.ResourceType)
 	}
@@ -2409,13 +2409,23 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 		var err error
 		switch res := resource.(type) {
 		case types.KubeServer:
-			err = a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(res.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
+			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
 				return checker.Kube().CanAccessCluster(res.GetCluster())
 			})
 		case types.KubeCluster:
 			// kube clusters should always land in the fake pagination path, but we defensively ignore
 			// them here as a fallback since they're a supported type to be listed
 			err = trace.AccessDenied("resource type %q does not support pagination", res.GetKind())
+		case types.AppServer:
+			// Identity Center account apps are currently not supported for scoped applications.
+			// TODO (williamo/scopes) - potentially look into adding account_assignments into scoped roles.
+			if res.GetSubKind() == types.KindIdentityCenterAccount {
+				err = trace.AccessDenied("identity center account apps are not supported for scoped identities")
+				break
+			}
+			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				return checker.App().CanAccessApp(res.GetApp())
+			})
 		}
 		if err != nil {
 			if trace.IsAccessDenied(err) {

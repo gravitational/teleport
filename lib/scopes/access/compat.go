@@ -72,6 +72,23 @@ func applyKubeBlock(src *scopedaccessv1.ScopedRoleKube, dst *types.RoleCondition
 	}
 }
 
+// applyAppBlock writes/converts the relevant subset of the scoped role's app block into the provided
+// classic role allow block. This helper only writes fields relevant to initial app access *checks*. We
+// reuse the initial access check logic from classic RBAC when performing access checks for scoped identities.
+// Secondary protocol-level controls such as client idle timeout are not converted, and
+// are pulled directly from the scoped role.
+func applyAppBlock(src *scopedaccessv1.ScopedRoleApp, dst *types.RoleConditions) {
+	for _, label := range src.GetLabels() {
+		if dst.AppLabels == nil {
+			dst.AppLabels = make(types.Labels)
+		}
+		dst.AppLabels[label.GetName()] = apiutils.Strings(label.GetValues())
+	}
+	if expr := src.GetLabelExpression(); expr != "" {
+		dst.AppLabelsExpression = expr
+	}
+}
+
 // applyRules merges the rules of a scoped role into the provided classic role
 // conditions. It is one of several per-protocol helpers that each contribute their fields to a
 // shared allow block; no single block has structural primacy over the others.
@@ -125,6 +142,7 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 	var conditions types.RoleConditions
 	applySSHBlock(sr.GetSpec().GetSsh(), &conditions)
 	applyKubeBlock(sr.GetSpec().GetKube(), &conditions)
+	applyAppBlock(sr.GetSpec().GetApp(), &conditions)
 	applyRules(sr.GetSpec().GetRules(), &conditions)
 
 	role, err := types.NewRoleWithVersion(sr.GetMetadata().GetName()+"@"+assignedScope, types.V8, types.RoleSpecV6{

@@ -1887,8 +1887,14 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Lock: &scopedaccessv1.Lock{
 				Mode: "strict",
 			},
-		},
-	}
+		}.Build(),
+		App: scopedaccessv1.ScopedRoleApp_builder{
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+			},
+			LabelExpression: `contains(labels["env"], "prod")`,
+		}.Build(),
+	}.Build()
 
 	require.True(t, testutils.ExhaustiveNonEmpty(spec),
 		"spec is not exhaustively non-empty; if you added a new field, set it to a valid non-zero value here AND evaluate whether StrongValidateRole needs to validate it (adding test cases to TestValidateRole if so) — empty fields: %v",
