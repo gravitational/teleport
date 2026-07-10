@@ -34,6 +34,10 @@ extension Cluster: CustomDebugStringConvertible {
 
 extension Cluster {
 	var url: URL? {
-		URL(string: "https://\(host):\(port)")
+		var components = URLComponents()
+		components.host = host
+		components.port = port
+		components.scheme = "https"
+		return components.url
 	}
 }
