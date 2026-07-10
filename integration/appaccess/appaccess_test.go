@@ -83,16 +83,18 @@ func TestAppAccess(t *testing.T) {
 			URI:  sseServerURL,
 		},
 		{
-			Name: "test-sse-https",
-			URI:  sseTLSServerURL,
+			Name:               "test-sse-https",
+			URI:                sseTLSServerURL,
+			InsecureSkipVerify: true,
 		},
 		{
 			Name: "test-http",
 			URI:  streamableHTTPServerURL,
 		},
 		{
-			Name: "test-https",
-			URI:  streamableHTTPTLSServerURL,
+			Name:               "test-https",
+			URI:                streamableHTTPTLSServerURL,
+			InsecureSkipVerify: true,
 		},
 	}
 
