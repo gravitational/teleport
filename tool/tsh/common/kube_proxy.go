@@ -562,8 +562,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 		return certs, nil
 	}
 
-	certIssuer.setClusterClient(clusterClient)
-	issued, err := certIssuer.issueCerts(ctx, missing)
+	issued, err := certIssuer.issueCerts(ctx, clusterClient, missing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -637,8 +636,7 @@ func (k *kubeLocalProxy) getCertReissuer(tc *client.TeleportClient) func(ctx con
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 
-		k.certIssuer.setClusterClient(clusterClient)
-		return k.certIssuer.issueCert(ctx, teleportCluster, kubeCluster, nil /*mfaCheck*/)
+		return k.certIssuer.issueCert(ctx, clusterClient, teleportCluster, kubeCluster, nil /*mfaCheck*/)
 	}
 }
 
