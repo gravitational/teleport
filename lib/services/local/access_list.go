@@ -216,20 +216,20 @@ func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accessli
 
 // GetAccessList returns the specified access list resource.
 func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	return a.getAccessList(ctx, scopes.QualifiedName{Name: name})
+	return a.getAccessList(ctx, accesslists.NormalizedSQN{Name: name})
 }
 
 // GetAccessListV2 returns the specified access list resource, supporting
 // scoped or unscoped access lists.
 func (a *AccessListService) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
-	return a.getAccessList(ctx, scopes.QualifiedName{
+	return a.getAccessList(ctx, accesslists.NormalizeSQN(scopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
-	})
+	}))
 }
 
-func (a *AccessListService) getAccessList(ctx context.Context, listName scopes.QualifiedName) (*accesslist.AccessList, error) {
-	return a.service.GetResource(ctx, listName)
+func (a *AccessListService) getAccessList(ctx context.Context, listName accesslists.NormalizedSQN) (*accesslist.AccessList, error) {
+	return a.service.GetResource(ctx, listName.ToScopesQualifiedName())
 }
 
 // GetAccessListsToReview returns access lists that the user needs to review. This is not implemented in the local service.
@@ -383,10 +383,10 @@ func (a *AccessListService) DeleteAccessList(ctx context.Context, name string) e
 // DeleteAccessListV2 removes the specified access list resource, supporting
 // scoped or unscoped access lists.
 func (a *AccessListService) DeleteAccessListV2(ctx context.Context, req *accesslistv1.DeleteAccessListRequest) error {
-	name := scopes.QualifiedName{
+	name := accesslists.NormalizeSQN(scopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
-	}
+	})
 	action := func(ctx context.Context, _ backend.Backend) error {
 		// Get list resource.
 		accessList, err := a.getAccessList(ctx, name)
@@ -422,7 +422,7 @@ func (a *AccessListService) DeleteAccessListV2(ctx context.Context, req *accessl
 		}
 
 		// Delete list itself.
-		if err := a.service.DeleteResource(ctx, name); err != nil {
+		if err := a.service.DeleteResource(ctx, name.ToScopesQualifiedName()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -1172,7 +1172,7 @@ func lockName(accessListName string) []string {
 	return []string{accessListPrefix, accessListName}
 }
 
-func scopeAwareLockName(accessListName scopes.QualifiedName) ([]string, error) {
+func scopeAwareLockName(accessListName accesslists.NormalizedSQN) ([]string, error) {
 	if accessListName.Scope == "" {
 		return lockName(accessListName.Name), nil
 	}
@@ -1187,7 +1187,7 @@ func scopeAwareLockName(accessListName scopes.QualifiedName) ([]string, error) {
 // It differentiates request for `creating` and `updating` by checking to see if the request
 // access list name matches the ones we retrieved.
 // Returns error if limit has been reached.
-func (a *AccessListService) verifyAccessListCreateLimit(ctx context.Context, targetAccessListName scopes.QualifiedName) error {
+func (a *AccessListService) verifyAccessListCreateLimit(ctx context.Context, targetAccessListName accesslists.NormalizedSQN) error {
 	f := a.modules.Features()
 	if f.GetEntitlement(entitlements.Identity).Enabled {
 		return nil // unlimited
