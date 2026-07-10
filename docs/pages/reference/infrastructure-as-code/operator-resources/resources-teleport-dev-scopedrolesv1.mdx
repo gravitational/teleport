@@ -42,8 +42,11 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|client_idle_timeout|string|Overrides the defaults block idle timeout specifically for app sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
+|disconnect_expired_cert|boolean|DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires.|
 |label_expression|string|LabelExpression is an optional predicate expression evaluated against an application's labels.|
 |labels|[][object](#specapplabels-items)|The set of application labels used for RBAC.|
+|lock|[object](#specapplock)|Lock configures the role's locking behavior for app sessions.|
 
 ### spec.app.labels items
 
@@ -51,6 +54,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |name|string|The name of the label.|
 |values|[]string|The values associated with the label.|
+
+### spec.app.lock
+
+|Field|Type|Description|
+|---|---|---|
+|mode|string|Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.|
 
 ### spec.defaults
 

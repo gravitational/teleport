@@ -1210,11 +1210,16 @@ func (b0 ScopedRoleWorkloadIdentity_builder) Build() *ScopedRoleWorkloadIdentity
 
 // ScopedRoleApp groups all scoped role fields relevant to application access.
 type ScopedRoleApp struct {
-	state                      protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Labels          *[]*v11.Label          `protobuf:"bytes,1,rep,name=labels,proto3"`
-	xxx_hidden_LabelExpression string                 `protobuf:"bytes,2,opt,name=label_expression,json=labelExpression,proto3"`
-	unknownFields              protoimpl.UnknownFields
-	sizeCache                  protoimpl.SizeCache
+	state                            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Labels                *[]*v11.Label          `protobuf:"bytes,1,rep,name=labels,proto3"`
+	xxx_hidden_LabelExpression       string                 `protobuf:"bytes,2,opt,name=label_expression,json=labelExpression,proto3"`
+	xxx_hidden_ClientIdleTimeout     string                 `protobuf:"bytes,3,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3"`
+	xxx_hidden_DisconnectExpiredCert bool                   `protobuf:"varint,4,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof"`
+	xxx_hidden_Lock                  *Lock                  `protobuf:"bytes,5,opt,name=lock,proto3"`
+	XXX_raceDetectHookData           protoimpl.RaceDetectHookData
+	XXX_presence                     [1]uint32
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
 }
 
 func (x *ScopedRoleApp) Reset() {
@@ -1258,12 +1263,69 @@ func (x *ScopedRoleApp) GetLabelExpression() string {
 	return ""
 }
 
+func (x *ScopedRoleApp) GetClientIdleTimeout() string {
+	if x != nil {
+		return x.xxx_hidden_ClientIdleTimeout
+	}
+	return ""
+}
+
+func (x *ScopedRoleApp) GetDisconnectExpiredCert() bool {
+	if x != nil {
+		return x.xxx_hidden_DisconnectExpiredCert
+	}
+	return false
+}
+
+func (x *ScopedRoleApp) GetLock() *Lock {
+	if x != nil {
+		return x.xxx_hidden_Lock
+	}
+	return nil
+}
+
 func (x *ScopedRoleApp) SetLabels(v []*v11.Label) {
 	x.xxx_hidden_Labels = &v
 }
 
 func (x *ScopedRoleApp) SetLabelExpression(v string) {
 	x.xxx_hidden_LabelExpression = v
+}
+
+func (x *ScopedRoleApp) SetClientIdleTimeout(v string) {
+	x.xxx_hidden_ClientIdleTimeout = v
+}
+
+func (x *ScopedRoleApp) SetDisconnectExpiredCert(v bool) {
+	x.xxx_hidden_DisconnectExpiredCert = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 5)
+}
+
+func (x *ScopedRoleApp) SetLock(v *Lock) {
+	x.xxx_hidden_Lock = v
+}
+
+func (x *ScopedRoleApp) HasDisconnectExpiredCert() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
+}
+
+func (x *ScopedRoleApp) HasLock() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Lock != nil
+}
+
+func (x *ScopedRoleApp) ClearDisconnectExpiredCert() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	x.xxx_hidden_DisconnectExpiredCert = false
+}
+
+func (x *ScopedRoleApp) ClearLock() {
+	x.xxx_hidden_Lock = nil
 }
 
 type ScopedRoleApp_builder struct {
@@ -1274,6 +1336,14 @@ type ScopedRoleApp_builder struct {
 	// LabelExpression is an optional predicate expression evaluated against an
 	// application's labels.
 	LabelExpression string
+	// Overrides the defaults block idle timeout specifically for app sessions.
+	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+	// (or global default) applies.
+	ClientIdleTimeout string
+	// DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires.
+	DisconnectExpiredCert *bool
+	// Lock configures the role's locking behavior for app sessions.
+	Lock *Lock
 }
 
 func (b0 ScopedRoleApp_builder) Build() *ScopedRoleApp {
@@ -1282,6 +1352,12 @@ func (b0 ScopedRoleApp_builder) Build() *ScopedRoleApp {
 	_, _ = b, x
 	x.xxx_hidden_Labels = &b.Labels
 	x.xxx_hidden_LabelExpression = b.LabelExpression
+	x.xxx_hidden_ClientIdleTimeout = b.ClientIdleTimeout
+	if b.DisconnectExpiredCert != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 5)
+		x.xxx_hidden_DisconnectExpiredCert = *b.DisconnectExpiredCert
+	}
+	x.xxx_hidden_Lock = b.Lock
 	return m0
 }
 
@@ -2015,10 +2091,14 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x04lock\x18\a \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
 	"\x18_disconnect_expired_certJ\x04\b\x04\x10\x05R\tresources\"N\n" +
 	"\x1aScopedRoleWorkloadIdentity\x120\n" +
-	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\"l\n" +
+	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\"\xaa\x02\n" +
 	"\rScopedRoleApp\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12)\n" +
-	"\x10label_expression\x18\x02 \x01(\tR\x0flabelExpression\"@\n" +
+	"\x10label_expression\x18\x02 \x01(\tR\x0flabelExpression\x12.\n" +
+	"\x13client_idle_timeout\x18\x03 \x01(\tR\x11clientIdleTimeout\x12;\n" +
+	"\x17disconnect_expired_cert\x18\x04 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
+	"\x04lock\x18\x05 \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
+	"\x18_disconnect_expired_cert\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
@@ -2093,13 +2173,14 @@ var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
 	14, // 17: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
 	16, // 18: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity.labels:type_name -> teleport.label.v1.Label
 	16, // 19: teleport.scopes.access.v1.ScopedRoleApp.labels:type_name -> teleport.label.v1.Label
-	9,  // 20: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
-	10, // 21: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	14, // 20: teleport.scopes.access.v1.ScopedRoleApp.lock:type_name -> teleport.scopes.access.v1.Lock
+	9,  // 21: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
+	10, // 22: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
+	23, // [23:23] is the sub-list for method output_type
+	23, // [23:23] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -2110,6 +2191,7 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 	file_teleport_scopes_access_v1_role_proto_msgTypes[2].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[3].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[4].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[6].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[9].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[10].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[12].OneofWrappers = []any{}
