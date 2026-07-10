@@ -63,7 +63,27 @@ export const ProviderWithOktaOrigin = props => {
 
 export const sharedHandlers: HttpHandler[] = [
   http.get(cfg.oss.api.usersPath, () => {
-    return HttpResponse.json([{ name: 'alice' }]);
+    return HttpResponse.json([
+      {
+        name: 'alice',
+        displayPrimary: 'Alice Liddell',
+        displaySecondary: 'alice@example.com',
+      },
+      {
+        name: 'grace',
+        displayPrimary: 'Grace Hopper',
+      },
+      {
+        name: 'charlie',
+      },
+      {
+        name: 'long-name',
+        displayPrimary:
+          'Alexandria Montgomery-Fitzwilliam With An Exceptionally Long Display Name',
+        displaySecondary:
+          'alexandria.montgomery-fitzwilliam@example-very-long-domain.test',
+      },
+    ]);
   }),
   http.get(cfg.getAccessManagementListUrlV2({}), () => {
     return HttpResponse.json({

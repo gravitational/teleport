@@ -1,7 +1,7 @@
-import React from 'react';
 import {
   components,
   type GroupBase,
+  type MultiValueGenericProps,
   type MultiValueProps,
   type OptionProps,
 } from 'react-select';
@@ -12,6 +12,7 @@ import { User as UserIcon, UserList } from 'design/Icon';
 import Link from 'design/Link';
 import type { Theme } from 'design/theme/themes/types';
 import type { Option } from 'shared/components/Select';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 import type useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
@@ -46,6 +47,14 @@ export type MemberSelection = {
   name: string;
   membershipKind: AccessListMemberKind;
   origin?: AccessListOrigin;
+  displayPrimary?: string;
+  displaySecondary?: string;
+};
+
+type UserDisplay = {
+  username: string;
+  primaryText?: string;
+  secondaryText?: string;
 };
 
 const ReactSelectAccessListOptionBadge = styled.span`
@@ -90,6 +99,7 @@ export function ReactSelectAccessListOption<
   Group extends GroupBase<Option>,
 >({ children, ...restProps }: OptionProps<Option, IsMulti, Group>) {
   const data = restProps.data?.value;
+  const userDisplay = getUserDisplay(data);
   let isAccessListOpt = false;
   let origin;
   if (typeof data === 'object') {
@@ -107,7 +117,16 @@ export function ReactSelectAccessListOption<
         <ReactSelectAccessListOptionBadge>
           {isAccessListOpt ? <UserList size={14} /> : <UserIcon size={14} />}
         </ReactSelectAccessListOptionBadge>
-        {children}
+        {userDisplay ? (
+          <UserDisplayName
+            username={userDisplay.username}
+            primaryText={userDisplay.primaryText}
+            secondaryText={userDisplay.secondaryText}
+            layout="stacked"
+          />
+        ) : (
+          children
+        )}
         {origin && <TypeBadge type={origin} />}
       </components.Option>
     </ReactSelectAccessListOptWrapper>
@@ -134,6 +153,51 @@ export function ReactSelectAccessListMultiValue<
       </components.MultiValue>
     </ReactSelectAccessListOptWrapper>
   );
+}
+
+export function UserDisplayNameMultiValueLabel<
+  Option extends HybridUserOption,
+  IsMulti extends boolean,
+  Group extends GroupBase<Option>,
+>(props: MultiValueGenericProps<Option, IsMulti, Group>) {
+  const userDisplay = getUserDisplay(props.data?.value);
+
+  if (!userDisplay) {
+    return <components.MultiValueLabel {...props} />;
+  }
+
+  return (
+    <components.MultiValueLabel {...props}>
+      <UserDisplayName
+        username={userDisplay.username}
+        primaryText={userDisplay.primaryText}
+        layout="tooltip"
+      />
+    </components.MultiValueLabel>
+  );
+}
+
+function getUserDisplay(
+  value: User | MemberSelection | string | undefined
+): UserDisplay | undefined {
+  // Free-text entries in the creatable picker carry a plain string value.
+  if (!value || typeof value === 'string') {
+    return;
+  }
+
+  // Skip user display for non-user member kinds (e.g. AccessListMemberKind.List).
+  if (
+    'membershipKind' in value &&
+    value.membershipKind !== AccessListMemberKind.User
+  ) {
+    return;
+  }
+
+  return {
+    username: value.name,
+    primaryText: value.displayPrimary,
+    secondaryText: value.displaySecondary,
+  };
 }
 
 /**

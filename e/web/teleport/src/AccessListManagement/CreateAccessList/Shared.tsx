@@ -11,6 +11,7 @@ import ResourceService from 'teleport/services/resources';
 import {
   ReactSelectAccessListMultiValue,
   ReactSelectAccessListOption,
+  UserDisplayNameMultiValueLabel,
 } from '../Shared/Shared';
 import { RolesSelectedFor, UserKind } from '../Shared/types';
 import { EligibleUsersFieldSelectProps } from './types';
@@ -120,6 +121,7 @@ export function EligibleUsersFieldSelect({
         components={{
           Option: ReactSelectAccessListOption,
           MultiValue: ReactSelectAccessListMultiValue,
+          MultiValueLabel: UserDisplayNameMultiValueLabel,
         }}
         {...(userKind === 'nested-access-list' && {
           toolTipContent: (

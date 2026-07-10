@@ -28,6 +28,8 @@ export function useFetch(): FetchState {
         value: {
           membershipKind: AccessListMemberKind.User,
           name: user.name,
+          displayPrimary: user.displayPrimary,
+          displaySecondary: user.displaySecondary,
         },
       }));
 

@@ -5,9 +5,17 @@ import { Option } from 'shared/components/Select';
 import Validation from 'shared/components/Validation';
 
 import { TeleportProviderBasicE } from 'e-teleport/mocks/providers';
+import {
+  AccessListMemberKind,
+  AccessListOrigin,
+} from 'e-teleport/services/accessmanagement';
 import cfg from 'teleport/config';
 
-import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
+import type { MemberSelection } from '../Shared/Shared';
+import {
+  EligibilityOrGrantRolesFieldSelectAndCreate,
+  EligibleUsersFieldSelect,
+} from './Shared';
 
 export default {
   title: 'TeleportE/AccessLists/Create/RolesSelect',
@@ -20,6 +28,55 @@ const rawRoles = [
   { id: 'id4', kind: 'role', name: 'foo', content: '' },
   { id: 'id5', kind: 'role', name: 'apple', content: '' },
   { id: 'id6', kind: 'role', name: 'banana', content: '' },
+];
+
+const displayUserOptions: Option<MemberSelection>[] = [
+  {
+    label: 'alice',
+    value: {
+      membershipKind: AccessListMemberKind.User,
+      name: 'alice',
+      displayPrimary: 'Alice Liddell',
+      displaySecondary: 'alice@example.com',
+    },
+  },
+  {
+    label: 'grace',
+    value: {
+      membershipKind: AccessListMemberKind.User,
+      name: 'grace',
+      displayPrimary: 'Grace Hopper',
+    },
+  },
+  {
+    label: 'charlie',
+    value: {
+      membershipKind: AccessListMemberKind.User,
+      name: 'charlie',
+    },
+  },
+  {
+    label: 'long-name',
+    value: {
+      membershipKind: AccessListMemberKind.User,
+      name: 'long-name',
+      displayPrimary:
+        'Alexandria Montgomery-Fitzwilliam With An Exceptionally Long Display Name',
+      displaySecondary:
+        'alexandria.montgomery-fitzwilliam@example-very-long-domain.test',
+    },
+  },
+];
+
+const nestedListOptions: Option<MemberSelection>[] = [
+  {
+    label: 'Engineering Access Review',
+    value: {
+      membershipKind: AccessListMemberKind.List,
+      name: 'engineering-access-review',
+      origin: AccessListOrigin.Okta,
+    },
+  },
 ];
 
 export function Loaded() {
@@ -128,3 +185,54 @@ Loading.parameters = {
     ],
   },
 };
+
+export function UserPickerDisplayNames() {
+  const [options, setOptions] = useState<Option<MemberSelection>[]>([
+    displayUserOptions[0],
+    {
+      label: 'future-user@example.com',
+      value: {
+        membershipKind: AccessListMemberKind.User,
+        name: 'future-user@example.com',
+      },
+    },
+  ]);
+
+  return (
+    <Validation>
+      <TeleportProviderBasicE>
+        <EligibleUsersFieldSelect
+          label="Add Members"
+          isDisabled={false}
+          onChange={setOptions}
+          selected={options}
+          loadOptions={async () => displayUserOptions}
+          placeholder="Search for a user…"
+        />
+      </TeleportProviderBasicE>
+    </Validation>
+  );
+}
+
+export function NestedListPicker() {
+  const [options, setOptions] = useState<Option<MemberSelection>[]>([
+    nestedListOptions[0],
+  ]);
+
+  return (
+    <Validation>
+      <TeleportProviderBasicE>
+        <EligibleUsersFieldSelect
+          label="Add Access Lists as Members"
+          isDisabled={false}
+          onChange={setOptions}
+          selected={options}
+          loadOptions={async () => nestedListOptions}
+          placeholder="Search for an access list…"
+          disableCreate
+          userKind="nested-access-list"
+        />
+      </TeleportProviderBasicE>
+    </Validation>
+  );
+}
