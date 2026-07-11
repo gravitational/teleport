@@ -255,6 +255,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		types.JoinMethodEC2,
 		types.JoinMethodEnv0,
 		types.JoinMethodGCP,
+		types.JoinMethodGenericOIDC,
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
 		types.JoinMethodIAM,
