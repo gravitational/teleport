@@ -127,6 +127,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/gcp"
+	"github.com/gravitational/teleport/lib/join/genericoidc"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
@@ -897,6 +898,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.env0IDTokenValidator = validator
 	}
 
+	if as.genericOIDCIDTokenValidator == nil {
+		validator, err := genericoidc.NewIDTokenValidator()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as.genericOIDCIDTokenValidator = validator
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
@@ -1502,6 +1512,10 @@ type Server struct {
 	// env0IDTokenValidator is a helper to validate env0 OIDC tokens. Used to
 	// override the implementation used in tests.
 	env0IDTokenValidator join.Env0TokenValidator
+
+	// genericOIDCIDTokenValidator is a helper to validate geneneric OIDC
+	// tokens. Used to override the implementation in tests.
+	genericOIDCIDTokenValidator join.GenericOIDCTokenValidator
 
 	// azureJoinConfig holds configuration for the Azure join method.
 	azureJoinConfig *azurejoin.AzureJoinConfig

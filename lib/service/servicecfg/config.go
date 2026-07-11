@@ -448,6 +448,7 @@ func DisableLongRunningServices(cfg *Config) {
 type JoinParams struct {
 	Azure        AzureJoinParams
 	BoundKeypair BoundKeypairParams
+	GenericOIDC  GenericOIDCParams
 }
 
 // AzureJoinParams is the parameters specific to the azure join method.
@@ -472,6 +473,23 @@ type BoundKeypairParams struct {
 	// do not support automatic keypair rotation, and must be used with a token
 	// set to use `insecure` recovery mode.
 	StaticPrivateKeyPath string
+}
+
+// GenericOIDCParams contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout"`
 }
 
 // RegistrationSecret returns the currently configured bound keypair
