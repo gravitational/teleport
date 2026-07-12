@@ -70,6 +70,7 @@ const joinRoleOptions: OptionJoinRole[] = [
   'Kube',
   'Bot',
   'WindowsDesktop',
+  'LinuxDesktop',
   'Discovery',
 ].map(role => ({ value: role as JoinRole, label: role as JoinRole }));
 

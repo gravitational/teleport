@@ -17,6 +17,7 @@
 package joinclient
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -31,230 +32,47 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func requireClientTooOld(t require.TestingT, err error, _ ...any) {
-	var target *ClientTooOldError
-	require.ErrorAs(t, err, &target)
-}
-
-func requireClientTooNew(t require.TestingT, err error, _ ...any) {
-	var target *ClientTooNewError
-	require.ErrorAs(t, err, &target)
-}
-
-func TestCheckClientMeetsMinVersion(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name          string
-		clientVersion string
-		minVersion    string
-		assertErr     require.ErrorAssertionFunc
-	}{
-		{
-			name:          "client too old",
-			clientVersion: "1.0.0",
-			minVersion:    "2.0.0",
-			assertErr:     requireClientTooOld,
-		},
-		{
-			// The pre-release suffix is stripped from the minimum reported in
-			// the error so the user-facing message shows a clean version.
-			name:          "client too old with pre-release minimum",
-			clientVersion: "1.0.0",
-			minVersion:    "2.0.0-aa",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				requireClientTooOld(t, err)
-				require.Contains(t, err.Error(), "minimum v2.0.0)")
-			},
-		},
-		{
-			name:          "pre-release client too old for release minimum",
-			clientVersion: "2.0.0-dev",
-			minVersion:    "2.0.0",
-			assertErr:     requireClientTooOld,
-		},
-		{
-			// The proxy advertises "<major>.0.0-aa" so that pre-release builds
-			// of the minimum version are permitted. This case fails if the
-			// comparison ever switches to the stripped minimum (2.0.0-dev is
-			// below 2.0.0 but above 2.0.0-aa).
-			name:          "pre-release client meets pre-release minimum",
-			clientVersion: "2.0.0-dev",
-			minVersion:    "2.0.0-aa",
-			assertErr:     require.NoError,
-		},
-		{
-			name:          "client meets minimum",
-			clientVersion: "2.0.0",
-			minVersion:    "1.0.0",
-			assertErr:     require.NoError,
-		},
-		{
-			name:          "client exactly meets minimum",
-			clientVersion: "1.0.0",
-			minVersion:    "1.0.0",
-			assertErr:     require.NoError,
-		},
-		{
-			name:          "no minimum advertised",
-			clientVersion: "1.0.0",
-			minVersion:    "",
-			assertErr:     require.NoError,
-		},
-		{
-			name:          "malformed minimum returns parse error",
-			clientVersion: "1.0.0",
-			minVersion:    "not-a-version",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.Error(t, err)
-				var target *ClientTooOldError
-				require.NotErrorAs(t, err, &target)
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			tc.assertErr(t, checkClientMeetsMinVersion(tc.clientVersion, tc.minVersion))
-		})
-	}
-}
-
-func TestCheckClientMeetsMaxVersion(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name          string
-		clientVersion string
-		serverVersion string
-		assertErr     require.ErrorAssertionFunc
-	}{
-		{
-			name:          "client is newer than server",
-			clientVersion: "3.0.0",
-			serverVersion: "2.0.0",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				requireClientTooNew(t, err)
-				require.Contains(t, err.Error(), "supports clients on v2 or v1")
-			},
-		},
-		{
-			name:          "client is older than server",
-			clientVersion: "1.0.0",
-			serverVersion: "2.0.0",
-			assertErr:     require.NoError,
-		},
-		{
-			name:          "client and server are the same version",
-			clientVersion: "1.0.0",
-			serverVersion: "1.0.0",
-			assertErr:     require.NoError,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			tc.assertErr(t, checkClientMeetsMaxVersion(tc.clientVersion, tc.serverVersion))
-		})
-	}
-}
-
-func TestCheckClientVersionSupported(t *testing.T) {
+func TestInvokeVersionCallback(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name             string
-		clientVersion    string
 		minClientVersion string
 		serverVersion    string
 		findError        bool
-		skipVersionCheck bool
+		callback         func(t *testing.T, info VersionInfo) error
 		assertErr        require.ErrorAssertionFunc
 	}{
 		{
-			name:             "too old",
-			clientVersion:    "1.0.0",
+			name:             "invokes callback with version info",
 			minClientVersion: "2.0.0",
-			assertErr:        requireClientTooOld,
-		},
-		{
-			name:             "too old but skip version check",
-			clientVersion:    "1.0.0",
-			minClientVersion: "2.0.0",
-			skipVersionCheck: true,
-			assertErr:        require.NoError,
-		},
-		{
-			name:             "meets minimum",
-			clientVersion:    "2.0.0",
-			minClientVersion: "1.0.0",
-			assertErr:        require.NoError,
-		},
-		{
-			name:             "malformed minimum fails open",
-			clientVersion:    "1.0.0",
-			minClientVersion: "not-a-version",
-			assertErr:        require.NoError,
-		},
-		{
-			name:          "client too new",
-			clientVersion: "3.0.0",
-			serverVersion: "2.0.0",
-			assertErr:     requireClientTooNew,
-		},
-		{
-			name:             "client too new but skip version check",
-			clientVersion:    "3.0.0",
 			serverVersion:    "2.0.0",
-			skipVersionCheck: true,
-			assertErr:        require.NoError,
+			callback: func(t *testing.T, info VersionInfo) error {
+				require.Equal(t, VersionInfo{
+					ServerVersion:    "2.0.0",
+					MinClientVersion: "2.0.0",
+				}, info)
+				return nil
+			},
+			assertErr: require.NoError,
 		},
 		{
-			name:          "server same major",
-			clientVersion: "2.5.0",
-			serverVersion: "2.0.0",
-			assertErr:     require.NoError,
-		},
-		{
-			name:          "malformed server version fails open",
-			clientVersion: "3.0.0",
-			serverVersion: "not-a-version",
-			assertErr:     require.NoError,
-		},
-		{
-			// A malformed minimum must not mask a real server-too-old verdict.
-			// The min parse error fails open on its own, but the independent
-			// server check must still be honored.
-			name:             "malformed minimum does not mask client too new",
-			clientVersion:    "3.0.0",
-			minClientVersion: "not-a-version",
+			name:             "callback error aborts",
+			minClientVersion: "2.0.0",
 			serverVersion:    "2.0.0",
-			assertErr:        requireClientTooNew,
+			callback: func(t *testing.T, info VersionInfo) error {
+				return trace.BadParameter("version rejected")
+			},
+			assertErr: require.Error,
 		},
 		{
-			// A client-too-old verdict stands even when the server version is
-			// unparseable. The bad server version fails open and must not
-			// suppress the client check.
-			name:             "client too old with malformed server version",
-			clientVersion:    "1.0.0",
-			minClientVersion: "2.0.0",
-			serverVersion:    "not-a-version",
-			assertErr:        requireClientTooOld,
-		},
-		{
-			name:          "find error fails open",
-			clientVersion: "1.0.0",
-			findError:     true,
-			assertErr:     require.NoError,
-		},
-		{
-			name:             "malformed client version",
-			clientVersion:    "not-a-version",
-			minClientVersion: "2.0.0",
-			serverVersion:    "3.0.0",
-			assertErr:        require.NoError,
+			name:      "find error does not invoke callback",
+			findError: true,
+			callback: func(t *testing.T, info VersionInfo) error {
+				t.Fatal("unexpected version callback invocation")
+				return nil
+			},
+			assertErr: require.NoError,
 		},
 	}
 
@@ -276,25 +94,32 @@ func TestCheckClientVersionSupported(t *testing.T) {
 			t.Cleanup(srv.Close)
 
 			params := JoinParams{
-				Insecure:         true,
-				SkipVersionCheck: tc.skipVersionCheck,
-				Log:              logtest.NewLogger(),
+				Insecure: true,
+				OnVersionCallback: func(ctx context.Context, info VersionInfo) error {
+					return tc.callback(t, info)
+				},
+				Log: logtest.NewLogger(),
 			}
 			addr := strings.TrimPrefix(srv.URL, "https://")
-			tc.assertErr(t, checkClientVersionSupported(t.Context(), tc.clientVersion, params, addr))
+			tc.assertErr(t, invokeVersionCallback(t.Context(), params, addr))
 		})
 	}
 }
 
-// TestClientVersionErrorsAreFatal ensures a confirmed too-old or too-new client
-// error is not misclassified as a connection or not-implemented error. If it
-// were, Join would fall back to the legacy join service (join.go), which has no
-// version check and would discard the original error.
-func TestClientVersionErrorsAreFatal(t *testing.T) {
+// TestInvokeVersionCallbackNoHandler ensures version information is not fetched
+// when no version callback is configured.
+func TestInvokeVersionCallbackNoHandler(t *testing.T) {
 	t.Parallel()
 
-	for _, err := range []error{&ClientTooOldError{}, &ClientTooNewError{}} {
-		assert.False(t, isConnectionError(err), "%T must not be a connection error", err)
-		assert.False(t, trace.IsNotImplemented(err), "%T must not be not-implemented", err)
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected request to proxy web API: %s", r.URL.Path)
+	}))
+	t.Cleanup(srv.Close)
+
+	params := JoinParams{
+		Insecure: true,
+		Log:      logtest.NewLogger(),
 	}
+	addr := strings.TrimPrefix(srv.URL, "https://")
+	require.NoError(t, invokeVersionCallback(t.Context(), params, addr))
 }

@@ -151,7 +151,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "no destination configured for output",
 		},
 		{
-			name:   "scoped",
+			name:   "valid scoped",
 			scoped: true,
 			in: func() *JWTOutputConfig {
 				return &JWTOutputConfig{
@@ -166,7 +166,6 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 					Audiences: []string{"audience1"},
 				}
 			},
-			wantErr: "is not supported in scoped mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

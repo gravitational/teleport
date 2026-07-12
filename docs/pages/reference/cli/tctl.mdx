@@ -1464,6 +1464,28 @@ Flags:
 |`--sp`|*no default*|name of a file containing service provider spec|
 |`-u`, `--users`|*no default*|username or name of a file containing user spec|
 
+## tctl integrations test
+
+Verify an integration.
+
+Usage:
+
+```code
+$ tctl integrations test [<flags>] <integration>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|integration|*no default* (required)|Name of the integration to test. Use `tctl get integrations` to list integrations.|
+
 ## tctl inventory list
 
 List Teleport instance inventory.
@@ -2141,6 +2163,7 @@ Flags:
 |`--resource-kind`|*no default*|Filter by Teleport resource type (node, kube_cluster, db).|
 |`--resource-name`|*no default*|Filter by resource name.|
 |`--resume-token`|*no default*|Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).|
+|`--review-reason`|*no default* (any of (repeatable): `access_request_resource_mismatch`, `classifier_matched`, `command_analysis_failed`, `failed_to_fetch_access_request`, `output_not_fully_captured`, `too_large`, `any`)|Filter to sessions that have at least one of the given review reasons. Use 'any' to match any flagged session. Can be specified multiple times.|
 |`--role`|*no default*|Filter by role held during the session. Can be specified multiple times.|
 |`--search-mode`|`hybrid` (one of: `hybrid`, `keyword`, `embeddings`)|Search strategy to use when search queries are provided.|
 |`--server-addr`|*no default*|Filter SSH sessions by server address.|
@@ -2764,6 +2787,7 @@ Flags:
 |`--host-user-uid`|*no default*|UID for auto provisioned host users to use|
 |`--kubernetes-groups`|*no default*|List of allowed Kubernetes groups for the new user|
 |`--kubernetes-users`|*no default*|List of allowed Kubernetes users for the new user|
+|`--linux-desktop-logins`|*no default*|List of allowed Linux desktop logins for the new user|
 |`--logins`|*no default*|List of allowed SSH logins for the new user|
 |`--mcp-tools`|*no default*|List of allowed MCP tools for the new user|
 |`--roles`|*no default*|List of roles for the new user to assume|
@@ -2856,6 +2880,7 @@ Flags:
 |`--set-host-user-uid`|*no default*|UID for auto provisioned host users to use. Value can be reset by providing an empty string|
 |`--set-kubernetes-groups`|*no default*|List of allowed Kubernetes groups for the user, replaces current Kubernetes groups|
 |`--set-kubernetes-users`|*no default*|List of allowed Kubernetes users for the user, replaces current Kubernetes users|
+|`--set-linux-desktop-logins`|*no default*|List of allowed Linux desktop logins for the user, replaces current Linux logins|
 |`--set-logins`|*no default*|List of allowed SSH logins for the user, replaces current logins|
 |`--set-mcp-tools`|*no default*|List of allowed MCP tools for the user, replaces current allowed MCP tools.|
 |`--set-roles`|*no default*|List of roles for the user to assume, replaces current roles|
@@ -2983,7 +3008,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|*no default* (required)|Name of the workload identity configuration to delete.|
+|name|*no default* (required)|Name of the workload identity configuration to delete. For a scoped workload identity, provide a scope-qualified name of the form '\<scope\>::\<name\>'.|
 
 ## tctl workload-identity x509-issuer-overrides create
 

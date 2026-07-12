@@ -1,4 +1,4 @@
-# Azure Discovery Terraform module
+## Azure Discovery Terraform module
 
 This Terraform module creates the Azure and Teleport cluster resources necessary for a Teleport cluster to discover Azure virtual machines:
 
@@ -75,9 +75,10 @@ No modules.
 | azure\_managed\_identity\_location | Azure region (location) where the managed identity will be created (e.g., "eastus"). Required when `create_azure_managed_identity` is `true`. | `string` | `null` | no |
 | azure\_managed\_identity\_name | Name of the Azure user-assigned managed identity created for Teleport Discovery. | `string` | `"discovery-identity"` | no |
 | azure\_managed\_identity\_use\_name\_prefix | Whether `azure_managed_identity_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
-| azure\_matchers | Azure resource discovery matchers. Valid values for azure\_matchers.types are: vm. | ```list(object({ types = list(string) subscriptions = list(string) resource_groups = optional(list(string), ["*"]) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) }))``` | n/a | yes |
+| azure\_management\_group\_id | ID of an Azure management group or Tenant to derive the role assignment scope. Has no effect if `azure_role_assignment_scopes` is set. When neither is set, the subscription scopes will be derived from `azure_matchers`. | `string` | `null` | no |
+| azure\_matchers | Azure resource discovery matchers. Valid values for azure\_matchers.types are: vm. A wildcard ('*') subscription matcher may be used when `azure_management_group_id` or `azure_role_assignment_scopes` is set. | ```list(object({ types = list(string) subscriptions = list(string) resource_groups = optional(list(string), ["*"]) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) }))``` | n/a | yes |
 | azure\_resource\_group\_name | Name of an existing Azure Resource Group where Azure resources will be created. Required when `create_azure_managed_identity` is `true`. | `string` | `null` | no |
-| azure\_role\_assignment\_scopes | The scopes at which the Azure discovery role will be assigned. For wildcard ('*') Azure subscription discovery, a management group scope can be used (e.g. `/providers/Microsoft.Management/managementGroups/<name>`). By default, scopes are derived from the subscriptions configured in `azure_matchers`. | `list(string)` | `[]` | no |
+| azure\_role\_assignment\_scopes | The scopes at which the Azure discovery role will be assigned. By default, scopes are derived from  the management group set in `azure_management_group_id` or subscriptions configured in `azure_matchers`. | `list(string)` | `[]` | no |
 | azure\_role\_definition\_name | Name for the Azure custom role definition created for Teleport Discovery. | `string` | `"teleport-discovery"` | no |
 | azure\_role\_definition\_use\_name\_prefix | Whether `azure_role_definition_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
@@ -88,7 +89,7 @@ No modules.
 | teleport\_installer\_script\_name | Name of an existing Teleport installer script to use. | `string` | `"default-installer"` | no |
 | teleport\_integration\_name | Name for the `teleport_integration` resource. | `string` | `"discovery"` | no |
 | teleport\_integration\_use\_name\_prefix | Whether `teleport_integration_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
-| teleport\_provision\_token\_allow\_rules | Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher. | ```list(object({ subscription = optional(string) resource_groups = optional(list(string)) tenant = optional(string) }))``` | `null` | no |
+| teleport\_provision\_token\_allow\_rules | Custom allow rules for the Teleport provision token. When using a wildcard (`*`) subscription matcher and `create_azure_managed_identity` is `true`, defaults to a tenant-based allow rule using the Azure tenant ID. Required when `create_azure_managed_identity` is `false` and a wildcard subscription matcher is used. | ```list(object({ subscription = optional(string) resource_groups = optional(list(string)) tenant = optional(string) }))``` | `null` | no |
 | teleport\_provision\_token\_name | Name for the `teleport_provision_token` resource. | `string` | `"discovery"` | no |
 | teleport\_provision\_token\_use\_name\_prefix | Whether `teleport_provision_token_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
 | teleport\_proxy\_public\_addr | Teleport cluster proxy public address in the form `host:port` (no URL scheme). | `string` | n/a | yes |

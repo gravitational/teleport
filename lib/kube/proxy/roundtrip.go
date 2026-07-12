@@ -18,7 +18,6 @@ package proxy
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -59,6 +58,20 @@ type SpdyRoundTripper struct {
 	*/
 	// conn is the underlying network connection to the remote server.
 	conn net.Conn
+
+	// cleanups contains objects that should be closed when the roundtripper is
+	// no longer used. [SpdyRoundTripper.Cleanup] should be called to ensure
+	// that.
+	cleanups []io.Closer
+}
+
+// Cleanup ensures that every connection that was opened by this roundtripper is
+// closed.
+func (w *SpdyRoundTripper) Cleanup() {
+	for _, closer := range w.cleanups {
+		_ = closer.Close()
+	}
+	w.cleanups = nil
 }
 
 var (
@@ -213,41 +226,32 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	var (
-		conn        net.Conn
-		rawResponse []byte
-		err         error
-	)
-
 	// If we're using identity forwarding, we need to add the impersonation
 	// headers to the request before we send the request.
 	if s.useIdentityForwarding {
-		if header, err = internal.IdentityForwardingHeaders(s.ctx, header); err != nil {
+		h, err := internal.IdentityForwardingHeaders(s.ctx, header)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		header = h
 	}
 
 	clone := utilnet.CloneRequest(req)
 	clone.Header = header
-	conn, err = s.Dial(clone)
+	conn, err := s.Dial(clone)
 	if err != nil {
 		return nil, err
 	}
 
-	responseReader := bufio.NewReader(
-		io.MultiReader(
-			bytes.NewBuffer(rawResponse),
-			conn,
-		),
-	)
+	responseReader := bufio.NewReader(conn)
+
 	resp, err := http.ReadResponse(responseReader, nil)
 	if err != nil {
-		if conn != nil {
-			conn.Close()
-		}
+		conn.Close()
 		return nil, err
 	}
 
+	s.cleanups = append(s.cleanups, conn)
 	s.conn = conn
 
 	return resp, nil
@@ -256,9 +260,19 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 // NewConnection validates the upgrade response, creating and returning a new
 // httpstream.Connection if there were no errors.
 func (s *SpdyRoundTripper) NewConnection(resp *http.Response) (httpstream.Connection, error) {
+	if s.conn == nil {
+		return nil, trace.Wrap(&upgradeFailureError{
+			Cause: errors.New("unable to upgrade connection: broken roundtripper setup, connection is missing but it should be present (this is a bug)"),
+		})
+	}
 	connectionHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderConnection))
 	upgradeHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderUpgrade))
-	if (resp.StatusCode != http.StatusSwitchingProtocols) || !strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) || !strings.Contains(upgradeHeader, strings.ToLower(streamspdy.HeaderSpdy31)) {
+	if (resp.StatusCode != http.StatusSwitchingProtocols) ||
+		!strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) ||
+		!strings.Contains(upgradeHeader, strings.ToLower(streamspdy.HeaderSpdy31)) {
+		// The upgrade was rejected. Close the conn after reading the response
+		// error so that we don't leak an io.Copy goroutine.
+		defer s.conn.Close()
 		return nil, trace.Wrap(extractKubeAPIStatusFromReq(resp))
 	}
 

@@ -20,7 +20,7 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/auto_update/v1/auto_update_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package auto_updatev1
 

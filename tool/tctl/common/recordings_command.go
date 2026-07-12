@@ -23,8 +23,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -127,6 +130,9 @@ type RecordingsCommand struct {
 	searchMode string
 	// searchResumeToken resumes a previous JSON/YAML search from a truncated result set.
 	searchResumeToken string
+	// searchReviewReasons filters results to sessions that have at least one of
+	// the specified review reasons. An empty slice disables this filter.
+	searchReviewReasons []string
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -169,6 +175,8 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.recordingsSearch.Flag("limit", "Maximum number of results to return.").Default(defaults.TshTctlSessionListLimit).Uint32Var(&c.searchLimit)
 	c.recordingsSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.searchFormat)
 	c.recordingsSearch.Flag("resume-token", "Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).").StringVar(&c.searchResumeToken)
+	c.recordingsSearch.Flag("review-reason", "Filter to sessions that have at least one of the given review reasons. Use 'any' to match any flagged session. Can be specified multiple times.").
+		EnumsVar(&c.searchReviewReasons, append(reviewReasonFlagOptions(), "any")...)
 
 	c.recordingsEncryption.Initialize(recordings, c.stdout)
 
@@ -339,6 +347,31 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 			return trace.Wrap(err)
 		}
 		req.SetSearchMode(mode)
+	}
+	if len(c.searchReviewReasons) > 0 {
+		var reasons []summarizerv1pb.NeedsReviewReason
+		hasAny := false
+		for _, s := range c.searchReviewReasons {
+			if s == "any" {
+				hasAny = true
+				break
+			}
+		}
+		if hasAny {
+			for _, k := range reviewReasonFlagOptions() {
+				reasons = append(reasons, reviewReasonNames[k])
+			}
+		} else {
+			reasons = make([]summarizerv1pb.NeedsReviewReason, 0, len(c.searchReviewReasons))
+			for _, s := range c.searchReviewReasons {
+				r, err := parseReviewReason(s)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				reasons = append(reasons, r)
+			}
+		}
+		req.SetFilterNeedsFurtherReviewReasons(reasons)
 	}
 
 	// fetcher resends the full request with the batch token set. It is used for
@@ -591,6 +624,37 @@ func parseSeverity(s string) (summarizerv1pb.RiskLevel, error) {
 	default:
 		return 0, trace.BadParameter("invalid --severity %q: must be one of low, medium, high, critical", s)
 	}
+}
+
+// reviewReasonNames maps every valid --review-reason CLI value to its proto
+// enum counterpart. It is the single source of truth: the flag validates
+// against its keys, and parseReviewReason converts using its values.
+// A parity test asserts that exactly one entry exists per non-UNSPECIFIED
+// NeedsReviewReason enum value.
+var reviewReasonNames = map[string]summarizerv1pb.NeedsReviewReason{
+	"access_request_resource_mismatch": summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH,
+	"command_analysis_failed":          summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED,
+	"failed_to_fetch_access_request":   summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST,
+	"output_not_fully_captured":        summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED,
+	"too_large":                        summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+	"classifier_matched":               summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED,
+}
+
+// reviewReasonFlagOptions returns the valid --review-reason values in
+// alphabetical order, used in flag help text and error messages.
+func reviewReasonFlagOptions() []string {
+	keys := slices.Collect(maps.Keys(reviewReasonNames))
+	sort.Strings(keys)
+	return keys
+}
+
+// parseReviewReason converts a validated --review-reason string to its proto
+// enum value using reviewReasonNames.
+func parseReviewReason(s string) (summarizerv1pb.NeedsReviewReason, error) {
+	if r, ok := reviewReasonNames[s]; ok {
+		return r, nil
+	}
+	return 0, trace.BadParameter("invalid --review-reason %q: must be one of %s", s, strings.Join(reviewReasonFlagOptions(), ", "))
 }
 
 // createFileWriter creates a file-based session event writer that outputs to a file.

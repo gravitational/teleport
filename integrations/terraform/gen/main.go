@@ -1217,6 +1217,35 @@ var (
 			DeleteRequest:            "DeleteDatabaseObjectImportRuleRequest",
 		},
 	}
+
+	clientIPRestriction = payload{
+		Name:     "ClientIPRestriction",
+		TypeName: "ClientIPRestriction",
+		VarName:  "clientIPRestriction",
+		// ClientIPRestriction is a singleton: the [client.Client] helpers resolve
+		// the name server-side, so the provider never has to pass it.
+		GetMethod:             "GetClientIPRestriction",
+		CreateMethod:          "CreateClientIPRestriction",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "UpsertClientIPRestriction",
+		DeleteMethod:          "DeleteClientIPRestriction",
+		ID:                    "clientIPRestriction.Metadata.Name",
+		Kind:                  "client_ip_restriction",
+		HasStaticID:           false,
+		ProtoPackage:          "clientiprestrictionv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/clientiprestriction/v1",
+		TerraformResourceType: "teleport_client_ip_restriction",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindClientIPRestriction",
+		DefaultName:  "apitypes.MetaNameClientIPRestriction",
+	}
 	/*
 		//
 		// Example payload, copy this and replace every "example", "v1", and "TypeA" reference with your resource.
@@ -1346,6 +1375,8 @@ func genTFSchema() {
 	generateDataSource(workloadCluster, pluralDataSource)
 	generateResource(databaseObjectImportRule, pluralResource)
 	generateDataSource(databaseObjectImportRule, pluralDataSource)
+	generateResource(clientIPRestriction, singularResource)
+	generateDataSource(clientIPRestriction, singularDataSource)
 	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.
 }
 

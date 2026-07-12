@@ -113,6 +113,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodOracle,
 	JoinMethodBoundKeypair,
 	JoinMethodEnv0,
+	JoinMethodGenericOIDC,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -758,15 +759,15 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 	return name
 }
 
-// GetAssignedScope always returns an empty string because a [ProvisionTokenV2] is always
-// unscoped
-func (p *ProvisionTokenV2) GetAssignedScope() string {
-	return ""
-}
-
 // GetScope always returns an empty string because a [ProvisionTokenV2] is always
 // unscoped
 func (p *ProvisionTokenV2) GetScope() string {
+	return ""
+}
+
+// GetAssignedScope always returns an empty string because a [ProvisionTokenV2] is always
+// unscoped
+func (p *ProvisionTokenV2) GetAssignedScope() string {
 	return ""
 }
 
@@ -1280,6 +1281,10 @@ func (a *ProvisionTokenSpecV2GenericOIDC) checkAndSetDefaults() error {
 	}
 
 	for i, rule := range a.AllowAny {
+		if rule.Expression == "" && len(rule.Conditions) == 0 {
+			return trace.BadParameter("allow_any[%d]: either `expression` or `conditions` must be set", i)
+		}
+
 		if rule.Expression != "" && len(rule.Conditions) > 0 {
 			return trace.BadParameter("allow_any[%d]: only one of `expression` or `conditions` may be set", i)
 		}

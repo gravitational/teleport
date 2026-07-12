@@ -235,6 +235,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
 					types.NewRule(types.KindRecordingEncryption, RW()),
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -890,6 +891,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(access.KindScopedRole, RW()),
 					types.NewRule(access.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -961,6 +963,7 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 						Resources: []string{types.KindBeam},
 						Verbs:     []string{types.Wildcard},
 					},
+					types.NewRule(types.KindBeamsConfig, RO()),
 				},
 			},
 		},
@@ -996,6 +999,7 @@ func NewPresetBeamAdminRole(buildType string) types.Role {
 						Resources: []string{types.KindBeam},
 						Verbs:     []string{types.Wildcard},
 					},
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -1149,6 +1153,8 @@ func defaultAllowRules(buildType string) map[string][]types.Rule {
 		NewPresetAccessPluginWithReviewRole(),
 		NewPresetListAccessRequestResourcesRole(),
 		NewPresetDeviceAdminRole(buildType),
+		NewPresetBeamUserRole(buildType),
+		NewPresetBeamAdminRole(buildType),
 	}
 
 	allowRules := make(map[string][]types.Rule, len(roles))

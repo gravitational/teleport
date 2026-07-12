@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -171,7 +172,10 @@ func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, sub
 		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{assignment}}, nil
 	}
 
-	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
+	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+		// exhaustive user-facing views use MODE_ALL per RFD 0229i
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

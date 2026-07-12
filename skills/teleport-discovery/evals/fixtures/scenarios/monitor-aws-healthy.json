@@ -1,0 +1,36 @@
+{
+  "tsh": {
+    "profile_url": "https://acme.teleport.sh:443",
+    "cluster": "acme.teleport.sh",
+    "username": "eval"
+  },
+  "tctl": {
+    "cluster": "acme.teleport.sh",
+    "version": "18.8.0",
+    "discovery_config": {
+      "kind": "discovery_config",
+      "version": "v1",
+      "metadata": { "name": "discovery-eval" },
+      "spec": {
+        "discovery_group": "cloud-discovery-group",
+        "aws": [
+          { "types": ["ec2"], "regions": ["us-west-2"], "tags": { "env": ["dev"] }, "integration": "discovery" }
+        ]
+      },
+      "status": {
+        "state": "DISCOVERY_CONFIG_STATE_RUNNING",
+        "integrationDiscoveredResources": {
+          "discovery": { "awsEc2": { "found": 3, "enrolled": 3, "failed": 0 } }
+        }
+      }
+    },
+    "user_tasks": [],
+    "discovery_nodes": [
+      { "name": "i-0aaa", "status": "Online", "last_seen": "2026-06-17T10:01:00Z" },
+      { "name": "i-0bbb", "status": "Online", "last_seen": "2026-06-17T10:01:00Z" },
+      { "name": "i-0ccc", "status": "Online", "last_seen": "2026-06-17T10:01:00Z" }
+    ],
+    "tokens": [{ "name": "discovery-aws-iam-abc", "type": "iam,node", "expiry": "never" }],
+    "inventory_discovery": [{ "id": "discovery-svc-1" }]
+  }
+}

@@ -95,6 +95,10 @@ type FileConfig struct {
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
 
+	// LinuxDesktop is the "linux_desktop_service" that defines the
+	// configuration for Linux Desktop Access.
+	LinuxDesktop LinuxDesktopService `yaml:"linux_desktop_service,omitempty"`
+
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
 
@@ -513,6 +517,12 @@ type JoinParams struct {
 	Method       types.JoinMethod   `yaml:"method"`
 	Azure        AzureJoinParams    `yaml:"azure,omitempty"`
 	BoundKeypair BoundKeypairParams `yaml:"bound_keypair,omitempty"`
+	GenericOIDC  GenericOIDCParams  `yaml:"generic_oidc,omitempty"`
+}
+
+// IsEqual determines if two JoinParams objects are deeply equal.
+func (a *JoinParams) IsEqual(b *JoinParams) bool {
+	return deriveTeleportEqualJoinParams(a, b)
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
@@ -537,6 +547,28 @@ type BoundKeypairParams struct {
 	// do not support automatic keypair rotation, and must be used with a token
 	// set to use `insecure` recovery mode.
 	StaticPrivateKeyPath string `yaml:"static_key_path"`
+}
+
+// GenericOIDCParams contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env,omitempty"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command,omitempty"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout,omitempty"`
+}
+
+// IsSet returns true if `generic_oidc` contains usable configuration.
+func (p GenericOIDCParams) IsSet() bool {
+	return p.Env != "" || len(p.Command) > 0
 }
 
 // ConnectionRate configures rate limiter
@@ -2515,6 +2547,9 @@ type Rewrite struct {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string `yaml:"external_id,omitempty"`
+	// Region is a cloud region for the app.
+	// This field is set for apps that integrates with AWS applications/APIs.
+	Region string `yaml:"region,omitempty"`
 }
 
 // PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
@@ -2946,6 +2981,29 @@ func (wds *WindowsDesktopService) Check() error {
 	}
 
 	return nil
+}
+
+// LinuxDesktopService contains configuration for linux_desktop_service.
+type LinuxDesktopService struct {
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// Labels are the configured linux desktops service labels.
+	Labels    map[string]string `yaml:"labels,omitempty"`
+	XSessions XSessions         `yaml:"xsessions,omitempty"`
+	// SessionWrapper is an optional path to the X session wrapper script used to
+	// launch sessions (e.g. /etc/X11/Xsession). When empty, a set of well-known
+	// wrapper paths is probed.
+	SessionWrapper string `yaml:"session_wrapper,omitempty"`
+}
+
+// Enabled returns true if the Linux desktop service is enabled.
+func (s *LinuxDesktopService) Enabled() bool {
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	return err == nil && v
+}
+
+type XSessions struct {
+	Included string `yaml:"included,omitempty"`
+	Excluded string `yaml:"excluded,omitempty"`
 }
 
 // WindowsHostLabelRule describes how a set of labels should be applied to

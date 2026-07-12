@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/grpcclientconfig/v1/grpcclientconfig.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package grpcclientconfigv1
 

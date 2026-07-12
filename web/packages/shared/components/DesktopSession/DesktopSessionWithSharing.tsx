@@ -70,8 +70,6 @@ export function DesktopSessionWithSharing(
           screenIsHiDpi={controls.screenIsHiDpi}
           hiDpiSupported={controls.hiDpiSupported}
           sharedDirectories={controls.sharedDirectories}
-          onRemoveSharedDirectory={controls.onRemoveSharedDirectory}
-          canRemoveSharedDirectory={controls.canRemoveSharedDirectory}
           onAddSharedDirectory={controls.onAddSharedDirectory}
           maxSharedDirectories={controls.maxSharedDirectories}
           directorySharingMessage={controls.directorySharingMessage}

@@ -173,6 +173,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindCertAuthority, nil
 	case types.KindCertAuthorityOverride, "cert_authority_overrides", "ca_override", "ca_overrides":
 		return types.KindCertAuthorityOverride, nil
+	case types.KindClientIPRestriction, types.KindClientIPRestriction + "s":
+		return types.KindClientIPRestriction, nil
 	case types.KindReverseTunnel, "reverse_tunnels", "rts":
 		return types.KindReverseTunnel, nil
 	case types.KindTrustedCluster, "tc", "cluster", "clusters":

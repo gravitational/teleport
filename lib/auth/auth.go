@@ -71,6 +71,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -127,6 +128,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/gcp"
+	"github.com/gravitational/teleport/lib/join/genericoidc"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
@@ -636,7 +638,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	if cfg.ScopedTokenService == nil {
-		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend)
+		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend, cfg.ScopesFeatures)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -660,6 +662,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.Beams, err = local.NewBeamService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating BeamsService")
+		}
+	}
+	if cfg.BeamsConfigService == nil {
+		cfg.BeamsConfigService, err = local.NewBeamsConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsConfigService")
 		}
 	}
 
@@ -744,6 +752,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		AppAuthConfig:                   cfg.AppAuthConfig,
 		MFAService:                      cfg.MFAService,
 		Beams:                           cfg.Beams,
+		BeamsConfigService:              cfg.BeamsConfigService,
 		SubCAService:                    cfg.SubCAService,
 		EnrollPairing:                   cfg.EnrollPairing,
 	}
@@ -933,6 +942,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 
 		as.env0IDTokenValidator = validator
+	}
+
+	if as.genericOIDCIDTokenValidator == nil {
+		validator, err := genericoidc.NewIDTokenValidator()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as.genericOIDCIDTokenValidator = validator
 	}
 
 	// Add in a login hook for generating state during user login.
@@ -1472,6 +1490,10 @@ type Server struct {
 	// env0IDTokenValidator is a helper to validate env0 OIDC tokens. Used to
 	// override the implementation used in tests.
 	env0IDTokenValidator join.Env0TokenValidator
+
+	// genericOIDCIDTokenValidator is a helper to validate geneneric OIDC
+	// tokens. Used to override the implementation in tests.
+	genericOIDCIDTokenValidator join.GenericOIDCTokenValidator
 
 	// azureJoinConfig holds configuration for the Azure join method.
 	azureJoinConfig *azurejoin.AzureJoinConfig
@@ -3026,6 +3048,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
 		certReq.BotName = botName
 		certReq.BotInstanceID = uuid.NewString()
+		certReq.BotScope, _ = userState.GetLabel(types.BotScopeLabel)
 	}
 
 	certs, err := a.GenerateUserCerts(ctx, certReq)
@@ -3895,6 +3918,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				Generation:               req.Generation,
 				BotName:                  req.BotName,
 				BotInstanceID:            req.BotInstanceID,
+				BotScope:                 req.BotScope,
 				DelegationSessionID:      req.DelegationSessionID,
 				BeamID:                   req.BeamID,
 				JoinToken:                req.JoinToken,
@@ -4042,6 +4066,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		Generation:               req.Generation,
 		BotName:                  req.BotName,
 		BotInstanceID:            req.BotInstanceID,
+		BotScope:                 req.BotScope,
 		BotInternal:              req.BotInternal,
 		DelegationSessionID:      req.DelegationSessionID,
 		BeamID:                   req.BeamID,
@@ -5681,6 +5706,8 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 			KubernetesHeartbeats:          true,
 			KubernetesCleanup:             true,
 			RelayServerHeartbeatsCleanup:  true,
+			LinuxDesktopHeartbeats:        true,
+			LinuxDesktopCleanup:           true,
 		}.Build(),
 	}.Build()
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
@@ -6839,6 +6866,27 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	})
 
 	return lease, nil
+}
+
+// UpsertLinuxDesktop upserts a Linux desktop resource.
+func (a *Server) UpsertLinuxDesktop(ctx context.Context, desktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	updated, err := a.Services.LinuxDesktops.UpsertLinuxDesktop(ctx, desktop)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetMetadata().GetName(),
+		Kind:   usagereporter.ResourceKindLinuxDesktop,
+		Static: false,
+	})
+
+	return updated, nil
+}
+
+// DeleteLinuxDesktop deletes the Linux desktop resource by name.
+func (a *Server) DeleteLinuxDesktop(ctx context.Context, name string) error {
+	return trace.Wrap(a.Services.LinuxDesktops.DeleteLinuxDesktop(ctx, name))
 }
 
 // UnconditionalUpdateApplicationServer implements [services.PresenceInternal]
@@ -8136,6 +8184,16 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 		noMFAAccessErr = checker.CheckAccess(resp.Desktops[0],
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
+
+	case *proto.IsMFARequiredRequest_LinuxDesktop:
+		desktop, err := a.GetLinuxDesktop(ctx, t.LinuxDesktop.GetLinuxDesktop())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		noMFAAccessErr = checker.CheckAccess(types.ProtoResource153ToLegacy(desktop),
+			services.AccessState{},
+			services.NewLinuxDesktopLoginMatcher(t.LinuxDesktop.GetLogin()))
 
 	case *proto.IsMFARequiredRequest_App:
 		if t.App.Name == "" {

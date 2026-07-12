@@ -357,6 +357,10 @@ type Status struct {
 	// MemberOf is a list of Access List UUIDs where this access list is an explicit member.
 	MemberOf []string `json:"member_of" yaml:"member_of"`
 
+	// OwnerDisplays contains display values for owners, keyed by owner username.
+	// It is ignored when marshaling so tctl users do not mistake these read-time
+	// values for fields they could update with resource YAML.
+	OwnerDisplays map[string]types.UserDisplay `json:"-" yaml:"-"`
 	// ScopedOwnerOf is a list of scope-qualified names of scoped access lists
 	// where this access list is an explicit owner.
 	ScopedOwnerOf []string `json:"scoped_owner_of" yaml:"scoped_owner_of"`

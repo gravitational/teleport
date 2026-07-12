@@ -458,7 +458,7 @@ func TestConfigReading(t *testing.T) {
 					},
 				},
 				{
-					Name:         "anthropic",
+					Name:         "anthropic-bedrock",
 					StaticLabels: Labels,
 					LLM: &LLM{
 						Format:   "anthropic",
@@ -470,6 +470,17 @@ func TestConfigReading(t *testing.T) {
 							},
 						},
 						FallbackModel: "claude-opus-4-6",
+					},
+					AWS: &AppAWS{
+						Region: "us-west-2",
+					},
+				},
+				{
+					Name:         "anthropic",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "anthropic",
 					},
 				},
 				{
@@ -1714,7 +1725,7 @@ func makeConfigFixture() string {
 			},
 		},
 		{
-			Name:         "anthropic",
+			Name:         "anthropic-bedrock",
 			StaticLabels: Labels,
 			LLM: &LLM{
 				Format:   "anthropic",
@@ -1726,6 +1737,17 @@ func makeConfigFixture() string {
 					},
 				},
 				FallbackModel: "claude-opus-4-6",
+			},
+			AWS: &AppAWS{
+				Region: "us-west-2",
+			},
+		},
+		{
+			Name:         "anthropic",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "anthropic",
 			},
 		},
 		{
@@ -2591,6 +2613,63 @@ uQM=
 	}
 }
 
+func TestLinuxDesktopService(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		desc        string
+		mutate      func(fc *FileConfig)
+		expectError require.ErrorAssertionFunc
+		assertions  []func(*testing.T, *servicecfg.Config)
+	}{
+		{
+			desc:        "OK",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Included = "^inc.*$"
+				fc.LinuxDesktop.XSessions.Excluded = "^exc.*$"
+				fc.LinuxDesktop.Labels = map[string]string{
+					"foo": "bar",
+				}
+			},
+			assertions: []func(t *testing.T, cfg *servicecfg.Config){
+				func(t *testing.T, cfg *servicecfg.Config) {
+					assert.NotNil(t, cfg.LinuxDesktop.IncludedSessions)
+					assert.NotNil(t, cfg.LinuxDesktop.ExcludedSessions)
+					assert.True(t, cfg.LinuxDesktop.Enabled)
+					assert.Len(t, cfg.LinuxDesktop.Labels, 1)
+					assert.Equal(t, "bar", cfg.LinuxDesktop.Labels["foo"])
+				},
+			},
+		},
+		{
+			desc:        "NOK - invalid include",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Included = "\\"
+			},
+		},
+		{
+			desc:        "NOK - invalid exclude",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Excluded = "\\"
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			fc := &FileConfig{}
+			test.mutate(fc)
+			cfg := &servicecfg.Config{}
+			err := applyLinuxDesktopConfig(fc, cfg)
+			test.expectError(t, err)
+			for _, assertion := range test.assertions {
+				assertion(t, cfg)
+			}
+		})
+	}
+}
+
 func TestApps(t *testing.T) {
 	tests := []struct {
 		inConfigString string
@@ -3183,6 +3262,21 @@ app_service:
 				require.ErrorContains(t, err, "app1")
 				require.ErrorContains(t, err, "beta")
 			},
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-llm-bedrock
+      inference:
+        format: anthropic
+        provider: bedrock
+      aws:
+        region: us-west-2
+`,
+			name:   "App configuration with valid AWS region",
+			outErr: require.NoError,
 		},
 	}
 
@@ -4333,6 +4427,44 @@ teleport:
 			expectParsed: &servicecfg.JoinParams{
 				BoundKeypair: servicecfg.BoundKeypairParams{
 					StaticPrivateKeyPath: "/path/to/secret",
+				},
+			},
+		},
+		{
+			desc: "generic_oidc with command and timeout",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      command: ["get-jwt", "--audience=teleport.example.sh"]
+      timeout: 60s
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Command: []string{"get-jwt", "--audience=teleport.example.sh"},
+					Timeout: time.Minute,
+				},
+			},
+		},
+		{
+			desc: "generic_oidc with environment variable",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      env: EXAMPLE_ENV_VAR
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Env: "EXAMPLE_ENV_VAR",
 				},
 			},
 		},

@@ -145,6 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/access"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -224,6 +225,22 @@ func noHistoryShell(t *testing.T) string {
 	shell := filepath.Join(t.TempDir(), "no-history-shell.sh")
 	require.NoError(t, os.WriteFile(shell, noHistoryShellScript, 0o700))
 	return shell
+}
+
+func newTestInventoryHandle(t *testing.T, clt *authclient.Client, hostID string, role types.SystemRole) inventory.DownstreamHandle {
+	t.Helper()
+	handle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
+		func(_ context.Context) (*authproto.UpstreamInventoryHello, error) {
+			return authproto.UpstreamInventoryHello_builder{
+				ServerID: hostID,
+				Version:  teleport.Version,
+				Services: types.SystemRoles{role}.StringSlice(),
+				Hostname: "test",
+			}.Build(), nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handle.Close()) })
+	return handle
 }
 
 func newWebSuite(t *testing.T) *WebSuite {
@@ -405,6 +422,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// create SSH service:
 	nodeDataDir := t.TempDir()
+	inventoryHandle := newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)
 	node, err := regular.New(
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -425,6 +443,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetInventoryControlHandle(inventoryHandle),
 	)
 	require.NoError(t, err)
 	s.node = node
@@ -682,6 +701,9 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		if err := s.node.Close(); err != nil {
 			errors = append(errors, err)
 		}
+		// Close the inventory handle so its control stream doesn't block
+		// s.server.Shutdown's graceful stop below.
+		inventoryHandle.Close()
 		s.webServer.Close()
 		if err := s.proxy.Close(); err != nil {
 			errors = append(errors, err)
@@ -765,6 +787,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, uuid, types.RoleNode)),
 	)
 	require.NoError(t, err)
 	require.NoError(t, node.Start())
@@ -5006,11 +5029,43 @@ func TestGetAppDetails(t *testing.T) {
 
 	clientFQDN := "client.example.com"
 
+	const scope = "/staging/west"
+	const proxyDNS = "localhost"
+
+	scopedApp, err := types.NewAppV3(types.Metadata{
+		Name: "scoped-app",
+	}, types.AppSpecV3{
+		URI:                   "http://127.0.0.1:8080",
+		PublicAddr:            scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
+		UseAnyProxyPublicAddr: true,
+		RequiredAppNames:      []string{},
+	}, scope)
+	require.NoError(t, err)
+	scopedClientServer, err := types.NewAppServerV3FromApp(scopedApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, scopedClientServer)
+	require.NoError(t, err)
+
+	scopedAppWithRequiredApp, err := types.NewAppV3(types.Metadata{
+		Name: "bad-app",
+	}, types.AppSpecV3{
+		URI:                   "http://127.0.0.1:8080",
+		PublicAddr:            scopedapp.ScopedAppPublicAddr(scope, "bad-app", proxyDNS),
+		UseAnyProxyPublicAddr: true,
+		RequiredAppNames:      []string{"scoped-dependency"},
+	}, scope)
+	require.NoError(t, err)
+	scopedClientServer2, err := types.NewAppServerV3FromApp(scopedAppWithRequiredApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, scopedClientServer2)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name             string
 		endpoint         string
 		fqdn             string
 		expectedResponse GetAppDetailsResponse
+		wantErr          string
 	}{
 		{
 			name:     "request app details with clientName and publicAddr",
@@ -5044,6 +5099,19 @@ func TestGetAppDetails(t *testing.T) {
 				RequiredAppFQDNs: []string{"client.web.localhost"},
 			},
 		},
+		{
+			name:     "scoped app derives hash FQDNs for itself",
+			endpoint: pack.clt.Endpoint("webapi", "apps", scopedApp.GetPublicAddr(), s.server.ClusterName(), scopedApp.GetPublicAddr()),
+			expectedResponse: GetAppDetailsResponse{
+				FQDN:             scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
+				RequiredAppFQDNs: []string{scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS)},
+			},
+		},
+		{
+			name:     "scoped app with required apps fails",
+			endpoint: pack.clt.Endpoint("webapi", "apps", scopedAppWithRequiredApp.GetPublicAddr(), s.server.ClusterName(), scopedAppWithRequiredApp.GetPublicAddr()),
+			wantErr:  "scoped apps do not support required app redirects",
+		},
 	}
 
 	for _, tc := range tests {
@@ -5051,6 +5119,10 @@ func TestGetAppDetails(t *testing.T) {
 			t.Parallel()
 
 			re, err := pack.clt.Get(ctx, tc.endpoint, url.Values{})
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			resp := GetAppDetailsResponse{}
 
@@ -9086,6 +9158,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
 	)
 	require.NoError(t, err)
 
