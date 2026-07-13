@@ -43,11 +43,13 @@ func reflectMessageModern(
 	var msg Message
 	for i := range fields.Len() {
 		fieldDesc := fields.Get(i)
-		fieldValue := value.Get(fieldDesc)
 
-		value, err := reflectValueModern(fieldValue, fieldDesc)
+		value, err := reflectFieldModern(value, fieldDesc)
 		if err != nil {
 			return nil, trace.Wrap(err, "reflecting field: %s", fieldDesc.Name())
+		}
+		if value == nil {
+			continue
 		}
 
 		msg.Attributes = append(msg.Attributes, Attribute{
@@ -57,6 +59,20 @@ func reflectMessageModern(
 	}
 
 	return &msg, nil
+}
+
+func reflectFieldModern(
+	message protoreflect.Message,
+	desc protoreflect.FieldDescriptor,
+) (*Value, error) {
+	// Prevent infinite recursion for linked-list style data structures.
+	if desc.Kind() == protoreflect.MessageKind &&
+		!desc.IsList() &&
+		!desc.IsMap() &&
+		!message.Has(desc) {
+		return nil, nil
+	}
+	return reflectValueModern(message.Get(desc), desc)
 }
 
 func reflectValueModern(

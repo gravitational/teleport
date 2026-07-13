@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -54,6 +55,18 @@ func TestReflectModern(t *testing.T) {
 				}.Build(),
 			},
 			MaxSessionTtl: durationpb.New(1 * time.Hour),
+		}.Build(),
+		Status: machineidv1.BotStatus_builder{
+			Delegation: delegationv1.Delegation_builder{
+				Bot: delegationv1.BotDelegator_builder{
+					Name: "agent",
+				}.Build(),
+				Previous: delegationv1.Delegation_builder{
+					User: delegationv1.UserDelegator_builder{
+						Username: "michael.scott@dunder-mifflin.com",
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		}.Build(),
 	}.Build()
 
@@ -101,6 +114,25 @@ func TestReflectModern(t *testing.T) {
 				messageVal(
 					attribute("user_name", stringVal("")),
 					attribute("role_name", stringVal("")),
+					attribute("delegation",
+						messageVal(
+							attribute("bot",
+								messageVal(
+									attribute("name", stringVal("agent")),
+									attribute("scope", stringVal("")),
+								),
+							),
+							attribute("previous",
+								messageVal(
+									attribute("user",
+										messageVal(
+											attribute("username", stringVal("michael.scott@dunder-mifflin.com")),
+										),
+									),
+								),
+							),
+						),
+					),
 				),
 			),
 			attribute("scope", stringVal("")),
