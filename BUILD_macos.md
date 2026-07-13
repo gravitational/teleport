@@ -23,9 +23,23 @@ and updates are welcome!
     ```shell
     brew install rustup
 
-    rustup-init
-    # Accept defaults
+    # Make sure rustup's binaries are on your PATH, as printed by
+    # `brew info rustup` (add the export to your shell profile):
+    export PATH="$(brew --prefix rustup)/bin:$PATH"
+
+    # Install a default toolchain. Teleport pins the exact version it needs
+    # via rust-toolchain.toml, so any recent stable toolchain works here.
+    rustup default stable
     ```
+
+    > [!IMPORTANT]
+    > Do **not** install the Homebrew `rust` formula alongside `rustup`.
+    > It puts its own `cargo` and `rustc` in `/opt/homebrew/bin`, which shadow
+    > rustup's shims on your `PATH`. Builds then ignore the version pinned in
+    > `rust-toolchain.toml`.
+    >
+    > If it is already installed, run `brew uninstall rust` and confirm `which cargo`
+    > resolves to rustup's `~/.cargo/bin/cargo`.
 
 1. Install Node.js
     1. Find the required Node version in
