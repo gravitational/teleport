@@ -858,3 +858,287 @@ func TestEqualIgnoreOktaUserManagedFields(t *testing.T) {
 		require.False(t, EqualAccessLists(al2, al1, WithIgnoreOktaUserManagedFields()))
 	})
 }
+
+func TestEqualWithCanonicalFields(t *testing.T) {
+	t.Parallel()
+
+	baseSpec := Spec{
+		Title: "Test Access List",
+	}
+
+	newAL := func(t *testing.T, name string, spec Spec) *AccessList {
+		al, err := NewAccessList(header.Metadata{Name: name}, spec)
+		require.NoError(t, err)
+		return al
+	}
+
+	tests := []struct {
+		name               string
+		setup              func(spec1, spec2 *Spec)
+		wantCanonicalEqual bool
+	}{
+		{
+			name: "Reordered Grants.Roles equal with WithCanonicalFields()",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.Roles = []string{"role-b", "role-a"}
+				spec2.Grants.Roles = []string{"role-a", "role-b"}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered OwnerGrants.Roles equal with WithCanonicalFields()",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.OwnerGrants.Roles = []string{"role-b", "role-a"}
+				spec2.OwnerGrants.Roles = []string{"role-a", "role-b"}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered MembershipRequires.Roles equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.MembershipRequires.Roles = []string{"role-b", "role-a"}
+				spec2.MembershipRequires.Roles = []string{"role-a", "role-b"}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered OwnershipRequires.Roles equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.OwnershipRequires.Roles = []string{"role-b", "role-a"}
+				spec2.OwnershipRequires.Roles = []string{"role-a", "role-b"}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Duplicates compare equal to unique sets",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.Roles = []string{"role-a", "role-b", "role-a"}
+				spec2.Grants.Roles = []string{"role-a", "role-b"}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Trait value order/dups compare equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.Traits = map[string][]string{
+					"trait1": {"value-b", "value-a", "value-b"},
+				}
+				spec2.Grants.Traits = map[string][]string{
+					"trait1": {"value-a", "value-b"},
+				}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered and duplicate ScopedRoles compare equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.ScopedRoles = []ScopedRoleGrant{
+					{Role: "scoped2", Scope: "scopeB"},
+					{Role: "scoped1", Scope: "scopeA"},
+					{Role: "scoped2", Scope: "scopeB"},
+				}
+				spec2.Grants.ScopedRoles = []ScopedRoleGrant{
+					{Role: "scoped1", Scope: "scopeA"},
+					{Role: "scoped2", Scope: "scopeB"},
+				}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Different values still compare unequal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.Roles = []string{"role-a", "role-b"}
+				spec2.Grants.Roles = []string{"role-a", "role-c"}
+			},
+		},
+		{
+			name: "Different trait values still compare unequal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.Traits = map[string][]string{
+					"trait1": {"value-a", "value-b"},
+				}
+				spec2.Grants.Traits = map[string][]string{
+					"trait1": {"value-a", "value-c"},
+				}
+			},
+		},
+		{
+			name: "Different ScopedRoles still compare unequal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.ScopedRoles = []ScopedRoleGrant{
+					{Role: "scoped1", Scope: "scopeA"},
+					{Role: "scoped2", Scope: "scopeB"},
+				}
+				spec2.Grants.ScopedRoles = []ScopedRoleGrant{
+					{Role: "scoped1", Scope: "scopeA"},
+					{Role: "scoped2", Scope: "scopeC"},
+				}
+			},
+		},
+		{
+			name: "Empty lists compare equal to nil lists",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Owners = []Owner{}
+				spec2.Owners = nil
+
+				spec1.Grants.Roles = []string{}
+				spec2.Grants.Roles = nil
+				spec1.Grants.Traits = map[string][]string{}
+				spec2.Grants.Traits = nil
+				spec1.Grants.ScopedRoles = []ScopedRoleGrant{}
+				spec2.Grants.ScopedRoles = nil
+
+				spec1.OwnerGrants.Roles = []string{}
+				spec2.OwnerGrants.Roles = nil
+				spec1.OwnerGrants.Traits = map[string][]string{}
+				spec2.OwnerGrants.Traits = nil
+				spec1.OwnerGrants.ScopedRoles = []ScopedRoleGrant{}
+				spec2.OwnerGrants.ScopedRoles = nil
+
+				spec1.MembershipRequires.Roles = []string{}
+				spec2.MembershipRequires.Roles = nil
+				spec1.MembershipRequires.Traits = map[string][]string{}
+				spec2.MembershipRequires.Traits = nil
+
+				spec1.OwnershipRequires.Roles = []string{}
+				spec2.OwnershipRequires.Roles = nil
+				spec1.OwnershipRequires.Traits = map[string][]string{}
+				spec2.OwnershipRequires.Traits = nil
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered owners equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Owners = []Owner{
+					{Name: "owner-b", MembershipKind: MembershipKindUser, Description: "b"},
+					{Name: "owner-a", MembershipKind: MembershipKindUser, Description: "a"},
+				}
+				spec2.Owners = []Owner{
+					{Name: "owner-a", MembershipKind: MembershipKindUser, Description: "a"},
+					{Name: "owner-b", MembershipKind: MembershipKindUser, Description: "b"},
+				}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Duplicate owners compare equal to unique owners",
+			setup: func(spec1, spec2 *Spec) {
+				owner := Owner{Name: "owner-a", MembershipKind: MembershipKindUser, Description: "a"}
+				spec1.Owners = []Owner{owner, owner}
+				spec2.Owners = []Owner{owner}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Different owner name still compares unequal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Owners = []Owner{{Name: "owner-a", MembershipKind: MembershipKindUser}}
+				spec2.Owners = []Owner{{Name: "owner-b", MembershipKind: MembershipKindUser}}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec1 := baseSpec
+			spec2 := baseSpec
+			tt.setup(&spec1, &spec2)
+
+			al1 := newAL(t, "test", spec1)
+			al2 := newAL(t, "test", spec2)
+
+			require.Equal(t, tt.wantCanonicalEqual, EqualAccessLists(al1, al2, WithCanonicalFields()))
+		})
+	}
+
+	t.Run("default behavior does not mutate originals", func(t *testing.T) {
+		spec1 := baseSpec
+		spec1.Grants = Grants{
+			Roles: []string{"role-b", "role-a"},
+			Traits: map[string][]string{
+				"trait1": {"value-b", "value-a"},
+				"trait2": {"value-a", "value-b"},
+			},
+			ScopedRoles: []ScopedRoleGrant{
+				{Role: "scoped2", Scope: "scopeB"},
+				{Role: "scoped1", Scope: "scopeA"},
+			},
+		}
+		spec1.OwnerGrants = Grants{
+			Roles: []string{"role-b", "role-a"},
+			Traits: map[string][]string{
+				"trait1": {"value-b", "value-a"},
+				"trait2": {"value-a", "value-b"},
+			},
+			ScopedRoles: []ScopedRoleGrant{
+				{Role: "scoped2", Scope: "scopeB"},
+				{Role: "scoped1", Scope: "scopeA"},
+			},
+		}
+		spec1.MembershipRequires = Requires{
+			Roles: []string{"role-b", "role-a"},
+			Traits: map[string][]string{
+				"trait1": {"value-b", "value-a"},
+				"trait2": {"value-a", "value-b"},
+			},
+		}
+		spec1.OwnershipRequires = Requires{
+			Roles: []string{"role-b", "role-a"},
+			Traits: map[string][]string{
+				"trait1": {"value-b", "value-a"},
+				"trait2": {"value-a", "value-b"},
+			},
+		}
+
+		spec2 := baseSpec
+		spec2.Grants = Grants{
+			Roles: []string{"role-a", "role-b"},
+			Traits: map[string][]string{
+				"trait1": {"value-a", "value-b"},
+				"trait2": {"value-b", "value-a"},
+			},
+			ScopedRoles: []ScopedRoleGrant{
+				{Role: "scoped1", Scope: "scopeA"},
+				{Role: "scoped2", Scope: "scopeB"},
+			},
+		}
+		spec2.OwnerGrants = Grants{
+			Roles: []string{"role-a", "role-b"},
+			Traits: map[string][]string{
+				"trait1": {"value-a", "value-b"},
+				"trait2": {"value-b", "value-a"},
+			},
+			ScopedRoles: []ScopedRoleGrant{
+				{Role: "scoped1", Scope: "scopeA"},
+				{Role: "scoped2", Scope: "scopeB"},
+			},
+		}
+		spec2.MembershipRequires = Requires{
+			Roles: []string{"role-a", "role-b"},
+			Traits: map[string][]string{
+				"trait1": {"value-a", "value-b"},
+				"trait2": {"value-b", "value-a"},
+			},
+		}
+		spec2.OwnershipRequires = Requires{
+			Roles: []string{"role-a", "role-b"},
+			Traits: map[string][]string{
+				"trait1": {"value-a", "value-b"},
+				"trait2": {"value-b", "value-a"},
+			},
+		}
+
+		al1Original := newAL(t, "test", spec1)
+		al2Original := newAL(t, "test", spec2)
+
+		al1Clone := al1Original.Clone()
+		al2Clone := al2Original.Clone()
+
+		eq := EqualAccessLists(al1Clone, al2Clone, WithCanonicalFields())
+		require.True(t, eq)
+
+		require.Equal(t, al1Clone, al1Original)
+		require.Equal(t, al2Clone, al2Original)
+	})
+}
