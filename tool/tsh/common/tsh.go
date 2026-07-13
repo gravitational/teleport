@@ -734,7 +734,11 @@ func (c *CLIConf) ProxyStatusOutput() io.Writer {
 	if c.proxyStatusOutputWriter != nil {
 		return c.proxyStatusOutputWriter
 	}
-	return c.Stdout()
+	// Note: See the proxyStatusOutputDefault constant used by
+	// configureProxyStatusOutput() for the real default. This return is just
+	// defensive code in case this function is called before
+	// configureProxyStatusOutput().
+	return os.Stderr
 }
 
 // Stderr returns the stderr writer.
@@ -856,9 +860,10 @@ const (
 	toolsCheckUpdateEnvVar    = "TELEPORT_TOOLS_CHECK_UPDATE"
 	proxyStatusOutputEnvVar   = "TSH_PROXY_STATUS_OUTPUT"
 
-	proxyStatusOutputStdout = "stdout"
-	proxyStatusOutputStderr = "stderr"
-	proxyStatusOutputNone   = "none"
+	proxyStatusOutputDefault = "stderr"
+	proxyStatusOutputStdout  = "stdout"
+	proxyStatusOutputStderr  = "stderr"
+	proxyStatusOutputNone    = "none"
 
 	clusterHelp = "Specify the Teleport cluster to connect."
 	browserHelp = "Set to 'none' to suppress browser opening on login."
@@ -935,7 +940,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile, traceProfile string
-	proxyStatusOutput := proxyStatusOutputStdout
+	proxyStatusOutput := proxyStatusOutputDefault
 
 	// configure CLI argument parser:
 	cf.kingpinApp = utils.InitCLIParser("tsh", "Teleport Command Line Client.").Interspersed(true)
@@ -1146,7 +1151,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
-	proxy.Flag("proxy-status-output", fmt.Sprintf("Select where proxy status messages are printed. Valid values are %q, %q, and %q.", proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)).Envar(proxyStatusOutputEnvVar).Default(proxyStatusOutputStdout).EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
+	proxy.Flag("proxy-output", fmt.Sprintf("Select where proxy status messages are printed. Defaults to %q, but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are %q, %q, and %q.", proxyStatusOutputDefault, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)).Envar(proxyStatusOutputEnvVar).Default(proxyStatusOutputDefault).EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -6522,13 +6527,22 @@ func onHeadlessApprove(cf *CLIConf) error {
 }
 
 func configureProxyStatusOutput(cf *CLIConf, proxyStatusOutput string) {
+	// This should never happen because the flag has a default
+	if proxyStatusOutput == "" {
+		proxyStatusOutput = proxyStatusOutputDefault
+	}
 	switch proxyStatusOutput {
+	case proxyStatusOutputStdout:
+		cf.proxyStatusOutputWriter = cf.Stdout()
 	case proxyStatusOutputStderr:
 		cf.proxyStatusOutputWriter = cf.Stderr()
 	case proxyStatusOutputNone:
 		cf.proxyStatusOutputWriter = io.Discard
-	case "", proxyStatusOutputStdout:
-		cf.proxyStatusOutputWriter = cf.Stdout()
+	default:
+		// This should also never happen due to the flag default
+		// We don't need to set the writer here because ProxyStatusOutput() will
+		// fall back to stderr.
+		logger.WarnContext(cf.Context, "BUG: proxyStatusOutput is not a known output destination.", "proxyStatusOutput", proxyStatusOutput)
 	}
 }
 

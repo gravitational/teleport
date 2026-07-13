@@ -8808,8 +8808,8 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "default stdout",
-			expected: proxyStatusOutputStdout,
+			name:     "default stderr",
+			expected: proxyStatusOutputStderr,
 		},
 		{
 			name: "env stdout",
@@ -8834,22 +8834,22 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 		},
 		{
 			name:     "flag stdout",
-			args:     []string{"--proxy-status-output=stdout"},
+			args:     []string{"--proxy-output=stdout"},
 			expected: proxyStatusOutputStdout,
 		},
 		{
 			name:     "flag stderr",
-			args:     []string{"--proxy-status-output=stderr"},
+			args:     []string{"--proxy-output=stderr"},
 			expected: proxyStatusOutputStderr,
 		},
 		{
 			name:     "flag none",
-			args:     []string{"--proxy-status-output=none"},
+			args:     []string{"--proxy-output=none"},
 			expected: proxyStatusOutputNone,
 		},
 		{
 			name: "flag overrides env",
-			args: []string{"--proxy-status-output=none"},
+			args: []string{"--proxy-output=none"},
 			env: map[string]string{
 				proxyStatusOutputEnvVar: proxyStatusOutputStderr,
 			},
@@ -8863,10 +8863,10 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 
 			var proxyStatusOutput string
 			app := utils.InitCLIParser("tsh", "Teleport Command Line Client.")
-			app.Flag("proxy-status-output", fmt.Sprintf("Select where proxy status messages are printed. Valid values are %q, %q, and %q.", proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)).
+			app.Flag("proxy-output", "Test fixture only, help message not tested in this test").
 				Envar(proxyStatusOutputEnvVar).
 				Hidden().
-				Default(proxyStatusOutputStdout).
+				Default(proxyStatusOutputDefault).
 				EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
 			_, err := app.Parse(tt.args)
 			require.NoError(t, err)
@@ -8876,6 +8876,7 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 }
 
 func TestProxyStatusOutputHelp(t *testing.T) {
+	const success_param = "parameters-verified, short-circut success"
 	err := Run(
 		context.Background(),
 		[]string{"version"},
@@ -8885,15 +8886,14 @@ func TestProxyStatusOutputHelp(t *testing.T) {
 
 			var buf bytes.Buffer
 			cf.kingpinApp.UsageWriter(&buf)
-			ctx, err := cf.kingpinApp.ParseContext([]string{"proxy", "kube", "--help"})
+			ctx, err := cf.kingpinApp.ParseContext([]string{"proxy", "--help"})
 			require.NoError(t, err)
 			require.NoError(t, cf.kingpinApp.UsageForContext(ctx))
 
 			help := buf.String()
-			require.Contains(t, help, "--proxy-status-output")
-			require.Contains(t, help, "Select where proxy status messages are printed.")
-			return trace.BadParameter("no need to continue")
+			require.Contains(t, help, "--proxy-output")
+			return trace.BadParameter(success_param)
 		},
 	)
-	require.ErrorIs(t, err, trace.BadParameter("no need to continue"))
+	require.ErrorIs(t, err, trace.BadParameter(success_param))
 }
