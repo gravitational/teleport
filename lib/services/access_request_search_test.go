@@ -55,6 +55,9 @@ func TestNewAccessRequestSearchMatcherDegradesGracefullyOnUserLookupFailure(t *t
 
 	resolvedUser, err := types.NewUser(displayOnlyUsername)
 	require.NoError(t, err)
+	resolvedUser.SetTraits(map[string][]string{
+		"okta/displayName": {"Jane"},
+	})
 	resolvedUsers := []*types.UserV2{resolvedUser.(*types.UserV2)}
 
 	successLister := &accessRequestSearchUserLister{users: resolvedUsers}

@@ -889,6 +889,7 @@ func TestListAccessRequestsRequesterDisplaySearchPreservesRBAC(t *testing.T) {
 
 	upsertUser(t, ctx, authServerClient, displayUserName, nil, map[string][]string{
 		"okta/displayName": {"Jane Garcia"},
+		"department":       {"classified-department"},
 	})
 	upsertUser(t, ctx, authServerClient, reviewerUserName, []string{reviewerRole}, nil)
 	waitForUserSearchMatch(t, ctx, authServerClient, []string{"Jane"}, displayUserName)
@@ -910,6 +911,13 @@ func TestListAccessRequestsRequesterDisplaySearchPreservesRBAC(t *testing.T) {
 		},
 	})
 	require.Equal(t, []string{reviewableRequestID}, names)
+
+	names = collectAccessRequestNames(t, ctx, reviewerClient, proto.ListAccessRequestsRequest{
+		Filter: &types.AccessRequestFilter{
+			SearchKeywords: []string{"classified-department"},
+		},
+	})
+	require.Empty(t, names)
 }
 
 func TestListAccessRequestsUserDisplays(t *testing.T) {

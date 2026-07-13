@@ -58,6 +58,9 @@ func TestFindUsernamesBySearchKeywords(t *testing.T) {
 
 	jane, err := types.NewUser(janeUsername)
 	require.NoError(t, err)
+	jane.SetTraits(map[string][]string{
+		"okta/displayName": {"Jane Garcia"},
+	})
 
 	lister := &testUserSearchLister{
 		users: []*types.UserV2{jane.(*types.UserV2)},
@@ -75,6 +78,65 @@ func TestFindUsernamesBySearchKeywords(t *testing.T) {
 
 	_, err = findUsernamesBySearchKeywords(t.Context(), &testUserSearchLister{err: errors.New("backend unavailable")}, []string{"Jane"})
 	require.Error(t, err)
+}
+
+func TestFindUsernamesBySearchKeywordsMatchesOnlyDisplayValues(t *testing.T) {
+	t.Parallel()
+
+	const janeUsername = "123456"
+
+	jane, err := types.NewUser(janeUsername)
+	require.NoError(t, err)
+	jane.SetRoles([]string{"finance-role"})
+	jane.SetStaticLabels(map[string]string{
+		"cost-center": "secret-cost-center",
+	})
+	jane.SetTraits(map[string][]string{
+		"okta/displayName": {"Jane Garcia"},
+		"okta/email":       {"jane.garcia@example.com"},
+		"department":       {"classified-department"},
+	})
+	janeV2 := jane.(*types.UserV2)
+
+	tests := []struct {
+		name     string
+		keyword  string
+		expected map[string]struct{}
+	}{
+		{
+			name:     "primary display",
+			keyword:  "Jane",
+			expected: map[string]struct{}{janeUsername: {}},
+		},
+		{
+			name:     "secondary display",
+			keyword:  "jane.garcia@example.com",
+			expected: map[string]struct{}{janeUsername: {}},
+		},
+		{name: "role", keyword: "finance-role"},
+		{name: "label key", keyword: "cost-center"},
+		{name: "label value", keyword: "secret-cost-center"},
+		{name: "trait key", keyword: "department"},
+		{name: "trait value", keyword: "classified-department"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.True(t, janeV2.MatchSearch([]string{test.keyword}))
+
+			usernames, err := findUsernamesBySearchKeywords(t.Context(), &testUserSearchLister{
+				users: []*types.UserV2{janeV2},
+			}, []string{test.keyword})
+			require.NoError(t, err)
+			if test.expected == nil {
+				require.Empty(t, usernames)
+				return
+			}
+			require.Equal(t, test.expected, usernames)
+		})
+	}
 }
 
 func TestFindUsernamesBySearchKeywordsSkipsBlankSearch(t *testing.T) {

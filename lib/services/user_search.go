@@ -40,7 +40,7 @@ type UserSearchLister interface {
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 }
 
-// findUsernamesBySearchKeywords returns usernames whose searchable user fields match the keywords.
+// findUsernamesBySearchKeywords returns usernames whose resolved display values match the keywords.
 func findUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, searchKeywords []string) (map[string]struct{}, error) {
 	searchKeywords = cleanSearchKeywords(searchKeywords)
 	if len(searchKeywords) == 0 {
@@ -60,6 +60,11 @@ func findUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, 
 
 	usernames := make(map[string]struct{}, len(rsp.GetUsers()))
 	for _, user := range rsp.GetUsers() {
+		display := user.GetDisplay()
+		// Exclude non-display traits match
+		if !types.MatchSearch([]string{display.Primary, display.Secondary}, searchKeywords, nil) {
+			continue
+		}
 		usernames[user.GetName()] = struct{}{}
 	}
 
