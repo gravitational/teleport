@@ -18,7 +18,7 @@ You scope every review with a `--query`: a SQL `SELECT` against the Access Graph
 `access_path` model. The query defines which identities and resources the review
 covers; the results describe the **access** each identity has to each resource
 and how that access is granted. It reports access paths only — it does not
-enumerate other relationships, such as who can *review* an access list rather
+enumerate other relationships, such as who can *review* an Access List rather
 than gain access through it.
 
 ## Prerequisites
@@ -40,7 +40,7 @@ $ tctl access-review --query "SELECT * FROM access_path WHERE identity = 'alice'
 
 `identity` matches a user or bot by its stored name or alias — for SSO users
 this is usually their username or email. `resource` matches a resource by name,
-and `identity_group` matches a grantor: a role, access list, or access request.
+and `identity_group` matches a grantor: a role, Access List, or Access Request.
 Matches with `=` and `IN` are exact and case-sensitive; use `ILIKE` for
 case-insensitive or prefix matching when you are unsure of the exact name.
 
@@ -51,10 +51,10 @@ case-insensitive or prefix matching when you are unsure of the exact name.
 | Everything one user can reach | `SELECT * FROM access_path WHERE identity = 'alice'` |
 | Who can reach a resource | `SELECT * FROM access_path WHERE resource ILIKE 'prod-db%'` |
 | What a role grants, and to whom | `SELECT * FROM access_path WHERE identity_group IN ('prod-db-admin')` |
-| What an access list grants, and to whom | `SELECT * FROM access_path WHERE identity_group IN ('Prod Admins')` |
+| What an Access List grants, and to whom | `SELECT * FROM access_path WHERE identity_group IN ('Prod Admins')` |
 | Why a resource is reachable through a role | `SELECT * FROM access_path WHERE resource = 'prod-db' AND identity_group IN ('prod-db-admin')` |
 
-Roles and access lists are both `identity_group` nodes; the output's `Kind`
+Roles and Access Lists are both `identity_group` nodes; the output's `Kind`
 column distinguishes `role` from `access_list`. When you scope a review through
 a grantor like this, mind what the results do and do not cover — see
 [Understand query scope](#understand-query-scope).
@@ -81,7 +81,7 @@ In text output, a `*` marks self-expiring access or a temporary grantor.
 ## Understand query scope
 
 Results are derived only from the paths your query produces. When you scope a
-review through a given node — a role, an access list, or any other grantor — the
+review through a given node — a role, an Access List, or any other grantor — the
 results show only the paths that flow **through that node**, not necessarily
 every path the matched identities have to the matched resources.
 
@@ -93,8 +93,8 @@ $ tctl access-review --query "SELECT * FROM access_path WHERE identity_group IN 
 ```
 
 It does not tell you the full access of each of those members. A member might
-also reach the same resource through another role, another access list, or an
-approved access request, and those paths are invisible to a query scoped to
+also reach the same resource through another role, another Access List, or an
+approved Access Request, and those paths are invisible to a query scoped to
 `Prod Admins`.
 
 So when a scoped query shows an identity reaching a resource, it is usually
