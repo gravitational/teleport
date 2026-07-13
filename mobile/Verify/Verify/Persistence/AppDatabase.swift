@@ -33,46 +33,61 @@ enum AppDatabase {
 
 extension AppDatabase {
 	/// Initializes an on-disk database suitable for the app running live in production.
-	static func makeLiveDatabase() throws -> any DatabaseWriter {
-		let fileManager = FileManager.default
-		// SQLite creates lots of auxiliary files as a normal part of its operation, so let's tuck it into its own
-		// directory, mostly for organizational purposes.
-		let databaseDirectoryName = "Databases"
-		let databaseDirectoryURL = try fileManager.url(
-			for: .applicationSupportDirectory,
-			in: .userDomainMask,
-			appropriateFor: nil,
-			create: true,
-		).appending(path: databaseDirectoryName)
+	static func makeLiveDatabase() -> any DatabaseWriter {
+		let database: any DatabaseWriter
+		do {
+			let fileManager = FileManager.default
+			// SQLite creates lots of auxiliary files as a normal part of its operation, so let's tuck it into its own
+			// directory, mostly for organizational purposes.
+			let databaseDirectoryName = "Databases"
+			let databaseDirectoryURL = try fileManager.url(
+				for: .applicationSupportDirectory,
+				in: .userDomainMask,
+				appropriateFor: nil,
+				create: true,
+			).appending(path: databaseDirectoryName)
 
-		#if DEBUG
-		// Allow for an easy reset of the database in case we want to manually test what a fresh database looks like
-		if CommandLine.arguments.contains("--reset-database") {
-			try? fileManager.removeItem(at: databaseDirectoryURL)
+			#if DEBUG
+				// Allow for an easy reset of the database in case we want to manually test what a fresh database looks
+				// like
+				if CommandLine.arguments.contains("--reset-database") {
+					try? fileManager.removeItem(at: databaseDirectoryURL)
+				}
+			#endif
+
+			try fileManager.createDirectory(at: databaseDirectoryURL, withIntermediateDirectories: true)
+
+			// Create the database file by initializing a GRDB DatabaseQueue.
+			let databaseFileName = "AppDatabase.sqlite"
+			let databasePath = databaseDirectoryURL.appending(path: databaseFileName).path(percentEncoded: false)
+			logger.info("Initializing \(databaseFileName) database...")
+			database = try DatabaseQueue(
+				path: databasePath,
+				configuration: defaultConfiguration,
+			)
+			logger.info("Successfully initialized \(databaseFileName)")
+
+			// This log provides a convenient line we can copy/paste into our terminal so that we can open up our SQLite
+			// client of choice.
+			logger.info("open '\(databasePath)'")
+
+			logger.info("Running database migrations...")
+			try migrate(db: database)
+			logger.info("Successfully ran all migrations")
+		} catch {
+			// If database initialization fails, it almost always means we did something wrong, like incorrectly
+			// implementing a migration. In debug, we want to catch such issues very quickly, so we fatalError. In
+			// production, crashing like this feels pretty bad when some important app behaviors don't rely on the
+			// database, so instead we fall back to an in-memory database, and write to an error log.
+			#if DEBUG
+				fatalError("Database initialization failed: \(error)")
+			#else
+				logger.critical("Database initialization failed. Falling back to in-memory database: \(error)")
+				database = makeInMemoryDatabase()
+			#endif
 		}
-		#endif
 
-		try fileManager.createDirectory(at: databaseDirectoryURL, withIntermediateDirectories: true)
-
-		// Create the database file by initializing a GRDB DatabaseQueue.
-		let databaseFileName = "AppDatabase.sqlite"
-		let databasePath = databaseDirectoryURL.appending(path: databaseFileName).path(percentEncoded: false)
-		logger.info("Initializing \(databaseFileName) database...")
-		let dbQueue = try DatabaseQueue(
-			path: databasePath,
-			configuration: defaultConfiguration,
-		)
-		logger.info("Successfully initialized \(databaseFileName)")
-
-		// This log provides a convenient line we can copy/paste into our terminal so that we can open up our SQLite
-		// client of choice.
-		logger.info("open '\(databasePath)'")
-
-		logger.info("Running database migrations...")
-		try migrate(db: dbQueue)
-		logger.info("Successfully ran all migrations")
-
-		return dbQueue
+		return database
 	}
 
 	/// An in-memory database that can be used when persisting to disk isn't appropriate, such as in SwiftUI Previews.
