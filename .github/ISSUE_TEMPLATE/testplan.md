@@ -2445,6 +2445,288 @@ Configure SAML using [Quick GitHub/SAML/OIDC Setup Tips] and
   - [ ] Verify MCP client can only see allowed tools
   - [ ] Verify `deny.mcp.tools` is greedy (deny overrides allow)
 
+## Audit Log Event Queue Manual Test Plan
+
+### 1. Feature flag gating
+
+- [ ] **1.1 Disabled by default**
+1. Start an agent with `TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY` unset.
+2. Expected:
+   - Log line `Using default in-memory audit event channel. Audit queue is disabled.`
+   - No `DataDir/audit-queue/` directory is created.
+   - No `teleport_audit_queue_*` metrics are exported.
+   - Sessions and audit events still flow normally (legacy behavior preserved).
+
+- [ ] **1.2 Enabled via flag**
+1. Restart the same agent with `TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY=true`.
+2. Expected:
+   - Log line `Audit queue is enabled.` and `Audit queue initialized.` with
+     `path`, `max_bytes`, `soft_limit`, `max_attempts`, `dead_letter_ttl`.
+   - `DataDir/audit-queue/<uuid>/` exists containing `queue.db`, `queue.db-wal`,
+     `queue.db-shm`, `queue.lock`.
+   - `teleport_audit_queue_*` metrics appear in `/metrics`.
+
+- [ ] **1.3 `false` is treated as disabled**
+1. Set the var explicitly to `false`, `0`, and a garbage value; restart each
+   time. Expected: behaves as disabled (`ParseBool` failure: disabled).
+
+### 2. Steady-state delivery
+
+- [ ] **2.1 Happy path drains to empty**
+1. Enabled agent, healthy backend.
+2. Generate events: `tsh bench --duration=30s --rate=50 ssh root@<node> "echo hi"`.
+3. Expected:
+   - Events are delivered to the configured backend and queryable via the audit
+     log / `tsh` exactly as before the change.
+   - `teleport_audit_queue_events_enqueued_total` and
+     `teleport_audit_queue_events_delivered_total` climb roughly together.
+   - At rest, `teleport_audit_queue_pending` returns to 0 and `queue.db`
+     row count in `audit_queue` is 0
+     (`sqlite3 ... 'SELECT COUNT(*) FROM audit_queue;'`).
+   - DB files stay small.
+   - `tctl inventory list` shows `0` (or empty) in the `Audit Queue` column for
+     the agent.
+
+- [ ] **2.2 Delete-after-ack**
+1. While load is running, periodically count `audit_queue` rows.
+2. Expected: rows are deleted after successful delivery (count does not grow
+   unbounded). `teleport_audit_queue_batch_size` histogram shows batching
+   (values > 1 under load).
+
+### 3. Downstream outage & backlog
+
+- [ ] **3.1 Backlog accumulates, then drains on recovery**
+1. Enabled agent, healthy backend, light steady load.
+2. **Stop** the backend (e.g. stop PostgreSQL).
+3. Keep generating events for a few minutes.
+4. Expected during outage:
+   - Sessions continue.
+   - `teleport_audit_queue_pending` climbs into the thousands,
+     `audit_queue` row count grows.
+   - `tctl inventory list` `Audit Queue` column shows the growing pending count
+     for this agent.
+5. **Start** the backend again.
+6. Expected after recovery:
+   - Pending drains back to 0.
+   - `teleport_audit_queue_events_delivered_total` catches up.
+   - All events emitted during the outage are present in the backend (no loss),
+     subject to the 5 GiB hard limit not being hit.
+   - No operator action was required.
+
+### 4. Retries & dead-letter queue
+
+- [ ] **4.1 Exhausted retries move to dead-letter**
+1. Set a low `max_attempts` (e.g. `2`) and a short
+   `dead_letter_sweep_interval` (e.g. `30s`) in `teleport.yaml`; restart agent.
+2. Stop the backend and emit a batch of events.
+3. Expected:
+   - After each event exceeds `max_attempts`, it is moved to
+     `audit_dead_letter` (verify `SELECT COUNT(*) FROM audit_dead_letter;`).
+   - `teleport_audit_queue_dead_letter_total` increments.
+     `teleport_audit_queue_dead_letter_pending` reflects the DL depth.
+   - `tctl inventory list` shows the ` (N DL)` suffix in the `Audit Queue`
+     column.
+
+- [ ] **4.2 Dead-letter sweeper redelivers on recovery**
+1. With events sitting in the dead-letter queue, **start** the backend.
+2. Expected: within ~`dead_letter_sweep_interval`, the sweeper redelivers the
+   dead-letter events. `audit_dead_letter` count returns to 0. Events land in
+   the backend. Pending and DL gauges return to 0.
+3. Inject a row into `audit_queue` whose `payload` is not a valid
+   event. Ensure it is moved to the `corrupt_events` table.
+
+- [ ] **4.3 Dead-letter TTL expiry**
+1. Set a very short `dead_letter_ttl` (e.g. `1m`) and keep the backend down so
+   redelivery keeps failing.
+2. Expected: dead-letter events older than the TTL are permanently deleted;
+   `teleport_audit_queue_dead_letter_expired_total` increments; Expiry is
+   logged.
+
+### 5. Limits: soft limit & hard limit
+
+- [ ] **5.1 Soft limit warning**
+1. Set `soft_limit` very low (e.g. `1MiB`). Stop the backend. Emit enough events
+   to exceed it.
+2. Expected
+   - Repeated WARN log `audit event queue above soft limit` with `size_bytes`
+     and `soft_limit_bytes`.
+   - `teleport_audit_queue_soft_limit_warnings_total` increments.
+   - Events continue to be accepted (soft limit does not drop events).
+
+- [ ] **5.2 Hard limit returns error (drop, no back-pressure, don't fill disk)**
+1. Set `hard_limit` low (e.g. `16MiB`), backend down. Emit until full.
+2. Expected:
+   - Once `max_page_count` is hit, SQLite returns full. `Enqueue` returns
+     `ErrQueueFull`. `EmitAuditEvent` logs
+     `Failed to emit audit event. Audit queue is full.` and returns an error to
+     its caller.
+   - The DB file does **not** grow past the configured hard limit. The disk is
+     not filled (Option 1 "drop + log", per Open Question 1).
+   - Sessions/workloads are **not** back-pressured/slowed by the full queue.
+
+### 6. Restart with backlog & graceful shutdown
+
+- [ ] **6.1 Clean shutdown drains within grace period**
+1. Backend healthy, build a modest backlog by briefly pausing the backend, then
+   resume; while pending > 0, send the agent a graceful shutdown signal
+   (`SIGQUIT`).
+2. Expected:
+   - Drain runs: stops adopting orphans, makes a best-effort attempt to flush
+     pending events to the backend before exiting, then closes the DB and
+     releases `queue.lock`.
+   - If drain completes within the grace period, `audit_queue` is empty and the
+     `<instance-id>` directory is gone (or empty) after exit.
+
+- [ ] **6.2 Backlog survives a hard restart and is recovered as an orphan**
+1. Build a backlog with the backend **down**. Hard-kill the agent
+   (`kill -9`) so the queue cannot drain.
+2. Expected: the `<instance-id>` directory with `queue.db` and queued rows
+   remains on disk.
+3. Restart the agent. Bring the backend up.
+4. Expected:
+   - The new process's orphan scanner finds the old directory, takes the
+     `flock`, drains its events to the backend, then deletes the old directory.
+   - `teleport_audit_queue_orphans_adopted_total` increments.
+   - The events buffered before the crash are delivered (no loss, assuming
+     durable disk). Cross-check counts against what was emitted pre-crash.
+
+### 7. Per-process isolation & orphan adoption
+
+- [ ] **7.1 Fresh DB per process**
+1. Restart an agent several times. Expected: each start creates a **new**
+   `<uuid>/` directory. A healthy prior directory is adopted+drained+removed by
+   the new process (steady state should converge to a single live directory).
+
+- [ ] **7.2 Race-safe creation (`.tmp` ignored)**
+1. While an agent is initializing, confirm no other co-located process adopts an
+   in-progress directory: the directory exists as `<uuid>.tmp/` until init
+   completes, and orphan scanning skips `*.tmp`. (Can be observed by listing
+   `audit-queue/` quickly at startup, or trust the rename ordering.)
+2. Manually drop a stale `<uuid>.tmp/` directory older than 1h into
+   `audit-queue/` (set its mtime back). Expected: the orphan scanner removes it
+   as stale rather than adopting it.
+
+- [ ] **7.3 Corrupt prior DB does not block startup**
+1. Stop an agent cleanly so a directory with a `queue.db` remains (or fabricate
+   an orphan directory containing a deliberately corrupted `queue.db` plus a
+   `queue.lock`).
+2. Start the agent. Expected:
+   - The process starts on a fresh queue regardless of the corrupt orphan
+     (per-process isolation limits blast radius).
+   - Attempting to adopt the corrupt orphan logs an error and increments
+     `teleport_audit_queue_orphan_scan_errors_total`. The agent keeps running.
+
+- [ ] **7.4 Multiple processes sharing one DataDir**
+1. Run two agents with the **same** `DataDir`. Expected: each owns its own
+   `<uuid>/` queue and `queue.lock`. Neither double-sends the other's events.
+   When one exits uncleanly, the other adopts and drains its orphan.
+
+### 8. Auth server fallback path
+
+- [ ] **8.1 Auth queues only on primary-backend failure**
+1. Enable the flag on Auth. With the audit backend healthy, generate events.
+   Expected: **no** files written under Auth's `audit-queue/` and
+   `teleport_audit_fallback_queued_events_total` stays 0 (normal path bypasses
+   disk).
+2. Stop the audit backend so Auth's own emits fail. Trigger an Auth-originated
+   audit event.
+   Expected: the event is enqueued to Auth's fallback queue,
+   `teleport_audit_fallback_queued_events_total` increments, and it is
+   redelivered when the backend recovers.
+
+- [ ] **8.2 Forwarded agent events are not adopted by Auth**
+1. With the audit backend down, have an **agent** emit events that are forwarded
+   to Auth over gRPC.
+2. Expected: Auth does **not** queue these (they are marked forwarded); the
+   gRPC `EmitAuditEvent` returns the error to the agent, and the **agent's**
+   queue retains/retries them. Confirms ownership stays with the originator and
+   events are not double-buffered.
+
+### 9. Configuration parsing & application
+
+- [ ] **9.1 Valid config is honored**
+1. Set every `audit_queue` option to non-default values, e.g.:
+   ```yaml
+   teleport:
+     audit_queue:
+       soft_limit: 50MiB
+       hard_limit: 1GiB
+       max_attempts: 3
+       dead_letter_ttl: 24h
+       dead_letter_sweep_interval: 1m
+       orphan_scan_interval: 2m
+       synchronous: FULL
+       backend: ["sqlite_disk"]
+   ```
+2. Expected: process starts. `Audit queue initialized.` log reflects the
+   configured `soft_limit`/`max_attempts`/`dead_letter_ttl`. Behavior in earlier
+   sections matches these values. Confirm `synchronous=FULL` is applied
+   (read-only: `sqlite3 'file:queue.db?mode=ro' 'PRAGMA synchronous;'`: `2`).
+
+- [ ] **9.2 Invalid config is rejected**
+1. `synchronous: BOGUS`: expected startup/config error:
+   `invalid audit_queue.synchronous ... must be "NORMAL" or "FULL"`.
+2. `soft_limit: notabyte` / `hard_limit: notabyte`: expected
+   `invalid audit_queue.soft_limit`/`hard_limit` parse error.
+
+- [ ] **9.3 Defaults applied when omitted**
+1. Enable flag with no `audit_queue` block. Expected: defaults from the
+   implementation-facts section (100 MiB soft, 5 GiB hard, 10m scan, NORMAL).
+
+### 10. In-memory backend & fallback ordering
+
+- [ ] **10.1 `sqlite_memory` standalone**
+1. `backend: ["sqlite_memory"]`. Expected: queue works in-memory; **no**
+   `queue.db` files on disk. Events deliver in steady state. Backlog is lost on
+   restart (documented trade-off).
+
+- [ ] **10.2 Fallback ordering**
+1. `backend: ["sqlite_disk", "sqlite_memory"]`. With a writable DataDir,
+   expected: `sqlite_disk` is used, no fallback warning.
+2. Force disk init to fail (e.g. make `DataDir/audit-queue` a file instead of a
+   directory. Expected: process falls back to `sqlite_memory`, logs
+   `Using fallback audit queue backend.` and
+   `Failed to create audit queue backend, trying next.`. The agent still runs.
+
+- [ ] **10.3 Unknown backend**
+1. `backend: ["bogus"]`. Expected: startup error
+   `unknown audit queue kind: 'bogus'` (no silent fallback to default).
+
+### 11. Observability & operator UX
+
+- [ ] **11.1 Metrics presence & correctness**
+1. Confirm all `teleport_audit_queue_*` series listed in implementation-facts
+   are exported and move as expected through the scenarios above (enqueued,
+   delivered, pending, retries, dead_letter, soft_limit_warnings,
+   orphans_adopted, batch_size). The `pending`/`dead_letter_pending` gauges
+   carry a `queue` label (the per-process directory name).
+
+- [ ] **11.2 `tctl inventory list`**
+1. With a backlog on one agent, run `tctl inventory list`. Expected: the
+   `Audit Queue` column shows that agent's pending count; agents with
+   dead-letter events show `(N DL)`. Agents not reporting show empty.
+2. `tctl inventory list --sort=audit-queue`. Expected: agents ordered by largest
+   pending queue first.
+3. Confirm queue depth is reported on the next inventory heartbeat.
+
+- [ ] **11.3 Structured logging**
+1. Spot-check that the key lifecycle/diagnostic logs are structured and present:
+   `Audit queue initialized.`, `audit event queue above soft limit`,
+   `Audit queue is full.`, orphan adoption errors, dead-letter expiry.
+
+### 12. Versioning & on-disk format
+
+- [ ] **12.1 Version recorded**
+1. Read `teleport_info` from `queue.db` (read-only):
+   `sqlite3 'file:queue.db?mode=ro' 'SELECT key,value FROM teleport_info;'`.
+   Expected: a row recording the running Teleport version.
+
+- [ ] **12.2 Schema & inspectability**
+1. `.tables` shows `audit_queue`, `audit_dead_letter`, `teleport_info`,
+   `corrupt_events`. Confirms the RFD's "well-understood file format / standard
+   tooling" criterion (ops can inspect/back up with `sqlite3`).
+
+
 ## Resources
 
 [Quick GitHub/SAML/OIDC Setup Tips]
