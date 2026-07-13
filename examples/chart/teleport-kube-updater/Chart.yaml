@@ -1,6 +1,6 @@
 name: teleport-kube-updater
 apiVersion: v2
-version: &version "19.0.0-prealpha.2"
+version: &version "19.0.0-prealpha.2.rhammonds.fixwasmbuild.6"
 appVersion: *version
 type: library
 description: |
