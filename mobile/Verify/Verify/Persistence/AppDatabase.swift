@@ -34,7 +34,7 @@ enum AppDatabase {
 extension AppDatabase {
 	/// Initializes an on-disk database suitable for the app running live in production.
 	static func makeLiveDatabase() -> any DatabaseWriter {
-		let database: any DatabaseWriter
+		var database: any DatabaseWriter
 		do {
 			let fileManager = FileManager.default
 			// SQLite creates lots of auxiliary files as a normal part of its operation, so let's tuck it into its own
