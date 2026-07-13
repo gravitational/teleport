@@ -3637,7 +3637,7 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDeniedError")
 
 		// scoped kube clients SHOULD be able to fetch a scoped kube cluster
-		res, err := scopedKubeClient.KubeServiceClient().GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		res, err := scopedKubeClient.KubeClusterServiceClient().GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
 			Scope: scope,
 			Name:  clusterName,
 		}.Build())

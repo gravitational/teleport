@@ -37,7 +37,7 @@ type Config struct {
 
 type Service struct {
 	cfg *Config
-	kubev1.UnimplementedKubeServiceServer
+	kubev1.UnimplementedKubeClusterServiceServer
 }
 
 func NewService(cfg *Config) (*Service, error) {

@@ -2009,6 +2009,6 @@ type ClientI interface {
 	// BeamServiceClient returns a client for the beam service.
 	BeamServiceClient() beamsv1.BeamServiceClient
 
-	// KubeClusterServiceClient returns a client for the kube service.
+	// KubeClusterServiceClient returns a client for the kube cluster service.
 	KubeClusterServiceClient() kubev1.KubeClusterServiceClient
 }
