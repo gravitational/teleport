@@ -18,13 +18,16 @@ package cache
 
 import (
 	"context"
+	"iter"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/services"
@@ -71,6 +74,84 @@ func TestKubernetes(t *testing.T) {
 			cacheRange: p.cache.RangeKubernetesClusters,
 		})
 	})
+
+	t.Run("GetAllKubeClusters scoped", func(t *testing.T) {
+		const scope = "/test"
+		testResources(t, p, testFuncs[types.KubeCluster]{
+			newResource: func(name string) (types.KubeCluster, error) {
+				return types.NewKubernetesClusterV3(types.Metadata{
+					Name: name,
+				}, types.KubernetesClusterSpecV3{}, types.KubeClusterWithScope(scope))
+			},
+			create:    p.kubernetes.CreateKubernetesCluster,
+			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
+			cacheGet:  cacheGetKubeClusterWithScope(p.cache, scope),
+			cacheList: cacheListKubeClustersWithScope(p.cache, scope),
+			update:    p.kubernetes.UpdateKubernetesCluster,
+			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
+		}, withSkipPaginationTest())
+	})
+
+	t.Run("ListKubeClusters scoped", func(t *testing.T) {
+		const scope = "/test"
+		testResources(t, p, testFuncs[types.KubeCluster]{
+			newResource: func(name string) (types.KubeCluster, error) {
+				return types.NewKubernetesClusterV3(types.Metadata{
+					Name: name,
+				}, types.KubernetesClusterSpecV3{}, types.KubeClusterWithScope(scope))
+			},
+			create: p.kubernetes.CreateKubernetesCluster,
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+				return p.kubernetes.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+					ScopeFilter: scopesv1.Filter_builder{
+						Mode:  scopesv1.Mode_MODE_EXACT,
+						Scope: scope,
+					}.Build(),
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
+				}.Build())
+			},
+			cacheGet:   cacheGetKubeClusterWithScope(p.cache, scope),
+			cacheList:  cacheListKubeClustersWithScope(p.cache, scope),
+			update:     p.kubernetes.UpdateKubernetesCluster,
+			deleteAll:  p.kubernetes.DeleteAllKubernetesClusters,
+			Range:      p.kubernetes.RangeKubernetesClusters,
+			cacheRange: cacheRangeKubeClustersWithScope(p.cache, scope),
+		})
+	})
+}
+
+func cacheGetKubeClusterWithScope(cache *Cache, scope string) func(context.Context, string) (types.KubeCluster, error) {
+	return func(ctx context.Context, name string) (types.KubeCluster, error) {
+		return cache.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+			Scope: scope,
+			Name:  name,
+		}.Build())
+	}
+}
+
+func cacheListKubeClustersWithScope(cache *Cache, scope string) func(context.Context, int, string) ([]types.KubeCluster, string, error) {
+	return func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+		return cache.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			ScopeFilter: scopesv1.Filter_builder{
+				Scope: scope,
+				Mode:  scopesv1.Mode_MODE_EXACT,
+			}.Build(),
+		}.Build())
+	}
+}
+
+func cacheRangeKubeClustersWithScope(cache *Cache, scope string) func(context.Context, string, string) iter.Seq2[types.KubeCluster, error] {
+	return func(ctx context.Context, startKey, endKey string) iter.Seq2[types.KubeCluster, error] {
+		return cache.RangeKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+			ScopeFilter: scopesv1.Filter_builder{
+				Scope: scope,
+				Mode:  scopesv1.Mode_MODE_EXACT,
+			}.Build(),
+		}.Build(), startKey, endKey)
+	}
 }
 
 // TestKubernetesServers tests that CRUD operations on kube servers are

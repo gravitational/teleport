@@ -335,7 +335,7 @@ func setupCollections(c Config) (*collections, error) {
 			out.kubeServers = collect
 			out.byKind[resourceKind] = out.kubeServers
 		case types.KindKubernetesCluster:
-			collect, err := newKubernetesClusterCollection(c.Kubernetes, watch)
+			collect, err := newKubernetesClusterCollection(c.KubeClusterUpstream, watch)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

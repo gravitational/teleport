@@ -184,6 +184,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Integrations:            cfg.Integrations,
 		KubeWaitingContainers:   cfg.KubeWaitingContainers,
 		Kubernetes:              cfg.Kubernetes,
+		KubeClusterUpstream:     cfg.KubeClusterUpstream,
 		Notifications:           cfg.Notifications,
 		Okta:                    cfg.Okta,
 		Presence:                cfg.Presence,
@@ -216,7 +217,6 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AppAuthConfig:           cfg.AppAuthConfig,
 		Summarizer:              cfg.Summarizer,
 		SubCAService:            cfg.SubCAService,
-		KubeClusterUpstream:     cfg.KubeClusterUpstream,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

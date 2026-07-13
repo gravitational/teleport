@@ -180,16 +180,6 @@ func (s *KubernetesService) DeleteAllKubernetesClusters(ctx context.Context) err
 	return s.svc.DeleteAllResources(ctx)
 }
 
-// DeleteAllKubeClusters removes all kubernetes cluster resources within the given scope.
-func (s *KubernetesService) DeleteAllKubeClusters(ctx context.Context, scope string) error {
-	svc, err := s.svc.WithScopePrefix(scope)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return svc.DeleteAllResources(ctx)
-}
-
 func validateKubeCluster(cluster types.KubeCluster) error {
 	if err := services.CheckAndSetDefaults(cluster); err != nil {
 		return trace.Wrap(err)
