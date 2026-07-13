@@ -124,17 +124,19 @@ resources reached through a Teleport session (SSH, database, Kubernetes, app,
 desktop). Resources used outside a session — such as AWS, Okta, or GitLab
 resources — leave the activity columns blank even when the access is used.
 
-## Next steps
-
-- [tctl access-review reference](../../reference/cli/tctl.mdx#tctl-access-review)
-
 ## Use tctl access-review with an AI agent
 
+<Admonition type="tip">
 To let an AI agent drive this command, install the matching Agent Skill:
 
 ```code
 $ npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-access-review
 ```
+</Admonition>
+
+## Next steps
+
+- [tctl access-review reference](../../reference/cli/tctl.mdx#tctl-access-review)
 
 ## Troubleshooting
 

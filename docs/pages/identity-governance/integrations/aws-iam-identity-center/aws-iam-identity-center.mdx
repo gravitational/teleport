@@ -20,6 +20,11 @@ After Teleport imports your Identity Center account assignments, you can use
 Teleport Identity Security to review which identities can reach them and whether
 that access is used. See [Review Identity Access from the
 CLI](../../../identity-security/cli/access-review.mdx) (`tctl access-review`).
+For example, to check who can access your `prod-analytics-*` buckets:
+
+```code
+$ tctl access-review --query "SELECT * FROM access_path WHERE resource ILIKE 'prod-analytics-%'"
+```
 </Admonition>
 
 ## How it works

@@ -26,6 +26,11 @@ Once Teleport imports your Entra ID groups and enterprise applications, you can
 use Teleport Identity Security to review which identities can access them and
 whether that access is used. See [Review Identity Access from the
 CLI](../../../identity-security/cli/access-review.mdx) (`tctl access-review`).
+For example, to see who can reach the `Payroll` enterprise application:
+
+```code
+$ tctl access-review --query "SELECT * FROM access_path WHERE resource = 'Payroll'"
+```
 </Admonition>
 
 ## How it works

@@ -17,7 +17,12 @@ traits, which then tie easily back into Teleport's existing RBAC system.
 Teleport Identity Security can show you which identities reach which resources
 through their Access List memberships, and whether that access has actually been
 used. See [Review Identity Access from the
-CLI](../../identity-security/cli/access-review.mdx) (`tctl access-review`).
+CLI](../../identity-security/cli/access-review.mdx) (`tctl access-review`). For
+example, to see what the `Prod Admins` Access List grants and who holds it:
+
+```code
+$ tctl access-review --query "SELECT * FROM access_path WHERE identity_group IN ('Prod Admins')"
+```
 </Admonition>
 
 [Getting Started with Access Lists](guide.mdx)
