@@ -919,6 +919,16 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 			return trace.Wrap(err)
 		}
 
+		// Remove stale member_of refs if the membership kind has changed.
+		// Switching between MembershipKindList and MembershipKindScopedList is
+		// impossible, by definition scoped lists have a non-empty scope, which
+		// would mean the member resource would have a different name and key.
+		if existingMember != nil && existingMember.IsList() && !member.IsList() {
+			if err := a.updateAccessListMemberOf(ctx, parentListName, memberName, false); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		if member.IsList() {
 			if err := a.updateAccessListMemberOf(ctx, parentListName, memberName, true); err != nil {
 				return trace.Wrap(err)
@@ -977,6 +987,13 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 			updated, err = memberService.conditionalUpdateResource(ctx, member)
 			if err != nil {
 				return trace.Wrap(err)
+			}
+
+			// Remove stale member_of refs if the membership kind has changed.
+			if existingMember != nil && existingMember.IsList() && !member.IsList() {
+				if err := a.updateAccessListMemberOf(ctx, parentListName, memberName, false); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 
 			if member.IsList() {
@@ -1238,6 +1255,13 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 					}
 
 					existingMember.SetRevision(upserted.GetRevision())
+				}
+
+				// Update the status member_of ref if membership kind has changed.
+				if existingMember.IsList() != newMember.IsList() {
+					if err := a.updateAccessListMemberOf(ctx, accessListName, existingMemberName, newMember.IsList()); err != nil {
+						return trace.Wrap(err)
+					}
 				}
 			}
 
