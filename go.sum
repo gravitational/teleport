@@ -707,8 +707,6 @@ github.com/google/flatbuffers v25.2.10+incompatible h1:F3vclr7C3HpB1k9mxCGRMXq6F
 github.com/google/flatbuffers v25.2.10+incompatible/go.mod h1:1AeVuKshWv4vARoZatz6mlQ0JxURH0Kv5+zNeJKJCa8=
 github.com/google/gnostic-models v0.7.0 h1:qwTtogB15McXDaNqTZdzPJRHvaVJlAl+HVQnLmJEJxo=
 github.com/google/gnostic-models v0.7.0/go.mod h1:whL5G0m6dmc5cPxKc5bdKdEN3UjI7OUGxBlw57miDrQ=
-github.com/google/go-attestation v0.6.0 h1:nVqsVA7Ka3024nBySlXfBa4dSwQHpylYyCiKUOcPkHA=
-github.com/google/go-attestation v0.6.0/go.mod h1:BcvuSzzGpsN3NDvngf9E4aWfAhOVYSYTdigzQHoWXhU=
 github.com/google/go-attestation v0.6.1 h1:HcdQn+2L3yyGiKWHREJNSjSVAftyF6qB1bkqksbB0FM=
 github.com/google/go-attestation v0.6.1/go.mod h1:Kin36coq5+yhHymNoDm4W/iL7QwMhDOCR/5ksu3SxcA=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
