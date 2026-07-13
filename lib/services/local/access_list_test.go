@@ -2724,6 +2724,179 @@ func TestAccessListService_Status_MemberOf(t *testing.T) {
 		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
 	})
 
+	// Assert that when a member's kind changes from a list to a user, stale
+	// member_of refs on the previous member list are removed.
+	t.Run("status member_of and scoped_member_of fixed on kind change", func(t *testing.T) {
+		// Set up a child list with a scoped and unscoped parent list.
+		suffix := uuid.NewString()[:8]
+		scopedParentListName := scopes.QualifiedName{Scope: "/eng/platform", Name: "acl-" + suffix}
+		unscopedParentListName := scopes.QualifiedName{Name: "acl-" + suffix}
+		scopedChildName := scopes.QualifiedName{Scope: "/eng/platform", Name: "child-" + suffix}
+		unscopedChildName := scopes.QualifiedName{Name: "child-" + suffix}
+
+		for _, tc := range []struct {
+			desc                   string
+			parentListName         scopes.QualifiedName
+			childListName          scopes.QualifiedName
+			initialMembershipKind  string
+			targetMembershipKind   string
+			requireKindChangeError require.ErrorAssertionFunc
+			requireMemberOf        func(t *testing.T)
+			requireNotMemberOf     func(t *testing.T)
+		}{
+			{
+				desc:                  "scoped parent, unscoped child",
+				parentListName:        scopedParentListName,
+				childListName:         unscopedChildName,
+				initialMembershipKind: accesslist.MembershipKindList,
+				targetMembershipKind:  accesslist.MembershipKindUser,
+				requireMemberOf: func(t *testing.T) {
+					requireStatusScopedMemberOf(t, service, unscopedChildName, []string{scopedParentListName.String()})
+				},
+				requireNotMemberOf: func(t *testing.T) {
+					requireStatusScopedMemberOf(t, service, unscopedChildName, []string{})
+				},
+			},
+			{
+				desc:                  "unscoped parent, unscoped child",
+				parentListName:        unscopedParentListName,
+				childListName:         unscopedChildName,
+				initialMembershipKind: accesslist.MembershipKindList,
+				targetMembershipKind:  accesslist.MembershipKindUser,
+				requireMemberOf: func(t *testing.T) {
+					requireStatusMemberOfV2(t, service, unscopedChildName, []string{unscopedParentListName.Name})
+				},
+				requireNotMemberOf: func(t *testing.T) {
+					requireStatusMemberOfV2(t, service, unscopedChildName, []string{})
+				},
+			},
+			{
+				desc:                  "scoped parent, scoped child",
+				parentListName:        scopedParentListName,
+				childListName:         scopedChildName,
+				initialMembershipKind: accesslist.MembershipKindScopedList,
+				targetMembershipKind:  accesslist.MembershipKindUser,
+				requireKindChangeError: func(t require.TestingT, err error, msg ...any) {
+					// The user name will be invalid if trying to change a scoped list member to a user.
+					require.ErrorAs(t, err, new(*trace.BadParameterError), msg...)
+				},
+				requireMemberOf: func(t *testing.T) {
+					requireStatusScopedMemberOf(t, service, scopedChildName, []string{scopedParentListName.String()})
+				},
+			},
+			{
+				desc:                  "scoped parent, scoped child, changed to unscoped child",
+				parentListName:        scopedParentListName,
+				childListName:         scopedChildName,
+				initialMembershipKind: accesslist.MembershipKindScopedList,
+				targetMembershipKind:  accesslist.MembershipKindList,
+				requireKindChangeError: func(t require.TestingT, err error, msg ...any) {
+					// The member key will change if trying to change a scoped
+					// list member to an unscoped list member, and the member
+					// will not be found.
+					require.ErrorAs(t, err, new(*trace.NotFoundError), msg...)
+				},
+				requireMemberOf: func(t *testing.T) {
+					requireStatusScopedMemberOf(t, service, scopedChildName, []string{scopedParentListName.String()})
+				},
+			},
+			{
+				desc:                  "scoped parent, unscoped child, changed to scoped child",
+				parentListName:        scopedParentListName,
+				childListName:         unscopedChildName,
+				initialMembershipKind: accesslist.MembershipKindList,
+				targetMembershipKind:  accesslist.MembershipKindScopedList,
+				requireKindChangeError: func(t require.TestingT, err error, msg ...any) {
+					// The member name will be invalid if trying to change an
+					// unscoped list member to a scoped list member.
+					require.ErrorAs(t, err, new(*trace.BadParameterError), msg...)
+				},
+				requireMemberOf: func(t *testing.T) {
+					requireStatusScopedMemberOf(t, service, unscopedChildName, []string{scopedParentListName.String()})
+				},
+			},
+		} {
+			t.Run(tc.desc, func(t *testing.T) {
+				parentList, err := service.UpsertAccessList(ctx, newScopedAccessList(t, tc.parentListName, clock))
+				require.NoError(t, err)
+				_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, tc.childListName, clock))
+				require.NoError(t, err)
+
+				for _, ttc := range []struct {
+					desc                 string
+					changeMembershipKind func(member *accesslist.AccessListMember, kind string) (*accesslist.AccessListMember, error)
+				}{
+					{
+						desc: "UpdateAccessListMember",
+						changeMembershipKind: func(member *accesslist.AccessListMember, kind string) (*accesslist.AccessListMember, error) {
+							member.Spec.MembershipKind = kind
+							return service.UpdateAccessListMember(ctx, member)
+						},
+					},
+					{
+						desc: "UpsertAccessListMember",
+						changeMembershipKind: func(member *accesslist.AccessListMember, kind string) (*accesslist.AccessListMember, error) {
+							member.Spec.MembershipKind = kind
+							return service.UpsertAccessListMember(ctx, member)
+						},
+					},
+					{
+						desc: "UpsertAccessListWithMembers",
+						changeMembershipKind: func(member *accesslist.AccessListMember, kind string) (*accesslist.AccessListMember, error) {
+							member.Spec.MembershipKind = kind
+							_, newMembers, err := service.UpsertAccessListWithMembers(ctx, parentList, []*accesslist.AccessListMember{member})
+							if err != nil {
+								return nil, err
+							}
+							return newMembers[0], nil
+						},
+					},
+					{
+						desc: "UpdateAccessListAndOverwriteMembers",
+						changeMembershipKind: func(member *accesslist.AccessListMember, kind string) (*accesslist.AccessListMember, error) {
+							member.Spec.MembershipKind = kind
+							_, newMembers, err := service.UpdateAccessListAndOverwriteMembers(ctx, parentList, []*accesslist.AccessListMember{member})
+							if err != nil {
+								return nil, err
+							}
+							return newMembers[0], nil
+						},
+					},
+				} {
+					t.Run(ttc.desc, func(t *testing.T) {
+						member, err := service.UpsertAccessListMember(ctx, newScopedAccessListMember(t,
+							tc.parentListName,
+							tc.childListName,
+							withMembershipKind(tc.initialMembershipKind),
+						))
+						require.NoError(t, err)
+
+						// Initially the child list status should reference the parent list.
+						tc.requireMemberOf(t)
+
+						// Change the membership kind to invalidate the initial membership.
+						member, err = ttc.changeMembershipKind(member, tc.targetMembershipKind)
+						if tc.requireKindChangeError != nil {
+							tc.requireKindChangeError(t, err)
+							return
+						}
+						require.NoError(t, err)
+
+						// The child list status should no longer reference the parent list.
+						tc.requireNotMemberOf(t)
+
+						// Make the child list a member again.
+						_, err = ttc.changeMembershipKind(member, tc.initialMembershipKind)
+						require.NoError(t, err)
+
+						// The child list status should reference the parent list again.
+						tc.requireMemberOf(t)
+					})
+				}
+			})
+		}
+	})
+
 	t.Run("scoped parent updates scoped_member_of for scoped and unscoped child lists", func(t *testing.T) {
 		suffix := uuid.NewString()[:8]
 		parentName := scopes.QualifiedName{Scope: "/eng/platform", Name: "acl-" + suffix}
