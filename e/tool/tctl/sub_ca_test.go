@@ -129,7 +129,7 @@ spec: {}
 	})
 
 	t.Run("delete", func(t *testing.T) {
-		runSubCAResourceCommand(t, authClient, "delete", "ca_overrides/"+caType)
+		runSubCAResourceCommand(t, authClient, "rm", "ca_overrides/"+caType)
 
 		getEventually(t,
 			[]string{"get", "ca_overrides", "--format=json"},
