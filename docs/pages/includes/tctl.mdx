@@ -1,9 +1,11 @@
-To check that you can connect to your Teleport cluster, sign in with `tsh login`, then
-verify that you can run `tctl` commands using your current credentials.
+Check that you can connect to your Teleport cluster and verify that you can run
+`tctl` commands using your current credentials.
 
-For example, run the following command, assigning
-<Var name="teleport.example.com" /> to the domain name of the Teleport Proxy Service
-in your cluster and <Var name="email@example.com" /> to your Teleport username:
+Run the following command, assigning <Var name="teleport.example.com" /> to the
+domain name of the Teleport Proxy Service in your cluster and
+<Var name="email@example.com" /> to your Teleport username. This command
+requires an interactive shell since, by default, it triggers a multi-factor
+authentication prompt:
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="email@example.com" />
@@ -18,15 +20,21 @@ current credentials to run subsequent `tctl` commands from your workstation.
 If you host your own Teleport cluster, you can also run `tctl` commands on the computer that
 hosts the Teleport Auth Service for full permissions.
 
+If you want credentials for running `tsh` and `tctl` commands in non-interactive
+environments, we recommend that you [set up Machine
+ID](../machine-workload-identity/getting-started.mdx).
+
 <details>
-<summary>Running `tctl` on a Teleport beam</summary>
+<summary>Client authentication in headless environments</summary>
 
 In some environments, for example on a Teleport beam, Teleport authentication
 must take place through a local identity file. On a Teleport beam, the identity
-file is available automatically, and `tctl` reads the file path from the
-`TELEPORT_IDENTITY_FILE` environment variable.
+file is available automatically. `tsh` and `tctl` read the file path from the
+`TELEPORT_IDENTITY_FILE` environment variable. `tsh` and `tctl` commands that
+you run with an identity file do not require authenticating to Teleport
+separately.
 
-When executing `tctl` commands with an identity file, you  must pass the
+When executing `tctl` commands with an identity file, you must pass the
 `--auth-server` flag to provide the Teleport Auth Service address, which is not
 included in the identity file. If you provide the Proxy Service address, `tctl`
 connects to the Proxy Service, which forwards traffic to and from the Teleport
@@ -38,6 +46,13 @@ environment variable:
 
 ```code
 $ tctl status --auth-server=${TELEPORT_PROXY}
+```
+
+For `tsh` commands that read an identity file, you must pass the `--proxy` flag,
+which points `tsh` to the address of the Teleport Proxy Service:
+
+```code
+$ tsh status --proxy=${TELEPORT_PROXY}
 ```
 
 </details>
