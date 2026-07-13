@@ -8876,7 +8876,7 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 }
 
 func TestProxyStatusOutputHelp(t *testing.T) {
-	const success_param = "parameters-verified, short-circut success"
+	const success_param = "parameters-verified, short-circuit success"
 	err := Run(
 		context.Background(),
 		[]string{"version"},

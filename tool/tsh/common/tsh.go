@@ -6542,7 +6542,7 @@ func configureProxyStatusOutput(cf *CLIConf, proxyStatusOutput string) {
 		// This should also never happen due to the flag default
 		// We don't need to set the writer here because ProxyStatusOutput() will
 		// fall back to stderr.
-		logger.WarnContext(cf.Context, "BUG: proxyStatusOutput is not a known output destination.", "proxyStatusOutput", proxyStatusOutput)
+		logger.WarnContext(cf.Context, "BUG: proxyStatusOutput is not a known output destination.", "value", proxyStatusOutput)
 	}
 }
 
