@@ -99,7 +99,13 @@ extension AppDatabase {
 	/// Initializes an in-memory database suitable for scenarios where persistence across runs is not required.
 	static func makeInMemoryDatabase() -> any DatabaseWriter {
 		do {
-			return try DatabaseQueue(configuration: defaultConfiguration)
+			logger.info("Initializing in-memory database...")
+			let database = try DatabaseQueue(configuration: defaultConfiguration)
+			logger.info("Successfully initialized in-memory database")
+			logger.info("Running in-memory database migrations...")
+			try migrate(db: database)
+			logger.info("Successfully ran all migrations for in-memory database")
+			return database
 		} catch {
 			fatalError("Error while initializing in-memory database: \(error)")
 		}
