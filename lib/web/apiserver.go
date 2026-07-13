@@ -151,7 +151,7 @@ const (
 // healthCheckAppServerFunc defines a function used to perform a health check
 // to AppServer that can handle application requests (based on cluster name and
 // public address).
-type healthCheckAppServerFunc func(ctx context.Context, publicAddr string, clusterName string) error
+type healthCheckAppServerFunc func(ctx context.Context, appName, publicAddr, clusterName string) error
 
 // Handler is HTTP web proxy handler
 type Handler struct {
@@ -1967,6 +1967,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		authSettings = webclient.WebConfigAuthSettings{
 			Providers:                   authProviders,
 			SecondFactor:                types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+			SecondFactors:               cap.GetSecondFactors(),
 			LocalAuthEnabled:            cap.GetAllowLocalAuth(),
 			AllowPasswordless:           cap.GetAllowPasswordless(),
 			AuthType:                    authType,

@@ -75,6 +75,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -374,6 +375,7 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 		clusterName: clientIdentity.ClusterName,
 		hostID:      clientIdentity.ID.HostUUID,
 		scope:       clientIdentity.GetAgentScope(),
+		scopePin:    clientIdentity.ScopePin,
 		role:        clientIdentity.ID.Role,
 	}
 	c.clientState.Store(clientState)
@@ -442,6 +444,7 @@ type Connector struct {
 	clusterName string
 	hostID      string
 	scope       string
+	scopePin    *scopesv1.Pin
 	role        types.SystemRole
 
 	// clientState contains the current connector state for outbound connections
@@ -478,6 +481,11 @@ func (c *Connector) HostUUID() string {
 // Scope returns the host's AgentScope
 func (c *Connector) Scope() string {
 	return c.scope
+}
+
+// ScopePin returns the host's ScopePin
+func (c *Connector) ScopePin() *scopesv1.Pin {
+	return c.scopePin
 }
 
 func (c *Connector) Role() types.SystemRole {
@@ -5552,6 +5560,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ConnectionMonitor: connMonitor,
 			CipherSuites:      cfg.CipherSuites,
 			ServiceComponent:  teleport.ComponentWebProxy,
+			InsecureMode:      lib.IsInsecureDevMode(),
 			AWSConfigOptions: []awsconfig.OptionsFn{
 				awsconfig.WithOIDCIntegrationClient(conn.Client),
 				awsconfig.WithRolesAnywhereIntegrationClient(conn.Client),
@@ -5560,17 +5569,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		connectionsHandler.SetApplicationsProvider(func(ctx context.Context, publicAddr string) (types.Application, error) {
-			allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(ctx, webapp.MatchPublicAddr(publicAddr))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if len(allAppServers) == 0 {
-				return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
-			}
-			// TODO(okraport): determine if we should shuffle app servers here.
-			return allAppServers[0].GetApp(), nil
-		})
+		connectionsHandler.SetApplicationsProvider(
+			func(ctx context.Context, appName, publicAddr string) (types.Application, error) {
+				allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(
+					ctx, webapp.MatchAppServerForRoute(appName, publicAddr))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				if len(allAppServers) == 0 {
+					return nil, trace.NotFound("no app %s found for endpoint %q", appName, publicAddr)
+				}
+				// TODO(okraport): determine if we should shuffle app servers here.
+				return allAppServers[0].GetApp(), nil
+			})
 
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
 			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
@@ -6968,6 +6979,7 @@ func (process *TeleportProcess) initApps() {
 			ServiceComponent:  teleport.ComponentApp,
 			Logger:            logger,
 			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
+			InsecureMode:      lib.IsInsecureDevMode(),
 		})
 		if err != nil {
 			return trace.Wrap(err)

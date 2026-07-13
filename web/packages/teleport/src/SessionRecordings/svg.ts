@@ -80,3 +80,7 @@ export function svgToDataURIBase64(svg: string) {
 
   return `data:image/svg+xml;charset=utf-8,${encoded}`;
 }
+
+export function pngToDataURIBase64(png: string) {
+  return `data:image/png;base64,${png}`;
+}

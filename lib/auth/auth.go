@@ -631,13 +631,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	if cfg.WorkloadClusterService == nil {
-		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating WorkloadClusterService")
-		}
-	}
-
 	if cfg.Beams == nil {
 		cfg.Beams, err = local.NewBeamService(cfg.Backend)
 		if err != nil {
@@ -715,7 +708,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Summarizer:                      cfg.Summarizer,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		ScopedTokenService:              cfg.ScopedTokenService,
-		WorkloadClusterService:          cfg.WorkloadClusterService,
 		Beams:                           cfg.Beams,
 		SubCAService:                    cfg.SubCAService,
 	}
@@ -1019,7 +1011,6 @@ type Services struct {
 	services.Summarizer
 	RecordingEncryptionManager
 	services.ScopedTokenService
-	services.WorkloadClusterService
 	services.Beams
 	services.SubCAService
 }
@@ -3076,6 +3067,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
 		certReq.BotName = botName
 		certReq.BotInstanceID = uuid.NewString()
+		certReq.BotScope, _ = userState.GetLabel(types.BotScopeLabel)
 	}
 
 	certs, err := a.GenerateUserCerts(ctx, certReq)
@@ -3945,6 +3937,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				Generation:               req.Generation,
 				BotName:                  req.BotName,
 				BotInstanceID:            req.BotInstanceID,
+				BotScope:                 req.BotScope,
 				DelegationSessionID:      req.DelegationSessionID,
 				JoinToken:                req.JoinToken,
 				CertificateExtensions:    certificateExtensions,
@@ -4089,6 +4082,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		Generation:               req.Generation,
 		BotName:                  req.BotName,
 		BotInstanceID:            req.BotInstanceID,
+		BotScope:                 req.BotScope,
 		BotInternal:              req.BotInternal,
 		DelegationSessionID:      req.DelegationSessionID,
 		JoinToken:                req.JoinToken,
@@ -8680,7 +8674,8 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.OktaCA,
 		types.AWSRACA,
 		types.BoundKeypairCA,
-		types.WindowsCA:
+		types.WindowsCA,
+		types.AppClientCA:
 		// OK, known CA type.
 	default:
 		return types.CAKeySet{}, trace.BadParameter(
@@ -8708,7 +8703,8 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.SAMLIDPCA,
 		types.SPIFFECA,
 		types.AWSRACA,
-		types.WindowsCA:
+		types.WindowsCA,
+		types.AppClientCA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -8764,6 +8760,8 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.AWSRACATLS
 	case types.WindowsCA:
 		return cryptosuites.WindowsCARDP
+	case types.AppClientCA:
+		return cryptosuites.AppClientCATLS
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

@@ -26,7 +26,6 @@ import (
 	"encoding/base32"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"net"
 	"net/url"
 	"os"
@@ -4282,12 +4281,12 @@ func TestEventsNodePresence(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-
+	nodeName := "node1." + testSrv.ClusterName()
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      "node1",
+			Name:      nodeName,
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.ServerSpecV2{
@@ -4298,7 +4297,7 @@ func TestEventsNodePresence(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
-			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, testSrv.ClusterName()),
+			Username: nodeName,
 		},
 	})
 	require.NoError(t, err)
@@ -5094,6 +5093,27 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 			Kinds: []types.WatchKind{{
 				Kind:        types.KindCertAuthority,
 				LoadSecrets: false,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case e := <-watcher.Events():
+			require.Equal(t, types.OpInit, e.Type)
+		case <-watcher.Done():
+			t.Fatalf("watcher closed unexpectedly: %v", watcher.Error())
+		}
+	})
+
+	t.Run("spiffe_federation", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "spiffe-federation-watch",
+			Kinds: []types.WatchKind{{
+				Kind: types.KindSPIFFEFederation,
 			}},
 		})
 		require.NoError(t, err)

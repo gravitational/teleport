@@ -61,6 +61,7 @@ import (
 	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	servicebreaker "github.com/gravitational/teleport/lib/service/breaker"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -96,7 +97,10 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			return connector, nil
 		} else {
 			switch {
-			case errors.As(connectErr, &invalidVersionErr{}):
+			// Version incompatibilities (the client is too new or too old for
+			// the cluster) are fatal. Retrying is pointless until the client is
+			// up or downgraded, so surface the error and stop reconnecting.
+			case isVersionCompatibilityError(connectErr):
 				return nil, trace.Wrap(connectErr)
 			case strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
 				process.logger.ErrorContext(process.ExitContext(), "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.")
@@ -134,6 +138,11 @@ type invalidVersionErr struct {
 
 func (i invalidVersionErr) Error() string {
 	return fmt.Sprintf("Teleport instance is too new. This instance is running v%d. The auth server is running v%d and only supports instances on v%d or v%d. To connect anyway pass the --skip-version-check flag.", i.LocalMajorVersion, i.ClusterMajorVersion, i.ClusterMajorVersion, i.ClusterMajorVersion-1)
+}
+
+func isVersionCompatibilityError(err error) bool {
+	return errors.As(err, &invalidVersionErr{}) ||
+		isVersionIncompatible(err)
 }
 
 func (process *TeleportProcess) assertSystemRoles(rolesToAssert []types.SystemRole) (assertionID string, err error) {
@@ -789,14 +798,16 @@ func (process *TeleportProcess) makeJoinParams(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tokenSecret, err := process.Config.TokenSecret()
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	tokenName, tokenSecret := token, ""
+	if name, secret, ok := joining.DecodeScopedToken(token); ok {
+		tokenName = name
+		tokenSecret = secret
 	}
 
 	dataDir := cmp.Or(process.Config.DataDir, defaults.DataDir)
 	joinParams := &joinclient.JoinParams{
-		Token:                token,
+		Token:                tokenName,
 		TokenSecret:          tokenSecret,
 		ID:                   id,
 		AuthServers:          process.Config.AuthServerAddresses(),
@@ -814,6 +825,7 @@ func (process *TeleportProcess) makeJoinParams(
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		FIPS:                 process.Config.FIPS,
 		Insecure:             lib.IsInsecureDevMode(),
+		OnVersionCallback:    process.enforceVersionPolicy,
 	}
 	if joinParams.JoinMethod == types.JoinMethodAzure {
 		joinParams.AzureParams = joinclient.AzureParams{

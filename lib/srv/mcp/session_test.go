@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -163,13 +164,46 @@ func Test_sessionHandler(t *testing.T) {
 				})
 			}
 
+			for _, allowedTool := range tt.allowedTools {
+				for _, deniedTool := range tt.deniedTools {
+					t.Run(fmt.Sprintf("deny %q tool while allowed tool %q is passed with a non-canonical name param", deniedTool, allowedTool), func(t *testing.T) {
+						clientReq := requestBuilder.makeToolsCallRequest(deniedTool)
+						clientReq.Params["Name"] = allowedTool
+						clientReq.Params["NaMe"] = allowedTool
+						clientReq.Params["NAME"] = allowedTool
+						clientCapture := &captureMessageWriter{}
+						serverCapture := &captureMessageWriter{}
+						require.NoError(t, handler.onClientRequest(clientCapture, serverCapture)(ctx, clientReq))
+
+						event := mockEmitter.LastEvent()
+						require.NotNil(t, event)
+						requestEvent, ok := event.(*apievents.MCPSessionRequest)
+						require.True(t, ok)
+						require.False(t, requestEvent.Success)
+						require.Equal(t, mcputils.MethodToolsCall, requestEvent.Message.Method)
+						// Verify there is only 1 param and it's "name" and
+						// all other non-lower-case name params are removed
+						// from the request.
+						require.Len(t, requestEvent.Message.Params.Fields, 1)
+						require.Equal(t, deniedTool, requestEvent.Message.Params.Fields["name"].GetStringValue(), 1)
+
+						// Server does not receive the client's request. An error is
+						// sent to client.
+						require.Empty(t, serverCapture.messages())
+						clientMessages := clientCapture.messages()
+						require.Len(t, clientMessages, 1)
+						require.IsType(t, mcp.JSONRPCError{}, clientMessages[0])
+					})
+				}
+			}
+
 			t.Run("tools list", func(t *testing.T) {
 				mockEmitter.Reset()
 
 				// First make a request so the handler can track the method by ID.
 				clientReq := requestBuilder.makeToolsListRequest()
-				_, authErr := handler.processClientRequest(ctx, clientReq)
-				require.NoError(t, authErr)
+				respErr := handler.processClientRequest(ctx, clientReq)
+				require.Nil(t, respErr)
 
 				// tools/list does not trigger audit event.
 				require.Nil(t, mockEmitter.LastEvent())
