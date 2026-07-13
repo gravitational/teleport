@@ -103,6 +103,10 @@ func anyVisibleFlags(f []*kingpin.FlagModel) bool {
 	})
 }
 
+func flagSummary(flags []*kingpin.FlagModel) string {
+	return (&kingpin.FlagGroupModel{Flags: flags}).FlagSummary()
+}
+
 // anyEnvVarsForCmd indicates whether at least one of the arguments and flags
 // provided exposes an environment variable for configuration.
 func anyEnvVarsForCmd(args []*kingpin.ArgModel, flags []*kingpin.FlagModel) bool {
@@ -184,6 +188,50 @@ func sortCommandsByName(cmds []*kingpin.CmdModel) []*kingpin.CmdModel {
 		}
 	})
 	return cmds
+}
+
+// makeEffectiveFlags returns the flags available to each command, including
+// flags declared on its non-global ancestors.
+func makeEffectiveFlags(app *kingpin.ApplicationModel) func(any) []*kingpin.FlagModel {
+	effectiveFlags := make(map[string][]*kingpin.FlagModel)
+
+	var visit func([]*kingpin.CmdModel, []*kingpin.FlagModel)
+	visit = func(commands []*kingpin.CmdModel, inherited []*kingpin.FlagModel) {
+		for _, command := range commands {
+			flags := mergeFlags(inherited, command.Flags)
+			effectiveFlags[command.FullCommand] = flags
+			visit(command.Commands, flags)
+		}
+	}
+	visit(app.Commands, nil)
+
+	return func(model any) []*kingpin.FlagModel {
+		switch command := model.(type) {
+		case *kingpin.ApplicationModel:
+			return command.Flags
+		case *kingpin.CmdModel:
+			return effectiveFlags[command.FullCommand]
+		default:
+			return nil
+		}
+	}
+}
+
+func mergeFlags(inherited, declared []*kingpin.FlagModel) []*kingpin.FlagModel {
+	flags := slices.Clone(inherited)
+	indices := make(map[string]int, len(flags))
+	for i, flag := range flags {
+		indices[flag.Name] = i
+	}
+	for _, flag := range declared {
+		if index, ok := indices[flag.Name]; ok {
+			flags[index] = flag
+			continue
+		}
+		indices[flag.Name] = len(flags)
+		flags = append(flags, flag)
+	}
+	return flags
 }
 
 const noDefaultSet = "*no default*"
@@ -365,6 +413,7 @@ func updateAppUsageTemplate(r io.Reader, config generatorConfig, app *kingpin.Ap
 
 	replaceFlagDefaults := makeDefaultFlagValueOverrider(config.FlagDefaultOverrides)
 	replaceArgDefaults := makeDefaultArgValueOverrider(config.ArgDefaultOverrides)
+	effectiveFlags := makeEffectiveFlags(app.Model())
 
 	// We override the default app description with a custom description
 	// that is better suited to the docs.
@@ -376,8 +425,10 @@ func updateAppUsageTemplate(r io.Reader, config generatorConfig, app *kingpin.Ap
 		"ArgsToRows":                  argsToRows,
 		"EnvVarsToRows":               envVarsToRows,
 		"FlagsToRows":                 flagsToRows,
+		"FlagSummary":                 flagSummary,
 		"FormatThreeColMarkdownTable": formatThreeColMarkdownTable,
 		"FormatUsageArg":              formatUsageArg,
+		"EffectiveFlags":              effectiveFlags,
 		"ReplaceFlagDefaults":         replaceFlagDefaults,
 		"ReplaceArgDefaults":          replaceArgDefaults,
 		"SortCommandsByName":          sortCommandsByName,

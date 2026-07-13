@@ -81,6 +81,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`-f`, `--format`|*no default*|Optional print format, one of: "uri" to print app address, "ca" to print CA cert path, "cert" to print cert path, "key" print key path, "curl" to print example curl command, "json" or "yaml" to print everything as JSON or YAML.|
 
 Arguments:
@@ -111,6 +112,7 @@ Flags:
 |---|---|---|
 |`--aws-role`|*no default*|(For AWS CLI access only) Amazon IAM role ARN or role name.|
 |`--azure-identity`|*no default*|(For Azure CLI access only) Azure managed identity name.|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`--gcp-service-account`|*no default*|(For GCP CLI access only) GCP service account name.|
 |`-q`, `--[no-]quiet`|`false`|Quiet mode.|
 |`--target-port`|*no default*|Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.|
@@ -136,6 +138,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 
 Arguments:
@@ -151,8 +154,14 @@ Remove app certificate.
 Usage:
 
 ```code
-$ tsh apps logout [<app>]
+$ tsh apps logout [<flags>] [<app>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 
 Arguments:
 
@@ -174,6 +183,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"').|
 |`-R`, `--[no-]all`|`false`|List apps from all clusters and proxies.|
@@ -446,6 +456,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`-f`, `--format`|*no default* (one of: `text`, `cmd`, `json`, `yaml`)|Print format: "text" to print in table format (default), "cmd" to print connect command, "json" or "yaml" to print in JSON or YAML.|
 |`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
 |`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"').|
@@ -470,6 +481,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
 |`-n`, `--db-name`|*no default*|Database name to log in to.|
 |`--[no-]disable-access-request`|`false`|Disable automatic resource Access Requests.|
@@ -498,6 +510,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
 |`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"').|
@@ -522,6 +535,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`--dbs`|*no default*|List of comma separated target database services. Mutually exclusive with --search or --labels.|
 |`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
 |`-n`, `--db-name`|*no default*|Database name to log in to.|
@@ -552,6 +566,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
 |`-n`, `--db-name`|*no default*|Database name to configure as default.|
 |`--[no-]disable-access-request`|`false`|Disable automatic resource Access Requests.|
@@ -580,6 +595,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
 |`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"').|
 
@@ -603,6 +619,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"').|
 |`-R`, `--[no-]all`|`false`|List databases from all clusters and proxies.|
