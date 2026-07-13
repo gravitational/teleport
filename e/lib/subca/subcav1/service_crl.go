@@ -31,48 +31,30 @@ import (
 	"github.com/gravitational/trace"
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/subca"
 )
 
-// updateOverrideCRLs attempts to generate missing CRLs for the CA override and conditionally
-// updates if necessary.
+// updateOverrideStatusCRLs attempts to generate missing CRLs for the CA
+// override.
 // Implements the watcher-based CRL generation.
-func (s *Service) updateOverrideCRLs(ctx context.Context, initial *subcav1.CertAuthorityOverride) error {
-	id := local.CertAuthorityOverrideIDFromResource(initial)
-	generatedCRLCache := make(map[string]*subcav1.CertificateRevocationList)
-	now := s.clock.Now()
-
-	const loadKeys = true
-	getParsedCA := s.getParsedCAOnce(ctx, types.CertAuthID{
-		Type:       types.CertAuthType(id.CAType),
-		DomainName: id.ClusterName,
-	}, loadKeys)
-
-	_, err := s.conditionalUpdateWithRetry(
-		ctx,
-		id,
-		initial,
-		func(caOverride *subcav1.CertAuthorityOverride) (done bool, _ error) {
-			parsed, err := subca.ParseCAOverride(caOverride)
-			if err != nil {
-				return false, trace.Wrap(err, "parse CA override")
-			}
-
-			const allowUnusableKey = true // Skip unusable keys, let other Auths decide.
-			switch err = s.generateCRLs(ctx, getParsedCA, parsed, generatedCRLCache, now, allowUnusableKey); {
-			case err != nil:
-				return false, trace.Wrap(err)
-			case len(generatedCRLCache) == 0:
-				s.logger.DebugContext(ctx, "CA override CRL update: no CRLs needed")
-				return true, nil // Update not necessary.
-			default:
-				return false, nil // Ask for update.
-			}
-		})
-	return trace.Wrap(err)
+func (s *Service) updateOverrideStatusCRLs(
+	ctx context.Context,
+	getParsedCA getParsedCAFunc,
+	parsed *subca.ParsedCertAuthorityOverride,
+	generatedCRLCache map[string]*subcav1.CertificateRevocationList,
+	now time.Time,
+) (changed bool, _ error) {
+	// Skip unusable keys, let other Auths decide.
+	const allowUnusableKey = true
+	switch err := s.generateCRLs(ctx, getParsedCA, parsed, generatedCRLCache, now, allowUnusableKey); {
+	case err != nil:
+		return false, trace.Wrap(err)
+	case len(generatedCRLCache) == 0:
+		return false, nil
+	default:
+		return true, nil
+	}
 }
 
 // createOverrideCRLs creates CRLs for all overrides that lack them.

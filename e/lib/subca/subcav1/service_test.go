@@ -1019,23 +1019,12 @@ func TestService_Create_fromCSR(t *testing.T) {
 	require.NoError(t, err, "CreateCSR errored")
 	require.Len(t, csrResp.GetCsrs(), 1, "CreateCSR returned an unexpected number of CSRs")
 
-	// Create certificate, from CSR, using the external root.
-	csr, err := tlsca.ParseCertificateRequestPEM([]byte(csrResp.GetCsrs()[0].GetPem()))
-	require.NoError(t, err)
-	now := env.Clock.Now()
-	certDER, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
-		Subject:               csr.Subject,
-		NotBefore:             now.Add(-1 * time.Minute),
-		NotAfter:              now.Add(10 * time.Minute), // < self-signed CA NotAfter
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-	}, env.ExternalRoot.Cert, csr.PublicKey, env.ExternalRoot.Key)
-	require.NoError(t, err)
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certDER,
-	})
+	// Sign.
+	certificateOverride := signCSRUsingExternalRoot(t,
+		env.ExternalRoot,
+		env.Clock.Now(),
+		csrResp.GetCsrs()[0],
+	)
 
 	// Prepare override.
 	caOverride := subcapb.CertAuthorityOverride_builder{
@@ -1047,9 +1036,7 @@ func TestService_Create_fromCSR(t *testing.T) {
 		}.Build(),
 		Spec: subcapb.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: []*subcapb.CertificateOverride{
-				subcapb.CertificateOverride_builder{
-					Certificate: string(certPEM),
-				}.Build(),
+				certificateOverride,
 			},
 		}.Build(),
 	}.Build()
@@ -1060,6 +1047,35 @@ func TestService_Create_fromCSR(t *testing.T) {
 			CaOverride: caOverride,
 		}.Build())
 	require.NoError(t, err, "Create errored")
+}
+
+func signCSRUsingExternalRoot(
+	t *testing.T,
+	externalRoot *subcaenv.CA,
+	now time.Time,
+	csrPB *subcapb.CertificateSigningRequest,
+) *subcapb.CertificateOverride {
+	// Create certificate, from CSR, using the external root.
+	csr, err := tlsca.ParseCertificateRequestPEM([]byte(csrPB.GetPem()))
+	require.NoError(t, err)
+	certDER, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
+		Subject:               csr.Subject,
+		NotBefore:             now.Add(-1 * time.Minute),
+		NotAfter:              now.Add(10 * time.Minute), // < self-signed CA NotAfter
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}, externalRoot.Cert, csr.PublicKey, externalRoot.Key)
+	require.NoError(t, err)
+
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certDER,
+	})
+	return subcapb.CertificateOverride_builder{
+		Certificate: string(certPEM),
+		Disabled:    true,
+	}.Build()
 }
 
 func TestService_Update(t *testing.T) {

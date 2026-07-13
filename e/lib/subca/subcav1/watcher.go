@@ -76,7 +76,11 @@ func (s *Service) newCAOverrideWatcher(
 func (w *caOverrideWatcher) run() {
 	var exitErr error
 	defer func() {
-		w.logger.DebugContext(w.ctx, "Watcher exited", "error", exitErr)
+		if errors.Is(exitErr, context.Canceled) {
+			w.logger.DebugContext(w.ctx, "Watcher exited (context canceled)")
+		} else {
+			w.logger.DebugContext(w.ctx, "Watcher exited", "error", exitErr)
+		}
 	}()
 
 	for {
@@ -215,6 +219,7 @@ func (w *caOverrideWatcher) receiveOnce() (_ *types.Event, err error, abort bool
 				"kind", e.Resource.GetKind(),
 				"sub_kind", e.Resource.GetSubKind(),
 				"name", e.Resource.GetName(),
+				"revision", e.Resource.GetRevision(),
 			)
 		}
 		logger.DebugContext(w.ctx, "Received watcher event", "event_type", e.Type)

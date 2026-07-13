@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/subca"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // CachedSubCAStorage is a subset of SubCAService containing read methods that
@@ -266,43 +267,15 @@ func (s *Service) CreateCSR(
 			"use public key hash to match a single certificate")
 	}
 
-	resp := subcav1.CreateCSRResponse_builder{
-		Csrs: make([]*subcav1.CertificateSigningRequest, 0, len(candidateSigners)),
-	}.Build()
-	for _, candidateSigner := range candidateSigners {
-		signer := candidateSigner.Signer
-		cert := candidateSigner.Cert
-
-		// Subject.
-		var subj pkix.Name
-		if customSubject != nil {
-			subj.ExtraNames = customSubject.Names
-		} else {
-			subj.ExtraNames = cert.Subject.Names
-			// Remove serial number (OID 2.5.4.5).
-			subj.ExtraNames = removeOID(subj.ExtraNames, []int{2, 5, 4, 5})
-		}
-
-		// Create CSR.
-		certReq := &x509.CertificateRequest{
-			PublicKey: signer.Public(),
-			Subject:   subj,
-		}
-		csrDER, err := x509.CreateCertificateRequest(rand.Reader, certReq, signer)
-		if err != nil {
-			return nil, trace.Wrap(err, "create certificate request")
-		}
-		csrPEM := pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE REQUEST",
-			Bytes: csrDER,
-		})
-
-		resp.SetCsrs(append(resp.GetCsrs(), subcav1.CertificateSigningRequest_builder{
-			Pem: string(csrPEM),
-		}.Build()))
+	// Sign as many CSRs as we can with the current Auth.
+	csrs, err := createCSRs(candidateSigners, customSubject)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return resp, nil
+	return subcav1.CreateCSRResponse_builder{
+		Csrs: csrs,
+	}.Build(), nil
 }
 
 func validateCATypeForCSR(caType string) error {
@@ -314,6 +287,57 @@ func validateCATypeForCSR(caType string) error {
 		return trace.BadParameter("ca_type not allowed: %q (must be one of %s)", caType, allowedTypesJoined)
 	}
 	return nil
+}
+
+func createCSRs(
+	candidateSigners []*candidateCSRSigner,
+	customSubject *pkix.Name,
+) ([]*subcav1.CertificateSigningRequest, error) {
+	csrs := make([]*subcav1.CertificateSigningRequest, 0, len(candidateSigners))
+	for _, candidateSigner := range candidateSigners {
+		csr, err := createCSR(candidateSigner, customSubject)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		csrs = append(csrs, csr)
+	}
+	return csrs, nil
+}
+
+func createCSR(
+	candidateSigner *candidateCSRSigner,
+	customSubject *pkix.Name,
+) (*subcav1.CertificateSigningRequest, error) {
+	signer := candidateSigner.Signer
+	cert := candidateSigner.Cert
+
+	// Subject.
+	var subj pkix.Name
+	if customSubject != nil {
+		subj.ExtraNames = customSubject.Names
+	} else {
+		subj.ExtraNames = cert.Subject.Names
+		// Remove serial number (OID 2.5.4.5).
+		subj.ExtraNames = removeOID(subj.ExtraNames, []int{2, 5, 4, 5})
+	}
+
+	// Create CSR.
+	certReq := &x509.CertificateRequest{
+		PublicKey: signer.Public(),
+		Subject:   subj,
+	}
+	csrDER, err := x509.CreateCertificateRequest(rand.Reader, certReq, signer)
+	if err != nil {
+		return nil, trace.Wrap(err, "create certificate request")
+	}
+	csrPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE REQUEST",
+		Bytes: csrDER,
+	})
+
+	return subcav1.CertificateSigningRequest_builder{
+		Pem: string(csrPEM),
+	}.Build(), nil
 }
 
 type candidateCSRSigner struct {
@@ -373,7 +397,7 @@ func (s *Service) getCandidateCSRSigners(
 				if pkhPresent {
 					return nil, trace.Wrap(err, "create signer")
 				}
-				s.logger.DebugContext(ctx,
+				s.logger.Log(ctx, log.TraceLevel,
 					"Skipping unusable keypair during CSR generation",
 					"is_active", isActive,
 					"index", j,
