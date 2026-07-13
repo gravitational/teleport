@@ -83,6 +83,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 		UserType:                 types.UserType(id.GetUserType()),
 		DelegationSessionID:      id.GetDelegationSessionId(),
 		BeamID:                   id.GetBeamId(),
+		Delegation:               id.GetDelegation(),
 	}
 }
 
@@ -137,6 +138,7 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 		UserType:                 string(id.UserType),
 		DelegationSessionId:      id.DelegationSessionID,
 		BeamId:                   id.BeamID,
+		Delegation:               id.Delegation,
 	}.Build()
 }
 

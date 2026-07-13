@@ -25,6 +25,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	traitpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -140,6 +141,11 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		UserType:            "user-type",
 		DelegationSessionId: "delegation-session",
 		BeamId:              "beam-id",
+		Delegation: delegationv1.Delegation_builder{
+			User: delegationv1.UserDelegator_builder{
+				Username: "username",
+			}.Build(),
+		}.Build(),
 	}.Build()
 
 	tests := []struct {

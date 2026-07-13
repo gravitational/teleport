@@ -37,6 +37,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -993,6 +994,48 @@ func TestBeamID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "beam-id", out.BeamID)
 	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+}
+
+func TestDelegation(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	wantDelegation := delegationv1.Delegation_builder{
+		User: delegationv1.UserDelegator_builder{
+			Username: "michael.scott@dunder-mifflin.com",
+		}.Build(),
+	}.Build()
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:          "alice@example.com",
+		Groups:            []string{"admin"},
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
+		Expires:           expires,
+		Delegation:        wantDelegation,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second), protocmp.Transform()))
 }
 
 func TestGenerateCertificate_SubjectModifcationsPreserved(t *testing.T) {

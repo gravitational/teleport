@@ -31,11 +31,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/delegation"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -113,6 +115,11 @@ func TestIdentityConversion(t *testing.T) {
 		DelegationSessionID:      "delegation-session-id",
 		BeamID:                   "beam-id",
 		AgentScope:               "/foo",
+		Delegation: delegationv1.Delegation_builder{
+			User: delegationv1.UserDelegator_builder{
+				Username: "bob",
+			}.Build(),
+		}.Build(),
 		ImmutableLabelHash: joining.HashImmutableLabels(joiningv1.ImmutableLabels_builder{
 			Ssh: map[string]string{
 				"one": "1",
@@ -169,7 +176,7 @@ func TestIdentityConversion(t *testing.T) {
 	require.Empty(t, cmp.Diff(ident, ident2, protocmp.Transform()))
 }
 
-func TestIdentityEncodeReservesBeamIDCertExtension(t *testing.T) {
+func TestIdentityEncodeReservations(t *testing.T) {
 	const (
 		customExtensionName  = "login@example.com"
 		customExtensionValue = "custom-extension-value"
@@ -177,10 +184,26 @@ func TestIdentityEncodeReservesBeamIDCertExtension(t *testing.T) {
 		serverBeamID         = "server-derived-beam-id"
 	)
 
+	serverDelegation, err := delegation.Encode(delegationv1.Delegation_builder{
+		User: delegationv1.UserDelegator_builder{
+			Username: "michael.scott@dunder-mifflin.com",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	roleDelegation, err := delegation.Encode(delegationv1.Delegation_builder{
+		User: delegationv1.UserDelegator_builder{
+			Username: "jim.halpert@dunder-mifflin.com",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
 	for _, tt := range []struct {
-		name       string
-		beamID     string
-		wantBeamID string
+		name           string
+		beamID         string
+		wantBeamID     string
+		delegation     string
+		wantDelegation string
 	}{
 		{
 			name:       "server derived Beam ID is preserved",
@@ -189,6 +212,14 @@ func TestIdentityEncodeReservesBeamIDCertExtension(t *testing.T) {
 		},
 		{
 			name: "role extension cannot create Beam attribution",
+		},
+		{
+			name:           "server derived delegation is preserved",
+			delegation:     serverDelegation,
+			wantDelegation: serverDelegation,
+		},
+		{
+			name: "role extension cannot create delegation attribution",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -204,12 +235,23 @@ func TestIdentityEncodeReservesBeamIDCertExtension(t *testing.T) {
 						Mode:  types.CertExtensionMode_EXTENSION,
 					},
 					{
+						Name:  teleport.CertExtensionDelegation,
+						Value: roleDelegation,
+						Type:  types.CertExtensionType_SSH,
+						Mode:  types.CertExtensionMode_EXTENSION,
+					},
+					{
 						Name:  customExtensionName,
 						Value: customExtensionValue,
 						Type:  types.CertExtensionType_SSH,
 						Mode:  types.CertExtensionMode_EXTENSION,
 					},
 				},
+			}
+
+			if tt.delegation != "" {
+				ident.Delegation, err = delegation.Decode(tt.delegation)
+				require.NoError(t, err)
 			}
 
 			cert, err := ident.Encode(constants.CertificateFormatStandard)
@@ -221,12 +263,18 @@ func TestIdentityEncodeReservesBeamIDCertExtension(t *testing.T) {
 			} else {
 				require.Equal(t, tt.wantBeamID, cert.Extensions[teleport.CertExtensionBeamID])
 			}
+			if tt.wantDelegation == "" {
+				require.NotContains(t, cert.Extensions, teleport.CertExtensionDelegation)
+			} else {
+				require.Equal(t, tt.wantDelegation, cert.Extensions[teleport.CertExtensionDelegation])
+			}
 
 			decoded, err := DecodeIdentity(cert)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantBeamID, decoded.BeamID)
 			for _, extension := range decoded.CertificateExtensions {
 				require.NotEqual(t, teleport.CertExtensionBeamID, extension.Name)
+				require.NotEqual(t, teleport.CertExtensionDelegation, extension.Name)
 			}
 		})
 	}

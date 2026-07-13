@@ -23,6 +23,7 @@
 package decisionpb
 
 import (
+	v12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	types "github.com/gravitational/teleport/api/types"
@@ -324,7 +325,9 @@ type SSHIdentity struct {
 	BeamId string `protobuf:"bytes,41,opt,name=beam_id,json=beamId,proto3" json:"beam_id,omitempty"`
 	// BotScope is the scope of the Machine ID bot this identity was issued to,
 	// if any. Empty for unscoped bots and non-bot identities.
-	BotScope      string `protobuf:"bytes,42,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
+	BotScope string `protobuf:"bytes,42,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
+	// Delegation contains the delegation chain of this SSH identity.
+	Delegation    *v12.Delegation `protobuf:"bytes,43,opt,name=delegation,proto3" json:"delegation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -648,6 +651,13 @@ func (x *SSHIdentity) GetBotScope() string {
 	return ""
 }
 
+func (x *SSHIdentity) GetDelegation() *v12.Delegation {
+	if x != nil {
+		return x.Delegation
+	}
+	return nil
+}
+
 func (x *SSHIdentity) SetValidAfter(v uint64) {
 	x.ValidAfter = v
 }
@@ -816,6 +826,10 @@ func (x *SSHIdentity) SetBotScope(v string) {
 	x.BotScope = v
 }
 
+func (x *SSHIdentity) SetDelegation(v *v12.Delegation) {
+	x.Delegation = v
+}
+
 func (x *SSHIdentity) HasPreviousIdentityExpires() bool {
 	if x == nil {
 		return false
@@ -830,12 +844,23 @@ func (x *SSHIdentity) HasScopePin() bool {
 	return x.ScopePin != nil
 }
 
+func (x *SSHIdentity) HasDelegation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Delegation != nil
+}
+
 func (x *SSHIdentity) ClearPreviousIdentityExpires() {
 	x.PreviousIdentityExpires = nil
 }
 
 func (x *SSHIdentity) ClearScopePin() {
 	x.ScopePin = nil
+}
+
+func (x *SSHIdentity) ClearDelegation() {
+	x.Delegation = nil
 }
 
 type SSHIdentity_builder struct {
@@ -955,6 +980,8 @@ type SSHIdentity_builder struct {
 	// BotScope is the scope of the Machine ID bot this identity was issued to,
 	// if any. Empty for unscoped bots and non-bot identities.
 	BotScope string
+	// Delegation contains the delegation chain of this SSH identity.
+	Delegation *v12.Delegation
 }
 
 func (b0 SSHIdentity_builder) Build() *SSHIdentity {
@@ -1003,6 +1030,7 @@ func (b0 SSHIdentity_builder) Build() *SSHIdentity {
 	x.HeadlessAuthenticationId = b.HeadlessAuthenticationId
 	x.BeamId = b.BeamId
 	x.BotScope = b.BotScope
+	x.Delegation = b.Delegation
 	return m0
 }
 
@@ -1127,10 +1155,10 @@ var File_teleport_decision_v1alpha1_ssh_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"X\n" +
+	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a'teleport/delegation/v1/delegation.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"X\n" +
 	"\fSSHAuthority\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12%\n" +
-	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\xc2\x0e\n" +
+	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\x86\x0f\n" +
 	"\vSSHIdentity\x12\x1f\n" +
 	"\vvalid_after\x18\x01 \x01(\x04R\n" +
 	"validAfter\x12!\n" +
@@ -1182,7 +1210,10 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"\x15delegation_session_id\x18' \x01(\tR\x13delegationSessionId\x12<\n" +
 	"\x1aheadless_authentication_id\x18( \x01(\tR\x18headlessAuthenticationId\x12\x17\n" +
 	"\abeam_id\x18) \x01(\tR\x06beamId\x12\x1b\n" +
-	"\tbot_scope\x18* \x01(\tR\bbotScope\"\xbf\x01\n" +
+	"\tbot_scope\x18* \x01(\tR\bbotScope\x12B\n" +
+	"\n" +
+	"delegation\x18+ \x01(\v2\".teleport.delegation.v1.DelegationR\n" +
+	"delegation\"\xbf\x01\n" +
 	"\rCertExtension\x12A\n" +
 	"\x04type\x18\x01 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionTypeR\x04type\x12A\n" +
 	"\x04mode\x18\x02 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionModeR\x04mode\x12\x12\n" +
@@ -1208,21 +1239,23 @@ var file_teleport_decision_v1alpha1_ssh_identity_proto_goTypes = []any{
 	(*ResourceId)(nil),             // 7: teleport.decision.v1alpha1.ResourceId
 	(*v11.Pin)(nil),                // 8: teleport.scopes.v1.Pin
 	(*types.ResourceAccessID)(nil), // 9: types.ResourceAccessID
+	(*v12.Delegation)(nil),         // 10: teleport.delegation.v1.Delegation
 }
 var file_teleport_decision_v1alpha1_ssh_identity_proto_depIdxs = []int32{
-	5, // 0: teleport.decision.v1alpha1.SSHIdentity.traits:type_name -> teleport.trait.v1.Trait
-	6, // 1: teleport.decision.v1alpha1.SSHIdentity.previous_identity_expires:type_name -> google.protobuf.Timestamp
-	4, // 2: teleport.decision.v1alpha1.SSHIdentity.certificate_extensions:type_name -> teleport.decision.v1alpha1.CertExtension
-	7, // 3: teleport.decision.v1alpha1.SSHIdentity.allowed_resource_ids:type_name -> teleport.decision.v1alpha1.ResourceId
-	8, // 4: teleport.decision.v1alpha1.SSHIdentity.scope_pin:type_name -> teleport.scopes.v1.Pin
-	9, // 5: teleport.decision.v1alpha1.SSHIdentity.allowed_resource_access_ids:type_name -> types.ResourceAccessID
-	1, // 6: teleport.decision.v1alpha1.CertExtension.type:type_name -> teleport.decision.v1alpha1.CertExtensionType
-	0, // 7: teleport.decision.v1alpha1.CertExtension.mode:type_name -> teleport.decision.v1alpha1.CertExtensionMode
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	5,  // 0: teleport.decision.v1alpha1.SSHIdentity.traits:type_name -> teleport.trait.v1.Trait
+	6,  // 1: teleport.decision.v1alpha1.SSHIdentity.previous_identity_expires:type_name -> google.protobuf.Timestamp
+	4,  // 2: teleport.decision.v1alpha1.SSHIdentity.certificate_extensions:type_name -> teleport.decision.v1alpha1.CertExtension
+	7,  // 3: teleport.decision.v1alpha1.SSHIdentity.allowed_resource_ids:type_name -> teleport.decision.v1alpha1.ResourceId
+	8,  // 4: teleport.decision.v1alpha1.SSHIdentity.scope_pin:type_name -> teleport.scopes.v1.Pin
+	9,  // 5: teleport.decision.v1alpha1.SSHIdentity.allowed_resource_access_ids:type_name -> types.ResourceAccessID
+	10, // 6: teleport.decision.v1alpha1.SSHIdentity.delegation:type_name -> teleport.delegation.v1.Delegation
+	1,  // 7: teleport.decision.v1alpha1.CertExtension.type:type_name -> teleport.decision.v1alpha1.CertExtensionType
+	0,  // 8: teleport.decision.v1alpha1.CertExtension.mode:type_name -> teleport.decision.v1alpha1.CertExtensionMode
+	9,  // [9:9] is the sub-list for method output_type
+	9,  // [9:9] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_decision_v1alpha1_ssh_identity_proto_init() }
