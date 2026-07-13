@@ -208,7 +208,7 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 			limit:     req.Limit,
 			order:     req.Order,
 			startKey:  startKeyset,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
+			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search, beamID: req.BeamID},
 			sessionID: "",
 		})
 		return events, keyset, trace.Wrap(err)
@@ -220,7 +220,7 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 		limit:     req.Limit,
 		order:     req.Order,
 		startKey:  startKeyset,
-		filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
+		filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search, beamID: req.BeamID},
 		sessionID: "",
 	})
 	return events, keyset, trace.Wrap(err)
@@ -664,6 +664,9 @@ type searchEventsFilter struct {
 	eventTypes []string
 	search     string
 	condition  utils.FieldsCondition
+	// beamID, when set, restricts results to events whose top-level
+	// event_data beam_id equals it (see prepareQuery).
+	beamID string
 }
 
 type queryBuilder struct {
@@ -746,6 +749,12 @@ func prepareQuery(params searchParams) (query string, execParams []string, err e
 		for term := range strings.FieldsSeq(strings.ToLower(params.filter.search)) {
 			qb.Append(" AND strpos(lower(event_data), ?) > 0", withTicks(term))
 		}
+	}
+
+	if params.filter.beamID != "" {
+		// beam_id is not a dedicated column; it lives at the top level of the
+		// event_data JSON (UserMetadata is inlined into every event).
+		qb.Append(" AND json_extract_scalar(event_data, '$.beam_id') = ?", withTicks(params.filter.beamID))
 	}
 
 	if params.order == types.EventOrderAscending {
