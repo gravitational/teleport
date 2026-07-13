@@ -214,6 +214,8 @@ func (s *EnrollPairingService) RequestEnrollPairingApproval(ctx context.Context,
 	}
 
 	const errNotAwaitingDevice = "enroll pairing is not awaiting a device"
+	// TODO(ravicious): Make the call retryable from the same device, as described
+	// in the Interrputibility section of RFD 32e.
 	if pairing.GetStatus().GetState() != devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE {
 		return nil, trace.CompareFailed(errNotAwaitingDevice)
 	}
