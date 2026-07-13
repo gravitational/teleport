@@ -393,7 +393,9 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) error {
 			}
 
 			// 4. Handle delivery failures.
-			q.handleDeliveryFailures(ctx, items, successfullyDelivered)
+			if ctx.Err() == nil && q.ctx.Err() == nil {
+				q.handleDeliveryFailures(ctx, items, successfullyDelivered)
+			}
 		}
 
 		// Back off when we made no forward progress to prevent hammering the
@@ -458,7 +460,7 @@ func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, 
 	if len(failed) == 0 {
 		return
 	}
-	promoted, err := q.processFailedDeliveries(failed)
+	promoted, err := q.processFailedDeliveries(ctx, failed)
 	if err != nil {
 		slog.ErrorContext(q.ctx,
 			"Failed to process failed audit event deliveries.",
@@ -496,12 +498,12 @@ func itemsNotIn(all, delivered []Item) []Item {
 	return failed
 }
 
-func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
+func (q *sqliteQueue) processFailedDeliveries(ctx context.Context, failed []Item) (int, error) {
 	if len(failed) == 0 {
 		return 0, nil
 	}
 
-	tx, err := q.db.BeginTx(q.ctx, nil)
+	tx, err := q.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -512,7 +514,7 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 		ids[i] = item.id
 	}
 
-	rows, err := tx.QueryContext(q.ctx,
+	rows, err := tx.QueryContext(ctx,
 		"UPDATE audit_queue SET attempts = attempts + 1 WHERE id IN ("+placeholders(len(ids))+") RETURNING id, attempts",
 		ids...,
 	)
@@ -549,7 +551,7 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 	insertArgs := make([]any, 0, len(exhaustedEventIDs)+1)
 	insertArgs = append(insertArgs, time.Now().Unix())
 	insertArgs = append(insertArgs, exhaustedEventIDs...)
-	if _, err := tx.ExecContext(q.ctx,
+	if _, err := tx.ExecContext(ctx,
 		"INSERT INTO audit_dead_letter (payload, failed_at) "+
 			"SELECT payload, ? FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
 		insertArgs...,
@@ -557,7 +559,7 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 		return 0, trace.Wrap(err)
 	}
 
-	if _, err := tx.ExecContext(q.ctx,
+	if _, err := tx.ExecContext(ctx,
 		"DELETE FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
 		exhaustedEventIDs...,
 	); err != nil {
@@ -844,28 +846,6 @@ func (q *sqliteQueue) reinjectRecovered(events []recoveredEvent) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(tx.Commit())
-}
-
-// deadLetterRow represents a row from the audit_dead_letter table.
-type deadLetterRow struct {
-	id       int64
-	payload  []byte
-	failedAt int64
-}
-
-func insertDeadLetterTx(ctx context.Context, tx *sql.Tx, rows []deadLetterRow) error {
-	stmt, err := tx.PrepareContext(ctx,
-		"INSERT INTO audit_dead_letter (payload, failed_at) VALUES (?, ?)")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer stmt.Close()
-	for _, r := range rows {
-		if _, err := stmt.ExecContext(ctx, r.payload, r.failedAt); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
 }
 
 func (q *sqliteQueue) fetch(limit int) ([]Item, error) {
