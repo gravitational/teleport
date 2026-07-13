@@ -913,7 +913,7 @@ type SSHIdentity_builder struct {
 	// BotScope is the scope of the Machine ID bot this identity was issued to,
 	// if any. Empty for unscoped bots and non-bot identities.
 	BotScope string
-	// Delegation contains the delegation chain of this TLS identity.
+	// Delegation contains the delegation chain of this SSH identity.
 	Delegation *v12.Delegation
 }
 

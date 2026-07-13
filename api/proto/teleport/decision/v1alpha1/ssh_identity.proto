@@ -196,7 +196,7 @@ message SSHIdentity {
   // if any. Empty for unscoped bots and non-bot identities.
   string bot_scope = 42;
 
-  // Delegation contains the delegation chain of this TLS identity.
+  // Delegation contains the delegation chain of this SSH identity.
   teleport.delegation.v1.Delegation delegation = 43;
 }
 

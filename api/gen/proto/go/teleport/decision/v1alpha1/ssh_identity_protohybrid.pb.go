@@ -326,7 +326,7 @@ type SSHIdentity struct {
 	// BotScope is the scope of the Machine ID bot this identity was issued to,
 	// if any. Empty for unscoped bots and non-bot identities.
 	BotScope string `protobuf:"bytes,42,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
-	// Delegation contains the delegation chain of this TLS identity.
+	// Delegation contains the delegation chain of this SSH identity.
 	Delegation    *v12.Delegation `protobuf:"bytes,43,opt,name=delegation,proto3" json:"delegation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -980,7 +980,7 @@ type SSHIdentity_builder struct {
 	// BotScope is the scope of the Machine ID bot this identity was issued to,
 	// if any. Empty for unscoped bots and non-bot identities.
 	BotScope string
-	// Delegation contains the delegation chain of this TLS identity.
+	// Delegation contains the delegation chain of this SSH identity.
 	Delegation *v12.Delegation
 }
 
