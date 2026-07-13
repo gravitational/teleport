@@ -21,6 +21,10 @@ Set up Teleport with a [High Availability configuration](../../installation/self
 | Teleport SSH Nodes connected to Auth Service                          | 50,000                | 2x  4 vCPUs, 16GB RAM | 2x 8 vCPUs, 16GB RAM  | m8i.2xlarge        |
 | Teleport SSH Nodes connected to Proxy Service through reverse tunnels | 10,000                | 2x 4 vCPUs, 8GB RAM   | 2x 8 vCPUs, 16+GB RAM | m8i.2xlarge        |
 
+To host Teleport on Kubernetes see
+[Hosting on Kubernetes](#hosting-on-kubernetes) for how to express these
+recommendations as `teleport-cluster` Helm chart values.
+
 ## Auth Service and Proxy Service Configuration
 
 Upgrade Teleport's connection limits from the default connection limit of `15000`
@@ -64,6 +68,90 @@ Verify that Teleport's process has high enough file limits:
 $ cat /proc/$(pidof teleport)/limits
 # Limit                     Soft Limit           Hard Limit           Units
 # Max open files            65536                65536                files
+```
+
+## Hosting on Kubernetes
+
+We recommend hosting self-hosted Teleport clusters on Kubernetes with the
+[`teleport-cluster` Helm chart](../helm-reference/teleport-cluster.mdx).
+See [Deploy Teleport on Kubernetes](../../installation/self-hosted/helm-deployments/kubernetes-cluster.mdx)
+to get started. The sizing guidance above still applies; the sections below show how to express it as chart values.
+
+### Auth Service and Proxy Service sizing
+
+The chart runs the Auth Service and Proxy Service as separate deployments. To
+run more than one replica of each, you must first meet the high-availability
+prerequisites that the default standalone chart does not provide:
+
+- The Auth Service needs a highly available backend. The default standalone mode
+  stores cluster state in SQLite on a `ReadWriteOnce` volume, which cannot be
+  shared safely across pods. Use a cloud chart mode (`aws`, `gcp`, or `azure`),
+  which disables local persistence automatically, or configure an external backend such as DynamoDB, Firestore, or etcd.
+  With an external backend you must also set `persistence.enabled: false` and store session recordings on highly
+  available storage such as S3 or GCS. Otherwise every Auth Service replica
+  references the same `ReadWriteOnce` volume, causing multi-attach or scheduling failures.
+  See [Storage backends](backends.mdx) and the
+  [High Availability guide](../../installation/self-hosted/deployments/high-availability.mdx).
+- The Proxy Service needs a shared TLS certificate source.
+  Unless you enable cert-manager (`highAvailability.certManager`), provide an existing secret (`tls.existingSecretName`),
+  or use an ingress (`ingress.enabled`), the chart keeps the Proxy Service at a single replica regardless of the value below.
+
+Once those prerequisites are in place, set the replica count with
+`highAvailability.replicaCount`, which corresponds to the `2x` in the
+[hardware recommendations](#hardware-recommendations):
+
+```yaml
+highAvailability:
+  replicaCount: 2
+```
+
+Set pod resources with the top-level `resources` value. To size the Auth Service
+and Proxy Service independently, override `resources` under the `auth` and
+`proxy` values, which are merged with and take precedence over the chart-scoped values:
+
+```yaml
+# Applies to both Auth Service and Proxy Service pods unless overridden below.
+resources:
+  requests:
+    cpu: "8"
+    memory: "16Gi"
+  limits:
+    memory: "16Gi"
+
+# Size the Proxy Service pods separately.
+proxy:
+  resources:
+    requests:
+      cpu: "4"
+      memory: "8Gi"
+    limits:
+      memory: "8Gi"
+```
+
+<Admonition type="warning" title="Do not set CPU limits">
+Setting CPU limits on Teleport pods is an anti-pattern: Teleport becomes
+unstable once CPU throttling begins. Set CPU `requests` to reserve capacity, but
+leave CPU limits unset.
+</Admonition>
+
+### Connection limits and Teleport configuration
+
+Apply Teleport configuration such as the connection limit
+[described above](#auth-service-and-proxy-service-configuration) through the
+`auth.teleportConfig` and `proxy.teleportConfig` values instead of a `teleport.yaml` file.
+These are merged with the chart-generated configuration:
+
+```yaml
+auth:
+  teleportConfig:
+    teleport:
+      connection_limits:
+        max_connections: 65000
+proxy:
+  teleportConfig:
+    teleport:
+      connection_limits:
+        max_connections: 65000
 ```
 
 ## DynamoDB configuration
