@@ -77,10 +77,18 @@ func sortFieldsByName(a, b Field) int {
 	return strings.Compare(a.Name, b.Name)
 }
 
+type protobufOneofWrapperKey struct {
+	packagePath    string
+	parentTypeName string
+}
+
 type SourceData struct {
 	// TypeDecls maps package and declaration names to data that the generator
 	// uses to format documentation for dynamic resource fields.
 	TypeDecls map[PackageInfo]DeclarationInfo
+	// ProtobufOneOfWrappers maps package and parent type names to data about
+	// protobuf_oneof wrapper types.
+	ProtobufOneOfWrappers map[protobufOneofWrapperKey][]DeclarationInfo
 }
 
 // NewSourceData extracts type declarations from the Go files rooted at
@@ -182,8 +190,44 @@ func NewSourceData(prefix string, rootPath string) (SourceData, error) {
 	if err != nil {
 		return SourceData{}, fmt.Errorf("loading Go source files: %w", err)
 	}
+
+	protobufOneofWrappers := make(map[protobufOneofWrapperKey][]DeclarationInfo)
+	for info, declInfo := range typeDecls {
+		// Oneof wrapper names follow the {ParentType}_{Variant} convention.
+		underscore := strings.LastIndex(info.DeclName, "_")
+		if underscore < 1 {
+			continue
+		}
+		parent := info.DeclName[:underscore]
+		gd, ok := declInfo.Decl.(*ast.GenDecl)
+		if !ok || len(gd.Specs) != 1 {
+			continue
+		}
+		spec, ok := gd.Specs[0].(*ast.TypeSpec)
+		if !ok {
+			continue
+		}
+		st, ok := spec.Type.(*ast.StructType)
+		if !ok {
+			continue
+		}
+		isWrapper := false
+		for _, field := range st.Fields.List {
+			if field.Tag != nil && strings.Contains(field.Tag.Value, ",oneof") {
+				isWrapper = true
+				break
+			}
+		}
+		if !isWrapper {
+			continue
+		}
+		key := protobufOneofWrapperKey{packagePath: info.PackagePath, parentTypeName: parent}
+		protobufOneofWrappers[key] = append(protobufOneofWrappers[key], declInfo)
+	}
+
 	return SourceData{
-		TypeDecls: typeDecls,
+		TypeDecls:             typeDecls,
+		ProtobufOneOfWrappers: protobufOneofWrappers,
 	}, nil
 }
 
@@ -422,7 +466,7 @@ func (e NotAGenDeclError) Error() string {
 // typeForDecl returns a representation of the type spec of decl to use for
 // further processing. Returns an error if there is either no type spec or more
 // than one.
-func typeForDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (rawType, error) {
+func typeForDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo, wrappers map[protobufOneofWrapperKey][]DeclarationInfo) (rawType, error) {
 	gendecl, ok := decl.Decl.(*ast.GenDecl)
 	if !ok {
 		return rawType{}, NotAGenDeclError{}
@@ -458,6 +502,12 @@ func typeForDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 
 	// We have determined that decl is a struct type, so collect its fields.
 	var rawFields []rawField
+	// oneofExpanded tracks whether we have already expanded the protobuf_oneof
+	// variants for this struct. Multiple oneof group may be present within a
+	// struct, each being represented by a separate interface field. However, all
+	// wrapper types share the same {ParentType}_ naming prefix, so a single
+	// expansion should cover all groups.
+	oneofExpanded := false
 	for _, field := range str.Fields.List {
 		f, err := makeRawField(field, decl.PackageName, allDecls, decl.NamedImports)
 		if err != nil {
@@ -474,6 +524,21 @@ func typeForDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		// This field is ignored, so skip it.
 		// See: https://pkg.go.dev/encoding/json#Marshal
 		if jsonName == "-" {
+			continue
+		}
+
+		// The field is a protobuf oneof interface field
+		if jsonName == "" && getProtobufOneofTag(f.tags) != "" {
+			if !oneofExpanded {
+				// Expand the protobuf_oneof interface field into its variants,
+				// which are represented by separate struct fields
+				oneofFields, err := expandProtobufOneofFields(t.Name.Name, decl, wrappers, allDecls)
+				if err != nil {
+					return rawType{}, err
+				}
+				rawFields = append(rawFields, oneofFields...)
+				oneofExpanded = true
+			}
 			continue
 		}
 		// Using the exported field declaration name as the field name
@@ -503,7 +568,7 @@ func makeYAMLExample(fields []rawField) (string, error) {
 
 	for _, field := range fields {
 		example := field.kind.formatForExampleYAML(0) + "\n"
-		buf.WriteString(getJSONTag(field.tags) + ": ")
+		buf.WriteString(field.jsonName + ": ")
 		buf.WriteString(example)
 	}
 
@@ -513,6 +578,38 @@ func makeYAMLExample(fields []rawField) (string, error) {
 // Key-value pair for the "json" tag within a struct tag.  See:
 // https://pkg.go.dev/reflect#StructTag
 var jsonTagKeyValue = regexp.MustCompile(`json:"([^"]+)"`)
+
+// Key-value pair for the "protobuf_oneof" tag within a struct tag.  See:
+// https://pkg.go.dev/reflect#StructTag
+var protobufOneofTagKeyValue = regexp.MustCompile(`protobuf_oneof:"([^"]+)"`)
+
+// getProtobufOneofTag returns the value of the protobuf_oneof struct tag, or
+// an empty string if not present.
+func getProtobufOneofTag(tags string) string {
+	kv := protobufOneofTagKeyValue.FindStringSubmatch(tags)
+
+	// No "protobuf_oneof" tag, or a "protobuf_oneof" tag with no value.
+	if len(kv) != 2 {
+		return ""
+	}
+
+	return kv[1]
+}
+
+// protobufFieldNamePattern matches the "name" parameter within a protobuf struct tag value.
+var protobufFieldNamePattern = regexp.MustCompile(`\bname=([^,\s"]+)`)
+
+// getProtobufFieldName returns the value of the "name" parameter in a protobuf
+// struct tag, or an empty string if not present.
+func getProtobufFieldName(tags string) string {
+	kv := protobufFieldNamePattern.FindStringSubmatch(tags)
+
+	// No "name" parameter in the protobuf struct tag, or a "name" parameter with no value.
+	if len(kv) != 2 {
+		return ""
+	}
+	return kv[1]
+}
 
 // getYAMLTag returns the "json" tag value from the provided struct tag
 // expression.
@@ -850,7 +947,7 @@ func allFieldsForDecl(decl DeclarationInfo, fld []rawField, allDecls map[Package
 				c.name,
 			)
 		}
-		e, err := typeForDecl(d, allDecls)
+		e, err := typeForDecl(d, allDecls, nil)
 		if err != nil && !errors.As(err, &NotAGenDeclError{}) {
 			return nil, err
 		}
@@ -865,6 +962,79 @@ func allFieldsForDecl(decl DeclarationInfo, fld []rawField, allDecls map[Package
 		fieldsToProcess = append(fieldsToProcess, nf...)
 	}
 	return fieldsToProcess, nil
+}
+
+// expandProtobufOneofFields finds all protobuf_oneof wrapper types for
+// parentType in the same package as decl. It returns a rawField for
+// the inner field of each variant.
+func expandProtobufOneofFields(parentType string, decl DeclarationInfo, wrappers map[protobufOneofWrapperKey][]DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) ([]rawField, error) {
+	key := protobufOneofWrapperKey{packagePath: decl.PackageName, parentTypeName: parentType}
+	var result []rawField
+
+	// Iterate through all declarations in the same package as decl, looking for
+	// wrapper types for the protobuf_oneof interface field.
+	for _, wrapperDecl := range wrappers[key] {
+
+		// Only process declarations that are struct types with a single field.
+		// This is the expected structure of a protobuf_oneof wrapper type.
+		gendecl, ok := wrapperDecl.Decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		if len(gendecl.Specs) != 1 {
+			continue
+		}
+		spec, ok := gendecl.Specs[0].(*ast.TypeSpec)
+		if !ok {
+			continue
+		}
+		structType, ok := spec.Type.(*ast.StructType)
+		if !ok {
+			continue
+		}
+
+		// Iterate through the fields of the wrapper struct, looking for the
+		// inner field that represents the protobuf_oneof variant. The inner
+		// field is expected to have a "protobuf" struct tag with a "name="
+		// parameter that indicates the name of the variant.
+		for _, field := range structType.Fields.List {
+			if len(field.Names) == 0 {
+				continue
+			}
+
+			var tags string
+			if field.Tag != nil {
+				tags = field.Tag.Value
+			}
+
+			if !strings.Contains(tags, ",oneof") {
+				continue
+			}
+
+			// The YAML key comes from the name= parameter of the
+			// protobuf tag (e.g. name=jwt = key "jwt").
+			yamlName := getProtobufFieldName(tags)
+			if yamlName == "" {
+				continue
+			}
+
+			yamlType, err := getYAMLType(field, wrapperDecl.PackageName, allDecls, wrapperDecl.NamedImports)
+			if err != nil {
+				return nil, err
+			}
+
+			result = append(result, rawField{
+				packageName: wrapperDecl.PackageName,
+				doc:         field.Doc.Text(),
+				kind:        yamlType,
+				name:        field.Names[0].Name,
+				jsonName:    yamlName,
+				tags:        tags,
+			})
+		}
+	}
+
+	return result, nil
 }
 
 // NamedImports creates a mapping from the provided name of each package import
@@ -890,9 +1060,10 @@ func ReferenceDataFromDeclaration(
 	prefix string,
 	decl DeclarationInfo,
 	allDecls map[PackageInfo]DeclarationInfo,
+	wrappers map[protobufOneofWrapperKey][]DeclarationInfo,
 	camelCaseExceptions []string,
 ) (map[PackageInfo]ReferenceEntry, error) {
-	rs, err := typeForDecl(decl, allDecls)
+	rs, err := typeForDecl(decl, allDecls, wrappers)
 	if err != nil {
 		return nil, err
 	}
@@ -968,7 +1139,7 @@ func ReferenceDataFromDeclaration(
 			if !ok {
 				continue
 			}
-			r, err := ReferenceDataFromDeclaration(prefix, gd, allDecls, camelCaseExceptions)
+			r, err := ReferenceDataFromDeclaration(prefix, gd, allDecls, wrappers, camelCaseExceptions)
 			if errors.As(err, &NotAGenDeclError{}) {
 				continue
 			}

@@ -134,7 +134,7 @@ func Generate(prefix string, conf GeneratorConfig, tmpl *template.Template) erro
 
 		// decl is a dynamic resource type, so get data for the type and
 		// its dependencies.
-		entries, err := resource.ReferenceDataFromDeclaration(prefix, decl, sourceData.TypeDecls, conf.CamelCaseExceptions)
+		entries, err := resource.ReferenceDataFromDeclaration(prefix, decl, sourceData.TypeDecls, sourceData.ProtobufOneOfWrappers, conf.CamelCaseExceptions)
 		if errors.As(err, &resource.NotAGenDeclError{}) {
 			continue
 		}

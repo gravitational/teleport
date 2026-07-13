@@ -1596,6 +1596,90 @@ description: "string"
 			},
 		},
 		{
+			description: "protobuf oneof field expansion",
+			declInfo: PackageInfo{
+				DeclName:    "AppSpec",
+				PackagePath: "github.com/gravitational/teleport/src",
+			},
+			source: `package mypkg
+
+// AppSpec contains spec for all supported app auth configs.
+type AppSpec struct {
+    // Name is the name.
+    Name string BACKTICKjson:"name,omitempty"BACKTICK
+    // SubKindSpec is the sub kind spec.
+    SubKindSpec isAppSpec_SubKindSpec BACKTICKprotobuf_oneof:"sub_kind_spec"BACKTICK
+}
+`,
+			declSources: []string{
+				`package mypkg
+
+// isAppSpec_SubKindSpec is a protobuf oneof interface.
+type isAppSpec_SubKindSpec interface {
+    isAppSpec_SubKindSpec()
+}
+`,
+				`package mypkg
+
+// AppSpec_Jwt is the JWT variant wrapper.
+type AppSpec_Jwt struct {
+    // Jwt is the JWT authentication config spec.
+    Jwt *JWTSpec BACKTICKprotobuf:"bytes,2,opt,name=jwt,proto3,oneof"BACKTICK
+}
+`,
+				`package mypkg
+
+// JWTSpec contains JWT spec details.
+type JWTSpec struct {
+    // Issuer is the issuer.
+    Issuer string BACKTICKjson:"issuer,omitempty"BACKTICK
+}
+`,
+			},
+			expected: map[PackageInfo]ReferenceEntry{
+				{
+					DeclName:    "AppSpec",
+					PackagePath: "github.com/gravitational/teleport/src",
+				}: {
+					SectionName: "App Spec",
+					Description: "Contains spec for all supported app auth configs.",
+					SourcePath:  "src/myfile.go",
+					Fields: []Field{
+						{
+							Name:        "jwt",
+							Description: "The JWT authentication config spec.",
+							Type:        "[JWTSpec](#jwtspec)",
+						},
+						{
+							Name:        "name",
+							Description: "The name.",
+							Type:        "string",
+						},
+					},
+					YAMLExample: `name: "string"
+jwt: # [...]
+`,
+				},
+				{
+					DeclName:    "JWTSpec",
+					PackagePath: "github.com/gravitational/teleport/src",
+				}: {
+					SectionName: "JWTSpec",
+					Description: "Contains JWT spec details.",
+					SourcePath:  "src/myfile2.go",
+					Fields: []Field{
+						{
+							Name:        "issuer",
+							Description: "The issuer.",
+							Type:        "string",
+						},
+					},
+					YAMLExample: `issuer: "string"
+`,
+				},
+			},
+		},
+		{
 			description: "curly braces in descriptions",
 			declInfo: PackageInfo{
 				DeclName:    "Metadata",
@@ -1673,12 +1757,25 @@ type Metadata struct {
 				declsWithoutTmp[k] = d
 			}
 
+			// Strip the temp directory from the wrappers index keys and
+			// PackageNames so they match the cleaned-up declsWithoutTmp paths.
+			wrappersWithoutTmp := make(map[protobufOneofWrapperKey][]DeclarationInfo)
+			for k, ds := range sourceData.ProtobufOneOfWrappers {
+				k.packagePath = strings.ReplaceAll(k.packagePath, filepath.Base(tmp)+"/", "")
+				cleaned := make([]DeclarationInfo, len(ds))
+				for i, d := range ds {
+					d.PackageName = strings.ReplaceAll(d.PackageName, filepath.Base(tmp)+"/", "")
+					cleaned[i] = d
+				}
+				wrappersWithoutTmp[k] = cleaned
+			}
+
 			di, ok := declsWithoutTmp[tc.declInfo]
 			if !ok {
 				t.Fatalf("expected data for %v.%v not found in the source", tc.declInfo.PackagePath, tc.declInfo.DeclName)
 			}
 
-			r, err := ReferenceDataFromDeclaration("github.com/gravitational/teleport", di, declsWithoutTmp, camelCaseExceptions)
+			r, err := ReferenceDataFromDeclaration("github.com/gravitational/teleport", di, declsWithoutTmp, wrappersWithoutTmp, camelCaseExceptions)
 			if tc.errorSubstring == "" {
 				assert.NoError(t, err)
 			} else {
@@ -1911,7 +2008,7 @@ type Foo struct {
 	}
 
 	wrapperDecl := allDecls[PackageInfo{DeclName: "Foo", PackagePath: wrapperPkg}]
-	rs, err := typeForDecl(wrapperDecl, allDecls)
+	rs, err := typeForDecl(wrapperDecl, allDecls, nil)
 	require.NoError(t, err)
 
 	_, err = allFieldsForDecl(wrapperDecl, rs.fields, allDecls)
@@ -2005,21 +2102,24 @@ func TestMakeYAMLExample(t *testing.T) {
 			description: "all scalars",
 			input: []rawField{
 				rawField{
-					doc:  "myInt is an int",
-					kind: yamlNumber{},
-					name: "myInt",
-					tags: `json:"my_int"`,
+					doc:      "myInt is an int",
+					kind:     yamlNumber{},
+					name:     "myInt",
+					jsonName: "my_int",
+					tags:     `json:"my_int"`,
 				},
 				rawField{
-					doc:  "myBool is a Boolean",
-					kind: yamlBool{},
-					name: "myBool",
-					tags: `json:"my_bool"`,
+					doc:      "myBool is a Boolean",
+					kind:     yamlBool{},
+					name:     "myBool",
+					jsonName: "my_bool",
+					tags:     `json:"my_bool"`,
 				},
 				rawField{
-					doc:  "myString is a string",
-					kind: yamlString{},
-					tags: `json:"my_string"`,
+					doc:      "myString is a string",
+					kind:     yamlString{},
+					jsonName: "my_string",
+					tags:     `json:"my_string"`,
 				},
 			},
 			expected: `my_int: 1
