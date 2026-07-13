@@ -74,7 +74,7 @@ func (m *mockAccessListAndMembersGetter) GetAccessListV2(ctx context.Context, re
 	})
 	accessList, exists := m.accessLists[accessListName]
 	if !exists {
-		return nil, trace.NotFound("access list %v not found", accessListName)
+		return nil, trace.NotFound("access list %s not found", accessListName.String())
 	}
 	return accessList, nil
 }
@@ -249,6 +249,58 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, ownershipType)
+}
+
+// TestIsAccessListOwnerScopedNameCollision asserts that IsAccessListOwner does
+// not consider a user to be an owner of a scoped access list if they are
+// actually a member of an unscoped access list with the same unqualified name
+// as a legimate scoped owner list.
+func TestIsAccessListOwnerScopedNameCollision(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+
+	unscopedOwnerList := newAccessList(t, "owners", clock)
+	scopedOwnerList := newAccessList(t, "owners", clock)
+	scopedOwnerList.Scope = "/eng"
+	targetList := newAccessList(t, "target", clock)
+	targetList.Scope = "/eng/app"
+	targetList.Spec.Owners = []accesslist.Owner{{
+		Name:           ScopeQualifiedName(scopedOwnerList).String(),
+		MembershipKind: accesslist.MembershipKindScopedList,
+	}}
+
+	unscopedOwnerMember := newAccessListMember(t, unscopedOwnerList.GetName(), member1, accesslist.MembershipKindUser, clock)
+	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
+		members:     mockAccessListMembers(unscopedOwnerMember),
+		accessLists: mockAccessLists(unscopedOwnerList, scopedOwnerList, targetList),
+	}
+
+	stubUser, err := types.NewUser(member1)
+	require.NoError(t, err)
+	stubUser.SetTraits(map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+		"otrait1": {"ovalue1", "ovalue2"},
+		"otrait2": {"ovalue3", "ovalue4"},
+	})
+	stubUser.SetRoles([]string{"mrole1", "mrole2", "orole1", "orole2"})
+
+	// Sanity check the user is legimately a member of the unscoped access list.
+	_, err = IsAccessListMember(ctx, stubUser, unscopedOwnerList, accessListAndMembersGetter, nil, clock)
+	require.NoError(t, err)
+
+	// IsAccessListOwner must return an error when checking if the user is an owner of the target list.
+	_, err = IsAccessListOwner(ctx, stubUser, targetList, accessListAndMembersGetter, nil, clock)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	// If we make the unscoped owner list an owner, the user becomes a legimate owner.
+	targetList.Spec.Owners = append(targetList.Spec.Owners, accesslist.Owner{
+		Name:           unscopedOwnerList.GetName(),
+		MembershipKind: accesslist.MembershipKindList,
+	})
+	assignmentType, err := IsAccessListOwner(ctx, stubUser, targetList, accessListAndMembersGetter, nil, clock)
+	require.NoError(t, err)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, assignmentType)
 }
 
 func TestAccessListIsMember(t *testing.T) {
