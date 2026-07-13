@@ -21,7 +21,7 @@
 // 	protoc        (unknown)
 // source: teleport/lib/multiplexer/test/ping.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package test
 

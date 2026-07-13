@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/kube/v1/kube_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package kubev1
 
