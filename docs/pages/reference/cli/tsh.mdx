@@ -13,9 +13,7 @@ tags:
 This guide provides a comprehensive list of commands, arguments, and flags for
 tsh.
 
-tsh is a CLI client for accessing Teleport-protected resources. It allows users
-to interact with current and past sessions on the cluster, copy files to and
-from nodes, and list information about the cluster.
+tsh is a CLI client for accessing Teleport-protected resources. It allows users to interact with current and past sessions on the cluster, copy files to and from nodes, and list information about the cluster.
 
 ```code
 $ tsh [<flags>] <command> [<args> ...]
@@ -212,8 +210,7 @@ Arguments:
 
 ## tsh aws-profile
 
-Generate AWS config profiles by syncing with your integrated AWS IAM Identity
-Center account(s). Other profiles in the config file are left untouched.
+Generate AWS config profiles by syncing with your integrated AWS IAM Identity Center account(s). Other profiles in the config file are left untouched.
 
 Usage:
 
@@ -617,8 +614,7 @@ Arguments:
 
 ## tsh delegation create-session
 
-Create a delegation session, allowing a bot or workload to temporarily act on
-your behalf.
+Create a delegation session, allowing a bot or workload to temporarily act on your behalf.
 
 Usage:
 
@@ -716,8 +712,7 @@ Arguments:
 
 ## tsh git config
 
-Check Teleport config on the working Git directory. Or provide an action
-('update' or 'reset') to configure the Git repo.
+Check Teleport config on the working Git directory. Or provide an action ('update' or 'reset') to configure the Git repo.
 
 Usage:
 
@@ -977,8 +972,7 @@ Arguments:
 
 ## tsh kube sessions
 
-Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls
---kind=kube instead.)
+Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead.)
 
 Usage:
 
@@ -1290,8 +1284,7 @@ Arguments:
 
 ## tsh proxy app
 
-Start local TLS proxy for app connection when using Teleport in single-port
-mode.
+Start local TLS proxy for app connection when using Teleport in single-port mode.
 
 Usage:
 
@@ -1350,8 +1343,7 @@ Flags:
 
 ## tsh proxy db
 
-Start local TLS proxy for database connections when using Teleport in
-single-port mode.
+Start local TLS proxy for database connections when using Teleport in single-port mode.
 
 Usage:
 
@@ -1458,8 +1450,7 @@ Arguments:
 
 ## tsh proxy ssh
 
-Start local TLS proxy for ssh connections when using Teleport in single-port
-mode.
+Start local TLS proxy for ssh connections when using Teleport in single-port mode.
 
 Usage:
 
@@ -1841,8 +1832,7 @@ Flags:
 
 ## tsh update
 
-Update client tools (tsh, tctl) to the latest version defined by the cluster
-configuration.
+Update client tools (tsh, tctl) to the latest version defined by the cluster configuration.
 
 Usage:
 
@@ -1885,8 +1875,7 @@ $ tsh vnet
 
 ## tsh vnet-ssh-autoconfig
 
-Automatically include VNet's generated OpenSSH-compatible config file in
-~/.ssh/config.
+Automatically include VNet's generated OpenSSH-compatible config file in ~/.ssh/config.
 
 Usage:
 
@@ -1896,8 +1885,7 @@ $ tsh vnet-ssh-autoconfig
 
 ## tsh workload-identity issue-jwt
 
-Use Teleport Workload Identity to issue a JWT credential and write it to a local
-directory.
+Use Teleport Workload Identity to issue a JWT credential and write it to a local directory.
 
 Usage:
 
@@ -1917,8 +1905,7 @@ Flags:
 
 ## tsh workload-identity issue-x509
 
-Use Teleport Workload Identity to issue an X509 credential and write it to a
-local directory.
+Use Teleport Workload Identity to issue an X509 credential and write it to a local directory.
 
 Usage:
 

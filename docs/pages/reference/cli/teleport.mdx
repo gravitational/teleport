@@ -13,8 +13,7 @@ tags:
 This guide provides a comprehensive list of commands, arguments, and flags for
 teleport.
 
-`teleport` is the CLI tool that supports the Teleport Infrastructure Identity
-Platform, and allows Teleport services to be managed over the command line.
+`teleport` is the CLI tool that supports the Teleport Infrastructure Identity Platform, and allows Teleport services to be managed over the command line.
 
 ```code
 $ teleport <command> [<args> ...]
@@ -159,7 +158,7 @@ Flags:
 |`--cert-file`|*no default*|Path to a TLS certificate file for the proxy.|
 |`--cluster-name`|*no default*|Unique cluster name, e.g. example.com.|
 |`--data-dir`|`/var/lib/teleport`|Path to a directory where Teleport keep its data.|
-|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--key-file`|*no default*|Path to a TLS key file for the proxy.|
 |`--[no-]acme`|`false`|Get automatic certificate from Letsencrypt.org using ACME.|
 |`--node-labels`|*no default*|Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.|
@@ -217,8 +216,7 @@ Flags:
 
 ## teleport db configure bootstrap
 
-Bootstrap the necessary configuration for the database agent. It reads the
-provided agent configuration to determine what will be bootstrapped.
+Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.
 
 Usage:
 
@@ -374,8 +372,7 @@ $ teleport debug metrics
 
 ## teleport debug profile
 
-Export the application profiles (pprof format). Outputs to stdout .tar.gz file
-contents.
+Export the application profiles (pprof format). Outputs to stdout .tar.gz file contents.
 
 Usage:
 
@@ -407,8 +404,7 @@ $ teleport debug readyz
 
 ## teleport debug require-session-helper
 
-Checks if the embedded session helper is working, failing if not available in
-this build.
+Checks if the embedded session helper is working, failing if not available in this build.
 
 Usage:
 
@@ -434,8 +430,7 @@ Arguments:
 
 ## teleport discovery bootstrap
 
-Bootstrap the necessary configuration for the discovery agent. It reads the
-provided agent configuration to determine what will be bootstrapped.
+Bootstrap the necessary configuration for the discovery agent. It reads the provided agent configuration to determine what will be bootstrapped.
 
 Usage:
 
@@ -498,8 +493,7 @@ Flags:
 
 ## teleport integration configure access-graph aws-iam
 
-Adds required AWS IAM permissions for syncing AWS resources into Access Graph
-service.
+Adds required AWS IAM permissions for syncing AWS resources into Access Graph service.
 
 Usage:
 
@@ -521,8 +515,7 @@ Flags:
 
 ## teleport integration configure access-graph azure
 
-Adds required Azure permissions for syncing Azure resources into Access Graph
-service.
+Adds required Azure permissions for syncing Azure resources into Access Graph service.
 
 Usage:
 
@@ -559,8 +552,7 @@ Flags:
 
 ## teleport integration configure awsoidc-idp
 
-Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration
-to access AWS APIs.
+Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration to access AWS APIs.
 
 Usage:
 
@@ -645,8 +637,7 @@ Flags:
 
 ## teleport integration configure ec2-ssm-iam
 
-Adds required IAM permissions and SSM Document to enable EC2 Auto Discover using
-SSM.
+Adds required IAM permissions and SSM Document to enable EC2 Auto Discover using SSM.
 
 Usage:
 
@@ -688,8 +679,7 @@ Flags:
 
 ## teleport integration configure externalauditstorage
 
-Bootstraps required infrastructure and adds required IAM permissions for
-External Audit Storage logs.
+Bootstraps required infrastructure and adds required IAM permissions for External Audit Storage logs.
 
 Usage:
 
@@ -756,8 +746,7 @@ Flags:
 
 ## teleport integration configure session-summaries bedrock
 
-Adds required IAM permissions for Session Summaries feature using Amazon
-Bedrock.
+Adds required IAM permissions for Session Summaries feature using Amazon Bedrock.
 
 Usage:
 
@@ -822,7 +811,7 @@ Flags:
 |`--ca-pin`|*no default*|Comma-separated list of SKPI hashes for the CA used to verify the auth server.|
 |`--cluster-name`|*no default*|Unique cluster name, e.g. example.com.|
 |`--data-dir`|`/var/lib/teleport`|Path to a directory where Teleport keep its data.|
-|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--labels`|*no default*|Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.|
 |`--node-name`|*no default*|Name for the Teleport node.|
 |`--[no-]silent`|`false`|Suppress user hint message.|
