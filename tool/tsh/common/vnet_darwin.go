@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 	"github.com/gravitational/teleport/lib/vnet/diag"
@@ -76,7 +75,8 @@ func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetComman
 	return vnetCommandNotSupported{}
 }
 
-func runVnetDiagnostics(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error {
+func runVnetDiagnostics(ctx context.Context, vnetProcess *vnet.UserProcess) error {
+	nsi := vnetProcess.NetworkStackInfo()
 	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
 		VnetIfaceName: nsi.InterfaceName,
 		Routing:       &diag.DarwinRouting{},
@@ -92,6 +92,10 @@ func runVnetDiagnostics(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error
 
 	for _, rc := range rcs.GetRouteConflictReport().RouteConflicts {
 		fmt.Printf("Found a conflicting route: %+v\n", rc)
+	}
+
+	if err := runDNSDiag(ctx, vnetProcess); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

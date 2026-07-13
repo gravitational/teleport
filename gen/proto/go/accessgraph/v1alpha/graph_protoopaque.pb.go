@@ -21,7 +21,7 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/graph.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package accessgraphv1alpha
 
