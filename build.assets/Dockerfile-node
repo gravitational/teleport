@@ -46,6 +46,9 @@ RUN apt-get -y update && \
     python3-pip \
     python3-setuptools \
     python3-wheel \
+    # LLVM/Clang needed for WASM build
+    llvm \
+    clang \
     # Used during tag builds to build the RPM package of Connect.
     rpm \
     && \

@@ -568,7 +568,7 @@ build-ironrdp-wasm:
 	@echo "Skipping ironrdp WASM build (IRONRDP_SKIP_BUILD=1)"
 else
 build-ironrdp-wasm: ensure-wasm-deps
-	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' CC="$(WASM_CC)" AR="$(WASM_AR)" cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' $(WASM_CC_FLAGS) $(WASM_AR_FLAGS) cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
 	$(WASM_BINDGEN) target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
@@ -1927,9 +1927,9 @@ LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
 unexport LLVM_PREFIX
 LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
 unexport LLVM_DIR
-WASM_CC = $(LLVM_DIR)/bin/clang
+WASM_CC_FLAGS = CC=$(LLVM_DIR)/bin/clang
 unexport WASM_CC
-WASM_AR = $(LLVM_DIR)/bin/llvm-ar
+WASM_AR_FLAGS = AR=$(LLVM_DIR)/bin/llvm-ar
 unexport WASM_AR
 ensure-llvm-macos:
 	@if [[ "${BREW_DIR}" = "${LLVM_DIR}" ]]; then \
@@ -1938,9 +1938,7 @@ ensure-llvm-macos:
 	fi
 
 else
-WASM_CC = clang
-WASM_AR = llvm-ar
-ensure-llvm-macos:
+ensure_llvm_macos:
 endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
@@ -1983,7 +1981,7 @@ endif
 .PHONY: ensure-wasm-opt
 ensure-wasm-opt: WASM_OPT_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-wasm-opt-version)
 ensure-wasm-opt:
-	CC="$(WASM_CC)" AR="$(WASM_AR)" cargo install --locked wasm-opt@$(WASM_OPT_VERSION)
+	cargo install --locked wasm-opt@$(WASM_OPT_VERSION)
 
 .PHONY: build-ui
 build-ui: ensure-js-deps ensure-wasm-deps
