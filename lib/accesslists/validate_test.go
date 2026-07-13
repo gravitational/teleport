@@ -326,6 +326,80 @@ func TestAccessListValidateWithMembers_basic(t *testing.T) {
 			}
 		})
 
+		t.Run("owner list scope hierarchy is validated", func(t *testing.T) {
+			testCases := []struct {
+				name       string
+				listScope  string
+				ownerScope string
+				ownerKind  string
+				wantErr    string
+			}{
+				{
+					name:       "unscoped owner can own scoped list",
+					listScope:  "/eng/platform",
+					ownerScope: "",
+					ownerKind:  accesslist.MembershipKindList,
+				},
+				{
+					name:       "same scope owner can own scoped list",
+					listScope:  "/eng/platform",
+					ownerScope: "/eng/platform",
+					ownerKind:  accesslist.MembershipKindScopedList,
+				},
+				{
+					name:       "ancestor scope owner can own scoped list",
+					listScope:  "/eng/platform",
+					ownerScope: "/eng",
+					ownerKind:  accesslist.MembershipKindScopedList,
+				},
+				{
+					name:       "descendant scope owner is rejected",
+					listScope:  "/eng/platform",
+					ownerScope: "/eng/platform/team",
+					ownerKind:  accesslist.MembershipKindScopedList,
+					wantErr:    "because it is not at an equal or ancestor scope",
+				},
+				{
+					name:       "sibling scope owner is rejected",
+					listScope:  "/eng/platform",
+					ownerScope: "/eng/infra",
+					ownerKind:  accesslist.MembershipKindScopedList,
+					wantErr:    "because it is not at an equal or ancestor scope",
+				},
+				{
+					name:       "unscoped list cannot name scoped owner",
+					listScope:  "",
+					ownerScope: "/eng",
+					ownerKind:  accesslist.MembershipKindScopedList,
+					wantErr:    "because scoped access lists cannot be members or owners of unscoped access lists",
+				},
+			}
+
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					accessList := newScopedAccessList("test_scoped_access_list_owner_scope")
+					accessList.Scope = tc.listScope
+					ownerList := newScopedAccessList("owner-list")
+					ownerList.Scope = tc.ownerScope
+
+					accessList.Spec.Owners = []accesslist.Owner{{
+						Name:           ScopeQualifiedName(ownerList).String(),
+						MembershipKind: tc.ownerKind,
+					}}
+
+					getter := &mockAccessListAndMembersGetter{
+						accessLists: mockAccessLists(accessList, ownerList),
+					}
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, getter)
+					if tc.wantErr != "" {
+						require.ErrorContains(t, err, tc.wantErr)
+						return
+					}
+					require.NoError(t, err)
+				})
+			}
+		})
+
 		t.Run("owner scoped role grant scope must be equal or descendant", func(t *testing.T) {
 			accessList := newScopedAccessList("test_scoped_access_list_owner_grant_scope")
 			accessList.Scope = "/eng/platform"
@@ -381,22 +455,6 @@ func TestAccessListValidateWithMembers_basic(t *testing.T) {
 
 			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
 			require.ErrorContains(t, err, "scoped access lists cannot grant traits")
-		})
-
-		t.Run("nested list owners are rejected", func(t *testing.T) {
-			accessList := newScopedAccessList("test_scoped_access_list_owner_list")
-			accessList.Spec.Owners = []accesslist.Owner{{Name: "owner-list", MembershipKind: accesslist.MembershipKindList}}
-
-			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
-			require.ErrorContains(t, err, "access list owners are not yet supported for scoped access lists")
-		})
-
-		t.Run("scoped list owners are rejected", func(t *testing.T) {
-			accessList := newScopedAccessList("test_scoped_access_list_scoped_owner_list")
-			accessList.Spec.Owners = []accesslist.Owner{{Name: "/eng::owner-list", MembershipKind: accesslist.MembershipKindScopedList}}
-
-			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
-			require.ErrorContains(t, err, "access list owners are not yet supported for scoped access lists")
 		})
 
 		t.Run("members are rejected", func(t *testing.T) {

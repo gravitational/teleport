@@ -168,7 +168,12 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+	service, err := NewAccessListServiceV2(AccessListServiceConfig{
+		Backend:        backend.NewSanitizer(mem),
+		Modules:        modulestest.EnterpriseModules(),
+		ScopesFeatures: scopes.Features{Enabled: true},
+	})
+	require.NoError(t, err)
 
 	newScopedAccessList := func(name, scope string) *accesslist.AccessList {
 		acl := newAccessList(t, name, clock,

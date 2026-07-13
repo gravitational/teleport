@@ -242,9 +242,14 @@ type Owner struct {
 }
 
 // IsMembershipKindUser returns true if the owner is of kind user.
-// All types expect "MEMBERSHIP_KIND_LIST" are treated as "MEMBERSHIP_KIND_USER".
+// "" and "MEMBERSHIP_KIND_UNSPECIFIED" are treated as "MEMBERSHIP_KIND_USER".
 func (o *Owner) IsMembershipKindUser() bool {
 	return isMembershipKindUser(o.MembershipKind)
+}
+
+// IsMembershipKindList returns true if the owner is an access list.
+func (o *Owner) IsMembershipKindList() bool {
+	return IsMembershipKindList(o.MembershipKind)
 }
 
 func isMembershipKindUser(membershipKind string) bool {
@@ -253,6 +258,17 @@ func isMembershipKindUser(membershipKind string) bool {
 		return true
 	default:
 		// In case if MembershipKind was extended.
+		return false
+	}
+}
+
+// IsMembershipKindList returns true if the membership kind is
+// MembershipKindList or MembershipKindScopedList.
+func IsMembershipKindList(membershipKind string) bool {
+	switch membershipKind {
+	case MembershipKindList, MembershipKindScopedList:
+		return true
+	default:
 		return false
 	}
 }
