@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/dbobjectimportrule/v1/dbobjectimportrule_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package dbobjectimportrulev1
 

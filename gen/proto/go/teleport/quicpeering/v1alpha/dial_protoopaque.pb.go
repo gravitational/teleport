@@ -20,7 +20,7 @@
 // 	protoc        (unknown)
 // source: teleport/quicpeering/v1alpha/dial.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package quicpeeringv1alpha
 
