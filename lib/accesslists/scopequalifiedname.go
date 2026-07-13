@@ -136,3 +136,15 @@ func AllParentLists(list *accesslist.AccessList) ([]NormalizedSQN, error) {
 	}
 	return parentLists, nil
 }
+
+// ParentListOf returns the scope-qualified name of the parent list of the
+// given access list member.
+func ParentListOf(member *accesslist.AccessListMember) (NormalizedSQN, error) {
+	if member.Scope == "" {
+		if member.Spec.AccessList == "" {
+			return NormalizedSQN{}, trace.BadParameter("member spec.access_list field empty")
+		}
+		return NormalizedSQN{Name: member.Spec.AccessList}, nil
+	}
+	return ParseScopeQualifiedName(member.Spec.AccessList)
+}

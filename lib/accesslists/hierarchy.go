@@ -55,6 +55,36 @@ type AccessListMembersLister interface {
 }
 
 // TODO(nklaassen): delete this when everything used as an
+// [AccessListAndMembersGetter] implements ListAccessListMembersV2.
+func listAccessListMembers(ctx context.Context, g AccessListMembersLister, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	type accessListMembersListerV2 interface {
+		ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
+	}
+	if g, ok := g.(accessListMembersListerV2); ok {
+		return g.ListAccessListMembersV2(ctx, req)
+	}
+	if req.GetAccessListScope() != "" {
+		return nil, "", trace.BadParameter("can't list members of scoped access list when g does not implement ListAccessListMembersV2")
+	}
+	return g.ListAccessListMembers(ctx, req.GetAccessList(), int(req.GetPageSize()), req.GetPageToken())
+}
+
+// TODO(nklaassen): delete this when everything used as an
+// [AccessListAndMembersGetter] implements GetAccessListMemberV2.
+func getAccessListMember(ctx context.Context, g AccessListAndMembersGetter, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error) {
+	type accessListMemberGetterV2 interface {
+		GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error)
+	}
+	if g, ok := g.(accessListMemberGetterV2); ok {
+		return g.GetAccessListMemberV2(ctx, req)
+	}
+	if req.GetAccessListScope() != "" || req.GetMemberScope() != "" {
+		return nil, trace.BadParameter("cannot get scoped access list members when g does not implement GetAccessListMemberV2")
+	}
+	return g.GetAccessListMember(ctx, req.GetAccessList(), req.GetMemberName())
+}
+
+// TODO(nklaassen): delete this when everything used as an
 // [AccessListAndMembersGetter] implements GetAccessListV2.
 func getAccessList(ctx context.Context, g AccessListAndMembersGetter, accessListName NormalizedSQN) (*accesslist.AccessList, error) {
 	type accessListGetterV2 interface {
@@ -85,28 +115,39 @@ type lockGetter interface {
 // Returned Members are not validated for expiration or other requirements – use IsAccessListMember
 // to validate a Member's membership status.
 func GetMembersFor(ctx context.Context, accessListName string, g AccessListMembersLister) ([]*accesslist.AccessListMember, error) {
-	return getMembersFor(ctx, accessListName, g, make(map[string]struct{}))
+	return getMembersFor(ctx, NormalizedSQN{Name: accessListName}, g, make(map[NormalizedSQN]struct{}))
 }
 
-func getMembersFor(ctx context.Context, accessListName string, g AccessListMembersLister, visited map[string]struct{}) ([]*accesslist.AccessListMember, error) {
+// GetMembersForV2 returns a flattened list of Members for an Access List, including inherited Members.
+//
+// Returned Members are not validated for expiration or other requirements – use IsAccessListMember
+// to validate a Member's membership status.
+func GetMembersForV2(ctx context.Context, accessListName NormalizedSQN, g AccessListMembersLister) ([]*accesslist.AccessListMember, error) {
+	return getMembersFor(ctx, accessListName, g, make(map[NormalizedSQN]struct{}))
+}
+
+func getMembersFor(ctx context.Context, accessListName NormalizedSQN, g AccessListMembersLister, visited map[NormalizedSQN]struct{}) ([]*accesslist.AccessListMember, error) {
 	if _, ok := visited[accessListName]; ok {
 		return nil, nil
 	}
 	visited[accessListName] = struct{}{}
 
-	// TODO(nklaassen): support scoped access list members
-	members, err := fetchMembers(ctx, NormalizedSQN{Name: accessListName}, g)
+	members, err := fetchMembers(ctx, accessListName, g)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var allMembers []*accesslist.AccessListMember
 	for _, member := range members {
-		if member.Spec.MembershipKind != accesslist.MembershipKindList {
+		if !member.IsList() {
 			allMembers = append(allMembers, member)
 			continue
 		}
-		childMembers, err := getMembersFor(ctx, member.GetName(), g, visited)
+		memberName, err := MemberScopeQualifiedName(member)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		childMembers, err := getMembersFor(ctx, memberName, g, visited)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -118,15 +159,13 @@ func getMembersFor(ctx context.Context, accessListName string, g AccessListMembe
 
 // fetchMembers is a simple helper to fetch all top-level AccessListMembers for an AccessList.
 func fetchMembers(ctx context.Context, accessListName NormalizedSQN, g AccessListMembersLister) ([]*accesslist.AccessListMember, error) {
-	if accessListName.Scope != "" {
-		// Scoped access lists currently cannot have any members
-		// TODO(nklaassen): support scoped access list members.
-		return nil, nil
-	}
 	var allMembers []*accesslist.AccessListMember
-	pageToken := ""
+	req := accesslistv1.ListAccessListMembersRequest_builder{
+		AccessListScope: accessListName.Scope,
+		AccessList:      accessListName.Name,
+	}.Build()
 	for {
-		page, nextToken, err := g.ListAccessListMembers(ctx, accessListName.Name, 0, pageToken)
+		page, nextToken, err := listAccessListMembers(ctx, g, req)
 		if err != nil {
 			// If the AccessList doesn't exist yet, should return an empty list of members
 			if trace.IsNotFound(err) {
@@ -138,7 +177,7 @@ func fetchMembers(ctx context.Context, accessListName NormalizedSQN, g AccessLis
 		if nextToken == "" {
 			break
 		}
-		pageToken = nextToken
+		req.SetPageToken(nextToken)
 	}
 	return allMembers, nil
 }
@@ -187,18 +226,13 @@ func collectOwners(
 
 // collectMembersAsOwners is a helper to collect all nested members of an AccessList and return them cast as Owners.
 func collectMembersAsOwners(ctx context.Context, accessListName NormalizedSQN, g AccessListMembersLister, visited map[NormalizedSQN]struct{}) ([]*accesslist.Owner, error) {
-	// TODO(nklaassen): support scoped access list members.
-	if accessListName.Scope != "" {
-		return nil, nil
-	}
-
 	owners := make([]*accesslist.Owner, 0)
 	if _, ok := visited[accessListName]; ok {
 		return owners, nil
 	}
 	visited[accessListName] = struct{}{}
 
-	listMembers, err := GetMembersFor(ctx, accessListName.Name, g)
+	listMembers, err := GetMembersForV2(ctx, accessListName, g)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -454,7 +488,7 @@ func IsAccessListMember(
 
 	for _, member := range members {
 		// Is user an explicit member?
-		if member.Spec.MembershipKind != accesslist.MembershipKindList && member.GetName() == user.GetName() {
+		if member.IsUser() && member.GetName() == user.GetName() {
 			if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
 				// Avoid non-deterministic behavior in these checks. Rather than returning immediately, continue
 				// through all members to make sure there isn't a valid match later on.
@@ -468,13 +502,17 @@ func IsAccessListMember(
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
 		}
 		// Is user an inherited member through any potential member AccessLists?
-		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			memberAccessList, err := g.GetAccessList(ctx, member.GetName())
+		if member.IsList() {
+			memberName, err := MemberScopeQualifiedName(member)
+			if err != nil {
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
+			}
+			memberAccessList, err := getAccessList(ctx, g, memberName)
 			if err != nil {
 				if trace.IsNotFound(err) {
 					continue
 				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "getting access list %q", member.GetName())
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "getting access list %q", memberName.String())
 			}
 			// Since we already verified that the user is not locked, don't provide lockGetter here
 			membershipType, err := IsAccessListMember(ctx, user, memberAccessList, g, nil, clock)
@@ -692,7 +730,11 @@ func (s *Hierarchy) GetHierarchyForUser(ctx context.Context, accessList *accessl
 }
 
 func (s *Hierarchy) validMembership(ctx context.Context, list *accesslist.AccessList, user types.User) (bool, error) {
-	m, err := s.AccessListsService.GetAccessListMember(ctx, list.GetName(), user.GetName())
+	m, err := getAccessListMember(ctx, s.AccessListsService, accesslistv1.GetAccessListMemberRequest_builder{
+		AccessListScope: list.GetScope(),
+		AccessList:      list.GetName(),
+		MemberName:      user.GetName(),
+	}.Build())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return false, nil
@@ -817,14 +859,15 @@ func collectAncestors(
 	visited[ScopeQualifiedName(accessList)] = struct{}{}
 
 	isDirectMembershipExpired := func(acl, member NormalizedSQN) (bool, error) {
-		// TODO(nklaassen): support scoped access list members.
-		if acl.Scope != "" || member.Scope != "" {
-			return false, trace.BadParameter("scoped access list members are not yet supported")
-		}
 		if !options.validateUserRequirement {
 			return false, nil
 		}
-		m, err := g.GetAccessListMember(ctx, acl.Name, member.Name)
+		m, err := getAccessListMember(ctx, g, accesslistv1.GetAccessListMemberRequest_builder{
+			AccessListScope: acl.Scope,
+			AccessList:      acl.Name,
+			MemberScope:     member.Scope,
+			MemberName:      member.Name,
+		}.Build())
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
