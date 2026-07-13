@@ -54,6 +54,10 @@ extension LandingViewModel {
 	var shouldShowPreEnrollmentLanding: Bool {
 		clusters.isEmpty
 	}
+
+	var shouldShowToolbar: Bool {
+		!shouldShowPreEnrollmentLanding
+	}
 }
 
 // MARK: - User Actions

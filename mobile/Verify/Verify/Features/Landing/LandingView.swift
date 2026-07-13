@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import Dependencies
+import SQLiteData
 import SwiftUI
 import SwiftUINavigation
 
@@ -43,6 +45,16 @@ struct LandingView: View {
 			}
 			.padding(.horizontal)
 			.background(Color.Background.depth3)
+			.toolbarVisibility(viewModel.shouldShowToolbar ? .visible : .hidden)
+			.toolbar {
+				ToolbarItem {
+					Menu {
+						Button("Hello") {}
+					} label: {
+						Label("Menu", systemImage: "ellipsis")
+					}
+				}
+			}
 
 			// MARK: Navigation
 
@@ -61,8 +73,17 @@ struct LandingView: View {
 	}
 }
 
-#Preview("Landing") {
+#Preview("Pre-enrollment") {
+	LandingView(viewModel: LandingViewModel())
+}
+
+#Preview("Post-enrollment") {
 	@Previewable @State
-	var viewModel = LandingViewModel()
+	var viewModel = withDependencies {
+		$0.defaultDatabase = AppDatabase.makePreviewDatabase()
+	} operation: {
+		LandingViewModel()
+	}
+
 	LandingView(viewModel: viewModel)
 }
