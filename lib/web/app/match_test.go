@@ -151,6 +151,60 @@ func TestMatchAppServerForRoute(t *testing.T) {
 	}
 }
 
+func TestIsHostUnderProxy(t *testing.T) {
+	t.Parallel()
+	const proxy = "teleport.example.com"
+	for _, test := range []struct {
+		desc  string
+		host  string
+		proxy string
+		want  bool
+	}{
+		{
+			desc:  "exact match",
+			host:  proxy,
+			proxy: proxy,
+			want:  true,
+		},
+		{
+			desc:  "subdomain",
+			host:  "app.teleport.example.com",
+			proxy: proxy,
+			want:  true,
+		},
+		{
+			desc:  "multi-label subdomain",
+			host:  "a.b.teleport.example.com",
+			proxy: proxy,
+			want:  true,
+		},
+		{
+			// The bug this guards against: a raw suffix check would accept this
+			// because it ends in "teleport.example.com" with no label boundary.
+			desc:  "no label boundary",
+			host:  "evilteleport.example.com",
+			proxy: proxy,
+			want:  false,
+		},
+		{
+			desc:  "proxy name as a lower-level domain",
+			host:  "teleport.example.com.evil.com",
+			proxy: proxy,
+			want:  false,
+		},
+		{
+			desc:  "unrelated domain",
+			host:  "app.somewebsite.com",
+			proxy: proxy,
+			want:  false,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			require.Equal(t, test.want, isHostUnderProxy(test.host, test.proxy))
+		})
+	}
+}
+
 func TestPickAppServer(t *testing.T) {
 	t.Parallel()
 

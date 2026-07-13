@@ -20,7 +20,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"math/rand/v2"
 	"strings"
 
@@ -134,23 +133,24 @@ func ResolveFQDN(
 		// suffix, so confirm the FQDN actually sits under a configured proxy DNS name before trusting a
 		// scoped match, otherwise "<hash>.somewebsite.com" resolves.
 		if srv.GetApp().GetScope() != "" {
-			host := strings.Split(fqdn, ":")[0]
 			// In the case where FindMatchingProxyDNS finds an actual found proxy match, this check is redundant.
 			// In the case where it finds no matches, FindMatchingProxyDNS returns the first element of proxyDNSNames,
 			// we must recheck to make sure that the proxy found matches, and reject if it doesn't.
+			host := strings.Split(fqdn, ":")[0]
 			proxyMatch := strings.Split(utils.FindMatchingProxyDNS(fqdn, proxyDNSNames), ":")[0]
-			if host != proxyMatch && !strings.HasSuffix(host, "."+proxyMatch) {
+			if !isHostUnderProxy(host, proxyMatch) {
 				return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 			}
 		}
 		return srv, localClusterName, nil
 	}
 
-	proxyPublicAddr := utils.FindMatchingProxyDNS(fqdn, proxyDNSNames)
-	if !strings.HasSuffix(fqdn, proxyPublicAddr) {
+	host := strings.Split(fqdn, ":")[0]
+	proxyPublicAddr := strings.Split(utils.FindMatchingProxyDNS(fqdn, proxyDNSNames), ":")[0]
+	if !isHostUnderProxy(host, proxyPublicAddr) {
 		return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 	}
-	appName := strings.TrimSuffix(fqdn, fmt.Sprintf(".%s", proxyPublicAddr))
+	appName := strings.TrimSuffix(host, "."+proxyPublicAddr)
 
 	// Loop over all clusters and try and match application name to an
 	// application within the cluster. This also includes the local cluster.
@@ -166,6 +166,11 @@ func ResolveFQDN(
 	}
 
 	return nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
+}
+
+// isHostUnderProxy tells whether host is the proxy DNS name itself or a subdomain of it.
+func isHostUnderProxy(host, proxy string) bool {
+	return host == proxy || strings.HasSuffix(host, "."+proxy)
 }
 
 // pickAppServer chooses one app server from a set of matches. When canAccess is
