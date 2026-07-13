@@ -17,6 +17,7 @@
 import SwiftUI
 import SwiftUINavigation
 
+/// The root-most view of our app (i.e. where the user initially "lands").
 struct LandingView: View {
 	@Bindable
 	var viewModel: LandingViewModel

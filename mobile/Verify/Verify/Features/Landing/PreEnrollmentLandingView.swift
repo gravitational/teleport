@@ -16,6 +16,7 @@
 
 import SwiftUI
 
+/// The contents of the landing view if the user has not yet enrolled their device.
 struct PreEnrollmentLandingView: View {
 	var onScanQRCodeTapped: () -> Void
 

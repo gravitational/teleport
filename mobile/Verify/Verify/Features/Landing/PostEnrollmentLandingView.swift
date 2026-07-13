@@ -17,6 +17,8 @@
 import Dependencies
 import SwiftUI
 
+/// The contents of the landing view if the user has already enrolled their device in Device Trust with at least one
+/// cluster.
 struct PostEnrollmentLandingView: View {
 	var clusters: [Cluster]
 	var didTapOnCluster: (Cluster) async -> Void
