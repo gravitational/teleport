@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 const (
@@ -99,7 +100,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 
 	vnetIPv6Prefix, err := newIPv6Prefix()
 	require.NoError(t, err)
-	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
+	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, dns.DNSServerSuffix)
 
 	// In reality the VNet networking stack runs in a separate process from the
 	// client application and communicates over gRPC. For the test, everything

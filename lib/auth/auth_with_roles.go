@@ -1130,30 +1130,27 @@ func (a *ServerWithRoles) ClearAlertAcks(ctx context.Context, req proto.ClearAle
 	return a.authServer.ClearAlertAcks(ctx, req)
 }
 
-func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	ruleCtx := a.scopedContext.RuleContext()
 	// Note: UpsertNode doesn't allow any namespaces but "default".
-	if err := a.authorizeAction(types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
+	// The Decision API only checks on the default namespace.
+	if err := a.scopedContext.CheckerContext.Decision(ctx, s.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindNode, types.VerbCreate, types.VerbUpdate)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
+	agentScope := a.scopedContext.Identity.GetIdentity().GetAgentScope()
 	if nodeScope := s.GetScope(); agentScope != "" {
 		if nodeScope != agentScope {
 			return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
 		}
+	}
 
-		if a.hasBuiltinRole(types.RoleNode) {
-			clusterName, err := a.GetDomainName(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			callerID, err := ExtractHostID(a.context.User.GetName(), clusterName)
-			if err != nil {
-				return nil, trace.AccessDenied("access denied")
-			}
-			if s.GetName() != callerID {
-				return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
-			}
+	if a.hasBuiltinRole(types.RoleNode) {
+		callerID, _ := getBuiltinServerID(a.scopedContext.Identity)
+		if s.GetName() != callerID {
+			return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
 		}
 	}
 

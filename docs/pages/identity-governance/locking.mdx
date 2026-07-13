@@ -48,6 +48,43 @@ to prevent various operations, e.g., preventing access from a locked user.
 
 - (!docs/pages/includes/tctl.mdx!)
 
+- Your user must have permissions to manage Teleport lock resources. The preset
+  `editor` role has these permissions, though we recommend defining more
+  granular roles for security.
+
+  <details>
+  <summary>Grant permissions to your user</summary>
+
+    To grant your user permissions to manage locks:
+    
+    1. Define a role with the following permissions (this one is called
+       `locksmith`):
+    
+       ```yaml
+       kind: role
+       version: v5
+       metadata:
+         name: locksmith
+       spec:
+         allow:
+           rules:
+             - resources: [lock]
+               verbs: [list, create, read, update, delete]
+       ```
+    
+    1. Create the role:
+    
+       ```code
+       $ tctl create -f locksmith.yaml
+       # role 'locksmith' has been created
+       ```
+    
+       (!docs/pages/includes/create-role-using-web.mdx!)
+    
+    1. (!docs/pages/includes/add-role-to-user.mdx role="locksmith"!)
+
+  </details>
+
 ## Step 1/2. Create a lock
 
 You can create a new lock with the `tctl lock` command. Specify the lock target
@@ -127,43 +164,6 @@ with one of the following options:
   </TabItem>
 </Tabs>
 
-<details>
-<summary>Troubleshooting: failed to create a lock?</summary>
-
-If your user is missing a lock permission, you will get an error when creating
-a lock:
-
-```txt
-ERROR: access denied to perform action "create" on "lock"
-```
-
-Define a role `locksmith`:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: locksmith
-spec:
-  allow:
-    rules:
-      - resources: [lock]
-        verbs: [list, create, read, update, delete]
-```
-
-Create the role:
-
-```code
-$ tctl create -f locksmith.yaml
-# role 'locksmith' has been created
-```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
-
-(!docs/pages/includes/add-role-to-user.mdx role="locksmith"!)
-
-</details>
-
 With a lock in force, all established connections involving the lock's target
 get terminated while any new requests are rejected.
 
@@ -221,7 +221,11 @@ $ tctl rm locks/24679348-baff-4987-a2cd-e820ab7f9d2b
 lock "24679348-baff-4987-a2cd-e820ab7f9d2b" has been deleted
 ```
 
-Deleting a lock will allow new sessions or host connections.
+The change may take a moment to take effect as Teleport services that implement
+lock watchers need to pick up on it.
+
+Once the deletion has taken effect, your cluster will allow new sessions or host
+connections.
 
 ## Next steps: Locking modes
 

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/decision_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package decisionpb
 

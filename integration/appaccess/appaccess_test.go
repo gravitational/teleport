@@ -61,20 +61,40 @@ import (
 // It allows to make the entire cluster set up once, instead of per test,
 // which speeds things up significantly.
 func TestAppAccess(t *testing.T) {
-	// Enable MCP test servers.
-	sseServerURL := mcptest.MustStartSSETestServer(t)
-	streamableHTTPServer := mcpserver.NewTestStreamableHTTPServer(mcptest.NewServer())
-	streamableHTTPServerURL := fmt.Sprintf("mcp+%s/mcp", streamableHTTPServer.URL)
+	sseServer := httptest.NewServer(mcpserver.NewSSEServer(mcptest.NewServer()))
+	sseServerURL := "mcp+sse+" + sseServer.URL + "/sse"
+	t.Cleanup(sseServer.Close)
+
+	sseTLSServer := httptest.NewTLSServer(mcpserver.NewSSEServer(mcptest.NewServer()))
+	sseTLSServerURL := "mcp+sse+" + sseTLSServer.URL + "/sse"
+	t.Cleanup(sseTLSServer.Close)
+
+	streamableHTTPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcptest.NewServer()))
+	streamableHTTPServerURL := "mcp+" + streamableHTTPServer.URL + "/mcp"
 	t.Cleanup(streamableHTTPServer.Close)
+
+	streamableHTTPTLSServer := httptest.NewTLSServer(mcpserver.NewStreamableHTTPServer(mcptest.NewServer()))
+	streamableHTTPTLSServerURL := "mcp+" + streamableHTTPTLSServer.URL + "/mcp"
+	t.Cleanup(streamableHTTPTLSServer.Close)
 
 	extraApps := []servicecfg.App{
 		{
 			Name: "test-sse",
-			URI:  "mcp+sse+" + sseServerURL,
+			URI:  sseServerURL,
+		},
+		{
+			Name:               "test-sse-https",
+			URI:                sseTLSServerURL,
+			InsecureSkipVerify: true,
 		},
 		{
 			Name: "test-http",
 			URI:  streamableHTTPServerURL,
+		},
+		{
+			Name:               "test-https",
+			URI:                streamableHTTPTLSServerURL,
+			InsecureSkipVerify: true,
 		},
 	}
 
