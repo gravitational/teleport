@@ -183,6 +183,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -3103,6 +3104,11 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
+
+	if err := subca.RegisterMetrics(process.metricsRegistry); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
