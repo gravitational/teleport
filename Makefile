@@ -1920,7 +1920,9 @@ else
 ensure-wasm-deps: ensure-llvm-macos rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
 
 .PHONY: ensure-llvm-macos
-ifeq ("$(OS)-$(ARCH)","darwin-arm64")
+ifeq ("$(OS)","darwin")
+ifeq ("$(ARCH)","arm64")
+# darwin-arm64
 BREW_DIR = $(shell brew --prefix)
 unexport BREW_DIR
 LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
@@ -1936,9 +1938,15 @@ ensure-llvm-macos:
 		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
 		exit 1; \
 	fi
-
 else
-ensure_llvm_macos:
+# darwin-amd64
+WASM_CC_FLAGS=clang
+WASM_AR_FLAGS=llvm-ar
+ensure-llvm_macos:
+endif
+else
+# not darwin
+ensure-llvm_macos:
 endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
