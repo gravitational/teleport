@@ -68,7 +68,7 @@ var retryTotal = prometheus.NewCounter(
 var deadLetterPromotions = prometheus.NewCounter(
 	prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
-		Name:      "audit_queue_dead_letter_total",
+		Name:      "audit_queue_dead_letter_promotions_total",
 		Help:      "Total number of audit events moved to the dead-letter queue after exhausting retries.",
 	},
 )
