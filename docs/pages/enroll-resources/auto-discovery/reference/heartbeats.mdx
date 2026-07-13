@@ -1,0 +1,78 @@
+---
+title: Discovery Service Heartbeats Reference
+sidebar_label: Discovery Service Heartbeats
+description: Describes how Discovery Services report configuration snapshots and recent authenticated announcements.
+tags:
+ - reference
+ - zero-trust
+ - infrastructure-identity
+page_type: reference
+---
+
+A Teleport Discovery Service periodically attempts to publish a configuration
+heartbeat: a `discovery_service` resource named by the service's host ID. The
+resource is a bounded snapshot of the service's effective static configuration
+and instance context. Dynamic configuration is not included.
+
+The Auth Service assigns an expiry when it stores an announcement. An
+unexpired resource means that Auth authenticated and stored an announcement
+before its server-assigned TTL elapsed. It does not prove that the Discovery
+Service is currently reachable or that a discovery cycle succeeded.
+
+## Reading heartbeats
+
+List all Discovery Service heartbeats:
+
+```code
+$ tctl get discovery_services
+```
+
+Fetch one service's full configuration by host ID. Assign <Var name="host-id" />
+to the host ID of the Discovery Service instance to inspect, shown in the
+`metadata.name` field of the `tctl get discovery_services` output:
+
+```code
+$ tctl get discovery_service/<Var name="host-id" /> --format=yaml
+```
+
+Only the Discovery Service itself can create or modify its heartbeat. A user
+role with the `delete` verb can remove one; if the service is still reporting,
+it recreates the record on its next renewal. The preset `editor` and `auditor`
+roles can read heartbeats; grant a custom role `read` and `list` on the
+`discovery_service` kind to allow access. Teleport denies access when a role
+does not have the required verbs.
+
+## Fields
+
+The heartbeat spec carries configuration only — what the service is set up to
+discover — never runtime results:
+
+- `hostname`, `teleport_version`: identity of the reporting instance.
+- `discovery_group`: the discovery group this instance claims. Dynamic
+  `discovery_config` resources are processed only by services whose group
+  matches exactly.
+- `poll_interval`: the cadence of the service's discovery cycles.
+- `static_matchers`: a discovery-oriented projection of the effective matchers
+  from the service's configuration file after local defaults and filtering.
+  AWS, Azure, and GCP installer parameters are not reported.
+- `matchers_truncated` and `static_matcher_counts`: set when the matcher
+  detail exceeded the reporting size budget; per-cloud counts remain
+  available and consumers must treat matcher visibility as partial.
+
+Dynamic `discovery_config` resources are intended assignments inferred by an
+exact match between their `discovery_group` and the group claimed by a service.
+Read the resources separately with `tctl get discovery_config`. A group match
+does not prove that a configuration was observed, applied, or is running.
+
+## Troubleshooting with heartbeats
+
+Inspect `discovery_service` and `discovery_config` resources separately when
+investigating intended group assignments. A missing heartbeat does
+not identify a single cause. The service may be stopped or running a Teleport
+version that predates heartbeat support, or publication may be failing because
+of Auth Service, network, or authorization problems.
+
+Likewise, the absence of an unexpired heartbeat with a matching
+`discovery_group` does not prove that no service is processing a
+`discovery_config`. Heartbeats are diagnostic evidence, not a complete health
+or reachability check.

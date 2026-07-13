@@ -18,4 +18,10 @@ the following configuration.
 from Production account.
 - 2 Discovery Services configured with `discovery_group: "staging"` polling data
 from Staging account.
+
+Each Discovery Service reports the `discovery_group` it claims on its
+configuration heartbeat, so group assignments can be inspected with
+`tctl get discovery_services`. Dynamic configurations are inferred as intended
+assignments only when their group matches exactly; a heartbeat does not prove
+that they were observed, applied, or are running.
 </Admonition>

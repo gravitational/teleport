@@ -83,16 +83,18 @@ func (process *TeleportProcess) initDiscoveryService() error {
 			Kubernetes:  process.Config.Discovery.KubernetesMatchers,
 			AccessGraph: process.Config.Discovery.AccessGraph,
 		},
-		DiscoveryGroup:    process.Config.Discovery.DiscoveryGroup,
-		Emitter:           asyncEmitter,
-		AccessPoint:       accessPoint,
-		ServerID:          conn.HostUUID(),
-		Log:               process.logger,
-		ClusterName:       conn.ClusterName(),
-		ClusterFeatures:   process.GetClusterFeatures,
-		PollInterval:      process.Config.Discovery.PollInterval,
-		GetClientCert:     conn.ClientGetCertificate,
-		AccessGraphConfig: accessGraphCfg,
+		DiscoveryGroup:            process.Config.Discovery.DiscoveryGroup,
+		Emitter:                   asyncEmitter,
+		AccessPoint:               accessPoint,
+		ServerID:                  conn.HostUUID(),
+		Hostname:                  process.Config.Hostname,
+		DiscoveryServiceAnnouncer: conn.Client,
+		Log:                       process.logger,
+		ClusterName:               conn.ClusterName(),
+		ClusterFeatures:           process.GetClusterFeatures,
+		PollInterval:              process.Config.Discovery.PollInterval,
+		GetClientCert:             conn.ClientGetCertificate,
+		AccessGraphConfig:         accessGraphCfg,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -117,9 +119,8 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 	logger.InfoContext(process.ExitContext(), "Discovery service has successfully started")
 
-	// The Discovery service doesn't have heartbeats so we cannot use them to check health.
-	// For now, we just mark ourselves ready all the time on startup.
-	// If we don't, a process only running the Discovery service will never report ready.
+	// Discovery readiness reflects successful role initialization. The
+	// configuration announcer is diagnostic and must not drive process health.
 	process.OnHeartbeat(teleport.ComponentDiscovery)(nil)
 
 	if err := discoveryService.Wait(); err != nil {

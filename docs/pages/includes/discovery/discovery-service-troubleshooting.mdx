@@ -2,7 +2,29 @@
 
 ### Discovery Service troubleshooting
 
-First, check if any {{ resourceKind }}s have been discovered.
+First, inspect the Discovery Service heartbeats that Auth currently stores:
+
+```code
+$ tctl get discovery_services
+```
+
+A listed configuration heartbeat shows the Discovery Service's claimed
+`discovery_group` and a discovery-oriented projection of its effective static
+matchers. AWS, Azure, and GCP installer parameters are not reported. Dynamic
+`discovery_config` resources are inferred as intended assignments when their
+`discovery_group` matches exactly. A heartbeat does not prove that a dynamic
+configuration was observed, applied, or is running; inspect the local
+Discovery Service logs and discovered resources when diagnosing adoption.
+
+Inspect `discovery_service` and `discovery_config` resources separately when
+checking their group values. The absence of an unexpired heartbeat with a
+matching group does not prove that no service is processing a configuration.
+A heartbeat can be absent because the service is stopped, runs a Teleport
+version that predates configuration heartbeats, cannot reach Auth, or cannot
+publish its snapshot. Access to heartbeat resources also requires `read` and
+`list` permissions for the `discovery_service` kind.
+
+Next, check if any {{ resourceKind }}s have been discovered.
 To do this, you can use the `tctl get {{ tctlResource }}` command and check if the
 expected {{ resourceKind }}s have already been registered with your Teleport
 cluster.

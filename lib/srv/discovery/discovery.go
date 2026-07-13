@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -154,6 +155,12 @@ type Config struct {
 	Log *slog.Logger
 	// ServerID identifies the Teleport instance where this service runs.
 	ServerID string
+	// Hostname is the hostname of the machine running this service, reported
+	// on the configuration heartbeat for troubleshooting.
+	Hostname string
+	// DiscoveryServiceAnnouncer upserts this service's configuration
+	// heartbeat resource. Nil disables heartbeating.
+	DiscoveryServiceAnnouncer Announcer
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
 	// onKubernetesClusterReconcile is called after each Kubernetes cluster resource reconciliation.
@@ -202,6 +209,9 @@ type Config struct {
 	// jitter is a function which applies random jitter to a duration.
 	// It is used to add Expiration times to Resources that don't support Heartbeats (eg EICE Nodes).
 	jitter retryutils.Jitter
+	// heartbeatJitter applies full jitter to heartbeat scheduling intervals.
+	// It is overridden by heartbeat scheduling tests.
+	heartbeatJitter retryutils.Jitter
 
 	// initAzureClients initializes an instance of Azure clients with particular options.
 	initAzureClients func(opts ...azure.ClientsOption) (azure.Clients, error)
@@ -358,6 +368,16 @@ kubernetes matchers are present.`)
 	if c.Log == nil {
 		c.Log = slog.Default()
 	}
+	if c.Hostname == "" {
+		// Hostname is diagnostic heartbeat context only: when it cannot be
+		// determined, the service starts anyway and heartbeats carry an
+		// empty hostname rather than blocking startup on a cosmetic field.
+		hostname, err := os.Hostname()
+		if err != nil {
+			c.Log.WarnContext(context.Background(), "Failed to determine hostname for discovery service heartbeat", "error", err)
+		}
+		c.Hostname = hostname
+	}
 
 	if c.protocolChecker == nil {
 		c.protocolChecker = fetchers.NewProtoChecker()
@@ -389,6 +409,9 @@ kubernetes matchers are present.`)
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
 
 	c.jitter = retryutils.SeventhJitter
+	if c.heartbeatJitter == nil {
+		c.heartbeatJitter = retryutils.FullJitter
+	}
 
 	return nil
 }
@@ -2061,6 +2084,9 @@ func (s *Server) submitFetchEvent(cloudProvider, resourceType string) {
 
 // Start starts the discovery service.
 func (s *Server) Start() error {
+	if s.DiscoveryServiceAnnouncer != nil {
+		s.startHeartbeatAnnouncer()
+	}
 	if s.ec2Watcher != nil {
 		go s.startAWSServerDiscovery()
 		go s.reconciler.run(s.ctx)
@@ -2354,14 +2380,15 @@ func discardAmbientCredentialMatchers(ctx context.Context, log *slog.Logger, m *
 		m.GCP = []types.GCPMatcher{}
 	}
 
-	filtered := slices.DeleteFunc(m.Azure, func(matcher types.AzureMatcher) bool {
+	// Clone before DeleteFunc: m.Azure aliases the process config slice, which
+	// the heartbeat path also reads, and DeleteFunc zeroes the backing array.
+	validAzureMatchers := slices.DeleteFunc(slices.Clone(m.Azure), func(matcher types.AzureMatcher) bool {
 		return matcher.Integration == ""
 	})
-	discarded := len(m.Azure) - len(filtered)
-	if discarded > 0 {
-		m.Azure = filtered
+	if discarded := len(m.Azure) - len(validAzureMatchers); discarded > 0 {
 		log.WarnContext(ctx, "Discarded Azure matchers without integration", "count", discarded)
 	}
+	m.Azure = validAzureMatchers
 
 	if len(m.Kubernetes) > 0 {
 		log.WarnContext(ctx, "Discarding Kubernetes matchers - missing integration")
