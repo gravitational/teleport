@@ -28,7 +28,7 @@ import (
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 )
 
-type ReviewOption func(*accesslist.Review)
+type ReviewOption func(msg *accesslistv1.Review, review *accesslist.Review)
 
 // FromReviewProto converts a v1 access list review into an internal access list review object.
 func FromReviewProto(msg *accesslistv1.Review, opts ...ReviewOption) (*accesslist.Review, error) {
@@ -73,7 +73,7 @@ func FromReviewProto(msg *accesslistv1.Review, opts ...ReviewOption) (*accesslis
 	}
 
 	for _, opt := range opts {
-		opt(review)
+		opt(msg, review)
 	}
 
 	return review, nil
@@ -151,9 +151,9 @@ func fromReviewStatusProto(status *accesslistv1.ReviewStatus) *accesslist.Review
 	}
 }
 
-// WithReviewStatusField sets the status field to the provided proto value.
-func WithReviewStatusField(protoReview *accesslistv1.Review) ReviewOption {
-	return func(r *accesslist.Review) {
-		r.Status = fromReviewStatusProto(protoReview.GetStatus())
+// WithReviewStatus copies the status field from the source proto message.
+func WithReviewStatus() ReviewOption {
+	return func(msg *accesslistv1.Review, review *accesslist.Review) {
+		review.Status = fromReviewStatusProto(msg.GetStatus())
 	}
 }

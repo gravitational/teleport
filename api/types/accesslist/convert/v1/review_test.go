@@ -82,7 +82,7 @@ func TestReviewStatusConversion(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, withoutStatus.Status)
 
-	withStatus, err := FromReviewProto(msg, WithReviewStatusField(msg))
+	withStatus, err := FromReviewProto(msg, WithReviewStatus())
 	require.NoError(t, err)
 	require.NotNil(t, withStatus.Status)
 	require.Equal(t, review.Status.ReviewerDisplays, withStatus.Status.ReviewerDisplays)
@@ -95,7 +95,7 @@ func TestReviewStatusConversionNils(t *testing.T) {
 	msg := ToReviewProto(review)
 	require.Nil(t, msg.GetStatus())
 
-	withStatus, err := FromReviewProto(msg, WithReviewStatusField(msg))
+	withStatus, err := FromReviewProto(msg, WithReviewStatus())
 	require.NoError(t, err)
 	require.Nil(t, withStatus.Status)
 }
