@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
@@ -101,6 +102,16 @@ func (b *Collection) GetAccessList(ctx context.Context, name string) (*accesslis
 		return nil, trace.NotFound("access list %q not found in batch", name)
 	}
 	return al, nil
+}
+
+// GetAccessListV2 retrieves an access list from the batch by scoped name.
+// Implements accesslists.AccessListAndMembersGetter interface.
+func (b *Collection) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
+	// TODO(nklaassen): support collections of scoped access lists.
+	if req.GetScope() != "" {
+		return nil, trace.BadParameter("Collection does not support scoped access lists")
+	}
+	return b.GetAccessList(ctx, req.GetName())
 }
 
 // ListAccessListMembers retrieves members for an access list from the batch.
