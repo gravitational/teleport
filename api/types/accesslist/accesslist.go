@@ -706,8 +706,9 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 type EqualAccessListsOption func(*equalAccessListsConfig)
 
 type equalAccessListsConfig struct {
-	skipClone     bool
-	resetFieldsFn func(*AccessList)
+	skipClone      bool
+	resetFieldsFn  func(*AccessList)
+	canonicalizeFn func(*AccessList)
 }
 
 // WithSkipClone configures EqualAccessLists to skip cloning
@@ -772,6 +773,24 @@ func WithIgnoreOktaUserManagedFields() EqualAccessListsOption {
 	}
 }
 
+// WithCanonicalFields configures EqualAccessLists to canonicalize slice fields
+// within the Spec to ensure a consistent order and remove duplicates before
+// comparison. This prevents false negatives in equality checks where slices
+// might have different orders or contain duplicates.
+//
+// The following fields are canonicalized: Grants (roles/traits/scopedRoles),
+// OwnerGrants (roles/traits/scopedRoles), MembershipRequires (roles/traits),
+// OwnershipRequires (roles/traits) and Owners.
+//
+// Note: This option reorders and de-duplicates the listed slice fields. As with
+// [WithIgnoreEphemeralFields], the input Access Lists are cloned (unless
+// [WithSkipClone] is also used) to avoid modifying the originals.
+func WithCanonicalFields() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.canonicalizeFn = canonicalizeAccessList
+	}
+}
+
 // EqualAccessLists compares two access lists for semantic equality.
 //
 // By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()
@@ -796,6 +815,11 @@ func EqualAccessLists(a, b *AccessList, opts ...EqualAccessListsOption) bool {
 		cfg.resetFieldsFn(b)
 	}
 
+	if cfg.canonicalizeFn != nil {
+		cfg.canonicalizeFn(a)
+		cfg.canonicalizeFn(b)
+	}
+
 	return deriveTeleportEqualAccessList(a, b)
 }
 
@@ -809,5 +833,97 @@ func resetEphemeralFieldsAccessList(a *AccessList) {
 	a.Status = Status{}
 	for i := range a.Spec.Owners {
 		a.Spec.Owners[i].IneligibleStatus = ""
+	}
+}
+
+func canonicalizeAccessList(a *AccessList) {
+	if a == nil {
+		return
+	}
+
+	canonicalizeOwners(&a.Spec.Owners)
+	canonicalizeGrants(&a.Spec.Grants)
+	canonicalizeGrants(&a.Spec.OwnerGrants)
+	canonicalizeRequires(&a.Spec.MembershipRequires)
+	canonicalizeRequires(&a.Spec.OwnershipRequires)
+}
+
+// canonicalize the owner of an access list.
+// NOTE: Please to not use this function outside of the canonicalize flow. If
+// similar functionality is needed elsewhere, please consider using derive based
+// functions instead.
+func canonicalizeOwner(a, b Owner) int {
+	if a.Name != b.Name {
+		return strings.Compare(a.Name, b.Name)
+	}
+	if a.MembershipKind != b.MembershipKind {
+		return strings.Compare(a.MembershipKind, b.MembershipKind)
+	}
+	if a.Description != b.Description {
+		return strings.Compare(a.Description, b.Description)
+	}
+	if a.Title != b.Title {
+		return strings.Compare(a.Title, b.Title)
+	}
+
+	// If WithIgnoreEphemeralFields is used - the fields will be reset and equal.
+	return strings.Compare(a.IneligibleStatus, b.IneligibleStatus)
+}
+
+func canonicalizeOwners(o *[]Owner) {
+	slices.SortFunc(*o, canonicalizeOwner)
+
+	*o = slices.CompactFunc(*o, func(a, b Owner) bool {
+		return canonicalizeOwner(a, b) == 0
+	})
+
+	if len(*o) == 0 {
+		*o = nil
+	}
+}
+
+func canonicalizeGrants(g *Grants) {
+	if g == nil {
+		return
+	}
+
+	slices.Sort(g.Roles)
+	g.Roles = slices.Compact(g.Roles)
+	if len(g.Roles) == 0 {
+		g.Roles = nil
+	}
+
+	trait.Merge(g.Traits, nil)
+	if len(g.Traits) == 0 {
+		g.Traits = nil
+	}
+
+	slices.SortFunc(g.ScopedRoles, func(a, b ScopedRoleGrant) int {
+		if a.Role == b.Role {
+			return strings.Compare(a.Scope, b.Scope)
+		}
+		return strings.Compare(a.Role, b.Role)
+	})
+
+	g.ScopedRoles = slices.Compact(g.ScopedRoles)
+	if len(g.ScopedRoles) == 0 {
+		g.ScopedRoles = nil
+	}
+}
+
+func canonicalizeRequires(r *Requires) {
+	if r == nil {
+		return
+	}
+
+	slices.Sort(r.Roles)
+	r.Roles = slices.Compact(r.Roles)
+	if len(r.Roles) == 0 {
+		r.Roles = nil
+	}
+
+	trait.Merge(r.Traits, nil)
+	if len(r.Traits) == 0 {
+		r.Traits = nil
 	}
 }
