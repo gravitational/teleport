@@ -677,7 +677,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 // GetApp returns an application matching the name and public address.
 // The app name, when present, disambiguates apps that share a public address.
-func (s *Server) GetApp(ctx context.Context, appName, publicAddr string) (types.Application, error) {
+func (s *Server) GetApp(ctx context.Context, appName, publicAddr, scope string) (types.Application, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -686,6 +686,9 @@ func (s *Server) GetApp(ctx context.Context, appName, publicAddr string) (types.
 			continue
 		}
 		if appName != "" && app.GetName() != appName {
+			continue
+		}
+		if scope != "" && app.GetScope() != scope {
 			continue
 		}
 		return s.appWithUpdatedLabelsLocked(app), nil

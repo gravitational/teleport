@@ -59,13 +59,18 @@ type Matcher func(readonly.AppServer) bool
 //   - An empty field is not checked, so this both supports name-only and addr-only
 //     resolution.
 //   - If both are empty, nothing matches.
-func MatchAppServerForRoute(name, publicAddr string) Matcher {
+//   - A scope may additionally be included to filter scoped applications. A scope
+//     acts like a filter and will never be used alone to match applications.
+func MatchAppServerForRoute(name, publicAddr, scope string) Matcher {
 	return func(appServer readonly.AppServer) bool {
 		app := appServer.GetApp()
 		if publicAddr != "" && !appMatchesPublicAddr(app, publicAddr) {
 			return false
 		}
 		if name != "" && app.GetName() != name {
+			return false
+		}
+		if scope != "" && app.GetScope() != scope {
 			return false
 		}
 		return name != "" || publicAddr != ""

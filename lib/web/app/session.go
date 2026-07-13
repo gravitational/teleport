@@ -68,13 +68,14 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 
-	// Build a list of candidate app servers by name/addr.
+	// Build a list of candidate app servers by name/addr/scope.
 	servers, err := MatchUnshuffled(
 		ctx,
 		clusterClient,
 		MatchAppServerForRoute(
 			identity.RouteToApp.Name,
 			identity.RouteToApp.PublicAddr,
+			identity.RouteToApp.Scope,
 		),
 	)
 	if err != nil {

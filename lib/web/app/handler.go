@@ -235,13 +235,13 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 // HealthCheckAppServer establishes a connection to a AppServer that can handle
 // application requests. Can be used to ensure the proxy can handle application
 // requests before they arrive.
-func (h *Handler) HealthCheckAppServer(ctx context.Context, appName, publicAddr, clusterName string) error {
+func (h *Handler) HealthCheckAppServer(ctx context.Context, appName, publicAddr, clusterName, scope string) error {
 	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	servers, err := MatchUnshuffled(ctx, clusterClient, MatchAppServerForRoute(appName, publicAddr))
+	servers, err := MatchUnshuffled(ctx, clusterClient, MatchAppServerForRoute(appName, publicAddr, scope))
 	if err != nil {
 		return trace.Wrap(err)
 	}

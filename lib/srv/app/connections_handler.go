@@ -213,8 +213,9 @@ type ConnectionsHandler struct {
 	proxyPort   string
 	clusterName string
 
-	// resolveApp returns a types.Application using the name and public address as matchers.
-	resolveApp func(ctx context.Context, name, addr string) (types.Application, error)
+	// resolveApp returns a types.Application using the name, public address, and scope as
+	// matchers. An empty scope matches apps in any scope.
+	resolveApp func(ctx context.Context, name, addr, scope string) (types.Application, error)
 }
 
 // NewConnectionsHandler returns a new ConnectionsHandler.
@@ -271,7 +272,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
 		clusterName:  clusterName.GetClusterName(),
-		resolveApp: func(context.Context, string, string) (types.Application, error) {
+		resolveApp: func(context.Context, string, string, string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
 	}
@@ -336,7 +337,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 // SetApplicationsProvider sets the internal state for the monitored applications.
 // This method must be called before the ConnectionsHandler is able to handle connections.
 func (c *ConnectionsHandler) SetApplicationsProvider(
-	fn func(context.Context, string, string) (types.Application, error)) {
+	fn func(context.Context, string, string, string) (types.Application, error)) {
 	c.resolveApp = fn
 }
 
@@ -586,6 +587,7 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Scope
 		ctx,
 		identity.RouteToApp.Name,
 		identity.RouteToApp.PublicAddr,
+		identity.RouteToApp.Scope,
 	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
@@ -909,6 +911,7 @@ func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Con
 		ctx,
 		user.GetIdentity().RouteToApp.Name,
 		user.GetIdentity().RouteToApp.PublicAddr,
+		user.GetIdentity().RouteToApp.Scope,
 	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)

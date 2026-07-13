@@ -646,7 +646,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
-		handlerConfig.HealthCheckAppServer = func(context.Context, string, string, string) error { return nil }
+		handlerConfig.HealthCheckAppServer = func(context.Context, string, string, string, string) error { return nil }
 	}
 
 	handler, err := NewHandler(handlerConfig, SetClock(s.clock))
@@ -6252,7 +6252,7 @@ func TestCreateAppSessionHealthCheckAppServer(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		HealthCheckAppServer: func(_ context.Context, _, publicAddr, _ string) error {
+		HealthCheckAppServer: func(_ context.Context, _, publicAddr, _, _ string) error {
 			// Can only serve "validApp".
 			if publicAddr == validApp.GetPublicAddr() {
 				return nil
@@ -9529,7 +9529,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			return ctx, trace.Wrap(err)
 		}),
 		Router:                         router,
-		HealthCheckAppServer:           func(context.Context, string, string, string) error { return nil },
+		HealthCheckAppServer:           func(context.Context, string, string, string, string) error { return nil },
 		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
 		GetProxyClientCertificate: func() (*tls.Certificate, error) {
 			return &proxyClientCert, nil

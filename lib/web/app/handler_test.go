@@ -594,7 +594,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = appHandler.HealthCheckAppServer(ctx, "testapp", tc.publicAddr, clusterName)
+			err = appHandler.HealthCheckAppServer(ctx, "testapp", tc.publicAddr, clusterName, "")
 			tc.expectErr(t, err)
 			require.Equal(t, int64(tc.expectedTunnelCalls), fakeCluster.DialCount())
 		})

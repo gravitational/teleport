@@ -158,6 +158,7 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 	default:
 		return "", trace.BadParameter("multiple scopes not allowed")
 	}
+
 	if appPublicAddr != "" && scope == "" {
 		return appPublicAddr, nil
 	}

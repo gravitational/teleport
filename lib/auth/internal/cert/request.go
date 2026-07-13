@@ -93,6 +93,8 @@ type Request struct {
 	AppClusterName string
 	// AppName is the name of the application to generate cert for.
 	AppName string
+	// AppScope is the scope of the target application.
+	AppScope string
 	// AppURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
 	AppURI string
 	// AppTargetPort signifies that the cert should grant access to a specific port in a multi-port

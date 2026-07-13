@@ -4037,6 +4037,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 			PublicAddr:                      req.AppPublicAddr,
 			ClusterName:                     req.AppClusterName,
 			Name:                            req.AppName,
+			Scope:                           req.AppScope,
 			AWSRoleARN:                      req.AWSRoleARN,
 			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
 			AzureIdentity:                   req.AzureIdentity,

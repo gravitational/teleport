@@ -110,6 +110,8 @@ type NewAppSessionRequest struct {
 	DeviceExtensions tlsca.DeviceExtensions
 	// AppName is the name of the app.
 	AppName string
+	// AppScope is the scope of the target application.
+	AppScope string
 	// AppURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
 	AppURI string
 	// AppTargetPort signifies that the session is made to a specific port of a multi-port TCP app.

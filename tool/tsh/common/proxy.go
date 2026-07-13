@@ -472,6 +472,9 @@ func alpnProtocolForApp(app types.Application, appHTTPSTunnel bool) (alpncommon.
 }
 
 func onProxyCommandApp(cf *CLIConf) error {
+	if err := parseScopeQualifiedAppName(cf); err != nil {
+		return trace.Wrap(err)
+	}
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)

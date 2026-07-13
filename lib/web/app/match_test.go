@@ -145,7 +145,7 @@ func TestMatchAppServerForRoute(t *testing.T) {
 			require.Equal(
 				t,
 				test.wantMatch,
-				MatchAppServerForRoute(test.name, test.addr)(appServer),
+				MatchAppServerForRoute(test.name, test.addr, "")(appServer),
 			)
 		})
 	}

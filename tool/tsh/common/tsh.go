@@ -283,6 +283,10 @@ type CLIConf struct {
 
 	// AppName specifies proxied application name.
 	AppName string
+	// AppScope is the scope of the app to log into, parsed from a scope-qualified
+	// app name argument ("/scope::name"). Scoped apps must be referenced by their
+	// scope-qualified name; bare names refer to unscoped apps.
+	AppScope string
 	// AppHTTPSTunnel enables a special mode to tunnel https for HTTP apps.
 	// Mainly used for debugging purpose so the flag should be hidden.
 	AppHTTPSTunnel bool
@@ -1091,7 +1095,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
-	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
+	appLogin.Arg("app", "App name to retrieve credentials for, as shown in `tsh apps ls`. Scoped apps use their scope-qualified name (\"/scope::name\").").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("env", "(For AWS CLI access only) Obtain credentials as plain text in order to load into environments variables. Required when using per-session MFA.").Hidden().BoolVar(&cf.AppLoginAWSEnvOutput)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
@@ -3558,14 +3562,18 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 			// incorrectly show multiple apps with the same name but from different clusters as active.
 			// However, to do this we'd need to double check if route.ClusterName always matches
 			// appListing.Cluster (and also fill out that field in showApps).
-			return route.Name == app.GetName()
+			return route.Name == app.GetName() && route.Scope == app.GetScope()
 		})
 
+		// Scoped apps are displayed (and referenced in login/proxy commands) by
+		// their scope-qualified name; unscoped apps keep their bare name.
+		displayName := scopes.QualifiedName{Scope: app.GetScope(), Name: app.GetName()}.String()
+
 		if isActive {
-			return fmt.Sprintf("> %s", app.GetName())
+			return fmt.Sprintf("> %s", displayName)
 		}
 
-		return app.GetName()
+		return displayName
 	}
 	getLabels := func(app types.Application) string {
 		return common.FormatLabels(app.GetAllLabels(), config.verbose)

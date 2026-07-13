@@ -382,6 +382,8 @@ message RouteToApp {
   // This is a JSON string that conforms with
   // https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
   string AWSCredentialProcessCredentials = 10 [(gogoproto.jsontag) = "aws_credentialprocess_credentials,omitempty"];
+  // Scope is the scope of the target application.
+  string Scope = 11 [(gogoproto.jsontag) = "scope,omitempty"];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.

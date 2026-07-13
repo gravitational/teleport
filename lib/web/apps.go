@@ -155,7 +155,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// coming from the WebUI.
 	if h.healthCheckAppServer != nil && !app.HasClientCert(r) {
 		h.logger.DebugContext(r.Context(), "Ensuring proxy can handle requests for application", "app", result.App.GetName())
-		err := h.healthCheckAppServer(r.Context(), result.App.GetName(), result.App.GetPublicAddr(), result.ClusterName)
+		err := h.healthCheckAppServer(r.Context(), result.App.GetName(), result.App.GetPublicAddr(), result.ClusterName, result.App.GetScope())
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try again. If the issue persists, verify if the Application Services are connected to Teleport.")
 		}
@@ -221,6 +221,9 @@ type ResolveAppParams struct {
 
 	// AppName is the name of the application
 	AppName string `json:"app_name,omitempty"`
+
+	//Scope is the scope of the application
+	Scope string `json:"scope,omitempty"`
 }
 
 type resolveAppResult struct {
@@ -254,7 +257,7 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
 	switch {
 	case params.ClusterName != "" && (params.AppName != "" || params.PublicAddr != ""):
-		server, appClusterName, err = h.resolveAppForCluster(ctx, proxy, params.AppName, params.PublicAddr, params.ClusterName)
+		server, appClusterName, err = h.resolveAppForCluster(ctx, proxy, params.AppName, params.PublicAddr, params.ClusterName, params.Scope)
 	case params.FQDNHint != "":
 		// Multiple apps can have the same FQDN - prefer those the user
 		// can actually access.
@@ -313,14 +316,14 @@ func (h *Handler) userAppAccessFilter(ctx context.Context, scx *SessionContext) 
 func (h *Handler) resolveAppForCluster(
 	ctx context.Context,
 	clusterGetter reversetunnelclient.ClusterGetter,
-	appName, publicAddr, clusterName string,
+	appName, publicAddr, clusterName, scope string,
 ) (types.AppServer, string, error) {
 	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchAppServerForRoute(appName, publicAddr))
+	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchAppServerForRoute(appName, publicAddr, scope))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

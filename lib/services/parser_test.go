@@ -185,6 +185,31 @@ func TestNewResourceExpression(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Run("scoped resources", func(t *testing.T) {
+		t.Parallel()
+		app, err := types.NewAppV3(types.Metadata{Name: "grafana"}, types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		app.Scope = "/staging"
+		appServer, err := types.NewAppServerV3FromApp(app, "host", "hostid")
+		require.NoError(t, err)
+		appServer.Scope = "/staging"
+
+		for expr, want := range map[string]bool{
+			`name == "grafana" && scope == "/staging"`: true,
+			`equals(scope, "/staging")`:                true,
+			`scope == "/prod"`:                         false,
+			`scope == ""`:                              false,
+		} {
+			t.Run(expr, func(t *testing.T) {
+				parser, err := NewResourceExpression(expr)
+				require.NoError(t, err)
+				match, err := parser.Evaluate(appServer)
+				require.NoError(t, err)
+				require.Equal(t, want, match)
+			})
+		}
+	})
+
 	t.Run("matching expressions", func(t *testing.T) {
 		t.Parallel()
 		exprs := []string{
@@ -219,6 +244,9 @@ func TestNewResourceExpression(t *testing.T) {
 			`labels["env"] != "_"`,
 			`name == "test-hostname"`,
 			`health.status == ""`,
+			// Unscoped resources evaluate scope to the empty string.
+			`scope == ""`,
+			`!equals(scope, "/prod")`,
 			// Test combos.
 			`labels.os == "mac" && name == "test-hostname" && search("v8")`,
 			`exists(labels.env) && labels["env"] != "qa"`,

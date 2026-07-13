@@ -5663,9 +5663,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		connectionsHandler.SetApplicationsProvider(
-			func(ctx context.Context, appName, publicAddr string) (types.Application, error) {
+			func(ctx context.Context, appName, publicAddr, scope string) (types.Application, error) {
 				allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(
-					ctx, webapp.MatchAppServerForRoute(appName, publicAddr))
+					ctx, webapp.MatchAppServerForRoute(appName, publicAddr, scope))
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}

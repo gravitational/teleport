@@ -13932,6 +13932,15 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
 				require.ErrorContains(t, err, "scoped identities not supported")
 				require.ErrorContains(t, err, "generating scoped user cert for cloud app access")
+				},
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err)
+				require.Equal(t, "test-app", identity.RouteToApp.Name)
+				require.Equal(t, scopedApp.GetPublicAddr(), identity.RouteToApp.PublicAddr)
+				// An app session is created and linked to the certificate.
+				require.NotEmpty(t, identity.RouteToApp.SessionID)
 			},
 		},
 		{

@@ -272,7 +272,19 @@ type AppCertIssuer struct {
 }
 
 func (c *AppCertIssuer) CheckCert(cert *x509.Certificate) error {
-	// appCertIssuer does not perform any additional certificate checks.
+	// Ensure a cached/on-disk certificate targets the same app scope that was
+	// requested for this proxy. App certificates are stored on disk keyed by
+	// app name only, so without this check a certificate previously issued for
+	// the same app name in a different scope would be reused, routing to the
+	// wrong app.
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if identity.RouteToApp.Scope != c.RouteToApp.Scope {
+		return trace.BadParameter("certificate app scope %q does not match requested scope %q",
+			identity.RouteToApp.Scope, c.RouteToApp.Scope)
+	}
 	return nil
 }
 

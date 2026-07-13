@@ -779,29 +779,29 @@ func TestGetApp(t *testing.T) {
 		// Repeat the lookup to ensure the result is deterministic and always
 		// hits the correct app.
 		for range 100 {
-			got, err := s.GetApp(t.Context(), "test-app-1", sharedAddr)
+			got, err := s.GetApp(t.Context(), "test-app-1", sharedAddr, "")
 			require.NoError(t, err)
 			require.Equal(t, "test-app-1", got.GetName())
 
-			got, err = s.GetApp(t.Context(), "test-app-2", sharedAddr)
+			got, err = s.GetApp(t.Context(), "test-app-2", sharedAddr, "")
 			require.NoError(t, err)
 			require.Equal(t, "test-app-2", got.GetName())
 		}
 	})
 
 	t.Run("legacy cert without name falls back to public addr", func(t *testing.T) {
-		got, err := s.GetApp(t.Context(), "", sharedAddr)
+		got, err := s.GetApp(t.Context(), "", sharedAddr, "")
 		require.NoError(t, err)
 		require.Equal(t, sharedAddr, got.GetPublicAddr())
 	})
 
 	t.Run("name and addr must both match", func(t *testing.T) {
-		_, err := s.GetApp(t.Context(), "test-app-1", "other.example.com")
+		_, err := s.GetApp(t.Context(), "test-app-1", "other.example.com", "")
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
 	})
 
 	t.Run("unknown app", func(t *testing.T) {
-		_, err := s.GetApp(t.Context(), "nope", "nope.example.com")
+		_, err := s.GetApp(t.Context(), "nope", "nope.example.com", "")
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
 	})
 }

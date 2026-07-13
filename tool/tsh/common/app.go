@@ -37,17 +37,41 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// parseScopeQualifiedAppName splits a scope-qualified app name argument
+// ("/scope::name") into cf.AppScope and cf.AppName. Bare names are left
+// untouched and refer to unscoped apps.
+func parseScopeQualifiedAppName(cf *CLIConf) error {
+	if !strings.Contains(cf.AppName, scopes.QualifiedNameSeparator) {
+		return nil
+	}
+	qn, err := scopes.ParseQualifiedName(cf.AppName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := qn.StrongValidate(); err != nil {
+		return trace.Wrap(err)
+	}
+	cf.AppScope = qn.Scope
+	cf.AppName = qn.Name
+	return nil
+}
+
 // onAppLogin implements "tsh apps login" command.
 func onAppLogin(cf *CLIConf) error {
+	if err := parseScopeQualifiedAppName(cf); err != nil {
+		return trace.Wrap(err)
+	}
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -431,6 +455,9 @@ Example command: tsh gcloud compute instances list
 
 // onAppLogout implements "tsh apps logout" command.
 func onAppLogout(cf *CLIConf) error {
+	if err := parseScopeQualifiedAppName(cf); err != nil {
+		return trace.Wrap(err)
+	}
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -514,6 +541,9 @@ func onAppLogout(cf *CLIConf) error {
 
 // onAppConfig implements "tsh apps config" command.
 func onAppConfig(cf *CLIConf) error {
+	if err := parseScopeQualifiedAppName(cf); err != nil {
+		return trace.Wrap(err)
+	}
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -711,7 +741,7 @@ func getAppInfo(cf *CLIConf, clt authclient.ClientI, profile *client.ProfileStat
 	}
 
 	// If we didn't find an active profile for the app, get info from server.
-	app, logins, err := getApp(cf.Context, clt, cf.AppName)
+	app, logins, err := getApp(cf.Context, clt, cf.AppName, cf.AppScope)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -727,6 +757,7 @@ func getAppInfo(cf *CLIConf, clt authclient.ClientI, profile *client.ProfileStat
 			PublicAddr:  app.GetPublicAddr(),
 			ClusterName: siteName,
 			URI:         app.GetURI(),
+			Scope:       app.GetScope(),
 		},
 		app: app,
 	}
@@ -798,7 +829,7 @@ func (a *appInfo) GetApp(ctx context.Context, clt apiclient.GetResourcesClient) 
 		return a.app.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
-	app, _, err := getApp(ctx, clt, a.Name)
+	app, _, err := getApp(ctx, clt, a.Name, a.RouteToApp.Scope)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -806,31 +837,82 @@ func (a *appInfo) GetApp(ctx context.Context, clt apiclient.GetResourcesClient) 
 	return a.app.Copy(), nil
 }
 
-// getApp returns the registered application with the specified name.
-func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name string) (app types.Application, logins []string, err error) {
-	// When listing a single app we only need to grab one page.
+// getApp returns the registered application with the specified name. When scope
+// is non-empty, only an app in that exact scope is returned. If more than one
+// app matches the name across different scopes and no scope is supplied, an
+// error is returned listing the candidate scopes so the caller can disambiguate
+// with --scope.
+func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name, scope string) (app types.Application, logins []string, err error) {
+	// Fetch a full page rather than a single resource so that same-named apps
+	// registered in different scopes are all surfaced. When a scope is provided,
+	// filter server-side as well: the client-side filtering below then acts as
+	// defense in depth rather than the only correctness mechanism.
+	predicate := fmt.Sprintf(`name == %q`, name)
+	if scope != "" {
+		predicate = fmt.Sprintf(`name == %q && scope == %q`, name, scope)
+	}
 	res, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
 		SortBy:              types.SortBy{Field: types.ResourceMetadataName},
-		PredicateExpression: fmt.Sprintf(`name == %q`, name),
-		Limit:               1,
+		PredicateExpression: predicate,
+		Limit:               apidefaults.DefaultChunkSize,
 		IncludeLogins:       true,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	if len(res.Resources) == 0 {
-		return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
+	// Collect distinct matching apps keyed by scope (collapsing HA replicas),
+	// optionally filtered to the requested scope. The name is re-checked
+	// client-side as a defensive measure in case the server-side predicate is
+	// not applied on every list code path.
+	var matches []types.Application
+	var matchLogins [][]string
+	seenScopes := make(map[string]struct{})
+	var availableScopes []string
+	for _, r := range res.Resources {
+		server, ok := r.ResourceWithLabels.(types.AppServer)
+		if !ok {
+			logger.WarnContext(ctx, "expected types.AppServer but received unexpected type", "resource_type", logutils.TypeAttr(r.ResourceWithLabels))
+			continue
+		}
+		a := server.GetApp()
+		if a.GetName() != name {
+			continue
+		}
+		if scope != "" && a.GetScope() != scope {
+			continue
+		}
+		if _, ok := seenScopes[a.GetScope()]; ok {
+			continue
+		}
+		seenScopes[a.GetScope()] = struct{}{}
+		availableScopes = append(availableScopes, a.GetScope())
+		matches = append(matches, a)
+		matchLogins = append(matchLogins, r.Logins)
 	}
 
-	appServer, ok := res.Resources[0].ResourceWithLabels.(types.AppServer)
-	if !ok {
-		logger.WarnContext(ctx, "expected types.AppServer but received unexpected type", "resource_type", logutils.TypeAttr(res.Resources[0].ResourceWithLabels))
+	switch len(matches) {
+	case 0:
+		if scope != "" {
+			return nil, nil, trace.NotFound("app %q not found in scope %q, use `tsh apps ls` to see registered apps", name, scope)
+		}
 		return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
+	case 1:
+		if appScope := matches[0].GetScope(); scope == "" && appScope != "" {
+			// Scoped apps must be referenced by their scope-qualified name so that a
+			// bare name can never silently resolve into a scope.
+			return nil, nil, trace.BadParameter("app %q is a scoped app, use its scope-qualified name %q",
+				name, scopes.QualifiedName{Scope: appScope, Name: name})
+		}
+		return matches[0], matchLogins[0], nil
+	default:
+		qualifiedNames := make([]string, 0, len(availableScopes))
+		for _, s := range availableScopes {
+			qualifiedNames = append(qualifiedNames, scopes.QualifiedName{Scope: s, Name: name}.String())
+		}
+		return nil, nil, trace.BadParameter("multiple apps named %q exist, specify one by its scope-qualified name: %v", name, qualifiedNames)
 	}
-
-	return appServer.GetApp(), res.Resources[0].Logins, nil
 }
 
 // pickActiveApp returns the app the current profile is logged into.
@@ -847,7 +929,7 @@ func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (proto.RouteToA
 		default:
 			var appNames []string
 			for _, r := range activeRoutes {
-				appNames = append(appNames, r.Name)
+				appNames = append(appNames, scopes.QualifiedName{Scope: r.Scope, Name: r.Name}.String())
 			}
 			return proto.RouteToApp{}, trace.BadParameter("multiple apps are available (%v), please specify one via CLI argument",
 				strings.Join(appNames, ", "))
@@ -855,9 +937,15 @@ func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (proto.RouteToA
 	}
 
 	for _, r := range activeRoutes {
-		if r.Name == cf.AppName {
+		// Exact scope match: a bare name (empty AppScope) only ever matches unscoped
+		// routes, so it can never silently resolve into a scoped app; a scope-qualified
+		// name matches exactly its scope.
+		if r.Name == cf.AppName && r.Scope == cf.AppScope {
 			return tlscaRouteToAppToProto(r), nil
 		}
+	}
+	if cf.AppScope != "" {
+		return proto.RouteToApp{}, trace.NotFound("not logged into app %q in scope %q", cf.AppName, cf.AppScope)
 	}
 	return proto.RouteToApp{}, trace.NotFound("not logged into app %q", cf.AppName)
 }
@@ -867,6 +955,7 @@ func tlscaRouteToAppToProto(route tlsca.RouteToApp) proto.RouteToApp {
 		Name:                            route.Name,
 		PublicAddr:                      route.PublicAddr,
 		ClusterName:                     route.ClusterName,
+		Scope:                           route.Scope,
 		AWSRoleARN:                      route.AWSRoleARN,
 		AWSCredentialProcessCredentials: route.AWSCredentialProcessCredentials,
 		AzureIdentity:                   route.AzureIdentity,
@@ -893,7 +982,7 @@ func onAppLogins(cf *CLIConf) error {
 		}
 		defer clusterClient.Close()
 
-		app, logins, err = getApp(cf.Context, clusterClient.AuthClient, cf.AppName)
+		app, logins, err = getApp(cf.Context, clusterClient.AuthClient, cf.AppName, cf.AppScope)
 		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
