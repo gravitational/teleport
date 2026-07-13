@@ -219,10 +219,6 @@ func validateAccessListNesting(ctx context.Context, accessList *accesslist.Acces
 			return trace.Wrap(err)
 		}
 	}
-	if accessList.Scope != "" && len(members) > 0 {
-		// TODO(nklaassen): support scoped access list members.
-		return trace.BadParameter("scoped access list members are not yet supported")
-	}
 	for _, member := range members {
 		if err := ValidateAccessListMember(ctx, accessList, member, g); err != nil {
 			return trace.Wrap(err)
@@ -255,25 +251,49 @@ func ValidateAccessListMember(
 // validateAccessListMemberBasic performs basic fields validation for AccessListMember
 // and performs the cross membership integrity check.
 func validateAccessListMemberBasic(parent *accesslist.AccessList, member *accesslist.AccessListMember) error {
-	if member.Scope != "" {
-		// TODO(nklaassen): support scoped access list members.
-		return trace.BadParameter("scoped access list members are not yet supported")
-	}
 	if member.Spec.AccessList == "" {
 		return trace.BadParameter("member %s: access_list field empty", member.Metadata.Name)
 	}
 	if member.Spec.Name != member.Metadata.Name {
 		return trace.BadParameter("member metadata name = %q and spec name = %q must be equal", member.Metadata.Name, member.Spec.Name)
 	}
+	if member.Scope != parent.Scope {
+		return trace.BadParameter("member resource scope %q must be equal to parent list scope %q", member.Scope, parent.Scope)
+	}
+	parentName := ScopeQualifiedName(parent)
+	if member.Scope != "" {
+		if err := scopes.StrongValidate(member.Scope); err != nil {
+			return trace.Wrap(err, "access list member has invalid scope")
+		}
+		memberSQN, err := MemberScopeQualifiedName(member)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if memberSQN.Scope != "" {
+			if err := memberSQN.ToScopesQualifiedName().StrongValidate(); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		// The member must belong to the parent access list.
+		memberParentName, err := ParentListOf(member)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if memberParentName != parentName {
+			return trace.BadParameter("member spec.access_list %q must match parent list name %q",
+				member.Spec.AccessList, parentName.String())
+		}
+	} else {
+		// The member must belong to the parent access list.
+		if member.Spec.AccessList != parent.GetName() {
+			return trace.BadParameter("member %s: spec.access_list field %q doesn't match parent list name %q", member.Metadata.Name, member.Spec.AccessList, parent.GetName())
+		}
+	}
 	if member.Spec.Joined.IsZero() || member.Spec.Joined.Unix() == 0 {
 		return trace.BadParameter("member %s: joined field empty or missing", member.Metadata.Name)
 	}
 	if member.Spec.AddedBy == "" {
 		return trace.BadParameter("member %s: added_by field is empty", member.Metadata.Name)
-	}
-	// The member must belong to the parent access list.
-	if member.Spec.AccessList != parent.GetName() {
-		return trace.BadParameter("member %s: spec.access_list field %q doesn't match parent list name %q", member.Metadata.Name, member.Spec.AccessList, parent.GetName())
 	}
 	return nil
 }
