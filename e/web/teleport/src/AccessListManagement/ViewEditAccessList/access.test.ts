@@ -10,43 +10,43 @@ const emptyMetadata = { name: '', labels: {}, revision: '' };
 describe('isEditDisabled', () => {
   // 'true' means the action is forbidden while 'false' means it is allowed
   test.each`
-    desc                                  | forOktaOrigin | forOktaRO | forOwner | forAdminWhoCanEdit | forAdminWhoCanDelete | forOktaSyncEnabled
-    ${'EditMembers+undefined'}            | ${false}      | ${true}   | ${false} | ${false}           | ${true}              | ${false}
-    ${'EditMembers+Default'}              | ${false}      | ${true}   | ${false} | ${false}           | ${true}              | ${false}
-    ${'EditMembers+Scim'}                 | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}
-    ${'EditMembers+Static'}               | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}
-    ${'EditOwners+undefined'}             | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditOwners+Default'}               | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditOwners+Scim'}                  | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditOwners+Static'}                | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}
-    ${'EditTitleOrDescription+undefined'} | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}
-    ${'EditTitleOrDescription+Default'}   | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}
-    ${'EditTitleOrDescription+Scim'}      | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}
-    ${'EditTitleOrDescription+Static'}    | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}
-    ${'EditMembersEligibility+undefined'} | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditMembersEligibility+Default'}   | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditMembersEligibility+Scim'}      | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditMembersEligibility+Static'}    | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}
-    ${'EditOwnersEligibility+undefined'}  | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditOwnersEligibility+Default'}    | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditOwnersEligibility+Scim'}       | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditOwnersEligibility+Static'}     | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}
-    ${'EditMembersGrants+undefined'}      | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}
-    ${'EditMembersGrants+Default'}        | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}
-    ${'EditMembersGrants+Scim'}           | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}
-    ${'EditMembersGrants+Static'}         | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}
-    ${'EditOwnersGrants+undefined'}       | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}
-    ${'EditOwnersGrants+Default'}         | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}
-    ${'EditOwnersGrants+Scim'}            | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}
-    ${'EditOwnersGrants+Static'}          | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}
-    ${'EditAudit+undefined'}              | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditAudit+Default'}                | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditAudit+Scim'}                   | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}
-    ${'EditAudit+Static'}                 | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}
-    ${'Delete+undefined'}                 | ${false}      | ${true}   | ${true}  | ${true}            | ${false}             | ${true}
-    ${'Delete+Default'}                   | ${false}      | ${true}   | ${true}  | ${true}            | ${false}             | ${true}
-    ${'Delete+Scim'}                      | ${false}      | ${true}   | ${true}  | ${true}            | ${false}             | ${true}
-    ${'Delete+Static'}                    | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}
+    desc                                  | forOktaOrigin | forOktaRO | forOwner | forAdminWhoCanEdit | forAdminWhoCanDelete | forOktaSyncEnabled | forOktaROSyncDisabled
+    ${'EditMembers+undefined'}            | ${false}      | ${true}   | ${false} | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditMembers+Default'}              | ${false}      | ${true}   | ${false} | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditMembers+Scim'}                 | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}            | ${true}
+    ${'EditMembers+Static'}               | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}            | ${true}
+    ${'EditOwners+undefined'}             | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditOwners+Default'}               | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditOwners+Scim'}                  | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditOwners+Static'}                | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}            | ${true}
+    ${'EditTitleOrDescription+undefined'} | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}            | ${true}
+    ${'EditTitleOrDescription+Default'}   | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}            | ${true}
+    ${'EditTitleOrDescription+Scim'}      | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}            | ${true}
+    ${'EditTitleOrDescription+Static'}    | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}            | ${true}
+    ${'EditMembersEligibility+undefined'} | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditMembersEligibility+Default'}   | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditMembersEligibility+Scim'}      | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditMembersEligibility+Static'}    | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}            | ${true}
+    ${'EditOwnersEligibility+undefined'}  | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditOwnersEligibility+Default'}    | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditOwnersEligibility+Scim'}       | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditOwnersEligibility+Static'}     | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}            | ${true}
+    ${'EditMembersGrants+undefined'}      | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}            | ${true}
+    ${'EditMembersGrants+Default'}        | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}            | ${true}
+    ${'EditMembersGrants+Scim'}           | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}            | ${true}
+    ${'EditMembersGrants+Static'}         | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}            | ${true}
+    ${'EditOwnersGrants+undefined'}       | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}            | ${true}
+    ${'EditOwnersGrants+Default'}         | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}            | ${true}
+    ${'EditOwnersGrants+Scim'}            | ${true}       | ${true}   | ${true}  | ${false}           | ${true}              | ${true}            | ${true}
+    ${'EditOwnersGrants+Static'}          | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}            | ${true}
+    ${'EditAudit+undefined'}              | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditAudit+Default'}                | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditAudit+Scim'}                   | ${false}      | ${true}   | ${true}  | ${false}           | ${true}              | ${false}           | ${true}
+    ${'EditAudit+Static'}                 | ${true}       | ${true}   | ${true}  | ${true}            | ${true}              | ${true}            | ${true}
+    ${'Delete+undefined'}                 | ${false}      | ${true}   | ${true}  | ${true}            | ${false}             | ${true}            | ${false}
+    ${'Delete+Default'}                   | ${false}      | ${true}   | ${true}  | ${true}            | ${false}             | ${true}            | ${false}
+    ${'Delete+Scim'}                      | ${false}      | ${true}   | ${true}  | ${true}            | ${false}             | ${true}            | ${false}
+    ${'Delete+Static'}                    | ${false}      | ${true}   | ${true}  | ${true}            | ${true}              | ${true}            | ${false}
   `(
     `for $desc`,
     ({
@@ -57,6 +57,7 @@ describe('isEditDisabled', () => {
       forAdminWhoCanEdit,
       forAdminWhoCanDelete,
       forOktaSyncEnabled,
+      forOktaROSyncDisabled,
     }) => {
       const action = valueOfAccessKind(desc.split('+')[0]);
       const accessListType = valueOfAccessListType(desc.split('+')[1]);
@@ -131,6 +132,16 @@ describe('isEditDisabled', () => {
           perms: fullPerms,
         })
       ).toBe(forOktaSyncEnabled);
+
+      expect(
+        isActionForbidden({
+          accessList: { ...accessList, origin: AccessListOrigin.Okta },
+          action,
+          isReadOnlyOktaList: true,
+          isOktaEnableAccessListSync: false,
+          perms: fullPerms,
+        })
+      ).toBe(forOktaROSyncDisabled);
     }
   );
 });

@@ -137,10 +137,9 @@ function getEditAccess({
   if (isOktaList) {
     switch (action) {
       case Action.Delete:
-        if (isOktaEnableAccessListSync) {
-          return EditAccess.ForbiddenOkta;
-        }
-        break;
+        return isOktaEnableAccessListSync
+          ? EditAccess.ForbiddenOkta
+          : EditAccess.Allowed;
       case Action.EditTitleOrDescription:
       case Action.EditMembersGrants:
       case Action.EditOwnersGrants:
