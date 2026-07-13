@@ -36,7 +36,7 @@ type platformOSConfigState struct {
 	configuredIPv6       bool
 	configuredIPv4       bool
 	configuredCidrRanges []string
-	configuredNameserver bool
+	configuredDNSAddrs   []string
 	configuredDNSZones   []string
 	broughtUpInterface   bool
 	tunName              string
@@ -68,7 +68,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	if err := configureDNS(ctx, cfg, state); err != nil {
 		return trace.Wrap(err, "configuring DNS")
 	}
-	if (state.configuredIPv4 || state.configuredIPv6) && state.configuredNameserver && !state.broughtUpInterface {
+	if (state.configuredIPv4 || state.configuredIPv6) && len(state.configuredDNSAddrs) > 0 && !state.broughtUpInterface {
 		log.InfoContext(ctx, "Bringing up the VNet interface", "device", cfg.tunName)
 		if err := runCommand(ctx,
 			"ip", "link", "set", cfg.tunName, "up",
@@ -178,7 +178,7 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 		state.configuredDNSZones = cfg.dnsZones
 	}
 
-	if len(cfg.dnsAddrs) > 0 && state.tunName != "" && !state.configuredNameserver {
+	if len(cfg.dnsAddrs) > 0 && state.tunName != "" && !slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) {
 		iface, err := net.InterfaceByName(state.tunName)
 		if err != nil {
 			return trace.Wrap(err, "looking up interface %s", state.tunName)
@@ -201,7 +201,7 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 		if err := systemdresolved.SetLinkDNS(ctx, conn, int32(iface.Index), addresses); err != nil {
 			return err
 		}
-		state.configuredNameserver = true
+		state.configuredDNSAddrs = cfg.dnsAddrs
 	}
 
 	return nil
