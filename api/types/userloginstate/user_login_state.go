@@ -19,6 +19,7 @@ package userloginstate
 import (
 	"github.com/gravitational/trace"
 
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
@@ -94,6 +95,12 @@ type Spec struct {
 	//
 	// TODO(kopiczko) v19: consider proceeding with the STAGE 2 described above.
 	SAMLIdentities []ExternalIdentity `json:"saml_identities,omitempty" yaml:"saml_identities"`
+
+	// Delegation represents the relationship between the user and the identity
+	// who delegated their access to the them. This field is not ephemeral, but
+	// is stored on the user login state to avoid needing to read the user record
+	// separately when generating certificates.
+	Delegation *types.Delegation `json:"delegation,omitempty" yaml:"delegation"`
 }
 
 // ExternalIdentity defines an external identity attached to this user state.
@@ -239,4 +246,9 @@ func (u *UserLoginState) SetGithubIdentities(identities []types.ExternalIdentity
 			Username: identities[0].Username,
 		}
 	}
+}
+
+// GetDelegator returns the head of the user's delegation chain.
+func (u *UserLoginState) GetDelegation() *delegationv1.Delegation {
+	return types.DelegationFromLegacy(u.Spec.Delegation)
 }
