@@ -1670,9 +1670,7 @@ type ReviewStatus_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	// reviewer_displays maps reviewer usernames to read-time display values
-	// derived from the user resource. A present key with empty values is a live
-	// user with no distinct display. An absent key is a user that no longer
-	// exists.
+	// derived from the user resource.
 	ReviewerDisplays map[string]*UserDisplay
 }
 

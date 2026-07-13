@@ -1677,9 +1677,7 @@ func (b0 MemberStatus_builder) Build() *MemberStatus {
 type ReviewStatus struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// reviewer_displays maps reviewer usernames to read-time display values
-	// derived from the user resource. A present key with empty values is a live
-	// user with no distinct display. An absent key is a user that no longer
-	// exists.
+	// derived from the user resource.
 	ReviewerDisplays map[string]*UserDisplay `protobuf:"bytes,1,rep,name=reviewer_displays,json=reviewerDisplays,proto3" json:"reviewer_displays,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
@@ -1725,9 +1723,7 @@ type ReviewStatus_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	// reviewer_displays maps reviewer usernames to read-time display values
-	// derived from the user resource. A present key with empty values is a live
-	// user with no distinct display. An absent key is a user that no longer
-	// exists.
+	// derived from the user resource.
 	ReviewerDisplays map[string]*UserDisplay
 }
 

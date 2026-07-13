@@ -379,9 +379,7 @@ export interface MemberStatus {
 export interface ReviewStatus {
     /**
      * reviewer_displays maps reviewer usernames to read-time display values
-     * derived from the user resource. A present key with empty values is a live
-     * user with no distinct display. An absent key is a user that no longer
-     * exists.
+     * derived from the user resource.
      *
      * @generated from protobuf field: map<string, teleport.accesslist.v1.UserDisplay> reviewer_displays = 1;
      */
