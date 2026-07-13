@@ -1329,6 +1329,11 @@ type SearchEventsRequest struct {
 	StartKey string
 	// Search is an optional search query to filter events.
 	Search string
+	// BeamID optionally restricts results to events attributed to the given
+	// beam (matched against the event's user metadata beam_id). This filter is
+	// only supported by the Athena audit backend; other backends return a
+	// trace.NotImplemented error when it is set.
+	BeamID string
 }
 
 type SearchSessionEventsRequest struct {
