@@ -865,7 +865,7 @@ func TestAppLogins(t *testing.T) {
 			setHomePath(tmpHomePath),
 		)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "there are no roles configured for the AWS app \"aws-console-special\"")
+		require.ErrorContains(t, err, "there are no AWS roles configured for the AWS app \"aws-console-special\"")
 		require.True(t, trace.IsNotFound(err))
 	})
 
