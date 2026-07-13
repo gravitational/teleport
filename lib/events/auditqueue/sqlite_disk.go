@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -267,7 +268,7 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 	// Startup the orphan scanner and dead-letter sweeper.
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		q.orphanScanLoop(ctx, handler)
+		q.orphanScanLoop(ctx)
 	})
 	wg.Go(func() {
 		q.deadLetterSweepLoop(ctx, handler)
@@ -277,12 +278,12 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 	return q.runPollLoop(ctx, handler)
 }
 
-func (q *sqliteQueue) orphanScanLoop(ctx context.Context, handler Handler) {
+func (q *sqliteQueue) orphanScanLoop(ctx context.Context) {
 	ticker := time.NewTicker(q.orphanScanInterval)
 	defer ticker.Stop()
 	for {
 		q.sweepStaleTmp()
-		q.adoptOrphans(ctx, handler)
+		q.adoptOrphans(ctx)
 
 		select {
 		case <-ctx.Done():
@@ -380,7 +381,7 @@ func tryRemoveStaleTmp(ctx context.Context, stalePath string) {
 	}
 }
 
-func (q *sqliteQueue) adoptOrphans(ctx context.Context, handler Handler) {
+func (q *sqliteQueue) adoptOrphans(ctx context.Context) {
 	entries, err := os.ReadDir(q.parentDir)
 	if err != nil {
 		orphanScanErrors.Inc()
@@ -422,11 +423,11 @@ func (q *sqliteQueue) adoptOrphans(ctx context.Context, handler Handler) {
 		// If we got to this point, then we have found a directory that is not a
 		// tmp directory and is not the same directory as the one this process
 		// is already using. We are safe to attempt to adopt it.
-		q.tryAdoptOrphan(ctx, entryPath, handler)
+		q.tryAdoptOrphan(ctx, entryPath)
 	}
 }
 
-func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string, handler Handler) {
+func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string) {
 	unlock, err := utils.FSTryWriteLock(filepath.Join(path, queueLockFile))
 	if err != nil {
 		// This error indicates that the lock has already been taken, hence this
@@ -474,7 +475,7 @@ func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string, handler H
 		return
 	}
 
-	drained := q.drainOrphanDB(ctx, db, handler)
+	migrateErr := q.migrateOrphanDB(ctx, db, filepath.Base(path))
 	if err := db.Close(); err != nil {
 		slog.ErrorContext(q.ctx,
 			"Failed to close orphan SQLite database.",
@@ -484,117 +485,150 @@ func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string, handler H
 		return
 	}
 
-	if !drained {
-		// If we fail to drain, we will try again on the next orphan adoption
-		// cycle.
+	if migrateErr != nil {
+		// If we fail to migrate, we will try again on the next orphan adoption
+		// cycle. Cancellation is a normal shutdown, not a migration failure.
+		if ctx.Err() == nil && q.ctx.Err() == nil {
+			orphanScanErrors.Inc()
+			slog.ErrorContext(q.ctx,
+				"Failed to migrate orphaned audit-queue database.",
+				"path", path,
+				"error", migrateErr,
+			)
+		}
 		return
 	}
 
-	// If we got here, then we have successfully drained the orphan. We can now
+	// If we got here, then we have successfully migrated the orphan. We can now
 	// safely remove it.
 	if err := os.RemoveAll(path); err != nil {
 		orphanScanErrors.Inc()
 		slog.ErrorContext(q.ctx,
-			"Failed to remove drained orphan directory.",
+			"Failed to remove migrated orphan directory.",
 			"path", path,
 			"error", err,
 		)
 		return
 	}
+	q.clearOrphanWatermarks(ctx, filepath.Base(path))
 	orphansAdopted.Inc()
 	slog.InfoContext(q.ctx, "Adopted orphaned audit-queue directory.", "path", path)
 }
 
-func (q *sqliteQueue) drainOrphanDB(ctx context.Context, db *sql.DB, handler Handler) bool {
-	for {
-		if ctx.Err() != nil || q.ctx.Err() != nil {
-			return false
-		}
-		items, err := fetchDB(ctx, db, dequeueBatchSize)
-		if err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx, "Failed to fetch orphan events.", "error", err)
-			return false
-		}
-		if len(items) == 0 {
-			break
-		}
-		successfullyDelivered := handler(ctx, items)
-		if len(successfullyDelivered) == 0 {
-			return false
-		}
-
-		// Notice: We do not want to call q.ack() here. This is because this db
-		// is an adopted db. Hence it is a different database than the one that
-		// is currently held by `q`.
-		if err := ackDB(ctx, db, successfullyDelivered); err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx, "Failed to ack orphan events.", "error", err)
-			return false
-		}
-
-		// We didn't manage to drain the entire orphan. We will re-attempt to
-		// drain it on the next orphan sweep.
-		if len(successfullyDelivered) < len(items) {
-			return false
-		}
+func (q *sqliteQueue) migrateOrphanDB(ctx context.Context, db *sql.DB, name string) error {
+	if err := q.migrateOrphanQueue(ctx, db, name); err != nil {
+		return trace.Wrap(err)
 	}
-	return q.migrateOrphanDeadLetter(db)
+	return trace.Wrap(q.migrateOrphanDeadLetter(ctx, db, name))
 }
 
-// migrateOrphanDeadLetter moves rows from the orphan's audit_dead_letter table
-// into this queue's audit_dead_letter table.
-func (q *sqliteQueue) migrateOrphanDeadLetter(orphan *sql.DB) bool {
+func (q *sqliteQueue) migrateOrphanQueue(ctx context.Context, orphan *sql.DB, name string) error {
+	return q.migrateOrphanTable(ctx, orphan, name, auditQueueTable,
+		"SELECT id, payload, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO audit_queue (payload, attempts) VALUES (?, ?)",
+	)
+}
+
+func (q *sqliteQueue) migrateOrphanDeadLetter(ctx context.Context, orphan *sql.DB, name string) error {
+	return q.migrateOrphanTable(ctx, orphan, name, auditDeadLetterTable,
+		"SELECT id, payload, failed_at FROM audit_dead_letter WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO audit_dead_letter (payload, failed_at) VALUES (?, ?)",
+	)
+}
+
+func orphanWatermarkKey(name, table string) string {
+	return "orphan_migration:" + name + ":" + table
+}
+
+func (q *sqliteQueue) migrateOrphanTable(ctx context.Context, orphan *sql.DB, name, table, selectSQL, insertSQL string) error {
+	watermarkKey := orphanWatermarkKey(name, table)
+	watermark, err := q.readOrphanWatermark(ctx, watermarkKey)
+	if err != nil {
+		return trace.Wrap(err, "reading orphan %s watermark", table)
+	}
 	for {
-		if q.ctx.Err() != nil {
-			return false
+		if err := ctx.Err(); err != nil {
+			return trace.Wrap(err)
 		}
-		batch, err := fetchOrphanDeadLetter(q.ctx, orphan, dequeueBatchSize)
+		if err := q.ctx.Err(); err != nil {
+			return trace.Wrap(err)
+		}
+		batch, err := fetchOrphanRows(ctx, orphan, selectSQL, watermark, dequeueBatchSize)
 		if err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx,
-				"Failed to fetch orphan dead-letter events.",
-				"error", err,
-			)
-			return false
+			return trace.Wrap(err, "fetching orphan %s rows", table)
 		}
 		if len(batch) == 0 {
-			return true
+			return nil
 		}
-		if err := q.insertDeadLetterBatch(batch); err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx,
-				"Failed to migrate orphan dead-letter events.",
-				"error", err,
-			)
-			return false
+
+		maxID := batch[len(batch)-1].id
+		if err := q.insertMigratedBatch(ctx, insertSQL, batch, watermarkKey, maxID); err != nil {
+			return trace.Wrap(err, "migrating orphan %s rows", table)
 		}
+		watermark = maxID
+
 		ids := make([]int64, len(batch))
 		for i, r := range batch {
 			ids[i] = r.id
 		}
-		if err := deleteIDsFromTable(q.ctx, orphan, auditDeadLetterTable, ids); err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx,
-				"Failed to delete migrated orphan dead-letter rows.",
-				"error", err,
-			)
-			return false
+		if err := deleteIDsFromTable(ctx, orphan, table, ids); err != nil {
+			return trace.Wrap(err, "deleting migrated orphan %s rows", table)
 		}
 	}
 }
 
-func fetchOrphanDeadLetter(ctx context.Context, db *sql.DB, limit int) ([]deadLetterRow, error) {
-	rows, err := db.QueryContext(ctx,
-		"SELECT id, payload, failed_at FROM audit_dead_letter ORDER BY id ASC LIMIT ?", limit)
+func (q *sqliteQueue) readOrphanWatermark(ctx context.Context, key string) (int64, error) {
+	var value string
+	err := q.db.QueryRowContext(ctx,
+		"SELECT value FROM teleport_info WHERE key = ?", key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	watermark, err := strconv.ParseInt(value, 10, 64)
+	return watermark, trace.Wrap(err)
+}
+
+func (q *sqliteQueue) clearOrphanWatermarks(ctx context.Context, name string) {
+	if _, err := q.db.ExecContext(ctx,
+		"DELETE FROM teleport_info WHERE key IN (?, ?)",
+		orphanWatermarkKey(name, auditQueueTable),
+		orphanWatermarkKey(name, auditDeadLetterTable),
+	); err != nil {
+		slog.ErrorContext(q.ctx,
+			"Failed to clear orphan migration watermarks.",
+			"orphan", name,
+			"error", err,
+		)
+	}
+}
+
+type migratedRow struct {
+	id     int64
+	values []any
+}
+
+func fetchOrphanRows(ctx context.Context, db *sql.DB, selectSQL string, afterID int64, limit int) ([]migratedRow, error) {
+	rows, err := db.QueryContext(ctx, selectSQL, afterID, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rows.Close()
-	var out []deadLetterRow
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var out []migratedRow
 	for rows.Next() {
-		var r deadLetterRow
-		if err := rows.Scan(&r.id, &r.payload, &r.failedAt); err != nil {
+		r := migratedRow{values: make([]any, len(cols)-1)}
+		targets := make([]any, 0, len(cols))
+		targets = append(targets, &r.id)
+		for i := range r.values {
+			targets = append(targets, &r.values[i])
+		}
+		if err := rows.Scan(targets...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		out = append(out, r)
@@ -602,16 +636,26 @@ func fetchOrphanDeadLetter(ctx context.Context, db *sql.DB, limit int) ([]deadLe
 	return out, trace.Wrap(rows.Err())
 }
 
-func (q *sqliteQueue) insertDeadLetterBatch(batch []deadLetterRow) error {
-	if len(batch) == 0 {
-		return nil
-	}
-	tx, err := q.db.BeginTx(q.ctx, nil)
+func (q *sqliteQueue) insertMigratedBatch(ctx context.Context, insertSQL string, batch []migratedRow, watermarkKey string, maxID int64) error {
+	tx, err := q.db.BeginTx(ctx, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer tx.Rollback()
-	if err := insertDeadLetterTx(q.ctx, tx, batch); err != nil {
+	stmt, err := tx.PrepareContext(ctx, insertSQL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stmt.Close()
+	for _, r := range batch {
+		if _, err := stmt.ExecContext(ctx, r.values...); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx,
+		"INSERT OR REPLACE INTO teleport_info (key, value) VALUES (?, ?)",
+		watermarkKey, strconv.FormatInt(maxID, 10),
+	); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(tx.Commit())

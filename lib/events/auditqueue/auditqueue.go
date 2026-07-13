@@ -65,7 +65,7 @@ type Config struct {
 	// warning messages.
 	SoftLimit int64
 	// MaxAttempts is the number of delivery failures before an event is moved
-	// to the dead-letter queue.
+	// to the dead-letter queue. Defaults to 10 if unset.
 	MaxAttempts int
 	// DeadLetterSweepInterval is how often the dead-letter sweeper re-attempts
 	// delivery of failed events.
