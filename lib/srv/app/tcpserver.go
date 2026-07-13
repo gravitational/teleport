@@ -20,17 +20,14 @@ package app
 
 import (
 	"context"
-	"crypto/tls"
 	"log/slog"
 	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -76,19 +73,13 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 
-	netDialer := &net.Dialer{Timeout: apidefaults.DefaultIOTimeout}
-	dialContext := netDialer.DialContext
-	if s.targetHostPolicy.Enabled() {
-		dialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return s.targetHostPolicy.DialContext(ctx, network, addr, common.TargetHostAuditContext{
-				Emitter:  s.emitter,
-				Logger:   s.log,
-				ServerID: s.hostID,
-				Identity: identity,
-				App:      app,
-			})
-		}
-	}
+	dialer := common.NewTargetDialer(s.targetHostPolicy, common.TargetHostAuditContext{
+		Emitter:  s.emitter,
+		Logger:   s.log,
+		ServerID: s.hostID,
+		Identity: identity,
+		App:      app,
+	})
 
 	var serverConn net.Conn
 	switch {
@@ -118,20 +109,12 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 			tlsConfig.ServerName = uriAddr.Host()
 		}
 
-		tlsDialer := tls.Dialer{
-			NetDialer: netDialer,
-			Config:    tlsConfig,
-		}
-		if s.targetHostPolicy.Enabled() {
-			serverConn, err = dialTLSWithPolicy(ctx, &tlsDialer, dialContext, uriAddr.AddrNetwork, dialTarget)
-		} else {
-			serverConn, err = tlsDialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
-		}
+		serverConn, err = dialer.DialTLS(ctx, uriAddr.AddrNetwork, dialTarget, tlsConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	default:
-		serverConn, err = dialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		serverConn, err = dialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -152,27 +135,6 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-func dialTLSWithPolicy(ctx context.Context, tlsDialer *tls.Dialer, dialContext func(context.Context, string, string) (net.Conn, error), network, addr string) (net.Conn, error) {
-	rawConn, err := dialContext(ctx, network, addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsConn := tls.Client(rawConn, tlsDialer.Config)
-	if err := rawConn.SetDeadline(time.Now().Add(apidefaults.DefaultIOTimeout)); err != nil {
-		_ = rawConn.Close()
-		return nil, trace.Wrap(err)
-	}
-	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		_ = rawConn.Close()
-		return nil, trace.Wrap(err)
-	}
-	if err := rawConn.SetDeadline(time.Time{}); err != nil {
-		_ = rawConn.Close()
-		return nil, trace.Wrap(err)
-	}
-	return tlsConn, nil
 }
 
 // pickDialTarget returns the address to dial based on the type of the app (single-port vs

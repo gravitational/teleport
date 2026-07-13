@@ -138,15 +138,14 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 
 	tr.ResponseHeaderTimeout = responseHeaderTimeout
 	if c.targetHostPolicy.Enabled() {
-		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return c.targetHostPolicy.DialContext(ctx, network, addr, common.TargetHostAuditContext{
-				Emitter:  c.emitter,
-				Logger:   c.log,
-				ServerID: c.hostID,
-				Identity: c.identity,
-				App:      c.app,
-			})
-		}
+		dialer := common.NewTargetDialer(c.targetHostPolicy, common.TargetHostAuditContext{
+			Emitter:  c.emitter,
+			Logger:   c.log,
+			ServerID: c.hostID,
+			Identity: c.identity,
+			App:      c.app,
+		})
+		tr.DialContext = dialer.DialContext
 	}
 
 	tr.TLSClientConfig, err = upstreamtls.Configure(ctx, upstreamtls.Options{

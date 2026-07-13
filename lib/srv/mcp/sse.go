@@ -20,7 +20,6 @@ package mcp
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -144,15 +143,14 @@ func (s *Server) makeBasicHTTPTransport(ctx context.Context, app types.Applicati
 	// from the target server.
 	tr.ResponseHeaderTimeout = time.Minute
 	if s.cfg.TargetHostPolicy.Enabled() {
-		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return s.cfg.TargetHostPolicy.DialContext(ctx, network, addr, appcommon.TargetHostAuditContext{
-				Emitter:  s.cfg.Emitter,
-				Logger:   s.cfg.Log,
-				ServerID: s.cfg.HostID,
-				Identity: identity,
-				App:      app,
-			})
-		}
+		dialer := appcommon.NewTargetDialer(s.cfg.TargetHostPolicy, appcommon.TargetHostAuditContext{
+			Emitter:  s.cfg.Emitter,
+			Logger:   s.cfg.Log,
+			ServerID: s.cfg.HostID,
+			Identity: identity,
+			App:      app,
+		})
+		tr.DialContext = dialer.DialContext
 	}
 
 	// Use app TLS options.
