@@ -8806,6 +8806,7 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 		args     []string
 		env      map[string]string
 		expected string
+		wantErr  bool
 	}{
 		{
 			name:     "default stderr",
@@ -8855,6 +8856,16 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 			},
 			expected: proxyStatusOutputNone,
 		},
+		{
+			name:    "invalid env",
+			env:     map[string]string{proxyStatusOutputEnvVar: "foobar"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid flag",
+			args:    []string{"--proxy-output=foobar"},
+			wantErr: true,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			for k, v := range tt.env {
@@ -8869,6 +8880,10 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 				Default(proxyStatusOutputDefault).
 				EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
 			_, err := app.Parse(tt.args)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, proxyStatusOutput)
 		})
