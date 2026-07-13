@@ -1668,6 +1668,12 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
 			},
 		}.Build(),
+		App: scopedaccessv1.ScopedRoleApp_builder{
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+			},
+			LabelExpression: `contains(labels["env"], "prod")`,
+		}.Build(),
 	}.Build()
 
 	require.True(t, testutils.ExhaustiveNonEmpty(spec),

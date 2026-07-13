@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -96,7 +97,9 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 			case apps := <-watcher.ResourcesC:
 				for _, app := range apps {
 					if app.GetPublicAddr() == "" {
-						pubAddr, err := FindPublicAddr(ctx, s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
+						// TODO (williamo/scopes): Dynamic app registration does not support scoped apps
+						// add scoped app here when we do support it.
+						pubAddr, err := FindPublicAddr(ctx, s.c.AccessPoint, app.GetPublicAddr(), app.GetName(), "")
 						if err == nil {
 							app.SetPublicAddr(pubAddr)
 						} else {
@@ -139,9 +142,23 @@ type FindPublicAddrClient interface {
 }
 
 // FindPublicAddr tries to resolve the public address of the proxy of this cluster.
-func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicAddr string, appName string) (string, error) {
-	// If the application has a public address already set, use it.
-	if appPublicAddr != "" {
+//
+// For a scoped app, the address is always derived as the
+// scope-qualified FQDN "<hash(name,scope)>.<proxy>"
+// TODO(williamo/scopes): We added a scopeVar as a variadic parameter to not break the e submodule.
+// This will be amended in a future PR.
+func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicAddr, appName string, scopeVar ...string) (string, error) {
+	// If the application has a public address already set, use it. Scoped apps
+	// always derive their address, so the config value is not honored.
+	scope := ""
+	switch len(scopeVar) {
+	case 1:
+		scope = scopeVar[0]
+	case 0:
+	default:
+		return "", trace.BadParameter("multiple scopes not allowed")
+	}
+	if appPublicAddr != "" && scope == "" {
 		return appPublicAddr, nil
 	}
 
@@ -161,6 +178,9 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
+		if scope != "" {
+			return scopedapp.ScopedAppPublicAddr(scope, appName, addr.Host()), nil
+		}
 		return utils.DefaultAppFQDN(appName, addr.Host(), ""), nil
 	}
 
@@ -168,6 +188,10 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 	cn, err := client.GetClusterName(context.TODO())
 	if err != nil {
 		return "", trace.Wrap(err)
+	}
+
+	if scope != "" {
+		return scopedapp.ScopedAppPublicAddr(scope, appName, cn.GetClusterName()), nil
 	}
 	return utils.DefaultAppFQDN(appName, "", cn.GetClusterName()), nil
 }

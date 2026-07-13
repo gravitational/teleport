@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -54,6 +55,7 @@ type fakeAuthorizer struct {
 	authorize bool
 
 	authzContext *authz.Context
+	checkerMap   map[string]*services.ScopedAccessChecker
 }
 
 // Authorize implements authz.Authorizer
@@ -76,6 +78,7 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 				},
 			},
 			Identity:             identity,
+			UnmappedIdentity:     identity,
 			AdminActionAuthState: authz.AdminActionAuthNotRequired,
 		}, nil
 	}
@@ -88,6 +91,13 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	identity = &authz.LocalUser{
+		Username: "alice",
+		Identity: tlsca.Identity{
+			Groups:   []string{"dev"},
+			Username: "alice",
+		},
+	}
 	return &authz.Context{
 		User: user,
 		Checker: &fakeChecker{
@@ -98,14 +108,34 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 				},
 			},
 		},
-		Identity: &authz.LocalUser{
-			Username: "alice",
-			Identity: tlsca.Identity{
-				Groups:   []string{"dev"},
-				Username: "alice",
-			},
-		},
+		Identity:             identity,
+		UnmappedIdentity:     identity,
 		AdminActionAuthState: authz.AdminActionAuthNotRequired,
+	}, nil
+}
+
+func (a fakeAuthorizer) AuthorizeScoped(ctx context.Context) (*authz.ScopedContext, error) {
+	identity, err := authz.UserFromContext(ctx)
+	if err != nil || identity.GetIdentity().ScopePin == nil {
+		authCtx, err := a.Authorize(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return authz.ScopedContextFromUnscopedContext(authCtx), nil
+	}
+
+	scopedBuiltin, ok := identity.(authz.ScopedBuiltinRole)
+	if !ok {
+		return nil, trace.AccessDenied("expected scoped builtin role")
+	}
+
+	checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(scopedBuiltin.ScopePin, a.checkerMap)
+	if err != nil {
+		return nil, err
+	}
+	return &authz.ScopedContext{
+		Identity:       identity,
+		CheckerContext: checkerCtx,
 	}, nil
 }
 
@@ -145,6 +175,12 @@ func withAuthorizer(authz authz.Authorizer) serviceOpt {
 	}
 }
 
+func withScopedAuthorizer(scopedAuthz authz.ScopedAuthorizer) serviceOpt {
+	return func(config *usersv1.ServiceConfig) {
+		config.ScopedAuthorizer = scopedAuthz
+	}
+}
+
 func withEmitter(emitter apievents.Emitter) serviceOpt {
 	return func(config *usersv1.ServiceConfig) {
 		config.Emitter = emitter
@@ -179,11 +215,12 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 	emitter := eventstest.NewChannelEmitter(10)
 
 	cfg := usersv1.ServiceConfig{
-		Authorizer: fakeAuthorizer{authorize: true},
-		Cache:      service,
-		Backend:    service,
-		Emitter:    emitter,
-		Reporter:   usagereporter.DiscardUsageReporter{},
+		Authorizer:       fakeAuthorizer{authorize: true},
+		ScopedAuthorizer: fakeAuthorizer{authorize: true},
+		Cache:            service,
+		Backend:          service,
+		Emitter:          emitter,
+		Reporter:         usagereporter.DiscardUsageReporter{},
 	}
 
 	for _, opt := range opts {
@@ -300,10 +337,12 @@ func TestGetUser(t *testing.T) {
 	}, &types.SessionRecordingConfigV2{})
 	require.NoError(t, err, "creating authorization context")
 
-	env, err := newTestEnv(withAuthorizer(fakeAuthorizer{authzContext: authzContext}))
+	env, err := newTestEnv(
+		withScopedAuthorizer(fakeAuthorizer{authzContext: authzContext}),
+	)
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -611,7 +650,7 @@ func generateUserSecrets(u types.User) error {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -674,11 +713,27 @@ func TestRBAC(t *testing.T) {
 			expectChecks: []check{},
 		},
 		{
-			desc: "get",
+			desc: "get self with explicit access",
 			f: func(t *testing.T, service *usersv1.Service) {
 				resp, err := service.GetUser(ctx, userspb.GetUserRequest_builder{Name: "llama"}.Build())
 				assert.NoError(t, err, "expected RBAC to allow getting user")
 				assert.Empty(t, cmp.Diff(llama, resp.GetUser(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			},
+			checker: &fakeChecker{
+				rules: []types.Rule{
+					{
+						Resources: []string{types.KindUser},
+					},
+				},
+			},
+			expectChecks: []check{},
+		},
+		{
+			desc: "get other user",
+			f: func(t *testing.T, service *usersv1.Service) {
+				_, err := service.GetUser(ctx, userspb.GetUserRequest_builder{Name: "alice"}.Build())
+				assert.Error(t, err, "expected error getting non-existing user")
+				assert.True(t, trace.IsNotFound(err), "expected trace.NotFoundError")
 			},
 			checker: &fakeChecker{
 				rules: []types.Rule{
@@ -689,8 +744,8 @@ func TestRBAC(t *testing.T) {
 				},
 			},
 			expectChecks: []check{
-				{kind: types.KindUser, verb: types.VerbCreate},
 				{kind: types.KindUser, verb: types.VerbRead},
+				{kind: types.KindUser, verb: types.VerbCreate},
 			},
 		},
 		{
@@ -930,17 +985,22 @@ func TestRBAC(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			env, err := newTestEnv(withAuthorizer(&fakeAuthorizer{authzContext: &authz.Context{
-				User:    llama,
-				Checker: test.checker,
-				Identity: authz.LocalUser{
-					Username: "alice",
-					Identity: tlsca.Identity{
-						Groups: []string{"dev"},
-					},
+			ident := authz.LocalUser{
+				Username: "llama",
+				Identity: tlsca.Identity{
+					Username: "llama",
+					Groups:   []string{"dev"},
 				},
+			}
+
+			authorizer := fakeAuthorizer{authzContext: &authz.Context{
+				User:                 llama,
+				Checker:              test.checker,
+				Identity:             ident,
+				UnmappedIdentity:     ident,
 				AdminActionAuthState: authz.AdminActionAuthNotRequired,
-			}}))
+			}}
+			env, err := newTestEnv(withAuthorizer(authorizer), withScopedAuthorizer(authorizer))
 			require.NoError(t, err, "creating test service")
 
 			// Create the user directly on the backend to bypass RBAC enforced by the test cases.
@@ -952,4 +1012,64 @@ func TestRBAC(t *testing.T) {
 			require.ElementsMatch(t, test.expectChecks, test.checker.checks)
 		})
 	}
+}
+
+func TestScopePinnedAgentGetUser(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	userChecker := &fakeChecker{
+		rules: []types.Rule{
+			{
+				Resources: []string{types.KindUser},
+				Verbs:     []string{types.VerbRead},
+			},
+		},
+	}
+	// Build a fake authorizer with a scoped checker map allowing node system roles access to users but
+	// denying kube system roles. We need both to test access granted and denied
+	authorizer := fakeAuthorizer{
+		checkerMap: map[string]*services.ScopedAccessChecker{
+			string(types.RoleNode): services.NewScopedAccessCheckerForSystemRole(string(types.RoleNode), userChecker),
+			string(types.RoleKube): services.NewScopedAccessCheckerForSystemRole(string(types.RoleKube), &fakeChecker{}),
+		},
+	}
+
+	// build a scoped agent identity
+	pin := scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: "/test",
+		SystemRoles: scopesv1.SystemRoles_builder{
+			Primary: types.RoleNode.String(),
+		}.Build(),
+	}.Build()
+	agent := authz.ScopedBuiltinRole{
+		ServerFQDN: "test-server.local",
+		ScopePin:   pin,
+		Identity: tlsca.Identity{
+			ScopePin: pin,
+		},
+	}
+
+	// configure test env with a scoped authorizer
+	env, err := newTestEnv(withScopedAuthorizer(authorizer))
+	require.NoError(t, err, "creating test service")
+
+	// create test user to try and fetch
+	llama, err := types.NewUser("llama")
+	require.NoError(t, err, "creating new user llama")
+	_, err = env.backend.CreateUser(ctx, llama.(*types.UserV2))
+	require.NoError(t, err, "creating test user")
+
+	// verify we can fetch the user with the node system role
+	res, err := env.Service.GetUser(authz.ContextWithUser(ctx, agent), userspb.GetUserRequest_builder{Name: "llama"}.Build())
+	require.NoError(t, err, "expected no error getting user as scoped agent")
+	assert.Empty(t, cmp.Diff(llama, res.GetUser(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// verify we can't fetch the user with the kube system role
+	pin.GetSystemRoles().SetPrimary(types.RoleKube.String())
+	_, err = env.Service.GetUser(authz.ContextWithUser(ctx, agent), userspb.GetUserRequest_builder{Name: "llama"}.Build())
+	require.Error(t, err, "expected error getting user as scoped agent")
+	require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDeniedError")
 }

@@ -162,6 +162,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
 		{Kind: types.KindBeam},
+		{Kind: types.KindBeamsConfig},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -458,6 +459,7 @@ func ForLinuxDesktop(cfg Config) Config {
 		if err == nil {
 			caFilter = types.CertAuthorityFilter{
 				types.HostCA: clusterName.GetClusterName(),
+				types.UserCA: types.Wildcard,
 			}.IntoMap()
 		}
 	}
@@ -540,7 +542,12 @@ type Cache struct {
 	// when checking the `ok` or `confirmedKinds` fields. Since the write
 	// lock must be held in order to modify the `ok` field, this serves
 	// to ensure that all in-progress reads complete *before* a reset can begin.
-	rw sync.RWMutex
+	//
+	// In test builds with the race detector enabled, it's a read-write mutex
+	// that must be unlocked for reading in the same goroutine that acquired the
+	// read lock. This is currently the case and shouldn't be particularly
+	// restricting in the future.
+	rw rwMutex
 	// ok indicates whether the cache is in a valid state for reads.
 	// If `ok` is `false`, reads are forwarded directly to the backend.
 	ok bool
@@ -716,6 +723,8 @@ type Config struct {
 	Apps services.Applications
 	// Beams is a beam reader service.
 	Beams services.BeamReader
+	// BeamsConfig is a beams config getter service.
+	BeamsConfig services.BeamsConfigGetter
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.

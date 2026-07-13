@@ -75,7 +75,7 @@ const StyledStatus = styled(Box)<{
         `;
       }
       case 'off': {
-        return { border: `1px solid ${theme.colors.grey[300]}` };
+        return { border: `1px solid ${theme.colors.blueGrey[300]}` };
       }
       case 'error': {
         // Using text instead of an icon because any icon used here would be smaller than the

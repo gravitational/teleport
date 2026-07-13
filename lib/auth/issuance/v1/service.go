@@ -219,7 +219,11 @@ func (s *Service) IssueScopedBotCerts(
 		LoginIP:        currentIdentity.LoginIP,
 		BotName:        currentIdentity.BotName,
 		BotInstanceID:  currentIdentity.BotInstanceID,
-		JoinToken:      currentIdentity.JoinToken,
+		// Derived from the bot user's label rather than copied from the
+		// current identity so that certs issued before the BotScope cert field
+		// existed still produce correctly-attributed output certs.
+		BotScope:  botScope,
+		JoinToken: currentIdentity.JoinToken,
 	}
 
 	// nb(strideynet): One day, we'll want to pull more of the logic around

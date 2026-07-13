@@ -212,6 +212,67 @@ Arguments:
 |---|---|---|
 |access-list-name|*no default* (optional)|The access list name to show summary for. If not provided, shows summary for all access lists.|
 
+## tctl acl update
+
+Update an existing access list. Each flag you pass replaces that field (no merge
+or append), so list-valued flags like --members or --logins overwrite the whole
+list; anything you omit is left unchanged.
+
+For an access list created with an access type, resource flags (--node-labels,
+etc.) edit the supporting roles.
+
+Usage:
+
+```code
+$ tctl acl update [<flags>] <access-list-name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--app-labels`|*no default*|Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.|
+|`--audit-day`|*no default*|Day of month for audit (1, 15, or 31). Changing this resets the next audit date to now + frequency.|
+|`--audit-frequency`|*no default*|Audit recurrence in months (1, 3, 6, or 12). Changing this resets the next audit date to now + frequency.|
+|`--aws-ic-assignments`|*no default*|Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID:permissionSetARN' pairs).|
+|`--aws-role-arns`|*no default*|AWS role ARNs members may assume via matched apps.|
+|`--azure-identities`|*no default*|Azure managed identities members may assume via matched apps.|
+|`--db-labels`|*no default*|Selects databases members may access by label match.|
+|`--db-names`|*no default*|Database names members may connect to on matched databases.|
+|`--db-users`|*no default*|Database users members may connect as on matched databases.|
+|`--description`|*no default*|New description.|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--gcp-service-accounts`|*no default*|GCP service accounts members may assume via matched apps.|
+|`--github-orgs`|*no default*|Selects git servers members may access by GitHub organization name.|
+|`--kubernetes-groups`|*no default*|Kubernetes groups members may impersonate on matched clusters.|
+|`--kubernetes-labels`|*no default*|Selects Kubernetes clusters members may access by label match.|
+|`--kubernetes-users`|*no default*|Kubernetes users members may impersonate on matched clusters.|
+|`--logins`|*no default*|OS logins members may use to connect to matched SSH servers.|
+|`--mcp-tools`|*no default*|MCP tools members may call on matched MCP apps.|
+|`--member-access-lists`|*no default*|Replace the nested access-list members with this list of access list names. Not combinable with non-member update flags.|
+|`--member-grant-roles`|*no default*|Roles granted to members of this access list.|
+|`--member-grant-traits`|*no default*|Traits granted to members of this access list.|
+|`--member-required-roles`|*no default*|Roles a user must already have to be a member of this access list.|
+|`--member-required-traits`|*no default*|Traits a user must already have to be a member of this access list.|
+|`--members`|*no default*|Replace the user members with this list of usernames or emails. Not combinable with non-member update flags.|
+|`--node-labels`|*no default*|Selects SSH servers members may access by label match.|
+|`--[no-]remove-access`|`false`|Remove resource access from an access-typed list. Detaches the resource-access roles from the list's grants and from the supporting reviewer/requester roles.|
+|`--owner-access-lists`|*no default*|Replace the access-list owners with this list of access list names.|
+|`--owner-grant-roles`|*no default*|Roles granted to owners of this access list.|
+|`--owner-grant-traits`|*no default*|Traits granted to owners of this access list.|
+|`--owner-required-roles`|*no default*|Roles a user must already have to be an owner of this access list.|
+|`--owner-required-traits`|*no default*|Traits a user must already have to be an owner of this access list.|
+|`--owners`|*no default*|Replace the user owners with this list of usernames or emails.|
+|`--title`|*no default*|New display name for the access list.|
+|`--windows-labels`|*no default*|Selects Windows desktops members may access by label match.|
+|`--windows-logins`|*no default*|Logins members may use to connect to matched Windows desktops.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|access-list-name|*no default* (required)|The Access List name.|
+
 ## tctl acl users add
 
 Add a user to an Access List.
@@ -736,6 +797,28 @@ Flags:
 |`--windows-pki-domain`|*no default*|Active Directory domain where CRLs will be located. Only used when --format is set to "windows"|
 |`--windows-sid`|*no default*|Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"|
 |`--windows-user`|*no default*|Window user placed on the identity file. Only used when --format is set to "windows"|
+
+## tctl auth update-override
+
+Update a single certificate override in a CA override resource
+
+Usage:
+
+```code
+$ tctl auth update-override --type=TYPE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]clear-chain`|`false`|Clears existing CA override trust chain|
+|`--[no-]force`|`false`|If true attempts to force the update. May be used to ignore select state validation or disable live overrides.|
+|`--public-key`|*no default*|Public key hash of the certificate override to be targeted|
+|`--set-cert`|*no default*|CA override certificate file in PEM form|
+|`--set-chain`|*no default*|CA override trust chain files in PEM form|
+|`--set-disabled`|*no default* (one of: `true`, `false`)|If true disables the override, if false enables it|
+|`--type`|*no default*|CA type (db-client, windows)|
 
 ## tctl autoupdate agents mark-done
 
@@ -1380,6 +1463,28 @@ Flags:
 |`--format`|*no default*|output format, 'yaml' or 'json'|
 |`--sp`|*no default*|name of a file containing service provider spec|
 |`-u`, `--users`|*no default*|username or name of a file containing user spec|
+
+## tctl integrations test
+
+Verify an integration.
+
+Usage:
+
+```code
+$ tctl integrations test [<flags>] <integration>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|integration|*no default* (required)|Name of the integration to test. Use `tctl get integrations` to list integrations.|
 
 ## tctl inventory list
 
@@ -2058,6 +2163,7 @@ Flags:
 |`--resource-kind`|*no default*|Filter by Teleport resource type (node, kube_cluster, db).|
 |`--resource-name`|*no default*|Filter by resource name.|
 |`--resume-token`|*no default*|Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).|
+|`--review-reason`|*no default* (any of (repeatable): `access_request_resource_mismatch`, `classifier_matched`, `command_analysis_failed`, `failed_to_fetch_access_request`, `output_not_fully_captured`, `too_large`, `any`)|Filter to sessions that have at least one of the given review reasons. Use 'any' to match any flagged session. Can be specified multiple times.|
 |`--role`|*no default*|Filter by role held during the session. Can be specified multiple times.|
 |`--search-mode`|`hybrid` (one of: `hybrid`, `keyword`, `embeddings`)|Search strategy to use when search queries are provided.|
 |`--server-addr`|*no default*|Filter SSH sessions by server address.|
@@ -2681,6 +2787,7 @@ Flags:
 |`--host-user-uid`|*no default*|UID for auto provisioned host users to use|
 |`--kubernetes-groups`|*no default*|List of allowed Kubernetes groups for the new user|
 |`--kubernetes-users`|*no default*|List of allowed Kubernetes users for the new user|
+|`--linux-desktop-logins`|*no default*|List of allowed Linux desktop logins for the new user|
 |`--logins`|*no default*|List of allowed SSH logins for the new user|
 |`--mcp-tools`|*no default*|List of allowed MCP tools for the new user|
 |`--roles`|*no default*|List of roles for the new user to assume|
@@ -2773,6 +2880,7 @@ Flags:
 |`--set-host-user-uid`|*no default*|UID for auto provisioned host users to use. Value can be reset by providing an empty string|
 |`--set-kubernetes-groups`|*no default*|List of allowed Kubernetes groups for the user, replaces current Kubernetes groups|
 |`--set-kubernetes-users`|*no default*|List of allowed Kubernetes users for the user, replaces current Kubernetes users|
+|`--set-linux-desktop-logins`|*no default*|List of allowed Linux desktop logins for the user, replaces current Linux logins|
 |`--set-logins`|*no default*|List of allowed SSH logins for the user, replaces current logins|
 |`--set-mcp-tools`|*no default*|List of allowed MCP tools for the user, replaces current allowed MCP tools.|
 |`--set-roles`|*no default*|List of roles for the user to assume, replaces current roles|
@@ -2900,7 +3008,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|*no default* (required)|Name of the workload identity configuration to delete.|
+|name|*no default* (required)|Name of the workload identity configuration to delete. For a scoped workload identity, provide a scope-qualified name of the form '\<scope\>::\<name\>'.|
 
 ## tctl workload-identity x509-issuer-overrides create
 

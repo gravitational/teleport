@@ -388,6 +388,9 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    mobileDevice: {
+      createEnrollToken: false,
+    },
   };
 
   expect(response).toEqual({

@@ -17,20 +17,24 @@
 package joining_test
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/base64"
 	"fmt"
 	"maps"
 	"testing"
 
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility with gogoproto-generated types.Struct
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -955,6 +959,193 @@ func TestValidateScopedToken(t *testing.T) {
 			},
 		},
 		{
+			name: "valid generic_oidc scoped token",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+
+				mustMatch, err := structpb.NewStruct(map[string]any{
+					"foo": "bar",
+					"nested": map[string]any{
+						"string": "abc",
+						"number": 123.456,
+						"bool":   true,
+					},
+				})
+				require.NoError(t, err)
+
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:          "https://example.com",
+					Audience:        "example.teleport.sh/example",
+					MustMatchFields: mustMatch,
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+						joiningv1.GenericOIDC_Rule_builder{
+							Conditions: []*joiningv1.GenericOIDC_Condition{
+								joiningv1.GenericOIDC_Condition_builder{
+									Attribute: "nested.string",
+									Eq: joiningv1.GenericOIDC_ConditionEq_builder{
+										Value: "abc",
+									}.Build(),
+								}.Build(),
+							},
+						}.Build(),
+					},
+				}.Build())
+			},
+		},
+		{
+			name: "invalid generic_oidc scoped token without rules",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:   "https://example.com",
+					Audience: "example.teleport.sh/example",
+				}.Build())
+			},
+			expectedStrongErr: "at least one rule must exist",
+			expectedWeakErr:   "at least one rule must exist",
+		},
+		{
+			name: "invalid generic_oidc scoped token with bad condition",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:   "https://example.com",
+					Audience: "example.teleport.sh/example",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+						joiningv1.GenericOIDC_Rule_builder{
+							Conditions: []*joiningv1.GenericOIDC_Condition{
+								joiningv1.GenericOIDC_Condition_builder{
+									Attribute: "nested.string",
+									Eq: joiningv1.GenericOIDC_ConditionEq_builder{
+										Value: "abc",
+									}.Build(),
+									NotEq: joiningv1.GenericOIDC_ConditionNotEq_builder{
+										Value: "asdf",
+									}.Build(),
+								}.Build(),
+							},
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "exactly one operator is required",
+			expectedWeakErr:   "exactly one operator is required",
+		},
+		{
+			name: "invalid generic_oidc scoped token with bad allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:   "https://example.com",
+					Audience: "example.teleport.sh/example",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+							Conditions: []*joiningv1.GenericOIDC_Condition{
+								joiningv1.GenericOIDC_Condition_builder{
+									Attribute: "nested.string",
+									Eq: joiningv1.GenericOIDC_ConditionEq_builder{
+										Value: "abc",
+									}.Build(),
+								}.Build(),
+							},
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "only one of `expression` or `conditions` may be set",
+			expectedWeakErr:   "only one of `expression` or `conditions` may be set",
+		},
+		{
+			name: "invalid generic_oidc token http without override",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:   "http://example.com",
+					Audience: "example.teleport.sh/example",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "generic_oidc: issuer must be https://",
+			expectedWeakErr:   "generic_oidc: issuer must be https://",
+		},
+		{
+			name: "invalid generic_oidc token issuer with invalid issuer",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:   ":not-a-url",
+					Audience: "example.teleport.sh/example",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "generic_oidc: issuer must be a valid URL",
+			expectedWeakErr:   "generic_oidc: issuer must be a valid URL",
+		},
+		{
+			name: "invalid generic_oidc token issuer required",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Audience: "example.teleport.sh/example",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "generic_oidc: issuer is required",
+			expectedWeakErr:   "generic_oidc: issuer is required",
+		},
+		{
+			name: "invalid generic_oidc token audience required",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer: "https://example.com",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "generic_oidc: audience is required",
+			expectedWeakErr:   "generic_oidc: audience is required",
+		},
+		{
+			name: "valid generic_oidc token http with override",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:                  "http://example.com",
+					Audience:                "example.teleport.sh/example",
+					InsecureAllowHttpIssuer: true,
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+					},
+				}.Build())
+			},
+		},
+		{
 			name: "non-bot token with bot",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.GetSpec().SetBot("/aa/bb::foo")
@@ -1224,6 +1415,47 @@ func TestNewTokenGetBot(t *testing.T) {
 	}
 }
 
+func TestScopedTokenGenericOIDCMustMatchFieldsConversion(t *testing.T) {
+	t.Parallel()
+
+	mustMatch, err := structpb.NewStruct(map[string]any{
+		"example": "foo",
+		"nested": map[string]any{
+			"string": "abc",
+			"number": 123.456,
+			"bool":   true,
+		},
+	})
+	require.NoError(t, err)
+
+	token, err := joining.NewToken(joiningv1.ScopedToken_builder{
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			Roles:      []string{string(types.RoleNode)},
+			JoinMethod: string(types.JoinMethodGenericOIDC),
+			GenericOidc: joiningv1.GenericOIDC_builder{
+				Issuer:          "https://example.com",
+				Audience:        "example",
+				MustMatchFields: mustMatch,
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	spec, err := token.GetGenericOIDC()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	require.NoError(t, (&jsonpb.Marshaler{}).Marshal(&buf, spec.MustMatchFields))
+	require.JSONEq(t, `{
+		"example": "foo",
+		"nested": {
+			"number": 123.456,
+			"string": "abc",
+			"bool": true
+		}
+	}`, buf.String())
+}
+
 func TestImmutableLabelHashing(t *testing.T) {
 	labels := joiningv1.ImmutableLabels_builder{
 		Ssh: map[string]string{
@@ -1470,6 +1702,7 @@ func TestValidateTokenForUse(t *testing.T) {
 			Roles:         []string{types.RoleNode.String()},
 			JoinMethod:    string(types.JoinMethodToken),
 			AssignedScope: "/test",
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
 		}.Build(),
 		Status: joiningv1.ScopedTokenStatus_builder{
 			Secret: "secret",
@@ -1481,7 +1714,51 @@ func TestValidateTokenForUse(t *testing.T) {
 	assert.NoError(t, joining.WeakValidateToken(token))
 	strongValidateErr := joining.StrongValidateToken(token)
 	assert.Error(t, strongValidateErr)
-	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token))
+	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled: true,
+	}))
+
+	// fix token so StrongValidate succeeds
+	token.SetKind(types.KindScopedToken)
+	token.SetVersion(types.V1)
+	token.SetMetadata(headerv1.Metadata_builder{
+		Name: "test-token",
+	}.Build())
+
+	// validation should succeed for node role if scopes are enabled
+	require.NoError(t, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled: true,
+	}))
+
+	// validation should fail if scopes are disabled
+	require.ErrorContains(t, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled: false,
+	}), "scoping features are not enabled")
+
+	// validation should fail for kube role if agent pinning is disabled
+	token.GetSpec().SetRoles(append(token.GetSpec().GetRoles(), string(types.RoleKube)))
+	require.ErrorContains(t, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled: true,
+	}), "scoped token cannot be used to join [Node, Kube] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
+
+	// validation should succeed for kube role if agent pinning is enabled
+	require.NoError(t, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled:         true,
+		AgentPinEnabled: true,
+	}))
+
+	// validation should succeed for bot role even if agent scope pins are disabled
+	token.GetSpec().SetBot(scopes.QualifiedName{
+		Scope: token.GetSpec().GetAssignedScope(),
+		Name:  "bot-name",
+	}.String())
+	token.GetSpec().SetAssignedScope("")
+	token.GetSpec().SetJoinMethod(string(types.JoinMethodBoundKeypair))
+	token.GetSpec().SetUsageMode(string(joining.TokenUsageModeBot))
+	token.GetSpec().SetRoles([]string{string(types.RoleBot)})
+	require.NoError(t, joining.ValidateTokenForUse(token, scopes.Features{
+		Enabled: true,
+	}))
 }
 
 func TestScopedTokenEncoding(t *testing.T) {

@@ -17,6 +17,8 @@
 package request
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -27,25 +29,41 @@ import (
 
 // Config is config used to create a new provide request.
 type Config struct {
-	// LLM inference endpoint configuration.
-	LLM *types.LLM
+	// Logger is the logger used to emit log entries.
+	Logger *slog.Logger
+	// App is the app being served.
+	App types.Application
 	// DownstreamRequest is the received downstream request.
 	DownstreamRequest *http.Request
 	// ProviderURL is the provider URL address.
 	ProviderURL *url.URL
 	// GetAPIKeyFunc is the function used to retrieve Anthropic API keys.
 	GetAPIKeyFunc func() string
+	// SignBedrockRequest signs the AWS Bedrock request.
+	// Required for the AWS Bedrock provider.
+	SignBedrockRequest func(ctx context.Context, app types.Application, request *http.Request, requestBody []byte) error
 }
 
 func (c *Config) CheckAndSetDefaults() error {
-	if c.LLM == nil {
-		return trace.BadParameter("llm information is required")
+	if c.Logger == nil {
+		c.Logger = slog.Default()
+	}
+	if c.App == nil {
+		return trace.BadParameter("app is required")
+	}
+	if c.App.GetLLM() == nil {
+		return trace.BadParameter("app llm information is required")
 	}
 	if c.DownstreamRequest == nil {
 		return trace.BadParameter("downstream request is required")
 	}
 	if c.GetAPIKeyFunc == nil {
 		return trace.BadParameter("get api key function is required")
+	}
+	if c.App.GetLLM().Provider == types.LLMProviderAWSBedrock {
+		if c.SignBedrockRequest == nil {
+			return trace.BadParameter("sign aws bedrock request function is required for the bedrock provider")
+		}
 	}
 
 	return nil

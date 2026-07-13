@@ -696,7 +696,6 @@ func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.Kuberne
 func (t *TLSServer) startHeartbeat(name string) error {
 	heartbeat, err := srv.NewKubernetesServerHeartbeat(srv.HeartbeatV2Config[*types.KubernetesServerV3]{
 		InventoryHandle: t.InventoryHandle,
-		Announcer:       t.TLSServerConfig.AuthClient,
 		GetResource:     func(context.Context) (*types.KubernetesServerV3, error) { return t.GetServerInfo(name) },
 		OnHeartbeat:     t.TLSServerConfig.OnHeartbeat,
 	})

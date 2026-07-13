@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/delegation/v1/delegation_session_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package delegationv1
 

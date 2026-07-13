@@ -1984,7 +1984,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				require.True(t, ok, i...)
 				require.Contains(t, out, "MFA response validation failed", i...)
 			},
-			mfaPromptCount: 1,
+			mfaPromptCount: 2, // In-band MFA fails and fallback to legacy MFA cert fails.
 			errAssertion:   require.Error,
 		},
 		{

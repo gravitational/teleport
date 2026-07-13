@@ -262,9 +262,10 @@ const (
 	SubsystemError = "exitError"
 
 	// X11 forwarding event
-	X11ForwardEvent   = "x11-forward"
-	X11ForwardSuccess = "success"
-	X11ForwardErr     = "error"
+	X11ForwardEvent = "x11-forward"
+
+	// Agent forwarding event
+	AgentForwardEvent = "agent-forward"
 
 	// Port forwarding event
 	PortForwardEvent           = "port"
@@ -373,6 +374,15 @@ const (
 	// also known as Join Token. See [types.ProvisionToken].
 	ProvisionTokenCreateEvent = "join_token.create"
 
+	// ScopedTokenCreateEvent is the event for creating a scoped token.
+	ScopedTokenCreateEvent = "scoped_token.create"
+	// ScopedTokenUpsertEvent is the event for upserting a scoped token.
+	ScopedTokenUpsertEvent = "scoped_token.upsert"
+	// ScopedTokenUpdateEvent is the event for updating a scoped token.
+	ScopedTokenUpdateEvent = "scoped_token.update"
+	// ScopedTokenDeleteEvent is the event for deleting a scoped token.
+	ScopedTokenDeleteEvent = "scoped_token.delete"
+
 	// GithubConnectorCreatedEvent fires when a Github connector is created.
 	GithubConnectorCreatedEvent = "github.created"
 	// GithubConnectorUpdatedEvent fires when a Github connector is updated.
@@ -429,6 +439,14 @@ const (
 	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
 	// is sent and fails.
 	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
+	// AppSessionHTTPRequestEvent is emitted when a proxied HTTP request is received.
+	AppSessionHTTPRequestEvent = "http.request"
+	// AppSessionHTTPRequestBodyChunkEvent is emitted for each chunk of a proxied HTTP request body.
+	AppSessionHTTPRequestBodyChunkEvent = "http.request.body_chunk"
+	// AppSessionHTTPResponseEvent is emitted when a proxied HTTP response is received.
+	AppSessionHTTPResponseEvent = "http.response"
+	// AppSessionHTTPResponseBodyChunkEvent is emitted for each chunk of a proxied HTTP response body.
+	AppSessionHTTPResponseBodyChunkEvent = "http.response.body_chunk"
 
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
@@ -598,6 +616,13 @@ const (
 	// WindowsDesktopSessionEndEvent is emitted when a user disconnects
 	// from a desktop.
 	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
+
+	// LinuxDesktopSessionStartEvent is emitted when a user attempts
+	// to connect to a desktop.
+	LinuxDesktopSessionStartEvent = "linux.desktop.session.start"
+	// LinuxDesktopSessionEndEvent is emitted when a user disconnects
+	// from a desktop.
+	LinuxDesktopSessionEndEvent = "linux.desktop.session.end"
 
 	// CertificateCreateEvent is emitted when a certificate is issued.
 	CertificateCreateEvent = "cert.create"
@@ -1090,6 +1115,7 @@ const (
 var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
+	LinuxDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
 
 	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.

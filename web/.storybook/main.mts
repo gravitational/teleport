@@ -44,14 +44,8 @@ const config: StorybookConfig = {
   },
   staticDirs: ['public'],
   addons: ['@storybook/addon-vitest'],
-  viteFinal(config) {
-    return {
-      ...config,
-      server: {
-        ...config.server,
-        allowedHosts: resolveAllowedHosts(),
-      },
-    };
+  core: {
+    allowedHosts: resolveAllowedHosts(),
   },
 };
 

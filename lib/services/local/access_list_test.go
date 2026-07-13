@@ -34,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -155,6 +156,104 @@ func TestAccessListCRUD(t *testing.T) {
 	created, err := service.UpsertAccessList(ctx, accessListDuplicateOwners)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expectedAccessList, created.Spec.Owners)
+}
+
+func TestAccessListCRUDScoped(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+
+	newScopedAccessList := func(name, scope string) *accesslist.AccessList {
+		acl := newAccessList(t, name, clock,
+			withMemberRequires(accesslist.Requires{}),
+			withOwnerRequires(accesslist.Requires{}),
+		)
+		acl.Scope = scope
+		acl.Spec.Grants.Roles = nil
+		acl.Spec.Grants.Traits = nil
+		acl.Spec.OwnerGrants.Roles = nil
+		acl.Spec.OwnerGrants.Traits = nil
+		return acl
+	}
+
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+	}
+
+	const listName = "accessList"
+	scopedName := scopes.QualifiedName{Scope: "/eng", Name: listName}
+	scopedAccessList := newScopedAccessList(listName, scopedName.Scope)
+	unscopedAccessList := newAccessList(t, listName, clock)
+
+	created, err := service.UpsertAccessList(ctx, scopedAccessList)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(scopedAccessList, created, cmpOpts...))
+
+	fetched, err := service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: scopedName.Scope,
+		Name:  scopedName.Name,
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(scopedAccessList, fetched, cmpOpts...))
+
+	_, err = service.GetAccessList(ctx, listName)
+	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+
+	lists, err := service.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Empty(t, lists)
+
+	listed, nextToken, err := service.ListAccessLists(ctx, 100, "")
+	require.NoError(t, err)
+	require.Empty(t, nextToken)
+	require.Empty(t, listed)
+
+	unscopedCreated, err := service.UpsertAccessList(ctx, unscopedAccessList)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(unscopedAccessList, unscopedCreated, cmpOpts...))
+
+	unscopedFetched, err := service.GetAccessList(ctx, listName)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(unscopedAccessList, unscopedFetched, cmpOpts...))
+
+	fetched.Spec.Description = "updated scoped access list"
+	updated, err := service.UpdateAccessList(ctx, fetched)
+	require.NoError(t, err)
+	require.Equal(t, "updated scoped access list", updated.Spec.Description)
+
+	fetched, err = service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: scopedName.Scope,
+		Name:  scopedName.Name,
+	}.Build())
+	require.NoError(t, err)
+	require.Equal(t, "updated scoped access list", fetched.Spec.Description)
+
+	unscopedFetched, err = service.GetAccessList(ctx, listName)
+	require.NoError(t, err)
+	require.Equal(t, unscopedAccessList.Spec.Description, unscopedFetched.Spec.Description)
+
+	err = service.DeleteAccessListV2(ctx, accesslistv1.DeleteAccessListRequest_builder{
+		Scope: scopedName.Scope,
+		Name:  scopedName.Name,
+	}.Build())
+	require.NoError(t, err)
+
+	_, err = service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: scopedName.Scope,
+		Name:  scopedName.Name,
+	}.Build())
+	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+
+	unscopedFetched, err = service.GetAccessList(ctx, listName)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(unscopedAccessList, unscopedFetched, cmpOpts...))
 }
 
 func TestAccessListCRUDScopedRoleGrants(t *testing.T) {
@@ -323,7 +422,7 @@ func Test_AccessList_validation_DeprecatedDynamic_special_case(t *testing.T) {
 	accessList := newAccessList(t, "test-scim-access-list-1", clock)
 
 	t.Run("dynamic is stored as default", func(t *testing.T) {
-		_, err := backend.NewSanitizer(mem).Get(ctx, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+		_, err := backend.NewSanitizer(mem).Get(ctx, service.service.UnscopedService.MakeKey(backend.NewKey(accessList.GetName())))
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 
@@ -331,7 +430,7 @@ func Test_AccessList_validation_DeprecatedDynamic_special_case(t *testing.T) {
 		_, err = service.UpsertAccessList(ctx, accessList)
 		require.NoError(t, err)
 
-		accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+		accessList = getAccessListDirectlyFromBackend(t, mem, service.service.UnscopedService.MakeKey(backend.NewKey(accessList.GetName())))
 		require.NoError(t, err)
 		require.Equal(t, accesslist.Default, accessList.Spec.Type)
 	})
@@ -344,7 +443,7 @@ func Test_AccessList_validation_DeprecatedDynamic_special_case(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEqual(t, verificationDescValue, accessList.Spec.Description)
 
-			modifyAccessListDirectlyInBackend(t, mem, accessList, service.service.MakeBackendItem, func(al *accesslist.AccessList) {
+			modifyAccessListDirectlyInBackend(t, mem, accessList, service.service.UnscopedService.MakeBackendItem, func(al *accesslist.AccessList) {
 				al.Spec.Type = accesslist.DeprecatedDynamic
 				al.Spec.Description = verificationDescValue
 			})
@@ -356,13 +455,13 @@ func Test_AccessList_validation_DeprecatedDynamic_special_case(t *testing.T) {
 			require.Equal(t, verificationDescValue, accessList.Spec.Description)
 			require.Equal(t, accesslist.Default, accessList.Spec.Type)
 
-			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.UnscopedService.MakeKey(backend.NewKey(accessList.GetName())))
 			require.Equal(t, verificationDescValue, accessList.Spec.Description)
 			require.Equal(t, accesslist.DeprecatedDynamic, accessList.Spec.Type)
 		})
 
 		t.Run("modifying access list type stored as deprecated dynamic is still not allowed", func(t *testing.T) {
-			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.UnscopedService.MakeKey(backend.NewKey(accessList.GetName())))
 			require.Equal(t, verificationDescValue, accessList.Spec.Description)
 			require.Equal(t, accesslist.DeprecatedDynamic, accessList.Spec.Type)
 
@@ -387,7 +486,7 @@ func Test_AccessList_validation_DeprecatedDynamic_special_case(t *testing.T) {
 		})
 
 		t.Run("modifying through service changes stored as deprecated dynamic type to default", func(t *testing.T) {
-			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.UnscopedService.MakeKey(backend.NewKey(accessList.GetName())))
 			require.Equal(t, verificationDescValue, accessList.Spec.Description)
 			require.Equal(t, accesslist.DeprecatedDynamic, accessList.Spec.Type)
 
@@ -404,7 +503,7 @@ func Test_AccessList_validation_DeprecatedDynamic_special_case(t *testing.T) {
 			require.Equal(t, verificationDescValue, accessList.Spec.Description)
 			require.Equal(t, accesslist.Default, accessList.Spec.Type)
 
-			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.UnscopedService.MakeKey(backend.NewKey(accessList.GetName())))
 			require.Equal(t, verificationDescValue, accessList.Spec.Description)
 			require.Equal(t, accesslist.Default, accessList.Spec.Type)
 		})
@@ -705,7 +804,7 @@ func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
 	accessListDuplicateOwners.Spec.Owners = append(accessListDuplicateOwners.Spec.Owners, accessListDuplicateOwners.Spec.Owners[0])
 	require.Len(t, accessListDuplicateOwners.Spec.Owners, 3)
 
-	item, err := service.service.MakeBackendItem(accessListDuplicateOwners)
+	item, err := service.service.UnscopedService.MakeBackendItem(accessListDuplicateOwners)
 	require.NoError(t, err)
 	_, err = mem.Put(ctx, item)
 	require.NoError(t, err)
@@ -2456,9 +2555,9 @@ func TestAccessListService_CleanupAccessListStatus(t *testing.T) {
 
 	// Let's now break the a1 status, we need to use generic service directly to bypass status
 	// updates
-	service.service.DeleteResource(ctx, a3)
+	service.service.UnscopedService.DeleteResource(ctx, a3)
 	a4List.Spec.Owners = []accesslist.Owner{userOwner} // remove a1Owner
-	service.service.UpdateResource(ctx, a4List)
+	service.service.UnscopedService.UpdateResource(ctx, a4List)
 	service.memberService.WithPrefix(a6).DeleteResource(ctx, a1)
 
 	// Let's check the status remain untouched:
@@ -2486,7 +2585,7 @@ func TestAccessListService_CleanupAccessListStatus(t *testing.T) {
 	// therefore bypassing status update
 	a2List := getAccessList(t, service, a2)
 	a2List.Spec.Owners = []accesslist.Owner{userOwner} // remove a1Owner
-	service.service.UpdateResource(ctx, a2List)
+	service.service.UnscopedService.UpdateResource(ctx, a2List)
 	service.memberService.WithPrefix(a5).DeleteResource(ctx, a1)
 
 	// Verify the status is broken now as it should be empty
@@ -2597,7 +2696,7 @@ func TestAccessListService_EnsureNestedAccessListStatuses(t *testing.T) {
 	a4List.Status.MemberOf = nil
 	a5List.Status.MemberOf = []string{ghost}
 	for _, al := range []*accesslist.AccessList{a2List, a3List, a4List, a5List} {
-		_, err := service.service.UpdateResource(ctx, al)
+		_, err := service.service.UnscopedService.UpdateResource(ctx, al)
 		require.NoError(t, err, "access_list = %q", al.GetName())
 	}
 
@@ -2802,7 +2901,7 @@ func TestInsertAccessListCollection(t *testing.T) {
 		err = service.InsertAccessListCollection(ctx, collection)
 		require.NoError(t, err)
 
-		acls, err := service.service.GetResources(ctx)
+		acls, err := service.service.UnscopedService.GetResources(ctx)
 		require.NoError(t, err)
 		require.Len(t, acls, 3)
 
@@ -2986,7 +3085,7 @@ func TestAccessListDeletePrevention_MissingReferences(t *testing.T) {
 		func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList) {
 			// Simulate stale references: hard-delete related lists and their members.
 			for _, parent := range related {
-				err := service.service.DeleteResource(ctx, parent.GetName())
+				err := service.service.UnscopedService.DeleteResource(ctx, parent.GetName())
 				require.NoError(t, err)
 				err = service.memberService.WithPrefix(parent.GetName()).DeleteAllResources(ctx)
 				require.NoError(t, err)
@@ -3018,7 +3117,7 @@ func TestAccessListDeletePrevention_MissingReferences(t *testing.T) {
 		func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList) {
 			// Simulate stale references: hard-delete related lists and their members.
 			for _, owned := range related {
-				err := service.service.DeleteResource(ctx, owned.GetName())
+				err := service.service.UnscopedService.DeleteResource(ctx, owned.GetName())
 				require.NoError(t, err)
 				err = service.memberService.WithPrefix(owned.GetName()).DeleteAllResources(ctx)
 				require.NoError(t, err)

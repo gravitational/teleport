@@ -95,6 +95,40 @@ func validateAccessList(a *accesslist.AccessList) error {
 		}
 	}
 
+	// Any access lists that assign scoped roles cannot contain
+	// membership_requires or ownership_requires.
+	hasRequirements := !a.Spec.MembershipRequires.IsEmpty() || !a.Spec.OwnershipRequires.IsEmpty()
+	hasScopedRoleGrants := len(a.Spec.Grants.ScopedRoles) > 0 || len(a.Spec.OwnerGrants.ScopedRoles) > 0
+	if hasScopedRoleGrants && hasRequirements {
+		return trace.BadParameter("access lists cannot contain both scoped_role grants and non-empty membership_requires or ownership_requires blocks")
+	}
+
+	if a.Scope != "" {
+		if err := scopes.StrongValidate(a.Scope); err != nil {
+			return trace.Wrap(err, "access list has invalid scope")
+		}
+
+		// Scoped access lists cannot contain requirements.
+		if hasRequirements {
+			return trace.BadParameter("scoped access lists cannot contain non-empty membership_requires or ownership_requires blocks")
+		}
+
+		// Scoped access lists cannot grant unscoped roles or traits.
+		if len(a.Spec.Grants.Roles) > 0 || len(a.Spec.OwnerGrants.Roles) > 0 {
+			return trace.BadParameter("scoped access lists cannot grant unscoped roles")
+		}
+		if len(a.Spec.Grants.Traits) > 0 || len(a.Spec.OwnerGrants.Traits) > 0 {
+			return trace.BadParameter("scoped access lists cannot grant traits")
+		}
+
+		for _, owner := range a.Spec.Owners {
+			switch owner.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+				return trace.BadParameter("access list owners are not yet supported for scoped access lists")
+			}
+		}
+	}
+
 	if err := validateScopedRoleGrants(a); err != nil {
 		return trace.Wrap(err)
 	}
@@ -103,13 +137,6 @@ func validateAccessList(a *accesslist.AccessList) error {
 }
 
 func validateScopedRoleGrants(a *accesslist.AccessList) error {
-	// Access lists that assign scoped roles cannot contain membership_requires or ownership_requires.
-	hasScopedRoleGrants := len(a.Spec.Grants.ScopedRoles) > 0 || len(a.Spec.OwnerGrants.ScopedRoles) > 0
-	hasRequires := !a.Spec.MembershipRequires.IsEmpty() || !a.Spec.OwnershipRequires.IsEmpty()
-	if hasScopedRoleGrants && hasRequires {
-		return trace.BadParameter("access lists cannot contain both scoped_role grants and non-empty membership_requires or ownership_requires blocks")
-	}
-
 	uniqueScopedRoleGrants := make(map[accesslist.ScopedRoleGrant]struct{})
 	validateScopedRoleGrant := func(grant accesslist.ScopedRoleGrant) error {
 		if _, alreadyValidated := uniqueScopedRoleGrants[grant]; alreadyValidated {
@@ -123,6 +150,15 @@ func validateScopedRoleGrants(a *accesslist.AccessList) error {
 		}
 		if err := scopes.StrongValidate(grant.Scope); err != nil {
 			return trace.Wrap(err, "validating scope")
+		}
+		if scopes.Compare(grant.Scope, scopes.Root) == scopes.Equivalent {
+			return trace.BadParameter("root scope cannot be used as a scope of effect")
+		}
+		if a.Scope != "" {
+			// Scoped access lists can only assign scoped roles to their own scope or a descendent scope.
+			if !scopes.ScopeOfOrigin(a.Scope).IsAssignableToScopeOfEffect(grant.Scope) {
+				return trace.BadParameter("scoped role grant has scope %q that is not a sub-scope of the access list's scope %q", grant.Scope, a.Scope)
+			}
 		}
 		uniqueScopedRoleGrants[grant] = struct{}{}
 		return nil
@@ -180,6 +216,9 @@ func validateAccessListNesting(ctx context.Context, accessList *accesslist.Acces
 			return trace.Wrap(err)
 		}
 	}
+	if accessList.Scope != "" && len(members) > 0 {
+		return trace.BadParameter("scoped access list members are not yet supported")
+	}
 	for _, member := range members {
 		if err := ValidateAccessListMember(ctx, accessList, member, g); err != nil {
 			return trace.Wrap(err)
@@ -208,6 +247,10 @@ func ValidateAccessListMember(
 // validateAccessListMemberBasic performs basic fields validation for AccessListMember
 // and performs the cross membership integrity check.
 func validateAccessListMemberBasic(parent *accesslist.AccessList, member *accesslist.AccessListMember) error {
+	if member.Scope != "" {
+		// TODO(nklaassen): support scoped access list members.
+		return trace.BadParameter("scoped access list members are not yet supported")
+	}
 	if member.Spec.AccessList == "" {
 		return trace.BadParameter("member %s: access_list field empty", member.Metadata.Name)
 	}
@@ -235,6 +278,13 @@ func validateAccessListOwner(
 	owner accesslist.Owner,
 	g AccessListAndMembersGetter,
 ) error {
+	// TODO(nklaassen): support non-user scoped access list owners.
+	if parentList.Scope != "" && owner.MembershipKind == accesslist.MembershipKindList {
+		return trace.BadParameter("scoped access lists do not yet support nested list ownership")
+	}
+	if owner.MembershipKind == accesslist.MembershipKindScopedList {
+		return trace.BadParameter("scoped access lists do not yet support nested list ownership")
+	}
 	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, owner.Name, RelationshipKindOwner, owner.MembershipKind, g); err != nil {
 		return trace.Wrap(err)
 	}
