@@ -115,7 +115,7 @@ fn inner_encode_qoiz(
     // our frames always have alpha set to 0xFF so we set channels number to 3 as it is
     // required by ironrdp decoding routine
     data[12] = 3;
-    let data = zstd::encode_all(data.as_slice(), 0)?;
+    let data = lz4_flex::compress_prepend_size(data.as_slice());
     let update =
         FastPathUpdate::SurfaceCommands(vec![SurfaceCommand::SetSurfaceBits(SurfaceBitsPdu {
             destination: ExclusiveRectangle {
@@ -167,15 +167,8 @@ fn inner_encode_qoiz(
 
 #[derive(Debug)]
 enum EncodeError {
-    Zstd(std::io::Error),
     Qoi(qoi::Error),
     IronRdp(ironrdp_core::EncodeError),
-}
-
-impl From<std::io::Error> for EncodeError {
-    fn from(e: std::io::Error) -> EncodeError {
-        EncodeError::Zstd(e)
-    }
 }
 
 impl From<qoi::Error> for EncodeError {
@@ -193,7 +186,6 @@ impl From<ironrdp_core::EncodeError> for EncodeError {
 impl Display for EncodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EncodeError::Zstd(e) => e.fmt(f),
             EncodeError::Qoi(e) => e.fmt(f),
             EncodeError::IronRdp(e) => e.fmt(f),
         }
