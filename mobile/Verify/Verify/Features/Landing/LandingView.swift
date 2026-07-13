@@ -49,7 +49,12 @@ struct LandingView: View {
 			.toolbar {
 				ToolbarItem {
 					Menu {
-						Button("Hello") {}
+						Button(
+							"Delete all clusters",
+							systemImage: "trash",
+							role: .destructive,
+							action: viewModel.userTappedDeleteAllClusters,
+						)
 					} label: {
 						Label("Menu", systemImage: "ellipsis")
 					}
@@ -65,6 +70,12 @@ struct LandingView: View {
 				EnrollCameraScannerView(viewModel: enrollCameraScannerViewModel)
 			}
 			.alert($viewModel.destination.notice) { _ in }
+			.alert($viewModel.destination.deleteAllClustersAlert) { action in
+				switch action {
+					case .confirm: Task { await viewModel.userConfirmedDeleteAllClusters() }
+					case .none: break
+				}
+			}
 
 			// MARK: Haptics
 

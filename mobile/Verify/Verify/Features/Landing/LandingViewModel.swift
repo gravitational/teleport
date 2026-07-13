@@ -28,6 +28,7 @@ final class LandingViewModel {
 	@CasePathable
 	enum Destination {
 		case cameraScanner(EnrollCameraScannerViewModel)
+		case deleteAllClustersAlert(AlertState<DeleteAllClustersAlertAction>)
 		case enrollDevice(EnrollDeviceViewModel)
 		case notice(AlertState<Void>)
 	}
@@ -46,6 +47,14 @@ final class LandingViewModel {
 
 	var destination: Destination? = nil
 	var sensoryFeedbackTrigger = false
+}
+
+// MARK: - LandingViewModel.DeleteAllClustersAlertAction
+
+extension LandingViewModel {
+	enum DeleteAllClustersAlertAction {
+		case confirm
+	}
 }
 
 // MARK: - UI Helper
@@ -83,24 +92,28 @@ extension LandingViewModel {
 	}
 
 	func userDeletedClusters(at indexSet: IndexSet) async {
-		let clustersToDelete = clusters.values(at: indexSet)
-		do {
-			try await database.write { db in
-				for clusterToDelete in clustersToDelete {
-					try Cluster.delete(clusterToDelete).execute(db)
-				}
-			}
-		} catch {
-			Self.logger.warning("Failed to delete clusters: \(error)")
-			destination = .notice(AlertState(
-				title: {
-					TextState("Could Not Delete Clusters")
-				},
-				message: {
-					TextState("An error occurred when trying to deregister the cluster from your device.")
-				},
-			))
+		let idsToDelete = clusters.values(at: indexSet).map(\.id)
+		await deleteClusters {
+			Cluster
+				.delete()
+				.where { idsToDelete.contains($0.id) }
 		}
+	}
+
+	func userTappedDeleteAllClusters() {
+		let alertState = AlertState<DeleteAllClustersAlertAction> {
+			TextState("Are you sure you want to unenroll your device from all clusters?")
+		} actions: {
+			ButtonState(role: .destructive, action: .confirm) { TextState("Confirm") }
+			ButtonState(role: .cancel) { TextState("Cancel") }
+		} message: {
+			TextState("This action cannot be undone. You will need to re-enroll this device with each cluster.")
+		}
+		destination = .deleteAllClustersAlert(alertState)
+	}
+
+	func userConfirmedDeleteAllClusters() async {
+		await deleteClusters { Cluster.delete() }
 	}
 }
 
@@ -141,5 +154,28 @@ extension LandingViewModel: EnrollCameraScannerViewModel.Delegate {
 	) {
 		sensoryFeedbackTrigger.toggle()
 		destination = .enrollDevice(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
+	}
+}
+
+// MARK: - Private Helpers
+
+extension LandingViewModel {
+	/// A helper function that encapsulates running a cluster deletion and showing an error upon failure.
+	private func deleteClusters(using deleteOperation: @Sendable () -> DeleteOf<Cluster>) async {
+		do {
+			try await database.write { db in
+				try deleteOperation().execute(db)
+			}
+		} catch {
+			Self.logger.warning("Failed to delete clusters: \(error)")
+			destination = .notice(AlertState(
+				title: {
+					TextState("Could Not Delete Clusters")
+				},
+				message: {
+					TextState("An error occurred when trying to deregister the cluster from your device.")
+				},
+			))
+		}
 	}
 }
