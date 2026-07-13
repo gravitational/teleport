@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,14 +14,20 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows && !linux
+package dns
 
-package vnet
+import "strings"
 
-import (
-	"github.com/gravitational/teleport/lib/vnet/diag"
-)
+// DiagProbePrefix is the label prefix VNet reserves for diagnostic probe queries.
+// Full probe FQDNs have the form "vnet-diag-<random>.<zone>.".
+const DiagProbePrefix = "vnet-diag-"
 
-func (s *Service) platformRouteConflictDiag() (diag.DiagCheck, error) {
-	return nil, nil
+// HasDiagProbePrefix reports whether fqdn is a diagnostic probe query.
+// Matching is case-insensitive.
+func HasDiagProbePrefix(fqdn string) bool {
+	if len(fqdn) < len(DiagProbePrefix) {
+		return false
+	}
+	// Case-insensitive prefix match without allocations
+	return strings.EqualFold(fqdn[:len(DiagProbePrefix)], DiagProbePrefix)
 }
