@@ -297,7 +297,7 @@ func (p *vnetClientApplication) reissueAppCert(ctx context.Context, tc *client.T
 		return tls.Certificate{}, trace.Wrap(err, "logging in to app")
 	}
 
-	cert, err := keyRing.AppTLSCert(routeToApp.Name)
+	cert, err := keyRing.AppTLSCert(routeToApp.Name, routeToApp.Scope)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting TLS cert from key")
 	}

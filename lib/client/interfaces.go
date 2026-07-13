@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -580,9 +581,21 @@ func (k *KeyRing) DBTLSCertificates() (certs []x509.Certificate, err error) {
 	return certs, nil
 }
 
+// AppCredentialName returns the name that keys an app's TLS credential in a
+// KeyRing and on disk (the cert/key file name under the profile's app
+// credential dir). Scoped apps are keyed by their scope-qualified subdomain so
+// that same-named apps in different scopes don't overwrite each other's certs;
+// unscoped apps are keyed by their plain name.
+func AppCredentialName(appName, scope string) string {
+	if scope == "" {
+		return appName
+	}
+	return scopedapp.ScopedSubdomain(scope, appName)
+}
+
 // AppTLSCert returns the tls.Certificate for authentication against a named app.
-func (k *KeyRing) AppTLSCert(appName string) (tls.Certificate, error) {
-	cred, ok := k.AppTLSCredentials[appName]
+func (k *KeyRing) AppTLSCert(appName, scope string) (tls.Certificate, error) {
+	cred, ok := k.AppTLSCredentials[AppCredentialName(appName, scope)]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for application %q not found", appName)
 	}

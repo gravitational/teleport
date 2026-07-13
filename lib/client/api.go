@@ -3486,8 +3486,10 @@ func (tc *TeleportClient) LogoutDatabase(dbName string) error {
 	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithDBCerts{dbName})
 }
 
-// LogoutApp removes key and cert for the specified app.
-func (tc *TeleportClient) LogoutApp(appName string) error {
+// LogoutApp removes key and cert for the specified app. Scoped apps store
+// their credentials under a scope-qualified name, so the app's scope must be
+// provided to remove the right files (empty for unscoped apps).
+func (tc *TeleportClient) LogoutApp(appName, scope string) error {
 	if tc.localAgent == nil {
 		return nil
 	}
@@ -3497,7 +3499,7 @@ func (tc *TeleportClient) LogoutApp(appName string) error {
 	if appName == "" {
 		return trace.BadParameter("please specify app name to log out of")
 	}
-	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{appName})
+	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{AppCredentialName(appName, scope)})
 }
 
 // LogoutAllApps removes keys and certs for all apps in the cluster.

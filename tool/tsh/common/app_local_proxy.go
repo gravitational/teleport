@@ -159,7 +159,7 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, portMapping cli
 
 	// If a stored cert is found for the app, try using it.
 	// Otherwise, let the checker reissue one as needed.
-	cert, err := loadAppCertificate(a.tc, routeToAppWithTargetPort.Name)
+	cert, err := loadAppCertificate(a.tc, routeToAppWithTargetPort.Name, routeToAppWithTargetPort.Scope)
 	if err == nil {
 		if a.app != nil && len(a.app.GetTCPPorts()) > 0 {
 			// There are too many cases to cover when dealing with a multi-port app and an existing cert.
@@ -176,7 +176,7 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, portMapping cli
 
 	var listener net.Listener
 	if withTLS {
-		appLocalCAPath := a.profile.AppLocalCAPath(a.tc.SiteName, routeToAppWithTargetPort.Name)
+		appLocalCAPath := a.profile.AppLocalCAPath(a.tc.SiteName, routeToAppWithTargetPort.Name, routeToAppWithTargetPort.Scope)
 		localCertGenerator, err := client.NewLocalCertGenerator(ctx, appCertChecker, appLocalCAPath)
 		if err != nil {
 			return trace.Wrap(err)

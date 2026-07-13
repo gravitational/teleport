@@ -733,13 +733,13 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 	return nil
 }
 
-func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
+func loadAppCertificate(tc *libclient.TeleportClient, appName, scope string) (tls.Certificate, error) {
 	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := keyRing.AppTLSCert(appName)
+	appCert, err := keyRing.AppTLSCert(appName, scope)
 	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
 	} else if err != nil {

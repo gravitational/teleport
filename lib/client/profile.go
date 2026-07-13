@@ -609,11 +609,14 @@ func (p *ProfileStatus) DatabaseLocalCAPath() string {
 // AppCertPath returns path to the specified app access certificate
 // for this profile.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.crt
-func (p *ProfileStatus) AppCertPath(cluster, name string) string {
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.crt for
+// unscoped apps; scoped apps use their scope-qualified subdomain in place of
+// <name> so same-named apps in different scopes don't collide.
+func (p *ProfileStatus) AppCertPath(cluster, name, scope string) string {
 	if cluster == "" {
 		cluster = p.Cluster
 	}
+	name = AppCredentialName(name, scope)
 	if path, ok := p.virtualPathFromEnv(VirtualPathAppCert, VirtualPathAppCertParams(name)); ok {
 		return path
 	}
@@ -624,11 +627,14 @@ func (p *ProfileStatus) AppCertPath(cluster, name string) string {
 // AppKeyPath returns path to the specified app access private key for this
 // profile.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.key
-func (p *ProfileStatus) AppKeyPath(cluster, name string) string {
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.key for
+// unscoped apps; scoped apps use their scope-qualified subdomain in place of
+// <name>.
+func (p *ProfileStatus) AppKeyPath(cluster, name, scope string) string {
 	if cluster == "" {
 		cluster = p.Cluster
 	}
+	name = AppCredentialName(name, scope)
 	if path, ok := p.virtualPathFromEnv(VirtualPathKey, VirtualPathAppKeyParams(name)); ok {
 		return path
 	}
@@ -640,11 +646,14 @@ func (p *ProfileStatus) AppKeyPath(cluster, name string) string {
 // this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-localca.pem
-func (p *ProfileStatus) AppLocalCAPath(cluster, name string) string {
+// for unscoped apps.
+// Scoped apps are kept in
+// <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<scope-qualified-subdomain>-localca.pem.
+func (p *ProfileStatus) AppLocalCAPath(cluster, name, scope string) string {
 	if cluster == "" {
 		cluster = p.Cluster
 	}
-	return keypaths.AppLocalCAPath(p.Dir, p.Name, p.Username, cluster, name)
+	return keypaths.AppLocalCAPath(p.Dir, p.Name, p.Username, cluster, AppCredentialName(name, scope))
 }
 
 // KubeConfigPath returns path to the specified kubeconfig for this profile.
