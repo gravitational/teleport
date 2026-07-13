@@ -11,8 +11,8 @@ app_service:
     mcp_demo_server: true
 
     # Optional list of IP addresses or CIDR ranges that application targets
-    # are allowed to resolve to. When set, the Application Service fails closed
-    # and blocks target dials to any IP outside this list. Mutually exclusive
+    # are allowed to resolve to. When set, the Application Service blocks
+    # target dials to any IP outside this list. Mutually exclusive
     # with denied_hosts.
     #
     # These restrictions apply to the targets of TCP, HTTP, and MCP apps. They
@@ -30,10 +30,10 @@ app_service:
     #   - 10.10.0.0/16
 
     # Optional list of IP addresses or CIDR ranges that application targets
-    # are not allowed to resolve to. When set, the Application Service fails
-    # open and blocks only target dials to matching IPs. Mutually exclusive
-    # with allowed_hosts. The coverage and formatting notes for allowed_hosts
-    # above apply here as well.
+    # are not allowed to resolve to. When set, the Application Service blocks
+    # only target dials to matching IPs. Mutually exclusive with allowed_hosts.
+    # The coverage and formatting notes for allowed_hosts above apply here as
+    # well.
     # denied_hosts:
     #   - 169.254.0.0/16
     #   - 127.0.0.0/8
