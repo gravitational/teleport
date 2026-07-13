@@ -120,7 +120,7 @@ func TestStats_CountsPendingAndDeadLetter(t *testing.T) {
 	items, err := q.fetch(2)
 	require.NoError(t, err)
 	require.Len(t, items, 2)
-	promoted, err := q.processFailedDeliveries(items)
+	promoted, err := q.processFailedDeliveries(ctx, items)
 	require.NoError(t, err)
 	require.Equal(t, 2, promoted)
 
