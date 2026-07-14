@@ -88,11 +88,11 @@ You may customize the certificate subject:
 $ tctl auth create-override-csr --type=windows --subject='OU=My Organization Unit,CN=My Windows CA'
 ```
 
-### Prepare CSRs for multi-Auth, HSM-enabled clusters
+### Prepare CSRs for multi-Auth clusters with per-instance HSM keys
 
-In multi-Auth, HSM-enabled clusters, run `tctl` locally against each Auth
-Service instance. Each Auth Service instance generates CSRs for the keys it can
-access.
+In multi-Auth clusters with per-instance HSM keys, run `tctl` locally against
+each Auth Service instance. Each Auth Service instance generates CSRs for the
+keys it can access.
 
 For example:
 
@@ -216,13 +216,14 @@ You can find the public key of the target override by running
 `tctl get ca_overrides/windows`. Alternatively, you may edit directly using
 `tctl edit ca_overrides/windows`.
 
-### Create certificate overrides on multi-Auth, HSM-enabled clusters
+### Create certificate overrides on multi-Auth clusters with per-instance HSM keys
 
-In multi-Auth, HSM-enabled clusters, each Auth Service instance may have
-exclusive private keys. In this scenario, make sure all Auth Service instances are
-online and healthy, then create your overrides in the disabled state. The Auth
-Service instances automatically sign CRLs in the background for their respective keys.
-After a certificate override has a matching CRL it can be enabled.
+In multi-Auth clusters with per-instance HSM keys, each Auth Service instance
+may only be able to access its own private keys. In this scenario, make sure all
+Auth Service instances are online and healthy, then create your overrides in the
+disabled state. The Auth Service instances automatically sign CRLs in the
+background for their respective keys. After a certificate override has a
+matching CRL it can be enabled.
 
 ```code
 # Create the override. Repeat for each certificate override.
