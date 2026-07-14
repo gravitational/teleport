@@ -1071,7 +1071,7 @@ func cgo_handle_rdp_connection_activated(
 }
 
 func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t, shareID C.uint32_t) C.CGOErrCode {
-	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID)
+	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID, "share_id", shareID)
 
 	// Note: RDP doesn't always use the resolution we asked for.
 	// This is especially true when we request dimensions that are not a multiple of 4.
