@@ -66,7 +66,7 @@ class EnrollDeviceViewModel {
 
 			// The code that follows in this function is for demonstration purposes only.
 			eventStackViewModel.clearAllEvents()
-			eventStackViewModel.addEvent(id: "enrollment-request", message: "Enrolling device...")
+			eventStackViewModel.addEvent(id: "enrollment-request", message: "Enrolling device…")
 			try await Task.sleep(for: .milliseconds(500))
 			eventStackViewModel.updateEvent(
 				id: "enrollment-request",
