@@ -898,7 +898,9 @@ func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
 			return 0, trace.Wrap(err, "couldn't get image from backend")
 		}
 
+		//nolint:staticcheck
 		frames, err := rdpclient.EncodeQOIZ(img.Pix, uint16(change.X), uint16(change.Y), change.Width, change.Height)
+		//nolint:staticcheck
 		if err != nil {
 			return 0, trace.Wrap(err, "couldn't encode image frame")
 		}

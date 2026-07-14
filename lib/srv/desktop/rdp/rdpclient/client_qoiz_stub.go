@@ -19,8 +19,9 @@
 package rdpclient
 
 import (
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
 
 func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]*tdpb.FastPathPDU, error) {
