@@ -744,7 +744,7 @@ func TestAccessChecker_CheckConditionalAccess_StateMFANever_ReturnsNoMFAPrecondi
 }
 
 // TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_MFAVerified_ReturnsNoMFAPrecondition(t *testing.T) {
+func TestAccessChecker_CheckConditionalAccess_MFAVerifiedPreconditions(t *testing.T) {
 	t.Parallel()
 
 	const roleName = "allow-all-nodes"
