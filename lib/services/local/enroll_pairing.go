@@ -250,9 +250,7 @@ func validateEnrollPairing(pairing *devicepb.EnrollPairing) error {
 		return trace.BadParameter("enroll pairing status.state is missing")
 	}
 
-	device := pairing.GetStatus().GetDevice()
-
-	if device != nil {
+	if device := pairing.GetStatus().GetDevice(); device != nil {
 		if device.GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED {
 			return trace.BadParameter("device.os_type is missing")
 		}
