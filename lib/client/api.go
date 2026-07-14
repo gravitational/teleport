@@ -3778,6 +3778,11 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, params *dtauthntypes.
 
 // getSSHLoginFunc returns an SSHLoginFunc that matches client and cluster settings.
 func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginFunc, error) {
+	// Use the Machine ID login agent to non-interactively log in, if it is available.
+	if dir := os.Getenv(LoginAgentDirEnvVar); dir != "" {
+		return tc.loginWithMachineIDAgent(dir), nil
+	}
+
 	switch pr.Auth.Type {
 	case constants.Local:
 		authType := constants.LocalConnector
