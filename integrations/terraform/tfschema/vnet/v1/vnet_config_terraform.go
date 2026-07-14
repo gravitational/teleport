@@ -60,9 +60,11 @@ func GenSchemaVnetConfig(ctx context.Context) (github_com_hashicorp_terraform_pl
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "description is object description.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
@@ -70,9 +72,11 @@ func GenSchemaVnetConfig(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Computed:      true,
@@ -98,17 +102,23 @@ func GenSchemaVnetConfig(ctx context.Context) (github_com_hashicorp_terraform_pl
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"custom_dns_zones": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"suffix": {
-						Description: "Suffix is the hostname suffix that defines this zone.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						Computed:      true,
+						Description:   "Suffix is the hostname suffix that defines this zone.",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					}}),
-					Description: "CustomDnsZones defines a list of DNS zones that VNet should resolve requests for in addition to the cluster's public proxy address.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "CustomDnsZones defines a list of DNS zones that VNet should resolve requests for in addition to the cluster's public proxy address.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"ipv4_cidr_range": {
-					Description: "Ipv4CidrRange defines the IPv4 CIDR range that all IPv4 addresses for VNet apps in this cluster will be assigned from. The default is \"100.64.0.0/10\".",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "Ipv4CidrRange defines the IPv4 CIDR range that all IPv4 addresses for VNet apps in this cluster will be assigned from. The default is \"100.64.0.0/10\".",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
 			Description: "",
@@ -374,6 +384,12 @@ func CopyVnetConfigFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 
 // CopyVnetConfigToTerraform copies contents of the source Terraform object into a target struct
 func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_vnet_v1.VnetConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyVnetConfigToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyVnetConfigToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyVnetConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_vnet_v1.VnetConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -387,6 +403,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"VnetConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"VnetConfig.kind", err})
@@ -395,10 +414,13 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"VnetConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -409,6 +431,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"VnetConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"VnetConfig.sub_kind", err})
@@ -417,10 +442,13 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"VnetConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -431,6 +459,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"VnetConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"VnetConfig.version", err})
@@ -439,10 +470,13 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"VnetConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -470,6 +504,7 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -479,6 +514,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"VnetConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"VnetConfig.metadata.name", err})
@@ -487,10 +525,13 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"VnetConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -501,6 +542,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"VnetConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"VnetConfig.metadata.namespace", err})
@@ -509,10 +553,13 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"VnetConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -523,6 +570,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"VnetConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"VnetConfig.metadata.description", err})
@@ -531,10 +581,13 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"VnetConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -560,11 +613,14 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"VnetConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"VnetConfig.metadata.labels", err})
@@ -573,17 +629,20 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"VnetConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -598,7 +657,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -627,6 +688,7 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -636,6 +698,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 						} else {
 							v, ok := tf.Attrs["ipv4_cidr_range"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["ipv4_cidr_range"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"VnetConfig.spec.ipv4_cidr_range", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"VnetConfig.spec.ipv4_cidr_range", err})
@@ -644,10 +709,13 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"VnetConfig.spec.ipv4_cidr_range", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Ipv4CidrRange) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Ipv4CidrRange)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["ipv4_cidr_range"] = v
 						}
 					}
@@ -673,13 +741,15 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.CustomDnsZones))
 									}
 								}
-								if obj.CustomDnsZones != nil {
+								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.CustomDnsZones) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.CustomDnsZones))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.CustomDnsZones))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.CustomDnsZones {
-										v, ok := tf.Attrs["custom_dns_zones"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -694,6 +764,7 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 										if a == nil {
 											v.Null = true
 										} else {
+											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -703,6 +774,9 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 												} else {
 													v, ok := tf.Attrs["suffix"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
+														if tf.Attrs["suffix"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"VnetConfig.spec.custom_dns_zones.suffix", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"VnetConfig.spec.custom_dns_zones.suffix", err})
@@ -711,28 +785,35 @@ func CopyVnetConfigToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"VnetConfig.spec.custom_dns_zones.suffix", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
-														v.Null = string(obj.Suffix) == ""
 													}
+
+													v.Null = false
 													v.Value = string(obj.Suffix)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["suffix"] = v
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.CustomDnsZones) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["custom_dns_zones"] = c
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -845,5 +926,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }

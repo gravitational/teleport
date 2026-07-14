@@ -63,21 +63,23 @@ func GenSchemaInferenceModel(ctx context.Context) (github_com_hashicorp_terrafor
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
-					Description:   "expires is a global expiry time header can be set on any resource in the system.",
+					Description:   "description is object description.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Description:   "name is an object name.",
@@ -92,13 +94,6 @@ func GenSchemaInferenceModel(ctx context.Context) (github_com_hashicorp_terrafor
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Description: "",
 			Required:    true,
@@ -108,45 +103,59 @@ func GenSchemaInferenceModel(ctx context.Context) (github_com_hashicorp_terrafor
 				"bedrock": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"bedrock_model_id": {
-							Description: "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"integration": {
-							Description: "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"region": {
-							Description: "Region is the AWS region which will be used for inference.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "Region is the AWS region which will be used for inference.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Bedrock indicates that this model uses Amazon Bedrock as the inference provider and specifies Bedrock-specific parameters.",
 					Optional:    true,
 				},
 				"max_session_length_bytes": {
-					Description: "MaxSessionLengthBytes is the maximum session length that can be sent to inference provider. Currently, it's determined by the size of model's context window; future versions of Teleport will allow summarizing larger sessions by splitting them.  Inference providers will reject requests that are larger than given model's context window. Since context windows are usually sized in tokens, this value is an approximation. Assuming 2 bytes per input token should be safe.  Currently, Teleport will outright reject sessions larger than this limit; future versions will split sessions in chunks, treating this size as a maximum.  If unset or set to 0, defaults to 1MB.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+					Computed:      true,
+					Description:   "MaxSessionLengthBytes is the maximum session length that can be sent to inference provider. Currently, it's determined by the size of model's context window; future versions of Teleport will allow summarizing larger sessions by splitting them.  Inference providers will reject requests that are larger than given model's context window. Since context windows are usually sized in tokens, this value is an approximation. Assuming 2 bytes per input token should be safe.  Currently, Teleport will outright reject sessions larger than this limit; future versions will split sessions in chunks, treating this size as a maximum.  If unset or set to 0, defaults to 1MB.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
 				"openai": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"api_key_secret_ref": {
-							Description: "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"base_url": {
-							Description: "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"openai_model_id": {
-							Description: "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Openai indicates that this model uses OpenAI as the inference provider and specifies OpenAI-specific parameters.",
@@ -157,14 +166,18 @@ func GenSchemaInferenceModel(ctx context.Context) (github_com_hashicorp_terrafor
 			Required:    true,
 		},
 		"sub_kind": {
-			Description: "SubKind is the resource sub-kind. Should be empty.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "SubKind is the resource sub-kind. Should be empty.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
-			Description: "Version is the resource version. Should be set to \"v1\".",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "Version is the resource version. Should be set to \"v1\".",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -189,21 +202,23 @@ func GenSchemaInferenceSecret(ctx context.Context) (github_com_hashicorp_terrafo
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
-					Description:   "expires is a global expiry time header can be set on any resource in the system.",
+					Description:   "description is object description.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Description:   "name is an object name.",
@@ -214,13 +229,6 @@ func GenSchemaInferenceSecret(ctx context.Context) (github_com_hashicorp_terrafo
 				"namespace": {
 					Computed:      true,
 					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -241,14 +249,18 @@ func GenSchemaInferenceSecret(ctx context.Context) (github_com_hashicorp_terrafo
 			Sensitive:   true,
 		},
 		"sub_kind": {
-			Description: "SubKind is the resource sub-kind. Should be empty.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "SubKind is the resource sub-kind. Should be empty.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
-			Description: "Version is the resource version. Should be set to \"v1\".",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "Version is the resource version. Should be set to \"v1\".",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -273,21 +285,23 @@ func GenSchemaInferencePolicy(ctx context.Context) (github_com_hashicorp_terrafo
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
-					Description:   "expires is a global expiry time header can be set on any resource in the system.",
+					Description:   "description is object description.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Description:   "name is an object name.",
@@ -302,13 +316,6 @@ func GenSchemaInferencePolicy(ctx context.Context) (github_com_hashicorp_terrafo
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Description: "",
 			Required:    true,
@@ -316,9 +323,11 @@ func GenSchemaInferencePolicy(ctx context.Context) (github_com_hashicorp_terrafo
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"filter": {
-					Description: "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"kinds": {
 					Description: "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
@@ -335,14 +344,18 @@ func GenSchemaInferencePolicy(ctx context.Context) (github_com_hashicorp_terrafo
 			Required:    true,
 		},
 		"sub_kind": {
-			Description: "SubKind is the resource sub-kind. Should be empty.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "SubKind is the resource sub-kind. Should be empty.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
-			Description: "Version is the resource version. Should be set to \"v1\".",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "Version is the resource version. Should be set to \"v1\".",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -367,21 +380,23 @@ func GenSchemaRetrievalModel(ctx context.Context) (github_com_hashicorp_terrafor
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
-					Description:   "expires is a global expiry time header can be set on any resource in the system.",
+					Description:   "description is object description.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"namespace": {
 					Computed:      true,
@@ -390,61 +405,70 @@ func GenSchemaRetrievalModel(ctx context.Context) (github_com_hashicorp_terrafor
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
-			Description: "",
-			Optional:    true,
+			Computed:      true,
+			Description:   "",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"bedrock": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"bedrock_model_id": {
-							Description: "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"integration": {
-							Description: "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"region": {
-							Description: "Region is the AWS region which will be used for inference.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "Region is the AWS region which will be used for inference.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Bedrock indicates that this model uses Amazon Bedrock as the embeddings provider and specifies Bedrock-specific parameters.",
 					Optional:    true,
 				},
 				"inference_model_name": {
-					Description: "inference_model_name is the name of the model used to convert natural language search queries into API requests and generate prose from a session summary.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "inference_model_name is the name of the model used to convert natural language search queries into API requests and generate prose from a session summary.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"openai": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"api_key_secret_ref": {
-							Description: "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"base_url": {
-							Description: "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"openai_model_id": {
-							Description: "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Openai indicates that this model uses OpenAI as the embeddings provider and specifies OpenAI-specific parameters.",
@@ -455,14 +479,18 @@ func GenSchemaRetrievalModel(ctx context.Context) (github_com_hashicorp_terrafor
 			Required:    true,
 		},
 		"sub_kind": {
-			Description: "SubKind is the resource sub-kind. Should be empty.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "SubKind is the resource sub-kind. Should be empty.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
-			Description: "Version is the resource version. Should be set to \"v1\".",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "Version is the resource version. Should be set to \"v1\".",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -619,23 +647,6 @@ func CopyInferenceModelFromTerraform(_ context.Context, tf github_com_hashicorp_
 							diags.Append(attrReadMissingDiag{"InferenceModel.metadata.expires"})
 						}
 						CopyFromTimestamp(diags, a, &obj.Expires)
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"InferenceModel.metadata.revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"InferenceModel.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
 					}
 				}
 			}
@@ -820,6 +831,12 @@ func CopyInferenceModelFromTerraform(_ context.Context, tf github_com_hashicorp_
 
 // CopyInferenceModelToTerraform copies contents of the source Terraform object into a target struct
 func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferenceModel, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyInferenceModelToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyInferenceModelToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyInferenceModelToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferenceModel, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -833,6 +850,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"InferenceModel.kind", err})
@@ -841,10 +861,13 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"InferenceModel.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -855,6 +878,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"InferenceModel.sub_kind", err})
@@ -863,10 +889,13 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"InferenceModel.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -877,6 +906,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"InferenceModel.version", err})
@@ -885,10 +917,13 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"InferenceModel.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -916,6 +951,7 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -925,6 +961,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferenceModel.metadata.name", err})
@@ -933,10 +972,13 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferenceModel.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -947,6 +989,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferenceModel.metadata.namespace", err})
@@ -955,10 +1000,13 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferenceModel.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -969,6 +1017,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferenceModel.metadata.description", err})
@@ -977,10 +1028,13 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferenceModel.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -1006,11 +1060,14 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"InferenceModel.metadata.labels", err})
@@ -1019,17 +1076,20 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"InferenceModel.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -1043,30 +1103,10 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 							tf.Attrs["expires"] = v
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"InferenceModel.metadata.revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"InferenceModel.metadata.revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"InferenceModel.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
-						}
-					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -1095,6 +1135,7 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -1125,6 +1166,7 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if obj.Openai == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Openai
 									tf := &v
 									{
@@ -1134,6 +1176,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["openai_model_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["openai_model_id"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.spec.openai.openai_model_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"InferenceModel.spec.openai.openai_model_id", err})
@@ -1142,10 +1187,13 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"InferenceModel.spec.openai.openai_model_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.OpenaiModelId) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.OpenaiModelId)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["openai_model_id"] = v
 										}
 									}
@@ -1156,6 +1204,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["api_key_secret_ref"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["api_key_secret_ref"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.spec.openai.api_key_secret_ref", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"InferenceModel.spec.openai.api_key_secret_ref", err})
@@ -1164,10 +1215,13 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"InferenceModel.spec.openai.api_key_secret_ref", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.ApiKeySecretRef) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.ApiKeySecretRef)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["api_key_secret_ref"] = v
 										}
 									}
@@ -1178,6 +1232,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["base_url"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["base_url"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.spec.openai.base_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"InferenceModel.spec.openai.base_url", err})
@@ -1186,15 +1243,20 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"InferenceModel.spec.openai.base_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.BaseUrl) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.BaseUrl)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["base_url"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["openai"] = v
 							}
 						}
@@ -1227,6 +1289,7 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if obj.Bedrock == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Bedrock
 									tf := &v
 									{
@@ -1236,6 +1299,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["region"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["region"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.spec.bedrock.region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"InferenceModel.spec.bedrock.region", err})
@@ -1244,10 +1310,13 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"InferenceModel.spec.bedrock.region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Region) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Region)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["region"] = v
 										}
 									}
@@ -1258,6 +1327,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["bedrock_model_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["bedrock_model_id"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.spec.bedrock.bedrock_model_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"InferenceModel.spec.bedrock.bedrock_model_id", err})
@@ -1266,10 +1338,13 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"InferenceModel.spec.bedrock.bedrock_model_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.BedrockModelId) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.BedrockModelId)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["bedrock_model_id"] = v
 										}
 									}
@@ -1280,6 +1355,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["integration"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.spec.bedrock.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"InferenceModel.spec.bedrock.integration", err})
@@ -1288,15 +1366,20 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"InferenceModel.spec.bedrock.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Integration) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Integration)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["integration"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["bedrock"] = v
 							}
 						}
@@ -1308,6 +1391,9 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 						} else {
 							v, ok := tf.Attrs["max_session_length_bytes"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 							if !ok {
+								if tf.Attrs["max_session_length_bytes"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceModel.spec.max_session_length_bytes", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferenceModel.spec.max_session_length_bytes", err})
@@ -1316,15 +1402,20 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferenceModel.spec.max_session_length_bytes", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 								}
-								v.Null = int64(obj.MaxSessionLengthBytes) == 0
 							}
+
+							v.Null = false
 							v.Value = int64(obj.MaxSessionLengthBytes)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["max_session_length_bytes"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -1485,23 +1576,6 @@ func CopyInferenceSecretFromTerraform(_ context.Context, tf github_com_hashicorp
 						}
 						CopyFromTimestamp(diags, a, &obj.Expires)
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"InferenceSecret.metadata.revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"InferenceSecret.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -1546,6 +1620,12 @@ func CopyInferenceSecretFromTerraform(_ context.Context, tf github_com_hashicorp
 
 // CopyInferenceSecretToTerraform copies contents of the source Terraform object into a target struct
 func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferenceSecret, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyInferenceSecretToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyInferenceSecretToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyInferenceSecretToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferenceSecret, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -1559,6 +1639,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceSecret.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"InferenceSecret.kind", err})
@@ -1567,10 +1650,13 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"InferenceSecret.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -1581,6 +1667,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceSecret.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"InferenceSecret.sub_kind", err})
@@ -1589,10 +1678,13 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"InferenceSecret.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -1603,6 +1695,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceSecret.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"InferenceSecret.version", err})
@@ -1611,10 +1706,13 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"InferenceSecret.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -1642,6 +1740,7 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -1651,6 +1750,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceSecret.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferenceSecret.metadata.name", err})
@@ -1659,10 +1761,13 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferenceSecret.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -1673,6 +1778,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceSecret.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferenceSecret.metadata.namespace", err})
@@ -1681,10 +1789,13 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferenceSecret.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -1695,6 +1806,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceSecret.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferenceSecret.metadata.description", err})
@@ -1703,10 +1817,13 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferenceSecret.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -1732,11 +1849,14 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceSecret.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"InferenceSecret.metadata.labels", err})
@@ -1745,17 +1865,20 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"InferenceSecret.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -1769,30 +1892,10 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 							tf.Attrs["expires"] = v
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"InferenceSecret.metadata.revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"InferenceSecret.metadata.revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"InferenceSecret.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
-						}
-					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -1821,6 +1924,7 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -1830,6 +1934,9 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["value"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["value"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferenceSecret.spec.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferenceSecret.spec.value", err})
@@ -1838,15 +1945,20 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferenceSecret.spec.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Value) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Value)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["value"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -2007,23 +2119,6 @@ func CopyInferencePolicyFromTerraform(_ context.Context, tf github_com_hashicorp
 						}
 						CopyFromTimestamp(diags, a, &obj.Expires)
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"InferencePolicy.metadata.revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"InferencePolicy.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -2112,6 +2207,12 @@ func CopyInferencePolicyFromTerraform(_ context.Context, tf github_com_hashicorp
 
 // CopyInferencePolicyToTerraform copies contents of the source Terraform object into a target struct
 func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferencePolicy, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyInferencePolicyToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyInferencePolicyToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyInferencePolicyToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferencePolicy, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -2125,6 +2226,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferencePolicy.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"InferencePolicy.kind", err})
@@ -2133,10 +2237,13 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -2147,6 +2254,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferencePolicy.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"InferencePolicy.sub_kind", err})
@@ -2155,10 +2265,13 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -2169,6 +2282,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferencePolicy.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"InferencePolicy.version", err})
@@ -2177,10 +2293,13 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -2208,6 +2327,7 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -2217,6 +2337,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferencePolicy.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferencePolicy.metadata.name", err})
@@ -2225,10 +2348,13 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -2239,6 +2365,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferencePolicy.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferencePolicy.metadata.namespace", err})
@@ -2247,10 +2376,13 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -2261,6 +2393,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferencePolicy.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferencePolicy.metadata.description", err})
@@ -2269,10 +2404,13 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -2298,11 +2436,14 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferencePolicy.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"InferencePolicy.metadata.labels", err})
@@ -2311,17 +2452,20 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -2335,30 +2479,10 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 							tf.Attrs["expires"] = v
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"InferencePolicy.metadata.revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"InferencePolicy.metadata.revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
-						}
-					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -2387,6 +2511,7 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -2411,14 +2536,19 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kinds))
 									}
 								}
-								if obj.Kinds != nil {
+								{
 									t := o.ElemType
 									if len(obj.Kinds) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kinds))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kinds))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Kinds {
-										v, ok := tf.Attrs["kinds"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferencePolicy.spec.kinds", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"InferencePolicy.spec.kinds", err})
@@ -2427,17 +2557,20 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.spec.kinds", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = string(a) == ""
 										}
+
+										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Kinds) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["kinds"] = c
 							}
 						}
@@ -2449,6 +2582,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["model"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["model"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferencePolicy.spec.model", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferencePolicy.spec.model", err})
@@ -2457,10 +2593,13 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.spec.model", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Model) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Model)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["model"] = v
 						}
 					}
@@ -2471,6 +2610,9 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["filter"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["filter"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InferencePolicy.spec.filter", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"InferencePolicy.spec.filter", err})
@@ -2479,15 +2621,20 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"InferencePolicy.spec.filter", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Filter) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Filter)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["filter"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -2630,23 +2777,6 @@ func CopyRetrievalModelFromTerraform(_ context.Context, tf github_com_hashicorp_
 							diags.Append(attrReadMissingDiag{"RetrievalModel.metadata.expires"})
 						}
 						CopyFromTimestamp(diags, a, &obj.Expires)
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"RetrievalModel.metadata.revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"RetrievalModel.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
 					}
 				}
 			}
@@ -2831,6 +2961,12 @@ func CopyRetrievalModelFromTerraform(_ context.Context, tf github_com_hashicorp_
 
 // CopyRetrievalModelToTerraform copies contents of the source Terraform object into a target struct
 func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.RetrievalModel, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyRetrievalModelToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyRetrievalModelToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyRetrievalModelToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.RetrievalModel, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -2844,6 +2980,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"RetrievalModel.kind", err})
@@ -2852,10 +2991,13 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -2866,6 +3008,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"RetrievalModel.sub_kind", err})
@@ -2874,10 +3019,13 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -2888,6 +3036,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"RetrievalModel.version", err})
@@ -2896,10 +3047,13 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -2927,6 +3081,7 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -2936,6 +3091,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"RetrievalModel.metadata.namespace", err})
@@ -2944,10 +3102,13 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -2958,6 +3119,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"RetrievalModel.metadata.description", err})
@@ -2966,10 +3130,13 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -2995,11 +3162,14 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"RetrievalModel.metadata.labels", err})
@@ -3008,17 +3178,20 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -3032,30 +3205,10 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 							tf.Attrs["expires"] = v
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"RetrievalModel.metadata.revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"RetrievalModel.metadata.revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
-						}
-					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -3084,6 +3237,7 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -3114,6 +3268,7 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if obj.Openai == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Openai
 									tf := &v
 									{
@@ -3123,6 +3278,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["openai_model_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["openai_model_id"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.spec.openai.openai_model_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"RetrievalModel.spec.openai.openai_model_id", err})
@@ -3131,10 +3289,13 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.spec.openai.openai_model_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.OpenaiModelId) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.OpenaiModelId)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["openai_model_id"] = v
 										}
 									}
@@ -3145,6 +3306,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["api_key_secret_ref"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["api_key_secret_ref"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.spec.openai.api_key_secret_ref", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"RetrievalModel.spec.openai.api_key_secret_ref", err})
@@ -3153,10 +3317,13 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.spec.openai.api_key_secret_ref", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.ApiKeySecretRef) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.ApiKeySecretRef)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["api_key_secret_ref"] = v
 										}
 									}
@@ -3167,6 +3334,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["base_url"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["base_url"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.spec.openai.base_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"RetrievalModel.spec.openai.base_url", err})
@@ -3175,15 +3345,20 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.spec.openai.base_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.BaseUrl) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.BaseUrl)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["base_url"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["openai"] = v
 							}
 						}
@@ -3216,6 +3391,7 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if obj.Bedrock == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Bedrock
 									tf := &v
 									{
@@ -3225,6 +3401,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["region"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["region"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.spec.bedrock.region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"RetrievalModel.spec.bedrock.region", err})
@@ -3233,10 +3412,13 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.spec.bedrock.region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Region) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Region)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["region"] = v
 										}
 									}
@@ -3247,6 +3429,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["bedrock_model_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["bedrock_model_id"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.spec.bedrock.bedrock_model_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"RetrievalModel.spec.bedrock.bedrock_model_id", err})
@@ -3255,10 +3440,13 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.spec.bedrock.bedrock_model_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.BedrockModelId) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.BedrockModelId)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["bedrock_model_id"] = v
 										}
 									}
@@ -3269,6 +3457,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 										} else {
 											v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["integration"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.spec.bedrock.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"RetrievalModel.spec.bedrock.integration", err})
@@ -3277,15 +3468,20 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.spec.bedrock.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Integration) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Integration)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["integration"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["bedrock"] = v
 							}
 						}
@@ -3297,6 +3493,9 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 						} else {
 							v, ok := tf.Attrs["inference_model_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["inference_model_name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"RetrievalModel.spec.inference_model_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"RetrievalModel.spec.inference_model_name", err})
@@ -3305,15 +3504,20 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"RetrievalModel.spec.inference_model_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.InferenceModelName) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.InferenceModelName)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["inference_model_name"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -3426,5 +3630,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }

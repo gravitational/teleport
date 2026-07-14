@@ -270,6 +270,8 @@ func (r resourceTeleportUser) Update(ctx context.Context, req tfsdk.UpdateResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Errorf("Can not convert %T to UserV2", userI), "user"))
 		return
 	}
+	user = userResource
+
 	diags = tfschema.CopyUserV2ToTerraform(ctx, user, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -334,4 +336,53 @@ func (r resourceTeleportUser) ImportState(ctx context.Context, req tfsdk.ImportR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportUser) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	user := &apitypes.UserV2{}
+	resp.Diagnostics.Append(tfschema.CopyUserV2FromTerraform(ctx, config, user)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	userResource := user
+
+	if err := userResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting User defaults", trace.Wrap(err), "user"))
+		return
+	}
+
+	user = userResource
+
+	preserveUnknown := true
+	resp.Diagnostics.Append(tfschema.CopyUserV2ToTerraformPreserveUnknown(ctx, user, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

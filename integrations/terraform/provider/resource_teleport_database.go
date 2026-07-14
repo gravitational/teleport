@@ -270,6 +270,8 @@ func (r resourceTeleportDatabase) Update(ctx context.Context, req tfsdk.UpdateRe
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Database", trace.Errorf("Can not convert %T to DatabaseV3", databaseI), "db"))
 		return
 	}
+	database = databaseResource
+
 	diags = tfschema.CopyDatabaseV3ToTerraform(ctx, database, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -334,4 +336,53 @@ func (r resourceTeleportDatabase) ImportState(ctx context.Context, req tfsdk.Imp
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportDatabase) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	database := &apitypes.DatabaseV3{}
+	resp.Diagnostics.Append(tfschema.CopyDatabaseV3FromTerraform(ctx, config, database)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	databaseResource := database
+
+	if err := databaseResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting Database defaults", trace.Wrap(err), "db"))
+		return
+	}
+
+	database = databaseResource
+
+	preserveUnknown := true
+	resp.Diagnostics.Append(tfschema.CopyDatabaseV3ToTerraformPreserveUnknown(ctx, database, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

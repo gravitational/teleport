@@ -270,6 +270,8 @@ func (r resourceTeleportDynamicWindowsDesktop) Update(ctx context.Context, req t
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Errorf("Can not convert %T to DynamicWindowsDesktopV1", desktopI), "dynamic_windows_desktop"))
 		return
 	}
+	desktop = desktopResource
+
 	diags = tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktop, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -334,4 +336,53 @@ func (r resourceTeleportDynamicWindowsDesktop) ImportState(ctx context.Context, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportDynamicWindowsDesktop) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	desktop := &apitypes.DynamicWindowsDesktopV1{}
+	resp.Diagnostics.Append(tfschema.CopyDynamicWindowsDesktopV1FromTerraform(ctx, config, desktop)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	desktopResource := desktop
+
+	if err := desktopResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting DynamicWindowsDesktop defaults", trace.Wrap(err), "dynamic_windows_desktop"))
+		return
+	}
+
+	desktop = desktopResource
+
+	preserveUnknown := true
+	resp.Diagnostics.Append(tfschema.CopyDynamicWindowsDesktopV1ToTerraformPreserveUnknown(ctx, desktop, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

@@ -270,6 +270,8 @@ func (r resourceTeleportOktaImportRule) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Errorf("Can not convert %T to OktaImportRuleV1", oktaImportRuleI), "okta_import_rule"))
 		return
 	}
+	oktaImportRule = oktaImportRuleResource
+
 	diags = tfschema.CopyOktaImportRuleV1ToTerraform(ctx, oktaImportRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -334,4 +336,53 @@ func (r resourceTeleportOktaImportRule) ImportState(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportOktaImportRule) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	oktaImportRule := &apitypes.OktaImportRuleV1{}
+	resp.Diagnostics.Append(tfschema.CopyOktaImportRuleV1FromTerraform(ctx, config, oktaImportRule)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	oktaImportRuleResource := oktaImportRule
+
+	if err := oktaImportRuleResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting OktaImportRule defaults", trace.Wrap(err), "okta_import_rule"))
+		return
+	}
+
+	oktaImportRule = oktaImportRuleResource
+
+	preserveUnknown := true
+	resp.Diagnostics.Append(tfschema.CopyOktaImportRuleV1ToTerraformPreserveUnknown(ctx, oktaImportRule, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

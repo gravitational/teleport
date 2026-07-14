@@ -62,9 +62,11 @@ func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terrafor
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "description is object description.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
@@ -72,9 +74,11 @@ func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terrafor
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Description:   "name is an object name.",
@@ -89,11 +93,6 @@ func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terrafor
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Description: "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Description: "metadata is resource metadata.",
 			Required:    true,
@@ -102,19 +101,25 @@ func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terrafor
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"matchers": {
 				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					"default_shell": {
-						Description: "default_shell is the new user's default shell",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						Computed:      true,
+						Description:   "default_shell is the new user's default shell",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					},
 					"gid": {
-						Description: "gid is the new user's gid.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						Computed:      true,
+						Description:   "gid is the new user's gid.",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 					},
 					"groups": {
-						Description: "groups is a list of additional groups to add the user to.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						Computed:      true,
+						Description:   "groups is a list of additional groups to add the user to.",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 					},
 					"node_labels": {
 						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -129,28 +134,38 @@ func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terrafor
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 						}),
-						Description: "node_labels is a map of node labels that will create a user from this resource.",
-						Optional:    true,
+						Computed:      true,
+						Description:   "node_labels is a map of node labels that will create a user from this resource.",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					},
 					"node_labels_expression": {
-						Description: "node_labels_expression is a predicate expression to create a user from this resource.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						Computed:      true,
+						Description:   "node_labels_expression is a predicate expression to create a user from this resource.",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					},
 					"sudoers": {
-						Description: "sudoers is a list of sudoer entries to add.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						Computed:      true,
+						Description:   "sudoers is a list of sudoer entries to add.",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 					},
 					"take_ownership_if_user_exists": {
-						Description: "take_ownership_if_user_exists will take ownership of existing, unmanaged users",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						Computed:      true,
+						Description:   "take_ownership_if_user_exists will take ownership of existing, unmanaged users",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 					},
 					"uid": {
-						Description: "uid is the new user's uid.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						Computed:      true,
+						Description:   "uid is the new user's uid.",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 					},
 				}),
 				Description: "",
@@ -160,9 +175,11 @@ func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terrafor
 			Required:    true,
 		},
 		"sub_kind": {
-			Description: "sub_kind is an optional resource sub kind, used in some resources.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "sub_kind is an optional resource sub kind, used in some resources.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "version is the resource version. It must be specified. Supported values are: `v2`.",
@@ -324,23 +341,6 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 							diags.Append(attrReadMissingDiag{"StaticHostUser.metadata.expires"})
 						}
 						CopyFromTimestamp(diags, a, &obj.Expires)
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"StaticHostUser.metadata.revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"StaticHostUser.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
 					}
 				}
 			}
@@ -610,6 +610,12 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 
 // CopyStaticHostUserToTerraform copies contents of the source Terraform object into a target struct
 func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.StaticHostUser, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyStaticHostUserToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyStaticHostUserToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyStaticHostUserToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.StaticHostUser, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -623,6 +629,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"StaticHostUser.kind", err})
@@ -631,10 +640,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -645,6 +657,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"StaticHostUser.sub_kind", err})
@@ -653,10 +668,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -667,6 +685,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"StaticHostUser.version", err})
@@ -675,10 +696,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -706,6 +730,7 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -715,6 +740,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"StaticHostUser.metadata.name", err})
@@ -723,10 +751,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -737,6 +768,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"StaticHostUser.metadata.namespace", err})
@@ -745,10 +779,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -759,6 +796,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"StaticHostUser.metadata.description", err})
@@ -767,10 +807,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -796,11 +839,14 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"StaticHostUser.metadata.labels", err})
@@ -809,17 +855,20 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -833,30 +882,10 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 							tf.Attrs["expires"] = v
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"StaticHostUser.metadata.revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"StaticHostUser.metadata.revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
-						}
-					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -885,6 +914,7 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -909,13 +939,15 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Matchers))
 									}
 								}
-								if obj.Matchers != nil {
+								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Matchers) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Matchers))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Matchers))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Matchers {
-										v, ok := tf.Attrs["matchers"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -930,6 +962,7 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 										if a == nil {
 											v.Null = true
 										} else {
+											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -954,13 +987,15 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.NodeLabels))
 															}
 														}
-														if obj.NodeLabels != nil {
+														{
 															o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 															if len(obj.NodeLabels) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.NodeLabels))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.NodeLabels))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.NodeLabels {
-																v, ok := tf.Attrs["node_labels"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																if !ok {
 																	v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -975,6 +1010,7 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 																if a == nil {
 																	v.Null = true
 																} else {
+																	v.Null = false
 																	obj := a
 																	tf := &v
 																	{
@@ -984,6 +1020,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 																		} else {
 																			v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																			if !ok {
+																				if tf.Attrs["name"] != nil {
+																					diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.node_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																				}
 																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																				if err != nil {
 																					diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.node_labels.name", err})
@@ -992,10 +1031,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 																				if !ok {
 																					diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																				}
-																				v.Null = string(obj.Name) == ""
 																			}
+
+																			v.Null = false
 																			v.Value = string(obj.Name)
-																			v.Unknown = false
+																			if !preserveUnknown {
+																				v.Unknown = false
+																			}
 																			tf.Attrs["name"] = v
 																		}
 																	}
@@ -1021,14 +1063,19 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 																						c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																					}
 																				}
-																				if obj.Values != nil {
+																				{
 																					t := o.ElemType
 																					if len(obj.Values) != len(c.Elems) {
-																						c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																						newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																						copy(newElems, c.Elems)
+																						c.Elems = newElems
 																					}
 																					for k, a := range obj.Values {
-																						v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																						if !ok {
+																							if c.Elems[k] != nil {
+																								diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.node_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																							}
 																							i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																							if err != nil {
 																								diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.node_labels.values", err})
@@ -1037,30 +1084,35 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 																							if !ok {
 																								diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																							}
-																							v.Null = string(a) == ""
 																						}
+
+																						v.Null = false
 																						v.Value = string(a)
-																						v.Unknown = false
+																						if !preserveUnknown {
+																							v.Unknown = false
+																						}
 																						c.Elems[k] = v
 																					}
-																					if len(obj.Values) > 0 {
-																						c.Null = false
-																					}
 																				}
-																				c.Unknown = false
+																				c.Null = false
+																				if !preserveUnknown {
+																					c.Unknown = false
+																				}
 																				tf.Attrs["values"] = c
 																			}
 																		}
 																	}
 																}
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
-															if len(obj.NodeLabels) > 0 {
-																c.Null = false
-															}
 														}
-														c.Unknown = false
+														c.Null = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["node_labels"] = c
 													}
 												}
@@ -1072,6 +1124,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 												} else {
 													v, ok := tf.Attrs["node_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
+														if tf.Attrs["node_labels_expression"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.node_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.node_labels_expression", err})
@@ -1080,10 +1135,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
-														v.Null = string(obj.NodeLabelsExpression) == ""
 													}
+
+													v.Null = false
 													v.Value = string(obj.NodeLabelsExpression)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["node_labels_expression"] = v
 												}
 											}
@@ -1109,14 +1167,19 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
 															}
 														}
-														if obj.Groups != nil {
+														{
 															t := o.ElemType
 															if len(obj.Groups) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Groups {
-																v, ok := tf.Attrs["groups"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
+																	if c.Elems[k] != nil {
+																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.groups", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.groups", err})
@@ -1125,17 +1188,20 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.groups", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
-																	v.Null = string(a) == ""
 																}
+
+																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
-															if len(obj.Groups) > 0 {
-																c.Null = false
-															}
 														}
-														c.Unknown = false
+														c.Null = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["groups"] = c
 													}
 												}
@@ -1162,14 +1228,19 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Sudoers))
 															}
 														}
-														if obj.Sudoers != nil {
+														{
 															t := o.ElemType
 															if len(obj.Sudoers) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Sudoers))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Sudoers))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Sudoers {
-																v, ok := tf.Attrs["sudoers"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
+																	if c.Elems[k] != nil {
+																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.sudoers", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.sudoers", err})
@@ -1178,17 +1249,20 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.sudoers", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
-																	v.Null = string(a) == ""
 																}
+
+																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
-															if len(obj.Sudoers) > 0 {
-																c.Null = false
-															}
 														}
-														c.Unknown = false
+														c.Null = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["sudoers"] = c
 													}
 												}
@@ -1200,6 +1274,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 												} else {
 													v, ok := tf.Attrs["uid"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 													if !ok {
+														if tf.Attrs["uid"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.uid", err})
@@ -1208,10 +1285,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 														}
-														v.Null = int64(obj.Uid) == 0
 													}
+
+													v.Null = false
 													v.Value = int64(obj.Uid)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["uid"] = v
 												}
 											}
@@ -1222,6 +1302,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 												} else {
 													v, ok := tf.Attrs["gid"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 													if !ok {
+														if tf.Attrs["gid"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.gid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.gid", err})
@@ -1230,10 +1313,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.gid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 														}
-														v.Null = int64(obj.Gid) == 0
 													}
+
+													v.Null = false
 													v.Value = int64(obj.Gid)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["gid"] = v
 												}
 											}
@@ -1244,6 +1330,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 												} else {
 													v, ok := tf.Attrs["default_shell"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
+														if tf.Attrs["default_shell"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.default_shell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.default_shell", err})
@@ -1252,10 +1341,13 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.default_shell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
-														v.Null = string(obj.DefaultShell) == ""
 													}
+
+													v.Null = false
 													v.Value = string(obj.DefaultShell)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["default_shell"] = v
 												}
 											}
@@ -1266,6 +1358,9 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 												} else {
 													v, ok := tf.Attrs["take_ownership_if_user_exists"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 													if !ok {
+														if tf.Attrs["take_ownership_if_user_exists"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.take_ownership_if_user_exists", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.take_ownership_if_user_exists", err})
@@ -1274,28 +1369,35 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.take_ownership_if_user_exists", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 														}
-														v.Null = bool(obj.TakeOwnershipIfUserExists) == false
 													}
+
+													v.Null = false
 													v.Value = bool(obj.TakeOwnershipIfUserExists)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["take_ownership_if_user_exists"] = v
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Matchers) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["matchers"] = c
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -1408,5 +1510,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }
