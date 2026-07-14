@@ -47,6 +47,8 @@ computed_fields:
   - 'DiscoveryConfig.spec.azure.Params'
   - 'DiscoveryConfig.spec.azure.Params.ScriptName'
   - 'DiscoveryConfig.spec.azure.Params.Azure'
+  - 'DiscoveryConfig.spec.aws.Params'
+  - 'DiscoveryConfig.spec.aws.SSM'
 
 # These fields will be marked as Required: true
 required_fields:
