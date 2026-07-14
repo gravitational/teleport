@@ -3518,6 +3518,14 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	getUserGroupLookup := h.getUserGroupLookup(request.Context(), clt)
 
 	clusterAuthProxyServerFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(request.Context(), h.GetAccessPoint(), h.logger)
+	if cluster.GetName() != h.auth.clusterName {
+		// Resources in a leaf cluster are also served by the leaf's Auth and
+		// Proxy servers, so intersect their advertised features too; constraint
+		// UI is only offered when every component on the access path supports
+		// it. The site-scoped user client reads the leaf's presence.
+		leafFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(request.Context(), clt, h.logger)
+		clusterAuthProxyServerFeatures = componentfeatures.Intersect(clusterAuthProxyServerFeatures, leafFeatures)
+	}
 
 	unifiedResources := make([]any, 0, len(page))
 	for _, enriched := range page {
