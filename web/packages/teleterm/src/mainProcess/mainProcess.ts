@@ -165,7 +165,7 @@ export default class MainProcess {
     this.windowsManager = opts.windowsManager;
     this.agentRunner = new AgentRunner(
       this.settings,
-      path.join(__dirname, 'agentCleanupDaemon.js'),
+      path.join(import.meta.dirname, 'agentCleanupDaemon.mjs'),
       (rootClusterUri, state) => {
         const window = this.windowsManager.getWindow();
         if (window.isDestroyed()) {
@@ -336,7 +336,7 @@ export default class MainProcess {
 
   private initSharedProcess() {
     this.sharedProcess = fork(
-      path.join(__dirname, 'sharedProcess.js'),
+      path.join(import.meta.dirname, 'sharedProcess.mjs'),
       [`--runtimeSettingsJson=${JSON.stringify(this.settings)}`],
       {
         stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
