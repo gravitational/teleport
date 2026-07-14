@@ -268,7 +268,8 @@ func (b testBackend) GetIntegration(ctx context.Context, name string) (types.Int
 			Name: name,
 		},
 		&types.GitHubIntegrationSpecV1{
-			Organization: name,
+			Organization:     name,
+			OAuthCallbackURL: types.IntegrationGitHubOAuthCallbackURL,
 		},
 	)
 	if err != nil {

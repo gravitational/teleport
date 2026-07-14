@@ -32,12 +32,16 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
@@ -1221,4 +1225,89 @@ const (
 var GithubScopes = []string{
 	// read:org grants read-only access to user's team memberships
 	"read:org",
+}
+
+const githubCallbackMigrationNotificationName = "github-oauth-callback-migration"
+
+// notifyGitHubCallbackMigration scans GitHub integrations and upserts a
+// warning notification if any are using the old unauthenticated OAuth
+// callback URL. If all integrations have migrated, the notification is
+// deleted.
+func (a *Server) notifyGitHubCallbackMigration() {
+	ctx := a.closeCtx
+	a.logger.DebugContext(ctx, "Checking GitHub integrations for OAuth callback migration")
+
+	var unmigrated []string
+	for ig, err := range clientutils.Resources(ctx, a.Services.ListIntegrations) {
+		if err != nil {
+			a.logger.WarnContext(ctx, "Failed to list integrations for GitHub callback migration check", "error", err)
+			return
+		}
+		if spec := ig.GetGitHubIntegrationSpec(); spec != nil &&
+			spec.OAuthCallbackURL != types.IntegrationGitHubOAuthCallbackURL {
+			unmigrated = append(unmigrated, ig.GetName())
+		}
+	}
+
+	a.logger.DebugContext(ctx, "GitHub integrations require OAuth callback migration", "unmigrated", unmigrated)
+
+	if len(unmigrated) == 0 {
+		// Delete the migration notification if it exists. NotFound is ignored.
+		if err := a.Services.DeleteGlobalNotification(ctx, githubCallbackMigrationNotificationName); err != nil && !trace.IsNotFound(err) {
+			a.logger.WarnContext(ctx, "Failed to delete GitHub callback migration notification", "error", err)
+		}
+		return
+	}
+
+	callbackURL := fmt.Sprintf("https://%s%s", a.getProxyPublicAddr(ctx), types.IntegrationGitHubOAuthCallbackURL)
+
+	title := "GitHub integration OAuth callback URL migration required"
+	text := fmt.Sprintf(`The following GitHub integrations should migrate to the authenticated OAuth callback URL for improved security:
+- %s
+
+1. Update the callback URL to %q in your GitHub App settings.
+2. Set oauth_callback_url to %q on the integration resource (e.g. tctl edit integration/<name>).
+
+See https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/github-integration/ for details.`,
+		strings.Join(unmigrated, "\n- "),
+		callbackURL,
+		types.IntegrationGitHubOAuthCallbackURL,
+	)
+
+	now := a.GetClock().Now()
+	_, err := a.Services.UpsertGlobalNotification(ctx, notificationsv1.GlobalNotification_builder{
+		Kind:    types.KindGlobalNotification,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name:    githubCallbackMigrationNotificationName,
+			Expires: timestamppb.New(now.Add(7 * 24 * time.Hour)),
+		}.Build(),
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			ByPermissions: notificationsv1.ByPermissions_builder{
+				RoleConditions: []*types.RoleConditions{{
+					Rules: []types.Rule{{
+						Resources: []string{types.KindIntegration},
+						Verbs:     []string{types.VerbUpdate},
+					}},
+				}},
+			}.Build(),
+			Notification: notificationsv1.Notification_builder{
+				SubKind: types.NotificationDefaultWarningSubKind,
+				Spec: notificationsv1.NotificationSpec_builder{
+					Created: timestamppb.New(now),
+				}.Build(),
+				Metadata: headerv1.Metadata_builder{
+					Name:    githubCallbackMigrationNotificationName,
+					Expires: timestamppb.New(now.Add(7 * 24 * time.Hour)),
+					Labels: map[string]string{
+						types.NotificationTitleLabel:       title,
+						types.NotificationTextContentLabel: text,
+					},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	if err != nil {
+		a.logger.WarnContext(ctx, "Failed to upsert GitHub callback migration notification", "error", err)
+	}
 }
