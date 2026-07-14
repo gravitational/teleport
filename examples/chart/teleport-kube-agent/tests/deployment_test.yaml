@@ -42,7 +42,7 @@ tests:
       - ../.lint/extra-labels.yaml
     asserts:
       - equal:
-          path: metadata.labels.app\.kubernetes\.io/name
+          path: metadata.labels["app.kubernetes.io/name"]
           value: teleport-kube-agent
       - equal:
           path: metadata.labels.resource
@@ -60,7 +60,7 @@ tests:
       - ../.lint/extra-labels.yaml
     asserts:
       - equal:
-          path: spec.template.metadata.labels.app\.kubernetes\.io/name
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
           value: teleport-kube-agent
       - equal:
           path: spec.template.metadata.labels.resource
@@ -78,10 +78,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment
+          path: metadata.annotations["kubernetes.io/deployment"]
           value: test-annotation
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment-different
+          path: metadata.annotations["kubernetes.io/deployment-different"]
           value: 3
       - matchSnapshot: {}
 
@@ -95,10 +95,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          path: spec.template.metadata.annotations["kubernetes.io/pod"]
           value: test-annotation
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          path: spec.template.metadata.annotations["kubernetes.io/pod-different"]
           value: 4
       - matchSnapshot:
           path: spec.template.spec
@@ -767,12 +767,10 @@ tests:
       - ../.lint/initcontainers.yaml
       - ../.lint/security-context-empty.yaml
     asserts:
-      - equal:
+      - notExists:
           path: spec.template.spec.initContainers[0].securityContext
-          value: null
-      - equal:
+      - notExists:
           path: spec.template.spec.containers[0].securityContext
-          value: null
 
   - it: should enable maintenance schedule export when updater is enabled if action is Upgrade
     template: deployment.yaml

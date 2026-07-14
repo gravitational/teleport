@@ -12,6 +12,7 @@ tests:
       - hasDocuments:
           count: 1
       - containsDocument:
+          any: true
           kind: Deployment
           apiVersion: apps/v1
           name: RELEASE-NAME-teleport-relay

@@ -1,4 +1,14 @@
-{{- /* This template iterates over every CRD in the `operator-crds/` directory
+{{- /* IMPORTANT - DO NOT RENAME THIS FILE BACK TO `crds.yaml`.
+The helm-unittest plugin (v1.x) silently excludes any template named exactly
+`templates/crds.yaml` from the manifests it renders for testing -- it mirrors
+Helm's special-casing of the top-level `crds/` directory. With the file named
+`crds.yaml`, every assertion in crds_test.yaml fails with
+"template ... not exists or not selected in test suite" and the CRDs become
+untestable. Real Helm renders this template identically regardless of filename
+(only the generated `# Source:` comment differs), so naming it
+`crd-resources.yaml` changes nothing at install time while keeping it testable.
+
+This template iterates over every CRD in the `operator-crds/` directory
 and creates them if needed. It also adds common labels, like any other
 Helm-deployed resource.
 

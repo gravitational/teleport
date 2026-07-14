@@ -14,10 +14,10 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment
+          path: metadata.annotations["kubernetes.io/deployment"]
           value: test-annotation
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment-different
+          path: metadata.annotations["kubernetes.io/deployment-different"]
           value: 3
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: sets Pod annotations when specified
@@ -31,10 +31,10 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          path: spec.template.metadata.annotations["kubernetes.io/pod"]
           value: test-annotation
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          path: spec.template.metadata.annotations["kubernetes.io/pod-different"]
           value: 4
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
@@ -1262,9 +1262,8 @@ tests:
       - equal:
           path: metadata.name
           value: RELEASE-NAME-proxy
-      - equal:
+      - notExists:
           path: spec.minReadySeconds
-          value: null
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should set nodeSelector when set in values
@@ -1519,7 +1518,7 @@ tests:
       - equal:
           path: metadata.name
           value: RELEASE-NAME-proxy
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.topologySpreadConstraints
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
@@ -1536,7 +1535,7 @@ tests:
       - equal:
           path: metadata.name
           value: RELEASE-NAME-proxy
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.topologySpreadConstraints
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR

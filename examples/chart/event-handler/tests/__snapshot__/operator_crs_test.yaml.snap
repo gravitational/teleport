@@ -14,12 +14,12 @@ should match the snapshot (tokenSpecOverride set):
     spec:
       allow:
         rules:
-        - resources:
-          - event
-          - session
-          verbs:
-          - list
-          - read
+          - resources:
+              - event
+              - session
+            verbs:
+              - list
+              - read
   2: |
     apiVersion: resources.teleport.dev/v1
     kind: TeleportBotV1
@@ -34,7 +34,7 @@ should match the snapshot (tokenSpecOverride set):
       namespace: NAMESPACE
     spec:
       roles:
-      - RELEASE-NAME-teleport-plugin-event-handler
+        - RELEASE-NAME-teleport-plugin-event-handler
   3: |
     apiVersion: resources.teleport.dev/v2
     kind: TeleportProvisionToken
@@ -52,10 +52,10 @@ should match the snapshot (tokenSpecOverride set):
       join_method: kubernetes
       kubernetes:
         allow:
-        - service_account: NAMESPACE:RELEASE-NAME-tbot
+          - service_account: NAMESPACE:RELEASE-NAME-tbot
         static_jwks:
           jwks: |
             test-jwks
         type: static_jwks
       roles:
-      - Bot
+        - Bot

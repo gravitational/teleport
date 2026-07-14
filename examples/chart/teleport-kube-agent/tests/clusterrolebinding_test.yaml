@@ -15,7 +15,7 @@ tests:
       - ../.lint/extra-labels.yaml
     asserts:
       - equal:
-          path: metadata.labels.app\.kubernetes\.io/name
+          path: metadata.labels["app.kubernetes.io/name"]
           value: teleport-kube-agent
       - equal:
           path: metadata.labels.resource
