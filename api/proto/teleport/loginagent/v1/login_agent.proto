@@ -1,0 +1,75 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.loginagent.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginagent/v1;loginagent";
+
+// LoginAgentService implements an API for non-interactively logging tsh in
+// using Machine ID.
+service LoginAgentService {
+  // Login returns certificates, client parameters, and a pseudo-hardware key
+  // reference to be used by tsh.
+  rpc Login(LoginRequest) returns (LoginResponse);
+}
+
+// LoginRequest contains parameters to Login.
+message LoginRequest {
+  // RouteToCluster is an optional cluster name to route the response
+  // credentials to.
+  string route_to_cluster = 1;
+
+  // KubernetesCluster is an optional k8s cluster name to route the response
+  // credentials to.
+  string kubernetes_cluster = 2;
+}
+
+// LoginResponse contains the result of Login.
+message LoginResponse {
+  // Username is the user's Teleport username.
+  string username = 1;
+
+  // SSHCert contains the PEM-encoded SSH certificate.
+  bytes ssh_cert = 2;
+
+  // TLSCert contains the PEM-encoded X.509 certificate.
+  bytes tls_cert = 3;
+
+  // PrivateKey contains the PEM-encoded private key. It's actually a reference
+  // to a pseudo hardware key that can be used for signing via the Hardware Key
+  // Agent API, on the same socket.
+  bytes private_key = 4;
+
+  // HostSigners is a list of signing host public keys trusted by proxy.
+  repeated TrustedCerts host_signers = 5;
+}
+
+// TrustedCerts contains host certificates. It's a protobuf copy of the
+// lib/auth/authclient.TrustedCerts struct.
+message TrustedCerts {
+  // ClusterName identifies teleport cluster name this authority serves,
+  // for host authorities that means base hostname of all servers,
+  // for user authorities that means organization name
+  string cluster_name = 1;
+
+  // AuthorizedKeys is a list of SSH public keys in authorized_keys format
+  // that can be used to check host key signatures.
+  repeated bytes ssh_authorized_keys = 2;
+
+  // TLSCertificates is a list of TLS certificates of the certificate authority
+  // of the authentication server
+  repeated bytes tls_ca_certs = 3;
+}
