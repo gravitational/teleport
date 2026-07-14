@@ -29,7 +29,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -146,9 +145,12 @@ type Server struct {
 	// join the cluster. If "TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes" is set,
 	// this will be nil and no version checks will be performed.
 	oldestSupportedVersion *semver.Version
+	// mu is used to rate limit the creation of rejected client alerts to at
+	// most once per day.
+	mu sync.Mutex
 	// lastRejectedAlertTime is the timestamp of the last unsupported client
-	// alert, used to rate limit alert creation to at most once per day.
-	lastRejectedAlertTime atomic.Int64
+	// alert.
+	lastRejectedAlertTime time.Time
 }
 
 // NewServer returns a new [Server] instance.
@@ -465,14 +467,13 @@ func (s *Server) displayRejectedClientAlert(ctx context.Context, info diagnostic
 	}
 
 	now := time.Now()
-	lastAlert := s.lastRejectedAlertTime.Load()
-	then := time.Unix(0, lastAlert)
-	if lastAlert != 0 && now.Before(then.Add(24*time.Hour)) {
+	s.mu.Lock()
+	if now.Sub(s.lastRejectedAlertTime) < 24*time.Hour {
+		s.mu.Unlock()
 		return
 	}
-	if !s.lastRejectedAlertTime.CompareAndSwap(lastAlert, now.UnixNano()) {
-		return
-	}
+	s.lastRejectedAlertTime = now
+	s.mu.Unlock()
 
 	alertVersion := semver.Version{
 		Major: s.oldestSupportedVersion.Major,
