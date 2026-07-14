@@ -75,24 +75,17 @@ func CopyFromClassifierActionMode(diags diag.Diagnostics, v attr.Value, o *summa
 // CopyToClassifierActionMode converts a ClassifierActionMode enum value into an
 // optional Terraform boolean. Set `preserveUnknown` to preserve unknown values.
 func CopyToClassifierActionMode(_ diag.Diagnostics, o summarizerv1.ClassifierActionMode, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-	unknown := preserveUnknown && v != nil && v.IsUnknown()
+	if preserveUnknown && v != nil && v.IsUnknown() {
+		return types.Bool{Unknown: true}
+	}
 
 	switch o {
 	case summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED:
-		return types.Bool{
-			Value:   true,
-			Unknown: unknown,
-		}
+		return types.Bool{Value: true}
 	case summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED:
-		return types.Bool{
-			Value:   false,
-			Unknown: unknown,
-		}
+		return types.Bool{Value: false}
 	default: // CLASSIFIER_ACTION_MODE_UNSPECIFIED
-		return types.Bool{
-			Null:    true,
-			Unknown: unknown,
-		}
+		return types.Bool{Null: true}
 	}
 }
 
@@ -142,23 +135,19 @@ func CopyFromRiskLevel(diags diag.Diagnostics, v attr.Value, o *summarizerv1.Ris
 	*o = level
 }
 
-// CopyToRiskLevel conversts a [summarizerv1.RiskLevel] into a Terraform
+// CopyToRiskLevel converts a [summarizerv1.RiskLevel] into a Terraform
 // [types.String] value. Set `preserveUnknown` to preserve unknown values.
 func CopyToRiskLevel(_ diag.Diagnostics, o summarizerv1.RiskLevel, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-	unknown := preserveUnknown && v != nil && v.IsUnknown()
+	if preserveUnknown && v != nil && v.IsUnknown() {
+		return types.String{Unknown: true}
+	}
 
 	s, ok := riskLevelToString[o]
 	if !ok { // RISK_LEVEL_UNSPECIFIED
-		return types.String{
-			Null:    true,
-			Unknown: unknown,
-		}
+		return types.String{Null: true}
 	}
 
-	return types.String{
-		Value:   s,
-		Unknown: unknown,
-	}
+	return types.String{Value: s}
 }
 
 const riskLevelAllowed = `must be one of "low", "medium", "high", "critical"`

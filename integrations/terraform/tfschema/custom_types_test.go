@@ -122,17 +122,17 @@ func TestCopyToBoolOptionPreserveUnknown(t *testing.T) {
 		{
 			name:     "true",
 			input:    &apitypes.BoolOption{Value: true},
-			expected: types.Bool{Value: true, Unknown: true},
+			expected: types.Bool{Unknown: true},
 		},
 		{
 			name:     "false",
 			input:    &apitypes.BoolOption{Value: false},
-			expected: types.Bool{Value: false, Unknown: true},
+			expected: types.Bool{Unknown: true},
 		},
 		{
 			name:     "null",
 			input:    nil,
-			expected: types.Bool{Null: true, Unknown: true},
+			expected: types.Bool{Unknown: true},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -440,7 +440,7 @@ func TestCopyToLabelsPreserveUnknown(t *testing.T) {
 					"foo": types.List{
 						ElemType: types.StringType,
 						Elems: []attr.Value{
-							types.String{Value: "new", Unknown: true},
+							types.String{Unknown: true},
 						},
 					},
 				},
@@ -455,7 +455,6 @@ func TestCopyToLabelsPreserveUnknown(t *testing.T) {
 			},
 			expected: types.Map{
 				ElemType: labelListType,
-				Elems:    map[string]attr.Value{},
 				Unknown:  true,
 			},
 		},
@@ -467,7 +466,6 @@ func TestCopyToLabelsPreserveUnknown(t *testing.T) {
 			},
 			expected: types.Map{
 				ElemType: labelListType,
-				Elems:    map[string]attr.Value{},
 				Unknown:  true,
 			},
 		},
@@ -606,7 +604,7 @@ func TestCopyToTraitsPreserveUnknown(t *testing.T) {
 					"foo": types.List{
 						ElemType: types.StringType,
 						Elems: []attr.Value{
-							types.String{Value: "new", Unknown: true},
+							types.String{Unknown: true},
 						},
 					},
 				},
@@ -621,7 +619,6 @@ func TestCopyToTraitsPreserveUnknown(t *testing.T) {
 			},
 			expected: types.Map{
 				ElemType: labelListType,
-				Elems:    map[string]attr.Value{},
 				Unknown:  true,
 			},
 		},
@@ -633,7 +630,6 @@ func TestCopyToTraitsPreserveUnknown(t *testing.T) {
 			},
 			expected: types.Map{
 				ElemType: labelListType,
-				Elems:    map[string]attr.Value{},
 				Unknown:  true,
 			},
 		},
@@ -756,7 +752,7 @@ func TestStringsCopyToPreserveUnknown(t *testing.T) {
 			expected: types.List{
 				ElemType: types.StringType,
 				Elems: []attr.Value{
-					types.String{Value: "new", Unknown: true},
+					types.String{Unknown: true},
 				},
 			},
 		},
@@ -769,7 +765,6 @@ func TestStringsCopyToPreserveUnknown(t *testing.T) {
 			},
 			expected: types.List{
 				ElemType: types.StringType,
-				Elems:    []attr.Value{},
 				Unknown:  true,
 			},
 		},
@@ -781,7 +776,6 @@ func TestStringsCopyToPreserveUnknown(t *testing.T) {
 			},
 			expected: types.List{
 				ElemType: types.StringType,
-				Elems:    []attr.Value{},
 				Unknown:  true,
 			},
 		},

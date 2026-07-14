@@ -75,28 +75,19 @@ func TestCopyToClassifierActionModePreserveUnknown(t *testing.T) {
 		expected types.Bool
 	}{
 		{
-			name:  "enabled",
-			input: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
-			expected: types.Bool{
-				Value:   true,
-				Unknown: true,
-			},
+			name:     "enabled",
+			input:    summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
+			expected: types.Bool{Unknown: true},
 		},
 		{
-			name:  "disabled",
-			input: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED,
-			expected: types.Bool{
-				Value:   false,
-				Unknown: true,
-			},
+			name:     "disabled",
+			input:    summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED,
+			expected: types.Bool{Unknown: true},
 		},
 		{
-			name:  "unspecified",
-			input: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_UNSPECIFIED,
-			expected: types.Bool{
-				Null:    true,
-				Unknown: true,
-			},
+			name:     "unspecified",
+			input:    summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_UNSPECIFIED,
+			expected: types.Bool{Unknown: true},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -170,28 +161,19 @@ func TestCopyToRiskLevelPreserveUnknown(t *testing.T) {
 		expected types.String
 	}{
 		{
-			name:  "critical",
-			input: summarizerv1.RiskLevel_RISK_LEVEL_CRITICAL,
-			expected: types.String{
-				Value:   riskLevelToString[summarizerv1.RiskLevel_RISK_LEVEL_CRITICAL],
-				Unknown: true,
-			},
+			name:     "critical",
+			input:    summarizerv1.RiskLevel_RISK_LEVEL_CRITICAL,
+			expected: types.String{Unknown: true},
 		},
 		{
-			name:  "low",
-			input: summarizerv1.RiskLevel_RISK_LEVEL_LOW,
-			expected: types.String{
-				Value:   riskLevelToString[summarizerv1.RiskLevel_RISK_LEVEL_LOW],
-				Unknown: true,
-			},
+			name:     "low",
+			input:    summarizerv1.RiskLevel_RISK_LEVEL_LOW,
+			expected: types.String{Unknown: true},
 		},
 		{
-			name:  "unspecified",
-			input: summarizerv1.RiskLevel_RISK_LEVEL_UNSPECIFIED,
-			expected: types.String{
-				Null:    true,
-				Unknown: true,
-			},
+			name:     "unspecified",
+			input:    summarizerv1.RiskLevel_RISK_LEVEL_UNSPECIFIED,
+			expected: types.String{Unknown: true},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

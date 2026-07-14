@@ -55,22 +55,22 @@ func CopyFromTimestamp(diags diag.Diagnostics, v attr.Value, o **timestamppb.Tim
 // CopyToTimestamp converts a Teleport [timestamppb.Timestamp] into a Terraform
 // [tfschema.TimeValue]. Set `preserveUnknown` to preserve unknown values.
 func CopyToTimestamp(_ diag.Diagnostics, o *timestamppb.Timestamp, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-	unknown := preserveUnknown && v != nil && v.IsUnknown()
+	if preserveUnknown && v != nil && v.IsUnknown() {
+		return tfschema.TimeValue{Unknown: true}
+	}
 
 	format := time.RFC3339
 
 	if o == nil {
 		return tfschema.TimeValue{
-			Null:    true,
-			Format:  format,
-			Unknown: unknown,
+			Null:   true,
+			Format: format,
 		}
 	}
 
 	return tfschema.TimeValue{
-		Value:   o.AsTime(),
-		Format:  format,
-		Unknown: unknown,
+		Value:  o.AsTime(),
+		Format: format,
 	}
 }
 
@@ -98,12 +98,14 @@ func CopyFromDuration(diags diag.Diagnostics, v attr.Value, o **durationpb.Durat
 // CopyToDuration converts a Teleport [durationpb.Duration] into a Terraform
 // [tfschema.DurationValue]. Set `preserveUnknown` to preserve unknown values.
 func CopyToDuration(_ diag.Diagnostics, o *durationpb.Duration, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-	unknown := preserveUnknown && v != nil && v.IsUnknown()
+
+	if preserveUnknown && v != nil && v.IsUnknown() {
+		return tfschema.DurationValue{Unknown: true}
+	}
 
 	if o == nil {
 		return tfschema.DurationValue{
-			Null:    true,
-			Unknown: unknown,
+			Null: true,
 		}
 	}
 
@@ -115,7 +117,7 @@ func CopyToDuration(_ diag.Diagnostics, o *durationpb.Duration, _ attr.Type, v a
 	}
 
 	value.Value = o.AsDuration()
-	value.Unknown = unknown
+	value.Unknown = false
 	return value
 }
 

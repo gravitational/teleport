@@ -72,19 +72,15 @@ func CopyFromBoolOption(diags diag.Diagnostics, tf attr.Value, o **apitypes.Bool
 // CopyToBoolOption converts a Teleport [apitypes.BoolOption] into a Terraform
 // [types.Bool] value. Set `preserveUnknown` to preserve unknown values.
 func CopyToBoolOption(_ diag.Diagnostics, o *apitypes.BoolOption, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-	unknown := preserveUnknown && v != nil && v.IsUnknown()
+	if preserveUnknown && v != nil && v.IsUnknown() {
+		return types.Bool{Unknown: true}
+	}
 
 	if o == nil {
-		return types.Bool{
-			Null:    true,
-			Unknown: unknown,
-		}
+		return types.Bool{Null: true}
 	}
 
-	return types.Bool{
-		Value:   o.Value,
-		Unknown: unknown,
-	}
+	return types.Bool{Value: o.Value}
 }
 
 func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
@@ -126,10 +122,14 @@ func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
 func CopyToLabels(_ diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
 	typ := t.(types.MapType) // By the convention, t comes type-asserted so there would be no failure
 
-	value, ok := v.(types.Map)
-	if !ok {
-		value = types.Map{ElemType: typ.ElemType}
+	if preserveUnknown && v != nil && v.IsUnknown() {
+		return types.Map{
+			ElemType: typ.ElemType,
+			Unknown:  true,
+		}
 	}
+
+	value, _ := v.(types.Map)
 
 	elems := make(map[string]attr.Value, len(o))
 	for k, labels := range o {
@@ -139,7 +139,6 @@ func CopyToLabels(_ diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr.Val
 	return types.Map{
 		ElemType: typ.ElemType,
 		Elems:    elems,
-		Unknown:  preserveUnknown && value.IsUnknown(),
 	}
 }
 
@@ -182,20 +181,23 @@ func CopyFromTraits(diags diag.Diagnostics, v attr.Value, o *wrappers.Traits) {
 func CopyToTraits(_ diag.Diagnostics, o wrappers.Traits, t attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
 	typ := t.(types.MapType) // By the convention, t comes type-asserted so there would be no failure
 
-	value, ok := v.(types.Map)
-	if !ok {
-		value = types.Map{ElemType: typ.ElemType}
+	if preserveUnknown && v != nil && v.IsUnknown() {
+		return types.Map{
+			ElemType: typ.ElemType,
+			Unknown:  true,
+		}
 	}
 
+	value, _ := v.(types.Map)
+
 	elems := make(map[string]attr.Value, len(o))
-	for k, traits := range o {
-		elems[k] = copyToList(traits, value.Elems[k], preserveUnknown)
+	for k, labels := range o {
+		elems[k] = copyToList(labels, value.Elems[k], preserveUnknown)
 	}
 
 	return types.Map{
 		ElemType: typ.ElemType,
 		Elems:    elems,
-		Unknown:  preserveUnknown && value.IsUnknown(),
 	}
 }
 
@@ -241,27 +243,30 @@ func CopyToStrings(_ diag.Diagnostics, o wrappers.Strings, _ attr.Type, v attr.V
 }
 
 func copyToList(strList []string, v attr.Value, preserveUnknown bool) attr.Value {
-	listVal, ok := v.(types.List)
-	if !ok {
-		listVal = types.List{ElemType: types.StringType}
+	listVal, _ := v.(types.List)
+
+	if preserveUnknown && listVal.IsUnknown() {
+		return types.List{
+			ElemType: types.StringType,
+			Unknown:  true,
+		}
 	}
 
 	elems := make([]attr.Value, len(strList))
 	for i, str := range strList {
-		unknown := preserveUnknown &&
+		if preserveUnknown &&
 			i < len(listVal.Elems) &&
 			listVal.Elems[i] != nil &&
-			listVal.Elems[i].IsUnknown()
-
-		elems[i] = types.String{
-			Value:   str,
-			Unknown: unknown,
+			listVal.Elems[i].IsUnknown() {
+			elems[i] = types.String{Unknown: true}
+			continue
 		}
+
+		elems[i] = types.String{Value: str}
 	}
 
 	return types.List{
 		ElemType: types.StringType,
 		Elems:    elems,
-		Unknown:  preserveUnknown && listVal.IsUnknown(),
 	}
 }

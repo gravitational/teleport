@@ -121,22 +121,14 @@ func TestCopyToTimestampPreserveUnknown(t *testing.T) {
 		expected tfschema.TimeValue
 	}{
 		{
-			name:  "null",
-			input: nil,
-			expected: tfschema.TimeValue{
-				Null:    true,
-				Format:  time.RFC3339,
-				Unknown: true,
-			},
+			name:     "null",
+			input:    nil,
+			expected: tfschema.TimeValue{Unknown: true},
 		},
 		{
-			name:  "non-nil",
-			input: timestamp,
-			expected: tfschema.TimeValue{
-				Value:   timestamp.AsTime(),
-				Format:  time.RFC3339,
-				Unknown: true,
-			},
+			name:     "non-nil",
+			input:    timestamp,
+			expected: tfschema.TimeValue{Unknown: true},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -241,20 +233,14 @@ func TestCopyToDurationPreserveUnknown(t *testing.T) {
 		expected tfschema.DurationValue
 	}{
 		{
-			name:  "null",
-			input: nil,
-			expected: tfschema.DurationValue{
-				Null:    true,
-				Unknown: true,
-			},
+			name:     "null",
+			input:    nil,
+			expected: tfschema.DurationValue{Unknown: true},
 		},
 		{
-			name:  "non-nil",
-			input: durationpb.New(time.Minute),
-			expected: tfschema.DurationValue{
-				Value:   time.Minute,
-				Unknown: true,
-			},
+			name:     "non-nil",
+			input:    durationpb.New(time.Minute),
+			expected: tfschema.DurationValue{Unknown: true},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
