@@ -30,6 +30,7 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
@@ -203,12 +204,12 @@ func TestCachingTokenValidator(t *testing.T) {
 	tests := []struct {
 		name     string
 		audience string
-		execute  func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims])
+		execute  func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey])
 	}{
 		{
 			name:     "empty",
 			audience: defaultAudience,
-			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
+			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey]) {
 				// Do nothing.
 				require.Zero(t, idp.configRequests.Load())
 				require.Zero(t, idp.jwksRequests.Load())
@@ -217,8 +218,8 @@ func TestCachingTokenValidator(t *testing.T) {
 		{
 			name:     "single validator",
 			audience: defaultAudience,
-			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				val, err := v.GetValidator(t.Context(), idp.issuer(), defaultAudience)
+			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey]) {
+				val, err := v.GetValidatorWithKey(t.Context(), NewStandardValidatorKey(idp.issuer(), defaultAudience))
 				require.NoError(t, err)
 
 				token := idp.issueToken(t, defaultAudience, "a", time.Hour)
@@ -241,10 +242,10 @@ func TestCachingTokenValidator(t *testing.T) {
 		{
 			name:     "multiple validators",
 			audience: defaultAudience,
-			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				v1, err := v.GetValidator(t.Context(), idp.issuer(), "a.teleport.sh")
+			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey]) {
+				v1, err := v.GetValidatorWithKey(t.Context(), NewStandardValidatorKey(idp.issuer(), "a.teleport.sh"))
 				require.NoError(t, err)
-				v2, err := v.GetValidator(t.Context(), idp.issuer(), "b.teleport.sh")
+				v2, err := v.GetValidatorWithKey(t.Context(), NewStandardValidatorKey(idp.issuer(), "b.teleport.sh"))
 				require.NoError(t, err)
 
 				token := idp.issueToken(t, "a.teleport.sh", "a", time.Hour)
@@ -276,8 +277,8 @@ func TestCachingTokenValidator(t *testing.T) {
 		{
 			name:     "expired config",
 			audience: defaultAudience,
-			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				val, err := v.GetValidator(t.Context(), idp.issuer(), defaultAudience)
+			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey]) {
+				val, err := v.GetValidatorWithKey(t.Context(), NewStandardValidatorKey(idp.issuer(), defaultAudience))
 				require.NoError(t, err)
 				val.verifierFn = minimalValidator()
 
@@ -300,8 +301,8 @@ func TestCachingTokenValidator(t *testing.T) {
 		{
 			name:     "stale config",
 			audience: defaultAudience,
-			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				val, err := v.GetValidator(t.Context(), idp.issuer(), defaultAudience)
+			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey]) {
+				val, err := v.GetValidatorWithKey(t.Context(), NewStandardValidatorKey(idp.issuer(), defaultAudience))
 				require.NoError(t, err)
 				val.verifierFn = minimalValidator()
 
@@ -329,8 +330,8 @@ func TestCachingTokenValidator(t *testing.T) {
 		{
 			name:     "changed jwks uri",
 			audience: defaultAudience,
-			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				val, err := v.GetValidator(t.Context(), idp.issuer(), defaultAudience)
+			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey]) {
+				val, err := v.GetValidatorWithKey(t.Context(), NewStandardValidatorKey(idp.issuer(), defaultAudience))
 				require.NoError(t, err)
 				val.verifierFn = minimalValidator()
 
@@ -361,21 +362,21 @@ func TestCachingTokenValidator(t *testing.T) {
 		{
 			name:     "validator pruning",
 			audience: defaultAudience,
-			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				valOld, err := v.GetValidator(t.Context(), idp.issuer(), "a")
+			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey]) {
+				valOld, err := v.GetValidatorWithKey(t.Context(), NewStandardValidatorKey(idp.issuer(), "a"))
 				require.NoError(t, err)
 
 				// After just 1 hour, it should return the same pointer
 				idp.clock.Advance(time.Hour + time.Minute)
 
-				valTemp, err := v.GetValidator(t.Context(), idp.issuer(), "a")
+				valTemp, err := v.GetValidatorWithKey(t.Context(), NewStandardValidatorKey(idp.issuer(), "a"))
 				require.NoError(t, err)
 				require.Same(t, valOld, valTemp)
 
 				// After 48 hours, make the request again. It's now past its
 				// TTL and should be recreated.
 				idp.clock.Advance(validatorTTL + time.Minute)
-				valNew, err := v.GetValidator(t.Context(), idp.issuer(), "a")
+				valNew, err := v.GetValidatorWithKey(t.Context(), NewStandardValidatorKey(idp.issuer(), "a"))
 				require.NoError(t, err)
 				require.NotSame(t, valNew, valOld)
 			},
@@ -387,10 +388,178 @@ func TestCachingTokenValidator(t *testing.T) {
 			clock := clockwork.NewFakeClock()
 			idp := newFakeIDP(t, clock, tt.audience)
 
-			validator, err := NewCachingTokenValidator[*oidc.TokenClaims](clock)
+			validator, err := NewCachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey](clock)
 			require.NoError(t, err)
 
 			tt.execute(t, idp, validator)
 		})
 	}
+}
+
+func TestCachingTokenValidatorCustomKeys(t *testing.T) {
+	type customKey struct {
+		StandardValidatorKey
+
+		custom string
+	}
+
+	newCustomKey := func(custom string) customKey {
+		return customKey{
+			StandardValidatorKey: StandardValidatorKey{
+				issuer:   "issuer",
+				audience: "audience",
+			},
+			custom: custom,
+		}
+	}
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	validator, err := NewCachingTokenValidator[*oidc.TokenClaims, customKey](clock)
+	require.NoError(t, err)
+
+	// Make sure inherited iss/aud are sane
+	fooKey := newCustomKey("foo")
+	require.Equal(t, "issuer", fooKey.GetIssuer())
+	require.Equal(t, "audience", fooKey.GetAudience())
+
+	foo, err := validator.GetValidatorWithKey(ctx, fooKey)
+	require.NoError(t, err)
+
+	foo2, err := validator.GetValidatorWithKey(ctx, fooKey)
+	require.NoError(t, err)
+
+	barKey := newCustomKey("bar")
+	bar, err := validator.GetValidatorWithKey(ctx, barKey)
+	require.NoError(t, err)
+
+	require.Same(t, foo, foo2, "pointers with same cache key must be equal")
+	require.NotSame(t, foo, bar, "pointers with different cache key must not be equal")
+}
+
+// countingRoundTripper is an http.RoundTripper that counts requests and
+// delegates to a wrapped transport.
+type countingRoundTripper struct {
+	next  http.RoundTripper
+	count atomic.Uint32
+}
+
+func (c *countingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	c.count.Add(1)
+	return c.next.RoundTrip(req)
+}
+
+// TestCachingTokenValidatorWithClientMutator ensures HTTP client mutators are
+// actually applied when new validators are created.
+func TestCachingTokenValidatorWithClientMutator(t *testing.T) {
+	t.Parallel()
+
+	const defaultAudience = "example.teleport.sh"
+
+	t.Run("mutator is applied to the live client", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		idp := newFakeIDP(t, clock, defaultAudience)
+
+		validator, err := NewCachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey](clock)
+		require.NoError(t, err)
+
+		// Mutate the client to include the countingRoundTripper.
+		crt := &countingRoundTripper{}
+		mutator := func(client *http.Client) error {
+			crt.next = client.Transport
+			client.Transport = crt
+			return nil
+		}
+
+		val, err := validator.GetValidatorWithKey(
+			t.Context(),
+			NewStandardValidatorKey(idp.issuer(), defaultAudience),
+			mutator,
+		)
+		require.NoError(t, err)
+
+		// Should start empty...
+		require.Zero(t, crt.count.Load())
+
+		token := idp.issueToken(t, defaultAudience, "a", time.Hour)
+		claims, err := val.ValidateToken(t.Context(), token)
+		require.NoError(t, err)
+		require.Equal(t, "a", claims.Subject)
+
+		// Validation triggers a discovery fetch and a JWKS fetch, both of
+		// which must go through our wrapped transport.
+		require.EqualValues(t, idp.configRequests.Load()+idp.jwksRequests.Load(), crt.count.Load())
+		require.Greater(t, crt.count.Load(), uint32(0))
+	})
+
+	t.Run("mutator is not applied on cache hit", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		idp := newFakeIDP(t, clock, defaultAudience)
+
+		validator, err := NewCachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey](clock)
+		require.NoError(t, err)
+
+		// Mutate the client to include the countingRoundTripper.
+		crt := &countingRoundTripper{}
+		mutator := func(client *http.Client) error {
+			crt.next = client.Transport
+			client.Transport = crt
+			return nil
+		}
+
+		// Get without a mutator first.
+		val, err := validator.GetValidatorWithKey(
+			t.Context(),
+			NewStandardValidatorKey(idp.issuer(), defaultAudience),
+		)
+		require.NoError(t, err)
+
+		// As before, count should start empty.
+		require.Zero(t, crt.count.Load())
+
+		token := idp.issueToken(t, defaultAudience, "a", time.Hour)
+		claims, err := val.ValidateToken(t.Context(), token)
+		require.NoError(t, err)
+		require.Equal(t, "a", claims.Subject)
+
+		// Should not be incremented.
+		require.Zero(t, crt.count.Load(), uint32(0))
+
+		// Fetch again but include the mutator
+		val, err = validator.GetValidatorWithKey(
+			t.Context(),
+			NewStandardValidatorKey(idp.issuer(), defaultAudience),
+			mutator,
+		)
+		require.NoError(t, err)
+
+		// Issue and validate again...
+		token = idp.issueToken(t, defaultAudience, "a", time.Hour)
+		claims, err = val.ValidateToken(t.Context(), token)
+		require.NoError(t, err)
+		require.Equal(t, "a", claims.Subject)
+
+		// Still should not be incremented, despite including the mutator.
+		require.Zero(t, crt.count.Load())
+	})
+
+	t.Run("mutator error fails construction", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		idp := newFakeIDP(t, clock, defaultAudience)
+
+		validator, err := NewCachingTokenValidator[*oidc.TokenClaims, StandardValidatorKey](clock)
+		require.NoError(t, err)
+
+		mutator := func(client *http.Client) error {
+			return trace.BadParameter("fail")
+		}
+
+		_, err = validator.GetValidatorWithKey(
+			t.Context(),
+			NewStandardValidatorKey(idp.issuer(), defaultAudience),
+			mutator,
+		)
+		require.ErrorContains(t, err, "fail")
+	})
 }
