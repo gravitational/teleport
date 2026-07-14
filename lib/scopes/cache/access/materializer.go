@@ -216,7 +216,10 @@ func (k MaterializedAssignmentKey) AssignmentName() string {
 	return "acl-" + base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 }
 
-func (k MaterializedAssignmentKey) assignmentScope() string {
+// AssignmentScope returns the scope of the materialized assignment. For
+// assignments materialized for an unscoped access list, this will be the root
+// scope. Otherwise, it will be the scope of the access list.
+func (k MaterializedAssignmentKey) AssignmentScope() string {
 	return cmp.Or(k.ListScope, scopes.Root)
 }
 
@@ -964,7 +967,7 @@ func (m *Materializer) materializeAssignment(
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindMaterialized,
 		Version: types.V1,
-		Scope:   key.assignmentScope(),
+		Scope:   key.AssignmentScope(),
 		Metadata: headerv1.Metadata_builder{
 			Name: key.AssignmentName(),
 		}.Build(),
@@ -1014,7 +1017,7 @@ func (m *Materializer) deleteMaterializedAssignment(ctx context.Context, key Mat
 			"list", key.listSQN().String(),
 		)
 		m.assignmentStore.Delete(scopes.QualifiedName{
-			Scope: key.assignmentScope(),
+			Scope: key.AssignmentScope(),
 			Name:  key.AssignmentName(),
 		}, scopedaccess.SubKindMaterialized)
 		delete(m.materializedAssignments, key)
