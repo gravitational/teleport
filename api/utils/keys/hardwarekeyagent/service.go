@@ -63,7 +63,7 @@ func (s *Service) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateK
 func (s *Service) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	// First try to sign with the agent, then fallback to the direct service if needed.
 	signature, err := s.agentSign(ctx, ref, keyInfo, rand, digest, opts)
-	if err != nil {
+	if err != nil && s.fallbackService != nil {
 		slog.ErrorContext(ctx, "Failed to perform signature over hardware key agent, falling back to fallback service", "agent_err", err)
 		signature, err = s.fallbackService.Sign(ctx, ref, keyInfo, rand, digest, opts)
 	}
