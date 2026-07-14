@@ -50,7 +50,7 @@ struct LandingView: View {
 				ToolbarItem {
 					Menu {
 						Button(
-							"Delete all clusters",
+							"Delete All Clusters",
 							systemImage: "trash",
 							role: .destructive,
 							action: viewModel.userTappedDeleteAllClusters,
