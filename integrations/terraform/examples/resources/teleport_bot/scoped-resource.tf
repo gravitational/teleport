@@ -28,6 +28,9 @@ resource "teleport_bot" "test_scoped" {
 
   metadata = {
     name = local.bot_name_scoped
+    labels = {
+      "teleport.dev/origin" = "dynamic" // This label is added on Teleport side by default
+    }
   }
 
   spec = {
