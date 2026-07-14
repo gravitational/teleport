@@ -80,6 +80,7 @@ message ConnectionActivated {
   uint32 user_channel_id = 2;
   uint32 screen_width = 3;
   uint32 screen_height = 4;
+  uint32 share_id = 5;
 }
 
 // Conveys the current state of keyboard buttons with persistent state.
