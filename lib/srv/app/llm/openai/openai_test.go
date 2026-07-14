@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 )
@@ -240,7 +239,8 @@ func TestNewRequest(t *testing.T) {
 					"/responses",
 					strings.NewReader(`{"model":"gpt-5","input":"Hello"}`),
 				)
-				r.Header.Set(constants.WebAPIConnUpgradeHeader, constants.WebAPIConnUpgradeTypeWebSocket)
+				r.Header.Set("Connection", "upgrade")
+				r.Header.Set("Upgrade", "websocket")
 				return r
 			},
 			expectedError:   require.Error,
@@ -257,6 +257,23 @@ func TestNewRequest(t *testing.T) {
 					http.MethodPost,
 					"/responses",
 					strings.NewReader(`{"model":"gpt-5","input":"Hello", "background": true}`),
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"null requests is rejected": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderOpenAI,
+			}, nil /* appAWS */),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/responses",
+					strings.NewReader(`null`),
 				)
 				return r
 			},

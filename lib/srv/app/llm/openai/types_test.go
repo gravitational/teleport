@@ -182,7 +182,7 @@ func TestEncodeResponsesRequest(t *testing.T) {
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
-				require.JSONEq(tt, `{"model": "gpt-5-mini", "stream": false, "max_output_tokens": 1024, "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "gpt-5-mini", "max_output_tokens": 1024, "input":"Hello"}`, resp)
 			},
 		},
 		"set model via SetModel": {
@@ -204,7 +204,7 @@ func TestEncodeResponsesRequest(t *testing.T) {
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
-				require.JSONEq(tt, `{"model": "gpt-5-mini", "stream": false, "max_output_tokens": 5555, "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "gpt-5-mini", "max_output_tokens": 5555, "input":"Hello"}`, resp)
 			},
 		},
 		"duplicate fields different casing": {
@@ -225,7 +225,7 @@ func TestEncodeResponsesRequest(t *testing.T) {
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
-				require.JSONEq(tt, `{"model": "", "stream": false, "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "", "input":"Hello"}`, resp)
 			},
 		},
 		"valid json missing fields": {
@@ -235,7 +235,7 @@ func TestEncodeResponsesRequest(t *testing.T) {
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
-				require.JSONEq(tt, `{"model": "", "stream": false, "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "", "input":"Hello"}`, resp)
 			},
 		},
 	} {

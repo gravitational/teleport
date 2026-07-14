@@ -121,6 +121,7 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 			// Hard failure.
 			return nil, trace.Wrap(err)
 		}
+		h.cfg.Log.InfoContext(ctx, "using anthropic provider address from environment", "host", h.anthropicProviderURL.Host)
 	}
 	if rawOpenAIURL := os.Getenv(openAIAddressEnvVarName); rawOpenAIURL != "" {
 		var err error
@@ -129,6 +130,7 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 			// Hard failure.
 			return nil, trace.Wrap(err)
 		}
+		h.cfg.Log.InfoContext(ctx, "using openai provider address from environment", "host", h.openAIProviderURL.Host)
 	}
 
 	return h, nil

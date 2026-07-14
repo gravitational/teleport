@@ -21,13 +21,12 @@ import (
 	"cmp"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 
-	"github.com/gravitational/teleport"
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/app/llm/models"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
@@ -73,7 +72,7 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 			// Currently, websocket mode is not supported.
 			//
 			// https://developers.openai.com/api/docs/guides/websocket-mode
-			if slices.Contains(cfg.DownstreamRequest.Header.Values(constants.WebAPIConnUpgradeHeader), constants.WebAPIConnUpgradeTypeWebSocket) {
+			if websocket.IsWebSocketUpgrade(cfg.DownstreamRequest) {
 				return nil, info, trace.NotFound("websocket mode is not supported")
 			}
 
@@ -89,7 +88,7 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 		//
 		// https://developers.openai.com/api/reference/overview#authentication
 		providerHeaders.Set("Authorization", "Bearer "+cfg.GetAPIKeyFunc())
-		providerHeaders.Set("content-type", "application/json")
+		providerHeaders.Set("Content-Type", "application/json")
 	default:
 		return nil, info, trace.NotImplemented("provider %q is not supported", llm.Provider)
 	}
@@ -102,6 +101,14 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 
 	if err := utils.FastUnmarshal(body, &req); err != nil {
 		return nil, info, trace.BadParameter("unable to parse request body")
+	}
+
+	// Clients can send `null` JSON values, and since we're decoding into an
+	// interface (which can hold a `nil` reference), decoding `null` into the
+	// interface causes it to be `nil`. This condition guards against this case
+	// avoiding a nil pointer exception.
+	if req == nil {
+		return nil, info, trace.BadParameter("invalid request body")
 	}
 
 	if err := req.Validate(); err != nil {

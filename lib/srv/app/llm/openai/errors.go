@@ -20,9 +20,10 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gravitational/trace"
+
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // WriteError writes an error in OpenAI format.
@@ -48,7 +49,7 @@ func marshalResponsesErrorEvent(evt *responsesErrorSSEEvent) []byte {
 	enc, err := utils.FastMarshal(evt)
 	if err != nil {
 		return []byte(
-			// Ignore SequecenNumber to avoid having to deal with number
+			// Ignore SequenceNumber to avoid having to deal with number
 			// conversions in this failure scenario.
 			`{"type": "error", "message": "` + llmerrors.ErrUnknown.Error() + `"}`,
 		)
@@ -62,7 +63,7 @@ func marshalResponsesFailedError(evt *responsesFailedSSEEvent) []byte {
 	enc, err := utils.FastMarshal(evt)
 	if err != nil {
 		return []byte(
-			// Ignore SequecenNumber to avoid having to deal with number
+			// Ignore SequenceNumber to avoid having to deal with number
 			// conversions in this failure scenario.
 			`{"type": "` + responsesFailedEventName + `", "response": {"type": "server_error", "message": "` + llmerrors.ErrUnknown.Error() + `"}}`,
 		)

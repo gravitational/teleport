@@ -32,8 +32,7 @@ import (
 type endpointType string
 
 const (
-	endpointTypeResponses       endpointType = "responses"
-	endpointTypeChatCompletions endpointType = "chat_completions"
+	endpointTypeResponses endpointType = "responses"
 )
 
 // RequestInfo contains the request information.
@@ -113,8 +112,10 @@ func (r responsesAPIRequest) MarshalJSON() ([]byte, error) {
 	if err := marshalField(final, "model", r.Model); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := marshalField(final, "stream", r.Stream); err != nil {
-		return nil, trace.Wrap(err)
+	if r.Stream {
+		if err := marshalField(final, "stream", r.Stream); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	// [Background] is expected to always be set `false`, so no need to marshal
 	// it.
