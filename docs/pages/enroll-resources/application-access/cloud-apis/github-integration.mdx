@@ -67,7 +67,7 @@ Replace <Var name="teleport-proxy-address"/> with the host and HTTPS port of
 your Teleport Proxy Service:
 
 ```code
-https://<Var name="teleport-proxy-address"/>/v1/webapi/github/
+https://<Var name="teleport-proxy-address"/>/web/github/integration/callback
 ```
 
 Once the OAuth application is created, create a client secret and remember the
@@ -92,6 +92,7 @@ metadata:
 spec:
   github:
     organization: <Var name="my-github-org"/>
+    oauth_callback_url: /web/github/integration/callback
   credentials:
     id_secret:
       id: <Var name="oauth-app-client-id"/>
@@ -154,6 +155,59 @@ version: v7
 ## Step 4/4. Connect
 
 (!docs/pages/connect-your-client/includes/tsh-git.mdx!)
+
+## Migrate to the authenticated callback URL
+
+Existing integrations may use the old unauthenticated callback URL
+(`/v1/webapi/github/callback`). To improve security, migrate to the new
+authenticated callback URL.
+
+First, go to the settings page for your GitHub OAuth application. Use the
+following for "Authorization callback URL". Replace
+<Var name="teleport-proxy-address"/> with the host and HTTPS port of your
+Teleport Proxy Service:
+
+```code
+https://<Var name="teleport-proxy-address"/>/web/github/integration/callback
+```
+
+Then update the Teleport integration resource:
+
+```code
+$ tctl edit integration/github-<Var name="my-github-org"/>
+```
+
+Set `oauth_callback_url` under the `github` spec:
+
+```yaml
+spec:
+  github:
+    organization: <Var name="my-github-org"/>
+    oauth_callback_url: /web/github/integration/callback
+```
+
+## Troubleshooting
+
+### `redirect_uri` is not associated with this application
+
+![GitHub redirect URI error](../../../../img/management/github-redirect-uri-error.png)
+
+This error from GitHub means the callback URL configured on the Teleport
+integration does not match the callback URL registered on the GitHub OAuth
+application. Verify both values match:
+
+1. Check the callback URL on GitHub in your OAuth application settings.
+2. Check the callback URL on the Teleport integration:
+
+```code
+$ tctl get integration/github-<Var name="my-github-org"/>
+```
+
+Verify that `oauth_callback_url` in the integration resource matches the
+callback URL registered on your GitHub OAuth application.
+
+If you have not migrated to the authenticated callback URL, see
+[Migrate to the authenticated callback URL](#migrate-to-the-authenticated-callback-url).
 
 ## Further reading
 - [Creating a GitHub OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app)
