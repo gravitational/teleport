@@ -190,8 +190,10 @@ certificate overrides.
 $ tctl auth create-override --type=windows cert.pem
 ```
 
-<Admonition type="tip">
-You may create a disabled override and enable it later.
+### Disabled overrides
+
+You may create a disabled override and enable it later. A disabled override
+works as if it didn't exist, leaving signing to the self-signed CA certificate.
 
 This is useful for environments with staged rollouts, so overrides may be
 created in a disabled state until downstream services are ready to accept them.
@@ -213,7 +215,6 @@ You can find the public key of the target override by running
 `tctl auth pub-key-hash --cert=cert.pem` or reading it from
 `tctl get ca_overrides/windows`. Alternatively, you may edit directly using
 `tctl edit ca_overrides/windows`.
-</Admonition>
 
 ### Create certificate overrides on multi-Auth, HSM-enabled clusters
 
