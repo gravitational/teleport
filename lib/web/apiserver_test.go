@@ -132,6 +132,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -222,6 +223,22 @@ func noHistoryShell(t *testing.T) string {
 	shell := filepath.Join(t.TempDir(), "no-history-shell.sh")
 	require.NoError(t, os.WriteFile(shell, noHistoryShellScript, 0o700))
 	return shell
+}
+
+func newTestInventoryHandle(t *testing.T, clt *authclient.Client, hostID string, role types.SystemRole) inventory.DownstreamHandle {
+	t.Helper()
+	handle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
+		func(_ context.Context) (*authproto.UpstreamInventoryHello, error) {
+			return authproto.UpstreamInventoryHello_builder{
+				ServerID: hostID,
+				Version:  teleport.Version,
+				Services: types.SystemRoles{role}.StringSlice(),
+				Hostname: "test",
+			}.Build(), nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handle.Close()) })
+	return handle
 }
 
 func newWebSuite(t *testing.T) *WebSuite {
@@ -403,6 +420,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// create SSH service:
 	nodeDataDir := t.TempDir()
+	inventoryHandle := newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)
 	node, err := regular.New(
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -423,6 +441,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetInventoryControlHandle(inventoryHandle),
 	)
 	require.NoError(t, err)
 	s.node = node
@@ -680,6 +699,9 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		if err := s.node.Close(); err != nil {
 			errors = append(errors, err)
 		}
+		// Close the inventory handle so its control stream doesn't block
+		// s.server.Shutdown's graceful stop below.
+		inventoryHandle.Close()
 		s.webServer.Close()
 		if err := s.proxy.Close(); err != nil {
 			errors = append(errors, err)
@@ -763,6 +785,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, uuid, types.RoleNode)),
 	)
 	require.NoError(t, err)
 	require.NoError(t, node.Start())
@@ -9133,6 +9156,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
 	)
 	require.NoError(t, err)
 
@@ -10279,20 +10303,15 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	if cfg.serviceType == kubeproxy.KubeService {
 		proxySigner = nil
 	}
-	clock := clockwork.NewRealClock()
-	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: component,
-			Client:    client,
-			Clock:     clock,
-		},
-		KubernetesServerGetter: client,
+	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(ctx, kubewatcher.ProxyKubeServerWatcherConfig{
+		AccessPoint:    client,
+		FallbackGetter: client,
 	})
 	require.NoError(t, err)
-	t.Cleanup(watcher.Close)
+	t.Cleanup(kubeServersWatcher.Close)
 
 	// wait for the watcher to init before continuing
-	require.NoError(t, watcher.WaitInitialization())
+	require.NoError(t, kubeServersWatcher.WaitInitialization())
 
 	healthCheckManager, err := healthcheck.NewManager(
 		ctx,
@@ -10376,7 +10395,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		GetRotation:              func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		ResourceMatchers:         nil,
 		OnReconcile:              func(kc types.KubeClusters) {},
-		KubernetesServersWatcher: watcher,
+		KubernetesServersWatcher: kubeServersWatcher,
 		InventoryHandle:          inventoryHandle,
 		ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
 		HealthCheckManager:       healthCheckManager,

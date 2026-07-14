@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/accesslist/v1/accesslist_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package accesslistv1
 

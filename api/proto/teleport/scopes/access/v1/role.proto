@@ -81,6 +81,9 @@ message ScopedRoleSpec {
   // WorkloadIdentity specifies controls that govern issuance using
   // WorkloadIdentity resources.
   ScopedRoleWorkloadIdentity workload_identity = 9;
+
+  // The App Access specific configuration for a scoped role.
+  ScopedRoleApp app = 10;
 }
 
 // ScopedRoleDefaults provides fallback values for controls shared across multiple protocols.
@@ -200,6 +203,16 @@ message ScopedRoleWorkloadIdentity {
   // multi-issue RPC, list) rules for the workload_identity kind in the relevant
   // scope.
   repeated teleport.label.v1.Label labels = 1;
+}
+
+// ScopedRoleApp groups all scoped role fields relevant to application access.
+message ScopedRoleApp {
+  // The set of application labels used for RBAC.
+  repeated teleport.label.v1.Label labels = 1;
+
+  // LabelExpression is an optional predicate expression evaluated against an
+  // application's labels.
+  string label_expression = 2;
 }
 
 // ScopedRule maps resources to verbs. This is the underlying type used to describe
