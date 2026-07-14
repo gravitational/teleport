@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { normalizeTargetSubresourceName } from 'teleterm/services/tshd/gateway';
 import {
   Document,
   DocumentDesktopSession,
@@ -69,7 +70,8 @@ export function getGatewayConnectionByDocument(
       return c =>
         c.kind === 'connection.gateway' &&
         c.targetUri === document.targetUri &&
-        c.targetSubresourceName === document.targetSubresourceName;
+        normalizeTargetSubresourceName(c.targetSubresourceName) ===
+          normalizeTargetSubresourceName(document.targetSubresourceName);
     }
     default: {
       targetKind satisfies never;
@@ -146,7 +148,8 @@ export function getGatewayDocumentByConnection(
       return d =>
         d.kind === 'doc.gateway' &&
         d.targetUri === connection.targetUri &&
-        d.targetSubresourceName === connection.targetSubresourceName;
+        normalizeTargetSubresourceName(d.targetSubresourceName) ===
+          normalizeTargetSubresourceName(connection.targetSubresourceName);
     }
     default: {
       targetKind satisfies never;
