@@ -37,6 +37,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
@@ -193,7 +194,7 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	}
 
 	const listName = "accessList"
-	scopedName := scopes.QualifiedName{Scope: "/eng", Name: listName}
+	scopedName := accesslists.NormalizedSQN{Scope: "/eng", Name: listName}
 	scopedAccessList := newScopedAccessList(listName, scopedName.Scope)
 	unscopedAccessList := newAccessList(t, listName, clock)
 
@@ -211,14 +212,21 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	_, err = service.GetAccessList(ctx, listName)
 	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
-	lists, err := service.GetAccessLists(ctx)
+	// Legacy list APIs should not return scoped access lists.
+	listed, err := service.GetAccessLists(ctx)
 	require.NoError(t, err)
-	require.Empty(t, lists)
-
+	require.Empty(t, listed)
 	listed, nextToken, err := service.ListAccessLists(ctx, 100, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, listed)
+
+	// ListAccessListsV2 _should_ return all access lists by default.
+	listed, nextToken, err = service.ListAccessListsV2(ctx, nil)
+	require.NoError(t, err)
+	require.Empty(t, nextToken)
+	require.Len(t, listed, 1)
+	require.Equal(t, scopedName, accesslists.ScopeQualifiedName(listed[0]))
 
 	unscopedCreated, err := service.UpsertAccessList(ctx, unscopedAccessList)
 	require.NoError(t, err)
@@ -243,6 +251,39 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	unscopedFetched, err = service.GetAccessList(ctx, listName)
 	require.NoError(t, err)
 	require.Equal(t, unscopedAccessList.Spec.Description, unscopedFetched.Spec.Description)
+
+	// Legacy list APIs should not return scoped access lists.
+	listed, err = service.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	require.Empty(t, cmp.Diff(unscopedAccessList, listed[0], cmpOpts...))
+	listed, nextToken, err = service.ListAccessLists(ctx, 100, "")
+	require.NoError(t, err)
+	require.Empty(t, nextToken)
+	require.Len(t, listed, 1)
+	require.Empty(t, cmp.Diff(unscopedAccessList, listed[0], cmpOpts...))
+
+	// ListAccessListsV2 _should_ return all access lists by default.
+	listed, _, err = service.ListAccessListsV2(ctx, nil)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{unscopedAccessList, updated}, listed, cmpOpts...))
+
+	// ListAccessListsV2 can filter to include or exclude scoped lists.
+	listed, _, err = service.ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
+		ScopeFilter: scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_UNSCOPED,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{unscopedAccessList}, listed, cmpOpts...))
+	listed, _, err = service.ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
+		ScopeFilter: scopesv1.Filter_builder{
+			Scope: "/",
+			Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{updated}, listed, cmpOpts...))
 
 	err = service.DeleteAccessListV2(ctx, accesslistv1.DeleteAccessListRequest_builder{
 		Scope: scopedName.Scope,
@@ -2453,8 +2494,9 @@ func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
 	require.NoError(t, err)
 
 	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
-	const numAccessLists = 10
-	const numAccessListMembersPerAccessList = 250
+	const numAccessLists = 2
+	const numAccessListMembersPerAccessList = 3
+	const pageSize = 2
 	totalMembers := numAccessLists * numAccessListMembersPerAccessList
 
 	// Create several access lists.
@@ -2472,22 +2514,70 @@ func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
 		}
 	}
 
-	allMembers := make([]*accesslist.AccessListMember, 0, totalMembers)
-	var nextToken string
-	for {
-		var members []*accesslist.AccessListMember
-		var err error
-		members, nextToken, err = service.ListAllAccessListMembers(ctx, 0, nextToken)
+	allMembers, err := stream.Collect(clientutils.ResourcesWithPageSize(t.Context(), service.ListAllAccessListMembers, pageSize))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedMembers, allMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+
+	// Add a scoped access list with some members.
+	scopedListName := scopes.QualifiedName{Scope: "/example", Name: "scoped"}
+	_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, scopedListName, clock))
+	require.NoError(t, err)
+	expectedScopedMembers := make([]*accesslist.AccessListMember, numAccessListMembersPerAccessList)
+	for j := range numAccessListMembersPerAccessList {
+		memberName := scopes.QualifiedName{Name: fmt.Sprintf("%03d", j)}
+		member := newScopedAccessListMember(t, scopedListName, memberName)
+		expectedScopedMembers[j] = member
+		_, err := service.UpsertAccessListMember(ctx, member)
 		require.NoError(t, err)
-
-		allMembers = append(allMembers, members...)
-
-		if nextToken == "" {
-			break
-		}
 	}
 
-	require.Empty(t, cmp.Diff(expectedMembers, allMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+	// Legacy ListAllAccessListMembers should _not_ return the scoped list members.
+	gotMembers, err := stream.Collect(clientutils.ResourcesWithPageSize(t.Context(), service.ListAllAccessListMembers, pageSize))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedMembers, gotMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+
+	// ListAllAccessListMembersV2 should _not_ return the scoped list members if
+	// they are filtered out.
+	gotMembers, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+			return service.ListAllAccessListMembersV2(ctx, accesslistv1.ListAllAccessListMembersRequest_builder{
+				PageSize:  int32(pageLimit),
+				PageToken: pageToken,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode: scopesv1.Mode_MODE_UNSCOPED,
+				}.Build(),
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedMembers, gotMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+
+	// ListAllAccessListMembersV2 should _only_ return the scoped list members
+	// if unscoped members are filtered out.
+	gotMembers, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+			return service.ListAllAccessListMembersV2(ctx, accesslistv1.ListAllAccessListMembersRequest_builder{
+				PageSize:  int32(pageLimit),
+				PageToken: pageToken,
+				ScopeFilter: scopesv1.Filter_builder{
+					Scope: "/",
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+				}.Build(),
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedScopedMembers, gotMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+
+	// ListAllAccessListMembersV2 should return all list members by default.
+	expectedMembers = append(expectedMembers, expectedScopedMembers...)
+	gotMembers, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+			return service.ListAllAccessListMembersV2(ctx, accesslistv1.ListAllAccessListMembersRequest_builder{
+				PageSize:  int32(pageLimit),
+				PageToken: pageToken,
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedMembers, gotMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
 }
 
 func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
@@ -2502,8 +2592,9 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 
 	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
 
-	const numAccessLists = 10
-	const numAccessListReviewsPerAccessList = 250
+	const numAccessLists = 2
+	const numAccessListReviewsPerAccessList = 3
+	const pageSize = 2
 	totalReviews := numAccessLists * numAccessListReviewsPerAccessList
 
 	// Create several access lists.
@@ -2533,26 +2624,91 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 		}
 	}
 
-	allReviews := make([]*accesslist.Review, 0, totalReviews)
-	var nextToken string
-	for {
-		var reviews []*accesslist.Review
-		var err error
-		reviews, nextToken, err = service.ListAllAccessListReviews(ctx, 0, nextToken)
-		require.NoError(t, err)
-
-		allReviews = append(allReviews, reviews...)
-
-		if nextToken == "" {
-			break
-		}
+	expectReviews := func(t *testing.T, expected, actual []*accesslist.Review) {
+		t.Helper()
+		require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(header.Metadata{}, "Revision"), cmpopts.SortSlices(
+			func(r1, r2 *accesslist.Review) bool {
+				return r1.GetName() < r2.GetName()
+			}),
+		))
 	}
 
-	require.Empty(t, cmp.Diff(expectedReviews, allReviews, cmpopts.IgnoreFields(header.Metadata{}, "Revision"), cmpopts.SortSlices(
-		func(r1, r2 *accesslist.Review) bool {
-			return r1.GetName() < r2.GetName()
-		}),
-	))
+	allReviews, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, service.ListAllAccessListReviews, pageSize))
+	require.NoError(t, err)
+	expectReviews(t, expectedReviews, allReviews)
+
+	// Add a scoped access list with some reviews.
+	scopedListName := scopes.QualifiedName{Scope: "/example", Name: "scoped"}
+	_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, scopedListName, clock))
+	require.NoError(t, err)
+	expectedScopedReviews := make([]*accesslist.Review, numAccessListReviewsPerAccessList)
+	for j := range numAccessListReviewsPerAccessList {
+		review, err := accesslist.NewReviewWithScope(
+			header.Metadata{
+				Name: strconv.Itoa(j),
+			},
+			accesslist.ReviewSpec{
+				AccessList: scopedListName.String(),
+				Reviewers: []string{
+					"user1",
+				},
+				ReviewDate: time.Now(),
+			},
+			scopedListName.Scope,
+		)
+		require.NoError(t, err)
+		review, _, err = service.CreateAccessListReview(ctx, review)
+		require.NoError(t, err)
+		expectedScopedReviews[j] = review
+	}
+
+	// Legacy ListAllAccessListReviews should _not_ return the scoped list members.
+	gotReviews, err := stream.Collect(clientutils.ResourcesWithPageSize(t.Context(), service.ListAllAccessListReviews, pageSize))
+	require.NoError(t, err)
+	expectReviews(t, expectedReviews, gotReviews)
+
+	// ListAllAccessListReviewsV2 should _not_ return the scoped list members if
+	// they are filtered out.
+	gotReviews, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.Review, string, error) {
+			return service.ListAllAccessListReviewsV2(ctx, accesslistv1.ListAllAccessListReviewsRequest_builder{
+				PageSize:  int32(pageLimit),
+				NextToken: pageToken,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode: scopesv1.Mode_MODE_UNSCOPED,
+				}.Build(),
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	expectReviews(t, expectedReviews, gotReviews)
+
+	// ListAllAccessListReviewsV2 should _only_ return the scoped list members
+	// if unscoped members are filtered out.
+	gotReviews, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.Review, string, error) {
+			return service.ListAllAccessListReviewsV2(ctx, accesslistv1.ListAllAccessListReviewsRequest_builder{
+				PageSize:  int32(pageLimit),
+				NextToken: pageToken,
+				ScopeFilter: scopesv1.Filter_builder{
+					Scope: "/",
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+				}.Build(),
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	expectReviews(t, expectedScopedReviews, gotReviews)
+
+	// ListAllAccessListReviewsV2 should return all list members by default.
+	expectedReviews = append(expectedReviews, expectedScopedReviews...)
+	gotReviews, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.Review, string, error) {
+			return service.ListAllAccessListReviewsV2(ctx, accesslistv1.ListAllAccessListReviewsRequest_builder{
+				PageSize:  int32(pageLimit),
+				NextToken: pageToken,
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	expectReviews(t, expectedReviews, gotReviews)
 }
 
 func TestAccessListService_Status_OwnerOf(t *testing.T) {
