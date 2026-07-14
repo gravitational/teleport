@@ -30,6 +30,11 @@ package decoder
 #cgo darwin LDFLAGS: -lrdp_decoder
 
 #cgo windows,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-pc-windows-gnu/release
-#cgo windows LDFLAGS: -lrdp_decoder
+// The Windows system libraries below are required by the Rust std library that
+// gets bundled into librdp_decoder.a. Unlike Linux/macOS, mingw they must be
+// listed explicitly. The list comes from:
+//   cargo rustc --release --target x86_64-pc-windows-gnu -p rdp-decoder \
+//     --crate-type staticlib -- --print native-static-libs
+#cgo windows LDFLAGS: -lrdp_decoder -lkernel32 -lntdll -luserenv -lws2_32 -ldbghelp
 */
 import "C"
