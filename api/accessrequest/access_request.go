@@ -44,7 +44,7 @@ func GetResourcesByKind(ctx context.Context, clt client.ListResourcesClient, req
 	}
 	resources := make([]types.ResourceWithLabels, 0, len(results))
 	for _, result := range results {
-		leafResource, err := mapListResourcesResultToLeafResource(result, kind)
+		leafResource, err := MapListResourcesResultToLeafResource(result, kind)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -182,12 +182,13 @@ func mapResourceKindToListResourcesType(kind string) string {
 	}
 }
 
-// mapListResourcesResultToLeafResource is the inverse of
-// MapResourceKindToListResourcesType, after the ListResources call it maps the
-// result back to the kind we really want. `hint` should be the name of the
-// desired resource kind, used to disambiguate normal SSH nodes and kubernetes
-// services which are both returned as `types.Server`.
-func mapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hint string) (types.ResourceWithLabels, error) {
+// MapListResourcesResultToLeafResource maps a resource returned from a
+// ListResources or ListUnifiedResources call back to the leaf kind we really
+// want, unwrapping server wrappers (AppServer->App, DatabaseServer->Database,
+// KubeServer->KubeCluster). `hint` should be the name of the desired resource
+// kind, used to disambiguate normal SSH nodes and kubernetes services which are
+// both returned as `types.Server`.
+func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hint string) (types.ResourceWithLabels, error) {
 	switch r := resource.(type) {
 	case types.AppServer:
 		return r.GetApp(), nil

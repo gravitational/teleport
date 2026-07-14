@@ -749,6 +749,9 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 				{
 					Resource: &proto.PaginatedResource_Node{Node: &types.ServerV2{}},
 					Logins:   []string{"alice", "bob"},
+					Principals: []*proto.ResourcePrincipalSet{
+						{Kind: types.PrincipalKindLogins, All: []string{"alice", "bob"}, Granted: []string{"alice"}},
+					},
 				},
 				{
 					Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: &types.WindowsDesktopV3{}},
@@ -757,6 +760,9 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 				{
 					Resource: &proto.PaginatedResource_AppServer{AppServer: &types.AppServerV3{}},
 					Logins:   []string{"llama"},
+					Principals: []*proto.ResourcePrincipalSet{
+						{Kind: types.PrincipalKindRoleARNs, All: []string{"llama"}, Granted: []string{"llama"}},
+					},
 				},
 			},
 		},
@@ -773,14 +779,27 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 
 	require.Len(t, resources, len(clt.resp.Resources))
 
+	principalKinds := func(sets []types.ResourcePrincipalSet) []*proto.ResourcePrincipalSet {
+		if len(sets) == 0 {
+			return nil
+		}
+		out := make([]*proto.ResourcePrincipalSet, 0, len(sets))
+		for _, s := range sets {
+			out = append(out, &proto.ResourcePrincipalSet{Kind: s.Kind, All: s.All, Granted: s.Granted})
+		}
+		return out
+	}
 	for _, enriched := range resources {
 		switch enriched.ResourceWithLabels.(type) {
 		case *types.ServerV2:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[0].Logins)
+			assert.Equal(t, principalKinds(enriched.Principals), clt.resp.Resources[0].Principals)
 		case *types.WindowsDesktopV3:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[1].Logins)
+			assert.Equal(t, principalKinds(enriched.Principals), clt.resp.Resources[1].Principals)
 		case *types.AppServerV3:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[2].Logins)
+			assert.Equal(t, principalKinds(enriched.Principals), clt.resp.Resources[2].Principals)
 		}
 	}
 }
