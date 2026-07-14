@@ -20,6 +20,9 @@ This page describes the supported values of the teleport_bot resource of the Tel
 resource "teleport_bot" "example" {
   metadata = {
     name = "example"
+    labels = {
+      "teleport.dev/origin" = "dynamic" // This label is added on Teleport side by default
+    }
   }
 
   spec = {
