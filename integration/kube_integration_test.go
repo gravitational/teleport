@@ -2204,7 +2204,7 @@ func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubeP
 	client := &http.Client{
 		Transport: upgradeRoundTripper,
 	}
-	dialer := spdy.NewDialer(upgradeRoundTripper, client, "POST", u)
+	dialer := spdy.NewDialer(spdy.NewUpgraderForStreaming(upgradeRoundTripper), client, "POST", u)
 	if kubeConfig.Impersonate.UserName != "" {
 		client.Transport = transport.NewImpersonatingRoundTripper(
 			transport.ImpersonationConfig{
