@@ -160,26 +160,6 @@ func GenSchemaWorkloadCluster(ctx context.Context) (github_com_hashicorp_terrafo
 			Description: "",
 			Required:    true,
 		},
-		"status": {
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"domain": {
-					Computed:      true,
-					Description:   "domain is the Teleport Proxy address of the child Teleport Cloud cluster",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"state": {
-					Computed:      true,
-					Description:   "state is the status of the child cluster running in Teleport Cloud",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-			}),
-			Description: "",
-			Optional:    true,
-		},
 		"sub_kind": {
 			Computed:      true,
 			Description:   "",
@@ -542,58 +522,6 @@ func CopyWorkloadClusterFromTerraform(_ context.Context, tf github_com_hashicorp
 										}
 									}
 								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	{
-		a, ok := tf.Attrs["status"]
-		if !ok {
-			diags.Append(attrReadMissingDiag{"WorkloadCluster.status"})
-		} else {
-			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
-			if !ok {
-				diags.Append(attrReadConversionFailureDiag{"WorkloadCluster.status", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
-			} else {
-				obj.Status = nil
-				if !v.Null && !v.Unknown {
-					tf := v
-					obj.Status = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadcluster_v1.WorkloadClusterStatus{}
-					obj := obj.Status
-					{
-						a, ok := tf.Attrs["state"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"WorkloadCluster.status.state"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"WorkloadCluster.status.state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.State = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["domain"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"WorkloadCluster.status.domain"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"WorkloadCluster.status.domain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Domain = t
 							}
 						}
 					}
@@ -1254,97 +1182,6 @@ func CopyWorkloadClusterToTerraformPreserveUnknown(ctx context.Context, obj *git
 					v.Unknown = false
 				}
 				tf.Attrs["spec"] = v
-			}
-		}
-	}
-	{
-		a, ok := tf.AttrTypes["status"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"WorkloadCluster.status"})
-		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-			if !ok {
-				diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.status", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
-			} else {
-				v, ok := tf.Attrs["status"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Status == nil {
-					v.Null = true
-				} else {
-					v.Null = false
-					obj := obj.Status
-					tf := &v
-					{
-						t, ok := tf.AttrTypes["state"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"WorkloadCluster.status.state"})
-						} else {
-							v, ok := tf.Attrs["state"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["state"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.status.state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"WorkloadCluster.status.state", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.status.state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.State)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["state"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["domain"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"WorkloadCluster.status.domain"})
-						} else {
-							v, ok := tf.Attrs["domain"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["domain"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.status.domain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"WorkloadCluster.status.domain", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.status.domain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Domain)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["domain"] = v
-						}
-					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["status"] = v
 			}
 		}
 	}
