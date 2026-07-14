@@ -2347,11 +2347,31 @@ message PaginatedResource {
   // RequiresRequest indicates if a resource requires an access request to access. Only populated with requests
   // that IncludeRequestable.
   bool RequiresRequest = 14 [(gogoproto.jsontag) = "requires_request,omitempty"];
+  // Principals describes the user's selectable principals on this resource,
+  // one entry per principal dimension (SSH logins, AWS role ARNs, database
+  // users, ...). Only populated when IncludeRequestable is set. The Logins
+  // field above keeps carrying the flat union for clients that read only it.
+  repeated ResourcePrincipalSet Principals = 18 [(gogoproto.jsontag) = "principals,omitempty"];
 
   reserved 4;
   reserved "KubeService";
   reserved 11;
   reserved "AppServerOrSAMLIdPServiceProvider";
+}
+
+// ResourcePrincipalSet describes one principal dimension of a resource: the
+// full set of values the user could use or request, and the subset already
+// granted without an access request.
+message ResourcePrincipalSet {
+  // Kind names the principal dimension, using its inline constraint key
+  // ("logins", "role_arns", "db_users", ...). A string rather than an enum so
+  // an older client can still name a dimension it does not recognize.
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // All is the union of granted and requestable values.
+  repeated string All = 2 [(gogoproto.jsontag) = "all,omitempty"];
+  // Granted is the subset of All usable without an access request; the
+  // requestable set is All minus Granted.
+  repeated string Granted = 3 [(gogoproto.jsontag) = "granted,omitempty"];
 }
 
 // ListUnifiedResourcesRequest is a request to receive a paginated list of unified resources
