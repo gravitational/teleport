@@ -51,12 +51,13 @@ type AccessRequestCommand struct {
 	config *servicecfg.Config
 	reqIDs string
 
-	user                 string
-	roles                string
-	requestedResourceIDs []string
-	delegator            string
-	reason               string
-	annotations          string
+	user                   string
+	roles                  string
+	requestedResourceIDs   []string
+	requestedResourcesFile string
+	delegator              string
+	reason                 string
+	annotations            string
 	// format is the output format, e.g. text or json
 	format string
 
@@ -113,7 +114,8 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	c.requestCreate = requests.Command("create", "Create pending Access Request.")
 	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
 	c.requestCreate.Flag("roles", "Roles to be requested").StringVar(&c.roles)
-	c.requestCreate.Flag("resource", "Resource ID to be requested").StringsVar(&c.requestedResourceIDs)
+	c.requestCreate.Flag("resource", "Resource to be requested, as a resource ID, optionally with inline constraints (\"/cluster/node/web-1|logins=root,admin\"), or a JSON ResourceAccessID. Repeatable.").StringsVar(&c.requestedResourceIDs)
+	c.requestCreate.Flag("resource-file", "Path to a JSON ResourceAccessID list (\"-\" for stdin), an alternative to repeated --resource flags.").StringVar(&c.requestedResourcesFile)
 	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestCreate.Flag("dry-run", "Don't actually generate the Access Request").BoolVar(&c.dryRun)
 	c.requestCreate.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
@@ -321,14 +323,21 @@ func (c *AccessRequestCommand) Deny(ctx context.Context, client *authclient.Clie
 }
 
 func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Client) error {
-	if len(c.roles) == 0 && len(c.requestedResourceIDs) == 0 {
+	if len(c.roles) == 0 && len(c.requestedResourceIDs) == 0 && c.requestedResourcesFile == "" {
 		c.roles = "*"
 	}
-	requestedResourceIDs, err := types.ResourceIDsFromStrings(c.requestedResourceIDs)
+	resourceAccessIDs, err := common.ParseResourceValues(c.requestedResourceIDs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), types.ResourceIDsToResourceAccessIDs(requestedResourceIDs))
+	if c.requestedResourcesFile != "" {
+		fromFile, err := common.ParseResourceAccessIDListFile(c.requestedResourcesFile, os.Stdin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		resourceAccessIDs = append(resourceAccessIDs, fromFile...)
+	}
+	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), resourceAccessIDs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
