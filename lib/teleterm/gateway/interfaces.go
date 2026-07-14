@@ -39,6 +39,9 @@ type Gateway interface {
 	TargetURI() uri.ResourceURI
 	TargetName() string
 	Protocol() string
+	// LLMFormat is the inference API format of an LLM app gateway, e.g.
+	// "anthropic" or "openai". Empty for all other gateways.
+	LLMFormat() string
 	TargetUser() string
 	TargetSubresourceName() string
 	SetTargetSubresourceName(value string)

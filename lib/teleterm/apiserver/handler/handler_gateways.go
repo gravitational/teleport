@@ -94,6 +94,7 @@ func (s *Handler) newAPIGateway(ctx context.Context, gateway gateway.Gateway) (*
 		TargetUser:            gateway.TargetUser(),
 		TargetSubresourceName: gateway.TargetSubresourceName(),
 		Protocol:              gateway.Protocol(),
+		LlmFormat:             gateway.LLMFormat(),
 		LocalAddress:          gateway.LocalAddress(),
 		LocalPort:             gateway.LocalPort(),
 		GatewayCliCommand:     makeGatewayCLICommand(cmds),

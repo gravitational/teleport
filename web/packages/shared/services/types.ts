@@ -117,4 +117,4 @@ export enum AppSubKind {
 /**
  * AppProtocol defines the protocol of an App resource.
  */
-export type AppProtocol = 'TCP' | 'HTTP' | 'MCP';
+export type AppProtocol = 'TCP' | 'HTTP' | 'MCP' | 'LLM';

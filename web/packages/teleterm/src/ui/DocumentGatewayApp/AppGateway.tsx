@@ -30,6 +30,7 @@ import styled from 'styled-components';
 
 import {
   Alert,
+  Box,
   ButtonSecondary,
   disappear,
   Flex,
@@ -43,7 +44,10 @@ import { Check, Spinner } from 'design/Icon';
 import { LabelContent } from 'design/LabelInput/LabelInput';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
-import { TextSelectCopy } from 'shared/components/TextSelectCopy';
+import {
+  TextSelectCopy,
+  TextSelectCopyMulti,
+} from 'shared/components/TextSelectCopy';
 import Validation from 'shared/components/Validation';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
@@ -89,8 +93,9 @@ export function AppGateway(props: {
 
   const isMcp = gateway.protocol === 'MCP';
   const isHttpWebApp = gateway.protocol === 'HTTP';
+  const isLLM = gateway.protocol === 'LLM';
   let address = `${gateway.localAddress}:${gateway.localPort}`;
-  if (isHttpWebApp || isMcp) {
+  if (isHttpWebApp || isMcp || isLLM) {
     address = `http://${address}`;
   }
 
@@ -165,7 +170,13 @@ export function AppGateway(props: {
     >
       <Flex flexDirection="column" gap={2}>
         <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
-          <H1>{isMcp ? 'MCP Server Connection' : 'App Connection'}</H1>
+          <H1>
+            {isMcp
+              ? 'MCP Server Connection'
+              : isLLM
+                ? 'Inference Endpoint Connection'
+                : 'App Connection'}
+          </H1>
           <Flex gap={2}>
             {isMultiPort && (
               <MenuLogin
@@ -223,14 +234,18 @@ export function AppGateway(props: {
       </Flex>
 
       <Flex flexDirection="column" gap={2}>
-        <div>
-          <Text>
-            {isMcp
-              ? 'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
-              : 'Access the app at:'}
-          </Text>
-          <TextSelectCopy mt={1} text={address} bash={false} />
-        </div>
+        {isLLM ? (
+          <LlmInstructions llmFormat={gateway.llmFormat} address={address} />
+        ) : (
+          <Box>
+            <Text>
+              {isMcp
+                ? 'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
+                : 'Access the app at:'}
+            </Text>
+            <TextSelectCopy mt={1} text={address} bash={false} />
+          </Box>
+        )}
 
         {changeLocalPortAttempt.status === 'error' && (
           <Alert details={changeLocalPortAttempt.statusText} m={0}>
@@ -263,6 +278,72 @@ export function AppGateway(props: {
         </Text>
       </Flex>
     </Flex>
+  );
+}
+
+/**
+ * Per-provider instructions for pointing LLM client at the running local
+ * proxy. Keyed by the gateway's inference API format.
+ */
+const llmProviders: Record<
+  string,
+  {
+    // Human-readable client type, e.g. "Anthropic".
+    name: string;
+    // Builds the base-URL env export from the local proxy address.
+    baseUrlEnv(address: string): string;
+    // Env export for the client-side API key, which is not used.
+    apiKeyEnv: string;
+  }
+> = {
+  anthropic: {
+    name: 'Anthropic',
+    baseUrlEnv: address => `export ANTHROPIC_BASE_URL=${address}`,
+    apiKeyEnv: 'export ANTHROPIC_API_KEY=teleport',
+  },
+  openai: {
+    name: 'OpenAI',
+    baseUrlEnv: address => `export OPENAI_BASE_URL=${address}/v1`,
+    apiKeyEnv: 'export OPENAI_API_KEY=teleport',
+  },
+};
+
+/**
+ * LlmInstructions tells the user how to point their LLM client at the running
+ * local proxy. Teleport authenticates and audits every request and injects the
+ * provider API key, so no real key is needed locally.
+ */
+function LlmInstructions(props: { llmFormat: string; address: string }) {
+  const provider = llmProviders[props.llmFormat];
+
+  if (!provider) {
+    return (
+      <Box>
+        <Text>Point your LLM client at the local proxy:</Text>
+        <TextSelectCopy mt={1} text={props.address} bash={false} />
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      <Text mb={1}>
+        Point your {provider.name} client at the local proxy. Every request is
+        authenticated and audited by Teleport, which also injects the provider
+        API key - so no real key is needed locally.
+      </Text>
+      <TextSelectCopyMulti
+        bash={false}
+        lines={[
+          { text: provider.baseUrlEnv(props.address) },
+          {
+            text: provider.apiKeyEnv,
+            comment:
+              'Any non-empty value works; Teleport swaps in the real key.',
+          },
+        ]}
+      />
+    </Box>
   );
 }
 

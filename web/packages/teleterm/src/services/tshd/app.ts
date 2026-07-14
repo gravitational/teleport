@@ -110,6 +110,16 @@ export function isMcp(app: App): boolean {
   return app.endpointUri.startsWith('mcp+');
 }
 
+export function isLLM(app: App): boolean {
+  return app.endpointUri.startsWith('llm://');
+}
+
+export function isTcp(app: App): boolean {
+  return (
+    app.endpointUri.startsWith('tcp://') || app.endpointUri.startsWith('tls://')
+  );
+}
+
 /**
  * doesMcpAppSupportGateway returns true for MCP servers that supports local
  * proxy gateway. Currently only MCP servers with streamable HTTP transport
@@ -130,18 +140,14 @@ export function doesMcpAppSupportGateway(app: App): boolean {
  */
 export function getAppAddrWithProtocol(source: App): string {
   const { publicAddr, endpointUri } = source;
+  const isCloud = endpointUri.startsWith('cloud://');
 
   const scheme = getAppUriScheme(endpointUri);
-  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
-  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
-  const isMcp = scheme.startsWith('mcp+');
   let addrWithProtocol = endpointUri;
   if (publicAddr) {
     if (isCloud) {
       addrWithProtocol = `cloud://${publicAddr}`;
-    } else if (isTcp) {
-      addrWithProtocol = `tcp://${publicAddr}`;
-    } else if (isMcp) {
+    } else if (isTcp(source) || isMcp(source) || isLLM(source)) {
       addrWithProtocol = `${scheme}://${publicAddr}`;
     } else {
       // publicAddr for Identity Center account app is a URL with scheme.

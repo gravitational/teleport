@@ -283,6 +283,7 @@ export const makeDatabaseGateway = (
   localAddress: 'localhost',
   localPort: '1337',
   protocol: 'postgres',
+  llmFormat: '',
   gatewayCliCommand: {
     path: '/foo/psql',
     args: ['psql', 'localhost:1337'],
@@ -303,6 +304,7 @@ export const makeKubeGateway = (
   localAddress: 'localhost',
   localPort: '1337',
   protocol: '',
+  llmFormat: '',
   gatewayCliCommand: {
     path: '/bin/kubectl',
     args: ['version'],
@@ -330,6 +332,7 @@ export const makeAppGateway = (
   },
   targetUser: '',
   protocol: 'HTTP',
+  llmFormat: '',
   ...props,
 });
 

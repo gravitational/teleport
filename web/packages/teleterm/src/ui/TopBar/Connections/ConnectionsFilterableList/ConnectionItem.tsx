@@ -161,6 +161,9 @@ function getKindName(connection: ExtendedTrackedConnection): string {
         if (connection.targetProtocol === 'MCP') {
           return 'MCP';
         }
+        if (connection.targetProtocol === 'LLM') {
+          return 'LLM';
+        }
         return 'APP';
       }
       if (isDatabaseUri(connection.targetUri)) {

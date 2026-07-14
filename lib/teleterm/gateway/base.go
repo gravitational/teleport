@@ -157,6 +157,10 @@ func (b *base) Protocol() string {
 	return b.cfg.Protocol
 }
 
+func (b *base) LLMFormat() string {
+	return b.cfg.LLMFormat
+}
+
 func (b *base) TargetUser() string {
 	return b.cfg.TargetUser
 }

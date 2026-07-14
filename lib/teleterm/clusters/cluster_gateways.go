@@ -188,6 +188,13 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 		return nil, trace.Wrap(err)
 	}
 
+	// For LLM inference endpoints, surface the inference API format so Connect
+	// can render provider-specific instructions for the running proxy.
+	var format string
+	if llm := app.GetLLM(); llm != nil {
+		format = llm.Format
+	}
+
 	gw, err := gateway.New(gateway.Config{
 		LocalPort:                     params.LocalPort,
 		TargetURI:                     params.TargetURI,
@@ -195,6 +202,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 		TargetName:                    appName,
 		Cert:                          cert,
 		Protocol:                      app.GetProtocol(),
+		LLMFormat:                     format,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
 		Logger:                        c.Logger,

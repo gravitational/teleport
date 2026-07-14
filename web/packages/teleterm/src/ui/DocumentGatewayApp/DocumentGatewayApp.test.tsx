@@ -170,3 +170,73 @@ describe('reconnecting when the gateway fails to be created', () => {
     );
   });
 });
+
+describe('LLM inference endpoint gateway', () => {
+  const anthropicBaseUrl = 'export ANTHROPIC_BASE_URL=http://localhost:1337';
+  const openaiBaseUrl = 'export OPENAI_BASE_URL=http://localhost:1337/v1';
+
+  const tests: Array<{
+    name: string;
+    format: string;
+    expected: string;
+    notExpected: string;
+  }> = [
+    {
+      name: 'anthropic',
+      format: 'anthropic',
+      expected: anthropicBaseUrl,
+      notExpected: openaiBaseUrl,
+    },
+    {
+      name: 'openai',
+      format: 'openai',
+      expected: openaiBaseUrl,
+      notExpected: anthropicBaseUrl,
+    },
+  ];
+
+  test.each(tests)(
+    'shows $name client instructions for the running proxy',
+    async ({ format, expected, notExpected }) => {
+      const appContext = new MockAppContext();
+      const cluster = makeRootCluster();
+      const gateway = makeAppGateway({
+        protocol: 'LLM',
+        llmFormat: format,
+        targetSubresourceName: undefined,
+      });
+      const doc: docs.DocumentGateway = {
+        uri: '/docs/1',
+        kind: 'doc.gateway',
+        targetName: gateway.targetName,
+        targetUri: gateway.targetUri as AppUri,
+        targetUser: gateway.targetUser,
+        targetSubresourceName: undefined,
+        gatewayUri: gateway.uri,
+        origin: 'resource_table',
+        title: '',
+        status: '',
+        autoUserProvisioning: undefined,
+      };
+      appContext.addRootClusterWithDoc(cluster, doc);
+
+      jest
+        .spyOn(appContext.tshd, 'createGateway')
+        .mockReturnValueOnce(new MockedUnaryCall(gateway));
+
+      render(
+        <MockAppContextProvider appContext={appContext}>
+          <MockWorkspaceContextProvider>
+            <DocumentGatewayApp visible doc={doc} />
+          </MockWorkspaceContextProvider>
+        </MockAppContextProvider>
+      );
+
+      expect(
+        await screen.findByText('Inference Endpoint Connection')
+      ).toBeInTheDocument();
+      expect(screen.getByText(expected)).toBeInTheDocument();
+      expect(screen.queryByText(notExpected)).not.toBeInTheDocument();
+    }
+  );
+});

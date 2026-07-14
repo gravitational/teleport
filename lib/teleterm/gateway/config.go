@@ -59,6 +59,9 @@ type Config struct {
 	LocalAddress string
 	// Protocol is the gateway protocol
 	Protocol string
+	// LLMFormat is the inference API format of an LLM app gateway, e.g.
+	// "anthropic" or "openai".
+	LLMFormat string
 	// Cert is used by the local proxy to connect to the Teleport proxy.
 	Cert tls.Certificate
 	// Insecure
