@@ -265,21 +265,13 @@ $ tctl rm client_ip_restriction
 With Terraform, remove the `teleport_client_ip_restriction` resource from your
 configuration and run `terraform apply`.
 
-## Use the Go SDK instead of `tctl`
-
-Teleport's Go SDK can automate Client IP Restriction management instead of
-relying on client tools such as `tctl`. The SDK client exposes the same
-create, get, update, upsert, and delete operations as the `client_ip_restriction`
-resource.
-
-For general Teleport API guidance, see
-[Using the Teleport API](../../api/api.mdx) and
-[Getting Started with the Teleport API](../../api/getting-started.mdx).
-
 ## Limitations
 
-- **Misconfiguration.** A misconfigured allowlist can block all access to your
-  cluster. Always include your current network before saving changes.
+<Admonition type="danger" title="Misconfiguration can block all access">
+A misconfigured allowlist can block all access to your cluster. Always include
+your current network before saving changes.
+</Admonition>
+
 - **Third-party service ranges.** Teleport does not add third-party service
   ranges automatically. Add allow rules for any third-party service that needs
   to access your Teleport cluster, such as CI/CD systems and identity providers.
