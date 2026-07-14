@@ -65,6 +65,7 @@ type responsesAPIRequest struct {
 	Model      string `json:"model"`
 	Stream     bool   `json:"stream"`
 	Background bool   `json:"background"`
+	Store      bool   `json:"store"`
 
 	raw map[string]json.RawMessage `json:"-"`
 }
@@ -77,6 +78,9 @@ func (r *responsesAPIRequest) SetModel(model string) { r.Model = model }
 func (r *responsesAPIRequest) Validate() error {
 	if r.Background {
 		return llmerrors.NewProviderError(llmerrors.ErrUnsupported, "background responses not supported")
+	}
+	if r.Store {
+		return llmerrors.NewProviderError(llmerrors.ErrUnsupported, "storing responses not supported")
 	}
 
 	return nil
@@ -117,8 +121,8 @@ func (r responsesAPIRequest) MarshalJSON() ([]byte, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	// [Background] is expected to always be set `false`, so no need to marshal
-	// it.
+	// [Background] and [Store] are expected to always be set `false`, so no
+	// need to marshal it.
 	res, err := utils.FastMarshal(final)
 	return res, trace.Wrap(err)
 }

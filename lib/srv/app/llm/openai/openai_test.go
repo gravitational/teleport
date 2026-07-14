@@ -264,6 +264,23 @@ func TestNewRequest(t *testing.T) {
 			expectedRequest: require.Nil,
 			expectedInfo:    require.NotNil,
 		},
+		"responses store requests is not supported": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderOpenAI,
+			}, nil /* appAWS */),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/responses",
+					strings.NewReader(`{"model":"gpt-5","input":"Hello", "store": true}`),
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
 		"null requests is rejected": {
 			app: newApp(t, &types.LLM{
 				Format:   types.LLMFormatOpenAI,
