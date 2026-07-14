@@ -583,7 +583,7 @@ var (
 		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/devicetrust/v1",
 		IsPlainStruct:         true,
 		UUIDMetadataName:      true,
-		TerraformResourceType: "teleport_device_trust",
+		TerraformResourceType: "teleport_trusted_device",
 	}
 
 	oktaImportRule = payload{
