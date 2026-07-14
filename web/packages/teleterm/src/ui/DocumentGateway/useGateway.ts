@@ -22,6 +22,7 @@ import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { useAsync } from 'shared/hooks/useAsync';
 
+import { getTargetSubresourceName } from 'teleterm/services/tshd/gateway';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
@@ -93,7 +94,7 @@ export function useGateway(doc: DocumentGateway) {
           draftDoc.port = gw.localPort;
           // targetSubresourceName needs to be updated here in case the createGateway function was
           // called from OfflineGateway.
-          draftDoc.targetSubresourceName = gw.targetSubresourceName;
+          draftDoc.targetSubresourceName = getTargetSubresourceName(gw);
           draftDoc.status = 'connected';
           // The title might need to be changed if OfflineGateway changed gateway params.
           draftDoc.title = getDocumentGatewayTitle(draftDoc);
@@ -175,7 +176,7 @@ export function useGateway(doc: DocumentGateway) {
         );
 
         documentsService.update(doc.uri, {
-          targetSubresourceName: updatedGateway.targetSubresourceName,
+          targetSubresourceName: getTargetSubresourceName(updatedGateway),
           port: updatedGateway.localPort,
         });
       },

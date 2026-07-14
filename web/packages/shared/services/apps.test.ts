@@ -21,7 +21,7 @@ import type { AppProtocol } from './types';
 
 describe('getAppProtocol', () => {
   test.each<[string, AppProtocol]>([
-    // TCP
+    // TCP (tls:// is accessed like a TCP app)
     ['tcp://localhost:8080', 'TCP'],
     ['tls://localhost:8080', 'TCP'],
 

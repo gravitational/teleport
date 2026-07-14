@@ -81,7 +81,7 @@ export interface Gateway {
     localPort: string;
     /**
      * protocol is the protocol used by the gateway. For databases, it matches the type of the
-     * database that the gateway targets. For apps, it's either "HTTP" or "TCP".
+     * database that the gateway targets. For apps, it's one of "HTTP", "TCP", "MCP", or "LLM".
      *
      * @generated from protobuf field: string protocol = 7;
      */
@@ -104,6 +104,20 @@ export interface Gateway {
      * @generated from protobuf field: teleport.lib.teleterm.v1.GatewayCLICommand gateway_cli_command = 10;
      */
     gatewayCliCommand?: GatewayCLICommand;
+    /**
+     * llm_format is the inference API format of an LLM app gateway, e.g.
+     * "anthropic" or "openai".
+     *
+     * @generated from protobuf field: string llm_format = 11;
+     */
+    llmFormat: string;
+    /**
+     * llm_provider is the inference provider serving an LLM app gateway, e.g.
+     * "anthropic", "openai" or "bedrock".
+     *
+     * @generated from protobuf field: string llm_provider = 12;
+     */
+    llmProvider: string;
 }
 /**
  * GatewayCLICommand represents a command that the user can execute to connect to a gateway
@@ -163,7 +177,9 @@ class Gateway$Type extends MessageType<Gateway> {
             { no: 6, name: "local_port", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "protocol", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 9, name: "target_subresource_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 10, name: "gateway_cli_command", kind: "message", T: () => GatewayCLICommand }
+            { no: 10, name: "gateway_cli_command", kind: "message", T: () => GatewayCLICommand },
+            { no: 11, name: "llm_format", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 12, name: "llm_provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Gateway>): Gateway {
@@ -176,6 +192,8 @@ class Gateway$Type extends MessageType<Gateway> {
         message.localPort = "";
         message.protocol = "";
         message.targetSubresourceName = "";
+        message.llmFormat = "";
+        message.llmProvider = "";
         if (value !== undefined)
             reflectionMergePartial<Gateway>(this, message, value);
         return message;
@@ -211,6 +229,12 @@ class Gateway$Type extends MessageType<Gateway> {
                     break;
                 case /* teleport.lib.teleterm.v1.GatewayCLICommand gateway_cli_command */ 10:
                     message.gatewayCliCommand = GatewayCLICommand.internalBinaryRead(reader, reader.uint32(), options, message.gatewayCliCommand);
+                    break;
+                case /* string llm_format */ 11:
+                    message.llmFormat = reader.string();
+                    break;
+                case /* string llm_provider */ 12:
+                    message.llmProvider = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -251,6 +275,12 @@ class Gateway$Type extends MessageType<Gateway> {
         /* teleport.lib.teleterm.v1.GatewayCLICommand gateway_cli_command = 10; */
         if (message.gatewayCliCommand)
             GatewayCLICommand.internalBinaryWrite(message.gatewayCliCommand, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* string llm_format = 11; */
+        if (message.llmFormat !== "")
+            writer.tag(11, WireType.LengthDelimited).string(message.llmFormat);
+        /* string llm_provider = 12; */
+        if (message.llmProvider !== "")
+            writer.tag(12, WireType.LengthDelimited).string(message.llmProvider);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

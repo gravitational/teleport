@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getCliCommandArgs, getCliCommandEnv } from './gateway';
+import { makeAppGateway } from 'teleterm/services/tshd/testHelpers';
+
+import {
+  getCliCommandArgs,
+  getCliCommandEnv,
+  getTargetSubresourceName,
+} from './gateway';
 import { GatewayCLICommand } from './types';
 
 describe('getCliCommandArgs', () => {
@@ -37,6 +43,21 @@ describe('getCliCommandEnv', () => {
 
     expect(env.foo).toBe('bar');
     expect(env.baz).toBe('quux');
+  });
+});
+
+describe('getTargetSubresourceName', () => {
+  test.each<{ name: string; value: string; expected: string | undefined }>([
+    { name: 'empty string becomes undefined', value: '', expected: undefined },
+    { name: 'a target port passes through', value: '1234', expected: '1234' },
+    {
+      name: 'a database name passes through',
+      value: 'postgres',
+      expected: 'postgres',
+    },
+  ])('$name', ({ value, expected }) => {
+    const gateway = makeAppGateway({ targetSubresourceName: value });
+    expect(getTargetSubresourceName(gateway)).toBe(expected);
   });
 });
 
