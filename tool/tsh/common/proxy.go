@@ -523,7 +523,24 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocol)); err != nil {
+	proxyOpts := []alpnproxy.LocalProxyConfigOpt{alpnproxy.WithALPNProtocol(alpnProtocol)}
+
+	// For OAuth-protected MCP servers, inject the token stored by
+	// `tsh mcp login`, like `tsh mcp connect` does. This switches the local
+	// proxy to HTTP mode; without stored credentials the plain tunnel
+	// behavior is kept. Only HTTP-transport MCP apps reach this point, see
+	// checkProxyMCPCompatibility.
+	if app.IsMCP() {
+		mcpOAuthMiddleware, err := newMCPOAuthProxyMiddleware(tc, cf.HomePath, cf.AppName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if mcpOAuthMiddleware != nil {
+			proxyOpts = append(proxyOpts, alpnproxy.WithHTTPMiddleware(mcpOAuthMiddleware))
+		}
+	}
+
+	if err := proxyApp.StartLocalProxy(cf.Context, proxyOpts...); err != nil {
 		return trace.Wrap(err)
 	}
 

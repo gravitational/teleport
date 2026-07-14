@@ -30,7 +30,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -498,28 +497,8 @@ func (c *mcpConnectCommand) run() error {
 	// always wins.
 	var getAuthHeader func(context.Context) (string, error)
 	if _, ok := httpHeaders["Authorization"]; !ok {
-		credsPath := mcpOAuthTokenPath(c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppName)
-		creds, err := loadMCPOAuthCredentials(credsPath)
-		switch {
-		case err == nil:
-			oauthHTTPClient, err := newMCPOAuthHTTPClient(dialer)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			oauthHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{
-				ClientID:    creds.ClientID,
-				PKCEEnabled: true,
-				HTTPClient:  oauthHTTPClient,
-				TokenStore:  &fileTokenStore{path: credsPath, clientID: creds.ClientID},
-			})
-			oauthHandler.SetBaseURL("http://localhost")
-			source := &mcpOAuthHeaderSource{
-				appName:   c.cf.AppName,
-				credsPath: credsPath,
-				refresh:   oauthHandler.RefreshToken,
-			}
-			getAuthHeader = source.GetAuthHeader
-		case !trace.IsNotFound(err):
+		getAuthHeader, err = newMCPOAuthGetAuthHeader(dialer, c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppName)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	}

@@ -21,6 +21,8 @@ package common
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -200,4 +202,41 @@ func TestBearerAuthHeader(t *testing.T) {
 	require.Equal(t, "Bearer x", bearerAuthHeader(&mcpclienttransport.Token{AccessToken: "x", TokenType: "bearer"}))
 	require.Equal(t, "Bearer x", bearerAuthHeader(&mcpclienttransport.Token{AccessToken: "x", TokenType: ""}))
 	require.Equal(t, "MAC x", bearerAuthHeader(&mcpclienttransport.Token{AccessToken: "x", TokenType: "MAC"}))
+}
+
+func TestMCPOAuthProxyMiddlewareHandleRequest(t *testing.T) {
+	middleware := &mcpOAuthProxyMiddleware{
+		getAuthHeader: func(context.Context) (string, error) {
+			return "Bearer fresh-token", nil
+		},
+	}
+
+	t.Run("injects stored token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "http://localhost:19101/", nil)
+		handled := middleware.HandleRequest(httptest.NewRecorder(), req)
+		require.False(t, handled)
+		require.Equal(t, "Bearer fresh-token", req.Header.Get("Authorization"))
+	})
+
+	t.Run("client credentials win", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "http://localhost:19101/", nil)
+		req.Header.Set("Authorization", "Bearer client-supplied")
+		handled := middleware.HandleRequest(httptest.NewRecorder(), req)
+		require.False(t, handled)
+		require.Equal(t, "Bearer client-supplied", req.Header.Get("Authorization"))
+	})
+
+	t.Run("login required returns 403 with fix command", func(t *testing.T) {
+		failing := &mcpOAuthProxyMiddleware{
+			getAuthHeader: func(context.Context) (string, error) {
+				return "", trace.Wrap(&mcpOAuthLoginRequiredError{appName: "sentry"})
+			},
+		}
+		req := httptest.NewRequest(http.MethodPost, "http://localhost:19101/", nil)
+		recorder := httptest.NewRecorder()
+		handled := failing.HandleRequest(recorder, req)
+		require.True(t, handled)
+		require.Equal(t, http.StatusForbidden, recorder.Code)
+		require.Contains(t, recorder.Body.String(), "tsh mcp login sentry")
+	})
 }
