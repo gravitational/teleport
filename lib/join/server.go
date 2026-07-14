@@ -497,7 +497,7 @@ func (s *Server) displayRejectedClientAlert(ctx context.Context, info diagnostic
 		s.cfg.Logger.WarnContext(ctx, "failed to create rejected-unsupported-connection alert", "error", err)
 		return
 	}
-	if err := s.cfg.AlertCreator(ctx, alert); err != nil {
+	if err := s.cfg.AlertCreator(context.WithoutCancel(ctx), alert); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "failed to persist rejected-unsupported-connection alert", "error", err)
 	}
 }
