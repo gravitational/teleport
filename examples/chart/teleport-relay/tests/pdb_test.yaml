@@ -16,6 +16,7 @@ tests:
       - hasDocuments:
           count: 1
       - containsDocument:
+          any: true
           kind: PodDisruptionBudget
           apiVersion: policy/v1
           name: RELEASE-NAME-teleport-relay
