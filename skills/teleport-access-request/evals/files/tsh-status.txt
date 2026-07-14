@@ -1,0 +1,8 @@
+> Profile URL:        https://main.example.com:443
+  Logged in as:       alice
+  Cluster:            main
+  Roles:              requester
+  Logins:             ubuntu
+  Kubernetes:         disabled
+  Valid until:        2026-07-09 03:00:00 -0700 PDT [valid for 11h0m0s]
+  Extensions:         login-ip, permit-port-forwarding, permit-pty

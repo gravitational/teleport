@@ -23,6 +23,9 @@ npx skills add https://github.com/gravitational/teleport/tree/master/skills/tele
 
 # Investigate Identity Security Logs
 npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate
+
+# Request just-in-time access to resources
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-access-request
 ```
 
 You'll be prompted to pick which agents to install into and whether to install
@@ -90,3 +93,20 @@ Example invocations:
 - Set up auto-discovery for my EKS clusters
 - Enroll my Azure VMs into Teleport
 - Why are my resources not enrolling into Teleport?
+
+### teleport-access-request
+
+Helps request just-in-time access to Teleport resources with `tsh`. Finds
+requestable resources (`tsh request search`), previews the logins or AWS role
+ARNs a resource would grant versus what must be requested (`tsh request
+preview`), and creates access requests scoped to a subset of those principals
+with inline resource constraints (`tsh request create --resource
+'/cluster/node/web-1|logins=root,admin'`).
+
+Example invocations:
+
+- Request access to the web-1 server
+- What can I request access to?
+- Which logins can I request on the prod database?
+- Preview access for /main/app/aws-console
+- Request read-only access to the AWS console app
