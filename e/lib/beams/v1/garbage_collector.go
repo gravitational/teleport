@@ -142,7 +142,11 @@ func (c *GarbageCollectorConfig) CheckAndSetDefaults() error {
 func (g *GarbageCollector) Run(ctx context.Context) {
 	for {
 		if err := g.runWithLock(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			g.cfg.Logger.ErrorContext(ctx, "Beam garbage collector failed", "error", err)
+			if trace.IsLimitExceeded(err) {
+				g.cfg.Logger.DebugContext(ctx, "Beam garbage collector is already running", "error", err)
+			} else {
+				g.cfg.Logger.ErrorContext(ctx, "Beam garbage collector failed", "error", err)
+			}
 		}
 
 		select {
