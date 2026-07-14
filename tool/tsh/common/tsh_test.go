@@ -63,6 +63,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
+	loginagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginagent/v1"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -72,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
@@ -88,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/localagent"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -521,6 +525,74 @@ func TestFailedLogin(t *testing.T) {
 		"--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(ssoLogin, connector.GetName()))
 	require.ErrorIs(t, err, loginFailed)
+}
+
+func TestLoginWithMachineIDAgent(t *testing.T) {
+	ctx := t.Context()
+
+	homeDir := filepath.Join(t.TempDir(), "home")
+
+	// Use os.MkdirTemp instead of t.TempDir for the agent socket directory.
+	// t.TempDir includes the test name and sequence directories, which can exceed
+	// Unix socket path limits on platforms like macOS.
+	agentDir, err := os.MkdirTemp("", "tsh-agent-")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(agentDir) })
+
+	// Stand up a Teleport cluster with a user and role.
+	role, err := types.NewRole("access", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	user, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	user.SetRoles([]string{role.GetName()})
+
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(role, user))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	clusterName, err := authServer.GetClusterName(ctx)
+	require.NoError(t, err)
+	rootClusterName := clusterName.GetClusterName()
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Run test agent.
+	loginAgent := runTestLoginAgent(t, agentDir, authServer, user)
+
+	// Point TELEPORT_LOGIN_AGENT_DIR at our test agent.
+	t.Setenv(client.LoginAgentDirEnvVar, agentDir)
+
+	// Run tsh login.
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", proxyAddr.String(),
+		rootClusterName,
+	}, setHomePath(homeDir))
+	require.NoError(t, err)
+
+	// Check the login agent was called.
+	require.Equal(t, 1, loginAgent.loginCount())
+	require.Equal(t, rootClusterName, loginAgent.routeToCluster())
+
+	// Check the profile was written.
+	store := client.NewFSClientStore(homeDir)
+	profile, _, err := store.FullProfileStatus("")
+	require.NoError(t, err)
+	require.Equal(t, user.GetName(), profile.Username)
+	require.Equal(t, rootClusterName, profile.Cluster)
+
+	proxyHost := utils.TryHost(profile.ProxyURL.Host)
+	keyRing, err := store.GetKeyRing(client.KeyRingIndex{
+		ProxyHost:   proxyHost,
+		Username:    profile.Username,
+		ClusterName: profile.Cluster,
+	}, client.WithSSHCerts{})
+	require.NoError(t, err)
+	require.True(t, keyRing.SSHPrivateKey.IsHardware())
 }
 
 func TestOIDCLogin(t *testing.T) {
@@ -4594,6 +4666,173 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 			HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
 	}
+}
+
+type testLoginAgentService struct {
+	loginagentv1.UnimplementedLoginAgentServiceServer
+
+	authServer *auth.Server
+	user       types.User
+	privateKey crypto.Signer
+
+	mu                  sync.Mutex
+	loginCountValue     int
+	routeToClusterValue string
+}
+
+func runTestLoginAgent(t *testing.T, dir string, authServer *auth.Server, user types.User) *testLoginAgentService {
+	t.Helper()
+
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	svc := &testLoginAgentService{
+		authServer: authServer,
+		user:       user,
+		privateKey: privateKey,
+	}
+
+	server, err := localagent.NewServer(dir)
+	require.NoError(t, err)
+
+	loginagentv1.RegisterLoginAgentServiceServer(server, svc)
+	err = hardwarekeyagent.RegisterServer(
+		server,
+		svc,
+		func(*hardwarekey.PrivateKeyRef, hardwarekey.ContextualKeyInfo) (bool, error) {
+			return true, nil
+		},
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	errCh := make(chan error, 1)
+	go func() { errCh <- server.Serve(ctx) }()
+
+	t.Cleanup(func() {
+		cancel()
+
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for test login agent to stop")
+		}
+	})
+
+	return svc
+}
+
+func (s *testLoginAgentService) Login(ctx context.Context, req *loginagentv1.LoginRequest) (*loginagentv1.LoginResponse, error) {
+	s.mu.Lock()
+	s.loginCountValue++
+	s.routeToClusterValue = req.GetRouteToCluster()
+	s.mu.Unlock()
+
+	clusterName, err := s.authServer.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	slotKey, err := hardwarekey.PIVSlotKeyFromProto(hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hwSigner := &hardwarekey.Signer{
+		Ref: &hardwarekey.PrivateKeyRef{
+			SerialNumber:         0xFFFFFFFF,
+			SlotKey:              slotKey,
+			PublicKey:            s.privateKey.Public(),
+			Policy:               hardwarekey.PromptPolicyNone,
+			AttestationStatement: &hardwarekey.AttestationStatement{},
+		},
+	}
+	loginKey, err := keys.NewPrivateKey(hwSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPubKey, err := loginKey.MarshalTLSPublicKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	routeToCluster := req.GetRouteToCluster()
+	if routeToCluster == "" {
+		routeToCluster = clusterName.GetClusterName()
+	}
+
+	sshCert, tlsCert, err := s.authServer.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
+		SSHPubKey:               loginKey.MarshalSSHPublicKey(),
+		TLSPubKey:               tlsPubKey,
+		Username:                s.user.GetName(),
+		TTL:                     time.Hour,
+		Compatibility:           constants.CertificateFormatStandard,
+		RouteToCluster:          routeToCluster,
+		KubernetesCluster:       req.GetKubernetesCluster(),
+		SSHAttestationStatement: loginKey.GetAttestationStatement(),
+		TLSAttestationStatement: loginKey.GetAttestationStatement(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKey, err := keys.MarshalPrivateKey(hwSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hostCAs, err := s.authServer.GetCertAuthorities(ctx, types.HostCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostSigners := make([]*loginagentv1.TrustedCerts, len(hostCAs))
+	for idx, cert := range hostCAs {
+		hostSigners[idx] = loginagentv1.TrustedCerts_builder{
+			ClusterName:       cert.GetClusterName(),
+			SshAuthorizedKeys: services.GetSSHCheckingKeys(cert),
+			TlsCaCerts:        services.GetTLSCerts(cert),
+		}.Build()
+	}
+
+	return loginagentv1.LoginResponse_builder{
+		Username:    s.user.GetName(),
+		SshCert:     sshCert,
+		TlsCert:     tlsCert,
+		PrivateKey:  privateKey,
+		HostSigners: hostSigners,
+	}.Build(), nil
+}
+
+func (s *testLoginAgentService) Sign(
+	_ context.Context,
+	_ *hardwarekey.PrivateKeyRef,
+	_ hardwarekey.ContextualKeyInfo,
+	rand io.Reader,
+	digest []byte,
+	opts crypto.SignerOpts,
+) ([]byte, error) {
+	return s.privateKey.Sign(rand, digest, opts)
+}
+
+func (*testLoginAgentService) NewPrivateKey(context.Context, hardwarekey.PrivateKeyConfig) (*hardwarekey.Signer, error) {
+	return nil, trace.NotImplemented("NewPrivateKey is not implemented")
+}
+
+func (*testLoginAgentService) GetFullKeyRef(uint32, hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
+	return nil, trace.NotImplemented("GetFullKeyRef is not implemented")
+}
+
+func (s *testLoginAgentService) loginCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.loginCountValue
+}
+
+func (s *testLoginAgentService) routeToCluster() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.routeToClusterValue
 }
 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
