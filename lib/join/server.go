@@ -490,7 +490,7 @@ func (s *Server) displayRejectedClientAlert(ctx context.Context, info diagnostic
 		return
 	}
 
-	now := time.Now()
+	now := s.cfg.AuthService.GetClock().Now()
 	s.mu.Lock()
 	if now.Sub(s.lastRejectedAlertTime) < 24*time.Hour {
 		s.mu.Unlock()
