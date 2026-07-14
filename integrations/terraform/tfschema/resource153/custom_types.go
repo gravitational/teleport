@@ -116,6 +116,7 @@ func CopyToDuration(_ diag.Diagnostics, o *durationpb.Duration, _ attr.Type, v a
 		value = tfschema.DurationValue{}
 	}
 
+	value.Null = false
 	value.Value = o.AsDuration()
 	value.Unknown = false
 	return value
