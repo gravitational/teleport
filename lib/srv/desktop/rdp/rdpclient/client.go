@@ -1061,16 +1061,17 @@ func cgo_handle_rdp_connection_activated(
 	user_channel_id C.uint16_t,
 	screen_width C.uint16_t,
 	screen_height C.uint16_t,
+	share_id C.uint32_t,
 ) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.handleRDPConnectionActivated(io_channel_id, user_channel_id, screen_width, screen_height)
+	return client.handleRDPConnectionActivated(io_channel_id, user_channel_id, screen_width, screen_height, share_id)
 }
 
-func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
-	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID)
+func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t, shareID C.uint32_t) C.CGOErrCode {
+	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID, "share_id", shareID)
 
 	// Note: RDP doesn't always use the resolution we asked for.
 	// This is especially true when we request dimensions that are not a multiple of 4.
@@ -1082,6 +1083,7 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			UserChannelId: uint32(userChannelID),
 			ScreenWidth:   uint32(screenWidth),
 			ScreenHeight:  uint32(screenHeight),
+			ShareId:       uint32(shareID),
 		},
 		ClipboardEnabled:               true,
 		DirectoryRemoveSupported:       false,
