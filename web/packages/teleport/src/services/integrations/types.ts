@@ -104,6 +104,7 @@ export type IntegrationSpecGitHub = {
    * name of github organization
    */
   organization: string;
+  oauth_callback_url?: string;
 };
 
 export type IntegrationGitHub = IntegrationTemplate<
@@ -579,7 +580,7 @@ type IntegrationCreateGitHubRequest = {
   name: string;
   subKind: IntegrationKind.GitHub;
   oauth: IntegrationOAuthCredentials;
-  github: { organization: string };
+  github: { organization: string; oauth_callback_url?: string };
 };
 
 type IntegrationCreateAwsOidcRequest = {
@@ -1158,7 +1159,7 @@ export type UpdateIntegrationAwsRa = {
 export type UpdateIntegrationGithub = {
   kind: IntegrationKind.GitHub;
   oauth: IntegrationOAuthCredentials;
-  github: { organization: string };
+  github: { organization: string; oauth_callback_url?: string };
 };
 
 export type IntegrationUpdateRequest =

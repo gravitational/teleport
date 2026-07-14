@@ -117,7 +117,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         name: 'github-my-org',
         resourceType: 'integration',
         details: 'GitHub repository access for organization "my-org"',
-        spec: { organization: 'my-org' },
+        spec: { organization: 'my-org', oauth_callback_url: '/web/github/integration/callback' },
         statusCode: IntegrationStatusCode.Running,
       },
       {
@@ -357,6 +357,7 @@ const githubIntegration = {
   subKind: 'github',
   github: {
     organization: 'my-org',
+    oauth_callback_url: '/web/github/integration/callback',
   },
 };
 

@@ -89,7 +89,8 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 		ig, err = types.NewIntegrationGitHub(types.Metadata{
 			Name: req.Name,
 		}, &types.GitHubIntegrationSpecV1{
-			Organization: req.Integration.GitHub.Organization,
+			Organization:     req.Integration.GitHub.Organization,
+			OAuthCallbackURL: req.Integration.GitHub.OAuthCallbackURL,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

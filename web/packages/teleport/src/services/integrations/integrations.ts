@@ -17,9 +17,15 @@
  */
 
 import cfg from 'teleport/config';
-import { ProfilesFilterOption } from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
-import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
+import {
+  ProfilesFilterOption
+} from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
+import {
+  AwsResource
+} from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
+import {
+  TaskState
+} from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 
 import { App } from '../apps';
@@ -718,6 +724,7 @@ function makeIntegration(json: any): Integration {
       details: `GitHub repository access for organization "${github.organization}"`,
       spec: {
         organization: github.organization,
+        oauth_callback_url: github.oauth_callback_url,
       },
     };
   }

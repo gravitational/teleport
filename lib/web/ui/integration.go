@@ -115,7 +115,8 @@ func (r *IntegrationAWSRASpec) CheckAndSetDefaults() error {
 
 // IntegrationGitHub contains the specific fields for the `github` subkind integration.
 type IntegrationGitHub struct {
-	Organization string `json:"organization"`
+	Organization     string `json:"organization"`
+	OAuthCallbackURL string `json:"oauth_callback_url"`
 }
 
 // CheckAndSetDefaults for the aws oidc integration spec.

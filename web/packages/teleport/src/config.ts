@@ -159,6 +159,7 @@ export const ossRoutes = {
   kubeExecSession: consoleRoutePatterns.kubeExecSession,
   dbConnect: consoleRoutePatterns.dbConnect,
   player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
+  githubIntegrationCallback: '/web/github/integration/callback',
   login: '/web/login',
   loginSuccess: '/web/msg/info/login_success',
   loginTerminalRedirect: '/web/msg/info/login_terminal',
@@ -418,6 +419,7 @@ const cfg = {
     presetRolesPath: '/v1/webapi/presetroles',
     listRequestableRolesPath:
       '/v1/webapi/requestableroles?startKey=:startKey?&search=:search?&limit=:limit?',
+    githubIntegrationCallbackPath: '/v1/webapi/github/integration/callback',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',

@@ -9197,17 +9197,26 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 // underlying auth.Client used by the Proxy.
 type wrappedAuthClient struct {
 	*authclient.Client
-	devicesClient devicepb.DeviceTrustServiceClient
+	devicesClient                devicepb.DeviceTrustServiceClient
+	validateGithubAuthCallbackFn func(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
 func (w *wrappedAuthClient) DevicesClient() devicepb.DeviceTrustServiceClient {
 	return w.devicesClient
 }
 
+func (w *wrappedAuthClient) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
+	if w.validateGithubAuthCallbackFn != nil {
+		return w.validateGithubAuthCallbackFn(ctx, q)
+	}
+	return w.Client.ValidateGithubAuthCallback(ctx, q)
+}
+
 type proxyConfig struct {
-	minimalHandler        bool
-	devicesClientOverride devicepb.DeviceTrustServiceClient
-	kubeProxy             bool
+	minimalHandler                   bool
+	devicesClientOverride            devicepb.DeviceTrustServiceClient
+	kubeProxy                        bool
+	validateGithubAuthCallbackOverride func(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
 type proxyOption func(cfg *proxyConfig)
@@ -9215,6 +9224,12 @@ type proxyOption func(cfg *proxyConfig)
 func withDevicesClientOverride(c devicepb.DeviceTrustServiceClient) proxyOption {
 	return func(cfg *proxyConfig) {
 		cfg.devicesClientOverride = c
+	}
+}
+
+func withValidateGithubAuthCallback(fn func(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error)) proxyOption {
+	return func(cfg *proxyConfig) {
+		cfg.validateGithubAuthCallbackOverride = fn
 	}
 }
 
@@ -9242,12 +9257,13 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
-	// Replace underlying devicesClient, if the option was supplied.
+	// Replace underlying client methods, if options were supplied.
 	var client authclient.ClientI
-	if cfg.devicesClientOverride != nil {
+	if cfg.devicesClientOverride != nil || cfg.validateGithubAuthCallbackOverride != nil {
 		client = &wrappedAuthClient{
-			Client:        authClient,
-			devicesClient: cfg.devicesClientOverride,
+			Client:                       authClient,
+			devicesClient:                cfg.devicesClientOverride,
+			validateGithubAuthCallbackFn: cfg.validateGithubAuthCallbackOverride,
 		}
 	} else {
 		client = authClient
