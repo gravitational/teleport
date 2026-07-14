@@ -24,11 +24,12 @@ import (
 
 	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jonboulle/clockwork"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/clientiprestriction/v1"
 )
@@ -103,24 +104,14 @@ func (r resourceTeleportClientIPRestriction) Create(ctx context.Context, req tfs
 	// - the ones who can deleted and return a trace.NotFoundErr
 	// - the ones who cannot be deleted, only reset. In this case, the resource revision is used to know if the change got applied.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		clientIPRestrictionI, err = r.p.Client.GetClientIPRestriction(ctx)
 		if trace.IsNotFound(err) {
-		    select {
-			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClientIPRestriction", trace.Wrap(ctx.Err()), "client_ip_restriction"))
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClientIPRestriction", trace.Wrap(err), "client_ip_restriction"))
 				return
-			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading ClientIPRestriction (tried %d times) - state outdated, please import resource", tries)
@@ -139,11 +130,9 @@ func (r resourceTeleportClientIPRestriction) Create(ctx context.Context, req tfs
 		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClientIPRestriction", trace.Wrap(ctx.Err()), "client_ip_restriction"))
+		if bErr := backoff.Do(ctx); bErr != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClientIPRestriction", trace.Wrap(bErr), "client_ip_restriction"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading ClientIPRestriction (tried %d times) - state outdated, please import resource", tries)
@@ -249,15 +238,7 @@ func (r resourceTeleportClientIPRestriction) Update(ctx context.Context, req tfs
 	var clientIPRestrictionI *clientiprestrictionv1.ClientIPRestriction
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		clientIPRestrictionI, err = r.p.Client.GetClientIPRestriction(ctx)
@@ -268,11 +249,9 @@ func (r resourceTeleportClientIPRestriction) Update(ctx context.Context, req tfs
 		if clientIPRestrictionBefore.GetMetadata().Revision != clientIPRestrictionI.GetMetadata().Revision || false {
 			break
 		}
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClientIPRestriction", trace.Wrap(ctx.Err()), "client_ip_restriction"))
+		if bErr := backoff.Do(ctx); bErr != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClientIPRestriction", trace.Wrap(bErr), "client_ip_restriction"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading ClientIPRestriction (tried %d times) - state outdated, please import resource", tries)
