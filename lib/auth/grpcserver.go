@@ -6398,14 +6398,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
-		Authorizer:      cfg.Authorizer,
-		Backend:         cfg.AuthServer.Services,
-		Cache:           cfg.AuthServer.Cache,
-		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
-		Clock:           cfg.AuthServer.clock,
-		Emitter:         cfg.Emitter,
-		Modules:         cfg.AuthServer.modules,
-		Logger:          cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.service"),
+		Authorizer:                    cfg.Authorizer,
+		Backend:                       cfg.AuthServer.Services,
+		Cache:                         cfg.AuthServer.Cache,
+		KeyStoreManager:               cfg.AuthServer.GetKeyStore(),
+		Clock:                         cfg.AuthServer.clock,
+		Emitter:                       cfg.Emitter,
+		Modules:                       cfg.AuthServer.modules,
+		Logger:                        cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.service"),
+		NotifyGitHubCallbackMigration: cfg.AuthServer.notifyGitHubCallbackMigration,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
