@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,8 @@ import (
 	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -122,6 +125,37 @@ func (s *fileTokenStore) SaveToken(ctx context.Context, token *mcpclienttranspor
 	}))
 }
 
+// newMCPOAuthGetAuthHeader returns an Authorization header source backed by
+// the app's stored OAuth credentials, or nil if the user has not run
+// `tsh mcp login` for this app.
+func newMCPOAuthGetAuthHeader(dialer *client.MCPServerDialer, homePath, proxyHost, cluster, appName string) (func(context.Context) (string, error), error) {
+	credsPath := mcpOAuthTokenPath(homePath, proxyHost, cluster, appName)
+	creds, err := loadMCPOAuthCredentials(credsPath)
+	if trace.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	httpClient, err := newMCPOAuthHTTPClient(dialer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	oauthHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{
+		ClientID:    creds.ClientID,
+		PKCEEnabled: true,
+		HTTPClient:  httpClient,
+		TokenStore:  &fileTokenStore{path: credsPath, clientID: creds.ClientID},
+	})
+	oauthHandler.SetBaseURL("http://localhost")
+	source := &mcpOAuthHeaderSource{
+		appName:   appName,
+		credsPath: credsPath,
+		refresh:   oauthHandler.RefreshToken,
+	}
+	return source.GetAuthHeader, nil
+}
+
 // mcpOAuthRefreshLockTimeout is how long a process waits for the refresh
 // lock. It matches the refresh HTTP client timeout: a process waiting on the
 // lock should outlast the lock holder's worst-case refresh rather than give
@@ -211,4 +245,47 @@ func bearerAuthHeader(token *mcpclienttransport.Token) string {
 		tokenType = "Bearer"
 	}
 	return tokenType + " " + token.AccessToken
+}
+
+// mcpOAuthProxyMiddleware injects the OAuth token stored by `tsh mcp login`
+// into requests forwarded by `tsh proxy mcp`, same as `tsh mcp connect` does
+// for the stdio path. Without it, the upstream's 401 passes through and
+// OAuth-capable clients start their own OAuth flow against the local port,
+// which fails the spec's resource-URL validation (the discovery metadata
+// names the real server, not localhost).
+type mcpOAuthProxyMiddleware struct {
+	alpnproxy.DefaultLocalProxyHTTPMiddleware
+	getAuthHeader func(context.Context) (string, error)
+}
+
+// newMCPOAuthProxyMiddleware returns the injection middleware for the app,
+// or nil if the user has not run `tsh mcp login` for it (callers should keep
+// the plain tunnel behavior).
+func newMCPOAuthProxyMiddleware(tc *client.TeleportClient, homePath, appName string) (*mcpOAuthProxyMiddleware, error) {
+	dialer := client.NewMCPServerDialer(tc, appName)
+	getAuthHeader, err := newMCPOAuthGetAuthHeader(dialer, homePath, tc.WebProxyHost(), tc.SiteName, appName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if getAuthHeader == nil {
+		return nil, nil
+	}
+	return &mcpOAuthProxyMiddleware{getAuthHeader: getAuthHeader}, nil
+}
+
+func (m *mcpOAuthProxyMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
+	// A client supplying its own credentials wins, same as -H on connect.
+	if req.Header.Get("Authorization") != "" {
+		return false
+	}
+	header, err := m.getAuthHeader(req.Context())
+	if err != nil {
+		// 403 instead of 401 on purpose: a 401 would trigger OAuth-capable
+		// clients into their own (doomed) OAuth flow instead of showing the
+		// actionable message.
+		http.Error(rw, makeMCPReconnectUserMessage(err), http.StatusForbidden)
+		return true
+	}
+	req.Header.Set("Authorization", header)
+	return false
 }
