@@ -36,6 +36,8 @@ export default function makeUserContext(json: any): UserContext {
 
   return {
     username,
+    displayPrimary: json.displayPrimary,
+    displaySecondary: json.displaySecondary,
     authType,
     acl,
     cluster,

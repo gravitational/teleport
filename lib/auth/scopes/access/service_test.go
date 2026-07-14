@@ -981,11 +981,19 @@ func TestUnscopedBasics(t *testing.T) {
 	require.Equal(t, "some-role", rrsp.GetRole().GetMetadata().GetName())
 
 	// verify that admin can list the role
-	lrsp, err := srvAlice.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
+	lrsp, err := srvAlice.ListScopedRoles(ctx, scopedaccessv1.ListScopedRolesRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, lrsp.GetNextPageToken())
 	require.Len(t, lrsp.GetRoles(), 1)
 	require.Equal(t, "some-role", lrsp.GetRoles()[0].GetMetadata().GetName())
+
+	// verify that an omitted filter defaults to MODE_UNSCOPED for unscoped caller, which matches no
+	// scoped resources.
+	lrsp, err = srvAlice.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
+	require.NoError(t, err)
+	require.Empty(t, lrsp.GetRoles())
 
 	// verify that auditor cannot create a role
 	_, err = srvBob.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
@@ -1012,7 +1020,9 @@ func TestUnscopedBasics(t *testing.T) {
 	require.Equal(t, crsp.GetRole().GetMetadata().GetName(), rrsp.GetRole().GetMetadata().GetName())
 
 	// verify that auditor can list the admin-created role
-	lrsp, err = srvBob.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
+	lrsp, err = srvBob.ListScopedRoles(ctx, scopedaccessv1.ListScopedRolesRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, lrsp.GetNextPageToken())
 	require.Len(t, lrsp.GetRoles(), 1)
@@ -1056,7 +1066,9 @@ func TestUnscopedBasics(t *testing.T) {
 	require.Equal(t, acrsp.GetAssignment().GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
 
 	// verify that admin can list the assignment
-	lasp, err := srvAlice.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
+	lasp, err := srvAlice.ListScopedRoleAssignments(ctx, scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, lasp.GetNextPageToken())
 	require.Len(t, lasp.GetAssignments(), 1)
@@ -1095,7 +1107,9 @@ func TestUnscopedBasics(t *testing.T) {
 	require.Equal(t, acrsp.GetAssignment().GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
 
 	// verify that auditor can list the admin-created assignment
-	lasp, err = srvBob.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
+	lasp, err = srvBob.ListScopedRoleAssignments(ctx, scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, lasp.GetNextPageToken())
 	require.Len(t, lasp.GetAssignments(), 1)
@@ -1358,4 +1372,82 @@ func waitForAssignmentCondition(t *testing.T, reader services.ScopedRoleAssignme
 			require.FailNow(t, "timeout waiting for assignment condition")
 		}
 	}
+}
+
+// TestListScopedRolesFilterDefaulting verifies the identity-based defaulting for the primary scope filter
+// is in effect for ListScopedRoles.
+func TestListScopedRolesFilterDefaulting(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	bk := newBackendPack(t)
+	defer bk.Close()
+
+	// staging-admin lives at /staging and grants read/list on scoped roles. west-role lives at the
+	// descendant scope /staging/west and exists only as data to be listed.
+	roles := []*scopedaccessv1.ScopedRole{
+		scopedaccessv1.ScopedRole_builder{
+			Kind:     scopedaccess.KindScopedRole,
+			Metadata: headerv1.Metadata_builder{Name: "staging-admin"}.Build(),
+			Scope:    "/staging",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/staging"},
+				Rules: []*scopedaccessv1.ScopedRule{
+					scopedaccessv1.ScopedRule_builder{
+						Resources: []string{scopedaccess.KindScopedRole},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+					}.Build(),
+				},
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
+			Kind:     scopedaccess.KindScopedRole,
+			Metadata: headerv1.Metadata_builder{Name: "west-role"}.Build(),
+			Scope:    "/staging/west",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/staging/west"},
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+	}
+	for _, role := range roles {
+		_, err := bk.service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{Role: role}.Build())
+		require.NoError(t, err)
+	}
+	waitForRoleCondition(t, bk.cache, func(roles []*scopedaccessv1.ScopedRole) bool {
+		return len(roles) == 2
+	})
+
+	// caller is pinned to /staging and holds staging-admin, so it can read roles at /staging and its
+	// descendants (including west-role at /staging/west).
+	srv := newServerForIdentity(t, bk, &services.AccessInfo{
+		ScopePin: scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
+			Scope: "/staging",
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/staging": {"/staging": {"staging-admin"}},
+			}),
+		}.Build(),
+		Username: "alice",
+	})
+
+	collectNames := func(req *scopedaccessv1.ListScopedRolesRequest) []string {
+		rsp, err := srv.ListScopedRoles(ctx, req)
+		require.NoError(t, err)
+		var names []string
+		for _, role := range rsp.GetRoles() {
+			names = append(names, role.GetMetadata().GetName())
+		}
+		return names
+	}
+
+	// omitted filter defaults to MODE_EXACT at the pinned scope (/staging), so only the /staging role is
+	// returned - the readable descendant role at /staging/west is excluded.
+	require.Equal(t, []string{"staging-admin"}, collectNames(&scopedaccessv1.ListScopedRolesRequest{}))
+
+	// MODE_ALL returns everything the caller may read across scopes, including the descendant role.
+	require.ElementsMatch(t, []string{"staging-admin", "west-role"}, collectNames(scopedaccessv1.ListScopedRolesRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()))
 }

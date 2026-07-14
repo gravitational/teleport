@@ -1642,7 +1642,7 @@ GODERIVE := $(TOOLINGDIR)/bin/goderive
 .PHONY: derive
 derive:
 	cd $(TOOLINGDIR) && go build -o $(GODERIVE) ./cmd/goderive/main.go
-	$(GODERIVE) ./api/types ./api/types/discoveryconfig ./api/types/accesslist ./api/types/userloginstate
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig ./api/types/accesslist ./api/types/userloginstate ./lib/config/
 
 # derive-up-to-date checks if the generated derived functions are up to date.
 .PHONY: derive-up-to-date
@@ -1917,7 +1917,24 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: ensure-llvm-macos rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+
+.PHONY: ensure-llvm-macos
+ifeq ("$(OS)-$(ARCH)","darwin-arm64")
+BREW_DIR = $(shell brew --prefix)
+LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
+LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
+CC = $(LLVM_DIR)/bin/clang
+AR = $(LLVM_DIR)/bin/llvm-ar
+ensure-llvm-macos:
+	@if [[ "${BREW_DIR}" = "${LLVM_DIR}" ]]; then \
+		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
+		exit 1; \
+	fi
+
+else
+ensure-llvm-macos:
+endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \

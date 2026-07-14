@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/healthcheckconfig/v1/health_check_config_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package healthcheckconfigv1
 

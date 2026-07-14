@@ -127,6 +127,9 @@ type Config struct {
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
+	// LinuxDesktop defines the Linux desktop service configuration.
+	LinuxDesktop LinuxDesktopConfig
+
 	// Discovery defines the discovery service configuration.
 	Discovery DiscoveryConfig
 
@@ -455,6 +458,7 @@ func DisableLongRunningServices(cfg *Config) {
 	cfg.Kube.Enabled = false
 	cfg.Apps.Enabled = false
 	cfg.WindowsDesktop.Enabled = false
+	cfg.LinuxDesktop.Enabled = false
 	cfg.Databases.Enabled = false
 	cfg.Okta.Enabled = false
 }
@@ -463,6 +467,7 @@ func DisableLongRunningServices(cfg *Config) {
 type JoinParams struct {
 	Azure        AzureJoinParams
 	BoundKeypair BoundKeypairParams
+	GenericOIDC  GenericOIDCParams
 }
 
 // AzureJoinParams is the parameters specific to the azure join method.
@@ -487,6 +492,23 @@ type BoundKeypairParams struct {
 	// do not support automatic keypair rotation, and must be used with a token
 	// set to use `insecure` recovery mode.
 	StaticPrivateKeyPath string
+}
+
+// GenericOIDCParams contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout"`
 }
 
 // RegistrationSecret returns the currently configured bound keypair
@@ -577,6 +599,8 @@ func (cfg *Config) CheckServicesForSELinux() bool {
 	case cfg.Okta.Enabled:
 		fallthrough
 	case cfg.Proxy.Enabled:
+		fallthrough
+	case cfg.LinuxDesktop.Enabled:
 		fallthrough
 	case cfg.WindowsDesktop.Enabled:
 		return false
@@ -792,6 +816,10 @@ func ApplyDefaults(cfg *Config) {
 	cfg.WindowsDesktop.Enabled = false
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
+	// Linux desktop service is disabled by default.
+	cfg.LinuxDesktop.Enabled = false
+	defaults.ConfigureLimiter(&cfg.LinuxDesktop.ConnLimiter)
+
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
 	cfg.AuthConnectionConfig = *DefaultRatioAuthConnectionConfig(defaults.MaxWatcherBackoff)
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
@@ -978,6 +1006,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
 		cfg.WindowsDesktop.Enabled,
+		cfg.LinuxDesktop.Enabled,
 		cfg.Discovery.Enabled,
 		cfg.Okta.Enabled,
 		cfg.Jamf.Enabled(),
@@ -991,7 +1020,7 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service",
+		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, linux_desktop_service, discovery_service, okta_service or jamf_service",
 	)
 }
 

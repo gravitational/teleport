@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/legacy/client/proto/event.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package proto
 

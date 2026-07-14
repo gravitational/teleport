@@ -38,6 +38,10 @@ export interface UserContext {
   authType: AuthType;
   acl: Acl;
   username: string;
+  /** Human-readable name resolved server-side, empty if not distinct from username. */
+  displayPrimary: string;
+  /** Supporting context resolved server-side, usually email. */
+  displaySecondary: string;
   cluster: Cluster;
   accessStrategy: AccessStrategy;
   accessCapabilities: AccessCapabilities;

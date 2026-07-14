@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/app/llm/bedrock"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	"github.com/gravitational/teleport/lib/srv/app/llm/models"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
@@ -48,18 +49,18 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
 		return nil, info, trace.Wrap(err)
 	}
 
-	// Default URL address.
-	//
-	// https://platform.claude.com/docs/en/api/overview
-	cfg.ProviderURL = cmp.Or(cfg.ProviderURL, &url.URL{
-		Scheme: "https",
-		Host:   "api.anthropic.com",
-		Path:   "/v1",
-	})
-
-	// TODO(gabrielcorado): add support for bedrock provider.
-	switch cfg.LLM.Provider {
+	llm := cfg.App.GetLLM()
+	switch llm.Provider {
 	case types.LLMProviderAnthropic:
+		// Default URL address.
+		//
+		// https://platform.claude.com/docs/en/api/overview
+		cfg.ProviderURL = cmp.Or(cfg.ProviderURL, &url.URL{
+			Scheme: "https",
+			Host:   "api.anthropic.com",
+			Path:   "/v1",
+		})
+
 		switch strings.TrimPrefix(cfg.DownstreamRequest.URL.Path, "/v1") {
 		case "/messages":
 			if cfg.DownstreamRequest.Method != http.MethodPost {
@@ -87,8 +88,36 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
 		default:
 			return nil, info, trace.NotFound("unsupported endpoint")
 		}
+	case types.LLMProviderAWSBedrock:
+		var err error
+		cfg.ProviderURL, err = bedrock.BuildURL(cfg.Logger, cfg.App)
+		if err != nil {
+			return nil, info, trace.Wrap(err)
+		}
+
+		switch strings.TrimPrefix(cfg.DownstreamRequest.URL.Path, "/v1") {
+		case "/messages":
+			if cfg.DownstreamRequest.Method != http.MethodPost {
+				// We're ok with returning 404 back to clients instead 405 status.
+				return nil, info, trace.NotFound("messages API supports only POST requests")
+			}
+			// Messages API endpoint supported.
+			//
+			// https://docs.aws.amazon.com/bedrock/latest/userguide/inference-messages-api.html
+			providerPath = "/messages"
+			providerMethod = http.MethodPost
+
+			// Bedrock mantle require a specific API version and we're using
+			// signed requests.
+			//
+			// https://docs.aws.amazon.com/bedrock/latest/userguide/inference-messages-api.html#inference-messages-api-prereq
+			providerHeaders.Set("anthropic-version", "2023-06-01")
+			providerHeaders.Set("content-type", "application/json")
+		default:
+			return nil, info, trace.NotFound("unsupported endpoint")
+		}
 	default:
-		return nil, info, trace.NotImplemented("provider %q is not supported", cfg.LLM.Provider)
+		return nil, info, trace.NotImplemented("provider %q is not supported", llm.Provider)
 	}
 
 	body, err := utils.ReadAtMost(cfg.DownstreamRequest.Body, teleport.MaxHTTPRequestSize)
@@ -104,7 +133,7 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
 	info.requestedModel = req.Model
 	info.stream = req.Stream
 
-	providerModel, found := models.ConvertName(cfg.LLM.Models, cfg.LLM.FallbackModel, req.Model)
+	providerModel, found := models.ConvertName(llm.Models, llm.FallbackModel, req.Model)
 	if !found {
 		return nil, info, trace.BadParameter("requested model %q is not supported", req.Model)
 	}
@@ -119,6 +148,7 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
 	if err != nil {
 		return nil, info, trace.ConnectionProblem(err, "failed to generate provider request")
 	}
+
 	info.requestSize = len(providerBody)
 
 	// Since we're doing a complete rewrite of the downstream request, it is
@@ -134,6 +164,16 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
 		return nil, info, trace.Wrap(err)
 	}
 	providerReq.Header = providerHeaders
+
+	if llm.Provider == types.LLMProviderAWSBedrock {
+		if err := cfg.SignBedrockRequest(providerReq.Context(), cfg.App, providerReq, providerBody); err != nil {
+			// The signing failure cause can carry AWS credentials/config
+			// details, so it is only logged, and clients receive a generic
+			// internal error message.
+			cfg.Logger.ErrorContext(providerReq.Context(), "failed to sign provider request", "error", err)
+			return nil, info, llmerrors.ErrConfig
+		}
+	}
 	return providerReq, info, nil
 }
 
