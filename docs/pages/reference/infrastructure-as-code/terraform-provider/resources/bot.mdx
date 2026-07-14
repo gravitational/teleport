@@ -26,6 +26,9 @@ This page describes the supported values of the teleport_bot resource of the Tel
 resource "teleport_bot" "example" {
   metadata = {
     name = "example"
+    labels = {
+      "teleport.dev/origin" = "dynamic" // This label is added on Teleport side by default
+    }
   }
 
   spec = {
@@ -37,7 +40,7 @@ resource "teleport_bot" "example" {
 <TabItem label="Scoped">
 See the [scopes documentation](../../../../zero-trust-access/rbac-get-started/scopes.mdx) for more details.
 
-```
+```hcl
 # Teleport Machine ID Bot creation example
 
 locals {
@@ -68,6 +71,9 @@ resource "teleport_bot" "test_scoped" {
 
   metadata = {
     name = local.bot_name_scoped
+    labels = {
+      "teleport.dev/origin" = "dynamic" // This label is added on Teleport side by default
+    }
   }
 
   spec = {
