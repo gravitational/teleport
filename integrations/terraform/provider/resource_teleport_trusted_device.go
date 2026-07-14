@@ -88,7 +88,7 @@ func (r resourceTeleportDeviceV1) Create(ctx context.Context, req tfsdk.CreateRe
 	if !trace.IsNotFound(err) {
 		if err == nil {
 			existErr := fmt.Sprintf("DeviceV1 exists in Teleport. Either remove it (tctl rm device/%v)"+
-				" or import it to the existing state (terraform import teleport_device_trust.%v %v)", id, id, id)
+				" or import it to the existing state (terraform import teleport_trusted_device.%v %v)", id, id, id)
 
 			resp.Diagnostics.Append(diagFromErr("DeviceV1 exists in Teleport", trace.Errorf(existErr)))
 			return
