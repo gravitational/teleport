@@ -2194,6 +2194,19 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
     - [ ] Verify both prompts are displayed in the Web UI when user makes an Access Request containing requestable resource with `spec.allow.request.reason.prompt` set.
     - [ ] Verify prompts are deduplicated and sorted.
 
+  - [ ] Resource-Scoped Constraints
+    - [ ] `tsh request create --resource '/cluster/node/web-1|logins=root,admin'` creates a request whose granted access is limited to the `root` and `admin` logins.
+    - [ ] `tsh request create --resource '/cluster/app/aws-console|role_arns=arn:aws:iam::123456789012:role/Role1'` limits the AWS console request to the given role ARN.
+    - [ ] `tctl requests create` accepts the same `|logins=...` / `|role_arns=...` constraint syntax and produces an equivalent request.
+    - [ ] Verify a constraint naming a login/role_arn the requester is not allowed to use is rejected at create time.
+    - [ ] After approval, verify the granted certificate only permits the constrained logins/role ARNs, not the full allowed set for the resource.
+    - [ ] `tsh request show <id>` and `tctl requests get <id>` display the per-resource constraints (`logins=`, `role_arns=`); `--format json` includes `resource_access_ids` with the constraints.
+    - [ ] `tsh request search --kind node` shows the `Access` column with `<n> granted, <m> requestable`; `--format json` includes the full `Granted`/`Requestable` sets.
+    - [ ] `tsh request preview /cluster/node/web-1` lists the granted vs requestable logins and prints a scoped `request create` hint; `--format json` includes `principal_kind`, `granted`, `requestable`.
+    - [ ] Mixed-version: with an older Auth that does not populate the granted/requestable split, `tsh request search` still lists resources (all principals shown as requestable).
+    - [ ] Mixed-version: `tsh request create` with constraints against a cluster whose Auth, Proxy, or serving agent does not advertise `RESOURCE_CONSTRAINTS_V1` fails up front with a clear error and creates nothing; the same request without constraints succeeds.
+    - [ ] A role ARN containing a comma can be constrained using `\,` escaping (`--resource '/cluster/app/aws-console|role_arns=arn:aws:iam::123456789012:role/a\,b'`).
+
   - [ ] [Automatic Review Rules](https://goteleport.com/docs/ver/18.x/admin-guides/access-controls/access-requests/automatic-reviews/)
     - [ ] Create automatic review rule with `desired_state` and `automatic_review` spec.
     - [ ] Verify that `desired_state: review` is required to enable automatic reviews.
