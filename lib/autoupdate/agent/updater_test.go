@@ -21,7 +21,13 @@ package agent
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -47,6 +53,17 @@ import (
 
 func TestMain(m *testing.M) {
 	initTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
+	if err != nil {
+		panic(err)
+	}
+	teleportUpdateArtifactSignaturePublicKeyB64 = base64.StdEncoding.EncodeToString(
+		pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}),
+	)
 	os.Exit(m.Run())
 }
 
@@ -790,7 +807,7 @@ func TestUpdater_Update(t *testing.T) {
 					tbotReloadCalls     int
 				)
 				updater.Installer = &testInstaller{
-					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
+					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool) error {
 						for _, r := range tt.linkedRevisions {
 							if r == rev {
 								require.False(t, force)
@@ -1891,7 +1908,7 @@ func TestUpdater_Install(t *testing.T) {
 					selinuxRemovals     int
 				)
 				updater.Installer = &testInstaller{
-					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
+					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool) error {
 						installedRevision = rev
 						installedBaseURL = baseURL
 						return tt.installErr
@@ -2367,7 +2384,7 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	FuncInstall       func(ctx context.Context, rev Revision, baseURL string, force bool) error
+	FuncInstall       func(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool) error
 	FuncRemove        func(ctx context.Context, rev Revision) error
 	FuncLink          func(ctx context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error)
 	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
@@ -2379,8 +2396,8 @@ type testInstaller struct {
 	FuncIsLinked      func(ctx context.Context, rev Revision, path string) (bool, error)
 }
 
-func (ti *testInstaller) Install(ctx context.Context, rev Revision, baseURL string, force bool) error {
-	return ti.FuncInstall(ctx, rev, baseURL, force)
+func (ti *testInstaller) Install(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool) error {
+	return ti.FuncInstall(ctx, rev, baseURL, force, insecureSkipSignatureVerify)
 }
 
 func (ti *testInstaller) Remove(ctx context.Context, rev Revision) error {

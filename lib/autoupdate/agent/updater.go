@@ -133,6 +133,10 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	// be intentional. In the future, we might consider extracting a generic
 	// debug client that can be used in both contexts.
 	tbotDebugClient := debug.NewClient(filepath.Join(ns.dataDir, "bot"))
+	artifactSignatureVerifier, err := newArtifactSignatureVerifier()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &Updater{
 		Log:                cfg.Log,
@@ -159,14 +163,15 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 					Binary: "tbot",
 				},
 			},
-			SystemBinDir:            filepath.Join(cfg.SystemDir, "bin"),
-			SystemServiceDir:        filepath.Join(cfg.SystemDir, serviceDir),
-			HTTP:                    client,
-			Log:                     cfg.Log,
-			ReservedFreeTmpDisk:     reservedFreeDisk,
-			ReservedFreeInstallDisk: reservedFreeDisk,
-			ValidateBinary:          validator.IsBinary,
-			Template:                autoupdate.DefaultCDNURITemplate,
+			SystemBinDir:              filepath.Join(cfg.SystemDir, "bin"),
+			SystemServiceDir:          filepath.Join(cfg.SystemDir, serviceDir),
+			HTTP:                      client,
+			Log:                       cfg.Log,
+			ReservedFreeTmpDisk:       reservedFreeDisk,
+			ReservedFreeInstallDisk:   reservedFreeDisk,
+			ValidateBinary:            validator.IsBinary,
+			Template:                  autoupdate.DefaultCDNURITemplate,
+			ArtifactSignatureVerifier: artifactSignatureVerifier,
 		},
 		TeleportProcess: &SystemdService{
 			ServiceName: filepath.Base(ns.teleportServiceFile),
@@ -299,7 +304,7 @@ type Installer interface {
 	// Install the Teleport agent at revision from the download Template.
 	// If force is true, Install will remove broken revisions.
 	// Install must be idempotent.
-	Install(ctx context.Context, rev Revision, baseURL string, force bool) error
+	Install(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool) error
 	// Link the Teleport agent at the specified revision of Teleport into path.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// If force is true, Link will overwrite non-symlinks.
@@ -394,6 +399,9 @@ type OverrideConfig struct {
 	AllowOverwrite bool
 	// AllowProxyConflict when proxies in teleport.yaml and update.yaml are mismatched.
 	AllowProxyConflict bool
+	// InsecureSkipSignatureVerifyChanged specifies whether the user explicitly toggled
+	// artifact verification fallback behavior.
+	InsecureSkipSignatureVerifyChanged bool
 	// SELinuxSSHChanged specifies whether the user explicitly toggled SELinux behavior.
 	SELinuxSSHChanged bool
 }
@@ -1047,7 +1055,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	if err != nil {
 		return trace.Wrap(err, "failed to determine if linked")
 	}
-	err = u.Installer.Install(ctx, target, baseURL, !linked)
+	err = u.Installer.Install(ctx, target, baseURL, !linked, cfg.Spec.InsecureSkipSignatureVerify)
 	if err != nil {
 		return trace.Wrap(err, "failed to install")
 	}
