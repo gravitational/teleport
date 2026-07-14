@@ -35,6 +35,7 @@ exclude_fields:
   # Metadata (we id resources by name on our side)
   - "WorkloadCluster.metadata.id"
   - "WorkloadCluster.metadata.revision"
+  - "WorkloadCluster.status"
 
 # These fields will be marked as Computed: true
 computed_fields:
