@@ -445,19 +445,11 @@ func (s *Server) validateClientVersion(ctx context.Context, info diagnostic.Info
 
 	clientSemVer, err := semver.NewVersion(clientVersion)
 	if err != nil {
-		s.cfg.Logger.WarnContext(ctx,
-			"Failed to determine client version",
-			"version", clientVersion,
-			"error", err)
 		s.displayRejectedClientAlert(ctx, info)
 		return trace.AccessDenied("client version is unsupported, minimum supported version is %s", minVersion.String())
 	}
 
 	if clientSemVer.LessThan(*s.oldestSupportedVersion) {
-		s.cfg.Logger.InfoContext(ctx,
-			"Rejecting join request from client using unsupported version",
-			"client_version", clientSemVer.String(),
-			"oldest_supported_version", minVersion.String())
 		s.displayRejectedClientAlert(ctx, info)
 		return trace.AccessDenied("client version is unsupported, minimum supported version is %s", minVersion.String())
 	}
