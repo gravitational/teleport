@@ -77,11 +77,11 @@ func accessRequestUsernames(requests []*types.AccessRequestV3) []string {
 	return usernames
 }
 
-// addAccessRequestDryRunUserDisplays attaches display values for the request's
-// referenced users to its dry-run enrichment. Best-effort: on resolution
+// addAccessRequestDryRunUserDisplays attaches display values for the supplied
+// usernames to the request's dry-run enrichment. Best-effort: on resolution
 // failure the enrichment is left without display values.
-func addAccessRequestDryRunUserDisplays(ctx context.Context, req types.AccessRequest, getter services.UserGetter, logger *slog.Logger) {
-	displays, err := services.ResolveUserDisplays(ctx, getter, req.GetReferencedUsers())
+func addAccessRequestDryRunUserDisplays(ctx context.Context, req types.AccessRequest, usernames []string, getter services.UserGetter, logger *slog.Logger) {
+	displays, err := services.ResolveUserDisplays(ctx, getter, usernames)
 	if err != nil {
 		logger.WarnContext(ctx, "Failed to resolve user displays for dry-run access request", "error", err)
 		return

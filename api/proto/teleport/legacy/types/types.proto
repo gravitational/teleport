@@ -3343,8 +3343,8 @@ message AccessRequestDryRunEnrichment {
   ];
   // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
   repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
-  // UserDisplays maps usernames referenced by the request (the requester,
-  // review authors, and suggested reviewers) to read-time display values.
+  // UserDisplays maps the requester and server-suggested reviewer usernames to
+  // read-time display values.
   map<string, AccessRequestUserDisplay> UserDisplays = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "user_displays,omitempty"

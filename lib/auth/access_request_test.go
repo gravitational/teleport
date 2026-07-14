@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -737,8 +738,24 @@ func newAccessRequestDisplayUser(t *testing.T, name, primary, secondary, role st
 func TestCreateAccessRequestV2DryRunUserDisplays(t *testing.T) {
 	t.Parallel()
 
+	const (
+		requester                = "dry-run-display-requester"
+		policySuggestedReviewer  = "dry-run-display-policy-reviewer"
+		dynamicSuggestedReviewer = "dry-run-display-dynamic-reviewer"
+		callerSuggestedReviewer  = "dry-run-display-caller-reviewer"
+		missingUser              = "dry-run-display-missing-user"
+		requestableRole          = "dry-run-display-requestable-role"
+		requesterRole            = "dry-run-display-requester-role"
+	)
+
+	testModules := modulestest.EnterpriseModules()
+	testModules.GenerateAccessRequestSuggestedReviewersFn = func(context.Context, modules.AccessResourcesGetter, types.AccessRequest) ([]string, error) {
+		return []string{dynamicSuggestedReviewer}, nil
+	}
+
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir: t.TempDir(),
+		Dir:     t.TempDir(),
+		Modules: testModules,
 	})
 	require.NoError(t, err)
 	defer authServer.Close()
@@ -748,14 +765,6 @@ func TestCreateAccessRequestV2DryRunUserDisplays(t *testing.T) {
 	defer tlsServer.Close()
 
 	ctx := t.Context()
-
-	const (
-		requester         = "dry-run-display-requester"
-		suggestedReviewer = "dry-run-display-suggested-reviewer"
-		missingUser       = "dry-run-display-missing-user"
-		requestableRole   = "dry-run-display-requestable-role"
-		requesterRole     = "dry-run-display-requester-role"
-	)
 
 	requestable, err := types.NewRole(requestableRole, types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -767,7 +776,8 @@ func TestCreateAccessRequestV2DryRunUserDisplays(t *testing.T) {
 	role, err := types.NewRole(requesterRole, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
-				Roles: []string{requestableRole},
+				Roles:              []string{requestableRole},
+				SuggestedReviewers: []string{policySuggestedReviewer},
 			},
 		},
 	})
@@ -777,7 +787,9 @@ func TestCreateAccessRequestV2DryRunUserDisplays(t *testing.T) {
 
 	for _, user := range []types.User{
 		newAccessRequestDisplayUser(t, requester, "Request User", "requester@example.com", requesterRole),
-		newAccessRequestDisplayUser(t, suggestedReviewer, "Suggested User", "suggested@example.com", requestableRole),
+		newAccessRequestDisplayUser(t, policySuggestedReviewer, "Policy Reviewer", "policy@example.com", requestableRole),
+		newAccessRequestDisplayUser(t, dynamicSuggestedReviewer, "Dynamic Reviewer", "dynamic@example.com", requestableRole),
+		newAccessRequestDisplayUser(t, callerSuggestedReviewer, "Caller Reviewer", "caller@example.com", requestableRole),
 	} {
 		_, err := tlsServer.Auth().UpsertUser(ctx, user)
 		require.NoError(t, err)
@@ -787,30 +799,58 @@ func TestCreateAccessRequestV2DryRunUserDisplays(t *testing.T) {
 	require.NoError(t, err)
 	defer clt.Close()
 
-	req, err := services.NewAccessRequest(requester, requestableRole)
-	require.NoError(t, err)
-	req.SetDryRun(true)
-	req.SetSuggestedReviewers([]string{suggestedReviewer, missingUser})
+	t.Run("server suggested reviewers", func(t *testing.T) {
+		req, err := services.NewAccessRequest(requester, requestableRole)
+		require.NoError(t, err)
+		req.SetDryRun(true)
 
-	resp, err := clt.CreateAccessRequestV2(ctx, req)
-	require.NoError(t, err)
+		resp, err := clt.CreateAccessRequestV2(ctx, req)
+		require.NoError(t, err)
 
-	enrichment := resp.GetDryRunEnrichment()
-	require.NotNil(t, enrichment)
-	// Expect displays to ride the enrichment without clobbering the fields set during
-	// validation.
-	require.Equal(t, types.RequestReasonModeOptional, enrichment.ReasonMode)
-	require.Equal(t, map[string]types.AccessRequestUserDisplay{
-		requester: {
-			Primary:   "Request User",
-			Secondary: "requester@example.com",
-		},
-		suggestedReviewer: {
-			Primary:   "Suggested User",
-			Secondary: "suggested@example.com",
-		},
-	}, enrichment.UserDisplays)
-	require.NotContains(t, enrichment.UserDisplays, missingUser)
+		enrichment := resp.GetDryRunEnrichment()
+		require.NotNil(t, enrichment)
+		require.Equal(t, types.RequestReasonModeOptional, enrichment.ReasonMode)
+		require.Equal(t, map[string]types.AccessRequestUserDisplay{
+			requester: {
+				Primary:   "Request User",
+				Secondary: "requester@example.com",
+			},
+			policySuggestedReviewer: {
+				Primary:   "Policy Reviewer",
+				Secondary: "policy@example.com",
+			},
+			dynamicSuggestedReviewer: {
+				Primary:   "Dynamic Reviewer",
+				Secondary: "dynamic@example.com",
+			},
+		}, enrichment.UserDisplays)
+	})
+
+	t.Run("caller suggested reviewers", func(t *testing.T) {
+		req, err := services.NewAccessRequest(requester, requestableRole)
+		require.NoError(t, err)
+		req.SetDryRun(true)
+		req.SetSuggestedReviewers([]string{callerSuggestedReviewer, missingUser})
+
+		resp, err := clt.CreateAccessRequestV2(ctx, req)
+		require.NoError(t, err)
+
+		enrichment := resp.GetDryRunEnrichment()
+		require.NotNil(t, enrichment)
+		require.Equal(t, map[string]types.AccessRequestUserDisplay{
+			requester: {
+				Primary:   "Request User",
+				Secondary: "requester@example.com",
+			},
+			dynamicSuggestedReviewer: {
+				Primary:   "Dynamic Reviewer",
+				Secondary: "dynamic@example.com",
+			},
+		}, enrichment.UserDisplays)
+		require.Contains(t, resp.GetSuggestedReviewers(), callerSuggestedReviewer)
+		require.NotContains(t, enrichment.UserDisplays, callerSuggestedReviewer)
+		require.NotContains(t, enrichment.UserDisplays, missingUser)
+	})
 }
 
 func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
