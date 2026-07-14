@@ -487,35 +487,15 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"added_by": {
-					Computed:      true,
-					Description:   "added_by is the user that added this user to the Access List.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is when the user's membership to the Access List expires.",
 					Optional:    true,
-				}),
-				"joined": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Computed:      true,
-					Description:   "joined is when the user joined the Access List.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				}),
 				"membership_kind": {
 					Description:   "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.",
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
-				},
-				"name": {
-					Computed:      true,
-					Description:   "name is the name of the member of the Access List.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"reason": {
 					Computed:      true,
@@ -3744,30 +3724,6 @@ func CopyMemberFromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 						}
 					}
 					{
-						a, ok := tf.Attrs["name"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"Member.spec.name"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"Member.spec.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Name = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["joined"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"Member.spec.joined"})
-						}
-						CopyFromTimestamp(diags, a, &obj.Joined)
-					}
-					{
 						a, ok := tf.Attrs["expires"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"Member.spec.expires"})
@@ -3788,23 +3744,6 @@ func CopyMemberFromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 									t = string(v.Value)
 								}
 								obj.Reason = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["added_by"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"Member.spec.added_by"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"Member.spec.added_by", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.AddedBy = t
 							}
 						}
 					}
@@ -4205,43 +4144,6 @@ func CopyMemberToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 						}
 					}
 					{
-						t, ok := tf.AttrTypes["name"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"Member.spec.name"})
-						} else {
-							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["name"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.spec.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"Member.spec.name", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"Member.spec.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Name)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["name"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["joined"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"Member.spec.joined"})
-						} else {
-							v := CopyToTimestamp(diags, obj.Joined, t, tf.Attrs["joined"], preserveUnknown)
-							tf.Attrs["joined"] = v
-						}
-					}
-					{
 						t, ok := tf.AttrTypes["expires"]
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"Member.spec.expires"})
@@ -4276,34 +4178,6 @@ func CopyMemberToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 								v.Unknown = false
 							}
 							tf.Attrs["reason"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["added_by"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"Member.spec.added_by"})
-						} else {
-							v, ok := tf.Attrs["added_by"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["added_by"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.spec.added_by", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"Member.spec.added_by", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"Member.spec.added_by", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.AddedBy)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["added_by"] = v
 						}
 					}
 					{

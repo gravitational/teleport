@@ -52,7 +52,11 @@ exclude_fields:
     - "Member.header.metadata.id"
     - "Member.header.metadata.revision"
     # Read only field
+    - "Member.spec.added_by"
     - "Member.spec.ineligible_status"
+    - "Member.spec.joined"
+    - "Member.spec.name"
+    - "Member.status"
 
 # These fields will be marked as Computed: true
 computed_fields:
@@ -69,9 +73,6 @@ computed_fields:
 
     - "Member.header.kind"
     - "Member.header.metadata.namespace"
-    - "Member.spec.name"
-    - "Member.spec.joined"
-    - "Member.spec.added_by"
 
 # These fields will be marked as Required: true
 required_fields:
