@@ -31,6 +31,9 @@ final class LandingViewModel {
 		case enrollDevice(EnrollDeviceViewModel)
 		case forgetAllClustersAlert(AlertState<ForgetAllClustersAlertAction>)
 		case notice(AlertState<Void>)
+		#if DEBUG
+			case debug(DebugViewModel)
+		#endif
 	}
 
 	@ObservationIgnored
@@ -120,6 +123,12 @@ extension LandingViewModel {
 	func userConfirmedForgetAllClusters() async {
 		await deleteClusters { Cluster.delete() }
 	}
+
+	#if DEBUG
+	func userTappedOnDebugButton() {
+		destination = .debug(DebugViewModel())
+	}
+	#endif
 }
 
 // MARK: - Programmatic Navigation
