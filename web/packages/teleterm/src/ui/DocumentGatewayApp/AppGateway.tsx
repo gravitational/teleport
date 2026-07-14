@@ -30,6 +30,7 @@ import styled from 'styled-components';
 
 import {
   Alert,
+  Box,
   ButtonSecondary,
   disappear,
   Flex,
@@ -57,6 +58,8 @@ import { PortFieldInput } from 'teleterm/ui/components/FieldInputs';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { setUpAppGateway } from 'teleterm/ui/services/workspacesService';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+
+import { getLlmSpec, LlmInstructions } from './LlmInstructions';
 
 export function AppGateway(props: {
   gateway: Gateway;
@@ -89,10 +92,15 @@ export function AppGateway(props: {
 
   const isMcp = gateway.protocol === 'MCP';
   const isHttpWebApp = gateway.protocol === 'HTTP';
+  const isLLM = gateway.protocol === 'LLM';
   let address = `${gateway.localAddress}:${gateway.localPort}`;
-  if (isHttpWebApp || isMcp) {
+  if (isHttpWebApp || isMcp || isLLM) {
     address = `http://${address}`;
   }
+
+  const llmSpec = isLLM
+    ? getLlmSpec(gateway.llmFormat, gateway.llmProvider, address)
+    : undefined;
 
   // AppGateway doesn't have access to the app resource itself, so it has to decide whether the
   // app is multi-port or not in some other way.
@@ -165,7 +173,13 @@ export function AppGateway(props: {
     >
       <Flex flexDirection="column" gap={2}>
         <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
-          <H1>{isMcp ? 'MCP Server Connection' : 'App Connection'}</H1>
+          <H1>
+            {isMcp
+              ? 'MCP Server Connection'
+              : llmSpec
+                ? `${llmSpec.name} Inference Endpoint Connection`
+                : 'App Connection'}
+          </H1>
           <Flex gap={2}>
             {isMultiPort && (
               <MenuLogin
@@ -223,14 +237,18 @@ export function AppGateway(props: {
       </Flex>
 
       <Flex flexDirection="column" gap={2}>
-        <div>
-          <Text>
-            {isMcp
-              ? 'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
-              : 'Access the app at:'}
-          </Text>
-          <TextSelectCopy mt={1} text={address} bash={false} />
-        </div>
+        {llmSpec ? (
+          <LlmInstructions spec={llmSpec} />
+        ) : (
+          <Box>
+            <Text>
+              {isMcp
+                ? 'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
+                : 'Access the app at:'}
+            </Text>
+            <TextSelectCopy mt={1} text={address} bash={false} />
+          </Box>
+        )}
 
         {changeLocalPortAttempt.status === 'error' && (
           <Alert details={changeLocalPortAttempt.statusText} m={0}>
@@ -250,17 +268,19 @@ export function AppGateway(props: {
           </Alert>
         )}
 
-        <Text>
-          The connection is made through an authenticated proxy so no extra
-          credentials are necessary. See{' '}
-          <Link
-            href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
-            target="_blank"
-          >
-            the documentation
-          </Link>{' '}
-          for more details.
-        </Text>
+        {!isLLM && (
+          <Text>
+            The connection is made through an authenticated proxy so no extra
+            credentials are necessary. See{' '}
+            <Link
+              href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
+              target="_blank"
+            >
+              the documentation
+            </Link>{' '}
+            for more details.
+          </Text>
+        )}
       </Flex>
     </Flex>
   );

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+
 import {
   GatewayTargetUri,
   isAppUri,
@@ -25,6 +27,27 @@ import {
 } from 'teleterm/ui/uri';
 
 import { GatewayCLICommand } from './types';
+
+/**
+ * normalizeTargetSubresourceName coerces an empty string to undefined so that
+ * gateway documents, connection-tracker entries, and daemon responses agree on
+ * "unset". Without this, single-port apps (including LLM and TLS/TCP) can fail
+ * to reuse an existing gateway when one side still has "".
+ */
+export function normalizeTargetSubresourceName(
+  value: string | undefined
+): string | undefined {
+  return value === '' ? undefined : value;
+}
+
+/**
+ * getTargetSubresourceName returns the gateway's target subresource name using
+ * the convention that gateway documents follow, where an unset value is
+ * undefined rather than the empty string that the tsh daemon returns.
+ */
+export function getTargetSubresourceName(gateway: Gateway): string | undefined {
+  return normalizeTargetSubresourceName(gateway.targetSubresourceName);
+}
 
 /**
  * getCliCommandArgs returns a Node.js-compatible array with args.
