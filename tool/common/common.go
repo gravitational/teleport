@@ -238,6 +238,11 @@ func FormatResourceAccessID(rid types.ResourceAccessID) string {
 				break
 			}
 			constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(d.AwsConsole.RoleArns, ","))
+		case *types.ResourceConstraints_Ssh:
+			if d.Ssh == nil {
+				break
+			}
+			constraintsString = fmt.Sprintf("logins=%s", strings.Join(d.Ssh.Logins, ","))
 		}
 	}
 

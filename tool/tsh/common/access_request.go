@@ -425,14 +425,18 @@ type kubeResourceRow struct {
 type dbResourceRow struct {
 	DatabaseName string
 	Labels       string
-	ResourceID   string
+	Access       string                        `json:"-"`
+	ResourceID   string                        `asciitable:"-"`
+	Principals   map[string]principalSplitJSON `json:",omitempty" asciitable:"-"`
 }
 
 type genericResourceRow struct {
 	Name       string
 	Hostname   string
 	Labels     string
-	ResourceID string
+	Access     string                        `json:"-"`
+	ResourceID string                        `asciitable:"-"`
+	Principals map[string]principalSplitJSON `json:",omitempty" asciitable:"-"`
 }
 
 func searchRequestableRoles(cf *CLIConf) error {
@@ -585,21 +589,25 @@ func searchRequestableResources(cf *CLIConf) error {
 		return printRequestableResources(cf, rows, resourceIDs)
 
 	default:
-		// For all other resources, we need to connect to the auth server.
+		// For all other resources, we connect to the auth server and list
+		// unified resources so Auth returns the granted/requestable split per
+		// principal dimension rather than each client recomputing it.
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer clusterClient.Close()
 
-		req := proto.ListResourcesRequest{
+		enriched, err := client.GetAllUnifiedResources(cf.Context, clusterClient.AuthClient, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{cf.ResourceKind},
 			Labels:              tc.Labels,
 			PredicateExpression: cf.PredicateExpression,
 			SearchKeywords:      tc.SearchKeywords,
 			UseSearchAsRoles:    true,
-		}
-
-		resources, err := accessrequest.GetResourcesByKind(cf.Context, clusterClient.AuthClient, req, cf.ResourceKind)
+			IncludeLogins:       true,
+			IncludeRequestable:  true,
+			SortBy:              types.SortBy{Field: types.ResourceKind},
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -607,36 +615,45 @@ func searchRequestableResources(cf *CLIConf) error {
 		switch cf.ResourceKind {
 		case types.KindDatabase:
 			var rows []dbResourceRow
-			for _, resource := range resources {
-				r := resource
+			for _, er := range enriched {
+				leaf, err := accessrequest.MapListResourcesResultToLeafResource(er.ResourceWithLabels, cf.ResourceKind)
+				if err != nil {
+					return trace.Wrap(err)
+				}
 
 				resourceID := types.ResourceIDToString(types.ResourceID{
 					ClusterName: tc.SiteName,
-					Kind:        r.GetKind(),
-					Name:        r.GetName(),
+					Kind:        leaf.GetKind(),
+					Name:        leaf.GetName(),
 				})
 				if ignoreDuplicateResourceID(deduplicateResourceIDs, resourceID) {
 					continue
 				}
 				resourceIDs = append(resourceIDs, resourceID)
 
+				splits := principalSplits(er, cf.ResourceKind)
 				rows = append(rows, dbResourceRow{
-					DatabaseName: common.FormatResourceName(r, cf.Verbose),
-					Labels:       common.FormatLabels(r.GetAllLabels(), cf.Verbose),
+					DatabaseName: common.FormatResourceName(leaf, cf.Verbose),
+					Labels:       common.FormatLabels(leaf.GetAllLabels(), cf.Verbose),
+					Access:       formatAccessSummary(splits),
 					ResourceID:   resourceID,
+					Principals:   principalSplitsJSON(splits),
 				})
 			}
 			return printRequestableResources(cf, rows, resourceIDs)
 
 		default:
 			var rows []genericResourceRow
-			for _, resource := range resources {
-				r := resource
+			for _, er := range enriched {
+				leaf, err := accessrequest.MapListResourcesResultToLeafResource(er.ResourceWithLabels, cf.ResourceKind)
+				if err != nil {
+					return trace.Wrap(err)
+				}
 
 				resourceID := types.ResourceIDToString(types.ResourceID{
 					ClusterName: tc.SiteName,
-					Kind:        r.GetKind(),
-					Name:        r.GetName(),
+					Kind:        leaf.GetKind(),
+					Name:        leaf.GetName(),
 				})
 				if ignoreDuplicateResourceID(deduplicateResourceIDs, resourceID) {
 					continue
@@ -644,15 +661,18 @@ func searchRequestableResources(cf *CLIConf) error {
 				resourceIDs = append(resourceIDs, resourceID)
 
 				hostName := ""
-				if r2, ok := r.(interface{ GetHostname() string }); ok {
+				if r2, ok := leaf.(interface{ GetHostname() string }); ok {
 					hostName = r2.GetHostname()
 				}
 
+				splits := principalSplits(er, cf.ResourceKind)
 				rows = append(rows, genericResourceRow{
-					Name:       common.FormatResourceName(r, cf.Verbose),
+					Name:       common.FormatResourceName(leaf, cf.Verbose),
 					Hostname:   hostName,
-					Labels:     common.FormatLabels(r.GetAllLabels(), cf.Verbose),
+					Labels:     common.FormatLabels(leaf.GetAllLabels(), cf.Verbose),
+					Access:     formatAccessSummary(splits),
 					ResourceID: resourceID,
+					Principals: principalSplitsJSON(splits),
 				})
 			}
 
@@ -683,6 +703,8 @@ func printRequestableResources[T resourceRow](cf *CLIConf, rows []T, resourceIDs
 		}
 
 		if len(resourceIDs) > 0 {
+			fmt.Fprint(cf.Stdout(), "\nhint: use 'tsh request preview <resource-id>' to view granted & requestable principals\n")
+
 			resourcesStr := strings.Join(resourceIDs, " --resource ")
 			fmt.Fprintf(cf.Stdout(), `
 To request access to these resources, run
@@ -713,6 +735,276 @@ func ignoreDuplicateResourceID(deduplicateResourceIDs map[string]struct{}, resou
 	}
 	deduplicateResourceIDs[resourceID] = struct{}{}
 	return false
+}
+
+// principalSplit holds a resource's selectable principals divided into the set
+// the user can already use (granted) and the set they must request
+// (requestable).
+type principalSplit struct {
+	granted     []string
+	requestable []string
+}
+
+// principalSplitJSON is one dimension's granted/requestable split in JSON
+// output, keyed by the dimension's inline constraint key.
+type principalSplitJSON struct {
+	Granted     []string `json:"granted"`
+	Requestable []string `json:"requestable"`
+}
+
+// principalSplitsJSON converts splits to their JSON form, with empty slices
+// rather than nulls.
+func principalSplitsJSON(splits map[string]principalSplit) map[string]principalSplitJSON {
+	if len(splits) == 0 {
+		return nil
+	}
+	out := make(map[string]principalSplitJSON, len(splits))
+	for kind, s := range splits {
+		j := principalSplitJSON{Granted: s.granted, Requestable: s.requestable}
+		if j.Granted == nil {
+			j.Granted = []string{}
+		}
+		if j.Requestable == nil {
+			j.Requestable = []string{}
+		}
+		out[kind] = j
+	}
+	return out
+}
+
+// principalSplits derives each principal dimension's granted/requestable split
+// from an enriched resource, keyed by the dimension's inline constraint key.
+// Auth's principal sets are preferred (requestable is All minus Granted). When
+// Auth did not populate them (older version), the flat Logins union is used
+// with every value treated as requestable, matching the mixed-version fallback
+// of showing the union without the distinction.
+func principalSplits(er *types.EnrichedResource, resourceKind string) map[string]principalSplit {
+	if len(er.Principals) > 0 {
+		out := make(map[string]principalSplit, len(er.Principals))
+		for _, ps := range er.Principals {
+			grantedSet := make(map[string]struct{}, len(ps.Granted))
+			for _, g := range ps.Granted {
+				grantedSet[g] = struct{}{}
+			}
+			granted := append([]string(nil), ps.Granted...)
+			var requestable []string
+			for _, v := range ps.All {
+				if _, ok := grantedSet[v]; !ok {
+					requestable = append(requestable, v)
+				}
+			}
+			sort.Strings(granted)
+			sort.Strings(requestable)
+			out[ps.Kind] = principalSplit{granted: granted, requestable: requestable}
+		}
+		return out
+	}
+	if len(er.Logins) == 0 {
+		return nil
+	}
+	requestable := append([]string(nil), er.Logins...)
+	sort.Strings(requestable)
+	return map[string]principalSplit{
+		fallbackPrincipalKind(resourceKind): {requestable: requestable},
+	}
+}
+
+// fallbackPrincipalKind names the dimension the flat Logins union carries for
+// a resource kind, for listings from an Auth that predates principal sets.
+func fallbackPrincipalKind(resourceKind string) string {
+	if resourceKind == types.KindApp {
+		return types.PrincipalKindRoleARNs
+	}
+	return types.PrincipalKindLogins
+}
+
+// formatAccessSummary renders the compact "<n> granted, <m> requestable" cell
+// for the search table, counting across every principal dimension and omitting
+// either side when it is empty.
+func formatAccessSummary(splits map[string]principalSplit) string {
+	var granted, requestable int
+	for _, s := range splits {
+		granted += len(s.granted)
+		requestable += len(s.requestable)
+	}
+	var parts []string
+	if granted > 0 {
+		parts = append(parts, fmt.Sprintf("%d granted", granted))
+	}
+	if requestable > 0 {
+		parts = append(parts, fmt.Sprintf("%d requestable", requestable))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// principalHeading is the human heading for a principal dimension in preview
+// output. A dimension this build does not recognize (a newer cluster's) falls
+// back to its raw key, which still names it usefully.
+func principalHeading(kind string) string {
+	switch kind {
+	case types.PrincipalKindLogins:
+		return "Logins"
+	case types.PrincipalKindRoleARNs:
+		return "Role ARNs"
+	default:
+		return kind
+	}
+}
+
+// hintConstraintSuffix builds the inline constraint suffix for the create
+// hint, covering every dimension with requestable values. Kinds without an
+// enforceable constraint yet (desktops, for now) get no suffix.
+func hintConstraintSuffix(resourceKind string, kinds []string, splits map[string]principalSplit) string {
+	if resourceKind != types.KindNode && resourceKind != types.KindApp {
+		return ""
+	}
+	var b strings.Builder
+	for _, kind := range kinds {
+		s := splits[kind]
+		if len(s.requestable) == 0 {
+			continue
+		}
+		escaped := make([]string, 0, len(s.requestable))
+		for _, v := range s.requestable {
+			v = strings.ReplaceAll(v, `\`, `\\`)
+			v = strings.ReplaceAll(v, ",", `\,`)
+			escaped = append(escaped, v)
+		}
+		fmt.Fprintf(&b, "|%s=%s", kind, strings.Join(escaped, ","))
+	}
+	return b.String()
+}
+
+func hostnameOf(r types.ResourceWithLabels) string {
+	if h, ok := r.(interface{ GetHostname() string }); ok {
+		return h.GetHostname()
+	}
+	return ""
+}
+
+// resourcePreviewJSON is the structured output of `tsh request preview
+// --format json`: the full granted and requestable split for every principal
+// dimension of a single resource, keyed by the dimension's inline constraint
+// key, so an agent can construct a constrained request in one call.
+type resourcePreviewJSON struct {
+	ResourceID string                        `json:"resource_id"`
+	Kind       string                        `json:"kind"`
+	Name       string                        `json:"name"`
+	Hostname   string                        `json:"hostname,omitempty"`
+	Labels     map[string]string             `json:"labels,omitempty"`
+	Principals map[string]principalSplitJSON `json:"principals"`
+}
+
+// onRequestPreview shows the granted vs. requestable principals for a single
+// resource, identified by its resource ID (e.g. /cluster/node/web-1), so a user
+// or agent can decide which principals to scope a request to.
+func onRequestPreview(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	id, err := types.ResourceIDFromString(cf.RequestPreviewResourceID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	enriched, err := client.GetAllUnifiedResources(cf.Context, clusterClient.AuthClient, &proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{id.Kind},
+		PredicateExpression: fmt.Sprintf(`name == %q`, id.Name),
+		UseSearchAsRoles:    true,
+		IncludeLogins:       true,
+		IncludeRequestable:  true,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, er := range enriched {
+		leaf, err := accessrequest.MapListResourcesResultToLeafResource(er.ResourceWithLabels, id.Kind)
+		if err != nil {
+			continue
+		}
+		if leaf.GetName() == id.Name {
+			return trace.Wrap(printResourcePreview(cf, id, leaf, principalSplits(er, id.Kind)))
+		}
+	}
+	return trace.NotFound("resource %q was not found or is not requestable", cf.RequestPreviewResourceID)
+}
+
+func printResourcePreview(cf *CLIConf, id types.ResourceID, leaf types.ResourceWithLabels, splits map[string]principalSplit) error {
+	idStr := types.ResourceIDToString(id)
+
+	switch strings.ToLower(cf.Format) {
+	case teleport.JSON, teleport.YAML:
+		payload := resourcePreviewJSON{
+			ResourceID: idStr,
+			Kind:       id.Kind,
+			Name:       leaf.GetName(),
+			Hostname:   hostnameOf(leaf),
+			Labels:     leaf.GetAllLabels(),
+			Principals: principalSplitsJSON(splits),
+		}
+		if payload.Principals == nil {
+			payload.Principals = map[string]principalSplitJSON{}
+		}
+		if strings.ToLower(cf.Format) == teleport.JSON {
+			return trace.Wrap(utils.WriteJSON(cf.Stdout(), payload))
+		}
+		return trace.Wrap(utils.WriteYAML(cf.Stdout(), payload))
+	case teleport.Text, "":
+		// handled below
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+
+	w := cf.Stdout()
+	fmt.Fprintf(w, "Resource:  %s\n", idStr)
+	fmt.Fprintf(w, "Name:      %s\n", leaf.GetName())
+	if h := hostnameOf(leaf); h != "" {
+		fmt.Fprintf(w, "Hostname:  %s\n", h)
+	}
+	if labels := common.FormatLabels(leaf.GetAllLabels(), cf.Verbose); labels != "" {
+		fmt.Fprintf(w, "Labels:    %s\n", labels)
+	}
+
+	if len(splits) == 0 {
+		fmt.Fprint(w, "\nNo selectable principals for this resource.\n")
+		return nil
+	}
+
+	kinds := make([]string, 0, len(splits))
+	for kind := range splits {
+		kinds = append(kinds, kind)
+	}
+	sort.Strings(kinds)
+
+	for _, kind := range kinds {
+		s := splits[kind]
+		if len(s.granted) == 0 && len(s.requestable) == 0 {
+			continue
+		}
+		fmt.Fprintf(w, "\n%s:\n", principalHeading(kind))
+		for _, p := range s.granted {
+			fmt.Fprintf(w, "  %-20s granted\n", p)
+		}
+		for _, p := range s.requestable {
+			fmt.Fprintf(w, "  %-20s requestable\n", p)
+		}
+	}
+
+	if suffix := hintConstraintSuffix(id.Kind, kinds, splits); suffix != "" {
+		fmt.Fprintf(w, "\nhint: tsh request create --resource '%s%s' --reason \"...\"\n", idStr, suffix)
+	} else {
+		fmt.Fprintf(w, "\nhint: tsh request create --resource '%s' --reason \"...\"\n", idStr)
+	}
+	return nil
 }
 
 func onRequestDrop(cf *CLIConf) error {

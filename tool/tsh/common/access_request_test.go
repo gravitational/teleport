@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -178,10 +179,13 @@ func TestAccessRequestSearch(t *testing.T) {
 				kind:            types.KindKubernetesCluster,
 			},
 			wantTable: func() string {
+				// kube_cluster now lists via ListUnifiedResources: the Resource ID
+				// column is replaced by the granted/requestable Access summary,
+				// which is empty for kinds without selectable principals.
 				table := asciitable.MakeTableWithTruncatedColumn(
-					[]string{"Name", "Hostname", "Labels", "Resource ID"},
+					[]string{"Name", "Hostname", "Labels", "Access"},
 					[][]string{
-						{leafKubeCluster, "", "", fmt.Sprintf("/%s/kube_cluster/%s", leafClusterName, leafKubeCluster)},
+						{leafKubeCluster, "", "", ""},
 					},
 					"Labels")
 				return table.AsBuffer().String()
@@ -432,6 +436,50 @@ func TestPrintRequest(t *testing.T) {
 				"role_arns=",
 				"arn:aws:iam::123456789012:role/Admin",
 				"arn:aws:iam::123456789012:role/ReadOnly",
+			},
+		},
+		{
+			name: "request with constrained SSH node resources",
+			req: &types.AccessRequestV3{
+				Metadata: types.Metadata{
+					Name:    "ssh-request",
+					Expires: &expiresTime,
+				},
+				Spec: types.AccessRequestSpecV3{
+					User:       "testuser",
+					Roles:      []string{"ssh-access"},
+					Expires:    expiresTime,
+					SessionTTL: expiresTime,
+					Created:    createdAtTime,
+					RequestedResourceAccessIDs: []types.ResourceAccessID{
+						{
+							Id: types.ResourceID{
+								ClusterName: "test-cluster",
+								Kind:        types.KindNode,
+								Name:        "web-1",
+							},
+							Constraints: &types.ResourceConstraints{
+								Version: types.V1,
+								Details: &types.ResourceConstraints_Ssh{
+									Ssh: &types.SSHResourceConstraints{
+										Logins: []string{"root", "admin"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantPresent: []string{
+				"Request ID:",
+				"ssh-request",
+				"Username:",
+				"testuser",
+				"Roles:",
+				"ssh-access",
+				"Resources:",
+				"/test-cluster/node/web-1",
+				"logins=root,admin",
 			},
 		},
 		{
@@ -782,6 +830,214 @@ func TestPrintRequestableResources(t *testing.T) {
 
 		err := printRequestableResources(cf, rows, resourceIDs)
 		require.Error(t, err)
+	})
+}
+
+func TestPrincipalSplits(t *testing.T) {
+	tests := []struct {
+		name         string
+		resourceKind string
+		enriched     *types.EnrichedResource
+		want         map[string]principalSplit
+	}{
+		{
+			name:         "single dimension",
+			resourceKind: types.KindNode,
+			enriched: &types.EnrichedResource{
+				Logins: []string{"admin", "deploy", "root"},
+				Principals: []types.ResourcePrincipalSet{{
+					Kind:    types.PrincipalKindLogins,
+					All:     []string{"admin", "deploy", "root"},
+					Granted: []string{"deploy"},
+				}},
+			},
+			want: map[string]principalSplit{
+				types.PrincipalKindLogins: {granted: []string{"deploy"}, requestable: []string{"admin", "root"}},
+			},
+		},
+		{
+			name:         "multiple dimensions",
+			resourceKind: types.KindDatabase,
+			enriched: &types.EnrichedResource{
+				Principals: []types.ResourcePrincipalSet{
+					{Kind: "db_users", All: []string{"admin", "reader"}, Granted: []string{"reader"}},
+					{Kind: "db_names", All: []string{"prod", "reports"}, Granted: []string{"reports"}},
+				},
+			},
+			want: map[string]principalSplit{
+				"db_users": {granted: []string{"reader"}, requestable: []string{"admin"}},
+				"db_names": {granted: []string{"reports"}, requestable: []string{"prod"}},
+			},
+		},
+		{
+			// Older Auth returns only the union; everything is shown as
+			// requestable rather than mislabeled as granted.
+			name:         "union only (mixed-version fallback)",
+			resourceKind: types.KindNode,
+			enriched:     &types.EnrichedResource{Logins: []string{"root", "admin"}},
+			want: map[string]principalSplit{
+				types.PrincipalKindLogins: {requestable: []string{"admin", "root"}},
+			},
+		},
+		{
+			// The fallback dimension follows the resource kind: the flat union
+			// carries ARNs for apps.
+			name:         "union only app fallback",
+			resourceKind: types.KindApp,
+			enriched:     &types.EnrichedResource{Logins: []string{"arn:aws:iam::123:role/Admin"}},
+			want: map[string]principalSplit{
+				types.PrincipalKindRoleARNs: {requestable: []string{"arn:aws:iam::123:role/Admin"}},
+			},
+		},
+		{
+			name:         "no principals",
+			resourceKind: types.KindNode,
+			enriched:     &types.EnrichedResource{},
+			want:         nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, principalSplits(tt.enriched, tt.resourceKind))
+		})
+	}
+}
+
+func TestFormatAccessSummary(t *testing.T) {
+	tests := []struct {
+		name string
+		in   map[string]principalSplit
+		want string
+	}{
+		{
+			"both",
+			map[string]principalSplit{"logins": {granted: []string{"a"}, requestable: []string{"b", "c"}}},
+			"1 granted, 2 requestable",
+		},
+		{
+			"counts across dimensions",
+			map[string]principalSplit{
+				"db_users": {granted: []string{"a"}, requestable: []string{"b"}},
+				"db_names": {granted: []string{"c"}, requestable: []string{"d", "e"}},
+			},
+			"2 granted, 3 requestable",
+		},
+		{"granted only", map[string]principalSplit{"logins": {granted: []string{"a", "b", "c"}}}, "3 granted"},
+		{"requestable only", map[string]principalSplit{"logins": {requestable: []string{"a"}}}, "1 requestable"},
+		{"empty", nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, formatAccessSummary(tt.in))
+		})
+	}
+}
+
+func TestPrintResourcePreview(t *testing.T) {
+	server, err := types.NewServer("web-1", types.KindNode, types.ServerSpecV2{Hostname: "web-1.dc1"})
+	require.NoError(t, err)
+	server.SetStaticLabels(map[string]string{"env": "prod"})
+	id := types.ResourceID{ClusterName: "main", Kind: types.KindNode, Name: "web-1"}
+	splits := map[string]principalSplit{
+		types.PrincipalKindLogins: {granted: []string{"deploy"}, requestable: []string{"admin", "root"}},
+	}
+
+	t.Run("text", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{OverrideStdout: &buf}
+		require.NoError(t, printResourcePreview(cf, id, server, splits))
+		out := buf.String()
+		require.Contains(t, out, "Resource:  /main/node/web-1")
+		require.Contains(t, out, "Hostname:  web-1.dc1")
+		require.Contains(t, out, "Logins:")
+		require.Contains(t, out, "deploy")
+		require.Contains(t, out, "granted")
+		require.Contains(t, out, "requestable")
+		// The create hint scopes to the requestable principals.
+		require.Contains(t, out, "logins=admin,root")
+	})
+
+	t.Run("json", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{OverrideStdout: &buf, Format: "json"}
+		require.NoError(t, printResourcePreview(cf, id, server, splits))
+		require.JSONEq(t, `{
+			"resource_id": "/main/node/web-1",
+			"kind": "node",
+			"name": "web-1",
+			"hostname": "web-1.dc1",
+			"labels": {"env": "prod"},
+			"principals": {
+				"logins": {"granted": ["deploy"], "requestable": ["admin", "root"]}
+			}
+		}`, buf.String())
+	})
+
+	t.Run("multiple dimensions", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{OverrideStdout: &buf}
+		multi := map[string]principalSplit{
+			types.PrincipalKindLogins: {requestable: []string{"root"}},
+			"future_kind":             {granted: []string{"x"}, requestable: []string{"y"}},
+		}
+		require.NoError(t, printResourcePreview(cf, id, server, multi))
+		out := buf.String()
+		// Dimensions render sorted, unknown kinds fall back to their raw key.
+		require.Contains(t, out, "future_kind:")
+		require.Contains(t, out, "Logins:")
+		require.Less(t, strings.Index(out, "future_kind:"), strings.Index(out, "Logins:"))
+		// The create hint joins every requestable dimension inline-style.
+		require.Contains(t, out, "|future_kind=y|logins=root")
+	})
+
+	t.Run("no principals", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{OverrideStdout: &buf}
+		require.NoError(t, printResourcePreview(cf, id, server, nil))
+		require.Contains(t, buf.String(), "No selectable principals")
+	})
+}
+
+func TestPrintRequestableResourcesAccess(t *testing.T) {
+	rows := []genericResourceRow{
+		{
+			Name:       "web-1",
+			Hostname:   "web-1.dc1",
+			Labels:     "env=prod",
+			Access:     "1 granted, 2 requestable",
+			ResourceID: "/main/node/web-1",
+			Principals: map[string]principalSplitJSON{
+				"logins": {Granted: []string{"deploy"}, Requestable: []string{"admin", "root"}},
+			},
+		},
+	}
+	resourceIDs := []string{"/main/node/web-1"}
+
+	t.Run("text shows Access column, not Resource ID", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{OverrideStdout: &buf}
+		require.NoError(t, printRequestableResources(cf, rows, resourceIDs))
+		out := buf.String()
+		require.Contains(t, out, "Access")
+		// The summary column can truncate at narrow (80-col) widths; the full
+		// value is asserted via --format json below.
+		require.Contains(t, out, "1 granted")
+		require.NotContains(t, out, "Resource ID")
+		require.Contains(t, out, "tsh request preview")
+	})
+
+	t.Run("json carries principal splits and resource id", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{OverrideStdout: &buf, Format: "json"}
+		require.NoError(t, printRequestableResources(cf, rows, resourceIDs))
+		out := buf.String()
+		require.Contains(t, out, `"ResourceID": "/main/node/web-1"`)
+		require.Contains(t, out, `"Principals"`)
+		require.Contains(t, out, `"logins"`)
+		require.Contains(t, out, `"granted"`)
+		require.Contains(t, out, `"requestable"`)
+		// Access is the text-only summary and must not leak into JSON.
+		require.NotContains(t, out, `"Access"`)
 	})
 }
 
