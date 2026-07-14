@@ -14,7 +14,12 @@ import SlackVideoMp4 from "@version/docs/img/enterprise/plugins/slack/slack.mp4"
 import SlackVideoWebm from "@version/docs/img/enterprise/plugins/slack/slack.webm"
 
 This guide will explain how to set up Slack to receive Access Request messages
-from Teleport. 
+from Teleport.
+
+You can opt in to the [native Access Request reviews feature](slack-review.mdx)
+in order to approve or deny Access Requests directly within Slack, avoiding a redirect
+to the Teleport Web UI. Note that this feature reduces the security of the Teleport cluster
+by relying on Slack authentication and bypassing Teleport authentication.
 
 <details>
 <summary>This integration is hosted on Teleport Cloud</summary>
@@ -447,6 +452,8 @@ $ sudo systemctl start teleport-slack
 
 ## Next steps
 
+- Set up the [native Access Request reviews feature](slack-review.mdx)
+    that allows you to approve or deny Access Requests directly within Slack.
 - Read our guides to configuring [Resource Access
     Requests](../resource-requests.mdx) and [Role Access
     Requests](../role-requests.mdx) so you can get the most out
