@@ -7417,11 +7417,15 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 	// only allow user to see first node
 	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
 
-	// create a new role which can see second node
+	// create a new role which can see the first and second nodes, granting a
+	// login ("admin") distinct from the base role's ("requester"). On node0
+	// (already granted by the base role) this makes "admin" requestable while
+	// "requester" stays granted; on node1 (base role can't see it) the whole
+	// node and its single login are requestable.
 	searchAsRole := services.RoleForUser(requester)
 	searchAsRole.SetName("test_search_role")
-	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
-	searchAsRole.SetLogins(types.Allow, []string{"requester"})
+	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName(), testNodes[1].GetName()}})
+	searchAsRole.SetLogins(types.Allow, []string{"admin"})
 	_, err = srv.Auth().UpsertRole(ctx, searchAsRole)
 	require.NoError(t, err)
 
@@ -7433,14 +7437,17 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 	require.NoError(t, err)
 
 	type expected struct {
-		name        string
-		requestable bool
+		name          string
+		requestable   bool
+		allLogins     []string
+		grantedLogins []string
 	}
 
 	for _, tc := range []struct {
 		desc              string
 		clt               *authclient.Client
 		requestOpt        func(*proto.ListUnifiedResourcesRequest)
+		checkLogins       bool
 		expectedResources []expected
 	}{
 		{
@@ -7465,10 +7472,22 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 			requestOpt: func(req *proto.ListUnifiedResourcesRequest) {
 				req.IncludeRequestable = true
 				req.UseSearchAsRoles = true
+				req.IncludeLogins = true
 			},
+			checkLogins: true,
 			expectedResources: []expected{
-				{name: testNodes[0].GetName(), requestable: false},
-				{name: testNodes[1].GetName(), requestable: true},
+				{
+					name:          testNodes[0].GetName(),
+					requestable:   false,
+					allLogins:     []string{"requester", "admin"},
+					grantedLogins: []string{"requester"},
+				},
+				{
+					name:          testNodes[1].GetName(),
+					requestable:   true,
+					allLogins:     []string{"admin"},
+					grantedLogins: nil,
+				},
 			},
 		},
 	} {
@@ -7483,11 +7502,31 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 			resp, err := tc.clt.ListUnifiedResources(ctx, &req)
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, len(tc.expectedResources))
-			var resources []expected
+
+			byName := make(map[string]*proto.PaginatedResource)
+			var flags, wantFlags []expected
 			for _, resource := range resp.Resources {
-				resources = append(resources, expected{name: resource.GetNode().GetName(), requestable: resource.RequiresRequest})
+				name := resource.GetNode().GetName()
+				byName[name] = resource
+				flags = append(flags, expected{name: name, requestable: resource.RequiresRequest})
 			}
-			require.ElementsMatch(t, tc.expectedResources, resources)
+			for _, e := range tc.expectedResources {
+				wantFlags = append(wantFlags, expected{name: e.name, requestable: e.requestable})
+			}
+			require.ElementsMatch(t, wantFlags, flags)
+
+			if !tc.checkLogins {
+				return
+			}
+			for _, e := range tc.expectedResources {
+				r := byName[e.name]
+				require.NotNil(t, r, "resource %q missing from response", e.name)
+				require.ElementsMatch(t, e.allLogins, r.Logins, "Logins for %q", e.name)
+				require.Len(t, r.Principals, 1, "Principals for %q", e.name)
+				require.Equal(t, types.PrincipalKindLogins, r.Principals[0].Kind, "principal kind for %q", e.name)
+				require.ElementsMatch(t, e.allLogins, r.Principals[0].All, "principal union for %q", e.name)
+				require.ElementsMatch(t, e.grantedLogins, r.Principals[0].Granted, "granted principals for %q", e.name)
+			}
 		})
 	}
 }
