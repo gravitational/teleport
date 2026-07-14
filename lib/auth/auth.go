@@ -6089,6 +6089,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 			req.SetLongTermResourceGrouping(longTermResourceGrouping)
 		}
 
+		addAccessRequestDryRunUserDisplays(ctx, req, a, a.logger)
+
 		// Return before creating the request if this is a dry run.
 		return req, nil
 	}

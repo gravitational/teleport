@@ -734,6 +734,85 @@ func newAccessRequestDisplayUser(t *testing.T, name, primary, secondary, role st
 	return user
 }
 
+func TestCreateAccessRequestV2DryRunUserDisplays(t *testing.T) {
+	t.Parallel()
+
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	ctx := t.Context()
+
+	const (
+		requester         = "dry-run-display-requester"
+		suggestedReviewer = "dry-run-display-suggested-reviewer"
+		missingUser       = "dry-run-display-missing-user"
+		requestableRole   = "dry-run-display-requestable-role"
+		requesterRole     = "dry-run-display-requester-role"
+	)
+
+	requestable, err := types.NewRole(requestableRole, types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = tlsServer.Auth().UpsertRole(ctx, requestable)
+	require.NoError(t, err)
+
+	// The requester can request the requestable role but cannot read other
+	// users, so displays must come from server-side resolution.
+	role, err := types.NewRole(requesterRole, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{requestableRole},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = tlsServer.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	for _, user := range []types.User{
+		newAccessRequestDisplayUser(t, requester, "Request User", "requester@example.com", requesterRole),
+		newAccessRequestDisplayUser(t, suggestedReviewer, "Suggested User", "suggested@example.com", requestableRole),
+	} {
+		_, err := tlsServer.Auth().UpsertUser(ctx, user)
+		require.NoError(t, err)
+	}
+
+	clt, err := tlsServer.NewClient(authtest.TestUser(requester))
+	require.NoError(t, err)
+	defer clt.Close()
+
+	req, err := services.NewAccessRequest(requester, requestableRole)
+	require.NoError(t, err)
+	req.SetDryRun(true)
+	req.SetSuggestedReviewers([]string{suggestedReviewer, missingUser})
+
+	resp, err := clt.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
+
+	enrichment := resp.GetDryRunEnrichment()
+	require.NotNil(t, enrichment)
+	// Expect displays to ride the enrichment without clobbering the fields set during
+	// validation.
+	require.Equal(t, types.RequestReasonModeOptional, enrichment.ReasonMode)
+	require.Equal(t, map[string]types.AccessRequestUserDisplay{
+		requester: {
+			Primary:   "Request User",
+			Secondary: "requester@example.com",
+		},
+		suggestedReviewer: {
+			Primary:   "Suggested User",
+			Secondary: "suggested@example.com",
+		},
+	}, enrichment.UserDisplays)
+	require.NotContains(t, enrichment.UserDisplays, missingUser)
+}
+
 func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
 
