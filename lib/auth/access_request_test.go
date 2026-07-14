@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -2165,4 +2166,101 @@ func testSubmitAccessReview_SubmitForUsers(t *testing.T, testPack *accessRequest
 			}
 		})
 	}
+}
+
+// TestCreateAccessRequestConstraintSupport verifies that creating a
+// constrained access request is rejected unless the cluster's Auth servers
+// and the constrained resource's agent all advertise RESOURCE_CONSTRAINTS_V1.
+func TestCreateAccessRequestConstraintSupport(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	testPack := newAccessRequestTestPack(ctx, t)
+	authSrv := testPack.tlsServer.Auth()
+
+	rcFeatures := componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
+
+	newConstrainedRequest := func(t *testing.T) types.AccessRequest {
+		t.Helper()
+		req, err := services.NewAccessRequestWithResources("requester", nil, []types.ResourceAccessID{{
+			Id: types.ResourceID{ClusterName: testPack.clusterName, Kind: types.KindNode, Name: "staging"},
+			Constraints: &types.ResourceConstraints{
+				Details: &types.ResourceConstraints_Ssh{
+					Ssh: &types.SSHResourceConstraints{Logins: []string{"root"}},
+				},
+			},
+		}})
+		require.NoError(t, err)
+		return req
+	}
+
+	// Neither the Auth presence nor the node advertise ComponentFeatures yet,
+	// so a constrained create is rejected up front.
+	_, err := authSrv.CreateAccessRequestV2(ctx, newConstrainedRequest(t), tlsca.Identity{})
+	require.ErrorContains(t, err, "do not support resource constraints")
+
+	// Advertise support on every Auth server; the node's agent still lacks it.
+	authServers, err := authSrv.GetAuthServers()
+	require.NoError(t, err)
+	if len(authServers) == 0 {
+		srv, err := types.NewServer("auth-1", types.KindAuthServer, types.ServerSpecV2{Version: "19.0.0"})
+		require.NoError(t, err)
+		authServers = append(authServers, srv)
+	}
+	for _, s := range authServers {
+		s.SetComponentFeatures(rcFeatures)
+		require.NoError(t, authSrv.UpsertAuthServer(ctx, s))
+	}
+	_, err = authSrv.CreateAccessRequestV2(ctx, newConstrainedRequest(t), tlsca.Identity{})
+	require.ErrorContains(t, err, "does not support the requested constraints")
+
+	// Advertise support on the node's agent as well; creation now succeeds.
+	node, err := authSrv.GetNode(ctx, defaults.Namespace, "staging")
+	require.NoError(t, err)
+	node.SetComponentFeatures(rcFeatures)
+	_, err = authSrv.UpsertNode(ctx, node)
+	require.NoError(t, err)
+	_, err = authSrv.CreateAccessRequestV2(ctx, newConstrainedRequest(t), tlsca.Identity{})
+	require.NoError(t, err)
+
+	// An unconstrained request is unaffected by feature advertisement.
+	unconstrained, err := services.NewAccessRequestWithResources("requester", nil, []types.ResourceAccessID{{
+		Id: types.ResourceID{ClusterName: testPack.clusterName, Kind: types.KindNode, Name: "prod"},
+	}})
+	require.NoError(t, err)
+	_, err = authSrv.CreateAccessRequestV2(ctx, unconstrained, tlsca.Identity{})
+	require.NoError(t, err)
+
+	// An agentless (integration-backed) AWS console app has no heartbeating
+	// agent; its effective features derive from the app type, with the
+	// Proxy's support already covered by the cluster-level intersection, so a
+	// constrained create succeeds without any spec-level ComponentFeatures.
+	adminRole, err := authSrv.GetRole(ctx, "admins")
+	require.NoError(t, err)
+	adminRole.SetAppLabels(types.Allow, types.Labels{"*": []string{"*"}})
+	adminRole.SetAWSRoleARNs(types.Allow, []string{"arn:aws:iam::123456789012:role/admin"})
+	_, err = authSrv.UpsertRole(ctx, adminRole)
+	require.NoError(t, err)
+
+	app, err := types.NewAppV3(types.Metadata{Name: "aws-console"}, types.AppSpecV3{
+		URI:         constants.AWSConsoleURL,
+		Integration: "aws-oidc",
+	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "proxy-host", "proxy-host-id")
+	require.NoError(t, err)
+	_, err = authSrv.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	constrainedApp, err := services.NewAccessRequestWithResources("requester", nil, []types.ResourceAccessID{{
+		Id: types.ResourceID{ClusterName: testPack.clusterName, Kind: types.KindApp, Name: "aws-console"},
+		Constraints: &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_AwsConsole{
+				AwsConsole: &types.AWSConsoleResourceConstraints{RoleArns: []string{"arn:aws:iam::123456789012:role/admin"}},
+			},
+		},
+	}})
+	require.NoError(t, err)
+	_, err = authSrv.CreateAccessRequestV2(ctx, constrainedApp, tlsca.Identity{})
+	require.NoError(t, err)
 }

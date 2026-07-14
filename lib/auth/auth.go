@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
@@ -108,6 +109,7 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
 	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
@@ -6043,6 +6045,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.checkConstraintSupport(ctx, req.GetRequestedResourceAccessIDs()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Fetch all Access Lists from the Cache, for use in generating Request promotions and validating long-term grouping
 	allAccessLists, err := a.Cache.GetAccessLists(ctx)
 	if err != nil {
@@ -6284,6 +6290,71 @@ func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []ty
 		return trace.Wrap(err, "checking if Okta-originated resources are requestable")
 	}
 
+	return nil
+}
+
+// checkConstraintSupport rejects creation when a constrained resource in the
+// local cluster is served by agents that do not advertise
+// RESOURCE_CONSTRAINTS_V1, or when the cluster's Auth/Proxy servers do not,
+// so an approved request cannot dead-end in denial at access time.
+// Constrained resources in other clusters cannot be verified from here (this
+// Auth has no view of a leaf's presence); they are checked client-side and
+// remain fail-closed at enforcement time.
+func (a *Server) checkConstraintSupport(ctx context.Context, raids []types.ResourceAccessID) error {
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var local []types.ResourceAccessID
+	for _, r := range raids {
+		if r.GetConstraints() != nil && r.GetResourceID().ClusterName == clusterName.GetClusterName() {
+			local = append(local, r)
+		}
+	}
+	if len(local) == 0 {
+		return nil
+	}
+
+	clusterFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(ctx, a, a.logger)
+	if !componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, clusterFeatures) {
+		return trace.BadParameter("this cluster's Auth or Proxy servers do not support resource constraints; retry without constraints, or upgrade the cluster")
+	}
+
+	for _, r := range local {
+		id := r.GetResourceID()
+		// A resource may be served by several agents (e.g. HA app servers); any
+		// of them may serve the connection, so all must support constraints.
+		var sets []*componentfeaturesv1.ComponentFeatures
+		switch id.Kind {
+		case types.KindNode:
+			node, err := a.GetNode(ctx, apidefaults.Namespace, id.Name)
+			if err != nil {
+				return trace.Wrap(err, "fetching resource %q to verify constraint support", types.ResourceIDToString(id))
+			}
+			sets = append(sets, componentfeatures.GetEffectiveServerFeatures(node))
+		case types.KindApp:
+			appServers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
+			if err != nil {
+				return trace.Wrap(err, "fetching resource %q to verify constraint support", types.ResourceIDToString(id))
+			}
+			for _, s := range appServers {
+				if s.GetApp().GetName() == id.Name {
+					sets = append(sets, componentfeatures.GetEffectiveServerFeatures(s))
+				}
+			}
+			if len(sets) == 0 {
+				return trace.NotFound("resource %q was not found; cannot verify constraint support", types.ResourceIDToString(id))
+			}
+		default:
+			// ValidateAccessRequest already limits constraint variants to the
+			// kinds above; reject rather than skip if a new variant lands
+			// without support wiring here.
+			return trace.BadParameter("cannot verify constraint support for resource kind %q", id.Kind)
+		}
+		if !componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, append(sets, clusterFeatures)...) {
+			return trace.BadParameter("resource %q does not support the requested constraints (its agent or this cluster's components are too old); retry without constraints", types.ResourceIDToString(id))
+		}
+	}
 	return nil
 }
 
