@@ -550,11 +550,12 @@ func TestJoinToken(t *testing.T) {
 	}
 }
 
-// TestJoinRejectsOutdatedClient asserts a too-old client is rejected before any
-// credentials are issued, over the proxy-forwarded path. The auth middleware's
-// version gate can't cover it, since it sees the proxy's version.
-func TestJoinRejectsOutdatedClient(t *testing.T) {
-	t.Parallel()
+// startOutdatedClientJoin sets up an auth service and proxy, opens a Join stream
+// over the proxy-forwarded path reporting a version two majors behind (below the
+// minimum supported version), and sends a ClientInit. It returns the stream and
+// auth service so callers can assert on the outcome.
+func startOutdatedClientJoin(t *testing.T) (stream messages.ClientStream, authService *fakeAuthService) {
+	t.Helper()
 
 	// The proxy joins with this token and so does the outdated node below.
 	token, err := types.NewProvisionTokenFromSpec("token1", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
@@ -562,7 +563,7 @@ func TestJoinRejectsOutdatedClient(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	authService := newFakeAuthService(t)
+	authService = newFakeAuthService(t)
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token))
 
 	proxy := newFakeProxy(authService)
@@ -587,7 +588,7 @@ func TestJoinRejectsOutdatedClient(t *testing.T) {
 	oldVersion := semver.Version{Major: api.VersionMajor - 2}.String()
 	ctx := metadata.AppendToOutgoingContext(t.Context(), "version", oldVersion)
 
-	stream, err := joinClient.Join(ctx)
+	stream, err = joinClient.Join(ctx)
 	require.NoError(t, err)
 
 	require.NoError(t, stream.Send(&messages.ClientInit{
@@ -595,16 +596,27 @@ func TestJoinRejectsOutdatedClient(t *testing.T) {
 		SystemRole: types.RoleInstance.String(),
 	}))
 
+	return stream, authService
+}
+
+// TestJoinRejectsOutdatedClient asserts a too-old client is rejected before any
+// credentials are issued, over the proxy-forwarded path. The auth middleware's
+// version gate can't cover it, since it sees the proxy's version.
+func TestJoinRejectsOutdatedClient(t *testing.T) {
+	t.Parallel()
+
+	stream, authService := startOutdatedClientJoin(t)
+
 	// The very first response is the rejection, confirming the check runs before
 	// any credentials are issued (no ServerInit precedes it).
-	_, err = stream.Recv()
+	_, err := stream.Recv()
 	require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
 	// Assert only that the minimum version is surfaced, not the exact wording,
 	// so the test survives copy edits to the rejection message.
 	minVersion := semver.Version{Major: api.VersionMajor - 1}.String()
 	require.ErrorContains(t, err, minVersion)
 
-	evt, err := authService.lastEvent(ctx, events.InstanceJoinEvent)
+	evt, err := authService.lastEvent(t.Context(), events.InstanceJoinEvent)
 	require.NoError(t, err)
 	instanceJoin, ok := evt.(*apievents.InstanceJoin)
 	require.True(t, ok, "got %T, expected *apievents.InstanceJoin", evt)
@@ -641,40 +653,7 @@ func TestJoinRejectsOutdatedClient(t *testing.T) {
 func TestJoinAllowsOutdatedClientWithOverride(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
 
-	token, err := types.NewProvisionTokenFromSpec("token1", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
-		Roles: []types.SystemRole{types.RoleInstance, types.RoleProxy},
-	})
-	require.NoError(t, err)
-
-	authService := newFakeAuthService(t)
-	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token))
-
-	proxy := newFakeProxy(authService)
-	proxy.join(t)
-	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	t.Cleanup(func() { proxyListener.Close() })
-	proxy.runGRPCServer(t, proxyListener)
-
-	conn, err := proxyinsecureclient.NewConnection(t.Context(), proxyinsecureclient.ConnectionConfig{
-		ProxyServer: proxyListener.Addr().String(),
-		Insecure:    true,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { conn.Close() })
-
-	joinClient := joinv1.NewClientFromConn(conn)
-
-	oldVersion := semver.Version{Major: api.VersionMajor - 2}.String()
-	ctx := metadata.AppendToOutgoingContext(t.Context(), "version", oldVersion)
-
-	stream, err := joinClient.Join(ctx)
-	require.NoError(t, err)
-
-	require.NoError(t, stream.Send(&messages.ClientInit{
-		TokenName:  token.GetName(),
-		SystemRole: types.RoleInstance.String(),
-	}))
+	stream, _ := startOutdatedClientJoin(t)
 
 	resp, err := stream.Recv()
 	require.NoError(t, err)
