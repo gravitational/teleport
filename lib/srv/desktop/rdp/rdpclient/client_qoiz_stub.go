@@ -1,3 +1,5 @@
+//go:build !(desktop_access_rdp && desktop_encoder)
+
 // Teleport
 // Copyright (C) 2026 Gravitational, Inc.
 //
@@ -13,8 +15,6 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-//go:build !(desktop_access_rdp && desktop_encoder)
 
 package rdpclient
 
