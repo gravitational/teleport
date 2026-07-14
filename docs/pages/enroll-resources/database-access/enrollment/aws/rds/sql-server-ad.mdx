@@ -39,13 +39,8 @@ Database Service forwards user traffic to the database.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 <Admonition type="tip" title="Time to complete">
-
-This guide involves configuring Active Directory, Kerberos, and a Linux host
-joined to your AD domain in addition to Teleport itself. Completing it end to
-end typically takes 2-4 hours and requires access to an AD administrator
-account. If you don't already have an AD domain and a Windows and Linux
+This guide requires an existing Active Directory domain, a Windows host and a Linux host joined to it, and AD administrator access to configure Kerberos and SPNs. If you don't already have an AD domain and a Windows and Linux
 machine joined to it, budget additional time to set those up first.
-
 </Admonition>
 
 - A SQL Server database with Active Directory authentication enabled.
