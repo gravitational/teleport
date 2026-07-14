@@ -72,12 +72,10 @@ extension EnrollCameraScannerViewModel {
 	}
 }
 
-// MARK: - Navigation Helpers
+// MARK: - SheetPresentable
 
-extension EnrollCameraScannerViewModel {
-	/// For the purposes of presentation, there is no distinction between instances of EnrollCameraScannerViewModel,
-	/// so we vend this constant presentation ID to express that to SwiftUI.
-	var presentationID: String {
+extension EnrollCameraScannerViewModel: SheetPresentable {
+	var presentationID: some Hashable {
 		"EnrollCameraScannerViewModel"
 	}
 }
