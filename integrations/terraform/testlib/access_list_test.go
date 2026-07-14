@@ -184,3 +184,49 @@ func (s *TerraformSuiteEnterprise) TestAccessListDefaults() {
 		},
 	})
 }
+
+func (s *TerraformSuiteEnterprise) TestAccessListMemberDefaults() {
+	require.True(s.T(),
+		s.teleportFeatures.GetAdvancedAccessWorkflows(),
+		"Test requires Advanced Access Workflows",
+	)
+
+	checkAccessListMemberDestroyed := func(state *terraform.State) error {
+		_, err := s.client.AccessListClient().GetAccessListMember(context.TODO(), "member_defaults", "member_defaults")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	name := "teleport_access_list_member.member_defaults"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkAccessListMemberDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("access_list_member_defaults.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "header.kind", "access_list_member"),
+					resource.TestCheckResourceAttr(name, "header.version", "v1"),
+					resource.TestCheckResourceAttr(name, "header.metadata.name", "member_defaults"),
+
+					resource.TestCheckResourceAttr(name, "spec.access_list", "member_defaults"),
+					resource.TestCheckResourceAttr(name, "spec.expires", "2026-07-11T20:00:00Z"),
+					resource.TestCheckResourceAttr(name, "spec.membership_kind", "1"),
+					resource.TestCheckResourceAttr(name, "spec.reason", "example reason"),
+
+					resource.TestCheckNoResourceAttr(name, "spec.added_by"),
+					resource.TestCheckNoResourceAttr(name, "spec.joined"),
+					resource.TestCheckNoResourceAttr(name, "spec.name"),
+				),
+			},
+			{
+				Config:   s.getFixture("access_list_member_defaults.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
