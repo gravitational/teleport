@@ -50,7 +50,6 @@ class EnrollDeviceViewModel {
 
 	func requestEnrollToken() async {
 		loadingState = .loading
-		let defaultHTTPSPort = 443
 		do {
 			/*
 			 TODO: Implement the call to requestEnrollmentToken
@@ -59,7 +58,7 @@ class EnrollDeviceViewModel {
 
 			 let token = try await enrollClient.requestEnrollmentToken(
 			 	hostName: deepLink.hostname,
-			 	port: deepLink.port ?? defaultHTTPSPort,
+			 	port: deepLink.port,
 			 	pairingToken: deepLink.enrollPairingToken,
 			 )
 			  */
@@ -78,7 +77,7 @@ class EnrollDeviceViewModel {
 				try Cluster.insert {
 					Cluster.Draft(
 						host: deepLink.hostname,
-						port: deepLink.port ?? defaultHTTPSPort,
+						port: deepLink.port,
 					)
 				}
 				.returning(\.self)
