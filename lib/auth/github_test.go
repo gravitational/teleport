@@ -552,6 +552,32 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 			}
 		})
 	}
+
+	// Regression test: a transient network error must not be served from the
+	// cache for the full TTL (the production cache in NewServer sets
+	// ReloadOnErr). The first login attempt after connectivity recovers must
+	// succeed instead of failing from a poisoned cache until restart.
+	t.Run("reload cached errors", func(t *testing.T) {
+		orgCache, err := utils.NewFnCache(utils.FnCacheConfig{
+			TTL:         time.Hour,
+			ReloadOnErr: true,
+		})
+		require.NoError(t, err)
+
+		client := mockHTTPRequester{
+			succeed: false,
+		}
+		err = auth.CheckGithubOrgSSOSupport(ctx, noSSOOrg, nil, modules.BuildOSS, orgCache, client)
+		require.Error(t, err)
+		require.True(t, trace.IsConnectionProblem(err))
+
+		client = mockHTTPRequester{
+			succeed:    true,
+			statusCode: http.StatusNotFound,
+		}
+		err = auth.CheckGithubOrgSSOSupport(ctx, noSSOOrg, nil, modules.BuildOSS, orgCache, client)
+		require.NoError(t, err)
+	})
 }
 
 func TestGithubURLFormat(t *testing.T) {
