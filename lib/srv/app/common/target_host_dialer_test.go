@@ -46,7 +46,7 @@ func TestTargetDialer(t *testing.T) {
 		addr, closeListener := startTargetHostPolicyListener(t)
 		defer closeListener()
 
-		conn, err := NewTargetDialer(TargetHostPolicy{}, TargetHostAuditContext{}).DialContext(t.Context(), "tcp", addr)
+		conn, err := NewTargetDialer(TargetHostPolicy{}, TargetHostAuditConfig{}).DialContext(t.Context(), "tcp", addr)
 		require.NoError(t, err)
 		require.NoError(t, conn.Close())
 	})
@@ -58,7 +58,7 @@ func TestTargetDialer(t *testing.T) {
 
 		emitter := &targetHostPolicyEmitter{}
 		policy := TargetHostPolicy{AllowedPrefixes: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}}
-		conn, err := NewTargetDialer(policy, newTargetHostAuditContext(t, emitter)).DialContext(t.Context(), "tcp", addr)
+		conn, err := NewTargetDialer(policy, newTargetHostAuditConfig(t, emitter)).DialContext(t.Context(), "tcp", addr)
 		require.NoError(t, err)
 		require.NoError(t, conn.Close())
 		requireNoTargetHostDeniedEvent(t, emitter)
@@ -69,7 +69,7 @@ func TestTargetDialer(t *testing.T) {
 		emitter := &targetHostPolicyEmitter{}
 		policy := TargetHostPolicy{AllowedPrefixes: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}}
 
-		_, err := NewTargetDialer(policy, newTargetHostAuditContext(t, emitter)).DialContext(t.Context(), "tcp", "127.0.0.1:443")
+		_, err := NewTargetDialer(policy, newTargetHostAuditConfig(t, emitter)).DialContext(t.Context(), "tcp", "127.0.0.1:443")
 		require.True(t, traceIsAccessDenied(err), "got %v", err)
 
 		event := requireTargetHostDeniedEvent(t, emitter)
@@ -84,7 +84,7 @@ func TestTargetDialer(t *testing.T) {
 		emitter := &targetHostPolicyEmitter{}
 		policy := TargetHostPolicy{DeniedPrefixes: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}}
 
-		_, err := NewTargetDialer(policy, newTargetHostAuditContext(t, emitter)).DialContext(t.Context(), "tcp", "127.0.0.1:443")
+		_, err := NewTargetDialer(policy, newTargetHostAuditConfig(t, emitter)).DialContext(t.Context(), "tcp", "127.0.0.1:443")
 		require.True(t, traceIsAccessDenied(err), "got %v", err)
 
 		event := requireTargetHostDeniedEvent(t, emitter)
@@ -98,24 +98,13 @@ func TestTargetDialer(t *testing.T) {
 		emitter := &targetHostPolicyEmitter{}
 		policy := TargetHostPolicy{DeniedPrefixes: []netip.Prefix{netip.MustParsePrefix("::1/128")}}
 
-		_, err := NewTargetDialer(policy, newTargetHostAuditContext(t, emitter)).DialContext(t.Context(), "tcp", "[::1]:443")
+		_, err := NewTargetDialer(policy, newTargetHostAuditConfig(t, emitter)).DialContext(t.Context(), "tcp", "[::1]:443")
 		require.True(t, traceIsAccessDenied(err), "got %v", err)
 
 		event := requireTargetHostDeniedEvent(t, emitter)
 		require.Equal(t, "denied_hosts", event.Policy)
 		require.Equal(t, "::1", event.BlockedIP)
 		require.Equal(t, "::1/128", event.BlockedPrefix)
-	})
-
-	t.Run("allow and deny are mutually exclusive", func(t *testing.T) {
-		t.Parallel()
-		policy := TargetHostPolicy{
-			AllowedPrefixes: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
-			DeniedPrefixes:  []netip.Prefix{netip.MustParsePrefix("169.254.0.0/16")},
-		}
-
-		_, err := NewTargetDialer(policy, TargetHostAuditContext{}).DialContext(t.Context(), "tcp", "127.0.0.1:443")
-		require.True(t, trace.IsBadParameter(err), "got %v", err)
 	})
 }
 
@@ -131,7 +120,7 @@ func TestTargetDialerControl(t *testing.T) {
 	runControl := func(a *dialAttempt, ips ...string) []error {
 		errs := make([]error, 0, len(ips))
 		for _, ip := range ips {
-			errs = append(errs, a.control(context.Background(), "tcp", net.JoinHostPort(ip, "443"), nil))
+			errs = append(errs, a.control(t.Context(), "tcp", net.JoinHostPort(ip, "443"), nil))
 		}
 		return errs
 	}
@@ -221,12 +210,13 @@ func TestTargetDialerControl(t *testing.T) {
 		policy := TargetHostPolicy{DeniedPrefixes: []netip.Prefix{netip.MustParsePrefix("169.254.0.0/16")}}
 		a := &dialAttempt{policy: policy, host: "target.example.com", port: "443"}
 
+		ctx := t.Context()
 		var wg sync.WaitGroup
 		for _, ip := range []string{"169.254.1.1", "169.254.1.2", "169.254.1.3", "169.254.1.4"} {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				_ = a.control(context.Background(), "tcp", net.JoinHostPort(ip, "443"), nil)
+				_ = a.control(ctx, "tcp", net.JoinHostPort(ip, "443"), nil)
 			}()
 		}
 		wg.Wait()
@@ -357,7 +347,7 @@ func requireNoTargetHostDeniedEvent(t *testing.T, emitter *targetHostPolicyEmitt
 	require.Empty(t, emitter.events)
 }
 
-func newTargetHostAuditContext(t *testing.T, emitter apievents.Emitter) TargetHostAuditContext {
+func newTargetHostAuditConfig(t *testing.T, emitter apievents.Emitter) TargetHostAuditConfig {
 	t.Helper()
 
 	app, err := types.NewAppV3(types.Metadata{Name: "test"}, types.AppSpecV3{
@@ -375,7 +365,7 @@ func newTargetHostAuditContext(t *testing.T, emitter apievents.Emitter) TargetHo
 			ClusterName: "root.example.com",
 		},
 	}
-	return TargetHostAuditContext{
+	return TargetHostAuditConfig{
 		Emitter:  emitter,
 		ServerID: "server-id",
 		Identity: identity,

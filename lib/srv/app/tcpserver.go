@@ -73,7 +73,7 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 
-	dialer := common.NewTargetDialer(s.targetHostPolicy, common.TargetHostAuditContext{
+	dialer := common.NewTargetDialer(s.targetHostPolicy, common.TargetHostAuditConfig{
 		Emitter:  s.emitter,
 		Logger:   s.log,
 		ServerID: s.hostID,

@@ -143,7 +143,7 @@ func (s *Server) makeBasicHTTPTransport(ctx context.Context, app types.Applicati
 	// from the target server.
 	tr.ResponseHeaderTimeout = time.Minute
 	if s.cfg.TargetHostPolicy.Enabled() {
-		dialer := appcommon.NewTargetDialer(s.cfg.TargetHostPolicy, appcommon.TargetHostAuditContext{
+		dialer := appcommon.NewTargetDialer(s.cfg.TargetHostPolicy, appcommon.TargetHostAuditConfig{
 			Emitter:  s.cfg.Emitter,
 			Logger:   s.cfg.Log,
 			ServerID: s.cfg.HostID,

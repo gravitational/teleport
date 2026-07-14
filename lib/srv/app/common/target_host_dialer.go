@@ -43,8 +43,8 @@ import (
 // net/http.DefaultTransport.
 const targetHostDialKeepAlive = 30 * time.Second
 
-// TargetHostAuditContext contains audit metadata for denied target dials.
-type TargetHostAuditContext struct {
+// TargetHostAuditConfig contains audit metadata for denied target dials.
+type TargetHostAuditConfig struct {
 	Emitter  apievents.Emitter
 	Logger   *slog.Logger
 	ServerID string
@@ -57,12 +57,12 @@ type TargetHostAuditContext struct {
 // denied.
 type TargetDialer struct {
 	policy TargetHostPolicy
-	audit  TargetHostAuditContext
+	audit  TargetHostAuditConfig
 }
 
 // NewTargetDialer returns a dialer that enforces the given policy and reports
 // denied dials through the given audit context.
-func NewTargetDialer(policy TargetHostPolicy, audit TargetHostAuditContext) TargetDialer {
+func NewTargetDialer(policy TargetHostPolicy, audit TargetHostAuditConfig) TargetDialer {
 	return TargetDialer{policy: policy, audit: audit}
 }
 
@@ -73,9 +73,6 @@ func NewTargetDialer(policy TargetHostPolicy, audit TargetHostAuditContext) Targ
 // rebinding window). The dialed address keeps the original hostname, so the
 // caller's Host header, TLS SNI, and certificate verification are unaffected.
 func (d TargetDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	if err := d.policy.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if !d.policy.Enabled() {
 		return newNetDialer().DialContext(ctx, network, address)
 	}
@@ -91,9 +88,6 @@ func (d TargetDialer) DialContext(ctx context.Context, network, address string) 
 // DialTLS dials an application target and performs a TLS handshake using the
 // provided config, applying the same policy enforcement as DialContext.
 func (d TargetDialer) DialTLS(ctx context.Context, network, address string, tlsConfig *tls.Config) (net.Conn, error) {
-	if err := d.policy.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if !d.policy.Enabled() {
 		dialer := &tls.Dialer{NetDialer: newNetDialer(), Config: tlsConfig}
 		return dialer.DialContext(ctx, network, address)
@@ -156,8 +150,12 @@ func (d TargetDialer) emitDenied(ctx context.Context, denial targetHostDenial) {
 		BlockedPrefix: stringifyPrefix(denial.BlockedPrefix),
 	}
 
-	if err := d.audit.Emitter.EmitAuditEvent(ctx, event); err != nil && d.audit.Logger != nil {
-		d.audit.Logger.WarnContext(ctx, "Failed to emit app target dial denied audit event.", "error", err)
+	// Detach from ctx cancellation: on the dial paths ctx is the client request
+	// context, so a client disconnecting as the dial is denied would otherwise
+	// cause the async emitter to drop this security-relevant record.
+	emitCtx := context.WithoutCancel(ctx)
+	if err := d.audit.Emitter.EmitAuditEvent(emitCtx, event); err != nil && d.audit.Logger != nil {
+		d.audit.Logger.WarnContext(emitCtx, "Failed to emit app target dial denied audit event.", "error", err)
 	}
 }
 
@@ -200,11 +198,11 @@ type dialAttempt struct {
 // Returning an error aborts that candidate, so the dialer moves on to the next
 // resolved address.
 func (a *dialAttempt) control(_ context.Context, _ string, address string, _ syscall.RawConn) error {
-	host, _, err := net.SplitHostPort(address)
+	ipStr, _, err := net.SplitHostPort(address)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	addr, err := netip.ParseAddr(host)
+	addr, err := netip.ParseAddr(ipStr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

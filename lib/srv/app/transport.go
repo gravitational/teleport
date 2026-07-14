@@ -138,7 +138,7 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 
 	tr.ResponseHeaderTimeout = responseHeaderTimeout
 	if c.targetHostPolicy.Enabled() {
-		dialer := common.NewTargetDialer(c.targetHostPolicy, common.TargetHostAuditContext{
+		dialer := common.NewTargetDialer(c.targetHostPolicy, common.TargetHostAuditConfig{
 			Emitter:  c.emitter,
 			Logger:   c.log,
 			ServerID: c.hostID,
