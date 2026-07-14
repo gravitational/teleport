@@ -4,6 +4,20 @@ examples_directory: "./resource_examples"
 
 # Please alphabetize the resource list by type name.
 resources:
+  - type: AccessMonitoringRule
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1
+    yaml_kind: access_monitoring_rule
+    yaml_version: v1
+    introduction: |
+      Access monitoring rules allows cluster administrators to monitor Access Requests and apply 
+      notification routing and automatic review rules.
+  - type: AppAuthConfig
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1
+    yaml_kind: app_auth_config
+    yaml_version: v1
+    introduction: |
+      The app auth configuration enables cluster administrators to set up various
+      authentication methods for app access.
   - type: AppV3
     package: github.com/gravitational/teleport/api/types
     yaml_kind: app
@@ -44,6 +58,59 @@ resources:
         Availability](../../../installation/agents/high-availability.mdx)
         for the Teleport Application Service. Read the [reference
         guide](./app-v3.mdx) for the `app` resource.
+  - type: AuthPreferenceV2
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: cluster_auth_preference
+    yaml_version: v2
+  - type: AutoUpdateAgentReport
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1
+    yaml_kind: autoupdate_agent_report
+    yaml_version: v1
+    introduction: |
+      The auto-update agent report is an internal resource used by the Auth Service to track 
+      which agent is running which version and decide if the update can progress.
+
+      This resource should not be edited by humans.
+  - type: AutoUpdateAgentRollout
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1
+    yaml_kind: autoupdate_agent_rollout
+    yaml_version: v1
+    introduction: |
+      The auto-update agent rollout resource allows cluster administrators to view 
+      the current agent rollout for Teleport Agent Managed Updates (v2).
+
+      This resource should not be edited by humans.
+  - type: AutoUpdateConfig
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1
+    yaml_kind: autoupdate_config
+    yaml_version: v1
+    introduction: |
+      The auto-update config resource contains configuration options for Teleport Agent 
+      and client tool Managed Updates (v2).
+
+      The `autoupdate_config` and `autoupdate_version` resources configure 
+      Managed Updates v2 and Managed Updates v1. cluster_maintenance_config 
+      above configures only Managed Updates v1 which are currently supported 
+      but will be deprecated in a future version.
+  - type: AutoUpdateVersion
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1
+    yaml_kind: autoupdate_version
+    yaml_version: v1
+    introduction: |
+      The auto-update version resource allows cluster administrators to manage versions used for agent and client tools Managed Updates.
+
+      The `autoupdate_config` and `autoupdate_version` resources configure Managed Updates v2 and Managed Updates v1.
+      cluster_maintenance_config above configures only Managed Updates v1 which are currently supported but will be deprecated in a future version.
+
+      This resource is not editable for cloud-managed Teleport Enterprise to ensure that all of your clients receive security patches and remain compatible with your cluster.
+  - type: Bot
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1
+    yaml_kind: bot
+    yaml_version: v1
+    introduction: |
+      The bot resources define a Machine & Workload Identity Bot and its access.
+
+      Find out more on the [Machine & Workload Identity configuration reference](../../machine-workload-identity/configuration.mdx).
   - type: BotInstance
     package: github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1
     yaml_kind: bot_instance
@@ -53,6 +120,28 @@ resources:
       registered with your Teleport cluster. It is possible to read and list
       `bot_instance` resources with `tctl` but not to create, modify, or delete
       them.
+  - type: ClusterMaintenanceConfigV1
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: cluster_maintenance_config
+    yaml_version: v1
+    introduction: |
+      The cluster maintenance config resource represents global configuration options
+      for the agents enrolled into automatic updates (v1).
+
+      <Admonition type="warning">
+      `cluster_maintenance_config` configures Managed Updates v1,
+      which are currently supported but will be superseded by Managed Updates v2.
+      The `autoupdate_config` and `autoupdate_version` resources further down
+      configure Managed Updates v2.
+      </Admonition>
+  - type: DatabaseObjectImportRule
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1
+    yaml_kind: db_object_import_rule
+    yaml_version: v1
+    introduction: |
+      Database object import rules define the labels to be applied to database objects imported into Teleport.
+
+      See [Database Access Controls](../../../enroll-resources/database-access/rbac.mdx) for more details.
   - type: DatabaseV3
     package: github.com/gravitational/teleport/api/types
     yaml_kind: db
@@ -109,18 +198,58 @@ resources:
       Registration](../../../enroll-resources/database-access/guides/dynamic-registration.mdx).
 
       Read the [reference guide](./database-v3.mdx) for the `db` resource.
+  - type: Device
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1
+    yaml_kind: device
+    yaml_version: v1
   - type: DiscoveryConfig
     package: github.com/gravitational/teleport/api/types/discoveryconfig
     yaml_kind: discovery_config
     yaml_version: v1
+  - type: HealthCheckConfig
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1
+    yaml_kind: health_check_config
+    yaml_version: v1
+    introduction: |
+      The health check config resource specifies configuration options for resource endpoint health checks.
+
+      Currently, health checks can only be configured for database endpoints.
+  - type: InferenceModel
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1
+    yaml_kind: inference_model
+    yaml_version: v1
+    introduction: |
+      The inference model resource configures which third-party inference provider should be accessed and 
+      contains both general and provider-specific options that control session recording summarization. 
+      Multiple models can be configured.
+  - type: InferencePolicy
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1
+    yaml_kind: inference_policy
+    yaml_version: v1
+    introduction: |
+      The inference policy resource controls, in session recording summaries, which sessions are 
+      summarized and which model will be used to summarize them. There can be multiple policies 
+      defined; multiple policies can also share the same model.
   - type: InstallerV1
     package: github.com/gravitational/teleport/api/types
     yaml_kind: installer
+    yaml_version: v1
+  - type: LoginRule
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1
+    yaml_kind: login_rule
     yaml_version: v1
   - type: OIDCConnectorV3
     package: github.com/gravitational/teleport/api/types
     yaml_kind: oidc
     yaml_version: v3
+  - type: RoleV6
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: role
+    yaml_version: v6
+    introduction: |
+      Interactive and non-interactive users (bots) assume one or many roles.
+      
+      Roles govern access to databases, SSH servers, Kubernetes clusters, web services and applications and Windows Desktops.
   - type: SAMLConnectorV2
     package: github.com/gravitational/teleport/api/types
     yaml_kind: saml
@@ -133,6 +262,56 @@ resources:
     package: github.com/gravitational/teleport/api/types
     yaml_kind: node
     yaml_version: v2
+  - type: UIConfigV1
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: ui_config
+    yaml_version: v1
+    introduction: |
+      The UI config resource contains global configuration options for the Web UI
+      served by the Proxy Service. This resource is not set by default, which means a
+      `tctl get ui` will result in an error if used before this resource has been set.
+  - type: UserV2
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: user
+    yaml_version: v2
+    introduction: |
+      Teleport supports interactive local users, non-interactive local users (bots)
+      and single-sign on users, and represents these with a dynamic resource: 
+  - type: VnetConfig
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1
+    yaml_kind: vnet_config
+    yaml_version: v1
+    introduction: |
+      The VNet config resource contains cluster-specific options VNet should use when
+      setting up connections to resources from this cluster.
+      
+      See [VNet](../../../enroll-resources/application-access/vnet.mdx) for more details.
+  - type: WindowsDesktopV3
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: windows_desktop
+    yaml_version: v3
+    introduction: |
+      The Windows desktop resource represents a remote Windows desktop registered with
+      Teleport.
+      
+      In most cases, Teleport will register `windows_desktop` resources automatically
+      based on static hosts in your configuration file or via LDAP-based discovery.
+      
+      You can also use [dynamic
+      registration](../../../enroll-resources/desktop-access/dynamic-registration.mdx) using
+      `dynamic_windows_desktop` resources. This can be useful for managing inventories
+      of hosts that are not joined to an Active Directory domain.
+      
+      There are a few important considerations to keep in mind when registering
+      desktops this way:
+      
+      1. The desktop's `addr` can be a hostname or IP address, and should include
+         the RDP port (typically 3389).
+      1. If you intend to log in to the desktop with local Windows users you must set
+         `non_ad: true`. If you intend to log in with Active Directory users, leave
+         `non_ad` unset (or false), and specify the Active Directory domain in the
+         `domain` field.
+      
   - type: WorkloadCluster
     package: github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1
     yaml_kind: workload_cluster
@@ -163,3 +342,4 @@ camel_case_exceptions:
   - SSO
   - TLS
   - TPM
+  - UI
