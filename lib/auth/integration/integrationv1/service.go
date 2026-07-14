@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -264,8 +265,8 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 
 	switch req.Integration.GetSubKind() {
 	case types.IntegrationSubKindGitHub:
-		if s.modules.BuildType() != modules.BuildEnterprise {
-			return nil, trace.AccessDenied("GitHub integration requires a Teleport Enterprise license")
+		if err := s.checkGitHubEnterpriseLicense(req.Integration); err != nil {
+			return nil, trace.Wrap(err)
 		}
 		// Save the ClientID before createGitHubCredentials replaces
 		// the inline IdSecret with a StaticCredentialsRef.
@@ -342,6 +343,9 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 	}
 
 	if req.Integration.GetSubKind() == types.IntegrationSubKindGitHub {
+		if err := s.checkGitHubEnterpriseLicense(req.Integration); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if err := s.maybeCreateGitHubSSHCA(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -479,6 +483,25 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// checkGitHubEnterpriseLicense checks if the integration requires a Teleport
+// Enterprise license. SSH protocol always requires Enterprise (for SSH CA).
+// HTTP-only integrations are allowed on any license; the actual GitHub
+// Enterprise org check happens during the OAuth flow, matching the behavior
+// of GitHub SSO connectors.
+func (s *Service) checkGitHubEnterpriseLicense(ig types.Integration) error {
+	if s.modules.BuildType() == modules.BuildEnterprise {
+		return nil
+	}
+	spec := ig.GetGitHubIntegrationSpec()
+	if spec == nil {
+		return nil
+	}
+	if slices.Contains(spec.AllowProtocols, types.GitProtocolSSH) {
+		return trace.AccessDenied("GitHub SSH proxy requires a Teleport Enterprise license")
+	}
+	return nil
 }
 
 // cleanupGitHubCredentials removes all user credentials associated with a

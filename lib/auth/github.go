@@ -840,6 +840,13 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 		return nil, trace.Wrap(err)
 	}
 
+	// Check if the GitHub org uses external SSO. Non-Enterprise Teleport
+	// cannot be used with GitHub Enterprise orgs that have SSO enabled.
+	// This matches the behavior of GitHub SSO connectors.
+	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.modules.BuildType(), a.githubOrgSSOCache, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// In test flow, skip saving credentials. Verify the token works by making
 	// a test API call and record diagnostic info.
 	if req.SSOTestFlow {

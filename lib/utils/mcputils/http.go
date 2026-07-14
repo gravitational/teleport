@@ -61,6 +61,8 @@ func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processor Ser
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	a := http.Header{}
+	a.Set("Content-Type", mediaType)
 	switch mediaType {
 	case "application/json":
 		// Single response.
