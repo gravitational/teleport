@@ -3357,6 +3357,15 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 
 	// Upsert request if it doesn't already exist.
 	if cf.RequestID == "" {
+		// Fail fast when a constrained request targets a cluster or agent that
+		// cannot enforce constraints: an old Auth would reject the request with
+		// a confusing sentinel error or silently create it without the
+		// constrained resources (see RFD 228 mixed-version behavior).
+		if len(req.GetRequestedResourceAccessIDs()) > 0 {
+			if err := verifyRequestConstraintSupport(cf, tc, req); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 		fmt.Fprint(os.Stdout, "Creating request...\n")
 		// always create access request against the root cluster
 		if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
@@ -3395,6 +3404,44 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 
 	// Handle resolution and update client certs if approved.
 	return trace.Wrap(onRequestResolution(cf, tc, resolvedReq))
+}
+
+// verifyRequestConstraintSupport runs the pre-flight ComponentFeatures check
+// for a constrained request: the root cluster's Auth/Proxy features are read
+// via the root auth client, and each constrained resource is fetched from its
+// own cluster (root or leaf) to intersect its agents' features, along with
+// the leaf's Auth/Proxy features when the resource is remote, mirroring the
+// Web UI's feature-advertisement gating.
+func verifyRequestConstraintSupport(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	rootClt, err := clusterClient.ConnectToRootCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootClt.Close()
+
+	var clusterClients []authclient.ClientI
+	defer func() {
+		for _, c := range clusterClients {
+			c.Close()
+		}
+	}()
+	getClusterClient := func(ctx context.Context, clusterName string) (common.ClusterSupportClient, error) {
+		clt, err := clusterClient.ConnectToCluster(ctx, clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clusterClients = append(clusterClients, clt)
+		return clt, nil
+	}
+
+	return trace.Wrap(common.VerifyConstraintSupport(
+		cf.Context, slog.Default(), clusterClient.RootClusterName(), rootClt, getClusterClient, req.GetRequestedResourceAccessIDs()))
 }
 
 func printNodes(nodes []types.Server, conf *CLIConf) error {

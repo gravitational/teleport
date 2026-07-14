@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -357,6 +358,26 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 		}
 		return trace.Wrap(utils.WriteJSON(c.stdout, req), "failed to marshal request")
 	}
+	// Fail fast when a constrained request cannot be enforced (see RFD 228
+	// mixed-version behavior). tctl talks only to the local Auth, so resources
+	// in other clusters are skipped here; Auth-side validation and fail-closed
+	// enforcement still apply to them.
+	if len(req.GetRequestedResourceAccessIDs()) > 0 {
+		clusterName, err := client.GetClusterName(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		getClusterClient := func(ctx context.Context, name string) (common.ClusterSupportClient, error) {
+			if name != clusterName.GetClusterName() {
+				return nil, nil
+			}
+			return client, nil
+		}
+		if err := common.VerifyConstraintSupport(ctx, slog.Default(), clusterName.GetClusterName(), client, getClusterClient, req.GetRequestedResourceAccessIDs()); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	req, err = client.CreateAccessRequestV2(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
