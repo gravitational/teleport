@@ -222,9 +222,9 @@ You can find the public key of the target override by running
 ### Create certificate overrides on multi-Auth, HSM-enabled clusters
 
 In multi-Auth, HSM-enabled clusters, each Auth Service instance may have
-exclusive private keys. In this scenario, make sure all Auth instances are
+exclusive private keys. In this scenario, make sure all Auth Service instances are
 online and healthy, then create your overrides in the disabled state. The Auth
-instances automatically sign CRLs in the background for their respective keys.
+Service instances automatically sign CRLs in the background for their respective keys.
 After a certificate override has a matching CRL it can be enabled.
 
 ```code
