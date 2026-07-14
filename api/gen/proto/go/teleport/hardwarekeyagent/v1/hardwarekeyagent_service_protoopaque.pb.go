@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/hardwarekeyagent/v1/hardwarekeyagent_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package hardwarekeyagentv1
 

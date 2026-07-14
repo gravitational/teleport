@@ -59,10 +59,11 @@ requirements for your platform:
 <Tabs>
 <TabItem label="Remote virtual machine">
 
-- A Linux host with only port `443` open to ingress traffic. You must be able to
-  install and run software on the host. Either configure access to the host via
-  SSH for the initial setup (and open an SSH port in addition to port `443`) or
-  enter the commands in this guide into an Amazon EC2 [user data
+- A Linux host with only port `443` open to ingress traffic, and no existing
+  Teleport installation. You must be able to install and run software on the
+  host. Either configure access to the host via SSH for the initial setup (and
+  open an SSH port in addition to port `443`) or enter the commands in this
+  guide into an Amazon EC2 [user data
   script](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
   Google Compute Engine [startup
   script](https://cloud.google.com/compute/docs/instances/startup-scripts), or

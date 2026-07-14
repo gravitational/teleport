@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/scopes/v1/scopes.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package scopesv1
 

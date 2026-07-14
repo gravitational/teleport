@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/samlidp/v1/samlidp.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package samlidpv1
 

@@ -282,11 +282,35 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		nsa.NetworkStack = ns
 	}
 
-	diagChecks, err := s.platformDiagChecks(ctx)
+	var diagChecks []diag.DiagCheck
+
+	//nolint:staticcheck // SA4023. routeConflictDiag may be nil on unsupported platforms (see service_other.go).
+	routeConflictDiag, err := s.platformRouteConflictDiag()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA4023.
+	if routeConflictDiag != nil {
+		diagChecks = append(diagChecks, routeConflictDiag)
+	}
 
+	// Skip the DNS check if NetworkStack is unavailable we need at least one
+	// of Ipv6Prefix, Ipv4CidrRanges to derive a VNet DNS server address.
+	if ns := nsa.NetworkStack; ns != nil && (ns.Ipv6Prefix != "" || len(ns.Ipv4CidrRanges) > 0) {
+		dnsDiag, err := s.dnsDiag(ns)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		diagChecks = append(diagChecks, dnsDiag)
+	}
+
+	sshDiag, err := s.sshDiag()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	diagChecks = append(diagChecks, sshDiag)
+
+	// TODO(tangyatsu): release s.mu before diag checks and cancel them on Stop.
 	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
 		Clock:               s.cfg.Clock,
 		NetworkStackAttempt: nsa,
@@ -299,6 +323,36 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 	return &api.RunDiagnosticsResponse{
 		Report: report,
 	}, nil
+}
+
+// sshDiag builds the SSH configuration diagnostic check. It is platform-agnostic.
+func (s *Service) sshDiag() (diag.DiagCheck, error) {
+	sshDiag, err := diag.NewSSHDiag(&diag.SSHConfig{
+		ProfilePath: s.cfg.profilePath,
+	})
+	return sshDiag, trace.Wrap(err)
+}
+
+// dnsDiag builds the DNS diagnostic check. It is platform-agnostic.
+func (s *Service) dnsDiag(ns *diagv1.NetworkStack) (diag.DiagCheck, error) {
+	// TODO(tangyatsu): make NetworkStackInfo return DNS server addresses directly.
+	cfg := &diag.DNSConfig{DNSZones: ns.DnsZones}
+	if ns.Ipv6Prefix != "" {
+		s, err := diag.DNSServerForIPv6Prefix(ns.Ipv6Prefix)
+		if err != nil {
+			return nil, trace.Wrap(err, "computing VNet IPv6 DNS server address for DNS diag check")
+		}
+		cfg.VNetDNSIPv6 = s
+	}
+	if len(ns.Ipv4CidrRanges) > 0 {
+		s, err := diag.DNSServerForIPv4CIDRRange(ns.Ipv4CidrRanges[0])
+		if err != nil {
+			return nil, trace.Wrap(err, "computing VNet IPv4 DNS server address for DNS diag check")
+		}
+		cfg.VNetDNSIPv4 = s
+	}
+	dnsDiag, err := diag.NewDNSDiag(cfg)
+	return dnsDiag, trace.Wrap(err, "constructing DNS diag check")
 }
 
 func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, error) {
