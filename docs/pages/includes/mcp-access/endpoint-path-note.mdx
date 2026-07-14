@@ -1,0 +1,3 @@
+<Admonition type="note" title="MCP endpoint paths">
+If the MCP endpoint includes a path such as `/mcp` or `/sse`, it can be included in the `uri`. For streamable-HTTP servers, Teleport uses the path in `uri` when an MCP client requests `/`. When the client requests a different path, Teleport forwards the request to that path instead of appending it to the path in `uri`. For example, if `uri` is `mcp+https://localhost:3000/mcp` and the MCP client requests `/.well-known/oauth-authorization-server`, Teleport forwards the request to `/.well-known/oauth-authorization-server`, not `/mcp/.well-known/oauth-authorization-server`.
+</Admonition>
