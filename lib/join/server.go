@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -466,15 +467,6 @@ func (s *Server) displayRejectedClientAlert(ctx context.Context, info diagnostic
 		return
 	}
 
-	now := time.Now()
-	s.mu.Lock()
-	if now.Sub(s.lastRejectedAlertTime) < 24*time.Hour {
-		s.mu.Unlock()
-		return
-	}
-	s.lastRejectedAlertTime = now
-	s.mu.Unlock()
-
 	alertVersion := semver.Version{
 		Major: s.oldestSupportedVersion.Major,
 		Minor: s.oldestSupportedVersion.Minor,
@@ -497,9 +489,30 @@ func (s *Server) displayRejectedClientAlert(ctx context.Context, info diagnostic
 		s.cfg.Logger.WarnContext(ctx, "failed to create rejected-unsupported-connection alert", "error", err)
 		return
 	}
-	if err := s.cfg.AlertCreator(context.WithoutCancel(ctx), alert); err != nil {
-		s.cfg.Logger.WarnContext(ctx, "failed to persist rejected-unsupported-connection alert", "error", err)
+
+	now := time.Now()
+	s.mu.Lock()
+	if now.Sub(s.lastRejectedAlertTime) < 24*time.Hour {
+		s.mu.Unlock()
+		return
 	}
+	prev := s.lastRejectedAlertTime
+	s.lastRejectedAlertTime = now
+	s.mu.Unlock()
+
+	alertCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaults.DefaultIOTimeout)
+	defer cancel()
+	err = s.cfg.AlertCreator(alertCtx, alert)
+	if err == nil {
+		return
+	}
+
+	s.cfg.Logger.WarnContext(ctx, "failed to persist rejected-unsupported-connection alert", "error", err)
+	s.mu.Lock()
+	if s.lastRejectedAlertTime.Equal(now) {
+		s.lastRejectedAlertTime = prev
+	}
+	s.mu.Unlock()
 }
 
 func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, clientInit *messages.ClientInit) (*joinauthz.Context, error) {
