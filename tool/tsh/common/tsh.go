@@ -858,7 +858,7 @@ const (
 	mcpClientConfigEnvVar     = "TELEPORT_MCP_CLIENT_CONFIG"
 	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
 	toolsCheckUpdateEnvVar    = "TELEPORT_TOOLS_CHECK_UPDATE"
-	proxyStatusOutputEnvVar   = "TSH_PROXY_STATUS_OUTPUT"
+	proxyStatusOutputEnvVar   = "TELEPORT_PROXY_LOG_OUTPUT"
 
 	proxyStatusOutputDefault = "stderr"
 	proxyStatusOutputStdout  = "stdout"
@@ -1151,7 +1151,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
-	proxy.Flag("proxy-output", fmt.Sprintf("Select where proxy status messages are printed. Defaults to %q, but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are %q, %q, and %q.", proxyStatusOutputDefault, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)).Envar(proxyStatusOutputEnvVar).Default(proxyStatusOutputDefault).EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
+	proxy.Flag("proxy-log-output", fmt.Sprintf("Select where proxy status messages are printed. Defaults to %q, but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are %q, %q, and %q.", proxyStatusOutputDefault, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)).Envar(proxyStatusOutputEnvVar).Default(proxyStatusOutputDefault).EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)

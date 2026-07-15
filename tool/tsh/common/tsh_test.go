@@ -8835,22 +8835,22 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 		},
 		{
 			name:     "flag stdout",
-			args:     []string{"--proxy-output=stdout"},
+			args:     []string{"--proxy-log-output=stdout"},
 			expected: proxyStatusOutputStdout,
 		},
 		{
 			name:     "flag stderr",
-			args:     []string{"--proxy-output=stderr"},
+			args:     []string{"--proxy-log-output=stderr"},
 			expected: proxyStatusOutputStderr,
 		},
 		{
 			name:     "flag none",
-			args:     []string{"--proxy-output=none"},
+			args:     []string{"--proxy-log-output=none"},
 			expected: proxyStatusOutputNone,
 		},
 		{
 			name: "flag overrides env",
-			args: []string{"--proxy-output=none"},
+			args: []string{"--proxy-log-output=none"},
 			env: map[string]string{
 				proxyStatusOutputEnvVar: proxyStatusOutputStderr,
 			},
@@ -8863,7 +8863,7 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 		},
 		{
 			name:    "invalid flag",
-			args:    []string{"--proxy-output=foobar"},
+			args:    []string{"--proxy-log-output=foobar"},
 			wantErr: true,
 		},
 	} {
@@ -8874,7 +8874,7 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 
 			var proxyStatusOutput string
 			app := utils.InitCLIParser("tsh", "Teleport Command Line Client.")
-			app.Flag("proxy-output", "Test fixture only, help message not tested in this test").
+			app.Flag("proxy-log-output", "Test fixture only, help message not tested in this test").
 				Envar(proxyStatusOutputEnvVar).
 				Hidden().
 				Default(proxyStatusOutputDefault).
@@ -8906,7 +8906,7 @@ func TestProxyStatusOutputHelp(t *testing.T) {
 			require.NoError(t, cf.kingpinApp.UsageForContext(ctx))
 
 			help := buf.String()
-			require.Contains(t, help, "--proxy-output")
+			require.Contains(t, help, "--proxy-log-output")
 			return trace.BadParameter(success_param)
 		},
 	)
