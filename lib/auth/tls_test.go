@@ -1759,7 +1759,10 @@ func TestAppServerCRUD(t *testing.T) {
 
 	testSrv := newTestTLSServer(t)
 
-	clt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleApp))
+	// A RoleApp agent may only manage app servers with its own host ID, so the
+	// identity's host ID and the app server's HostID must match.
+	const appHostID = "app-host-id"
+	clt, err := testSrv.NewClient(authtest.TestServerID(types.RoleApp, appHostID))
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -1778,7 +1781,7 @@ func TestAppServerCRUD(t *testing.T) {
 		Namespace: apidefaults.Namespace,
 	}, types.AppServerSpecV3{
 		Hostname: "localhost",
-		HostID:   uuid.New().String(),
+		HostID:   appHostID,
 		App:      app,
 	})
 	require.NoError(t, err)
