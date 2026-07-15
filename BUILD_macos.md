@@ -23,8 +23,13 @@ and updates are welcome!
     ```shell
     brew install rustup
 
-    rustup-init
-    # Accept defaults
+    # Add Homebrew's rustup shims and Cargo-installed tools to PATH.
+    RUSTUP_PREFIX="$(brew --prefix rustup)"
+    echo 'export PATH="$HOME/.cargo/bin:'"${RUSTUP_PREFIX}"'/bin:$PATH"' >> ~/.zshrc
+    source ~/.zshrc
+
+    # Install the toolchain and targets pinned by rust-toolchain.toml.
+    rustup toolchain install
     ```
 
 1. Install Node.js
@@ -78,7 +83,7 @@ and updates are welcome!
     ```shell
     brew install helm
 
-    helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11
+    helm plugin install https://github.com/helm-unittest/helm-unittest --version "$(cat build.assets/helm-unittest.version)" --verify=false
     ```
 
 1. Install `bats`:
