@@ -49,7 +49,7 @@ type Endpoint struct {
 }
 
 // MarshalError implements [recorder.Endpoint].
-func (e Endpoint) MarshalError(err error) (body []byte) {
+func (e Endpoint) MarshalError(err error) []byte {
 	return marshalError(newErrorEnvelope(err))
 }
 

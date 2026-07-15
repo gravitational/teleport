@@ -189,7 +189,7 @@ func marshalError(apiErr *errorEnvelope) []byte {
 	enc, err := utils.FastMarshal(apiErr)
 	if err != nil {
 		return []byte(
-			`{"type": "error", "error": {"type": "api_error", "message": "` + llmerrors.ErrUnknown.Error() + `"}}`,
+			`{"type": "error", "error": {"type": "api_error", "message": ` + llmerrors.MarshalMessage(llmerrors.ErrUnknown) + `}}`,
 		)
 	}
 	return enc

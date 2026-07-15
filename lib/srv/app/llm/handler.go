@@ -48,9 +48,9 @@ type Handler struct {
 	metrics      *llmMetrics
 
 	anthropicProviderURL *url.URL
-	anthropicApiKey      string
+	anthropicAPIKey      string
 	openAIProviderURL    *url.URL
-	openAIApiKey         string
+	openAIAPIKey         string
 }
 
 // HandlerConfig configures dependencies for the LLM proxy handler.
@@ -108,8 +108,8 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 		metrics:      m,
 		// Not much validation can be applied here since some providers might
 		// not require an actual API key.
-		anthropicApiKey: os.Getenv(anthropicApiKeyEnvVarName),
-		openAIApiKey:    os.Getenv(openAIApiKeyEnvVarName),
+		anthropicAPIKey: os.Getenv(anthropicAPIKeyEnvVarName),
+		openAIAPIKey:    os.Getenv(openAIAPIKeyEnvVarName),
 	}
 
 	// It ok to leave this value as `nil`, the value receivers must implement a
@@ -172,7 +172,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 					DownstreamRequest: r,
 					ProviderURL:       h.anthropicProviderURL,
 					GetAPIKeyFunc: func() string {
-						return h.anthropicApiKey
+						return h.anthropicAPIKey
 					},
 					SignBedrockRequest: h.signBedrockRequest,
 				})
@@ -191,7 +191,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 					DownstreamRequest: r,
 					ProviderURL:       h.openAIProviderURL,
 					GetAPIKeyFunc: func() string {
-						return h.openAIApiKey
+						return h.openAIAPIKey
 					},
 				})
 			},
@@ -372,15 +372,15 @@ const (
 	//
 	// https://code.claude.com/docs/en/env-vars#variables
 	anthropicAddressEnvVarName = "ANTHROPIC_BASE_URL"
-	// anthropicApiKeyEnvVarName is the Anthropic's default environment variable
+	// anthropicAPIKeyEnvVarName is the Anthropic's default environment variable
 	// used to set API keys.
 	//
 	// https://code.claude.com/docs/en/env-vars#variables
-	anthropicApiKeyEnvVarName = "ANTHROPIC_API_KEY"
+	anthropicAPIKeyEnvVarName = "ANTHROPIC_API_KEY"
 	// openAIAddressEnvVarName is the OpenAI's environment variable used to set
 	// base API address.
 	openAIAddressEnvVarName = "OPENAI_BASE_URL"
-	// openAIApiKeyEnvVarName is the OpenAI's environment variable used to
+	// openAIAPIKeyEnvVarName is the OpenAI's environment variable used to
 	// set API keys.
-	openAIApiKeyEnvVarName = "OPENAI_API_KEY"
+	openAIAPIKeyEnvVarName = "OPENAI_API_KEY"
 )

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -93,4 +94,20 @@ func StatusCodeFromErr(err error) int {
 	default:
 		return trace.ErrorToCode(err)
 	}
+}
+
+// MarshalMessage marshals an error into JSON format. This function might return
+// empty.
+//
+// Callers can safely interpolate the result of this function with JSON strings.
+func MarshalMessage(err error) string {
+	if err == nil {
+		return `""`
+	}
+
+	if enc, err := utils.FastMarshal(err.Error()); err == nil {
+		return string(enc)
+	}
+
+	return `""`
 }

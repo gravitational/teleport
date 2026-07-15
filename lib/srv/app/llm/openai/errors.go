@@ -38,7 +38,7 @@ func marshalError(apiErr *errorEnvelope) []byte {
 	enc, err := utils.FastMarshal(apiErr)
 	if err != nil {
 		return []byte(
-			`{"error": {"type": "server_error", "message": "` + llmerrors.ErrUnknown.Error() + `"}}`,
+			`{"error": {"type": "server_error", "message": ` + llmerrors.MarshalMessage(llmerrors.ErrUnknown) + `}}`,
 		)
 	}
 	return enc
@@ -51,7 +51,7 @@ func marshalResponsesErrorEvent(evt *responsesErrorSSEEvent) []byte {
 		return []byte(
 			// Ignore SequenceNumber to avoid having to deal with number
 			// conversions in this failure scenario.
-			`{"type": "error", "message": "` + llmerrors.ErrUnknown.Error() + `"}`,
+			`{"type": "error", "message": ` + llmerrors.MarshalMessage(llmerrors.ErrUnknown) + `}`,
 		)
 	}
 	return enc
@@ -65,7 +65,7 @@ func marshalResponsesFailedError(evt *responsesFailedSSEEvent) []byte {
 		return []byte(
 			// Ignore SequenceNumber to avoid having to deal with number
 			// conversions in this failure scenario.
-			`{"type": "` + responsesFailedEventName + `", "response": {"type": "server_error", "message": "` + llmerrors.ErrUnknown.Error() + `"}}`,
+			`{"type": "` + responsesFailedEventName + `", "response": {"type": "server_error", "message": ` + llmerrors.MarshalMessage(llmerrors.ErrUnknown) + `}}`,
 		)
 	}
 	return enc
@@ -89,6 +89,11 @@ func newResponsesFailedError(seqNumber int, err error) *responsesFailedSSEEvent 
 	return &responsesFailedSSEEvent{
 		Type:           responsesFailedEventName,
 		SequenceNumber: seqNumber,
+		// `responses.failed` contents needed is only the `error` key.
+		// Instead of definining a dedicated struct for this we reuse the
+		// `errorEvenlope`, but since the response doesn't have the `type` field
+		// we must not define here (and cannot use the `newErrorEnvelope`
+		// function).
 		Response: errorEnvelope{
 			Error: newErrorMessage(err),
 		},
