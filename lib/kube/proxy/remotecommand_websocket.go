@@ -23,10 +23,10 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	"k8s.io/apimachinery/pkg/util/remotecommand"
 	"k8s.io/apiserver/pkg/endpoints/responsewriter"
 	"k8s.io/klog/v2"
+	"k8s.io/streaming/pkg/httpstream/wsstream"
 )
 
 const (
