@@ -19,7 +19,7 @@
 // 	protoc        (unknown)
 // source: teleport/recordingmetadata/v1/recordingmetadata.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package recordingmetadatav1
 

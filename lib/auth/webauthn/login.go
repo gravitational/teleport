@@ -211,6 +211,7 @@ func (f *loginFlow) begin(ctx context.Context, params BeginParams) (*wantypes.Cr
 	if params.SessionIdentifyingPayload != nil {
 		sd.Payload = &mfatypes.SessionIdentifyingPayload{
 			SSHSessionID: params.SessionIdentifyingPayload.GetSshSessionId(),
+			TLSSessionID: params.SessionIdentifyingPayload.GetTlsSessionId(),
 		}
 	}
 

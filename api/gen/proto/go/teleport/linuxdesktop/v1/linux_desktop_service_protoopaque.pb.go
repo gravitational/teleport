@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/linuxdesktop/v1/linux_desktop_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package linuxdesktopv1
 

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/clusterconfig/v1/clusterconfig_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package clusterconfigv1
 
