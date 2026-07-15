@@ -243,6 +243,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			Validate: func(t *testing.T, igName string) {
 				mustFindGitHubCredentials(t, localClient, igName, "id", "secret")
+				mustHaveGitHubStatus(t, localClient, igName, "id")
 			},
 			ErrAssertion: noError,
 		},
@@ -304,6 +305,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			Validate: func(t *testing.T, igName string) {
 				mustFindGitHubCredentials(t, localClient, igName, "new-id", "new-secret")
+				mustHaveGitHubStatus(t, localClient, igName, "new-id")
 			},
 			ErrAssertion: noError,
 		},
@@ -334,6 +336,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			Validate: func(t *testing.T, igName string) {
 				mustFindGitHubCredentials(t, localClient, igName, "id", "secret")
+				mustHaveGitHubStatus(t, localClient, igName, "id")
 			},
 			ErrAssertion: noError,
 		},
@@ -364,6 +367,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			Validate: func(t *testing.T, igName string) {
 				mustFindGitHubCredentials(t, localClient, igName, "id", "new-secret")
+				mustHaveGitHubStatus(t, localClient, igName, "id")
 			},
 			ErrAssertion: noError,
 		},
@@ -1156,6 +1160,14 @@ func newGitHubIntegration(name, id, secret string) (*types.IntegrationV1, error)
 		})
 	}
 	return ig, nil
+}
+
+func mustHaveGitHubStatus(t *testing.T, localClient Backend, igName, wantClientID string) {
+	t.Helper()
+	ig, err := localClient.GetIntegration(context.Background(), igName)
+	require.NoError(t, err)
+	require.NotNil(t, ig.GetStatus().GitHub, "GitHub status should be set")
+	assert.Equal(t, wantClientID, ig.GetStatus().GitHub.ClientID)
 }
 
 func mustFindGitHubCredentials(t *testing.T, localClient Backend, igName, wantId, wantSecret string) {

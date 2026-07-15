@@ -9138,6 +9138,14 @@ message IntegrationSpecV1 {
 message IntegrationStatusV1 {
   // AWSRolesAnywhere contains the specific status fields to related to the AWS Roles Anywhere Integration subkind.
   AWSRAIntegrationStatusV1 AWSRolesAnywhere = 1 [(gogoproto.jsontag) = "aws_ra,omitempty"];
+  // GitHub contains the status fields for the GitHub integration subkind.
+  GitHubIntegrationStatusV1 GitHub = 2 [(gogoproto.jsontag) = "github,omitempty"];
+}
+
+// GitHubIntegrationStatusV1 contains the status of a GitHub integration.
+message GitHubIntegrationStatusV1 {
+  // ClientID is the GitHub App or OAuth App client ID.
+  string ClientID = 1 [(gogoproto.jsontag) = "client_id,omitempty"];
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.

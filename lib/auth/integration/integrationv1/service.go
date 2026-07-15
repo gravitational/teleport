@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
@@ -278,6 +279,10 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		}
 	}
 
+	if err := s.updateIntegrationStatus(ctx, req.Integration); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ig, err := s.backend.CreateIntegration(ctx, req.GetIntegration())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -329,6 +334,10 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 	}
 
 	if err := s.maybeUpdateStaticCredentials(ctx, req.GetIntegration()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.updateIntegrationStatus(ctx, req.GetIntegration()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -547,4 +556,25 @@ func (s *Service) deleteGitHubAssociatedResources(ctx context.Context, authCtx *
 	}
 
 	return nil
+}
+
+func (s *Service) updateIntegrationStatus(ctx context.Context, ig types.Integration) error {
+	switch ig.GetSubKind() {
+	case types.IntegrationSubKindGitHub:
+		// Use backend directly instead of cache since credentials may have
+		// just been created and the cache might not have caught up yet.
+		cred, err := credentials.GetByPurpose(ctx, ig.GetCredentials().GetStaticCredentialsRef(), credentials.PurposeGitHubOAuth, s.backend)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		ig.SetStatus(types.IntegrationStatusV1{
+			GitHub: &types.GitHubIntegrationStatusV1{
+				ClientID: cred.GetOAuthClientID(),
+			},
+		})
+		return nil
+
+	default:
+		return nil
+	}
 }
