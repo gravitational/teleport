@@ -104,7 +104,47 @@ func TestCopyToBoolOption(t *testing.T) {
 				Unknown: true,
 			}
 
-			value := CopyToBoolOption(diags, tc.input, terraformType, valueInitial)
+			value := CopyToBoolOption(diags, tc.input, terraformType, valueInitial, false)
+			require.Empty(t, diags)
+			require.Equal(t, tc.expected, value)
+		})
+	}
+}
+
+func TestCopyToBoolOptionPreserveUnknown(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		input    *apitypes.BoolOption
+		expected types.Bool
+	}{
+		{
+			name:     "true",
+			input:    &apitypes.BoolOption{Value: true},
+			expected: types.Bool{Unknown: true},
+		},
+		{
+			name:     "false",
+			input:    &apitypes.BoolOption{Value: false},
+			expected: types.Bool{Unknown: true},
+		},
+		{
+			name:     "null",
+			input:    nil,
+			expected: types.Bool{Unknown: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			diags := diag.Diagnostics{}
+			terraformType := types.BoolType
+			valueInitial := types.Bool{
+				Unknown: true,
+			}
+
+			value := CopyToBoolOption(diags, tc.input, terraformType, valueInitial, true)
 			require.Empty(t, diags)
 			require.Equal(t, tc.expected, value)
 		})
@@ -362,9 +402,82 @@ func TestCopyToLabels(t *testing.T) {
 
 			diags := diag.Diagnostics{}
 
-			value := CopyToLabels(diags, tc.input, labelMapType, tc.initial)
+			value := CopyToLabels(diags, tc.input, labelMapType, tc.initial, false)
 			require.Empty(t, diags)
 			requireLabels(t, value, tc.expected)
+		})
+	}
+}
+
+func TestCopyToLabelsPreserveUnknown(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		input    apitypes.Labels
+		initial  attr.Value
+		expected attr.Value
+	}{
+		{
+			name: "element is unknown",
+			input: apitypes.Labels{
+				"foo": utils.Strings{"new"},
+			},
+			initial: types.Map{
+				ElemType: labelListType,
+				Elems: map[string]attr.Value{
+					"foo": types.List{
+						ElemType: types.StringType,
+						Elems: []attr.Value{
+							types.String{Unknown: true},
+						},
+					},
+				},
+			},
+			expected: types.Map{
+				ElemType: labelListType,
+				Elems: map[string]attr.Value{
+					"foo": types.List{
+						ElemType: types.StringType,
+						Elems: []attr.Value{
+							types.String{Unknown: true},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "empty labels",
+			input: apitypes.Labels{},
+			initial: types.Map{
+				ElemType: labelListType,
+				Unknown:  true,
+			},
+			expected: types.Map{
+				ElemType: labelListType,
+				Unknown:  true,
+			},
+		},
+		{
+			name: "nil labels",
+			initial: types.Map{
+				ElemType: labelListType,
+				Unknown:  true,
+			},
+			expected: types.Map{
+				ElemType: labelListType,
+				Unknown:  true,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			diags := diag.Diagnostics{}
+
+			value := CopyToLabels(diags, tc.input, labelMapType, tc.initial, true)
+			require.Empty(t, diags)
+			require.Equal(t, tc.expected, value)
 		})
 	}
 }
@@ -453,9 +566,82 @@ func TestCopyToTraits(t *testing.T) {
 
 			diags := diag.Diagnostics{}
 
-			value := CopyToTraits(diags, tc.input, labelMapType, tc.initial)
+			value := CopyToTraits(diags, tc.input, labelMapType, tc.initial, false)
 			require.Empty(t, diags)
 			requireTraits(t, value, tc.expected)
+		})
+	}
+}
+
+func TestCopyToTraitsPreserveUnknown(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		input    wrappers.Traits
+		initial  attr.Value
+		expected attr.Value
+	}{
+		{
+			name: "element is unknown",
+			input: wrappers.Traits{
+				"foo": utils.Strings{"new"},
+			},
+			initial: types.Map{
+				ElemType: labelListType,
+				Elems: map[string]attr.Value{
+					"foo": types.List{
+						ElemType: types.StringType,
+						Elems: []attr.Value{
+							types.String{Unknown: true},
+						},
+					},
+				},
+			},
+			expected: types.Map{
+				ElemType: labelListType,
+				Elems: map[string]attr.Value{
+					"foo": types.List{
+						ElemType: types.StringType,
+						Elems: []attr.Value{
+							types.String{Unknown: true},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "empty labels",
+			input: wrappers.Traits{},
+			initial: types.Map{
+				ElemType: labelListType,
+				Unknown:  true,
+			},
+			expected: types.Map{
+				ElemType: labelListType,
+				Unknown:  true,
+			},
+		},
+		{
+			name: "nil labels",
+			initial: types.Map{
+				ElemType: labelListType,
+				Unknown:  true,
+			},
+			expected: types.Map{
+				ElemType: labelListType,
+				Unknown:  true,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			diags := diag.Diagnostics{}
+
+			value := CopyToTraits(diags, tc.input, labelMapType, tc.initial, true)
+			require.Empty(t, diags)
+			require.Equal(t, tc.expected, value)
 		})
 	}
 }
@@ -536,9 +722,72 @@ func TestStringsCopyTo(t *testing.T) {
 
 			diags := diag.Diagnostics{}
 
-			value := CopyToStrings(diags, tc.input, labelListType, tc.initial)
+			value := CopyToStrings(diags, tc.input, labelListType, tc.initial, false)
 			require.Empty(t, diags)
 			requireStrings(t, value, tc.expected)
+		})
+	}
+}
+
+func TestStringsCopyToPreserveUnknown(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		input    wrappers.Strings
+		initial  attr.Value
+		expected attr.Value
+	}{
+		{
+			name: "element is unknown",
+			input: wrappers.Strings{
+				"new",
+			},
+			initial: types.List{
+				ElemType: types.StringType,
+				Elems: []attr.Value{
+					types.String{Unknown: true},
+				},
+			},
+			expected: types.List{
+				ElemType: types.StringType,
+				Elems: []attr.Value{
+					types.String{Unknown: true},
+				},
+			},
+		},
+		{
+			name:  "empty strings",
+			input: wrappers.Strings{},
+			initial: types.List{
+				ElemType: types.StringType,
+				Unknown:  true,
+			},
+			expected: types.List{
+				ElemType: types.StringType,
+				Unknown:  true,
+			},
+		},
+		{
+			name: "nil strings",
+			initial: types.List{
+				ElemType: types.StringType,
+				Unknown:  true,
+			},
+			expected: types.List{
+				ElemType: types.StringType,
+				Unknown:  true,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			diags := diag.Diagnostics{}
+
+			value := CopyToStrings(diags, tc.input, labelListType, tc.initial, true)
+			require.Empty(t, diags)
+			require.Equal(t, tc.expected, value)
 		})
 	}
 }
