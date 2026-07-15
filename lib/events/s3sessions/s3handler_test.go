@@ -23,14 +23,17 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // TestStreams tests various streaming upload scenarios
@@ -117,6 +120,41 @@ func (m *mockS3Client) PutBucketEncryption(ctx context.Context, params *s3.PutBu
 	args := m.Called(ctx, params, optFns)
 	return args.Get(0).(*s3.PutBucketEncryptionOutput), args.Error(1)
 }
+
+// TestReplayObjectNameRejectsPathTraversal asserts that UploadReplayObject
+// and StreamReplayObjectRange reject any object name outside the
+// well-known manifest/index/blob naming scheme used by ReplaySink --
+// crucially, names containing path traversal segments, which would
+// otherwise resolve straight through path.Join in replayPath to read or
+// write objects outside the beam's own replay artifact. The check must
+// happen before any S3 call, so a zero-value Handler (no client) is enough
+// to exercise it.
+func TestReplayObjectNameRejectsPathTraversal(t *testing.T) {
+	h := &Handler{}
+	ctx := context.Background()
+	sid := session.ID("beam-1")
+
+	badNames := []string{
+		"../x",
+		"blob.0/../manifest",
+		"/../../etc/passwd",
+		"..",
+		"blob.-1",
+		"blob",
+		"manifest.json",
+		"",
+	}
+	for _, name := range badNames {
+		t.Run(name, func(t *testing.T) {
+			_, err := h.UploadReplayObject(ctx, sid, name, strings.NewReader("x"))
+			require.True(t, trace.IsBadParameter(err), "UploadReplayObject(%q): got %v", name, err)
+
+			_, err = h.StreamReplayObjectRange(ctx, sid, name, 0, 0)
+			require.True(t, trace.IsBadParameter(err), "StreamReplayObjectRange(%q): got %v", name, err)
+		})
+	}
+}
+
 func TestEnsureBucket(t *testing.T) {
 	mockClient := &mockS3Client{}
 	var gotRegion s3types.BucketLocationConstraint
