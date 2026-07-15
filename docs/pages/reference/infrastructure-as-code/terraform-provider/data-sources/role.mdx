@@ -23,7 +23,7 @@ Teleport Terraform provider.
 
 ### Required
 
-- `version` (String) Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
+- `version` (String) Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`, `v9`.
 
 ### Optional
 
@@ -59,6 +59,8 @@ Optional:
 - `account_assignments` (Attributes List) AccountAssignments holds the list of account assignments affected by this condition. (see [below for nested schema](#nested-schema-for-specallowaccount_assignments))
 - `app_labels` (Map of List of String) AppLabels is a map of labels used as part of the RBAC system.
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
+- `app_resources` (Attributes List) AppResources is the list of declarative, sugared per-request rules that scope access within an HTTP app to specific paths and methods. It is valid only in role version v9 and above, and only under allow. (see [below for nested schema](#nested-schema-for-specallowapp_resources))
+- `app_resources_expressions` (List of String) AppResourcesExpressions is the list of bare predicate rules that scope access within an HTTP app, the desugared counterpart of AppResources. It is valid only in role version v9 and above, and only under allow.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 - `azure_identities` (List of String) AzureIdentities is a list of Azure identities this role is allowed to assume.
 - `beam_labels` (Map of List of String) BeamLabels are used in the RBAC system to allow/deny access to beams.
@@ -111,6 +113,21 @@ Optional:
 
 - `account` (String)
 - `permission_set` (String)
+
+
+### Nested Schema for `spec.allow.app_resources`
+
+Optional:
+
+- `allow_code` (String) AllowCode is the structured code emitted on the allow audit event when the rule matches.
+- `allow_encoded` (List of String) AllowEncoded opts the rule's path match into the named encoded characters. The only supported value is the encoded slash "/".
+- `allow_reason` (String) AllowReason is the human-readable explanation emitted alongside AllowCode.
+- `deny_code_hint` (String) DenyCodeHint is the structured code emitted on the deny audit event when the rule's path and method matched but the where condition did not.
+- `deny_reason_hint` (String) DenyReasonHint is the human-readable explanation emitted alongside DenyCodeHint.
+- `methods` (List of String) Methods are the HTTP methods that further scope the rule, OR-ed. An empty list permits any method.
+- `paths` (List of String) Paths are the declarative path patterns the rule matches, OR-ed. A rule must set either Paths or UnsafeAllowAll.
+- `unsafe_allow_all` (Boolean) UnsafeAllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.
+- `where` (String) Where is a predicate over the caller identity, the request, and the rule's captures. It does not match paths.
 
 
 ### Nested Schema for `spec.allow.db_permissions`
@@ -274,6 +291,8 @@ Optional:
 - `account_assignments` (Attributes List) AccountAssignments holds the list of account assignments affected by this condition. (see [below for nested schema](#nested-schema-for-specdenyaccount_assignments))
 - `app_labels` (Map of List of String) AppLabels is a map of labels used as part of the RBAC system.
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
+- `app_resources` (Attributes List) AppResources is the list of declarative, sugared per-request rules that scope access within an HTTP app to specific paths and methods. It is valid only in role version v9 and above, and only under allow. (see [below for nested schema](#nested-schema-for-specdenyapp_resources))
+- `app_resources_expressions` (List of String) AppResourcesExpressions is the list of bare predicate rules that scope access within an HTTP app, the desugared counterpart of AppResources. It is valid only in role version v9 and above, and only under allow.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 - `azure_identities` (List of String) AzureIdentities is a list of Azure identities this role is allowed to assume.
 - `beam_labels` (Map of List of String) BeamLabels are used in the RBAC system to allow/deny access to beams.
@@ -326,6 +345,21 @@ Optional:
 
 - `account` (String)
 - `permission_set` (String)
+
+
+### Nested Schema for `spec.deny.app_resources`
+
+Optional:
+
+- `allow_code` (String) AllowCode is the structured code emitted on the allow audit event when the rule matches.
+- `allow_encoded` (List of String) AllowEncoded opts the rule's path match into the named encoded characters. The only supported value is the encoded slash "/".
+- `allow_reason` (String) AllowReason is the human-readable explanation emitted alongside AllowCode.
+- `deny_code_hint` (String) DenyCodeHint is the structured code emitted on the deny audit event when the rule's path and method matched but the where condition did not.
+- `deny_reason_hint` (String) DenyReasonHint is the human-readable explanation emitted alongside DenyCodeHint.
+- `methods` (List of String) Methods are the HTTP methods that further scope the rule, OR-ed. An empty list permits any method.
+- `paths` (List of String) Paths are the declarative path patterns the rule matches, OR-ed. A rule must set either Paths or UnsafeAllowAll.
+- `unsafe_allow_all` (Boolean) UnsafeAllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.
+- `where` (String) Where is a predicate over the caller identity, the request, and the rule's captures. It does not match paths.
 
 
 ### Nested Schema for `spec.deny.db_permissions`

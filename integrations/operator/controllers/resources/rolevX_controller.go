@@ -122,3 +122,18 @@ func NewRoleV8Reconciler(client kclient.Client, tClient *client.Client) (control
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
 }
+
+// NewRoleV9Reconciler instantiates a new Kubernetes controller reconciling role v9 resources
+func NewRoleV9Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+	roleClient := &roleClient{
+		teleportClient: tClient,
+	}
+
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv1.TeleportRoleV9](
+		client,
+		roleClient,
+		reconcilers.Config{},
+	)
+
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
+}

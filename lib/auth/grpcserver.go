@@ -2299,8 +2299,67 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	}
 
 	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
+	// Order matters: v9 downgrades to v8 first, then v8 to v7 for a pre-18
+	// client. Both steps stamp TeleportDowngradedLabel, so on a pre-18
+	// client the v7 reason overwrites the v9 one, including its fail-closed
+	// explanation. The stripped allow app labels persist regardless, so the
+	// role still fails closed there; only the reason text is lost.
+	role = maybeDowngradeRoleVersionToV8(role, clientVersion)
 	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
 	return role, nil
+}
+
+var minSupportedRoleV9Version = &semver.Version{Major: 19, Minor: 0, Patch: 0}
+
+// maybeDowngradeRoleVersionToV8 downgrades a v9 role to v8 when the client
+// version passed through the gRPC metadata is below
+// minSupportedRoleV9Version. A pre-19 agent cannot enforce the per-request
+// app_resources rules, and a plain v8 copy would grant unrestricted app
+// access instead, so the downgrade fails closed: unless the role's only app
+// rule form is unsafe_allow_all, which grants exactly the v8 access, the
+// copy also loses its allow app_labels and app_labels_expression and grants
+// no app access at all. Composing with maybeDowngradeRoleVersionToV7 lets a
+// v9 role reach a pre-18 client as v7.
+//
+// TODO(@juliaogris): Delete in v20.0.0.
+func maybeDowngradeRoleVersionToV8(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	if role.GetVersion() != types.V9 {
+		return role
+	}
+	supported, err := utils.MinVerWithoutPreRelease(clientVersion.String(), minSupportedRoleV9Version.String())
+	if supported || err != nil {
+		return role
+	}
+
+	// Deep-copy the role before mutating it: the same role is shared across
+	// client sessions when watchers notify about changes, so mutating the
+	// original races other readers.
+	role = apiutils.CloneProtoMsg(role)
+	role.Version = types.V8
+
+	hasUnsafeAllowAll := goslices.ContainsFunc(role.Spec.Allow.AppResources, types.AppResource.IsPureUnsafeAllowAll)
+	// Deny-side app rules are rejected at write time in this release, but a
+	// later release may give them restricting semantics. A role carrying any
+	// is not plain unsafe_allow_all and must fail closed, not widen.
+	hasDenyAppRules := len(role.Spec.Deny.AppResources) > 0 || len(role.Spec.Deny.AppResourcesExpressions) > 0
+	detail := "The unsafe_allow_all rule grants exactly the v8 app access, so app access is unchanged."
+	if !hasUnsafeAllowAll || hasDenyAppRules {
+		role.Spec.Allow.AppLabels = nil
+		role.Spec.Allow.AppLabelsExpression = ""
+		detail = "Allow app_labels are stripped so the role's v9 app restrictions fail closed on this client."
+	}
+	role.Spec.Allow.AppResources = nil
+	role.Spec.Allow.AppResourcesExpressions = nil
+	role.Spec.Deny.AppResources = nil
+	role.Spec.Deny.AppResourcesExpressions = nil
+
+	reason := fmt.Sprintf("Role v9 is only supported from client version %q and above. %s", minSupportedRoleV9Version, detail)
+	if role.Metadata.Labels == nil {
+		role.Metadata.Labels = make(map[string]string, 1)
+	}
+	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+
+	return role
 }
 
 var minSupportedRoleV8Version = &semver.Version{Major: 18, Minor: 0, Patch: 0}

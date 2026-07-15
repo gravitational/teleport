@@ -757,6 +757,9 @@ const (
 	// MetaNameBeamsConfig is the exact name of the singleton resource holding Beams config.
 	MetaNameBeamsConfig = "beams-config"
 
+	// V9 is the ninth version of resources.
+	V9 = "v9"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 

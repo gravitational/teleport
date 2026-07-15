@@ -3828,7 +3828,7 @@ message RoleV6 {
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
   // Version is the resource version. It must be specified.
-  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
+  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`, `v9`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -4401,6 +4401,59 @@ message RoleConditions {
   // BeamLabelsExpression is a predicate expression used to allow/deny access
   // to beams.
   string BeamLabelsExpression = 51 [(gogoproto.jsontag) = "beam_labels_expression,omitempty"];
+
+  // AppResources is the list of declarative, sugared per-request rules that
+  // scope access within an HTTP app to specific paths and methods. It is valid
+  // only in role version v9 and above, and only under allow.
+  repeated AppResource AppResources = 52 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "app_resources,omitempty"
+  ];
+
+  // AppResourcesExpressions is the list of bare predicate rules that scope
+  // access within an HTTP app, the desugared counterpart of AppResources. It
+  // is valid only in role version v9 and above, and only under allow.
+  repeated string AppResourcesExpressions = 53 [(gogoproto.jsontag) = "app_resources_expressions,omitempty"];
+}
+
+// AppResource is one declarative, sugared per-request rule under a role's
+// app_resources. It scopes access within an HTTP app to a set of paths and
+// methods, with an optional where condition and audit codes.
+message AppResource {
+  // Paths are the declarative path patterns the rule matches, OR-ed. A rule
+  // must set either Paths or UnsafeAllowAll.
+  repeated string Paths = 1 [(gogoproto.jsontag) = "paths,omitempty"];
+
+  // Methods are the HTTP methods that further scope the rule, OR-ed. An empty
+  // list permits any method.
+  repeated string Methods = 2 [(gogoproto.jsontag) = "methods,omitempty"];
+
+  // Where is a predicate over the caller identity, the request, and the rule's
+  // captures. It does not match paths.
+  string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
+
+  // AllowEncoded opts the rule's path match into the named encoded characters.
+  // The only supported value is the encoded slash "/".
+  repeated string AllowEncoded = 4 [(gogoproto.jsontag) = "allow_encoded,omitempty"];
+
+  // UnsafeAllowAll grants unrestricted access to every path and method. It
+  // cannot be combined with any other field.
+  bool UnsafeAllowAll = 5 [(gogoproto.jsontag) = "unsafe_allow_all,omitempty"];
+
+  // AllowCode is the structured code emitted on the allow audit event when the
+  // rule matches.
+  string AllowCode = 6 [(gogoproto.jsontag) = "allow_code,omitempty"];
+
+  // AllowReason is the human-readable explanation emitted alongside AllowCode.
+  string AllowReason = 7 [(gogoproto.jsontag) = "allow_reason,omitempty"];
+
+  // DenyCodeHint is the structured code emitted on the deny audit event when
+  // the rule's path and method matched but the where condition did not.
+  string DenyCodeHint = 8 [(gogoproto.jsontag) = "deny_code_hint,omitempty"];
+
+  // DenyReasonHint is the human-readable explanation emitted alongside
+  // DenyCodeHint.
+  string DenyReasonHint = 9 [(gogoproto.jsontag) = "deny_reason_hint,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account

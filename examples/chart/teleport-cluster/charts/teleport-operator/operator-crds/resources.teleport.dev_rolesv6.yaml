@@ -60,6 +60,73 @@ spec:
                     description: AppLabelsExpression is a predicate expression used
                       to allow/deny access to Apps.
                     type: string
+                  app_resources:
+                    description: AppResources is the list of declarative, sugared
+                      per-request rules that scope access within an HTTP app to specific
+                      paths and methods. It is valid only in role version v9 and above,
+                      and only under allow.
+                    items:
+                      properties:
+                        allow_code:
+                          description: AllowCode is the structured code emitted on
+                            the allow audit event when the rule matches.
+                          type: string
+                        allow_encoded:
+                          description: AllowEncoded opts the rule's path match into
+                            the named encoded characters. The only supported value
+                            is the encoded slash "/".
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        allow_reason:
+                          description: AllowReason is the human-readable explanation
+                            emitted alongside AllowCode.
+                          type: string
+                        deny_code_hint:
+                          description: DenyCodeHint is the structured code emitted
+                            on the deny audit event when the rule's path and method
+                            matched but the where condition did not.
+                          type: string
+                        deny_reason_hint:
+                          description: DenyReasonHint is the human-readable explanation
+                            emitted alongside DenyCodeHint.
+                          type: string
+                        methods:
+                          description: Methods are the HTTP methods that further scope
+                            the rule, OR-ed. An empty list permits any method.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        paths:
+                          description: Paths are the declarative path patterns the
+                            rule matches, OR-ed. A rule must set either Paths or UnsafeAllowAll.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        unsafe_allow_all:
+                          description: UnsafeAllowAll grants unrestricted access to
+                            every path and method. It cannot be combined with any
+                            other field.
+                          type: boolean
+                        where:
+                          description: Where is a predicate over the caller identity,
+                            the request, and the rule's captures. It does not match
+                            paths.
+                          type: string
+                      type: object
+                    type: array
+                  app_resources_expressions:
+                    description: AppResourcesExpressions is the list of bare predicate
+                      rules that scope access within an HTTP app, the desugared counterpart
+                      of AppResources. It is valid only in role version v9 and above,
+                      and only under allow.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   aws_role_arns:
                     description: AWSRoleARNs is a list of AWS role ARNs this role
                       is allowed to assume.
@@ -713,6 +780,73 @@ spec:
                     description: AppLabelsExpression is a predicate expression used
                       to allow/deny access to Apps.
                     type: string
+                  app_resources:
+                    description: AppResources is the list of declarative, sugared
+                      per-request rules that scope access within an HTTP app to specific
+                      paths and methods. It is valid only in role version v9 and above,
+                      and only under allow.
+                    items:
+                      properties:
+                        allow_code:
+                          description: AllowCode is the structured code emitted on
+                            the allow audit event when the rule matches.
+                          type: string
+                        allow_encoded:
+                          description: AllowEncoded opts the rule's path match into
+                            the named encoded characters. The only supported value
+                            is the encoded slash "/".
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        allow_reason:
+                          description: AllowReason is the human-readable explanation
+                            emitted alongside AllowCode.
+                          type: string
+                        deny_code_hint:
+                          description: DenyCodeHint is the structured code emitted
+                            on the deny audit event when the rule's path and method
+                            matched but the where condition did not.
+                          type: string
+                        deny_reason_hint:
+                          description: DenyReasonHint is the human-readable explanation
+                            emitted alongside DenyCodeHint.
+                          type: string
+                        methods:
+                          description: Methods are the HTTP methods that further scope
+                            the rule, OR-ed. An empty list permits any method.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        paths:
+                          description: Paths are the declarative path patterns the
+                            rule matches, OR-ed. A rule must set either Paths or UnsafeAllowAll.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        unsafe_allow_all:
+                          description: UnsafeAllowAll grants unrestricted access to
+                            every path and method. It cannot be combined with any
+                            other field.
+                          type: boolean
+                        where:
+                          description: Where is a predicate over the caller identity,
+                            the request, and the rule's captures. It does not match
+                            paths.
+                          type: string
+                      type: object
+                    type: array
+                  app_resources_expressions:
+                    description: AppResourcesExpressions is the list of bare predicate
+                      rules that scope access within an HTTP app, the desugared counterpart
+                      of AppResources. It is valid only in role version v9 and above,
+                      and only under allow.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   aws_role_arns:
                     description: AWSRoleARNs is a list of AWS role ARNs this role
                       is allowed to assume.

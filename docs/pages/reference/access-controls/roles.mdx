@@ -90,7 +90,8 @@ Teleport provides several preset roles:
 
 ### Role versions
 
-There are currently six supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, and `v8`.
+There are currently seven supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`,
+and `v9`.
 
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
@@ -118,6 +119,30 @@ cannot interpret the fields specific to v8 roles. Upgrade all agents to v18
 before using role v8.
 
 See [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
+
+Role v9 changes application access to deny by default. When a v9 role grants
+access to an app via `app_labels` or `app_labels_expression`, HTTP requests to
+that app are denied unless a rule under `spec.allow.app_resources` allows them.
+In this release the only supported rule is the escape hatch
+`unsafe_allow_all: true`, which restores unrestricted access to the app;
+fine-grained path and method rules follow in a later release. When v8 and v9
+roles grant access to the same app, Teleport
+drops the v8 roles from the decision so that they cannot re-open unrestricted
+access.
+
+Only v9-aware agents enforce this. An agent running Teleport 18 or earlier
+does not understand role v9, so the Auth Service serves it a downgraded copy
+that fails closed. If no rule sets `unsafe_allow_all: true`, the copy loses
+its allow `app_labels` and `app_labels_expression`, and the agent denies
+access to the app entirely; with `unsafe_allow_all: true`, the copy grants
+exactly the v8 access. The guarantee is per role: a v8-or-older role that
+grants the same app is untouched by the downgrade and still opens the app
+fully on older agents, even though v9-aware agents would drop it from the
+decision. Upgrade all agents running the Teleport Application Service to
+Teleport 19 before using role v9 to restrict app access. TCP and MCP apps are
+not affected by role v9. Cloud apps (AWS console, Azure, and GCP) and LLM
+apps are also not governed by role v9 in this release and continue to serve
+requests unrestricted.
 
 #### Default values for `kubernetes_resources`
 

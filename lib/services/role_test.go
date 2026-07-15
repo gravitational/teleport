@@ -1646,6 +1646,29 @@ func TestUnmarshalRole(t *testing.T) {
 	}
 }
 
+// TestMarshalRoleV9RoundTrip guards the UnmarshalRoleV6 version allow-list: a
+// v9 role must survive a marshal/unmarshal round-trip with its app_resources
+// intact, since backend reads and the cache watcher decode roles this way.
+func TestMarshalRoleV9RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	role, err := types.NewRoleWithVersion("v9-role", types.V9, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:    types.Labels{"env": []string{"dev"}},
+			AppResources: []types.AppResource{{UnsafeAllowAll: true}},
+		},
+	})
+	require.NoError(t, err)
+
+	data, err := MarshalRole(role)
+	require.NoError(t, err)
+
+	got, err := UnmarshalRole(data)
+	require.NoError(t, err)
+	require.Equal(t, types.V9, got.GetVersion())
+	require.Equal(t, role.GetAppResources(types.Allow), got.GetAppResources(types.Allow))
+}
+
 func TestValidateRoleName(t *testing.T) {
 	tests := []struct {
 		name         string

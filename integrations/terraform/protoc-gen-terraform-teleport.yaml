@@ -565,7 +565,7 @@ validators:
   ProvisionTokenV2.Version:
     - UseVersionBetween(2,2)
   RoleV6.Version:
-    - UseVersionBetween(3,8)
+    - UseVersionBetween(3,9)
   SAMLConnectorV2.Version:
     - UseVersionBetween(2,2)
   SAMLConnectorV2.Spec:

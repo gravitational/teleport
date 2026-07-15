@@ -215,6 +215,11 @@ type ConnectionsHandler struct {
 
 	// resolveApp returns a types.Application using the name and public address as matchers.
 	resolveApp func(ctx context.Context, name, addr string) (types.Application, error)
+
+	// v9DropWarned dedupes the dropped-v8-roles warning to once per user and
+	// app, keyed "<user>\x00<app>". A v9 role governs every request to a
+	// shared app, so the warning would otherwise fire on each request.
+	v9DropWarned sync.Map
 }
 
 // NewConnectionsHandler returns a new ConnectionsHandler.
@@ -509,6 +514,14 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 		return c.serveSession(w, r, &identity, app, c.withLLMHandler)
 
 	default:
+		// The default case is a plain HTTP app.
+		denied, err := c.enforceMinimalV9(w, r, authCtx, app)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if denied {
+			return nil
+		}
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
 	}
 }

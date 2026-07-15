@@ -120,6 +120,15 @@ type Role interface {
 	// SetAppLabels sets the map of app labels this role is allowed or denied access to.
 	SetAppLabels(RoleConditionType, Labels)
 
+	// GetAppResources gets the per-request app access rules this role defines
+	// for the given condition. Only v9 roles set them, and only under allow.
+	GetAppResources(RoleConditionType) []AppResource
+
+	// GetAppResourcesExpressions gets the bare predicate app access rules
+	// this role defines for the given condition, the desugared counterpart
+	// of GetAppResources. Only v9 roles set them, and only under allow.
+	GetAppResourcesExpressions(RoleConditionType) []string
+
 	// GetClusterLabels gets the map of cluster labels this role is allowed or denied access to.
 	GetClusterLabels(RoleConditionType) Labels
 	// SetClusterLabels sets the map of cluster labels this role is allowed or denied access to.
@@ -514,14 +523,14 @@ func (r *RoleV6) GetKubeResources(rct RoleConditionType) []KubernetesResource {
 // This is required to keep compatibility between role versions to avoid breaking changes
 // when using an older role version.
 //
-// For roles v8, it returns the list as it is.
+// For roles v8 and v9, it returns the list as it is.
 //
 // For roles <=v7, it maps the legacy teleport Kinds to k8s plurals and sets the APIGroup to wildcard.
 //
 // Must be in sync with RoleV6.convertRequestKubernetesResourcesBetweenRoleVersions.
 func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
 	switch r.Version {
-	case V8:
+	case V8, V9:
 		return resources
 	default:
 		v7resources := slices.Clone(resources)
@@ -580,7 +589,7 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 // This is required to keep compatibility between role versions to avoid breaking changes
 // when using an older role version.
 //
-// For roles v8, it returns the list as it is.
+// For roles v8 and v9, it returns the list as it is.
 //
 // For roles v7, if we have a Wildcard kind, add the v7 cluster-wide resources to maintain
 // the existing behavior as in Teleport <=v17, those resources ignored the namespace value
@@ -599,8 +608,8 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 // and append the other supported resources - KubernetesResourcesKinds - for Role v8.
 func (r *RoleV6) convertAllowKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
 	switch r.Version {
-	case V7, V8:
-		// V7 and v8 uses the same logic for allow and deny.
+	case V7, V8, V9:
+		// V7, v8, and v9 use the same logic for allow and deny.
 		return r.convertKubernetesResourcesBetweenRoleVersions(resources)
 	// Teleport does not support role versions < v3.
 	case V6, V5, V4, V3:
@@ -717,7 +726,7 @@ func (r *RoleV6) GetAccessRequestConditions(rct RoleConditionType) AccessRequest
 // This is required to keep compatibility between role versions to avoid breaking changes
 // when using an older role version.
 //
-// For roles v8, it returns the list as it is.
+// For roles v8 and v9, it returns the list as it is.
 //
 // For roles <=v7, it maps the legacy teleport Kinds to k8s plurals and sets the APIGroup to wildcard.
 //
@@ -727,7 +736,7 @@ func (r *RoleV6) convertRequestKubernetesResourcesBetweenRoleVersions(resources 
 		return nil
 	}
 	switch r.Version {
-	case V8:
+	case V8, V9:
 		return resources
 	default:
 		v7resources := slices.Clone(resources)
@@ -846,6 +855,25 @@ func (r *RoleV6) SetAppLabels(rct RoleConditionType, labels Labels) {
 	} else {
 		r.Spec.Deny.AppLabels = labels.Clone()
 	}
+}
+
+// GetAppResources gets the per-request app access rules this role defines for
+// the given condition. Only v9 roles set them, and only under allow.
+func (r *RoleV6) GetAppResources(rct RoleConditionType) []AppResource {
+	if rct == Allow {
+		return r.Spec.Allow.AppResources
+	}
+	return r.Spec.Deny.AppResources
+}
+
+// GetAppResourcesExpressions gets the bare predicate app access rules this
+// role defines for the given condition, the desugared counterpart of
+// GetAppResources. Only v9 roles set them, and only under allow.
+func (r *RoleV6) GetAppResourcesExpressions(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.AppResourcesExpressions
+	}
+	return r.Spec.Deny.AppResourcesExpressions
 }
 
 // GetClusterLabels gets the map of cluster labels this role is allowed or denied access to.
@@ -1254,7 +1282,7 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
-	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 && r.Version != V7 {
+	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 && r.Version != V7 && r.Version != V8 && r.Version != V9 {
 		// When incrementing the role version, make sure to update the
 		// role version in the asset file used by the UI.
 		// See: web/packages/teleport/src/Roles/templates/role.yaml
@@ -1420,8 +1448,8 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
 			return trace.Wrap(err)
 		}
-	case V8:
-		// Kubernetes resources default to {kind:*, name:*, namespace:*, api_group:*, verbs:[*]} for v8 roles.
+	case V8, V9:
+		// Kubernetes resources default to {kind:*, name:*, namespace:*, api_group:*, verbs:[*]} for v8 and v9 roles.
 		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
 				// Full access to everything.
@@ -1440,6 +1468,10 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 	default:
 		return trace.BadParameter("unrecognized role version: %v", r.Version)
+	}
+
+	if err := r.checkAppResources(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Deny.Namespaces); err != nil {
@@ -2182,7 +2214,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			if kubeResource.Namespace == "" && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource kind %q must include Namespace", kubeResource.Kind)
 			}
-		case V8:
+		case V8, V9:
 			if kubeResource.Kind == "" {
 				return trace.BadParameter("KubernetesResource kind %q is required in role version %q", kubeResource.Kind, roleVersion)
 			}
@@ -2223,7 +2255,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 func validateRequestKubeResources(roleVersion string, kubeResources []RequestKubernetesResource) error {
 	for _, kubeResource := range kubeResources {
 		switch roleVersion {
-		case V8:
+		case V8, V9:
 			if kubeResource.Kind == "" {
 				return trace.BadParameter("request.kubernetes_resource kind is required in role version %q", roleVersion)
 			}

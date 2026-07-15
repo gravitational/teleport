@@ -83,6 +83,10 @@ var (
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
 )
 
+// MaybeDowngradeRoleVersionToV8 exposes maybeDowngradeRoleVersionToV8 for a
+// focused downgrade unit test.
+var MaybeDowngradeRoleVersionToV8 = maybeDowngradeRoleVersionToV8
+
 func ServerWithModules(mt *modulestest.Modules) *Server {
 	return &Server{
 		modules: mt,
