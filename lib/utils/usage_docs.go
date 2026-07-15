@@ -217,6 +217,9 @@ func makeEffectiveFlags(app *kingpin.ApplicationModel) func(any) []*kingpin.Flag
 	}
 }
 
+// mergeFlags combines flags from two kingpin FlagModels. It gets called on a
+// command's flags and those of its ancestor commands to build the command's
+// final effective flags.
 func mergeFlags(inherited, declared []*kingpin.FlagModel) []*kingpin.FlagModel {
 	flags := slices.Clone(inherited)
 	indices := make(map[string]int, len(flags))
