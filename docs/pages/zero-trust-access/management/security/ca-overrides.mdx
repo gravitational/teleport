@@ -183,8 +183,8 @@ $ certutil -verify -urlfetch .\override.cer
 
 ## Step 4/5. Create the certificate overrides
 
-After issuing certificates and configuring downstream trust, create the
-certificate overrides.
+After issuing certificates and configuring downstream trust, create a
+certificate override for each certificate:
 
 ```code
 $ tctl auth create-override --type=windows cert.pem
