@@ -143,23 +143,25 @@ func (c *Command) applyStandardAccessFlagsToRole(allow *types.RoleConditions) er
 func (c *Command) applyAWSICFlagsToRole(allow *types.RoleConditions) error {
 	if c.awsicAssignments == "" {
 		*allow = types.RoleConditions{}
-	} else {
-		allow.AppLabels = awsIcAppLabel
-		aa, err := buildAWSICAccountAssignments(c.awsicAssignments)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		allow.AccountAssignments = aa
+		return nil
 	}
+
+	aa, err := buildAWSICAccountAssignments(c.awsicAssignments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	allow.AccountAssignments = aa
+	allow.AppLabels = awsIcAppLabel
+
 	return nil
 }
 
 func buildAWSICAccountAssignments(awsicAssignments string) ([]types.IdentityCenterAccountAssignment, error) {
 	var aa []types.IdentityCenterAccountAssignment
 	for _, a := range utils.SplitIdentifiers(awsicAssignments) {
-		account, permSet, ok := strings.Cut(a, ":")
+		account, permSet, ok := strings.Cut(a, "^")
 		if !ok {
-			return nil, trace.BadParameter("--aws-ic-assignments: %q is not in 'accountID:permissionSetARN' format", a)
+			return nil, trace.BadParameter("--aws-ic-assignments: %q is not in 'accountID^permissionSetARN' format", a)
 		}
 		aa = append(aa, types.IdentityCenterAccountAssignment{
 			Account:       strings.TrimSpace(account),

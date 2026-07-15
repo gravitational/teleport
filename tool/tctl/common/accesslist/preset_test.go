@@ -177,33 +177,94 @@ func TestApplyStandardAccessFlagsToRole_ClearingFields(t *testing.T) {
 	})
 }
 
+func requireICAppLabels(t require.TestingT, labels any, msgAndArgs ...any) {
+	require.Equal(t, awsIcAppLabel, labels, msgAndArgs...)
+}
+
 func TestApplyAWSICFlagsToRole(t *testing.T) {
-	t.Run("sets assignments", func(t *testing.T) {
-		cmd := Command{awsicAssignments: "1234:arn:aws:sso:::permissionSet/test,5678:arn:aws:sso:::permissionSet/test2"}
-		var allow types.RoleConditions
-		require.NoError(t, cmd.applyAWSICFlagsToRole(&allow))
-		require.Equal(t, awsIcAppLabel, allow.AppLabels)
-		require.Len(t, allow.AccountAssignments, 2)
-		require.Equal(t,
-			types.IdentityCenterAccountAssignment{
-				PermissionSet: "arn:aws:sso:::permissionSet/test",
-				Account:       "1234",
+	testCases := []struct {
+		name        string
+		input       string
+		checkError  require.ErrorAssertionFunc
+		checkLabels require.ValueAssertionFunc
+		expected    []types.IdentityCenterAccountAssignment
+	}{
+		{
+			name:        "unset",
+			input:       "",
+			expected:    nil,
+			checkError:  require.NoError,
+			checkLabels: require.Empty,
+		},
+		{
+			name:        "single",
+			input:       "1234^arn:aws:sso:::permissionSet/test",
+			checkError:  require.NoError,
+			checkLabels: requireICAppLabels,
+			expected: []types.IdentityCenterAccountAssignment{
+				{
+					PermissionSet: "arn:aws:sso:::permissionSet/test",
+					Account:       "1234",
+				},
 			},
-			allow.AccountAssignments[0])
-		require.Equal(t,
-			types.IdentityCenterAccountAssignment{
-				PermissionSet: "arn:aws:sso:::permissionSet/test2",
-				Account:       "5678",
+		},
+		{
+			name:        "multiple",
+			input:       "1234^arn:aws:sso:::permissionSet/test,5678^arn:aws:sso:::permissionSet/test2",
+			checkError:  require.NoError,
+			checkLabels: requireICAppLabels,
+			expected: []types.IdentityCenterAccountAssignment{
+				{
+					PermissionSet: "arn:aws:sso:::permissionSet/test",
+					Account:       "1234",
+				},
+				types.IdentityCenterAccountAssignment{
+					PermissionSet: "arn:aws:sso:::permissionSet/test2",
+					Account:       "5678",
+				},
 			},
-			allow.AccountAssignments[1])
-	})
-	t.Run("clears when empty", func(t *testing.T) {
-		allow := types.RoleConditions{
-			AppLabels:          awsIcAppLabel,
-			AccountAssignments: []types.IdentityCenterAccountAssignment{{}},
-		}
-		cmd := Command{awsicAssignments: ""}
-		require.NoError(t, cmd.applyAWSICFlagsToRole(&allow))
-		require.Empty(t, allow)
-	})
+		},
+		{
+			name:        "globbed",
+			input:       "*^arn:aws:sso:::permissionSet/test,5678^*,*^*",
+			checkError:  require.NoError,
+			checkLabels: requireICAppLabels,
+			expected: []types.IdentityCenterAccountAssignment{
+				{
+					PermissionSet: "arn:aws:sso:::permissionSet/test",
+					Account:       "*",
+				},
+				types.IdentityCenterAccountAssignment{
+					PermissionSet: "*",
+					Account:       "5678",
+				},
+				types.IdentityCenterAccountAssignment{
+					PermissionSet: "*",
+					Account:       "*",
+				},
+			},
+		},
+		{
+			name:        "malformed assignments are errors",
+			input:       "some-random-text",
+			checkError:  require.Error,
+			checkLabels: require.Empty,
+		},
+		{
+			name:        "errors don't modify role",
+			input:       "1234^arn:aws:sso:::permissionSet/test,some-random-text,1234^arn:aws:sso:::permissionSet/test",
+			checkError:  require.Error,
+			checkLabels: require.Empty,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := Command{awsicAssignments: test.input}
+			var dst types.RoleConditions
+			test.checkError(t, cmd.applyAWSICFlagsToRole(&dst))
+			test.checkLabels(t, dst.AppLabels)
+			require.ElementsMatch(t, dst.AccountAssignments, test.expected)
+		})
+	}
 }

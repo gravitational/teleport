@@ -125,7 +125,7 @@ func TestValidateCreate(t *testing.T) {
 }
 
 func TestBuildResourceAccessRoles(t *testing.T) {
-	const awsicAssignment = "1234:arn:aws:sso:::permissionSet/test"
+	const awsicAssignment = "1234^arn:aws:sso:::permissionSet/test"
 
 	tests := []struct {
 		name                 string
