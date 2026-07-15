@@ -351,7 +351,8 @@ func (r resourceTeleportInferenceModel) ModifyPlan(ctx context.Context, req tfsd
 
 	inferenceModel = inferenceModelResource
 
-	resp.Diagnostics.Append(schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyInferenceModelToTerraformPreserveUnknown(ctx, inferenceModel, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

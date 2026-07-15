@@ -371,7 +371,8 @@ func (r resourceTeleportApp) ModifyPlan(ctx context.Context, req tfsdk.ModifyRes
 
 	app = appResource
 
-	resp.Diagnostics.Append(tfschema.CopyAppV3ToTerraform(ctx, app, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyAppV3ToTerraformPreserveUnknown(ctx, app, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
