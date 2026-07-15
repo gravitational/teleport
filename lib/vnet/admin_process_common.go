@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"gvisor.dev/gvisor/pkg/tcpip"
 
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
@@ -46,11 +47,34 @@ func newNetworkStackConfig(ctx context.Context, tun TUNDevice, clt *clientApplic
 	if err != nil {
 		return nil, trace.Wrap(err, "creating new IPv6 prefix")
 	}
-	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, dns.DNSServerSuffix)
+	ipv6Disabled := hostIPv6Disabled(ctx, tun)
+	var dnsIPv6 tcpip.Address
+	if !ipv6Disabled {
+		dnsIPv6 = ipv6WithSuffix(ipv6Prefix, dns.DNSServerSuffix)
+	}
 	return &networkStackConfig{
 		tunDevice:          tun,
 		ipv6Prefix:         ipv6Prefix,
+		ipv6Disabled:       ipv6Disabled,
 		dnsIPv6:            dnsIPv6,
 		tcpHandlerResolver: tcpHandlerResolver,
 	}, nil
+}
+
+// hostIPv6Disabled reports whether IPv6 is disabled host-wide. It is
+// best-effort: if the check fails, IPv6 is assumed to be enabled so that a
+// real configuration error surfaces later instead of silently degrading.
+func hostIPv6Disabled(ctx context.Context, tun TUNDevice) bool {
+	tunName, err := tun.Name()
+	if err == nil {
+		var disabled bool
+		if disabled, err = platformHostIPv6Disabled(tunName); err == nil {
+			if disabled {
+				log.WarnContext(ctx, "IPv6 is disabled on this host, VNet will skip IPv6 configuration and work over IPv4 only.")
+			}
+			return disabled
+		}
+	}
+	log.WarnContext(ctx, "Failed to check whether IPv6 is disabled on the host, assuming it is enabled.", "error", err)
+	return false
 }

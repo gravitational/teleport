@@ -160,10 +160,10 @@ func (vnet *EmbeddedVNet) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting TUN device name")
 	}
 
-	osConfigProvider, err := newOSConfigProvider(ctx, osConfigProviderConfig{
+	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
 		clt:           vnet.client,
 		tunName:       tunName,
-		ipv6Prefix:    stackConfig.ipv6Prefix.String(),
+		ipv6Prefix:    stackConfig.getIPv6Prefix(),
 		dnsIPv6:       stackConfig.dnsIPv6.String(),
 		addDNSAddress: stack.addDNSAddress,
 	})

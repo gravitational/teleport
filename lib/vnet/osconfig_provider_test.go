@@ -35,7 +35,6 @@ func TestOSConfigProvider(t *testing.T) {
 		dnsIPv6              string
 		dnsZones             []string
 		ipv4CIDRRanges       []string
-		hostIPv6Disabled     bool
 		getTargetOSConfigErr error
 		expectErr            error
 		expectTargetOSConfig *osConfig
@@ -97,27 +96,17 @@ func TestOSConfigProvider(t *testing.T) {
 			expectAddedDNSAddrs: []string{"10.64.0.2"},
 		},
 		{
-			// With IPv6 disabled on the host and no logged-in clusters, the
-			// target OS config should be empty
-			desc:             "ipv6 disabled, no cidr ranges",
-			tunName:          "testtun1",
-			ipv6Prefix:       "fd01:2345:6789::",
-			dnsIPv6:          "fd01:2345:6789::2",
-			hostIPv6Disabled: true,
+			desc:    "ipv6 disabled, no cidr ranges",
+			tunName: "testtun1",
 			expectTargetOSConfig: &osConfig{
 				tunName: "testtun1",
 			},
 		},
 		{
-			// With IPv6 disabled on the host, only the IPv4 address and the
-			// IPv4 nameserver should be configured.
-			desc:             "ipv6 disabled, with cidr range",
-			tunName:          "testtun1",
-			ipv6Prefix:       "fd01:2345:6789::",
-			dnsIPv6:          "fd01:2345:6789::2",
-			dnsZones:         []string{"test.example.com"},
-			ipv4CIDRRanges:   []string{"192.168.1.0/24"},
-			hostIPv6Disabled: true,
+			desc:           "ipv6 disabled, with cidr range",
+			tunName:        "testtun1",
+			dnsZones:       []string{"test.example.com"},
+			ipv4CIDRRanges: []string{"192.168.1.0/24"},
 			expectTargetOSConfig: &osConfig{
 				tunName:    "testtun1",
 				tunIPv4:    "192.168.1.1",
@@ -139,7 +128,7 @@ func TestOSConfigProvider(t *testing.T) {
 			}
 			// Keep track of new DNS addresses the osConfigProvider tried to add.
 			var addedDNSAddrs []string
-			osConfigProvider, err := newOSConfigProvider(ctx, osConfigProviderConfig{
+			osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
 				clt:        targetOSConfigGetter,
 				tunName:    tc.tunName,
 				ipv6Prefix: tc.ipv6Prefix,
@@ -147,9 +136,6 @@ func TestOSConfigProvider(t *testing.T) {
 				addDNSAddress: func(ip net.IP) error {
 					addedDNSAddrs = append(addedDNSAddrs, ip.String())
 					return nil
-				},
-				checkHostIPv6Disabled: func(string) (bool, error) {
-					return tc.hostIPv6Disabled, nil
 				},
 			})
 			require.NoError(t, err)
