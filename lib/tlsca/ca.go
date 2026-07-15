@@ -439,6 +439,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		BotScopeOfOrigin:         id.BotScope,
 		BotInternal:              id.BotInternal,
 		JoinToken:                id.JoinToken,
+		DelegationChain:          delegation.EventsFrom(id.Delegation),
 	}
 }
 
@@ -1657,6 +1658,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		UserClusterName:   userTeleportCluster,
 		ScopePin:          pinning.ToEventsPin(id.ScopePin),
 		BeamID:            id.BeamID,
+		DelegationChain:   delegation.EventsFrom(id.Delegation),
 	}
 }
 

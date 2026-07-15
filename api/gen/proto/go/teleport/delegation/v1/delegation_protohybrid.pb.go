@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/delegation/v1/delegation.proto
 
+//go:build teleport_protohybrid
+
 package delegationv1
 
 import (
@@ -43,11 +45,19 @@ const (
 //
 // NOTE: Remember to keep this in-sync with api/proto/teleport/legacy/types.delegation.proto.
 type Delegation struct {
-	state                protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Delegator isDelegation_Delegator `protobuf_oneof:"delegator"`
-	xxx_hidden_Previous  *Delegation            `protobuf:"bytes,3,opt,name=previous,proto3"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Identity of the delegator.
+	//
+	// Types that are valid to be assigned to Delegator:
+	//
+	//	*Delegation_User
+	//	*Delegation_Bot
+	Delegator isDelegation_Delegator `protobuf_oneof:"delegator"`
+	// Previous link in the delegation chain, i.e. the user or bot who delegated
+	// their access to the delegator.
+	Previous      *Delegation `protobuf:"bytes,3,opt,name=previous,proto3" json:"previous,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Delegation) Reset() {
@@ -75,9 +85,16 @@ func (x *Delegation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+func (x *Delegation) GetDelegator() isDelegation_Delegator {
+	if x != nil {
+		return x.Delegator
+	}
+	return nil
+}
+
 func (x *Delegation) GetUser() *UserDelegator {
 	if x != nil {
-		if x, ok := x.xxx_hidden_Delegator.(*delegation_User); ok {
+		if x, ok := x.Delegator.(*Delegation_User); ok {
 			return x.User
 		}
 	}
@@ -86,7 +103,7 @@ func (x *Delegation) GetUser() *UserDelegator {
 
 func (x *Delegation) GetBot() *BotDelegator {
 	if x != nil {
-		if x, ok := x.xxx_hidden_Delegator.(*delegation_Bot); ok {
+		if x, ok := x.Delegator.(*Delegation_Bot); ok {
 			return x.Bot
 		}
 	}
@@ -95,43 +112,43 @@ func (x *Delegation) GetBot() *BotDelegator {
 
 func (x *Delegation) GetPrevious() *Delegation {
 	if x != nil {
-		return x.xxx_hidden_Previous
+		return x.Previous
 	}
 	return nil
 }
 
 func (x *Delegation) SetUser(v *UserDelegator) {
 	if v == nil {
-		x.xxx_hidden_Delegator = nil
+		x.Delegator = nil
 		return
 	}
-	x.xxx_hidden_Delegator = &delegation_User{v}
+	x.Delegator = &Delegation_User{v}
 }
 
 func (x *Delegation) SetBot(v *BotDelegator) {
 	if v == nil {
-		x.xxx_hidden_Delegator = nil
+		x.Delegator = nil
 		return
 	}
-	x.xxx_hidden_Delegator = &delegation_Bot{v}
+	x.Delegator = &Delegation_Bot{v}
 }
 
 func (x *Delegation) SetPrevious(v *Delegation) {
-	x.xxx_hidden_Previous = v
+	x.Previous = v
 }
 
 func (x *Delegation) HasDelegator() bool {
 	if x == nil {
 		return false
 	}
-	return x.xxx_hidden_Delegator != nil
+	return x.Delegator != nil
 }
 
 func (x *Delegation) HasUser() bool {
 	if x == nil {
 		return false
 	}
-	_, ok := x.xxx_hidden_Delegator.(*delegation_User)
+	_, ok := x.Delegator.(*Delegation_User)
 	return ok
 }
 
@@ -139,7 +156,7 @@ func (x *Delegation) HasBot() bool {
 	if x == nil {
 		return false
 	}
-	_, ok := x.xxx_hidden_Delegator.(*delegation_Bot)
+	_, ok := x.Delegator.(*Delegation_Bot)
 	return ok
 }
 
@@ -147,27 +164,27 @@ func (x *Delegation) HasPrevious() bool {
 	if x == nil {
 		return false
 	}
-	return x.xxx_hidden_Previous != nil
+	return x.Previous != nil
 }
 
 func (x *Delegation) ClearDelegator() {
-	x.xxx_hidden_Delegator = nil
+	x.Delegator = nil
 }
 
 func (x *Delegation) ClearUser() {
-	if _, ok := x.xxx_hidden_Delegator.(*delegation_User); ok {
-		x.xxx_hidden_Delegator = nil
+	if _, ok := x.Delegator.(*Delegation_User); ok {
+		x.Delegator = nil
 	}
 }
 
 func (x *Delegation) ClearBot() {
-	if _, ok := x.xxx_hidden_Delegator.(*delegation_Bot); ok {
-		x.xxx_hidden_Delegator = nil
+	if _, ok := x.Delegator.(*Delegation_Bot); ok {
+		x.Delegator = nil
 	}
 }
 
 func (x *Delegation) ClearPrevious() {
-	x.xxx_hidden_Previous = nil
+	x.Previous = nil
 }
 
 const Delegation_Delegator_not_set_case case_Delegation_Delegator = 0
@@ -178,10 +195,10 @@ func (x *Delegation) WhichDelegator() case_Delegation_Delegator {
 	if x == nil {
 		return Delegation_Delegator_not_set_case
 	}
-	switch x.xxx_hidden_Delegator.(type) {
-	case *delegation_User:
+	switch x.Delegator.(type) {
+	case *Delegation_User:
 		return Delegation_User_case
-	case *delegation_Bot:
+	case *Delegation_Bot:
 		return Delegation_Bot_case
 	default:
 		return Delegation_Delegator_not_set_case
@@ -193,12 +210,12 @@ type Delegation_builder struct {
 
 	// Identity of the delegator.
 
-	// Fields of oneof xxx_hidden_Delegator:
+	// Fields of oneof Delegator:
 	// Human user who delegated their access to the delegate.
 	User *UserDelegator
 	// Machine user who delegated their access to the delegate.
 	Bot *BotDelegator
-	// -- end of xxx_hidden_Delegator
+	// -- end of Delegator
 	// Previous link in the delegation chain, i.e. the user or bot who delegated
 	// their access to the delegator.
 	Previous *Delegation
@@ -209,12 +226,12 @@ func (b0 Delegation_builder) Build() *Delegation {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.User != nil {
-		x.xxx_hidden_Delegator = &delegation_User{b.User}
+		x.Delegator = &Delegation_User{b.User}
 	}
 	if b.Bot != nil {
-		x.xxx_hidden_Delegator = &delegation_Bot{b.Bot}
+		x.Delegator = &Delegation_Bot{b.Bot}
 	}
-	x.xxx_hidden_Previous = b.Previous
+	x.Previous = b.Previous
 	return m0
 }
 
@@ -232,26 +249,27 @@ type isDelegation_Delegator interface {
 	isDelegation_Delegator()
 }
 
-type delegation_User struct {
+type Delegation_User struct {
 	// Human user who delegated their access to the delegate.
 	User *UserDelegator `protobuf:"bytes,1,opt,name=user,proto3,oneof"`
 }
 
-type delegation_Bot struct {
+type Delegation_Bot struct {
 	// Machine user who delegated their access to the delegate.
 	Bot *BotDelegator `protobuf:"bytes,2,opt,name=bot,proto3,oneof"`
 }
 
-func (*delegation_User) isDelegation_Delegator() {}
+func (*Delegation_User) isDelegation_Delegator() {}
 
-func (*delegation_Bot) isDelegation_Delegator() {}
+func (*Delegation_Bot) isDelegation_Delegator() {}
 
 // UserDelegator describes a human user who delegated their access.
 type UserDelegator struct {
-	state               protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Username string                 `protobuf:"bytes,1,opt,name=username,proto3"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Username of the human user who delegated their access.
+	Username      string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UserDelegator) Reset() {
@@ -281,13 +299,13 @@ func (x *UserDelegator) ProtoReflect() protoreflect.Message {
 
 func (x *UserDelegator) GetUsername() string {
 	if x != nil {
-		return x.xxx_hidden_Username
+		return x.Username
 	}
 	return ""
 }
 
 func (x *UserDelegator) SetUsername(v string) {
-	x.xxx_hidden_Username = v
+	x.Username = v
 }
 
 type UserDelegator_builder struct {
@@ -301,17 +319,19 @@ func (b0 UserDelegator_builder) Build() *UserDelegator {
 	m0 := &UserDelegator{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.xxx_hidden_Username = b.Username
+	x.Username = b.Username
 	return m0
 }
 
 // BotDelegator describes a machine user that delegated its access.
 type BotDelegator struct {
-	state            protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Name  string                 `protobuf:"bytes,1,opt,name=name,proto3"`
-	xxx_hidden_Scope string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Name of the bot that delegated its access.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Scope of the bot that delegated its access.
+	Scope         string `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BotDelegator) Reset() {
@@ -341,24 +361,24 @@ func (x *BotDelegator) ProtoReflect() protoreflect.Message {
 
 func (x *BotDelegator) GetName() string {
 	if x != nil {
-		return x.xxx_hidden_Name
+		return x.Name
 	}
 	return ""
 }
 
 func (x *BotDelegator) GetScope() string {
 	if x != nil {
-		return x.xxx_hidden_Scope
+		return x.Scope
 	}
 	return ""
 }
 
 func (x *BotDelegator) SetName(v string) {
-	x.xxx_hidden_Name = v
+	x.Name = v
 }
 
 func (x *BotDelegator) SetScope(v string) {
-	x.xxx_hidden_Scope = v
+	x.Scope = v
 }
 
 type BotDelegator_builder struct {
@@ -374,8 +394,8 @@ func (b0 BotDelegator_builder) Build() *BotDelegator {
 	m0 := &BotDelegator{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.xxx_hidden_Name = b.Name
-	x.xxx_hidden_Scope = b.Scope
+	x.Name = b.Name
+	x.Scope = b.Scope
 	return m0
 }
 
@@ -419,8 +439,8 @@ func file_teleport_delegation_v1_delegation_proto_init() {
 		return
 	}
 	file_teleport_delegation_v1_delegation_proto_msgTypes[0].OneofWrappers = []any{
-		(*delegation_User)(nil),
-		(*delegation_Bot)(nil),
+		(*Delegation_User)(nil),
+		(*Delegation_Bot)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
