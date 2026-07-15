@@ -102,25 +102,33 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 				"app": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"label_expression": {
-							Description: "LabelExpression is an optional predicate expression evaluated against an application's labels.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "LabelExpression is an optional predicate expression evaluated against an application's labels.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"labels": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"name": {
-									Description: "The name of the label.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "The name of the label.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"values": {
-									Description: "The values associated with the label.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "The values associated with the label.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "The set of application labels used for RBAC.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "The set of application labels used for RBAC.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
 					Description: "The App Access specific configuration for a scoped role.",
@@ -4724,6 +4732,7 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 								if obj.App == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.App
 									tf := &v
 									{
@@ -4748,13 +4757,15 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 													}
 												}
-												if obj.Labels != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Labels) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Labels {
-														v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -4769,6 +4780,7 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 														if a == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -4778,6 +4790,9 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																} else {
 																	v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["name"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRole.spec.app.labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedRole.spec.app.labels.name", err})
@@ -4786,10 +4801,13 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Name) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Name)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["name"] = v
 																}
 															}
@@ -4815,14 +4833,19 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																			}
 																		}
-																		if obj.Values != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
-																				v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRole.spec.app.labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"ScopedRole.spec.app.labels.values", err})
@@ -4831,30 +4854,35 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.Values) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Labels) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["labels"] = c
 											}
 										}
@@ -4866,6 +4894,9 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 										} else {
 											v, ok := tf.Attrs["label_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["label_expression"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRole.spec.app.label_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedRole.spec.app.label_expression", err})
@@ -4874,15 +4905,20 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.label_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.LabelExpression) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.LabelExpression)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["label_expression"] = v
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["app"] = v
 							}
 						}
