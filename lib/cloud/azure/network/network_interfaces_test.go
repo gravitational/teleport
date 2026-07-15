@@ -443,6 +443,52 @@ func TestInterfacesClientList(t *testing.T) {
 	}
 }
 
+// TestInterfacesClientListFlatError checks that a failure to list the flat
+// networkInterfaces API is fatal. We don't want to just return the uniform
+// VMSS NICs because that would silently drop most private IPs.
+func TestInterfacesClientListFlatError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		status    int
+		assertErr func(error) bool
+	}{
+		{"access denied", http.StatusForbidden, trace.IsAccessDenied},
+		{"server error", http.StatusInternalServerError, func(err error) bool { return err != nil }},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			uniform, uniformEntries := uniformScaleSets(1)
+			scaleSets := `{"value":[` + strings.Join(uniformEntries, ",") + `]}`
+
+			doer := &fakeDoer{respond: func(req *http.Request) (*http.Response, error) {
+				p := req.URL.Path
+				switch {
+				case strings.HasSuffix(p, "/providers/Microsoft.Network/networkInterfaces"):
+					return jsonResponse(test.status, `{"error":{"code":"fail","message":"bye"}}`), nil
+				case strings.Contains(p, "/virtualMachineScaleSets/") && strings.HasSuffix(p, "/networkInterfaces"):
+					if s, ok := setForPath(uniform, p); ok {
+						return jsonResponse(http.StatusOK, `{"value":[`+nicJSON(s.nicName, s.instance, s.privateIP)+`]}`), nil
+					}
+					return jsonResponse(http.StatusNotFound, `{}`), nil
+				case strings.HasSuffix(p, "/virtualMachineScaleSets"):
+					return jsonResponse(http.StatusOK, scaleSets), nil
+				}
+				return jsonResponse(http.StatusNotFound, `{}`), nil
+			}}
+
+			nicsByVM, err := newTestClient(t, doer).List(t.Context(), "sub", "rg")
+			require.Error(t, err)
+			require.True(t, test.assertErr(err), "unexpected error type: %v", err)
+			require.Nil(t, nicsByVM, "no NICs should be returned when the flat list fails")
+		})
+	}
+}
+
 func TestInterfacesClientListMaxPages(t *testing.T) {
 	t.Parallel()
 

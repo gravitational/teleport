@@ -163,6 +163,10 @@ func (c *interfacesClient) Get(ctx context.Context, resourceID string) (*Interfa
 // Keys are lower-cased VM resource IDs. Azure is not always consistent about
 // the casing of the resource group segment across the compute and network APIs,
 // so look up with strings.ToLower(vm.ID).
+//
+// If there is an error fetching the standalone/flexible NICs, an error is
+// returned. If there is an error fetching uniform VMSS NICs, a warning is
+// logged and the standalone/flexible NICs are returned.
 func (c *interfacesClient) List(ctx context.Context, subscriptionID, resourceGroup string) (map[string][]*Interface, error) {
 	if subscriptionID == "" {
 		return nil, trace.BadParameter("subscription ID is required to list network interfaces")
@@ -175,20 +179,17 @@ func (c *interfacesClient) List(ctx context.Context, subscriptionID, resourceGro
 
 	// Standalone VMs and flexible VMSS instances.
 	regularNICsByVM, flatErr := c.listStandaloneAndFlexibleNICs(ctx, subscriptionID, resourceGroup)
+	if flatErr != nil {
+		// The flat networkInterfaces list is the only source of standalone-VM
+		// and flexible-VMSS NICs. A failure here means that most IP addresses will
+		// be dropped. So surface the error rather than falling back to the (legacy)
+		// uniform VMSS NICs.
+		return nil, trace.Wrap(flatErr)
+	}
 	// Uniform VMSS instances, whose NICs are absent from the flat list above.
 	uniformNICsByVM, uniformErr := c.listUniformVMSSNICs(ctx, subscriptionID, resourceGroup)
 
 	switch {
-	case flatErr != nil && uniformErr != nil:
-		return nil, trace.NewAggregate(flatErr, uniformErr)
-	case flatErr != nil:
-		c.logger.WarnContext(ctx, "failed to list standalone and flexible VMSS network interfaces, continuing with uniform VMSS NICs",
-			"error", flatErr,
-			"subscription_id", subscriptionID,
-			"resource_group", resourceGroup,
-			"found_nics", len(uniformNICsByVM),
-		)
-		return uniformNICsByVM, nil
 	case uniformErr != nil:
 		c.logger.WarnContext(ctx, "failed to list uniform VMSS network interfaces, continuing with standalone and flexible VMSS NICs",
 			"error", uniformErr,
