@@ -20,7 +20,13 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import makeUser, { makeTraits } from './makeUser';
-import { Acl, ExcludeUserField, PasswordState, User } from './types';
+import {
+  Acl,
+  ExcludeUserField,
+  PasswordState,
+  User,
+  UserContext,
+} from './types';
 import user from './user';
 
 test('undefined values in context response gives proper default values', async () => {
@@ -428,7 +434,8 @@ test('undefined values in context response gives proper default values', async (
     },
     allowedSearchAsRoles: [],
     passwordState: PasswordState.PASSWORD_STATE_UNSPECIFIED,
-  });
+    availableScopes: [],
+  } as UserContext);
 });
 
 test('fetch users, null response values gives empty array', async () => {

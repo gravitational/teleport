@@ -53,6 +53,11 @@ export interface UserContext {
   allowedSearchAsRoles: string[];
   /** Indicates whether the user has a password set. */
   passwordState: PasswordState;
+  /**
+   * A list of scopes available to sign in for this user, based on user's
+   * scoped role assignments.
+   */
+  availableScopes: string[];
 }
 
 /**
