@@ -390,7 +390,7 @@ func (r resourceTeleportDatabase) ModifyPlan(ctx context.Context, req tfsdk.Modi
 
 	database = databaseResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(tfschema.CopyDatabaseV3ToTerraformPreserveUnknown(ctx, database, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

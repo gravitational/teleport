@@ -390,7 +390,7 @@ func (r resourceTeleportDynamicWindowsDesktop) ModifyPlan(ctx context.Context, r
 
 	desktop = desktopResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(tfschema.CopyDynamicWindowsDesktopV1ToTerraformPreserveUnknown(ctx, desktop, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

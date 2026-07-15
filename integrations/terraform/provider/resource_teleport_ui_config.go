@@ -381,7 +381,7 @@ func (r resourceTeleportUIConfig) ModifyPlan(ctx context.Context, req tfsdk.Modi
 
 	uiConfig = uiConfigResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(tfschema.CopyUIConfigV1ToTerraformPreserveUnknown(ctx, uiConfig, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

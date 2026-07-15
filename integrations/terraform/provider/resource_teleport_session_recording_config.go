@@ -377,7 +377,7 @@ func (r resourceTeleportSessionRecordingConfig) ModifyPlan(ctx context.Context, 
 
 	sessionRecordingConfig = sessionRecordingConfigResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(tfschema.CopySessionRecordingConfigV2ToTerraformPreserveUnknown(ctx, sessionRecordingConfig, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

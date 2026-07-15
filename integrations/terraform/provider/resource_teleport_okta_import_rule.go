@@ -390,7 +390,7 @@ func (r resourceTeleportOktaImportRule) ModifyPlan(ctx context.Context, req tfsd
 
 	oktaImportRule = oktaImportRuleResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(tfschema.CopyOktaImportRuleV1ToTerraformPreserveUnknown(ctx, oktaImportRule, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

@@ -370,7 +370,7 @@ func (r resourceTeleportDeviceV1) ModifyPlan(ctx context.Context, req tfsdk.Modi
 
 	trustedDevice = trustedDeviceResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(schemav1.CopyDeviceV1ToTerraformPreserveUnknown(ctx, trustedDevice, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

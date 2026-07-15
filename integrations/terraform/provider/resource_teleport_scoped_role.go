@@ -403,7 +403,7 @@ func (r resourceTeleportScopedRole) ModifyPlan(ctx context.Context, req tfsdk.Mo
 
 	scopedRole = scopedRoleResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(schemav1.CopyScopedRoleToTerraformPreserveUnknown(ctx, scopedRole, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

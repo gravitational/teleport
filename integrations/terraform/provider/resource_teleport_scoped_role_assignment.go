@@ -441,7 +441,7 @@ func (r resourceTeleportScopedRoleAssignment) ModifyPlan(ctx context.Context, re
 
 	scopedRoleAssignment = scopedRoleAssignmentResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(assignmentschemav1.CopyScopedRoleAssignmentToTerraformPreserveUnknown(ctx, scopedRoleAssignment, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

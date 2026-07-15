@@ -390,7 +390,7 @@ func (r resourceTeleportLock) ModifyPlan(ctx context.Context, req tfsdk.ModifyRe
 
 	lock = lockResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(tfschema.CopyLockV2ToTerraformPreserveUnknown(ctx, lock, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

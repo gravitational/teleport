@@ -432,7 +432,7 @@ func (r resourceTeleportWorkloadCluster) ModifyPlan(ctx context.Context, req tfs
 
 	workloadcluster = workloadclusterResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(schemav1.CopyWorkloadClusterToTerraformPreserveUnknown(ctx, workloadcluster, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

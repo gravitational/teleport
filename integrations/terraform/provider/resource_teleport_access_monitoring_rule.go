@@ -370,7 +370,7 @@ func (r resourceTeleportAccessMonitoringRule) ModifyPlan(ctx context.Context, re
 
 	accessMonitoringRule = accessMonitoringRuleResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(schemav1.CopyAccessMonitoringRuleToTerraformPreserveUnknown(ctx, accessMonitoringRule, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

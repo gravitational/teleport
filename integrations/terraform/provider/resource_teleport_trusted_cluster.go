@@ -390,7 +390,7 @@ func (r resourceTeleportTrustedCluster) ModifyPlan(ctx context.Context, req tfsd
 
 	trustedCluster = trustedClusterResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(tfschema.CopyTrustedClusterV2ToTerraformPreserveUnknown(ctx, trustedCluster, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

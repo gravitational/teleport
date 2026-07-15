@@ -359,7 +359,7 @@ func (r resourceTeleportInferenceSecret) ModifyPlan(ctx context.Context, req tfs
 
 	inferenceSecret = inferenceSecretResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(schemav1.CopyInferenceSecretToTerraformPreserveUnknown(ctx, inferenceSecret, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return

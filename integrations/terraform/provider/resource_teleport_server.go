@@ -394,7 +394,7 @@ func (r resourceTeleportServer) ModifyPlan(ctx context.Context, req tfsdk.Modify
 
 	server = serverResource
 
-	preserveUnknown := true
+	const preserveUnknown = true
 	resp.Diagnostics.Append(tfschema.CopyServerV2ToTerraformPreserveUnknown(ctx, server, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
