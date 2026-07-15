@@ -192,7 +192,7 @@ func (s *Service) Run(ctx context.Context) error {
 	for {
 		offset := s.scheduler.NextOffset()
 		select {
-		case <-time.After(offset):
+		case <-s.cfg.Clock.After(offset):
 			e := s.scheduler.Next()
 
 			nextDeviceLastSyncDateTime, err := s.runWithSpec(ctx, runSpec{

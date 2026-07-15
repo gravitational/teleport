@@ -3,6 +3,7 @@ package testenv
 import (
 	"cmp"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
+	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -76,6 +78,11 @@ type Opts struct {
 	// Env.APIEndpoint field.
 	// If empty the prefix used is "/api".
 	JamfAPIPrefixOverride string
+
+	// InMemory serves the fake Jamf API over an in-memory listener instead of a
+	// real TCP socket. This keeps all I/O inside the process so the environment
+	// can run inside a synctest bubble.
+	InMemory bool
 }
 
 // MustNew creates a new [E] or panics.
@@ -147,9 +154,27 @@ func New(opts *Opts) (*E, error) {
 	e.API.SetUsers(DefaultUsers)
 
 	prefix := cmp.Or(opts.JamfAPIPrefixOverride, "/api")
-	e.server = httptest.NewTLSServer(e.API.Handler(prefix))
+	if opts.InMemory {
+		// Serve the fake API over an in-memory listener so all I/O stays in process
+		// (required for synctest). The Jamf client always uses "https", so the
+		// server still needs TLS. The client skips verification since it dials the
+		// in-memory listener directly.
+		srv := httptest.NewUnstartedServer(e.API.Handler(prefix))
+		lis := listenerutils.NewInMemoryListener()
+		srv.Listener = lis
+		srv.StartTLS()
+		e.server = srv
+		e.HTTPClient = &http.Client{
+			Transport: &http.Transport{
+				DialContext:     lis.DialContext,
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
+	} else {
+		e.server = httptest.NewTLSServer(e.API.Handler(prefix))
+		e.HTTPClient = e.server.Client()
+	}
 	e.APIEndpoint = fmt.Sprintf("%v%v", e.server.URL, prefix)
-	e.HTTPClient = e.server.Client()
 
 	var err error
 	e.Client, err = e.NewClient()

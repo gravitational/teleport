@@ -19,6 +19,7 @@ import (
 	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/e/lib/intune/api"
 	intunefake "github.com/gravitational/teleport/e/lib/intune/fake"
+	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 )
 
 // DefaultApps are the app credentials added by default to the fake Intune API.
@@ -47,6 +48,10 @@ type Config struct {
 	Clock clockwork.Clock
 	// DeviceTrustEnv makes [Env] prepare a test environment for Device Trust as well.
 	DeviceTrustEnv bool
+	// InMemory serves the fake Intune API over an in-memory listener instead of a
+	// real TCP socket. This keeps all I/O inside the process so the environment
+	// can run inside a [testing/synctest] bubble.
+	InMemory bool
 }
 
 // MustNew sets up a new TLS server with the fake Intune API.
@@ -68,19 +73,31 @@ func MustNew(t *testing.T, config *Config) *Env {
 	})
 	api.SetApps(DefaultApps)
 
-	server := httptest.NewTLSServer(api.Handler())
-	httpClient := server.Client()
-	var d net.Dialer
-	httpClient.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-		// Ignore the address and always direct all requests to the fake API server.
-		// High-level level tests which run intuneInstanceFactory don't have control over intune.Client
-		// initialization, but they can pass a custom http.Client. This allows them to connect to the
-		// fake API server despite the intune.Client trying to reach the official endpoints.
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+	// Ignore the address and always direct all requests to the fake API server.
+	// High-level level tests which run intuneInstanceFactory don't have control over intune.Client
+	// initialization, but they can pass a custom http.Client. This allows them to connect to the
+	// fake API server despite the intune.Client trying to reach the official endpoints.
+	var server *httptest.Server
+	var dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
+	if config.InMemory {
+		lis := listenerutils.NewInMemoryListener()
+		server = httptest.NewUnstartedServer(api.Handler())
+		server.Listener = lis
+		server.StartTLS()
+		dialContext = lis.DialContext
+	} else {
+		server = httptest.NewTLSServer(api.Handler())
+		var d net.Dialer
+		dialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return d.DialContext(ctx, "tcp", server.Listener.Addr().String())
+		}
+	}
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+			DialContext: dialContext,
 		},
 	}
 

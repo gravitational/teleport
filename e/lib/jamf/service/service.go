@@ -247,7 +247,7 @@ func (s *S) Run(ctx context.Context) error {
 		}
 
 		select {
-		case <-time.After(offset):
+		case <-s.clock.After(offset):
 			// TODO(codingllama): "Downgrade" initial FULL sync to PARTIAL depending
 			//  on device counts?
 			e := s.scheduler.Next()
