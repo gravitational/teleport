@@ -275,6 +275,11 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return path, nil
 }
 
+// UploadReplayObject is not supported by the GCS session backend.
+func (h *Handler) UploadReplayObject(ctx context.Context, sessionID session.ID, name string, reader io.Reader) (string, error) {
+	return "", trace.NotImplemented("beam replay is not supported by the GCS session backend")
+}
+
 // UploadMetadata reads the session metadata from a reader and uploads it to a GCS
 // bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
@@ -367,6 +372,11 @@ func (h *Handler) gcsStream(ctx context.Context, objectPath string) (io.ReadClos
 		return nil, convertGCSError(err)
 	}
 	return reader, nil
+}
+
+// StreamReplayObjectRange is not supported by the GCS session backend.
+func (h *Handler) StreamReplayObjectRange(ctx context.Context, sessionID session.ID, name string, offset, length int64) (io.ReadCloser, error) {
+	return nil, trace.NotImplemented("beam replay is not supported by the GCS session backend")
 }
 
 // StreamSessionMetadata downloads a session's metadata from a GCS bucket and
