@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 )
 
 const defaultInstallerSnapshot = `#!/usr/bin/env sh
@@ -91,8 +92,21 @@ $Version = '1.2.3'
 $CA = 'TEST_CA_BUNDLE'
 
 $InstallerName = "teleport-windows-auth-setup-v$Version-amd64.exe"
-$WorkDir       = Join-Path $env:TEMP 'teleport-ap-install'
-New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+# Stage installer files under %WINDIR%\SystemTemp, which is only writable by
+# SYSTEM and Administrators.
+$SystemTemp    = Join-Path $env:WINDIR 'SystemTemp'
+
+# SystemTemp isn't guaranteed to exist on older builds.
+New-Item -ItemType Directory -Path $SystemTemp -Force | Out-Null
+
+# Refuse to stage under a redirected SystemTemp
+if ((Get-Item -LiteralPath $SystemTemp -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+	Write-Host "$SystemTemp is a reparse point, refusing to stage installer files there."
+	exit 202
+}
+
+$WorkDir       = Join-Path $SystemTemp ([System.Guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Path $WorkDir | Out-Null
 $InstallerPath = Join-Path $WorkDir $InstallerName
 $CertPath      = Join-Path $WorkDir 'teleport.pem'
 
@@ -119,7 +133,6 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "Scheduling a system restart in 60 seconds to complete the enrollment process"
 & shutdown.exe /r /t 60 /c "Restarting to complete Teleport enrollment process"
-
 `
 
 func TestDefaultWindowsDesktopInstaller(t *testing.T) {
@@ -137,8 +150,11 @@ func TestDefaultWindowsDesktopInstaller(t *testing.T) {
 	render := func(restart bool) string {
 		buf := &bytes.Buffer{}
 		require.NoError(t, parse().Execute(buf, installers.Template{
-			Version:                "1.2.3",
-			RestartAfterEnrollment: restart,
+			Version:                          "1.2.3",
+			RestartAfterEnrollment:           restart,
+			WindowsInstallerDownloadFailure:  int(installstatus.WindowsInstallerDownloadFailure),
+			WindowsInstallerExecutionFailure: int(installstatus.WindowsInstallerExecutionFailure),
+			WindowsInstallerStagingDirUnsafe: int(installstatus.WindowsInstallerStagingDirUnsafe),
 		}))
 		return buf.String()
 	}

@@ -38,6 +38,7 @@ const (
 	AdministratorPrivilegesRequired ExitCode = 106
 	WindowsInsufficientDiskSpace    ExitCode = 107
 	UnsupportedWindowsVersion       ExitCode = 108
+	WindowsMachineDomainJoined      ExitCode = 109
 
 	// Post-install exit codes (Go binary, 150–199).
 	JoinFailure ExitCode = 150
@@ -45,6 +46,7 @@ const (
 	// Install exit codes (200-249).
 	WindowsInstallerDownloadFailure  ExitCode = 200
 	WindowsInstallerExecutionFailure ExitCode = 201
+	WindowsInstallerStagingDirUnsafe ExitCode = 202
 )
 
 // InstallerMinFreeDiskMB is the minimum free disk space in megabytes required for Teleport installation.
@@ -97,6 +99,9 @@ func (c ExitCode) String() string {
 		return "Unsupported Windows version. " +
 			"Please ensure you are running a supported version of Windows " +
 			"(Windows Server 2016 or later, Windows 10 or later) and try again."
+	case WindowsMachineDomainJoined:
+		return "This host is joined to an Active Directory domain. " +
+			"The Teleport authentication package can only be installed on non-domain-joined hosts."
 	case JoinFailure:
 		return "Teleport was installed successfully but the agent " +
 			"did not become ready within the configured timeout. " +
@@ -107,6 +112,10 @@ func (c ExitCode) String() string {
 	case WindowsInstallerExecutionFailure:
 		return "The Teleport authentication package installer returned an error. " +
 			"Check the standard output and standard error for details."
+	case WindowsInstallerStagingDirUnsafe:
+		return "The installer staging directory under %WINDIR%\\SystemTemp is a " +
+			"reparse point (symlink or junction) and may redirect to an untrusted " +
+			"location. Please ensure it is not a reparse point and try again."
 	default:
 		return fmt.Sprintf(
 			"Installation failed with exit code %d. "+

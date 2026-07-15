@@ -358,5 +358,10 @@ func preFlightInstallerChecksWindows(proxyAddr, proxyCheck string) map[installst
 		// See https://learn.microsoft.com/en-us/windows/win32/sysinfo/operating-system-version
 		installstatus.UnsupportedWindowsVersion: fmt.Sprintf(`if ($([System.Environment]::OSVersion.Version.Major) -lt 10) %s`,
 			exitWithMessage(installstatus.UnsupportedWindowsVersion, "Unsupported Windows version")),
+
+		// Check that the machine is not joined to an Active Directory domain. The
+		// authentication package is only supported on non-domain-joined hosts.
+		installstatus.WindowsMachineDomainJoined: fmt.Sprintf(`if ((Get-CimInstance -ClassName Win32_ComputerSystem).PartOfDomain) %s`,
+			exitWithMessage(installstatus.WindowsMachineDomainJoined, "Machine is joined to a domain")),
 	}
 }

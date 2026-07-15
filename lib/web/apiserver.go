@@ -113,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -2675,14 +2676,17 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	restartAfterEnrollment := r.URL.Query().Get("restart-after-enrollment") == "true"
 
 	tmpl := installers.Template{
-		PublicProxyAddr:        h.PublicProxyAddr(),
-		MajorVersion:           shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
-		TeleportPackage:        teleportPackage,
-		RepoChannel:            shsprintf.EscapeDefaultContext(repoChannel),
-		AutomaticUpgrades:      strconv.FormatBool(installUpdater),
-		AzureClientID:          shsprintf.EscapeDefaultContext(azureClientID),
-		Version:                shsprintf.EscapeDefaultContext(targetVersion.String()),
-		RestartAfterEnrollment: restartAfterEnrollment,
+		PublicProxyAddr:                  h.PublicProxyAddr(),
+		MajorVersion:                     shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
+		TeleportPackage:                  teleportPackage,
+		RepoChannel:                      shsprintf.EscapeDefaultContext(repoChannel),
+		AutomaticUpgrades:                strconv.FormatBool(installUpdater),
+		AzureClientID:                    shsprintf.EscapeDefaultContext(azureClientID),
+		Version:                          shsprintf.EscapeDefaultContext(targetVersion.String()),
+		RestartAfterEnrollment:           restartAfterEnrollment,
+		WindowsInstallerDownloadFailure:  int(installstatus.WindowsInstallerDownloadFailure),
+		WindowsInstallerExecutionFailure: int(installstatus.WindowsInstallerExecutionFailure),
+		WindowsInstallerStagingDirUnsafe: int(installstatus.WindowsInstallerStagingDirUnsafe),
 	}
 
 	var buf bytes.Buffer

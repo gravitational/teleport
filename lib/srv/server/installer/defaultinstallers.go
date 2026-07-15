@@ -19,12 +19,10 @@
 package installer
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
-	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
@@ -34,9 +32,22 @@ $ProgressPreference    = 'SilentlyContinue'
 $Version = '{{.Version}}'
 $CA = '{{getWindowsCA}}'`
 
-var windowsDesktopInstallerScript = fmt.Sprintf(`$InstallerName = "teleport-windows-auth-setup-v$Version-amd64.exe"
-$WorkDir       = Join-Path $env:TEMP 'teleport-ap-install'
-New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+var windowsDesktopInstallerScript = `$InstallerName = "teleport-windows-auth-setup-v$Version-amd64.exe"
+# Stage installer files under %WINDIR%\SystemTemp, which is only writable by
+# SYSTEM and Administrators.
+$SystemTemp    = Join-Path $env:WINDIR 'SystemTemp'
+
+# SystemTemp isn't guaranteed to exist on older builds.
+New-Item -ItemType Directory -Path $SystemTemp -Force | Out-Null
+
+# Refuse to stage under a redirected SystemTemp
+if ((Get-Item -LiteralPath $SystemTemp -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+	Write-Host "$SystemTemp is a reparse point, refusing to stage installer files there."
+	exit {{ .WindowsInstallerStagingDirUnsafe }}
+}
+
+$WorkDir       = Join-Path $SystemTemp ([System.Guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Path $WorkDir | Out-Null
 $InstallerPath = Join-Path $WorkDir $InstallerName
 $CertPath      = Join-Path $WorkDir 'teleport.pem'
 
@@ -50,14 +61,14 @@ try {
 	Invoke-WebRequest @dl
 } catch {
 	Write-Host "Authentication package download failed: $_"
-	exit %[1]d
+	exit {{ .WindowsInstallerDownloadFailure }}
 }
 
 Write-Host "Running authentication package installer..."
 & $InstallerPath install --cert=$CertPath
 if ($LASTEXITCODE -ne 0) {
 	Write-Host "Authentication package installer failed (exit $LASTEXITCODE)"
-	exit %[2]d
+	exit {{ .WindowsInstallerExecutionFailure }}
 }
 
 {{if .RestartAfterEnrollment}}
@@ -65,8 +76,7 @@ Write-Host "Scheduling a system restart in 60 seconds to complete the enrollment
 & shutdown.exe /r /t 60 /c "Restarting to complete Teleport enrollment process"
 {{else}}
 Write-Host "A reboot is required to complete installation."
-{{end}}
-`, installstatus.WindowsInstallerDownloadFailure, installstatus.WindowsInstallerExecutionFailure)
+{{end}}`
 
 var DefaultWindowsDesktopInstaller = types.MustNewInstallerV1(
 	installers.InstallerScriptNameWindowsDesktop,

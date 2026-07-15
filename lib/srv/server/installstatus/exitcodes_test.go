@@ -48,6 +48,13 @@ func TestExitCodeString(t *testing.T) {
 				"Check the standard output and standard error for details.",
 		},
 		{
+			name: "windows installer staging dir unsafe",
+			code: WindowsInstallerStagingDirUnsafe,
+			want: "The installer staging directory under %WINDIR%\\SystemTemp is a " +
+				"reparse point (symlink or junction) and may redirect to an untrusted " +
+				"location. Please ensure it is not a reparse point and try again.",
+		},
+		{
 			name: "unrecognized code falls back to the generic message",
 			code: ExitCode(999),
 			want: "Installation failed with exit code 999. " +

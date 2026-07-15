@@ -66,4 +66,15 @@ type Template struct {
 	// for smartcard authentication to work, but the user may choose to restart
 	// later.
 	RestartAfterEnrollment bool
+	// WindowsInstallerDownloadFailure is the exit code for when the Windows
+	// desktop installer fails to download the authentication package.
+	WindowsInstallerDownloadFailure int
+	// WindowsInstallerExecutionFailure is the exit code for when the Windows
+	// desktop installer fails to execute the authentication package.
+	WindowsInstallerExecutionFailure int
+	// WindowsInstallerStagingDirUnsafe is the exit code for when the Windows
+	// desktop installer staging directory under %WINDIR%\SystemTemp is a
+	// reparse point (symlink or junction) and may redirect to an untrusted
+	// location.
+	WindowsInstallerStagingDirUnsafe int
 }
