@@ -26,7 +26,6 @@ import (
 	"encoding/base32"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"net"
 	"net/url"
 	"os"
@@ -36,7 +35,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
@@ -1625,7 +1623,10 @@ func TestAppServerCRUD(t *testing.T) {
 
 	testSrv := newTestTLSServer(t)
 
-	clt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleApp))
+	// A RoleApp agent may only manage app servers with its own host ID, so the
+	// identity's host ID and the app server's HostID must match.
+	const appHostID = "app-host-id"
+	clt, err := testSrv.NewClient(authtest.TestServerID(types.RoleApp, appHostID))
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -1644,7 +1645,7 @@ func TestAppServerCRUD(t *testing.T) {
 		Namespace: apidefaults.Namespace,
 	}, types.AppServerSpecV3{
 		Hostname: "localhost",
-		HostID:   uuid.New().String(),
+		HostID:   appHostID,
 		App:      app,
 	})
 	require.NoError(t, err)
@@ -4123,12 +4124,9 @@ func TestEventsNodePresence(t *testing.T) {
 		},
 	}
 	node.SetExpiry(time.Now().Add(2 * time.Second))
-	clt, err := testSrv.NewClient(authtest.TestIdentity{
-		I: authz.BuiltinRole{
-			Role:     types.RoleNode,
-			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, testSrv.ClusterName()),
-		},
-	})
+	// A RoleNode agent may only manage the node resource matching its own host
+	// ID, so the identity's server ID must match the node's name.
+	clt, err := testSrv.NewClient(authtest.TestServerID(types.RoleNode, node.Metadata.Name))
 	require.NoError(t, err)
 	defer clt.Close()
 
