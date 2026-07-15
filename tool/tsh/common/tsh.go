@@ -1716,7 +1716,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			return trace.Wrap(err)
 		}
 	}
-	configureProxyStatusOutput(&cf, proxyStatusOutput)
+	if err := configureProxyStatusOutput(&cf, proxyStatusOutput); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
@@ -6526,8 +6528,9 @@ func onHeadlessApprove(cf *CLIConf) error {
 	return trace.Wrap(err)
 }
 
-func configureProxyStatusOutput(cf *CLIConf, proxyStatusOutput string) {
-	// This should never happen because the flag has a default
+func configureProxyStatusOutput(cf *CLIConf, proxyStatusOutput string) error {
+	// This should be unreachable because Kingpin validates the flag value against
+	// the allowed enum values.
 	if proxyStatusOutput == "" {
 		proxyStatusOutput = proxyStatusOutputDefault
 	}
@@ -6539,11 +6542,9 @@ func configureProxyStatusOutput(cf *CLIConf, proxyStatusOutput string) {
 	case proxyStatusOutputNone:
 		cf.proxyStatusOutputWriter = io.Discard
 	default:
-		// This should also never happen due to the flag default
-		// We don't need to set the writer here because ProxyStatusOutput() will
-		// fall back to stderr.
-		logger.WarnContext(cf.Context, "BUG: proxyStatusOutput is not a known output destination.", "value", proxyStatusOutput)
+		return trace.BadParameter("unreachable code: proxyStatusOutput %q is not a known output destination", proxyStatusOutput)
 	}
+	return nil
 }
 
 var mlockModes = []string{mlockModeNo, mlockModeAuto, mlockModeBestEffort, mlockModeStrict}

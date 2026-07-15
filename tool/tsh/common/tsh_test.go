@@ -8773,7 +8773,7 @@ func TestConfigureProxyStatusOutput(t *testing.T) {
 			OverrideStdout: stdout,
 		}
 
-		configureProxyStatusOutput(cf, proxyStatusOutputStdout)
+		require.NoError(t, configureProxyStatusOutput(cf, proxyStatusOutputStdout))
 
 		require.Same(t, stdout, cf.ProxyStatusOutput())
 	})
@@ -8785,7 +8785,7 @@ func TestConfigureProxyStatusOutput(t *testing.T) {
 			overrideStderr: stderr,
 		}
 
-		configureProxyStatusOutput(cf, proxyStatusOutputStderr)
+		require.NoError(t, configureProxyStatusOutput(cf, proxyStatusOutputStderr))
 
 		require.Same(t, stderr, cf.ProxyStatusOutput())
 		require.NotSame(t, stderr, cf.Stdout())
@@ -8794,9 +8794,23 @@ func TestConfigureProxyStatusOutput(t *testing.T) {
 	t.Run("none discards output", func(t *testing.T) {
 		cf := &CLIConf{}
 
-		configureProxyStatusOutput(cf, proxyStatusOutputNone)
+		require.NoError(t, configureProxyStatusOutput(cf, proxyStatusOutputNone))
 
 		require.Equal(t, io.Discard, cf.ProxyStatusOutput())
+	})
+
+	t.Run("empty output defaults to stderr", func(t *testing.T) {
+		cf := &CLIConf{}
+
+		require.NoError(t, configureProxyStatusOutput(cf, ""))
+
+		require.Equal(t, os.Stderr, cf.ProxyStatusOutput())
+	})
+
+	t.Run("unknown output fails", func(t *testing.T) {
+		err := configureProxyStatusOutput(&CLIConf{}, "unknown")
+
+		require.ErrorContains(t, err, "unreachable code")
 	})
 }
 
@@ -8810,6 +8824,15 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 	}{
 		{
 			name:     "default stderr",
+			expected: proxyStatusOutputStderr,
+		},
+		// Kingpin treats an empty environment variable as unset, so the default
+		// value is used. An explicitly empty flag is rejected as an invalid enum.
+		{
+			name: "empty env defaults to stderr",
+			env: map[string]string{
+				proxyStatusOutputEnvVar: "",
+			},
 			expected: proxyStatusOutputStderr,
 		},
 		{
@@ -8837,6 +8860,11 @@ func TestProxyStatusOutputParsing(t *testing.T) {
 			name:     "flag stdout",
 			args:     []string{"--proxy-log-output=stdout"},
 			expected: proxyStatusOutputStdout,
+		},
+		{
+			name:    "empty flag fails parsing",
+			args:    []string{"--proxy-log-output="},
+			wantErr: true,
 		},
 		{
 			name:     "flag stderr",
