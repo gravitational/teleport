@@ -58,7 +58,7 @@ jobs:
           oss-fetch-depth: 0  # This is required by some of the commands in the makefiles
 
       - name: Assume env-loader secrets decryption AWS role
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           aws-region: us-west-2
           role-to-assume: ${{ vars.BUILD_PLUGINS_ENV_LOADER_AWS_ROLE_ARN }}
@@ -245,7 +245,7 @@ jobs:
 
       # Upload artifacts
       - name: Assume AWS role for uploading the artifacts
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2

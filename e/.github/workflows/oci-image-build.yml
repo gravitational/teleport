@@ -210,7 +210,7 @@ jobs:
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Assume Public ECR login role
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.ECR_READ_ONLY_ROLE }}
@@ -234,7 +234,7 @@ jobs:
 
       - name: Assume pending artifact bucket AWS download role
         if: inputs.should-download-teleport-packages
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
@@ -301,7 +301,7 @@ jobs:
           echo "dest-image-registry=${DST_IMAGE_REPO%%/*}" >> "$GITHUB_OUTPUT"
 
       - name: Assume Build AWS role
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.OCI_ECR_AWS_ROLE }}
