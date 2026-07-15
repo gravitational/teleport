@@ -17642,7 +17642,9 @@ func CopyAppV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gr
 
 											v.Null = false
 											v.Value = string(obj.Region)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["region"] = v
 										}
 									}

@@ -403,7 +403,8 @@ func (r resourceTeleportDatabaseObjectImportRule) ModifyPlan(ctx context.Context
 
 	importRule = importRuleResource
 
-	resp.Diagnostics.Append(schemav1.CopyDatabaseObjectImportRuleToTerraform(ctx, importRule, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyDatabaseObjectImportRuleToTerraformPreserveUnknown(ctx, importRule, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
