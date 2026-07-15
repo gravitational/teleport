@@ -360,7 +360,8 @@ func (r resourceTeleportScopedToken) ModifyPlan(ctx context.Context, req tfsdk.M
 
 	scopedToken = scopedTokenResource
 
-	resp.Diagnostics.Append(schemav1.CopyScopedTokenToTerraform(ctx, scopedToken, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyScopedTokenToTerraformPreserveUnknown(ctx, scopedToken, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

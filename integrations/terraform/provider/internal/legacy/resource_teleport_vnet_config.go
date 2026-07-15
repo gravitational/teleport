@@ -362,7 +362,8 @@ func (r resourceTeleportVnetConfig) ModifyPlan(ctx context.Context, req tfsdk.Mo
 
 	vnetConfig = vnetConfigResource
 
-	resp.Diagnostics.Append(schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyVnetConfigToTerraformPreserveUnknown(ctx, vnetConfig, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

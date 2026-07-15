@@ -360,7 +360,8 @@ func (r resourceTeleportClassifier) ModifyPlan(ctx context.Context, req tfsdk.Mo
 
 	classifier = classifierResource
 
-	resp.Diagnostics.Append(schemav1.CopyClassifierToTerraform(ctx, classifier, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyClassifierToTerraformPreserveUnknown(ctx, classifier, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

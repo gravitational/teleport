@@ -360,7 +360,8 @@ func (r resourceTeleportAccessMonitoringRule) ModifyPlan(ctx context.Context, re
 
 	accessMonitoringRule = accessMonitoringRuleResource
 
-	resp.Diagnostics.Append(schemav1.CopyAccessMonitoringRuleToTerraform(ctx, accessMonitoringRule, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyAccessMonitoringRuleToTerraformPreserveUnknown(ctx, accessMonitoringRule, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
