@@ -322,4 +322,8 @@ export default class StoreUserContext extends Store<UserContext> {
   getBeamAccess() {
     return this.state.acl.beam;
   }
+
+  getAvailableScopes() {
+    return this.state.availableScopes;
+  }
 }
