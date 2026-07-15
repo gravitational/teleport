@@ -369,7 +369,8 @@ func (r resourceTeleportWorkloadIdentity) ModifyPlan(ctx context.Context, req tf
 
 	workloadIdentity = workloadIdentityResource
 
-	resp.Diagnostics.Append(schemav1.CopyWorkloadIdentityToTerraform(ctx, workloadIdentity, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyWorkloadIdentityToTerraformPreserveUnknown(ctx, workloadIdentity, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

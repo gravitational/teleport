@@ -390,7 +390,8 @@ func (r resourceTeleportRole) ModifyPlan(ctx context.Context, req tfsdk.ModifyRe
 
 	role = roleResource
 
-	resp.Diagnostics.Append(tfschema.CopyRoleV6ToTerraform(ctx, role, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyRoleV6ToTerraformPreserveUnknown(ctx, role, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

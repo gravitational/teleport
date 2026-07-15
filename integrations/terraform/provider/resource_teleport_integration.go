@@ -390,7 +390,8 @@ func (r resourceTeleportIntegration) ModifyPlan(ctx context.Context, req tfsdk.M
 
 	integration = integrationResource
 
-	resp.Diagnostics.Append(tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyIntegrationV1ToTerraformPreserveUnknown(ctx, integration, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
