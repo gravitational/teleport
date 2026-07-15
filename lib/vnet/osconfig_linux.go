@@ -126,6 +126,11 @@ func shouldReconfigureDNSZones(cfg *osConfig, state *platformOSConfigState) bool
 	return !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones)
 }
 
+func shouldReconfigureNameserver(cfg *osConfig, state *platformOSConfigState) bool {
+	return len(cfg.dnsAddrs) > 0 && state.tunName != "" &&
+		!utils.ContainSameUniqueElements(cfg.dnsAddrs, state.configuredDNSAddrs)
+}
+
 func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
 	// systemd-resolved stores DNS settings per network link. For VNet
 	// we configure DNS on the TUN link. The TUN is ephemeral, when
@@ -143,6 +148,14 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 	}
 	deconfigure := len(cfg.dnsAddrs) == 0 && len(cfg.dnsZones) == 0
 
+	needsZoneUpdate := shouldReconfigureDNSZones(cfg, state)
+	needsNameserverUpdate := shouldReconfigureNameserver(cfg, state)
+	if !needsZoneUpdate && !needsNameserverUpdate {
+		// Nothing changed since the last successful application. Return early
+		// to avoid opening a new D-Bus connection on every tick.
+		return nil
+	}
+
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		return trace.NotFound("system D-Bus is unavailable: %v", err)
@@ -152,7 +165,7 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 		return err
 	}
 
-	if shouldReconfigureDNSZones(cfg, state) {
+	if needsZoneUpdate {
 		iface, err := net.InterfaceByName(state.tunName)
 		if err != nil {
 			if deconfigure && isNoSuchNetworkInterfaceError(err) {
@@ -178,7 +191,7 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 		state.configuredDNSZones = cfg.dnsZones
 	}
 
-	if len(cfg.dnsAddrs) > 0 && state.tunName != "" && !slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) {
+	if needsNameserverUpdate {
 		iface, err := net.InterfaceByName(state.tunName)
 		if err != nil {
 			return trace.Wrap(err, "looking up interface %s", state.tunName)
