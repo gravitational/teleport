@@ -170,6 +170,34 @@ spec:
                           to value cluster wide auth preference if not set.'
                         type: string
                     type: object
+                  resources:
+                    description: The kubernetes resources this role grants access
+                      to.
+                    items:
+                      properties:
+                        api_group:
+                          description: The kube API group of the kube resource. It
+                            supports wildcards.
+                          type: string
+                        kind:
+                          description: The kube resource type.
+                          type: string
+                        name:
+                          description: The kube resource name. It supports wildcards.
+                          type: string
+                        namespace:
+                          description: The kube resource namespace. It supports wildcards.
+                          type: string
+                        verbs:
+                          description: The allowed kube verbs for interacting with
+                            the kube resource.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    nullable: true
+                    type: array
                   users:
                     description: An optional list of impersonatable kubernetes users
                       this role allows.
