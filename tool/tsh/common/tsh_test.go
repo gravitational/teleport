@@ -8765,3 +8765,178 @@ func TestSSHEnv(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigureProxyStatusOutput(t *testing.T) {
+	t.Run("stdout preserves override", func(t *testing.T) {
+		stdout := &bytes.Buffer{}
+		cf := &CLIConf{
+			OverrideStdout: stdout,
+		}
+
+		require.NoError(t, configureProxyStatusOutput(cf, proxyStatusOutputStdout))
+
+		require.Same(t, stdout, cf.ProxyStatusOutput())
+	})
+
+	t.Run("stderr uses stderr writer", func(t *testing.T) {
+		stderr := &bytes.Buffer{}
+		cf := &CLIConf{
+			OverrideStdout: &bytes.Buffer{},
+			overrideStderr: stderr,
+		}
+
+		require.NoError(t, configureProxyStatusOutput(cf, proxyStatusOutputStderr))
+
+		require.Same(t, stderr, cf.ProxyStatusOutput())
+		require.NotSame(t, stderr, cf.Stdout())
+	})
+
+	t.Run("none discards output", func(t *testing.T) {
+		cf := &CLIConf{}
+
+		require.NoError(t, configureProxyStatusOutput(cf, proxyStatusOutputNone))
+
+		require.Equal(t, io.Discard, cf.ProxyStatusOutput())
+	})
+
+	t.Run("empty output defaults to stderr", func(t *testing.T) {
+		cf := &CLIConf{}
+
+		require.NoError(t, configureProxyStatusOutput(cf, ""))
+
+		require.Equal(t, os.Stderr, cf.ProxyStatusOutput())
+	})
+
+	t.Run("unknown output fails", func(t *testing.T) {
+		err := configureProxyStatusOutput(&CLIConf{}, "unknown")
+
+		require.ErrorContains(t, err, "unreachable code")
+	})
+}
+
+func TestProxyStatusOutputParsing(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		args     []string
+		env      map[string]string
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "default stderr",
+			expected: proxyStatusOutputStderr,
+		},
+		// Kingpin treats an empty environment variable as unset, so the default
+		// value is used. An explicitly empty flag is rejected as an invalid enum.
+		{
+			name: "empty env defaults to stderr",
+			env: map[string]string{
+				proxyStatusOutputEnvVar: "",
+			},
+			expected: proxyStatusOutputStderr,
+		},
+		{
+			name: "env stdout",
+			env: map[string]string{
+				proxyStatusOutputEnvVar: proxyStatusOutputStdout,
+			},
+			expected: proxyStatusOutputStdout,
+		},
+		{
+			name: "env stderr",
+			env: map[string]string{
+				proxyStatusOutputEnvVar: proxyStatusOutputStderr,
+			},
+			expected: proxyStatusOutputStderr,
+		},
+		{
+			name: "env none",
+			env: map[string]string{
+				proxyStatusOutputEnvVar: proxyStatusOutputNone,
+			},
+			expected: proxyStatusOutputNone,
+		},
+		{
+			name:     "flag stdout",
+			args:     []string{"--proxy-log-output=stdout"},
+			expected: proxyStatusOutputStdout,
+		},
+		{
+			name:    "empty flag fails parsing",
+			args:    []string{"--proxy-log-output="},
+			wantErr: true,
+		},
+		{
+			name:     "flag stderr",
+			args:     []string{"--proxy-log-output=stderr"},
+			expected: proxyStatusOutputStderr,
+		},
+		{
+			name:     "flag none",
+			args:     []string{"--proxy-log-output=none"},
+			expected: proxyStatusOutputNone,
+		},
+		{
+			name: "flag overrides env",
+			args: []string{"--proxy-log-output=none"},
+			env: map[string]string{
+				proxyStatusOutputEnvVar: proxyStatusOutputStderr,
+			},
+			expected: proxyStatusOutputNone,
+		},
+		{
+			name:    "invalid env",
+			env:     map[string]string{proxyStatusOutputEnvVar: "foobar"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid flag",
+			args:    []string{"--proxy-log-output=foobar"},
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			var proxyStatusOutput string
+			app := utils.InitCLIParser("tsh", "Teleport Command Line Client.")
+			app.Flag("proxy-log-output", "Test fixture only, help message not tested in this test").
+				Envar(proxyStatusOutputEnvVar).
+				Hidden().
+				Default(proxyStatusOutputDefault).
+				EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
+			_, err := app.Parse(tt.args)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, proxyStatusOutput)
+		})
+	}
+}
+
+func TestProxyStatusOutputHelp(t *testing.T) {
+	const success_param = "parameters-verified, short-circuit success"
+	err := Run(
+		context.Background(),
+		[]string{"version"},
+		setHomePath(t.TempDir()),
+		func(cf *CLIConf) error {
+			require.NotNil(t, cf.kingpinApp)
+
+			var buf bytes.Buffer
+			cf.kingpinApp.UsageWriter(&buf)
+			ctx, err := cf.kingpinApp.ParseContext([]string{"proxy", "--help"})
+			require.NoError(t, err)
+			require.NoError(t, cf.kingpinApp.UsageForContext(ctx))
+
+			help := buf.String()
+			require.Contains(t, help, "--proxy-log-output")
+			return trace.BadParameter(success_param)
+		},
+	)
+	require.ErrorIs(t, err, trace.BadParameter(success_param))
+}
