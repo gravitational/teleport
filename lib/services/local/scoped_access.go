@@ -105,12 +105,8 @@ func (s *ScopedAccessService) GetScopedRole(ctx context.Context, req *scopedacce
 // ListScopedRoles returns a paginated list of scoped roles.
 // NOTE: this method is only used by local auth caches, and doesn't implement sorting, filtering, or pagination.
 func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
-	if req.GetResourceScope() != nil {
-		return nil, trace.NotImplemented("filtering by resource scope is not implemented for direct backend scoped role reads")
-	}
-
-	if req.GetAssignableScope() != nil {
-		return nil, trace.NotImplemented("filtering by assignable scope is not implemented for direct backend scoped role reads")
+	if err := scopes.ValidateFilter(req.GetScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if req.GetNameFilter() != "" {
@@ -125,6 +121,10 @@ func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedac
 	for role, err := range s.StreamScopedRoles(ctx) {
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if !scopes.MatchScope(req.GetScopeFilter(), role.GetScope()) {
+			continue
 		}
 
 		out = append(out, role)
@@ -375,12 +375,11 @@ func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *
 // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
 // NOTE: this method is only used by local auth caches, and doesn't implement sorting, filtering, or pagination.
 func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
-	if req.GetResourceScope() != nil {
-		return nil, trace.NotImplemented("filtering by resource scope is not implemented for direct backend scoped role assignment reads")
+	if err := scopes.ValidateFilter(req.GetScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	if req.GetAssignedScope() != nil {
-		return nil, trace.NotImplemented("filtering by assigned scope is not implemented for direct backend scoped role assignment reads")
+	if err := scopes.ValidateFilter(req.GetAssignedScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if req.GetPageToken() != "" {
@@ -392,6 +391,15 @@ func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if !scopes.MatchScope(req.GetScopeFilter(), assignment.GetScope()) {
+			continue
+		}
+
+		if !scopedaccess.MatchSecondaryAssignmentFilters(req, assignment) {
+			continue
+		}
+
 		out = append(out, assignment)
 	}
 
