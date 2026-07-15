@@ -370,7 +370,8 @@ func (r resourceTeleportStaticHostUser) ModifyPlan(ctx context.Context, req tfsd
 
 	staticHostUser = staticHostUserResource
 
-	resp.Diagnostics.Append(schemav1.CopyStaticHostUserToTerraform(ctx, staticHostUser, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyStaticHostUserToTerraformPreserveUnknown(ctx, staticHostUser, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

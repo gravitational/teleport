@@ -390,7 +390,8 @@ func (r resourceTeleportOIDCConnector) ModifyPlan(ctx context.Context, req tfsdk
 
 	oidcConnector = oidcConnectorResource
 
-	resp.Diagnostics.Append(tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyOIDCConnectorV3ToTerraformPreserveUnknown(ctx, oidcConnector, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

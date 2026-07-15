@@ -370,7 +370,8 @@ func (r resourceTeleportHealthCheckConfig) ModifyPlan(ctx context.Context, req t
 
 	healthCheckConfig = healthCheckConfigResource
 
-	resp.Diagnostics.Append(schemav1.CopyHealthCheckConfigToTerraform(ctx, healthCheckConfig, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyHealthCheckConfigToTerraformPreserveUnknown(ctx, healthCheckConfig, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
