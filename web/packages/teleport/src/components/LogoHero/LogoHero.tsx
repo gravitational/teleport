@@ -18,6 +18,7 @@
 
 import { useTheme } from 'styled-components';
 
+import Box from 'design/Box';
 import Image from 'design/Image';
 
 // The logo SVG served at this path is selected at build time to match the
@@ -31,15 +32,17 @@ export function logoSrc(themeType: 'light' | 'dark'): string {
 }
 
 export const LogoHero = ({
-  my = '48px',
+  py = '48px',
   customSrc,
 }: {
-  my?: string;
+  py?: string;
   customSrc?: string;
 }) => {
   const theme = useTheme();
   const src = customSrc || logoSrc(theme.type);
   return (
-    <Image src={src} maxHeight="120px" maxWidth="200px" my={my} mx="auto" />
+    <Box py={py}>
+      <Image src={src} maxHeight="120px" maxWidth="200px" mx="auto" />
+    </Box>
   );
 };

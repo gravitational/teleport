@@ -49,7 +49,11 @@ function TestItem(props: { index: number }) {
     onRun: useCallback(() => {}, []),
   });
 
-  return <>{createTextItem(props.index, isActive)}</>;
+  return (
+    <span data-testid={`item-${props.index}`}>
+      {createTextItem(props.index, isActive)}
+    </span>
+  );
 }
 
 test('context should render provided children', () => {
@@ -82,16 +86,18 @@ describe('go through navigation items', () => {
       </KeyboardArrowsNavigation>
     );
 
-    fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
+    const target = screen.getByTestId('item-0');
+
+    fireEvent.keyDown(target, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(0, 3));
 
-    fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
+    fireEvent.keyDown(target, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(1, 3));
 
-    fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
+    fireEvent.keyDown(target, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(2, 3));
 
-    fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
+    fireEvent.keyDown(target, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(0, 3));
   });
 
@@ -104,16 +110,18 @@ describe('go through navigation items', () => {
       </KeyboardArrowsNavigation>
     );
 
-    fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
+    const target = screen.getByTestId('item-0');
+
+    fireEvent.keyDown(target, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(0, 3));
 
-    fireEvent.keyDown(container.firstChild, { key: 'ArrowUp' });
+    fireEvent.keyDown(target, { key: 'ArrowUp' });
     expect(container).toHaveTextContent(getAllItemsText(2, 3));
 
-    fireEvent.keyDown(container.firstChild, { key: 'ArrowUp' });
+    fireEvent.keyDown(target, { key: 'ArrowUp' });
     expect(container).toHaveTextContent(getAllItemsText(1, 3));
 
-    fireEvent.keyDown(container.firstChild, { key: 'ArrowUp' });
+    fireEvent.keyDown(target, { key: 'ArrowUp' });
     expect(container).toHaveTextContent(getAllItemsText(0, 3));
   });
 });
@@ -127,17 +135,18 @@ test('fire action on active item when Enter is pressed', () => {
       onRun: props.onRunActiveItem,
     });
 
-    return <>Test item</>;
+    return <span data-testid="test-item">Test item</span>;
   }
 
-  const { container } = render(
+  render(
     <KeyboardArrowsNavigation>
       <TestItem index={0} onRunActiveItem={firstItemCallback} />
     </KeyboardArrowsNavigation>
   );
 
-  fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
-  fireEvent.keyDown(container.firstChild, { key: 'Enter' });
+  const target = screen.getByTestId('test-item');
+  fireEvent.keyDown(target, { key: 'ArrowDown' });
+  fireEvent.keyDown(target, { key: 'Enter' });
   expect(firstItemCallback).toHaveBeenCalledWith();
 });
 

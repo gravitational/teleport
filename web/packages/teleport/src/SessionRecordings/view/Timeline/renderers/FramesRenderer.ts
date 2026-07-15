@@ -86,7 +86,10 @@ export class FramesRenderer extends TimelineCanvasRenderer {
   ) {
     super(ctx, theme, duration);
 
-    const svgTheme = generateTerminalSVGStyleTag(theme);
+    const svgTheme = generateTerminalSVGStyleTag(
+      theme.colors.terminal,
+      theme.fonts.mono
+    );
 
     this.frameHeight =
       initialHeight - eventsHeight - RULER_HEIGHT - EVENT_SECTION_PADDING * 2;

@@ -17,9 +17,14 @@
  */
 
 import {
+  resolveColorTokens,
+  useDesignSystemContext,
+} from '@gravitational/design-system';
+import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   type MouseEvent,
   type RefObject,
@@ -127,6 +132,15 @@ export function RecordingTimeline({
   ref,
 }: RecordingTimelineProps) {
   const theme = useTheme();
+  const system = useDesignSystemContext();
+
+  const resolvedTheme = useMemo(
+    () => ({
+      ...theme,
+      colors: resolveColorTokens(system, theme.colors, theme.type),
+    }),
+    [system, theme]
+  );
 
   const [height, setHeight] = useLocalStorage(
     KeysEnum.SESSION_RECORDING_TIMELINE_HEIGHT,
@@ -168,7 +182,8 @@ export function RecordingTimeline({
     ctxRef.current.imageSmoothingEnabled = false;
     ctxRef.current.textRendering = 'optimizeLegibility';
 
-    ctxRef.current.fillStyle = theme.colors.sessionRecordingTimeline.background;
+    ctxRef.current.fillStyle =
+      resolvedTheme.colors.sessionRecordingTimeline.background;
     ctxRef.current.fillRect(0, 0, containerWidth, containerHeight);
 
     rendererRef.current = new TimelineRenderer(
@@ -177,11 +192,11 @@ export function RecordingTimeline({
       startTime,
       events,
       frames,
-      theme,
+      resolvedTheme,
       containerWidth,
       containerHeight
     );
-  }, [duration, events, frames, startTime, theme]);
+  }, [duration, events, frames, startTime, resolvedTheme]);
 
   useEffect(() => {
     if (!rendererRef.current) {

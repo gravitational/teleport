@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { resolveThemeToColors } from '@gravitational/design-system';
 import React, { type JSX } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { Box, Flex, rotate360 } from 'design';
 import * as icons from 'design/Icon';
+import { Theme } from 'design/theme';
 import { decomposeColor, emphasize } from 'design/theme/utils/colorManipulator';
 import { AttemptStatus } from 'shared/hooks/useAsync';
 
@@ -148,9 +150,11 @@ function PhaseIcon({ status }: { status: AttemptStatus }): JSX.Element {
   );
 }
 
-function getPhaseSolidColor(theme: any): string {
-  const alpha = decomposeColor(theme.colors.spotBackground[1]).values[3] || 0;
-  return emphasize(theme.colors.levels.surface, alpha);
+function getPhaseSolidColor(theme: Theme): string {
+  const alpha =
+    decomposeColor(resolveThemeToColors(theme.colors.spotBackground[1]))
+      .values[3] || 0;
+  return emphasize(resolveThemeToColors(theme.colors.levels.surface), alpha);
 }
 
 const Spinner = styled.div`
