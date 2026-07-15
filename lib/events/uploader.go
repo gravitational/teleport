@@ -21,10 +21,37 @@ package events
 import (
 	"context"
 	"io"
+	"regexp"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/session"
 )
+
+// replayObjectNameRE matches the only object names ReplaySink ever writes
+// for a beam's replay artifact: the manifest, and blob/index parts numbered
+// from 0 (see partName/indexPageName/manifestObjectName in
+// e/lib/beams/v1/replay).
+var replayObjectNameRE = regexp.MustCompile(`^(manifest|index\.[0-9]+|blob\.[0-9]+)$`)
+
+// ValidateReplayObjectName returns a trace.BadParameter error unless name is
+// one of the well-known beam-replay artifact object names (the manifest, or
+// a numbered index/blob part).
+//
+// UploadHandler implementations must call this before using a caller- or
+// client-influenced name to build a storage path/key: name ultimately
+// derives from a PayloadRef.PartName that travels over the wire in a
+// FetchPayloadRequest, so without this check a forged name containing path
+// traversal segments (e.g. "../other-session.summary.json") could escape
+// the beam's own object namespace once joined into a filepath.Join or
+// path.Join call.
+func ValidateReplayObjectName(name string) error {
+	if !replayObjectNameRE.MatchString(name) {
+		return trace.BadParameter("invalid replay object name %q", name)
+	}
+	return nil
+}
 
 // UploadHandler uploads and downloads session-related files.
 type UploadHandler interface {
@@ -47,6 +74,12 @@ type UploadHandler interface {
 	// StreamSessionSummary streams a session summary and returns a ReadCloser for
 	// the content. Returns a "not found" error if there's no such summary.
 	StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
+	// UploadReplayObject writes a named beam-replay artifact object (e.g.
+	// "manifest", "index.0", "blob.0") for a beam and returns its URL.
+	UploadReplayObject(ctx context.Context, sessionID session.ID, name string, readCloser io.Reader) (string, error)
+	// StreamReplayObjectRange returns a ranged reader over a replay object.
+	// A length <= 0 reads to the end of the object.
+	StreamReplayObjectRange(ctx context.Context, sessionID session.ID, name string, offset, length int64) (io.ReadCloser, error)
 	// UploadMetadata uploads session metadata and returns a URL with the uploaded
 	// file in case of success. Session metadata is a file with a [recordingmetadatav1.SessionRecordingMetadata]
 	// protobuf message containing info about the session (duration, events, etc), as well as
