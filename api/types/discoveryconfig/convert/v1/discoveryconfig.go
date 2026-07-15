@@ -75,6 +75,7 @@ func FromProto(msg *discoveryconfigv1.DiscoveryConfig) (*discoveryconfig.Discove
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	discoveryConfig.SetSubKind(msg.GetHeader().GetSubKind())
 	discoveryConfig.Status = StatusFromProto(msg.GetStatus())
 	return discoveryConfig, nil
 }
@@ -116,7 +117,6 @@ func StatusFromProto(msg *discoveryconfigv1.DiscoveryConfigStatus) discoveryconf
 func ToProto(discoveryConfig *discoveryconfig.DiscoveryConfig) *discoveryconfigv1.DiscoveryConfig {
 	awsMatchers := make([]*types.AWSMatcher, 0, len(discoveryConfig.Spec.AWS))
 	for _, m := range discoveryConfig.Spec.AWS {
-		m := m
 		awsMatchers = append(awsMatchers, &m)
 	}
 

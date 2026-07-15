@@ -38,6 +38,21 @@ func TestRoundtrip(t *testing.T) {
 	require.Empty(t, cmp.Diff(discoveryConfig, converted))
 }
 
+// TestRoundtripSubKind ensures the SubKind survives the proto conversion in
+// both directions. Synthetic discovery configs rely on it: the subkind is what
+// marks them for authorization and consumption filtering.
+func TestRoundtripSubKind(t *testing.T) {
+	discoveryConfig := newDiscoveryConfig(t, "discovery-config-01")
+	discoveryConfig.SetSubKind(discoveryconfig.SubKindSynthetic)
+	discoveryConfig.SetExpiry(time.Now().UTC().Truncate(time.Second).Add(time.Hour))
+
+	converted, err := FromProto(ToProto(discoveryConfig))
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(discoveryConfig, converted))
+	require.True(t, converted.IsSynthetic())
+}
+
 // Make sure that we don't panic if any of the message fields are missing.
 func TestFromProtoNils(t *testing.T) {
 	// Spec is nil
