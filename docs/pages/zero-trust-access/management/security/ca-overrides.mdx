@@ -211,10 +211,26 @@ Enable it:
 $ tctl auth update-override --type=windows --public-key=<Var name="public-key" /> --set-disabled=false
 ```
 
-You can find the public key of the target override by running
-`tctl auth pub-key-hash --cert=cert.pem` or reading it from
-`tctl get ca_overrides/windows`. Alternatively, you may edit directly using
-`tctl edit ca_overrides/windows`.
+You can find the public key of the target override using the `tctl auth
+pub-key-hash` command or reading it from the ca_override itself.
+
+Using `tctl auth pub-key-hash`:
+
+```code
+$ tctl auth pub-key-hash --cert=cert.pem
+```
+
+Using `tctl get`:
+
+```code
+$ tctl get ca_overrides/windows
+```
+
+Alternatively, you may edit directly using:
+
+```code
+$ tctl edit ca_overrides/windows
+```
 
 ### Multi-Auth Service clusters with per-instance HSM keys
 
