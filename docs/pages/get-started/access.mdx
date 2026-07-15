@@ -4,6 +4,7 @@ description: "Configure identity-based access controls in your Teleport cluster.
 toc_max_heading_level: 2
 tags:
   - get-started
+page_type: how-to
 ---
 
 import Button from '@site/src/components/Button';
@@ -22,6 +23,10 @@ permissions, such as:
 - Whether they can edit cluster settings or view session recordings
 
 You can assign roles when creating users or manage them later in the Teleport Web UI.
+
+In this guide, you will review Teleport's preset roles and explore the
+documentation for setting up custom roles to support your organization's access
+policies.
 
 ## Preset roles
 
@@ -59,6 +64,13 @@ Organizations often require custom roles to enforce least-privilege access and f
 For instructions on creating custom roles and assigning roles to users, follow along with our [Getting Started with Teleport Access Controls](../zero-trust-access/rbac-get-started/role-demo.mdx) demo guide. 
 
 For mapping SSO users to roles, refer to our guide on [Configuring Single Sign-On](../zero-trust-access/sso/sso.mdx#how-teleport-uses-sso) for more information.
+
+<EnterpriseFeatureWidget title="Manage role assignments at scale with Access Lists">
+   As your organization grows, assigning roles user-by-user becomes hard to audit.
+   **Access Lists** let you grant roles to a group of users with required-role
+   gates, periodic reviews, and a clear audit trail. See [Getting Started with
+   Access Lists](../identity-governance/access-lists/guide.mdx).
+</EnterpriseFeatureWidget>
 
 ## Next steps
 

@@ -7,10 +7,11 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
-This guide demonstrates how to connect an Active Directory domain and how to log
-into a Windows desktop from the connected domain.
+In this guide, you will connect an Active Directory domain to your Teleport
+cluster and log in to a Windows desktop from the connected domain.
 
 You should note that Teleport requires the Kerberos authentication protocol to
 support certificate-based authentication for Active Directory. Because Microsoft
@@ -146,6 +147,26 @@ To create the service account:
 
    You'll use this value for the `sid` field when you configure the `ldap` settings
    in a later step.
+
+<Checkpoint
+  title="Verify the service account is created"
+  description="Confirm that the Teleport service account exists in Active Directory and has the correct permissions."
+>
+  Here are some troubleshooting tips:
+
+  - Open **Active Directory Users and Computers** and verify the `svc-teleport` account exists.
+
+  - In PowerShell, confirm the account is enabled:
+
+    ```code
+    $ Get-ADUser -Identity svc-teleport
+    ```
+
+  - If the `dsacls` commands fail, ensure you're running PowerShell as a Domain Administrator.
+
+  - Verify the LDAP containers were created by checking `CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration` in AD.
+
+</Checkpoint>
 
 ### Step 2/7. Prevent the service account from performing interactive logins
 
@@ -444,6 +465,33 @@ the performance of remote desktop connections.
    gpupdate.exe /force
    ```
 
+<Checkpoint
+  title="Verify the Teleport Access Policy GPO"
+  description="Confirm that the Teleport Access Policy GPO is correctly configured with the certificate, smart card service, firewall rules, and RemoteFX settings."
+>
+  Here are some troubleshooting tips:
+  - On a target Windows host, confirm the GPO is being applied by running:
+
+    ```code
+    $ gpresult /r
+    ```
+
+  - Verify the Teleport CA is in the NTAuth store:
+
+    ```code
+    $ certutil -viewstore -enterprise NTAuth
+    ```
+
+  - Verify the Teleport CA is in the Root store:
+
+    ```code
+    $ certutil -viewstore -enterprise Root
+    ```
+
+  - In **Group Policy Management**, confirm the `Teleport Access Policy` GPO is linked to your domain and the Teleport CA appears under **Trusted Root Certification Authorities**.
+
+</Checkpoint>
+
 ### Step 4/7. Configure a certificate for RDP connections
 
 The Teleport RDP client requires secure cryptographic algorithms to make
@@ -657,6 +705,37 @@ To configure Teleport to protect access to Windows desktops:
 
 1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
 
+<Checkpoint
+  title="Verify the Windows Desktop Service is running"
+  description="Confirm that the Teleport Windows Desktop Service has started and connected to your cluster."
+>
+  Here are some troubleshooting tips:
+  - Check the service status on the Linux server:
+
+    ```code
+    $ systemctl status teleport
+    ```
+
+  - Review logs for connection errors:
+
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+  - Verify the token hasn't expired (tokens are valid for 30 minutes by default).
+
+  - Ensure the Linux server can reach the Teleport Proxy and the LDAP server on port 636.
+
+  - Test LDAP connectivity:
+
+    ```code
+    $ nc -vz $LDAP_SERVER 636
+    ```
+
+  - Verify the `ldap_ca_cert` value contains a valid PEM-formatted certificate.
+
+</Checkpoint>
+
 ### Step 7/7. Log in using Teleport
 
 Teleport users must have appropriate permissions to access remote Windows desktops.
@@ -714,6 +793,24 @@ To connect to a Windows desktop:
 
    To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
 
+<Checkpoint
+  title="Verify Windows desktop access"
+  description="Confirm that you can connect to a Windows desktop."
+>
+  Here are some troubleshooting tips:
+
+  - Check that the desktop appears in the Teleport Web UI under **Resources > Desktops**.
+
+  - Ensure your Teleport user is assigned the `windows-desktop-admins` role or a role with the same permissions.
+
+  - Review the Windows Desktop Service logs:
+
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+</Checkpoint>
+
 ## Configure Users and Groups to login through remote desktop services
 In order for users to login through remote desktop services, they must be granted the
 appropriate user rights, and they must be added to the 'Remote Desktop Users' AD group.
@@ -731,7 +828,7 @@ appropriate user rights, and they must be added to the 'Remote Desktop Users' AD
 
 ### Add users/groups to the 'Remote Desktop Users' AD group
 
-1. Open **Active Directory Users and Computers** 
+1. Open **Active Directory Users and Computers**
 1. Navigate to **`$YOUR_DOMAIN -> Builtin`** and double-click **Remote Desktop Users**
 1. Select the **Members** tab and click **Add**
 1. (Optional) Click **Locations** and select the domain for which you wish to grant logon access to users/groups.
@@ -798,7 +895,26 @@ For example, if an AD computer object had a location attribute with a value of O
 and a department attribute with a value of Engineering, the Teleport resource for this
 host would have both `ldap/location=Oakland` and `ldap/department=Engineering` labels.
 
-In addition, you can also specify a set of static labels that apply to all hosts discovered
+Teleport's default behavior for multi-valued attributes is to pick the first one.
+For example, a host that has an LDAP attribute `usage` with values `db` and
+`ca` would result in a Teleport label of `ldap/usage=db`. You can override this
+behavior by setting `label_attribute_mode: join` in your discovery config:
+
+```yaml
+windows_desktop_service:
+  enabled: true
+  discovery_configs:
+    - base_dn: '*'
+      label_attributes:
+        - 'usage'
+      label_attribute_mode: 'join'
+      label_attribute_join_separator: '_'
+```
+
+With this config, the Teleport label for this host would be
+`ldap/usage=db_ca`. The join separator defaults to `|` if unspecified.
+
+Lastly, you can also specify a set of static labels that apply to all hosts discovered
 via this policy:
 
 ```yaml
@@ -912,7 +1028,7 @@ the external forest. Multiple CA certificates can be written to the `ldap_ca_cer
   ```yaml
   windows_desktop_service:
     enabled: true
-    
+
     ldap:
       addr: example.com:636
       username: 'DEV\svc-teleport'

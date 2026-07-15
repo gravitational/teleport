@@ -211,26 +211,46 @@ func checkValidatedMFAChallenge(chal *mfav2.ValidatedMFAChallenge) error {
 		return trace.BadParameter("spec must be set")
 	case chal.GetSpec().GetPayload() == nil:
 		return trace.BadParameter("payload must be set")
-	case len(chal.GetSpec().GetPayload().GetSshSessionId()) == 0:
-		return trace.BadParameter("ssh_session_id must be set")
 	case chal.GetSpec().GetSourceCluster() == "":
 		return trace.BadParameter("source_cluster must be set")
 	case chal.GetSpec().GetTargetCluster() == "":
 		return trace.BadParameter("target_cluster must be set")
 	case chal.GetSpec().GetUsername() == "":
 		return trace.BadParameter("username must be set")
-	default:
-		return nil
 	}
+
+	switch chal.GetSpec().GetPayload().WhichPayload() {
+	case mfav2.SessionIdentifyingPayload_SshSessionId_case:
+		if len(chal.GetSpec().GetPayload().GetSshSessionId()) == 0 {
+			return trace.BadParameter("ssh_session_id must not be empty")
+		}
+
+	case mfav2.SessionIdentifyingPayload_TlsSessionId_case:
+		if len(chal.GetSpec().GetPayload().GetTlsSessionId()) == 0 {
+			return trace.BadParameter("tls_session_id must not be empty")
+		}
+
+	default:
+		// Fail close to avoid any potential auth bypasses.
+		return trace.BadParameter("missing or unknown payload type: %v", chal.GetSpec().GetPayload().WhichPayload())
+	}
+
+	return nil
 }
 
 type validatedMFAChallengeParser struct {
 	baseParser
+
+	filter types.ValidatedMFAChallengeFilter
 }
 
-func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
+func newValidatedMFAChallengeParser(filter map[string]string) *validatedMFAChallengeParser {
+	var mfaFilter types.ValidatedMFAChallengeFilter
+	mfaFilter.FromMap(filter)
+
 	return &validatedMFAChallengeParser{
 		baseParser: newBaseParser(backend.ExactKey(types.KindValidatedMFAChallenge)),
+		filter:     mfaFilter,
 	}
 }
 
@@ -268,6 +288,10 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if !p.filter.Match(chal.GetSpec().GetTargetCluster()) {
+			return nil, nil
 		}
 
 	default:

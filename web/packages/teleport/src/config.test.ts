@@ -165,6 +165,101 @@ test('getAppLauncherRoute without ARN leaves route unchanged', () => {
   expect(url).toBe('/web/launch/app.example.com/cluster1/app.example.com');
 });
 
+describe('MFA helpers', () => {
+  const original = {
+    second_factor: cfg.auth.second_factor,
+    second_factors: cfg.auth.second_factors,
+  };
+  afterEach(() => {
+    cfg.auth.second_factor = original.second_factor;
+    cfg.auth.second_factors = original.second_factors;
+  });
+
+  describe('secondFactors()', () => {
+    test.each`
+      second_factors                | expected
+      ${['webauthn']}               | ${['webauthn']}
+      ${['sso']}                    | ${['sso']}
+      ${['otp', 'webauthn', 'sso']} | ${['otp', 'webauthn', 'sso']}
+    `('returns $second_factors directly', ({ second_factors, expected }) => {
+      cfg.auth.second_factors = second_factors;
+      expect(cfg.secondFactors()).toEqual(expected);
+    });
+
+    test.each`
+      second_factor | expected
+      ${'webauthn'} | ${['webauthn']}
+      ${'otp'}      | ${['otp']}
+      ${'on'}       | ${['otp', 'webauthn']}
+      ${'optional'} | ${['otp', 'webauthn']}
+      ${'off'}      | ${[]}
+    `(
+      'derives from legacy second_factor=$second_factor when second_factors is empty',
+      ({ second_factor, expected }) => {
+        cfg.auth.second_factors = [];
+        cfg.auth.second_factor = second_factor;
+        expect(cfg.secondFactors()).toEqual(expected);
+      }
+    );
+  });
+
+  describe('isAdminActionMfaEnforced()', () => {
+    test.each`
+      second_factors         | expected
+      ${['webauthn']}        | ${true}
+      ${['sso']}             | ${true}
+      ${['webauthn', 'sso']} | ${true}
+      ${['otp']}             | ${false}
+      ${['otp', 'webauthn']} | ${false}
+    `(
+      'second_factors=$second_factors → $expected',
+      ({ second_factors, expected }) => {
+        cfg.auth.second_factors = second_factors;
+        expect(cfg.isAdminActionMfaEnforced()).toBe(expected);
+      }
+    );
+
+    test.each`
+      second_factor | expected
+      ${'webauthn'} | ${true}
+      ${'otp'}      | ${false}
+      ${'on'}       | ${false}
+      ${'optional'} | ${false}
+    `(
+      'legacy second_factor=$second_factor with empty second_factors → $expected',
+      ({ second_factor, expected }) => {
+        cfg.auth.second_factors = [];
+        cfg.auth.second_factor = second_factor;
+        expect(cfg.isAdminActionMfaEnforced()).toBe(expected);
+      }
+    );
+
+    test('legacy second_factor=off with empty second_factors is undefined (SSO-only ambiguous)', () => {
+      cfg.auth.second_factors = [];
+      cfg.auth.second_factor = 'off';
+      expect(cfg.isAdminActionMfaEnforced()).toBeUndefined();
+    });
+  });
+
+  describe('isMfaUserConfigurable()', () => {
+    test.each`
+      second_factors                | expected
+      ${['webauthn']}               | ${true}
+      ${['otp']}                    | ${true}
+      ${['otp', 'webauthn', 'sso']} | ${true}
+      ${['sso']}                    | ${false}
+      ${[]}                         | ${false}
+    `(
+      'second_factors=$second_factors → $expected',
+      ({ second_factors, expected }) => {
+        cfg.auth.second_factors = second_factors;
+        cfg.auth.second_factor = 'off';
+        expect(cfg.isMfaUserConfigurable()).toBe(expected);
+      }
+    );
+  });
+});
+
 test('getRoleUrl listv2 encodes query params', () => {
   expect(
     cfg.getRoleUrl({

@@ -109,6 +109,10 @@ func (s *ProvisioningService) AppendDeleteProvisionTokenActions(
 // PatchToken uses the supplied function to attempt to patch a token resource.
 // Up to 3 update attempts will be made if the conditional update fails due to
 // a revision comparison failure.
+//
+// Unlike CreateToken/UpsertToken, this skips validateProvisionToken admission
+// checks. Safe only while no user-facing RPC reaches it; if one is added,
+// validate here too.
 func (s *ProvisioningService) PatchToken(
 	ctx context.Context,
 	tokenName string,
@@ -294,7 +298,10 @@ func MatchToken(t types.ProvisionToken, anyRoles types.SystemRoles, botName stri
 		return false
 	}
 
-	if botName != "" && (!t.GetRoles().Include(types.RoleBot) || t.GetBotName() != botName) {
+	// TODO(strideynet): When bots become scope namespaced, ensure this call
+	// site reflects scopedness.
+	tokenBotName, _ := t.GetBot()
+	if botName != "" && (!t.GetRoles().Include(types.RoleBot) || tokenBotName != botName) {
 		return false
 	}
 
@@ -313,6 +320,9 @@ func validateProvisionToken(token types.ProvisionToken) error {
 
 	case types.JoinMethodIAM:
 		return validateIAMToken(token)
+
+	case types.JoinMethodTPM:
+		return validateTPMToken(token)
 	}
 
 	return nil
@@ -398,6 +408,40 @@ func validateOracleJoinToken(token types.ProvisionToken) error {
 			if _, err := oracle.ParseRegionFromOCID(instanceID); err != nil {
 				return trace.BadParameter("invalid instance OCID: %s", instanceID)
 			}
+		}
+	}
+	return nil
+}
+
+// validateTPMToken enforces admission-time constraints on TPM join tokens.
+//
+// A TPM allow rule that matches only on ek_certificate_serial provides no
+// proof of identity unless the EK certificate is verified against a configured
+// CA or it pins ek_public_hash: without ekcert_allowed_cas a joining client
+// can present a self-signed EK certificate bearing any serial it chooses. Such
+// a token is therefore rejected on create/update.
+//
+// This is deliberately enforced here, on admission, rather than in
+// CheckAndSetDefaults so that existing tokens with this configuration continue
+// to load.
+func validateTPMToken(token types.ProvisionToken) error {
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodTPM)
+	}
+	tpmSpec := tokenV2.Spec.TPM
+	if tpmSpec == nil {
+		return trace.BadParameter("missing spec")
+	}
+	// When EK certificates are verified against a configured CA, the serial they
+	// carry is trustworthy.
+	if len(tpmSpec.EKCertAllowedCAs) > 0 {
+		return nil
+	}
+	for i, rule := range tpmSpec.Allow {
+		if rule.EKCertificateSerial != "" && rule.EKPublicHash == "" {
+			return trace.BadParameter(
+				"allow[%d]: ek_certificate_serial requires ek_public_hash or ekcert_allowed_cas to be set so that the EK certificate can be verified", i)
 		}
 	}
 	return nil

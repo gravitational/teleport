@@ -72,8 +72,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|role|string|role is the name of the scoped role to be granted.|
-|scope|string|scope is the scope the role will be assigned at. It must be an assignable scope of the role.|
+|role|string|role is scope-qualified name of the scoped role to be granted.|
+|scope|string|scope is the scope the role will be granted at. It must be an assignable scope of the role.|
 
 ### spec.grants.traits
 
@@ -108,8 +108,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|role|string|role is the name of the scoped role to be granted.|
-|scope|string|scope is the scope the role will be assigned at. It must be an assignable scope of the role.|
+|role|string|role is scope-qualified name of the scoped role to be granted.|
+|scope|string|scope is the scope the role will be granted at. It must be an assignable scope of the role.|
 
 ### spec.owner_grants.traits
 
@@ -124,8 +124,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |description|string|description is the plaintext description of the owner and why they are an owner.|
 |ineligible_status|string or integer|ineligible_status describes if this owner is eligible or not and if not, describes how they're lacking eligibility. Can be either the string or the integer representation of each option.|
-|membership_kind|string or integer|membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`. Can be either the string or the integer representation of each option.|
-|name|string|name is the username of the owner.|
+|membership_kind|string or integer|membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`. Can be either the string or the integer representation of each option.|
+|name|string|name is the name of the owner, depending on MembershipKind: MEMBERSHIP_KIND_USER: the username of the owner. MEMBERSHIP_KIND_LIST: the name of the owner Access List. MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner Access List.|
 
 ### spec.ownership_requires
 

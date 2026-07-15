@@ -19,6 +19,7 @@ package joining
 import (
 	"cmp"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"net/url"
@@ -37,6 +38,7 @@ import (
 var rolesSupportingScopes = types.SystemRoles{
 	types.RoleNode,
 	types.RoleKube,
+	types.RoleApp,
 	types.RoleBot,
 }
 
@@ -264,6 +266,88 @@ func validateOracle(oracle *joiningv1.Oracle) error {
 	return nil
 }
 
+// validates the given Generic OIDC configuration. Also implemented by
+// api/types/provisioning.go for unscoped generic_oidc tokens.
+func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
+	if spec == nil {
+		return trace.BadParameter("generic_oidc configuration must be defined for a scoped token when using the generic_oidc join method")
+	}
+	if spec.GetIssuer() == "" {
+		return trace.BadParameter("generic_oidc: issuer is required")
+	}
+	if spec.GetAudience() == "" {
+		return trace.BadParameter("generic_oidc: audience is required")
+	}
+
+	hasAnyAllowAny := len(spec.GetAllowAny()) > 0
+	hasAnyMustMatchFields := false
+	if spec.GetMustMatchFields() != nil {
+		hasAnyMustMatchFields = len(spec.GetMustMatchFields().GetFields()) > 0
+	}
+
+	// At least one must_match_fields or allow_any rule is required; this check
+	// is a simpler variant of the one in genericoidc's
+	// `validateFieldRulesContainsAnyRule` and won't catch useless nesting
+	// checks; we'll catch those at runtime to avoid an unnecessary api/ import.
+	if !hasAnyAllowAny && !hasAnyMustMatchFields {
+		return trace.BadParameter("generic_oidc: at least one rule must exist " +
+			"under either `must_match_fields` or `allow_any`")
+	}
+
+	for i, rule := range spec.GetAllowAny() {
+		if rule.GetExpression() == "" && len(rule.GetConditions()) == 0 {
+			return trace.BadParameter("generic_oidc: allow_any[%d]: either `expression` or `conditions` must be set", i)
+		}
+
+		if rule.GetExpression() != "" && len(rule.GetConditions()) > 0 {
+			return trace.BadParameter("generic_oidc: allow_any[%d]: only one of `expression` or `conditions` may be set", i)
+		}
+
+		for j, cond := range rule.GetConditions() {
+			if cond.GetAttribute() == "" {
+				return trace.BadParameter(
+					"generic_oidc: allow_any[%d].conditions[%d]: an attribute "+
+						"is required", i, j)
+			}
+
+			conds := 0
+			if cond.GetEq() != nil {
+				conds++
+			}
+			if cond.GetNotEq() != nil {
+				conds++
+			}
+			if cond.GetIn() != nil {
+				conds++
+			}
+			if cond.GetNotIn() != nil {
+				conds++
+			}
+
+			if conds == 0 || conds > 1 {
+				return trace.BadParameter(
+					"generic_oidc: allow_any[%d].conditions[%d]: exactly one "+
+						"operator is required", i, j)
+			}
+		}
+	}
+
+	parsed, err := url.Parse(spec.GetIssuer())
+	if err != nil {
+		return trace.BadParameter("generic_oidc: issuer must be a valid URL")
+	}
+
+	if parsed.Scheme == "http" {
+		if !spec.GetInsecureAllowHttpIssuer() {
+			return trace.BadParameter("generic_oidc: issuer must be https:// unless insecure_allow_http_issuer is set")
+		}
+	} else if parsed.Scheme != "https" {
+		return trace.BadParameter("generic_oidc: issuer invalid URL scheme, must be https://")
+	}
+
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -287,6 +371,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(validateKubernetes(token.GetSpec().GetKubernetes()), "kubernetes join method")
 	case types.JoinMethodBoundKeypair:
 		// Bound keypair tokens are always valid
+	case types.JoinMethodGenericOIDC:
+		return trace.Wrap(validateGenericOIDC(token.GetSpec().GetGenericOidc()), "generic_oidc join method")
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -296,19 +382,20 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 
 // validateBot is used to validate plausibly-bot tokens (if `isBotToken()` has
 // returned true).
-func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
+func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
 	spec := token.GetSpec()
 
-	if spec.GetBotName() == "" {
-		return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+	if spec.GetBot() == "" {
+		return trace.BadParameter("expected non-empty bot for a scoped bot token")
 	}
 
-	if spec.GetBotScope() == "" {
-		return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+	bot, err := scopes.ParseQualifiedName(spec.GetBot())
+	if err != nil {
+		return trace.Wrap(err, "validating scoped token bot")
 	}
 
-	if err := scopes.StrongValidate(spec.GetBotScope()); err != nil {
-		return trace.Wrap(err, "validating scoped token bot_scope")
+	if err := bot.StrongValidate(); err != nil {
+		return trace.Wrap(err, "validating scoped token bot")
 	}
 
 	if spec.GetUsageMode() != TokenUsageModeBot {
@@ -319,8 +406,8 @@ func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) err
 		return trace.BadParameter("roles must only be '[Bot]' for a scoped bot token")
 	}
 
-	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.GetBotScope()) {
-		return trace.BadParameter("scoped token bot_scope must be a descendant of or equivalent to its resource scope")
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(bot.Scope) {
+		return trace.BadParameter("scoped token bot scope must be a descendant of or equivalent to its resource scope")
 	}
 
 	if spec.GetAssignedScope() != "" {
@@ -339,12 +426,8 @@ func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) err
 func validateNonBotToken(token *joiningv1.ScopedToken) error {
 	spec := token.GetSpec()
 
-	if spec.GetBotName() != "" {
-		return trace.BadParameter("bot_name cannot be set for a non-bot token")
-	}
-
-	if spec.GetBotScope() != "" {
-		return trace.BadParameter("bot_scope cannot be set for a non-bot token")
+	if spec.GetBot() != "" {
+		return trace.BadParameter("bot cannot be set for a non-bot token")
 	}
 
 	if spec.GetUsageMode() == TokenUsageModeBot {
@@ -360,6 +443,32 @@ func validateNonBotToken(token *joiningv1.ScopedToken) error {
 	}
 
 	return nil
+}
+
+// validateBotRef weak-validates the bot reference of a scoped token spec and
+// returns the referenced bot's name and scope, parsed from the
+// scope-qualified name in the bot field. Bot tokens must carry a well-formed
+// scope-qualified name. For non-bot tokens the bot field is ignored and empty
+// values are returned: a stray bot field on a non-bot token is rejected by
+// strong validation at write time, but tolerated here to match weak
+// validation's posture toward existing resources.
+func validateBotRef(spec *joiningv1.ScopedTokenSpec, isBotToken bool) (name, scope string, err error) {
+	if !isBotToken {
+		return "", "", nil
+	}
+
+	if spec.GetBot() == "" {
+		return "", "", trace.BadParameter("expected non-empty bot for a scoped bot token")
+	}
+	bot, err := scopes.ParseQualifiedName(spec.GetBot())
+	if err != nil {
+		return "", "", trace.Wrap(err, "validating scoped token bot")
+	}
+	if err := bot.WeakValidate(); err != nil {
+		return "", "", trace.Wrap(err, "validating scoped token bot")
+	}
+
+	return bot.Name, bot.Scope, nil
 }
 
 // StrongValidateToken checks if the scoped token is well-formed according to
@@ -379,6 +488,8 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	}
 	if name := token.GetMetadata().GetName(); name == "" {
 		return trace.BadParameter("missing name")
+	} else if strings.Contains(name, ":") {
+		return trace.BadParameter("scoped token names cannot contain colons")
 	}
 
 	if token.GetScope() == "" {
@@ -424,7 +535,7 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	}
 
 	if roles.Include(types.RoleBot) {
-		if err := validateBotToken(token, roles); err != nil {
+		if err := strongValidateBotToken(token, roles); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
@@ -456,19 +567,10 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	// Determine if this is a bot token without potentially trying to validate
 	// other unknown roles.
 	isBotToken := slices.Contains(spec.GetRoles(), string(types.RoleBot))
-	if isBotToken {
-		if token.GetSpec().GetBotName() == "" {
-			return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
-		}
-
-		if token.GetSpec().GetBotScope() == "" {
-			return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
-		}
-
-		if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
-			return trace.Wrap(err, "validating scoped token bot_scope")
-		}
-	} else {
+	if _, _, err := validateBotRef(spec, isBotToken); err != nil {
+		return trace.Wrap(err)
+	}
+	if !isBotToken {
 		if err := scopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
 			return trace.Wrap(err, "validating scoped token assigned scope")
 		}
@@ -491,7 +593,11 @@ var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage e
 
 // ValidateTokenForUse checks if a given scoped token can be used for
 // provisioning. Returns a [*trace.LimitExceededError] if the token is expired
-func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
+func ValidateTokenForUse(token *joiningv1.ScopedToken, features scopes.Features) error {
+	if err := features.AssertEnabled(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := StrongValidateToken(token); err != nil {
 		return trace.Wrap(err)
 	}
@@ -511,7 +617,26 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 		}
 	}
 
-	return nil
+	// if agent scope pins are enabled, all system roles are allowed to join
+	// with a scoped token
+	if features.AgentPinEnabled {
+		return nil
+	}
+
+	// if agent scope pins are disabled, then we need to ensure that only node and
+	// bot roles can be provisioned with a scoped token. Using [slices.ContainsFunc]
+	// to make it easier to fail closed
+	roles, err := types.NewTeleportRoles(token.GetSpec().GetRoles())
+	if err != nil {
+		return trace.Wrap(err, "normalizing system roles")
+	}
+	if !slices.ContainsFunc(roles, func(role types.SystemRole) bool {
+		return role != types.RoleNode && role != types.RoleBot
+	}) {
+		return nil
+	}
+
+	return trace.BadParameter("scoped token cannot be used to join [%s] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes", strings.Join(token.GetSpec().GetRoles(), ", "))
 }
 
 // ValidateTokenUpdate checks for invalid updates between two tokens.
@@ -548,13 +673,17 @@ type Token struct {
 	scoped     *joiningv1.ScopedToken
 	joinMethod types.JoinMethod
 	roles      types.SystemRoles
+	botName    string
+	botScope   string
 }
 
 // NewToken returns the wrapped version of the given [joiningv1.ScopedToken].
 // It will return an error if the configured join method is not a valid
-// [types.JoinMethod] or if any of the configured roles are not a valid
-// [types.SystemRole]. The validated join method and roles are cached on the
-// [Scoped] wrapper itself so they can be read without repeating validation.
+// [types.JoinMethod], if any of the configured roles are not a valid
+// [types.SystemRole], or if the bot field is inconsistent with the configured
+// roles. The validated join method, roles, and bot reference are cached on
+// the [Token] wrapper itself so they can be read without repeating
+// validation.
 func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
 	joinMethod := types.JoinMethod(token.GetSpec().GetJoinMethod())
 	if err := types.ValidateJoinMethod(joinMethod); err != nil {
@@ -566,7 +695,18 @@ func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Token{scoped: token, joinMethod: joinMethod, roles: roles}, nil
+	botName, botScope, err := validateBotRef(token.GetSpec(), roles.Include(types.RoleBot))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Token{
+		scoped:     token,
+		joinMethod: joinMethod,
+		roles:      roles,
+		botName:    botName,
+		botScope:   botScope,
+	}, nil
 }
 
 // GetName returns the name of a [joiningv1.ScopedToken].
@@ -614,22 +754,27 @@ func (t *Token) Expiry() time.Time {
 	return expiry.AsTime()
 }
 
-// GetBotName returns an empty string because scoped tokens do not currently
-// support configuring a bot name.
-func (t *Token) GetBotName() string {
-	return t.scoped.GetSpec().GetBotName()
-}
+// GetBot returns the cached name and scope of the bot that this token can
+// join, validated when the [joiningv1.ScopedToken] was wrapped. An empty name
+// indicates that this is not a bot token; otherwise both components are
+// non-empty.
+func (t *Token) GetBot() (name, scope string) {
+	if t == nil {
+		return "", ""
+	}
 
-// GetBotScope returns the BotScope field which must be set for bots joining
-// with a scoped token. It is empty for unscoped bots.
-func (t *Token) GetBotScope() string {
-	return t.scoped.GetSpec().GetBotScope()
+	return t.botName, t.botScope
 }
 
 // GetAssignedScope returns the scope that will be assigned to resources
 // provisioned using the wrapped [joiningv1.ScopedToken].
 func (t *Token) GetAssignedScope() string {
 	return t.scoped.GetSpec().GetAssignedScope()
+}
+
+// GetScope returns the scope of the wrapped [joiningv1.ScopedToken].
+func (t *Token) GetScope() string {
+	return t.scoped.GetScope()
 }
 
 // GetSecret returns the token's secret value.
@@ -785,6 +930,81 @@ func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
 // token.
 func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
 	return BoundKeypairStatusFromScopedToken(t.scoped)
+}
+
+// convertGenericOIDCCondition converts a scoped generic_oidc condition to a
+// ProvisionTokenV2-style condition (with gogoproto semantics).
+func convertGenericOIDCCondition(c *joiningv1.GenericOIDC_Condition) (*types.ProvisionTokenSpecV2GenericOIDC_Condition, error) {
+	v := &types.ProvisionTokenSpecV2GenericOIDC_Condition{
+		Attribute: c.GetAttribute(),
+	}
+
+	switch {
+	case c.GetEq() != nil:
+		v.Eq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionEq{
+			Value: c.GetEq().GetValue(),
+		}
+	case c.GetNotEq() != nil:
+		v.NotEq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotEq{
+			Value: c.GetNotEq().GetValue(),
+		}
+	case c.GetIn() != nil:
+		v.In = &types.ProvisionTokenSpecV2GenericOIDC_ConditionIn{
+			Values: c.GetIn().GetValues(),
+		}
+	case c.GetNotIn() != nil:
+		v.NotIn = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotIn{
+			Values: c.GetNotIn().GetValues(),
+		}
+	default:
+		return nil, trace.BadParameter("an operator is required but found none")
+	}
+
+	return v, nil
+}
+
+// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+func (t *Token) GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error) {
+	spec := t.scoped.GetSpec().GetGenericOidc()
+
+	var globalMatchers *types.Struct
+	if gm := spec.GetMustMatchFields(); gm != nil {
+		gogo, err := convertStructPB(spec.GetMustMatchFields())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		globalMatchers = gogo
+	}
+
+	allow := make([]*types.ProvisionTokenSpecV2GenericOIDC_Rule, len(spec.GetAllowAny()))
+	for i, rule := range spec.GetAllowAny() {
+		conditions := make([]*types.ProvisionTokenSpecV2GenericOIDC_Condition, len(rule.GetConditions()))
+		for j, condition := range rule.GetConditions() {
+			converted, err := convertGenericOIDCCondition(condition)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			conditions[j] = converted
+		}
+
+		allow[i] = &types.ProvisionTokenSpecV2GenericOIDC_Rule{
+			Expression: rule.GetExpression(),
+			Conditions: conditions,
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GenericOIDC{
+		Issuer:                  spec.GetIssuer(),
+		InsecureAllowHTTPIssuer: spec.GetInsecureAllowHttpIssuer(),
+		Audience:                spec.GetAudience(),
+		StaticJWKS:              spec.GetStaticJwks(),
+		TLSCA:                   spec.GetTlsCa(),
+
+		MustMatchFields: globalMatchers,
+		AllowAny:        allow,
+	}, nil
 }
 
 // GetScoped returns the inner scoped token wrapped by this [provision.Token].
@@ -946,4 +1166,28 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 func VerifyImmutableLabelsHash(labels *joiningv1.ImmutableLabels, hash string) bool {
 	newHash := HashImmutableLabels(labels)
 	return newHash == hash
+}
+
+const tokenNameAndSecretSeparator = ":"
+
+// EncodeScopedToken combines a token name and secret into a single encoded value. The encoded
+// tokens are used when providing tokens externally to end users to ease UX.
+func EncodeScopedToken(name, secret string) string {
+	return name + tokenNameAndSecretSeparator + base64.RawURLEncoding.EncodeToString([]byte(secret))
+}
+
+// DecodeScopedToken produces a token name and secret from an encoded value. If the token
+// is not encoded the return value is token, "", false.
+func DecodeScopedToken(token string) (name string, secret string, ok bool) {
+	name, base64Secret, ok := strings.Cut(token, tokenNameAndSecretSeparator)
+	if !ok {
+		return token, "", false
+	}
+
+	s, err := base64.RawURLEncoding.DecodeString(base64Secret)
+	if err != nil {
+		return token, "", false
+	}
+
+	return name, string(s), true
 }

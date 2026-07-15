@@ -87,6 +87,7 @@ type collections struct {
 	nodes                              *collection[types.Server, nodeIndex]
 	apps                               *collection[types.Application, appIndex]
 	beams                              *collection[*beamsv1.Beam, beamIndex]
+	beamsConfig                        *collection[*beamsv1.BeamsConfig, beamsConfigIndex]
 	appServers                         *collection[types.AppServer, appServerIndex]
 	dbs                                *collection[types.Database, databaseIndex]
 	dbServers                          *collection[types.DatabaseServer, databaseServerIndex]
@@ -157,6 +158,7 @@ type collections struct {
 	inferenceModels                    *collection[*summarizerv1.InferenceModel, inferenceModelIndex]
 	inferenceSecrets                   *collection[*summarizerv1.InferenceSecret, inferenceSecretIndex]
 	inferencePolicies                  *collection[*summarizerv1.InferencePolicy, inferencePolicyIndex]
+	classifiers                        *collection[*summarizerv1.Classifier, classifierIndex]
 	retrievalModels                    *collection[*summarizerv1.RetrievalModel, retrievalModelIndex]
 	certAuthorityOverrides             *collection[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]
 }
@@ -276,6 +278,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.beams = collect
 			out.byKind[resourceKind] = out.beams
+		case types.KindBeamsConfig:
+			collect, err := newBeamsConfigCollection(c.BeamsConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.beamsConfig = collect
+			out.byKind[resourceKind] = out.beamsConfig
 		case types.KindAppServer:
 			collect, err := newAppServerCollection(c.Presence, watch)
 			if err != nil {
@@ -838,6 +848,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.inferencePolicies = collect
 			out.byKind[resourceKind] = out.inferencePolicies
+		case types.KindClassifier:
+			collect, err := newClassifierCollection(c.Summarizer, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.classifiers = collect
+			out.byKind[resourceKind] = out.classifiers
 		case types.KindRetrievalModel:
 			collect, err := newRetrievalModelCollection(c.Summarizer, watch)
 			if err != nil {

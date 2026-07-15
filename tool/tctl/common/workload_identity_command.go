@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -110,7 +111,7 @@ func (c *WorkloadIdentityCommand) Initialize(
 		"Delete a workload identity configuration.",
 	)
 	c.rmCmd.
-		Arg("name", "Name of the workload identity configuration to delete.").
+		Arg("name", "Name of the workload identity configuration to delete. For a scoped workload identity, provide a scope-qualified name of the form '<scope>::<name>'.").
 		Required().
 		StringVar(&c.workloadIdentityName)
 
@@ -130,6 +131,10 @@ func (c *WorkloadIdentityCommand) Initialize(
 			"expires-at",
 			"Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.").
 		StringVar(&c.revocationExpiry)
+	c.revocationsAddCmd.
+		Flag("format", "Output format, 'text', 'json', or 'yaml'").
+		Default(teleport.Text).
+		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.revocationsRmCmd = revocationsCmd.Command("rm", "Delete a revocation.")
 	c.revocationsRmCmd.Flag("serial", "Serial number of the certificate to remove the revocation for.").Required().StringVar(&c.revocationSerial)
@@ -247,10 +252,25 @@ func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 	ctx context.Context,
 	client *authclient.Client,
 ) error {
+	// Provided name may be unscoped or an SQN
+	name := c.workloadIdentityName
+	var scope string
+	if strings.Contains(name, scopes.QualifiedNameSeparator) {
+		qn, err := scopes.ParseQualifiedName(name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := qn.StrongValidate(); err != nil {
+			return trace.Wrap(err)
+		}
+		scope, name = qn.Scope, qn.Name
+	}
+
 	workloadIdentityClient := client.WorkloadIdentityResourceServiceClient()
 	_, err := workloadIdentityClient.DeleteWorkloadIdentity(
 		ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{
-			Name: c.workloadIdentityName,
+			Name:  name,
+			Scope: scope,
 		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
@@ -296,7 +316,8 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 		t := asciitable.MakeTable([]string{"Name", "SPIFFE ID"})
 		for _, u := range workloadIdentities {
 			t.AddRow([]string{
-				u.GetMetadata().GetName(), u.GetSpec().GetSpiffe().GetId(),
+				scopes.QualifiedName{Scope: u.GetScope(), Name: u.GetMetadata().GetName()}.String(),
+				u.GetSpec().GetSpiffe().GetId(),
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
@@ -351,7 +372,7 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 	}
 
 	revocationClient := client.WorkloadIdentityRevocationServiceClient()
-	_, err = revocationClient.CreateWorkloadIdentityX509Revocation(ctx, workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest_builder{
+	created, err := revocationClient.CreateWorkloadIdentityX509Revocation(ctx, workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest_builder{
 		WorkloadIdentityX509Revocation: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
 			Kind:    types.KindWorkloadIdentityX509Revocation,
 			Version: types.V1,
@@ -369,13 +390,24 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 		return trace.Wrap(err, "creating revocation")
 	}
 
-	fmt.Fprintf(
-		c.stdout,
-		"Revocation for the X509 certificate with serial %s created\n",
-		normalizedSerial,
-	)
-
-	return nil
+	switch c.format {
+	case teleport.Text:
+		fmt.Fprintf(
+			c.stdout,
+			"Revocation for the X509 certificate with serial %s created\n",
+			normalizedSerial,
+		)
+		return nil
+	case teleport.JSON:
+		// Serialize via the legacy resource wrapper so the output matches
+		// `workload-identity revocations ls` and `tctl get` exactly (RFC3339
+		// timestamps), rather than the raw proto's seconds/nanos form.
+		return trace.Wrap(utils.WriteJSON(c.stdout, types.ProtoResource153ToLegacy(created)))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(c.stdout, types.ProtoResource153ToLegacy(created)))
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
+	}
 }
 
 // DeleteRevocation deletes a revocation. Currently, only the X509 type is

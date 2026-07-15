@@ -21,6 +21,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -30,9 +31,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
+	libsubca "github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/tool/tctl/common/subca"
 )
 
@@ -283,6 +287,363 @@ func TestMakeCATypeNames(t *testing.T) {
 	)
 }
 
+func TestCommand_CreateOverride(t *testing.T) {
+	t.Parallel()
+
+	// Write input certificates to files.
+	// Add trailing spaces to some files for testing purposes.
+	tempDir := t.TempDir()
+	certFile := filepath.Join(tempDir, "cert.pem")
+	chain0File := filepath.Join(tempDir, "chain0.pem")
+	chain1File := filepath.Join(tempDir, "chain1.pem")
+	require.NoError(t, os.WriteFile(certFile, []byte(overridePEM+"  \n\n  "), 0644))
+	require.NoError(t, os.WriteFile(chain0File, []byte(chain0PEM+"  \n\n  "), 0644))
+	require.NoError(t, os.WriteFile(chain1File, []byte(chain1PEM), 0644))
+
+	var certPubKey string
+	{
+		cert, err := tlsutils.ParseCertificatePEM([]byte(overridePEM))
+		require.NoError(t, err)
+		certPubKey = libsubca.HashCertificatePublicKey(cert)
+	}
+
+	caID := subcav1.CertAuthorityOverrideID_builder{
+		CaType: string(types.DatabaseClientCA),
+	}.Build()
+
+	tests := []struct {
+		name    string
+		flags   []string // flags after "tctl auth create-override"
+		wantReq *subcav1.AddCertificateOverrideRequest
+	}{
+		{
+			name: "ok",
+			flags: []string{
+				"--type", "db-client",
+				certFile,
+			},
+			wantReq: subcav1.AddCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: subcav1.CertificateOverride_builder{
+					PublicKey:   certPubKey,
+					Certificate: overridePEM,
+				}.Build(),
+			}.Build(),
+		},
+		{
+			name: "use --disabled",
+			flags: []string{
+				"--type", "db-client",
+				"--disabled",
+				certFile,
+			},
+			wantReq: subcav1.AddCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: subcav1.CertificateOverride_builder{
+					PublicKey:   certPubKey,
+					Certificate: overridePEM,
+					Disabled:    true,
+				}.Build(),
+			}.Build(),
+		},
+		{
+			name: "use --force",
+			flags: []string{
+				"--type", "db-client",
+				"--force",
+				certFile,
+			},
+			wantReq: subcav1.AddCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: subcav1.CertificateOverride_builder{
+					PublicKey:   certPubKey,
+					Certificate: overridePEM,
+				}.Build(),
+				ForceImmediateDisable: true,
+			}.Build(),
+		},
+		{
+			name: "chain",
+			flags: []string{
+				"--type", "db-client",
+				certFile,
+				chain0File,
+				chain1File,
+			},
+			wantReq: subcav1.AddCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: subcav1.CertificateOverride_builder{
+					PublicKey:   certPubKey,
+					Certificate: overridePEM,
+					Chain: []string{
+						chain0PEM,
+						chain1PEM,
+					},
+				}.Build(),
+			}.Build(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			fakeClient := &fakeAuthClient{}
+			clientFunc := func(ctx context.Context) (_ subca.SubCAClientSource, closeFn func(context.Context), _ error) {
+				return fakeClient, func(ctx context.Context) {}, nil
+			}
+
+			env := newCommand(t)
+
+			flags := append([]string{"auth", "create-override"}, test.flags...)
+			selectedCommand, err := env.App.Parse(flags)
+			require.NoError(t, err, "app.Parse()")
+
+			match, err := env.Cmd.TryRun(t.Context(), selectedCommand, clientFunc)
+			assert.True(t, match)
+			require.NoError(t, err, "Command errored")
+
+			// Verify server request.
+			if diff := cmp.Diff(test.wantReq, fakeClient.lastAddCertificateRequest, protocmp.Transform()); diff != "" {
+				t.Errorf("AddCertificateOverrideRequest mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestCommand_UpdateOverride(t *testing.T) {
+	t.Parallel()
+
+	// Write input certificates to files.
+	// Add trailing spaces to some files for testing purposes.
+	tempDir := t.TempDir()
+	certAltFile := filepath.Join(tempDir, "cert-alt.pem")
+	chain0File := filepath.Join(tempDir, "chain0.pem")
+	chain1File := filepath.Join(tempDir, "chain1.pem")
+	require.NoError(t, os.WriteFile(certAltFile, []byte(overrideAltPEM+"  \n\n  "), 0644))
+	require.NoError(t, os.WriteFile(chain0File, []byte(chain0PEM+"  \n\n  "), 0644))
+	require.NoError(t, os.WriteFile(chain1File, []byte(chain1PEM), 0644))
+
+	var certPubKey string
+	{
+		cert, err := tlsutils.ParseCertificatePEM([]byte(overridePEM))
+		require.NoError(t, err)
+		certPubKey = libsubca.HashCertificatePublicKey(cert)
+	}
+
+	caID := subcav1.CertAuthorityOverrideID_builder{
+		CaType: string(types.DatabaseClientCA),
+	}.Build()
+
+	newFieldMask := func(t *testing.T, paths ...string) *fieldmaskpb.FieldMask {
+		m, err := fieldmaskpb.New(&subcav1.CertificateOverride{}, paths...)
+		require.NoError(t, err)
+		return m
+	}
+
+	tests := []struct {
+		name    string
+		flags   []string // flags after "tctl auth update-override"
+		wantReq *subcav1.UpdateCertificateOverrideRequest
+	}{
+		{
+			name: "enable override",
+			flags: []string{
+				"--type", "db-client",
+				"--public-key", certPubKey,
+				"--set-disabled", "false",
+			},
+			wantReq: subcav1.UpdateCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: subcav1.CertificateOverride_builder{
+					PublicKey: certPubKey,
+				}.Build(),
+				UpdateMask: newFieldMask(t, "disabled", "public_key"),
+			}.Build(),
+		},
+		{
+			name: "force disable override",
+			flags: []string{
+				"--type", "db-client",
+				"--public-key", certPubKey,
+				"--set-disabled", "true",
+				"--force",
+			},
+			wantReq: subcav1.UpdateCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: subcav1.CertificateOverride_builder{
+					PublicKey: certPubKey,
+					Disabled:  true,
+				}.Build(),
+				ForceImmediateDisable: true,
+				UpdateMask:            newFieldMask(t, "disabled", "public_key"),
+			}.Build(),
+		},
+		{
+			name: "normalizes public key",
+			flags: []string{
+				"--type", "db-client",
+				"--public-key", strings.ToUpper(certPubKey),
+				"--set-disabled", "false",
+			},
+			wantReq: subcav1.UpdateCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: subcav1.CertificateOverride_builder{
+					PublicKey: certPubKey,
+				}.Build(),
+				UpdateMask: newFieldMask(t, "disabled", "public_key"),
+			}.Build(),
+		},
+		{
+			name: "update certificate",
+			flags: []string{
+				"--type", "db-client",
+				"--set-cert", certAltFile,
+			},
+			wantReq: subcav1.UpdateCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: subcav1.CertificateOverride_builder{
+					PublicKey:   certPubKey,
+					Certificate: overrideAltPEM,
+				}.Build(),
+				UpdateMask: newFieldMask(t, "certificate", "public_key"),
+			}.Build(),
+		},
+		{
+			name: "update certificate and chain",
+			flags: []string{
+				"--type", "db-client",
+				"--set-cert", certAltFile,
+				"--set-chain", chain0File,
+				"--set-chain", chain1File,
+			},
+			wantReq: subcav1.UpdateCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: subcav1.CertificateOverride_builder{
+					PublicKey:   certPubKey,
+					Certificate: overrideAltPEM,
+					Chain: []string{
+						chain0PEM,
+						chain1PEM,
+					},
+				}.Build(),
+				UpdateMask: newFieldMask(t, "certificate", "chain", "public_key"),
+			}.Build(),
+		},
+		{
+			name: "clear chain",
+			flags: []string{
+				"--type", "db-client",
+				"--public-key", certPubKey,
+				"--clear-chain",
+			},
+			wantReq: subcav1.UpdateCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: subcav1.CertificateOverride_builder{
+					PublicKey: certPubKey,
+				}.Build(),
+				UpdateMask: newFieldMask(t, "chain", "public_key"),
+			}.Build(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			fakeClient := &fakeAuthClient{}
+			clientFunc := func(ctx context.Context) (_ subca.SubCAClientSource, closeFn func(context.Context), _ error) {
+				return fakeClient, func(ctx context.Context) {}, nil
+			}
+
+			env := newCommand(t)
+
+			flags := append([]string{"auth", "update-override"}, test.flags...)
+			selectedCommand, err := env.App.Parse(flags)
+			require.NoError(t, err, "app.Parse()")
+
+			match, err := env.Cmd.TryRun(t.Context(), selectedCommand, clientFunc)
+			assert.True(t, match)
+			require.NoError(t, err, "Command errored")
+
+			// Verify server request.
+			if diff := cmp.Diff(test.wantReq, fakeClient.lastUpdateCertificateRequest, protocmp.Transform()); diff != "" {
+				t.Errorf("UpdateCertificateOverrideRequest mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestCommand_DeleteOverride(t *testing.T) {
+	t.Parallel()
+
+	var certPubKey string
+	{
+		cert, err := tlsutils.ParseCertificatePEM([]byte(overridePEM))
+		require.NoError(t, err)
+		certPubKey = libsubca.HashCertificatePublicKey(cert)
+	}
+
+	coID := subcav1.CertificateOverrideID_builder{
+		CaType: string(types.DatabaseClientCA),
+		PublicKeyHash: subcav1.PublicKeyHash_builder{
+			Value: certPubKey,
+		}.Build(),
+	}.Build()
+
+	tests := []struct {
+		name    string
+		flags   []string // flags after "tctl auth delete-override"
+		wantReq *subcav1.RemoveCertificateOverrideRequest
+	}{
+		{
+			name: "ok",
+			flags: []string{
+				"--type", "db-client",
+				"--public-key", certPubKey,
+			},
+			wantReq: subcav1.RemoveCertificateOverrideRequest_builder{
+				CertificateOverrideId: coID,
+			}.Build(),
+		},
+		{
+			name: "use --force",
+			flags: []string{
+				"--type", "db-client",
+				"--public-key", certPubKey,
+				"--force",
+			},
+			wantReq: subcav1.RemoveCertificateOverrideRequest_builder{
+				CertificateOverrideId: coID,
+				ForceImmediateDelete:  true,
+			}.Build(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			fakeClient := &fakeAuthClient{}
+			clientFunc := func(ctx context.Context) (_ subca.SubCAClientSource, closeFn func(context.Context), _ error) {
+				return fakeClient, func(ctx context.Context) {}, nil
+			}
+
+			env := newCommand(t)
+
+			flags := append([]string{"auth", "delete-override"}, test.flags...)
+			selectedCommand, err := env.App.Parse(flags)
+			require.NoError(t, err, "app.Parse()")
+
+			match, err := env.Cmd.TryRun(t.Context(), selectedCommand, clientFunc)
+			assert.True(t, match)
+			require.NoError(t, err, "Command errored")
+
+			// Verify server request.
+			if diff := cmp.Diff(test.wantReq, fakeClient.lastRemoveCertificateRequest, protocmp.Transform()); diff != "" {
+				t.Errorf("RemoveCertificateOverrideRequest mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
 // CSR PEMs for testing.
 // The simplest way to get these is to run the "tctl auth create-override-csr"
 // command.
@@ -332,11 +693,93 @@ cxI=
 -----END CERTIFICATE REQUEST-----`
 )
 
+// Certificate PEMs for testing.
+const (
+	// overridePEM is a CA override certificate.
+	//
+	// subject=O=zarquon2, CN=zarquon2
+	// issuer=O=Llama Corp, OU=Llama CA, CN=Llama Database CA
+	overridePEM = `-----BEGIN CERTIFICATE-----
+MIICmjCCAkCgAwIBAgIUNvMJUfqbjR1o7ID+GlCEVfvADF4wCgYIKoZIzj0EAwIw
+RDETMBEGA1UEChMKTGxhbWEgQ29ycDERMA8GA1UECxMITGxhbWEgQ0ExGjAYBgNV
+BAMTEUxsYW1hIERhdGFiYXNlIENBMB4XDTI2MDYxMDE2MzUwMFoXDTMxMDYwOTE2
+MzUwMFowJjERMA8GA1UEChMIemFycXVvbjIxETAPBgNVBAMTCHphcnF1b24yMIIB
+IjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAm2wHhbEzHddPlg8RJxyeAArV
+Ku+jMLGWSVjSVH5Pn2301cSe28KC5iaRuYfzf6sdEftElyV7fUdeZ+i07QTWYuMT
+3B8x5J62n/g3R4RQxYY4ivNaISnApO435cPYDvDIpAzZ3qBKRdvXDAsc0/bjiG39
+qIi04V29WRz1IjS/BPWyRP6hoeP6gbtl4Z2YE4y1MwGvl3a0L4wEFvWrhZrhlpKu
+3IzryaE/lqAaE6H4zRGNL7qPUAxxnr4n1YdDN/0BGY7OYOvea9BPseHHzIAXo/v3
+5T1pn7aVhso4pkgb5Jj715LYw7uWlXV3y/f0R4Y2BP73SqkRhRzvMgQL+1DRBQID
+AQABo2MwYTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4E
+FgQUYsc7XihR9bNRm8UdGZ1dlRZGVUQwHwYDVR0jBBgwFoAUDC1GIwweTul8uBzi
+Q4FKcCFBuhowCgYIKoZIzj0EAwIDSAAwRQIgebCxPjXntz2l3XtVzPYa63ayFwNX
+42EJAwazCrdS26sCIQC5koQINAk8I1+j3y3PmSw27DzTByWtnYtk9PI7xz9blQ==
+-----END CERTIFICATE-----`
+
+	// overrideAltPEM is an alternative CA override certificate.
+	//
+	// subject=O=zarquon2, CN=zarquon2
+	// issuer=O=Llama Corp, OU=Llama CA, CN=Llama Database CA
+	overrideAltPEM = `-----BEGIN CERTIFICATE-----
+MIICmjCCAkCgAwIBAgIUQ5YwT7MX5bPnQ2v9QV33WPG3DeEwCgYIKoZIzj0EAwIw
+RDETMBEGA1UEChMKTGxhbWEgQ29ycDERMA8GA1UECxMITGxhbWEgQ0ExGjAYBgNV
+BAMTEUxsYW1hIERhdGFiYXNlIENBMB4XDTI2MDYxNzIxMzAwMFoXDTMxMDYxNjIx
+MzAwMFowJjERMA8GA1UEChMIemFycXVvbjIxETAPBgNVBAMTCHphcnF1b24yMIIB
+IjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAm2wHhbEzHddPlg8RJxyeAArV
+Ku+jMLGWSVjSVH5Pn2301cSe28KC5iaRuYfzf6sdEftElyV7fUdeZ+i07QTWYuMT
+3B8x5J62n/g3R4RQxYY4ivNaISnApO435cPYDvDIpAzZ3qBKRdvXDAsc0/bjiG39
+qIi04V29WRz1IjS/BPWyRP6hoeP6gbtl4Z2YE4y1MwGvl3a0L4wEFvWrhZrhlpKu
+3IzryaE/lqAaE6H4zRGNL7qPUAxxnr4n1YdDN/0BGY7OYOvea9BPseHHzIAXo/v3
+5T1pn7aVhso4pkgb5Jj715LYw7uWlXV3y/f0R4Y2BP73SqkRhRzvMgQL+1DRBQID
+AQABo2MwYTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4E
+FgQUYsc7XihR9bNRm8UdGZ1dlRZGVUQwHwYDVR0jBBgwFoAUDC1GIwweTul8uBzi
+Q4FKcCFBuhowCgYIKoZIzj0EAwIDSAAwRQIgN9ch2UET9HJGkUt47c/7UCAv9yyh
+fO01mshT7mnA+vICIQCh0ep22NPhvvZ08MpGLKcfuN6umluM3fYuxNPk8GtG5A==
+-----END CERTIFICATE-----`
+
+	// chain0PEM is an external (non-Teleport) intermediate CA.
+	//
+	// subject=O=Llama Corp, OU=Llama CA, CN=Llama Database CA
+	// issuer=O=Llama Corp, OU=Llama CA, CN=Llama Root CA
+	chain0PEM = `-----BEGIN CERTIFICATE-----
+MIIB7DCCAZKgAwIBAgIUZeRuKuCUiD7KiNfNp6Gg5vDb5nowCgYIKoZIzj0EAwIw
+QDETMBEGA1UEChMKTGxhbWEgQ29ycDERMA8GA1UECxMITGxhbWEgQ0ExFjAUBgNV
+BAMTDUxsYW1hIFJvb3QgQ0EwHhcNMjYwNTA3MTk0NjAwWhcNMzEwNTA2MTk0NjAw
+WjBEMRMwEQYDVQQKEwpMbGFtYSBDb3JwMREwDwYDVQQLEwhMbGFtYSBDQTEaMBgG
+A1UEAxMRTGxhbWEgRGF0YWJhc2UgQ0EwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC
+AAQf57W1nn+Tbgi0VHurKbPlhIQP9nA1TnM79SLevTlxnNCQXsCI/vUhAcyhdZbs
+O58AEuUijPK7k7+egL8AdlUmo2YwZDAOBgNVHQ8BAf8EBAMCAQYwEgYDVR0TAQH/
+BAgwBgEB/wIBATAdBgNVHQ4EFgQUDC1GIwweTul8uBziQ4FKcCFBuhowHwYDVR0j
+BBgwFoAUc4PZtEUN3muyF188EO3IJ2CPZdQwCgYIKoZIzj0EAwIDSAAwRQIhAJmN
+S5xRejN6jfAJsJG1pkyg8GD05sfyhe65DhjyvawOAiAuS+595Kfk16K0L+ngkRMb
+tktSPZQPhhfZHqhU+9F3uw==
+-----END CERTIFICATE-----`
+
+	// chain1PEM is an external (non-Teleport) self-signed root CA.
+	//
+	// subject=O=Llama Corp, OU=Llama CA, CN=Llama Root CA
+	chain1PEM = `-----BEGIN CERTIFICATE-----
+MIIBxDCCAWqgAwIBAgIUScZfsbAZPKpWwCnCn/98vsNJw30wCgYIKoZIzj0EAwIw
+QDETMBEGA1UEChMKTGxhbWEgQ29ycDERMA8GA1UECxMITGxhbWEgQ0ExFjAUBgNV
+BAMTDUxsYW1hIFJvb3QgQ0EwHhcNMjYwNDAxMjAxMjAwWhcNMzEwMzMxMjAxMjAw
+WjBAMRMwEQYDVQQKEwpMbGFtYSBDb3JwMREwDwYDVQQLEwhMbGFtYSBDQTEWMBQG
+A1UEAxMNTGxhbWEgUm9vdCBDQTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABPk4
+01BUTEnyJjj6ao3hVwJPiTfdyhAdK6ZnBLUO4J5bapHd7qgO0UfRMWCPAprynBuW
+4kQpit787juRVtOLaQyjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNVHRMBAf8EBTAD
+AQH/MB0GA1UdDgQWBBRzg9m0RQ3ea7IXXzwQ7cgnYI9l1DAKBggqhkjOPQQDAgNI
+ADBFAiBtpWrwZUPUFZTmSdlYX12oS0ZCy+sY0f7OtXHusCMo3gIhAM0c86jXYpq9
+gT/2q6LYL8NGcL6ParNRimdwhm+0+xOe
+-----END CERTIFICATE-----`
+)
+
 type fakeAuthClient struct {
 	subcav1.SubCAServiceClient
 
-	csrPEMs        []string
-	lastCSRRequest *subcav1.CreateCSRRequest
+	csrPEMs                      []string
+	lastCSRRequest               *subcav1.CreateCSRRequest
+	lastAddCertificateRequest    *subcav1.AddCertificateOverrideRequest
+	lastUpdateCertificateRequest *subcav1.UpdateCertificateOverrideRequest
+	lastRemoveCertificateRequest *subcav1.RemoveCertificateOverrideRequest
 }
 
 func (f *fakeAuthClient) SubCAClient() subcav1.SubCAServiceClient {
@@ -360,6 +803,33 @@ func (f *fakeAuthClient) CreateCSR(
 		}.Build()
 	}
 	return resp, nil
+}
+
+func (f *fakeAuthClient) AddCertificateOverride(
+	ctx context.Context,
+	req *subcav1.AddCertificateOverrideRequest,
+	opts ...grpc.CallOption,
+) (*subcav1.AddCertificateOverrideResponse, error) {
+	f.lastAddCertificateRequest = req
+	return &subcav1.AddCertificateOverrideResponse{}, nil
+}
+
+func (f *fakeAuthClient) UpdateCertificateOverride(
+	ctx context.Context,
+	req *subcav1.UpdateCertificateOverrideRequest,
+	opts ...grpc.CallOption,
+) (*subcav1.UpdateCertificateOverrideResponse, error) {
+	f.lastUpdateCertificateRequest = req
+	return &subcav1.UpdateCertificateOverrideResponse{}, nil
+}
+
+func (f *fakeAuthClient) RemoveCertificateOverride(
+	ctx context.Context,
+	req *subcav1.RemoveCertificateOverrideRequest,
+	opts ...grpc.CallOption,
+) (*subcav1.RemoveCertificateOverrideResponse, error) {
+	f.lastRemoveCertificateRequest = req
+	return &subcav1.RemoveCertificateOverrideResponse{}, nil
 }
 
 func TestCommand_PubKeyHash(t *testing.T) {

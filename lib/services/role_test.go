@@ -3378,6 +3378,36 @@ func TestCheckRuleSorting(t *testing.T) {
 	}
 }
 
+// A trait that expands to a wildcard mixed with other verbs is normalized to
+// just the wildcard, since role validation can't catch this post-expansion.
+func TestApplyTraits_NormalizesWildcardKubeVerbAfterExpansion(t *testing.T) {
+	role, err := types.NewRoleWithVersion("kube-verb-tmpl", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesResources: []types.KubernetesResource{{
+				Kind: "secrets", APIGroup: types.Wildcard, Namespace: types.Wildcard, Name: types.Wildcard,
+				Verbs: []string{types.Wildcard},
+			}},
+		},
+		Deny: types.RoleConditions{
+			KubernetesResources: []types.KubernetesResource{{
+				Kind: "secrets", APIGroup: types.Wildcard, Namespace: "prod", Name: types.Wildcard,
+				Verbs: []string{"{{external.kube_verbs}}"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	out, err := ApplyTraits(role, map[string][]string{
+		"kube_verbs": {types.KubeVerbCreate, types.KubeVerbUpdate, types.KubeVerbDelete, types.Wildcard},
+	})
+	require.NoError(t, err)
+
+	denied := out.GetKubeResources(types.Deny)
+	require.Len(t, denied, 1)
+	require.Equal(t, []string{types.Wildcard}, denied[0].Verbs)
+}
+
 func TestApplyTraits(t *testing.T) {
 	type rule struct {
 		inLogins                []string
@@ -10391,6 +10421,34 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			requireErr: require.NoError,
 		},
 		{
+			name: "deny path matches, but dns and ip sans do not",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs: []string{
+				"foo.example.com",
+			},
+			ipSANs: []net.IP{
+				{10, 0, 0, 32},
+			},
+
+			roles: []types.Role{
+				makeRole(
+					[]*types.SPIFFERoleCondition{{
+						Path:    "/foo/*",
+						DNSSANs: []string{"*"},
+						IPSANs:  []string{"0.0.0.0/0"},
+					}},
+					[]*types.SPIFFERoleCondition{{
+						Path:    "/foo/bar",
+						DNSSANs: []string{"never.example.com"},
+						IPSANs:  []string{"127.0.0.1/32"},
+					}},
+				),
+			},
+
+			requireErr: require.NoError,
+		},
+		{
 			name: "regex success",
 
 			spiffeIDPath: "/foo/bar",
@@ -10500,11 +10558,71 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			requireErr: requireAccessDenied,
 		},
 		{
+			name: "explicit deny - multiple ip sans",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs: []net.IP{
+				{10, 0, 0, 42},
+				{8, 8, 8, 8},
+			},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path:    "/foo/*",
+						DNSSANs: []string{},
+						IPSANs:  []string{"10.0.0.1/8"},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: "/*",
+						IPSANs: []string{
+							"10.0.0.42/32",
+						},
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
 			name: "explicit deny - dns san",
 
 			spiffeIDPath: "/foo/bar",
 			dnsSANs: []string{
 				"foo.example.com",
+			},
+			ipSANs: []net.IP{},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path: "/foo/*",
+						DNSSANs: []string{
+							"*",
+						},
+						IPSANs: []string{},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: "/*",
+						DNSSANs: []string{
+							"foo.example.com",
+						},
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "explicit deny - multiple dns sans",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs: []string{
+				"foo.example.com",
+				"bar.example.com",
 			},
 			ipSANs: []net.IP{},
 
@@ -11711,6 +11829,114 @@ func TestCheckSubmitForUser(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestCheckImpersonateRoles(t *testing.T) {
+	t.Parallel()
+	u, err := types.NewUser("myuser")
+	require.NoError(t, err)
+
+	newRole := func(t *testing.T, name string, allow, deny *types.ImpersonateConditions) types.Role {
+		role, err := types.NewRole(name, types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Impersonate: allow,
+			},
+			Deny: types.RoleConditions{
+				Impersonate: deny,
+			},
+		})
+		require.NoError(t, err)
+		return role
+	}
+
+	acceptTests := []struct {
+		name             string
+		roleSet          RoleSet
+		impersonateRoles []types.Role
+	}{
+		{
+			name: "allow rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "matching where clause",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+				Where: `equals(impersonate_role.metadata.name, "foo")`,
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+	}
+	for _, tc := range acceptTests {
+		t.Run("accept "+tc.name, func(t *testing.T) {
+			require.NoError(t, tc.roleSet.CheckImpersonateRoles(u, tc.impersonateRoles))
+		})
+	}
+	rejectTests := []struct {
+		name             string
+		roleSet          RoleSet
+		impersonateRoles []types.Role
+	}{
+		{
+			name:             "no allow rules",
+			roleSet:          []types.Role{newRole(t, "foo", nil, nil)},
+			impersonateRoles: []types.Role{newRole(t, "bar", nil, nil)},
+		},
+		{
+			name: "deny rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "users in allow rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Users: []string{"*"},
+				Roles: []string{"foo"},
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "users bypassing role check",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+				Users: []string{"*"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "users in deny rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"bar"},
+				Users: []string{"*"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "no matching where clause",
+			roleSet: []types.Role{newRole(t, "myRole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+				Where: `equals(impersonate_role.metadata.name, "wrongname")`,
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+	}
+	for _, tc := range rejectTests {
+		t.Run("reject "+tc.name, func(t *testing.T) {
+			err := tc.roleSet.CheckImpersonateRoles(u, tc.impersonateRoles)
+			require.True(t, trace.IsAccessDenied(err), "unexpected error: %v", err)
 		})
 	}
 }

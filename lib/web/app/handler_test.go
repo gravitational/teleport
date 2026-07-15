@@ -329,12 +329,11 @@ func TestMatchApplicationServers(t *testing.T) {
 	authClient := &mockAuthClient{
 		clusterName: clusterName,
 		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
-		// Three app servers with same public addr from our session, and three
-		// that won't match.
+		// Three replicas of the same app, and three that won't match.
 		appServers: []types.AppServer{
-			createAppServer(t, publicAddr),
-			createAppServer(t, publicAddr),
-			createAppServer(t, publicAddr),
+			createNamedAppServer(t, "testapp", publicAddr),
+			createNamedAppServer(t, "testapp", publicAddr),
+			createNamedAppServer(t, "testapp", publicAddr),
 			createAppServer(t, "random.example.com"),
 			createAppServer(t, "random2.example.com"),
 			createAppServer(t, "random3.example.com"),
@@ -373,6 +372,150 @@ func TestMatchApplicationServers(t *testing.T) {
 	require.Equal(t, expectedContent, content)
 }
 
+func TestNewSessionRoutesByAppName(t *testing.T) {
+	ctx := t.Context()
+	clusterName := "test-cluster"
+	const sharedAddr = "demoqa.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{sharedAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+
+	// Two app servers share a public address but have different names. The
+	// session certificate is routed to "test-app-1".
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, sharedAddr, "test-app-1"),
+		appServers: []types.AppServer{
+			createNamedAppServer(t, "test-app-1", sharedAddr),
+			createNamedAppServer(t, "test-app-2", sharedAddr),
+		},
+		caKey:  key,
+		caCert: cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		Clock:                 fakeClock,
+		AuthClient:            authClient,
+		AccessPoint:           authClient,
+		ClusterGetter:         tunnel,
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+
+	// newSession shuffles the matched servers, so run a bunch of iterations
+	// to verify that we're always routed to the app encoded in the cert
+	for range 100 {
+		session, err := appHandler.newSession(ctx, authClient.appSession)
+		require.NoError(t, err)
+
+		var routedNames []string
+		for _, s := range session.tr.c.servers {
+			routedNames = append(routedNames, s.GetApp().GetName())
+		}
+		require.Equal(t, []string{"test-app-1"}, routedNames,
+			"session must only route to the app named in the certificate")
+	}
+}
+
+// TestCrossSiteWebSocketProtection verifies the CSWSH guard is wired into the
+// cookie-authenticated app forward path end-to-end: under block, a cross-origin
+// WebSocket upgrade is rejected with 403, while a non-WebSocket request is still
+// forwarded. The guard's full decision matrix (action modes, origin
+// classification) is unit-tested in TestGuardCrossSiteWebSocket; this test covers
+// the wiring and status propagation through the real handler and middleware.
+//
+// Requests use a realistic handshake (Connection: Upgrade + Origin), matching
+// what a browser actually sends — Chrome attaches no Sec-Fetch-* to a WebSocket
+// upgrade, so Origin is the signal that drives detection.
+func TestCrossSiteWebSocketProtection(t *testing.T) {
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
+		appServers:  []types.AppServer{createNamedAppServer(t, "testapp", publicAddr)},
+		caKey:       key,
+		caCert:      cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	// Valid victim session cookies. In the real attack the browser attaches
+	// these automatically on cross-site requests because they are SameSite=None.
+	cookies := []http.Cookie{
+		{Name: CookieName, Value: "abc"},
+		{Name: SubjectCookieName, Value: authClient.appSession.GetBearerToken()},
+	}
+	// A cross-origin WebSocket handshake: the Origin host differs from the app's,
+	// and there is no Sec-Fetch-Site (as on a real browser WebSocket upgrade).
+	crossOriginWS := map[string]string{
+		"Connection": "Upgrade",
+		"Upgrade":    "websocket",
+		"Origin":     "https://attacker.example",
+	}
+
+	for _, tc := range []struct {
+		name       string
+		action     string // TELEPORT_UNSTABLE_APP_CSWSH_ACTION
+		method     string
+		headers    map[string]string
+		wantStatus int
+	}{
+		{
+			name:       "block rejects cross-origin WebSocket",
+			action:     "block",
+			method:     "GET",
+			headers:    crossOriginWS,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "report-and-block rejects cross-origin WebSocket",
+			action:     "report-and-block",
+			method:     "GET",
+			headers:    crossOriginWS,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "cross-origin non-WebSocket request is forwarded under block (HTTP CSRF out of scope)",
+			action:     "block",
+			method:     "POST",
+			headers:    map[string]string{"Origin": "https://attacker.example"},
+			wantStatus: http.StatusOK,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(cswshActionEnv, tc.action)
+			p := setup(t, fakeClock, authClient, tunnel)
+			status, _, _ := p.makeRequestWithHeaders(t, tc.method, "/", []byte{}, cookies, tc.headers)
+			require.Equal(t, tc.wantStatus, status)
+		})
+	}
+}
+
 func TestHealthCheckAppServer(t *testing.T) {
 	ctx := context.Background()
 	clusterName := "test-cluster"
@@ -396,7 +539,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			desc:       "match and online services",
 			publicAddr: "valid.example.com",
 			appServersFunc: func(t *testing.T, _ *reversetunnelclient.FakeCluster) []types.AppServer {
-				return []types.AppServer{createAppServer(t, "valid.example.com")}
+				return []types.AppServer{createNamedAppServer(t, "testapp", "valid.example.com")}
 			},
 			expectedTunnelCalls: 1,
 			expectErr:           require.NoError,
@@ -405,7 +548,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			desc:       "match and but no online services",
 			publicAddr: "valid.example.com",
 			appServersFunc: func(t *testing.T, cluster *reversetunnelclient.FakeCluster) []types.AppServer {
-				appServer := createAppServer(t, "valid.example.com")
+				appServer := createNamedAppServer(t, "testapp", "valid.example.com")
 				cluster.OfflineTunnels = map[string]struct{}{
 					fmt.Sprintf("%s.%s", appServer.GetHostID(), clusterName): {},
 				}
@@ -451,7 +594,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = appHandler.HealthCheckAppServer(ctx, tc.publicAddr, clusterName)
+			err = appHandler.HealthCheckAppServer(ctx, "testapp", tc.publicAddr, clusterName)
 			tc.expectErr(t, err)
 			require.Equal(t, int64(tc.expectedTunnelCalls), fakeCluster.DialCount())
 		})
@@ -759,6 +902,30 @@ func createAppKeyCertPair(t *testing.T, clock *clockwork.FakeClock, caKey, caCer
 	return privateKey, cert
 }
 
+// createNamedAppServer is like createAppServer but lets the caller pick the app
+// name, which is required to exercise routing between multiple apps that share a
+// public address.
+func createNamedAppServer(t *testing.T, appName, publicAddr string) types.AppServer {
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.New().String(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{
+					Name:   appName,
+					Labels: map[string]string{"app_name": appName},
+				},
+				Spec: types.AppSpecV3{
+					URI:        "localhost",
+					PublicAddr: publicAddr,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return appServer
+}
+
 func createAppServer(t *testing.T, publicAddr string) types.AppServer {
 	appName := uuid.New().String()
 	appServer, err := types.NewAppServerV3(
@@ -953,7 +1120,7 @@ func TestHandlerAuthenticate(t *testing.T) {
 		clusterName: clusterName,
 		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
 		appServers: []types.AppServer{
-			createAppServer(t, publicAddr),
+			createNamedAppServer(t, "testapp", publicAddr),
 		},
 		caKey:  key,
 		caCert: cert,
@@ -1487,7 +1654,164 @@ func makeHTTPSTunnelConnFromAppSession(session types.WebSession, appName string)
 					ClusterName: "test-cluster",
 					PublicAddr:  "app.example.com",
 				},
+				Expires: session.Expiry(),
 			},
 		},
 	}
+}
+
+func makeHTTPSTunnelConnWithExpiry(t *testing.T, publicAddr string, expiry time.Time) *httpsTunnelConn {
+	t.Helper()
+
+	return &httpsTunnelConn{
+		TLSConn: &mockTLSConn{},
+		user: authz.LocalUser{
+			Username: "testuser",
+			Identity: tlsca.Identity{
+				Username:        "testuser",
+				TeleportCluster: "test-cluster",
+				RouteToApp: tlsca.RouteToApp{
+					SessionID:   "test-session-id",
+					Name:        "testapp",
+					ClusterName: "test-cluster",
+					PublicAddr:  publicAddr,
+				},
+				Expires: expiry,
+			},
+		},
+	}
+}
+
+// newClientCertRequest builds a request authenticated with a client certificate
+// for the given user, whose credential expires at notAfter.
+// appAuthCertificateIdentities only reads the certificate Subject and NotAfter,
+// so the certificate need not be signed.
+func newClientCertRequest(t *testing.T, publicAddr, username string, notAfter time.Time) *http.Request {
+	t.Helper()
+	subject, err := (&tlsca.Identity{
+		Username: username,
+		Groups:   []string{"access"},
+		RouteToApp: tlsca.RouteToApp{
+			PublicAddr:  publicAddr,
+			ClusterName: "test-cluster",
+			Name:        "testapp",
+		},
+	}).Subject()
+	require.NoError(t, err)
+
+	r := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+	r.TLS.PeerCertificates = []*x509.Certificate{{Subject: subject, NotAfter: notAfter}}
+	return r
+}
+
+func TestConnectionCredentialExpired(t *testing.T) {
+	const publicAddr = "app.example.com"
+	now := time.Now()
+
+	t.Run("cookie/browser client has no certificate identity", func(t *testing.T) {
+		r := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		require.Empty(t, appAuthCertificateIdentities(r))
+		require.False(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("valid certificate is not expired", func(t *testing.T) {
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(time.Minute))
+		require.Len(t, appAuthCertificateIdentities(r), 1)
+		require.False(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("expired certificate is reported expired", func(t *testing.T) {
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(-time.Second))
+		require.True(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("HTTPS tunnel with valid outer identity and expired inner client cert is expired", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnWithExpiry(t, publicAddr, now.Add(time.Minute))
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(-time.Second))
+		r = r.WithContext(authz.ContextWithConn(r.Context(), tunnelConn))
+
+		require.Len(t, appAuthCertificateIdentities(r), 2)
+		require.True(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("HTTPS tunnel with expired outer identity and valid inner client cert is expired", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnWithExpiry(t, publicAddr, now.Add(-time.Second))
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(time.Minute))
+		r = r.WithContext(authz.ContextWithConn(r.Context(), tunnelConn))
+
+		require.Len(t, appAuthCertificateIdentities(r), 2)
+		require.True(t, connectionCredentialExpired(r, now))
+	})
+}
+
+// newExpiryTestHandler builds an app Handler backed by a mock auth client whose
+// app session expires 5 minutes from the fake clock's current time.
+func newExpiryTestHandler(t *testing.T, ctx context.Context, fakeClock *clockwork.FakeClock) (*Handler, *mockAuthClient, string) {
+	t.Helper()
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
+		appServers:  []types.AppServer{createAppServer(t, publicAddr)},
+		caKey:       key,
+		caCert:      cert,
+	}
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		Clock:       fakeClock,
+		AuthClient:  authClient,
+		AccessPoint: authClient,
+		ClusterGetter: &reversetunnelclient.FakeServer{
+			FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+		},
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+	return appHandler, authClient, publicAddr
+}
+
+func TestWithAuthExpiredConnectionClose(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	t.Run("expired session on a client cert asks the client to reconnect", func(t *testing.T) {
+		fakeClock := clockwork.NewFakeClock()
+		appHandler, authClient, publicAddr := newExpiryTestHandler(t, ctx, fakeClock)
+
+		// The certificate and its app session expire together. Advance past
+		// expiry to reproduce a long-lived connection whose credential lapsed.
+		certExpiry := authClient.appSession.Expiry()
+		fakeClock.Advance(certExpiry.Sub(fakeClock.Now()) + time.Minute)
+
+		r := newClientCertRequest(t, publicAddr, "testuser", certExpiry)
+		w := httptest.NewRecorder()
+		appHandler.ServeHTTP(w, r)
+
+		require.Equal(t, http.StatusForbidden, w.Code)
+		require.Equal(t, "close", w.Header().Get("Connection"))
+	})
+
+	t.Run("denial on a still-valid client cert is left intact", func(t *testing.T) {
+		fakeClock := clockwork.NewFakeClock()
+		appHandler, _, publicAddr := newExpiryTestHandler(t, ctx, fakeClock)
+
+		// Owner mismatch is a genuine denial. The certificate is still valid, so
+		// reconnecting would not help: we must not mislabel it as expired or ask
+		// the client to close the connection.
+		r := newClientCertRequest(t, publicAddr, "wronguser", fakeClock.Now().Add(time.Hour))
+		w := httptest.NewRecorder()
+		appHandler.ServeHTTP(w, r)
+
+		require.Equal(t, http.StatusForbidden, w.Code)
+		require.Empty(t, w.Header().Get("Connection"))
+	})
 }

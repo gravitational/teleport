@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/resource.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package workloadidentityv1
 
@@ -50,6 +50,7 @@ type WorkloadIdentity struct {
 	xxx_hidden_Version  string                 `protobuf:"bytes,3,opt,name=version,proto3"`
 	xxx_hidden_Metadata *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3"`
 	xxx_hidden_Spec     *WorkloadIdentitySpec  `protobuf:"bytes,5,opt,name=spec,proto3"`
+	xxx_hidden_Scope    string                 `protobuf:"bytes,6,opt,name=scope,proto3"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -114,6 +115,13 @@ func (x *WorkloadIdentity) GetSpec() *WorkloadIdentitySpec {
 	return nil
 }
 
+func (x *WorkloadIdentity) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *WorkloadIdentity) SetKind(v string) {
 	x.xxx_hidden_Kind = v
 }
@@ -132,6 +140,10 @@ func (x *WorkloadIdentity) SetMetadata(v *v1.Metadata) {
 
 func (x *WorkloadIdentity) SetSpec(v *WorkloadIdentitySpec) {
 	x.xxx_hidden_Spec = v
+}
+
+func (x *WorkloadIdentity) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 func (x *WorkloadIdentity) HasMetadata() bool {
@@ -170,6 +182,12 @@ type WorkloadIdentity_builder struct {
 	Metadata *v1.Metadata
 	// The configured properties of the WorkloadIdentity
 	Spec *WorkloadIdentitySpec
+	// The scope of the WorkloadIdentity. If unset, the WorkloadIdentity is
+	// unscoped (classic behavior). If set, the WorkloadIdentity is scoped and the
+	// SPIFFE ID defined in spec.spiffe.id must be a scoped SPIFFE ID prefixed
+	// with this scope. The scope of a WorkloadIdentity cannot be changed after
+	// creation.
+	Scope string
 }
 
 func (b0 WorkloadIdentity_builder) Build() *WorkloadIdentity {
@@ -181,6 +199,7 @@ func (b0 WorkloadIdentity_builder) Build() *WorkloadIdentity {
 	x.xxx_hidden_Version = b.Version
 	x.xxx_hidden_Metadata = b.Metadata
 	x.xxx_hidden_Spec = b.Spec
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -1400,13 +1419,14 @@ var File_teleport_workloadidentity_v1_resource_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_resource_proto_rawDesc = "" +
 	"\n" +
-	"+teleport/workloadidentity/v1/resource.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a!teleport/header/v1/metadata.proto\"\xdd\x01\n" +
+	"+teleport/workloadidentity/v1/resource.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a!teleport/header/v1/metadata.proto\"\xf3\x01\n" +
 	"\x10WorkloadIdentity\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12F\n" +
-	"\x04spec\x18\x05 \x01(\v22.teleport.workloadidentity.v1.WorkloadIdentitySpecR\x04spec\"3\n" +
+	"\x04spec\x18\x05 \x01(\v22.teleport.workloadidentity.v1.WorkloadIdentitySpecR\x04spec\x12\x14\n" +
+	"\x05scope\x18\x06 \x01(\tR\x05scope\"3\n" +
 	"\x1bWorkloadIdentityConditionEq\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\"6\n" +
 	"\x1eWorkloadIdentityConditionNotEq\x12\x14\n" +

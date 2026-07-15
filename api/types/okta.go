@@ -452,6 +452,7 @@ func (o *OktaAssignmentTargetV1) GetStatus() *OktaAssignmentTargetStatus {
 }
 
 // RecordStatus sets the processing outcome, op type, and last processing time.
+// In the case of transitioning between op types, the failure count is reset.
 // In the case of a failed outcome, the failure count is incremented.
 // In the case of a successful outcome, the failure count is reset.
 // If an invalid value is provided for op or outcome, then an error is returned.
@@ -468,7 +469,7 @@ func (o *OktaAssignmentTargetV1) RecordStatus(
 	}
 
 	failureCount := int32(0)
-	if o.Status != nil {
+	if o.Status != nil && constants.OktaAssignmentTargetOp(o.Status.Op) == op {
 		failureCount = o.Status.FailureCount
 	}
 

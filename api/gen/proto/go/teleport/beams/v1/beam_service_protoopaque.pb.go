@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/beams/v1/beam_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package beamsv1
 

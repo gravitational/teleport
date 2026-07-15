@@ -3937,7 +3937,7 @@ access start time up to a week in advance.
 
 The Teleport Terraform provider and Kubernetes operator now support declaring
 agentless OpenSSH and OpenSSH EC2 ICE servers. You can follow [this
-guide](docs/pages/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx)
+guide](docs/pages/configuration/resource-guides/agentless-ssh-servers.mdx)
 to register OpenSSH agents with infrastructure as code.
 
 Setting up EC2 ICE automatic discovery with IaC will come in a future update.
@@ -4317,7 +4317,7 @@ When deployed with the `teleport-cluster` chart, the operator now runs in a
 separate pod. This ensures that Teleport's availability won't be impacted if the
 operator becomes unready.
 
-See [the Standalone Operator guide](docs/pages/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
+See [the Standalone Operator guide](docs/pages/configuration/teleport-operator/teleport-operator-standalone.mdx)
 for installation instructions.
 
 #### Roles v6 and v7 support for Kubernetes Operator

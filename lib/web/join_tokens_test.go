@@ -621,7 +621,10 @@ func TestEditToken(t *testing.T) {
 			// Fetch the token and compare
 			editedToken, err := env.server.Auth().GetToken(ctx, tokenName)
 			require.NoError(t, err)
-			require.Equal(t, "test-bot_EDITED", editedToken.GetBotName())
+			// TODO(strideynet): When bots become scope namespaced, ensure
+			// this call site reflects scopedness.
+			editedBotName, _ := editedToken.GetBot()
+			require.Equal(t, "test-bot_EDITED", editedBotName)
 			require.Equal(t, expiry, *editedToken.GetMetadata().Expires)
 			require.Equal(t, map[string]string{
 				"test-key": "test-value",
@@ -790,6 +793,16 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				{
 					OrganizationID: "example-organization-id",
 					ProjectName:    "example-project-name",
+				},
+			},
+		}
+	case types.JoinMethodGenericOIDC:
+		spec.GenericOIDC = &types.ProvisionTokenSpecV2GenericOIDC{
+			Issuer:   "https://example.com",
+			Audience: "example.teleport.sh",
+			AllowAny: []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+				{
+					Expression: "claims.foo == \"bar\"",
 				},
 			},
 		}

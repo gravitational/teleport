@@ -105,6 +105,7 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		Generation:              112,
 		BotName:                 "bot-name",
 		BotInstanceId:           "bot-instance-id",
+		BotScope:                "/foo",
 		AllowedResourceIds: []*decisionpb.ResourceId{
 			decisionpb.ResourceId_builder{
 				ClusterName:     "cluster1",
@@ -138,6 +139,7 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		}.Build(),
 		UserType:            "user-type",
 		DelegationSessionId: "delegation-session",
+		BeamId:              "beam-id",
 	}.Build()
 
 	tests := []struct {

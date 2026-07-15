@@ -41,6 +41,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -55,10 +56,6 @@ import (
 
 // Announcer specifies interface responsible for announcing presence
 type Announcer interface {
-	// UpsertNode registers node presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
-
 	// UpsertProxyServerWithoutReturn registers proxy presence, permanently if
 	// ttl is 0 or for the specified duration with second resolution if it's
 	// >= 1 second. The upserted server is not returned because the HTTP
@@ -72,17 +69,8 @@ type Announcer interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertAuthServer(ctx context.Context, s types.Server) error
 
-	// UpsertKubernetesServer registers a kubernetes server
-	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
-
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
-
-	// UpsertApplicationServer registers an application server.
-	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
-
-	// UpsertDatabaseServer registers a database proxy server.
-	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
 
 	// UpsertWindowsDesktopService registers a Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
@@ -115,6 +103,13 @@ type accessPoint interface {
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
+
+	// UpsertNode registers node presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
+
+	// UpsertApplicationServer registers an application server.
+	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -253,10 +248,10 @@ type ReadProxyAccessPoint interface {
 	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error)
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error)
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
@@ -327,6 +322,8 @@ type ReadProxyAccessPoint interface {
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
@@ -485,10 +482,10 @@ type ReadRemoteProxyAccessPoint interface {
 	ListAuthServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error)
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error)
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
@@ -510,6 +507,9 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetWindowsDesktopService returns a registered windows desktop service by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+
+	// GetLinuxDesktop returns registered Linux desktop by name.
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
 }
 
 // RelayAccessPoint is the top-level access point interface required by a Relay service.
@@ -872,9 +872,6 @@ type ReadLinuxDesktopAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
-
-	// ListLinuxDesktops returns Linux desktop hosts.
-	ListLinuxDesktops(ctx context.Context, pageSize int, pageToken string) ([]*linuxdesktopv1.LinuxDesktop, string, error)
 }
 
 // LinuxDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -1247,10 +1244,13 @@ type Cache interface {
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error)
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+	GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error)
+
+	// ListTunnelConnections returns a page of tunnel connections matching the given filter.
+	ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error)
 
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
@@ -1512,8 +1512,9 @@ type Cache interface {
 	// pagination.
 	ListSPIFFEFederations(ctx context.Context, pageSize int, lastToken string) ([]*machineidv1.SPIFFEFederation, string, error)
 
-	// GetWorkloadIdentity gets a WorkloadIdentity by name.
-	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
+	// GetWorkloadIdentity gets a WorkloadIdentity by the name and scope in the
+	// request.
+	GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest) (*workloadidentityv1pb.WorkloadIdentity, error)
 	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
 	// range [start, end), ordered by the given sort field and direction.
 	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
@@ -1578,6 +1579,8 @@ type Cache interface {
 	services.SummarizerServiceGetter
 	// BeamReader defines methods for reading beam resources.
 	services.BeamReader
+	// BeamsConfigGetter reads BeamsConfig.
+	services.BeamsConfigGetter
 
 	// SubCAServiceGetter reads CertAuthorityOverride resources.
 	services.SubCAServiceGetter

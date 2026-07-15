@@ -119,6 +119,10 @@ message IssueWorkloadIdentityRequest {
   // This may be adjusted by the server and therefore the client MUST check the
   // returned TTL rather than assuming that the requested TTL was granted.
   google.protobuf.Duration requested_ttl = 5;
+  // The scope the named WorkloadIdentity is expected to belong to. If unset, the
+  // WorkloadIdentity is expected to be unscoped. If the named WorkloadIdentity
+  // does not belong to this scope, a not found error is returned.
+  string scope = 6;
 }
 
 // The response for the IssueWorkloadIdentity RPC.

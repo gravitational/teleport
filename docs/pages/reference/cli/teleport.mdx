@@ -159,7 +159,7 @@ Flags:
 |`--cert-file`|*no default*|Path to a TLS certificate file for the proxy.|
 |`--cluster-name`|*no default*|Unique cluster name, e.g. example.com.|
 |`--data-dir`|`/var/lib/teleport`|Path to a directory where Teleport keep its data.|
-|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--key-file`|*no default*|Path to a TLS key file for the proxy.|
 |`--[no-]acme`|`false`|Get automatic certificate from Letsencrypt.org using ACME.|
 |`--node-labels`|*no default*|Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.|
@@ -802,7 +802,6 @@ Flags:
 |`--sshd-check-command`|`sshd -t -f`|Command to use when checking OpenSSH config for validity. (sshd -t -f \<sshd_config\>)|
 |`--sshd-restart-command`|*no default*|Command to use when restarting openssh.|
 |`--token`|*no default*|Invitation token or path to file with token value to register with an auth server.|
-|`--token-secret`|*no default*|Invitation token secret or path to file with secret value. Used to register with an auth server \[none\]|
 
 ## teleport node configure
 
@@ -823,7 +822,7 @@ Flags:
 |`--ca-pin`|*no default*|Comma-separated list of SKPI hashes for the CA used to verify the auth server.|
 |`--cluster-name`|*no default*|Unique cluster name, e.g. example.com.|
 |`--data-dir`|`/var/lib/teleport`|Path to a directory where Teleport keep its data.|
-|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--labels`|*no default*|Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.|
 |`--node-name`|*no default*|Name for the Teleport node.|
 |`--[no-]silent`|`false`|Suppress user hint message.|
@@ -867,7 +866,6 @@ Flags:
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created|
 |`-r`, `--roles`|*no default*|Comma-separated list of roles to start with \[proxy,node,auth,app,db\]|
 |`--token`|*no default*|Invitation token or path to file with token value. Used to register with an auth server \[none\]|
-|`--token-secret`|*no default*|Invitation token secret or path to file with secret value. Used to register with an auth server \[none\]|
 
 ## teleport status
 

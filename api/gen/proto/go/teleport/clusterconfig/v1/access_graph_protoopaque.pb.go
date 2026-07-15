@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/clusterconfig/v1/access_graph.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package clusterconfigv1
 

@@ -261,7 +261,7 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 		nil /* clock */)
 	require.NoError(t, err)
 
-	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+	dialer, err := reversetunnelclient.NewAuthDialerThroughProxy(reversetunnelclient.AuthDialerThroughProxyConfig{
 		Resolver:              resolver,
 		ClientConfig:          clientConfig.SSH,
 		Log:                   slog.Default(),

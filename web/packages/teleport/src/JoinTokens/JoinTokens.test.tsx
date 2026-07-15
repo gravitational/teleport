@@ -23,11 +23,22 @@ import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoG
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import auth from 'teleport/services/auth';
 import makeJoinToken from 'teleport/services/joinToken/makeJoinToken';
 
 import { JoinTokens } from './JoinTokens';
 
 describe('JoinTokens', () => {
+  beforeEach(() => {
+    jest
+      .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
+      .mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test('create dialog opens', async () => {
     render(<Component />);
     await userEvent.click(

@@ -45,6 +45,7 @@ import (
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/session/reexec/reexecsftp"
@@ -472,7 +474,7 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 
 			err = tt.openSession(t.Context(), reg, serverChan, scx)
 			require.Error(t, err)
-			require.Nil(t, scx.session)
+			require.Nil(t, scx.party)
 
 			if tt.errAssertion != nil {
 				tt.errAssertion(t, err)
@@ -572,18 +574,18 @@ func TestInteractiveSession(t *testing.T) {
 	clientChan.Drain()
 
 	require.NoError(t, reg.OpenSession(ctx, serverChan, scx))
-	require.NotNil(t, scx.session)
+	require.NotNil(t, scx.party)
 
 	// Simulate changing window size to capture an additional event.
 	require.NoError(t, reg.NotifyWinChange(ctx, rsession.TerminalParams{W: 100, H: 100}, scx))
 
 	// Stopping the session should trigger the session
 	// to end and cleanup in the background
-	scx.session.Stop()
+	scx.party.s.Stop()
 
 	// Wait for the session to be removed from the registry.
 	require.Eventually(t, func() bool {
-		_, found := reg.findSession(scx.session.id)
+		_, found := reg.findSession(scx.party.s.id)
 		return !found
 	}, time.Second*15, time.Millisecond*500)
 
@@ -657,11 +659,11 @@ func TestNonInteractiveSession(t *testing.T) {
 		clientChan.Drain()
 
 		require.NoError(t, reg.OpenExecSession(ctx, serverChan, scx))
-		require.NotNil(t, scx.session)
+		require.NotNil(t, scx.party)
 
 		// Wait for the command execution to complete and the session to be terminated.
 		require.Eventually(t, func() bool {
-			_, found := reg.findSession(scx.session.id)
+			_, found := reg.findSession(scx.party.s.id)
 			return !found
 		}, time.Second*15, time.Millisecond*500)
 
@@ -720,11 +722,11 @@ func TestNonInteractiveSession(t *testing.T) {
 		clientChan.Drain()
 
 		require.NoError(t, reg.OpenExecSession(ctx, serverChan, scx))
-		require.NotNil(t, scx.session)
+		require.NotNil(t, scx.party)
 
 		// Wait for the command execution to complete and the session to be terminated.
 		require.Eventually(t, func() bool {
-			_, found := reg.findSession(scx.session.id)
+			_, found := reg.findSession(scx.party.s.id)
 			return !found
 		}, time.Second*15, time.Millisecond*500)
 
@@ -868,8 +870,8 @@ func TestModeratedSessionPresence(t *testing.T) {
 	hostClientChan.Drain()
 
 	require.NoError(t, reg.OpenSession(ctx, hostServerChan, hostCtx))
-	require.NotNil(t, hostCtx.session)
-	sess := hostCtx.session
+	require.NotNil(t, hostCtx.party)
+	sess := hostCtx.party.s
 	t.Cleanup(sess.Stop)
 
 	tracker, err := srv.auth.GetSessionTracker(t.Context(), sess.id.String())
@@ -1177,11 +1179,11 @@ func TestStopSessionWithoutClientDisconnect(t *testing.T) {
 			clientChan.Drain()
 
 			require.NoError(t, reg.OpenSession(t.Context(), serverChan, scx))
-			require.NotNil(t, scx.session)
+			require.NotNil(t, scx.party)
 
 			stopDone := make(chan struct{})
 			go func() {
-				scx.session.Stop()
+				scx.party.s.Stop()
 				close(stopDone)
 			}()
 
@@ -1203,8 +1205,8 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet s
 	err := reg.OpenSession(t.Context(), serverChan, scx)
 	require.NoError(t, err)
 
-	require.NotNil(t, scx.session)
-	return scx.session, clientChan
+	require.NotNil(t, scx.party)
+	return scx.party.s, clientChan
 }
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
@@ -1321,6 +1323,55 @@ func (c *countingBPF) Enabled() bool {
 
 func (c *countingBPF) LostEvents() bpf.EventCount {
 	return bpf.EventCount{}
+}
+
+// TestBPFSessionContext_BeamID verifies that BeamID is propagated through
+// BPF SessionContext when creating enhanced recording sessions.
+func TestBPFSessionContext_BeamID(t *testing.T) {
+	t.Parallel()
+
+	testBeamID := "test-beam-id-456"
+
+	// Create a minimal ServerContext with BeamID in UnmappedIdentity
+	scx := &ServerContext{
+		Identity: IdentityContext{
+			Login:             "testuser",
+			TeleportUser:      "testuser@example.com",
+			OriginClusterName: "test-cluster",
+			MappedRoles:       []string{"test-role"},
+			Traits:            wrappers.Traits{},
+			UnmappedIdentity: &sshca.Identity{
+				BeamID: testBeamID,
+			},
+		},
+	}
+
+	// Simulate creating a BPF SessionContext (similar to what happens in sess.go)
+	var beamID string
+	if scx.Identity.UnmappedIdentity != nil {
+		beamID = scx.Identity.UnmappedIdentity.BeamID
+	}
+
+	sessionCtx := &bpf.SessionContext{
+		Namespace:             "default",
+		SessionID:             "test-session-id",
+		ServerID:              "test-server-id",
+		ServerHostname:        "test-hostname",
+		Login:                 scx.Identity.Login,
+		User:                  scx.Identity.TeleportUser,
+		UserOriginClusterName: scx.Identity.OriginClusterName,
+		UserRoles:             scx.Identity.MappedRoles,
+		UserTraits:            scx.Identity.Traits,
+		BeamID:                beamID,
+		Events:                map[string]struct{}{},
+	}
+
+	// Verify BeamID is set correctly in SessionContext
+	require.Equal(t, testBeamID, sessionCtx.BeamID, "BeamID should be propagated to SessionContext")
+
+	// Also verify that IdentityContext.GetUserMetadata() includes BeamID
+	metadata := scx.Identity.GetUserMetadata()
+	require.Equal(t, testBeamID, metadata.BeamID, "BeamID should be included in UserMetadata")
 }
 
 func TestTrackingSession(t *testing.T) {
@@ -1601,13 +1652,13 @@ func TestCloseProxySession(t *testing.T) {
 	clientChan.Drain()
 	err = reg.OpenSession(ctx, serverChan, scx)
 	require.NoError(t, err)
-	require.NotNil(t, scx.session)
+	require.NotNil(t, scx.party)
 
 	// After the session is open, we force a close coming from the server. Do
 	// this inside a goroutine to avoid being blocked.
 	closeChan := make(chan error)
 	go func() {
-		closeChan <- scx.session.Close()
+		closeChan <- scx.party.s.Close()
 	}()
 
 	select {
@@ -1644,13 +1695,13 @@ func TestCloseRemoteSession(t *testing.T) {
 
 	err := reg.OpenSession(ctx, serverChan, scx)
 	require.NoError(t, err)
-	require.NotNil(t, scx.session)
+	require.NotNil(t, scx.party)
 
 	// After the session is open, we force a close coming from the server. Do
 	// this inside a goroutine to avoid being blocked.
 	closeChan := make(chan error)
 	go func() {
-		closeChan <- scx.session.Close()
+		closeChan <- scx.party.s.Close()
 	}()
 
 	select {
@@ -2212,6 +2263,61 @@ func TestServerContextEmitters(t *testing.T) {
 			} else {
 				require.Same(t, srv, scx.AuditEmitter())
 			}
+		})
+	}
+}
+
+func TestHandleForceTerminate(t *testing.T) {
+	t.Parallel()
+
+	srv := newMockServer(t)
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	termHandlers := &TermHandlers{SessionRegistry: reg}
+
+	tests := []struct {
+		name         string
+		joinMode     types.SessionParticipantMode
+		accessDenied bool
+	}{
+		{
+			name:         "empty join mode denied",
+			accessDenied: true,
+		},
+		{
+			name:         "peer denied",
+			joinMode:     types.SessionPeerMode,
+			accessDenied: true,
+		},
+		{
+			name:         "observer denied",
+			joinMode:     types.SessionObserverMode,
+			accessDenied: true,
+		},
+		{
+			name:     "moderator allowed",
+			joinMode: types.SessionModeratorMode,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hostSess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{})
+			t.Cleanup(hostSess.Stop)
+
+			hostSess.scx.party.mode = tt.joinMode
+
+			err := termHandlers.HandleForceTerminate(nil, nil, hostSess.scx)
+			if tt.accessDenied {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }

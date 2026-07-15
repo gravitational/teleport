@@ -22,6 +22,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 )
@@ -84,6 +86,10 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 		// We can use the clusterName of the initially resolved app
 		if clusterName == "" {
 			clusterName = result.ClusterName
+		}
+		// TODO (williamo/scopes): Scoped apps currently won't support required_apps.
+		if scope := result.App.GetScope(); scope != "" && len(requiredAppNames) > 0 {
+			return nil, trace.AccessDenied("scoped apps do not support required app redirects")
 		}
 		for _, requiredAppName := range requiredAppNames {
 			if result.App.GetUseAnyProxyPublicAddr() {
@@ -149,7 +155,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// coming from the WebUI.
 	if h.healthCheckAppServer != nil && !app.HasClientCert(r) {
 		h.logger.DebugContext(r.Context(), "Ensuring proxy can handle requests for application", "app", result.App.GetName())
-		err := h.healthCheckAppServer(r.Context(), result.App.GetPublicAddr(), result.ClusterName)
+		err := h.healthCheckAppServer(r.Context(), result.App.GetName(), result.App.GetPublicAddr(), result.ClusterName)
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try again. If the issue persists, verify if the Application Services are connected to Teleport.")
 		}
@@ -247,12 +253,15 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	// from the application launcher in the Web UI) then directly exactly resolve the
 	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
 	switch {
-	case params.AppName != "" && params.ClusterName != "":
-		server, appClusterName, err = h.resolveAppByName(ctx, proxy, params.AppName, params.ClusterName)
-	case params.PublicAddr != "" && params.ClusterName != "":
-		server, appClusterName, err = h.resolveDirect(ctx, proxy, params.PublicAddr, params.ClusterName)
+	case params.ClusterName != "" && (params.AppName != "" || params.PublicAddr != ""):
+		server, appClusterName, err = h.resolveAppForCluster(ctx, proxy, params.AppName, params.PublicAddr, params.ClusterName)
 	case params.FQDNHint != "":
-		server, appClusterName, err = app.ResolveFQDN(ctx, proxy, h.auth.clusterName, h.proxyDNSNames(), params.FQDNHint)
+		// Multiple apps can have the same FQDN - prefer those the user
+		// can actually access.
+		var canAccess func(types.Application) bool
+		if canAccess, err = h.userAppAccessFilter(ctx, scx); err == nil {
+			server, appClusterName, err = app.ResolveFQDN(ctx, proxy, h.auth.clusterName, h.proxyDNSNames(), params.FQDNHint, canAccess)
+		}
 	default:
 		err = trace.BadParameter("no inputs to resolve application")
 	}
@@ -274,41 +283,50 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	}, nil
 }
 
-// resolveAppByName will take an application name and cluster name and exactly resolves
-// the application and the server on which it is running.
-func (h *Handler) resolveAppByName(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, appName string, clusterName string) (types.AppServer, string, error) {
-	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
+// userAppAccessFilter returns a filter that checks whether the current user session
+// is allowed to access an application.
+//
+// Per-session MFA and device trust requirements are treated as "accessible" here
+// since the user is allowed, they'll just be asked for an extra factor when the connection
+// is actually established.
+func (h *Handler) userAppAccessFilter(ctx context.Context, scx *SessionContext) (func(types.Application) bool, error) {
+	checker, err := scx.GetUserAccessChecker()
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchName(appName))
+	authPref, err := h.cfg.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	if len(servers) == 0 {
-		return nil, "", trace.NotFound("failed to match applications with name %s", appName)
-	}
-
-	return servers[rand.N(len(servers))], clusterName, nil
+	state := checker.GetAccessState(authPref)
+	return func(app types.Application) bool {
+		err := checker.CheckAccess(app, state)
+		return err == nil ||
+			errors.Is(err, services.ErrSessionMFARequired) ||
+			errors.Is(err, services.ErrTrustedDeviceRequired)
+	}, nil
 }
 
-// resolveDirect takes a public address and cluster name and exactly resolves
-// the application and the server on which it is running.
-func (h *Handler) resolveDirect(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, publicAddr string, clusterName string) (types.AppServer, string, error) {
+// resolveAppForCluster will take a cluster name, public address, and optional app name in order to
+// locate the application and the server on which it is running.
+// The app name, if provided, is used to disambiguate multiple apps with the same public addr.
+func (h *Handler) resolveAppForCluster(
+	ctx context.Context,
+	clusterGetter reversetunnelclient.ClusterGetter,
+	appName, publicAddr, clusterName string,
+) (types.AppServer, string, error) {
 	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchAppServerForRoute(appName, publicAddr))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	if len(servers) == 0 {
-		return nil, "", trace.NotFound("failed to match applications with public addr %s", publicAddr)
+		return nil, "", trace.NotFound("failed to match applications with addr %s and name %q", publicAddr, appName)
 	}
 
 	return servers[rand.N(len(servers))], clusterName, nil
