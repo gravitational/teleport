@@ -228,7 +228,7 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 	roles := awsutils.FilterAWSRoles(logins, app.GetAWSAccountID())
 
 	if len(roles) == 0 {
-		return "", trace.NotFound("there are no roles configured for the AWS app")
+		return "", trace.NotFound("could not determine any allowed IAM role ARNs for %q: this can indicate lack of permissions or app misconfiguration", app.GetName())
 	}
 
 	if cf.AWSRole == "" {
@@ -332,7 +332,7 @@ func printAWSAppLogins(cf *CLIConf, app types.Application, logins []string) erro
 	roles := awsutils.FilterAWSRoles(logins, app.GetAWSAccountID())
 
 	if len(roles) == 0 {
-		return trace.NotFound("there are no roles configured for the AWS app %q", app.GetName())
+		return trace.NotFound("could not determine any allowed IAM role ARNs for %q: this can indicate lack of permissions or app misconfiguration", app.GetName())
 	}
 
 	// Output based on format.
