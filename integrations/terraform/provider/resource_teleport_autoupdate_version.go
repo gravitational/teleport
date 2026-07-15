@@ -351,7 +351,8 @@ func (r resourceTeleportAutoUpdateVersion) ModifyPlan(ctx context.Context, req t
 
 	autoUpdateVersion = autoUpdateVersionResource
 
-	resp.Diagnostics.Append(schemav1.CopyAutoUpdateVersionToTerraform(ctx, autoUpdateVersion, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx, autoUpdateVersion, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

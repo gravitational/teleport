@@ -351,7 +351,8 @@ func (r resourceTeleportAutoUpdateConfig) ModifyPlan(ctx context.Context, req tf
 
 	autoUpdateConfig = autoUpdateConfigResource
 
-	resp.Diagnostics.Append(schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx, autoUpdateConfig, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
