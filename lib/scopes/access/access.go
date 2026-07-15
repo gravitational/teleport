@@ -320,6 +320,9 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 			return trace.BadParameter("scoped role %q has invalid kube label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
 		}
 	}
+
+	// verify that app labels are well formed
+	// label expressions are evaluated in write time as of right now in lib/services/local/scoped_access.go
 	if app := role.GetSpec().GetApp(); app != nil {
 		labels := app.GetLabels()
 		if len(labels) == 0 && app.GetLabelExpression() == "" {
@@ -332,7 +335,7 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 			// them until that has landed.
 
 			if strings.ContainsAny(label.GetName(), invalidLabelChars) {
-				return trace.BadParameter("scoped role %q has invalid kube label name %q", role.GetMetadata().GetName(), label.GetName())
+				return trace.BadParameter("scoped role %q has invalid app label name %q", role.GetMetadata().GetName(), label.GetName())
 			}
 			if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
 				return trace.BadParameter("scoped role %q has invalid app label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())

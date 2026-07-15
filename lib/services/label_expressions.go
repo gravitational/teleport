@@ -40,6 +40,15 @@ type labelExpressionEnv struct {
 
 var labelExpressionParser = mustNewLabelExpressionParser()
 
+// ValidateLabelExpression checks that the given label expression is
+// valid.
+func ValidateLabelExpression(expr string) error {
+	if _, err := parseLabelExpression(expr); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 func parseLabelExpression(expr string) (labelExpression, error) {
 	parsedExpr, err := labelExpressionParser.Parse(expr)
 	if err != nil {

@@ -695,6 +695,30 @@ func TestValidateRole(t *testing.T) {
 			weakOk:   true,
 		},
 		{
+			name: "app block with invalid labels",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{
+								Name:   "{}",
+								Values: []string{"{}"},
+							}.Build(),
+						},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
 			name: "valid App.lock.mode",
 			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,

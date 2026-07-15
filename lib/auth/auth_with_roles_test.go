@@ -6107,7 +6107,7 @@ func TestListResources_ScopedApps(t *testing.T) {
 	const childScope = "/test/child"
 	const otherScope = "/other"
 
-	createAppServer := func(t *testing.T, name, scope string, labels map[string]string) {
+	createAppServer := func(t *testing.T, name, scope, subkind string, labels map[string]string) {
 		t.Helper()
 		app, err := types.NewAppV3(types.Metadata{
 			Name:   name,
@@ -6116,21 +6116,28 @@ func TestListResources_ScopedApps(t *testing.T) {
 			types.AppSpecV3{URI: "http://localhost:8080"},
 			scope)
 		require.NoError(t, err)
+		if subkind != "" {
+			app.SubKind = subkind
+		}
 		if scope != "" {
 			app.Spec.PublicAddr = scopedapp.ScopedAppPublicAddr(scope, name, "proxy.example.com")
 		}
 		server, err := types.NewAppServerV3FromApp(app, name+"-host", name+"-hostid")
+		if subkind != "" {
+			server.SubKind = subkind
+		}
 		require.NoError(t, err)
 		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
 		require.NoError(t, err)
 	}
 
 	// Create apps in various scopes with differing labels
-	createAppServer(t, "prod-app", scope, map[string]string{"env": "prod"})
-	createAppServer(t, "dev-app", scope, map[string]string{"env": "dev"})
-	createAppServer(t, "dev-child-app", childScope, map[string]string{"env": "dev"})
-	createAppServer(t, "other-scope-app", otherScope, map[string]string{"env": "prod"})
-	createAppServer(t, "unscoped-app", "", map[string]string{"env": "prod"})
+	createAppServer(t, "prod-app", scope, "", map[string]string{"env": "prod"})
+	createAppServer(t, "dev-app", scope, "", map[string]string{"env": "dev"})
+	createAppServer(t, "dev-child-app", childScope, "", map[string]string{"env": "dev"})
+	createAppServer(t, "other-scope-app", otherScope, "", map[string]string{"env": "prod"})
+	createAppServer(t, "unscoped-app", "", "", map[string]string{"env": "prod"})
+	createAppServer(t, "ic-app", scope, types.KindIdentityCenterAccount, map[string]string{"env": "dev"})
 
 	appLabels := func(env string) *scopedaccessv1.ScopedRoleApp {
 		return scopedaccessv1.ScopedRoleApp_builder{
@@ -6159,54 +6166,97 @@ func TestListResources_ScopedApps(t *testing.T) {
 		name             string
 		server           *auth.ScopedServerWithRoles
 		appNamesExpected []string
+		req              proto.ListResourcesRequest
 	}{
 		{
 			name:             "prod labels in scope " + scope,
 			server:           scopedAppUser("test-prod-label", scope, appLabels("prod")),
 			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "dev label in " + scope,
 			server:           scopedAppUser("test-dev-label", scope, appLabels("dev")),
 			appNamesExpected: []string{"dev-app", "dev-child-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "dev label expression in " + scope,
 			server:           scopedAppUser("test-dev-expression", scope, appLabelExpression(`contains(labels["env"], "dev")`)),
 			appNamesExpected: []string{"dev-app", "dev-child-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "label expression in " + scope,
 			server:           scopedAppUser("test-prod-expression", scope, appLabelExpression(`contains(labels["env"], "prod")`)),
 			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "label expression in " + childScope,
 			server:           scopedAppUser("test-child-prod-expr", childScope, appLabelExpression(`contains(labels["env"], "prod")`)),
 			appNamesExpected: []string{},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "label expression in " + otherScope,
 			server:           scopedAppUser("other-prod-expression", otherScope, appLabelExpression(`contains(labels["env"], "prod")`)),
 			appNamesExpected: []string{"other-scope-app"},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			res, err := tc.server.ListResources(ctx, proto.ListResourcesRequest{
+			req: proto.ListResourcesRequest{
 				ResourceType: types.KindAppServer,
 				Limit:        10,
-			})
+			},
+		},
+		{
+			name:             "fake pagination path returns apps",
+			server:           scopedAppUser("test-fake-pagination", scope, appLabels("prod")),
+			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType:   types.KindAppServer,
+				Limit:          10,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName},
+				NeedTotalCount: true,
+				IncludeLogins:  true,
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tc.server.ListResources(ctx, tc.req)
 			require.NoError(t, err)
 
 			var names []string
 			for _, r := range res.Resources {
 				names = append(names, r.GetName())
 				require.NotEqual(t, "unscoped-app", r.GetName())
+				// Identity Center account apps must never appear in scoped
+				// listings, even when their labels match the role.
+				require.NotEqual(t, "ic-app", r.GetName())
 			}
 
 			require.ElementsMatch(t, tc.appNamesExpected, names)
+
+			if tc.req.SortBy.Field != "" {
+				require.True(t, slices.IsSorted(names))
+			}
+			if tc.req.NeedTotalCount {
+				require.Equal(t, len(tc.appNamesExpected), res.TotalCount)
+			}
 		})
 	}
 }

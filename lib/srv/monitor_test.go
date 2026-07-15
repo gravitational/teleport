@@ -556,12 +556,12 @@ func TestMonitorScoped(t *testing.T) {
 		name        string
 		lockingMode constants.LockingMode
 		// assertStale runs after the lock watcher has been forced into a stale state.
-		assertStale func(t *testing.T, srv *authtest.AuthServer, conn *mockTrackingConn, emitter *eventstest.ChannelEmitter)
+		assertStale func(t *testing.T, conn *mockTrackingConn, emitter *eventstest.ChannelEmitter)
 	}{
 		{
 			name:        "best-effort locking keeps the scoped connection open on a stale lock view",
 			lockingMode: constants.LockingModeBestEffort,
-			assertStale: func(t *testing.T, srv *authtest.AuthServer, conn *mockTrackingConn, emitter *eventstest.ChannelEmitter) {
+			assertStale: func(t *testing.T, conn *mockTrackingConn, emitter *eventstest.ChannelEmitter) {
 				// Under best-effort locking the connection must remain open despite the stale view.
 				select {
 				case <-conn.closedC:
@@ -573,7 +573,7 @@ func TestMonitorScoped(t *testing.T) {
 		{
 			name:        "strict locking stops the scoped connection on a stale lock view",
 			lockingMode: constants.LockingModeStrict,
-			assertStale: func(t *testing.T, srv *authtest.AuthServer, conn *mockTrackingConn, emitter *eventstest.ChannelEmitter) {
+			assertStale: func(t *testing.T, conn *mockTrackingConn, emitter *eventstest.ChannelEmitter) {
 				// Under strict locking the connection must be terminated on the stale view.
 				select {
 				case <-conn.closedC:
@@ -651,7 +651,7 @@ func TestMonitorScoped(t *testing.T) {
 				assert.True(c, srv.LockWatcher.IsStale())
 			}, 15*time.Second, 100*time.Millisecond, "Timeout waiting for LockWatcher to be stale.")
 
-			tc.assertStale(t, srv, conn, emitter)
+			tc.assertStale(t, conn, emitter)
 		})
 	}
 }

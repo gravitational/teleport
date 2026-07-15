@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -172,13 +173,27 @@ func (s *ScopedAccessService) StreamScopedRoles(ctx context.Context) stream.Stre
 	}
 }
 
+func strongValidateRole(role *scopedaccessv1.ScopedRole) error {
+	if err := scopedaccess.StrongValidateRole(role); err != nil {
+		return trace.Wrap(err)
+	}
+	// We need to parse the label expressions here in order to avoid an import cycle.
+	// TODO (williamo/scopes) Look into moving the parseLabelExpression that ValidateLabelExpression uses.
+	if expr := role.GetSpec().GetApp().GetLabelExpression(); expr != "" {
+		if err := services.ValidateLabelExpression(expr); err != nil {
+			return trace.BadParameter("scoped role %q has invalid app.label_expression: %v", role.GetMetadata().GetName(), err)
+		}
+	}
+	return nil
+}
+
 func (s *ScopedAccessService) CreateScopedRole(ctx context.Context, req *scopedaccessv1.CreateScopedRoleRequest) (*scopedaccessv1.CreateScopedRoleResponse, error) {
 	role := req.GetRole()
 	if role == nil {
 		return nil, trace.BadParameter("missing scoped role in create request")
 	}
 
-	if err := scopedaccess.StrongValidateRole(role); err != nil {
+	if err := strongValidateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -207,7 +222,7 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.BadParameter("missing scoped role in update request")
 	}
 
-	if err := scopedaccess.StrongValidateRole(role); err != nil {
+	if err := strongValidateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -287,7 +302,7 @@ func (s *ScopedAccessService) UpsertScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.BadParameter("missing scoped role in upsert request")
 	}
 
-	if err := scopedaccess.StrongValidateRole(role); err != nil {
+	if err := strongValidateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

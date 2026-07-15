@@ -28,11 +28,11 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 )
 
-// TestCommonAccessCheckerAdjustClientIdleTimeout verifies the idle timeout selection logic:
+// TestAppAccessCheckerAdjustClientIdleTimeout verifies the idle timeout selection logic:
 // <protocol>.client_idle_timeout takes precedence over defaults.client_idle_timeout, either value
 // is only applied when it is more restrictive than the supplied global default, and invalid
 // or empty values defer to the global default.
-func TestCommonAccessCheckerAdjustClientIdleTimeout(t *testing.T) {
+func TestAppAccessCheckerAdjustClientIdleTimeout(t *testing.T) {
 	t.Parallel()
 
 	tts := []struct {
@@ -286,7 +286,6 @@ func TestAppAccessCheckerLockingMode(t *testing.T) {
 			name: "invalid value falls back to default",
 			spec: scopedaccessv1.ScopedRoleSpec_builder{
 				App: scopedaccessv1.ScopedRoleApp_builder{
-
 					Lock: scopedaccessv1.Lock_builder{
 						Mode: "invalid",
 					}.Build(),

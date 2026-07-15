@@ -75,7 +75,7 @@ func (c *AppAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
 }
 
-// LockingMode returns the SSH lock enforcement mode to apply.
+// LockingMode returns the App lock enforcement mode to apply.
 func (c *AppAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.LockingMode(defaultMode)

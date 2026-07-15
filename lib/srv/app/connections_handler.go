@@ -737,7 +737,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 		// TODO (williamo/scopes): change this to a scoped context when we support MCP.
 		unscopedAuthCtx, ok := authCtx.UnscopedContext()
 		if !ok {
-			return nil, trace.BadParameter("MCP application access is not supported for scoped identities")
+			return nil, trace.AccessDenied("MCP application access is not supported for scoped identities")
 		}
 		sessionCtx := mcp.SessionCtx{
 			ClientConn: tlsConn,

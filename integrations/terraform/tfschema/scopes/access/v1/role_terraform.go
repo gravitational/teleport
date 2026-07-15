@@ -118,7 +118,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"disconnect_expired_cert": {
-							Description: "DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires.",
+							Description: "DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
@@ -149,7 +149,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
-							Description: "Lock configures the role's locking behavior for app sessions.",
+							Description: "Lock configures the role's locking behavior for app sessions. If empty, the defaults block value (or global default) applies.",
 							Optional:    true,
 						},
 					}),
@@ -164,12 +164,12 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 				"defaults": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"client_idle_timeout": {
-							Description: "ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. \"30m\", \"1h\").",
+							Description: "ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. \"30m\", \"1h\"). The cluster-wide default is used only when neither this nor the protocol's equivalent control is set.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"disconnect_expired_cert": {
-							Description: "DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session. If unset, cluster wide defaults are used.",
+							Description: "DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session. The cluster-wide default is used only when neither this nor the protocol's equivalent control is set.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
@@ -179,7 +179,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
-							Description: "Lock specifies the default locking mode for access sessions across all protocols that do not specify their own value. If unset, cluster wide defaults are used.",
+							Description: "Lock specifies the default locking mode for access sessions across all protocols that do not specify their own value. The cluster-wide default is used only when neither this nor the protocol's equivalent control is set.",
 							Optional:    true,
 						},
 						"session_recording": {
@@ -188,7 +188,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
-							Description: "SessionRecording configures the session recording strategy for all protocols that don't explicitly set their session recording mode.",
+							Description: "SessionRecording configures the session recording strategy for all protocols that don't explicitly set their session recording mode. If neither this nor the protocol's equivalent control is set, best_effort is used.",
 							Optional:    true,
 						},
 					}),
@@ -203,7 +203,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"disconnect_expired_cert": {
-							Description: "DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires.",
+							Description: "DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
@@ -234,7 +234,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
-							Description: "Lock configures the role's locking behavior for kubernetes sessions.",
+							Description: "Lock configures the role's locking behavior for kubernetes sessions. If empty, the defaults block value (or global default) applies.",
 							Optional:    true,
 						},
 						"resources": {
@@ -301,7 +301,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"disconnect_expired_cert": {
-							Description: "DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires. Defaults to value cluster wide auth preference if not set.",
+							Description: "DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
@@ -384,7 +384,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
-							Description: "Lock configures the role's locking behavior for SSH sessions.",
+							Description: "Lock configures the role's locking behavior for SSH sessions. If empty, the defaults block value (or global default) applies.",
 							Optional:    true,
 						},
 						"logins": {

@@ -2184,7 +2184,7 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 	return &proto.ResolveSSHTargetResponse{Server: bestServer}, nil
 }
 
-// ListResources is the scoped equivalent of [ServerWithRoles.ListResources]. Only kube_server and
+// ListResources is the scoped equivalent of [ServerWithRoles.ListResources]. Only kube_server, app_server, and
 // kube_cluster resource types are currently supported for scoped identities. Advanced features like
 // search_as_roles, preview_as_roles, and login inclusion are not yet available for scoped identities.
 func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -2759,8 +2759,8 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 }
 
 // listResourcesWithSort is the scoped equivalent of [ServerWithRoles.listResourcesWithSort].
-// It only supports listing apps servers and kube servers at this point and will need to be updated to
-// reach feature parity with the Unscoped version.
+// It only supports listing apps servers (not apps) and kube clusters (not kube servers)
+// at this point and will need to be updated to reach feature parity with the Unscoped version.
 func (a *ScopedServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -3866,7 +3866,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 }
 
 // GenerateUserCerts generates users certificates. Scoped identities are currently limited to
-// generating kubernetes certificates.
+// generating kubernetes and app certificates.
 func (a *ScopedServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
 	identity := a.scopedContext.Identity.GetIdentity()
 	return a.generateUserCerts(ctx, req, certRequestDeviceExtensions(identity.DeviceExtensions))
