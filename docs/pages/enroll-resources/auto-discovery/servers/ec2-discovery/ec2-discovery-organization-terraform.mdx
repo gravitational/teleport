@@ -1,8 +1,8 @@
 ---
-title: Terraform EC2 Auto-Discovery Configuration
-sidebar_label: Terraform Setup for Single Account
-sidebar_position: 3
-description: How to configure Teleport EC2 auto-discovery with Terraform
+title: Terraform EC2 Auto-Discovery Configuration for AWS Organizations
+sidebar_label: Terraform Setup for Organizations
+sidebar_position: 5
+description: How to configure Teleport EC2 auto-discovery with Terraform for an AWS Organization
 page_type: how-to
 tags:
  - how-to
@@ -15,18 +15,18 @@ This guide shows you how to use Terraform to configure Teleport and AWS to autom
 
 ## How it works
 
-The [`teleport-discovery-aws`](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-aws/teleport-discovery-aws.mdx) Terraform module creates resources in your Teleport cluster and AWS account to enable Teleport EC2 auto-discovery.
+The [`teleport-discovery-aws`](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-aws/teleport-discovery-aws.mdx) Terraform module creates resources in your Teleport cluster and AWS organization to enable Teleport EC2 auto-discovery.
 
-The Teleport Discovery Service queries the AWS API to list EC2 instances in your account.
+The Teleport Discovery Service queries the AWS API to list matching Accounts, and EC2 instances in each account.
 For each EC2 instance that it discovers, the Discovery Service uses AWS Systems Manager (SSM) to install Teleport on the instance and join it to the cluster as a Teleport-protected server.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2/Amazon Linux 2023 and
-SSM Agent version 3.1 or greater
+- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2/Amazon Linux 2023 and SSM Agent version 3.1 or greater
 - (!docs/pages/includes/tctl.mdx!)
+- Access to the management account or a member account that is a delegated administrator.
 
 <Admonition type="note">
 
@@ -104,9 +104,11 @@ discovery_service:
 
 ## Use the `teleport-discovery-aws` Terraform module
 
-### Step 1/5. Configure AWS Terraform provider
+### Step 1/6. Configure AWS Terraform provider
 
 Configure the [AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs) and AWS IAM permissions for Terraform to manage AWS resources.
+
+This module requires the AWS Terraform provider to be configured with credentials from the management account or a member account that is a delegated administrator.
 
 <details>
 <summary>AWS IAM permissions required for AWS Terraform provider</summary>
@@ -181,6 +183,17 @@ The AWS Terraform provider will need the following AWS IAM permissions to manage
         "iam:UpdateOpenIDConnectProviderThumbprint"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "Organization",
+      "Effect": "Allow",
+      "Action": [
+        "organizations:ListAccounts",
+        "organizations:ListRoots",
+        "organizations:ListAWSServiceAccessForOrganization",
+        "organizations:DescribeOrganization"
+      ],
+      "Resource": "*"
     }
   ]
 }
@@ -189,7 +202,7 @@ The AWS Terraform provider will need the following AWS IAM permissions to manage
 </details>
 
 
-### Step 2/5. Configure Teleport Terraform provider
+### Step 2/6. Configure Teleport Terraform provider
 
 There are several ways to configure the Teleport Terraform provider depending on how you intend to run Terraform, for example in CI, Spacelift, or some other remote environment, but for a quick start, see the [Local Demo](../../../../configuration/terraform-provider/local.mdx) guide.
 
@@ -202,7 +215,7 @@ $ eval "$(tctl terraform env)"
 
 If you are running Terraform in a remote environment, such as a cloud VM, an on-prem server, or CI/CD pipelines, refer to [Using the Teleport Terraform Provider](../../../../configuration/terraform-provider/terraform-provider.mdx) to find the appropriate guide for your use case.
 
-### Step 3/5. Configure the Terraform module inputs
+### Step 3/6. Configure the Terraform module inputs
 
 Add the `teleport-discovery-aws` module to your Terraform configuration.
 
@@ -216,26 +229,49 @@ module "aws_discovery" {
 
   # Required inputs:
   # Assign <Var name="example.teleport.sh:443" /> to your Teleport cluster's proxy public address in host:port form.
-  teleport_proxy_public_addr = "https://<Var name="example.teleport.sh:443" />"
+  teleport_proxy_public_addr = "<Var name="example.teleport.sh:443" />"
   # teleport_discovery_group_name must match the discovery group name in your Discovery Service config file.
   # Teleport Cloud clusters run the Discovery Service in the group name "cloud-discovery-group".
   # Do not modify this input unless you intend to run your own Discovery Service.
   teleport_discovery_group_name = "cloud-discovery-group"
-  # Discover EC2 instances
-  match_aws_resource_types = ["ec2"]
+
+  # Enable AWS Organization wide discovery.
+  aws_organization_discovery = {
+    organizational_units = {
+      # The wildcard "*" matches all organizational units.
+      # You can also specify a list of organizational unit IDs to match (eg, "ou-1a2b-rg12qq2b")
+      include = ["*"]
+
+      # You can also specify a list of organizational unit IDs to exclude from discovery.
+      # exclude = ["ou-1a2b-rg12qq2b"]
+      # Excluded organizational units will not be discovered, even if they are included in the "include" list.
+    }
+  }
+
+  # Each child account in the organization must have an IAM role with this name.
+  # This role is assumed by the Discovery Service to enroll resources from that account.
+  # The required trust relationship and permissions for this role can be found in the module outputs and documentation.
+  aws_child_account_iam_role_name = "teleport-organization-discovery-child-account-role"
 
   # Optional inputs:
   # Apply the additional AWS tag "origin=example" to all AWS resources created by this module
   apply_aws_tags = { origin = "example" }
   # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
   apply_teleport_resource_labels = { origin = "example" }
-  # match_aws_regions is a list of regions in which the Discovery Service will match and discover EC2 instances.
-  # The wildcard "*" is the default and matches all regions.
-  match_aws_regions = ["*"]
-  # match_aws_tags are AWS tags to match when discovering EC2 instances.
-  # Only EC2 instances with matching tags will be discovered.
-  # The wildcard {"*" : ["*"]} is the default and matches all tags.
-  match_aws_tags = { "*" : ["*"] }
+
+  # Discover EC2 instances using matching rules.
+  # Accepts "*" to discover across all enabled regions.
+  # The module adds account:ListRegions to the IAM policy automatically when "*" is used.
+  aws_matchers = [
+    {
+      types = ["ec2"]
+      # EC2 discovery supports a wildcard to find instances in all regions.
+      regions = ["*"]
+      tags = {
+        env = ["prod"]
+      }
+    }
+  ]
 }
 ```
 </TabItem>
@@ -251,21 +287,38 @@ module "aws_discovery" {
   teleport_proxy_public_addr    = "<Var name="teleport.example.com:443" />"
   # Edit this input to match the discovery group name in your Discovery Service config file
   teleport_discovery_group_name = "<Var name="discovery-group-name" />"
-  # Discover EC2 instances
-  match_aws_resource_types = ["ec2"]
 
-  # Optional inputs:
-  # Apply the additional AWS tag "origin=example" to all AWS resources created by this module
-  apply_aws_tags = { origin = "example" }
-  # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
-  apply_teleport_resource_labels = { origin = "example" }
-  # match_aws_regions is a list of regions in which the Discovery Service will match and discover EC2 instances.
-  # The wildcard "*" is the default and matches all regions.
-  match_aws_regions = ["*"]
-  # match_aws_tags are AWS tags to match when discovering EC2 instances.
-  # Only EC2 instances with matching tags will be discovered.
-  # The wildcard {"*" : ["*"]} is the default and matches all tags.
-  match_aws_tags = { "*" : ["*"] }
+  # Enable AWS Organization wide discovery.
+  aws_organization_discovery = {
+    organizational_units = {
+      # The wildcard "*" matches all organizational units.
+      # You can also specify a list of organizational unit IDs to match (eg, "ou-1a2b-rg12qq2b")
+      include = ["*"]
+
+      # You can also specify a list of organizational unit IDs to exclude from discovery.
+      # exclude = ["ou-1a2b-rg12qq2b"]
+      # Excluded organizational units will not be discovered, even if they are included in the "include" list.
+    }
+  }
+
+  # Each child account in the organization must have an IAM role with this name.
+  # This role is assumed by the discovery service to enroll resources from that account.
+  # The required trust relationship and permissions for this role can be found in the module outputs and documentation.
+  aws_child_account_iam_role_name = "teleport-organization-discovery-child-account-role"
+
+  # Discover EC2 instances using matching rules.
+  # Accepts "*" to discover across all enabled regions.
+  # The module adds account:ListRegions to the IAM policy automatically when "*" is used.
+  aws_matchers = [
+    {
+      types = ["ec2"]
+      # EC2 discovery supports a wildcard to find instances in all regions.
+      regions = ["*"]
+      tags = {
+        env = ["prod"]
+      }
+    }
+  ]
 }
 ```
 </TabItem>
@@ -288,7 +341,7 @@ output "aws_discovery" {
 
 See the [`teleport-discovery-aws` reference](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-aws/teleport-discovery-aws.mdx) for a complete description of the module inputs and outputs.
 
-### Step 4/5. Apply the Terraform module
+### Step 4/6. Apply the Terraform module
 
 ```code
 $ terraform init
@@ -297,7 +350,7 @@ $ terraform apply
 
 Terraform should plan to create the following resources:
 - AWS IAM role for Teleport Discovery Service to assume
-- AWS IAM policy that grants the AWS permissions necessary for Teleport to discover resources in AWS
+- AWS IAM policy that grants the AWS permissions necessary for Teleport to enumerate AWS accounts and assume roles in other accounts within the AWS Organization
 - AWS IAM policy attachment to attach the IAM policy to the Discovery Service IAM role
 - AWS OIDC Provider for Teleport Discovery Service to assume an IAM role using OIDC.
 - Teleport `discovery_config` cluster resource that configures Teleport for AWS resource discovery.
@@ -310,28 +363,134 @@ After Terraform finishes applying the plan, it should display the module outputs
 
 ```
 aws_discovery = {
-  "aws_oidc_provider_arn" = "arn:aws:iam::123456789012:oidc-provider/example.teleport.sh"
-  "teleport_discovery_config_name" = "discovery-aws-account-123456789012"
-  "teleport_discovery_service_iam_policy_arn" = "arn:aws:iam::123456789012:policy/teleport-discovery-<timestamp>"
-  "teleport_discovery_service_iam_role_arn" = "arn:aws:iam::123456789012:role/teleport-discovery-<timestamp>"
-  "teleport_integration_name" = "discovery-aws-account-123456789012"
-  "teleport_provision_token_name" = "discovery-aws-account-123456789012"
+  "aws_child_account_iam_role_template" = {
+    "assume_role_policy" = <<-EOT
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "sts:AssumeRole",
+          "Principal": {
+            "AWS": "arn:aws:iam::<root-account-id>:role/teleport-discovery-<random-id>"
+          },
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalOrgID": "<aws-organization-id>"
+            }
+          }
+        }
+      ]
+    }
+    EOT
+    "policy" = <<-EOT
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "ssm:SendCommand",
+            "ssm:ListCommandInvocations",
+            "ssm:GetCommandInvocation",
+            "ssm:DescribeInstanceInformation",
+            "ec2:DescribeInstances",
+            "account:ListRegions"
+          ],
+          "Resource": "*"
+        }
+      ]
+    }
+    EOT
+    "role_name" = "teleport-organization-discovery-child-account-role"
+  }
+  "aws_oidc_provider_arn" = "arn:aws:iam::<root-account-id>:oidc-provider/example.teleport.sh"
+  "teleport_discovery_config_name" = "discovery-aws-organization-<aws-organization-id>"
+  "teleport_discovery_service_iam_policy_arn" = null
+  "teleport_discovery_service_iam_role_arn" = "arn:aws:iam::<root-account-id>:role/teleport-discovery-<random-id>"
+  "teleport_integration_name" = "discovery-aws-organization-<aws-organization-id>"
+  "teleport_organization_account_enumeration_iam_policy_arn" = "arn:aws:iam::<root-account-id>:policy/teleport-organization-account-enumeration-<random-id>"
+  "teleport_organization_account_enumeration_iam_role_template" = null /* object */
+  "teleport_organization_join_validation_iam_policy_arn" = "arn:aws:iam::<root-account-id>:policy/teleport-organization-join-validation-<random-id>"
+  "teleport_organization_join_validation_iam_role_template" = null /* object */
+  "teleport_provision_token_name" = "discovery-aws-organization-<aws-organization-id>"
 }
 ```
 
 The AWS resources should have the following tags:
 - `origin=example`
 - `teleport.dev/cluster=<cluster-name>`
-- `teleport.dev/integration=discovery-aws-account-<account-id>`
+- `teleport.dev/integration=discovery-aws-organization-<aws-organization-id>`
 - `teleport.dev/iac-tool=terraform`
 
 The Teleport resources should have the following labels:
 - `origin=example`
 - `teleport.dev/iac-tool=terraform`
 
-### Step 5/5. Check discovery status
+### Step 5/6. Configure child accounts
 
-After applying the Terraform module, the Teleport Discovery Service should start to discover EC2 instances in your AWS account and enroll them in your cluster as protected resources.
+Each AWS account within the organization must have an IAM role which will be assumed by the Teleport Discovery Service to discover and enroll EC2 instances in that account.
+
+Run the following command to obtain the IAM role name, trust relationship policy and permissions policy:
+
+```code
+$ terraform output
+```
+
+You will obtain the following output:
+```
+$ terraform output
+aws_discovery = {
+  "aws_child_account_iam_role_template" = {
+    "assume_role_policy" = <<-EOT
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "sts:AssumeRole",
+          "Principal": {
+            "AWS": "arn:aws:iam::<root-account-id>:role/teleport-discovery-<random-id>"
+          },
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalOrgID": "<aws-organization-id>"
+            }
+          }
+        }
+      ]
+    }
+    EOT
+    "policy" = <<-EOT
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "ssm:SendCommand",
+            "ssm:ListCommandInvocations",
+            "ssm:GetCommandInvocation",
+            "ssm:DescribeInstanceInformation",
+            "ec2:DescribeInstances",
+            "account:ListRegions"
+          ],
+          "Resource": "*"
+        }
+      ]
+    }
+    EOT
+    "role_name" = "teleport-organization-discovery-child-account-role"
+  }
+  // ...
+}
+```
+
+Create an IAM role in each target account using the `role_name`, `assume_role_policy` and `policy` from the Terraform output `aws_child_account_iam_role_template` variable.
+
+### Step 6/6. Check discovery status
+
+After applying the Terraform module and creating the IAM role in each child account, the Teleport Discovery Service should start to discover EC2 instances in your AWS organization and enroll them in your cluster as protected resources.
 
 <Admonition type="note">
 
@@ -340,9 +499,10 @@ It may take a few minutes for EC2 instances to be discovered and enrolled.
 </Admonition>
 
 Navigate to the Teleport Web UI and select `Zero Trust Access > Integrations`.
-By default, the integration created by the `teleport-discovery-aws` Terraform module is named `discovery-aws-account-<aws-account-id>`.
+By default, the integration created by the `teleport-discovery-aws` Terraform module is named `discovery-aws-organization-<aws-organization-id>`.
 
-Click on the integration for your AWS account to review the discovery status.
+Click on the integration for your AWS organization
+ to review the discovery status.
 
 The integration page provides an overview of how many EC2 instances have been discovered and any issues encountered during the discovery process.
 
@@ -366,12 +526,12 @@ When all of the discovered EC2 instances have successfully joined the Teleport c
 
 The module inputs can be changed and re-applied to adjust the AWS discovery integration.
 
-For example, if you had previously used specific AWS regions (rather than the wildcard default for all regions), then you can adjust `match_aws_regions` to include additional regions for EC2 discovery and re-apply the module to start enrolling instances in those regions as well.
+For example, if you had previously used specific AWS regions (rather than the wildcard default for all regions), then you can adjust `regions` (within `aws_matchers`) to include additional regions for EC2 discovery and re-apply the module to start enrolling instances in those regions as well.
 
 
 ```diff
--match_aws_regions = ["us-west-1"]
-+match_aws_regions = ["us-west-1", "us-east-1"]
+-regions = ["us-west-1"]
++regions = ["us-west-1", "us-east-1"]
 ```
 
 Apply Terraform again:
