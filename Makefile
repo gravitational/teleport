@@ -955,8 +955,31 @@ $(TEST_LOG_DIR):
 
 .PHONY: helmunit/installed
 helmunit/installed:
-	@if ! helm unittest -h >/dev/null; then \
-		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/helm-unittest/helm-unittest --version $(HELM_UNITTEST_VERSION)` to install it'; \
+	@if ! command -v helm >/dev/null 2>&1; then \
+		printf '%s\n' \
+			'Helm is required to test Helm charts.' \
+			'' \
+			'Install with Homebrew:' \
+			'  brew install helm' \
+			'' \
+			'Or download a static binary (macOS Apple Silicon example):' \
+			'  curl -fsSL https://get.helm.sh/helm-v3.12.2-darwin-arm64.tar.gz | tar -xz' \
+			'  sudo mv darwin-arm64/helm /usr/local/bin/helm'; \
+		exit 1; \
+	fi
+	@actual="$$(helm plugin list 2>/dev/null | awk '$$1 == "unittest" { print $$2; exit }')"; \
+	required="$(HELM_UNITTEST_VERSION:v%=%)"; \
+	if [ -z "$$actual" ]; then \
+		printf '%s\n' \
+			'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/helm-unittest/helm-unittest --version $(HELM_UNITTEST_VERSION)` to install it'; \
+		exit 1; \
+	fi; \
+	if [ "$$(printf '%s\n' "$$actual" "$$required" | sort -V | head -n1)" != "$$required" ]; then \
+		printf '%s\n' \
+			"Helm unittest plugin $$actual is too old; version $(HELM_UNITTEST_VERSION) or newer is required." \
+			'Run:' \
+			'  helm plugin uninstall unittest' \
+			'  helm plugin install https://github.com/helm-unittest/helm-unittest --version $(HELM_UNITTEST_VERSION)'; \
 		exit 1; \
 	fi
 
