@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -50,7 +51,7 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	acl3m1 := newAccessListMember(t, acl3.GetName(), acl1.GetName(), accesslist.MembershipKindList, clock)
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members:     mockAccessListMembers(acl1m1, acl2m1),
+		members:     mockAccessListMembers(t, acl1m1, acl2m1),
 		accessLists: mockAccessLists(acl1, acl2, acl3),
 	}
 
@@ -84,7 +85,7 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	acl4.Status.OwnerOf = append(acl4.Status.OwnerOf, acl5.GetName())
 
 	accessListAndMembersGetter = &mockAccessListAndMembersGetter{
-		members:     mockAccessListMembers(acl4m1),
+		members:     mockAccessListMembers(t, acl4m1),
 		accessLists: mockAccessLists(acl4, acl5),
 	}
 
@@ -326,6 +327,175 @@ func TestAccessListValidateWithMembers_basic(t *testing.T) {
 			}
 		})
 
+		t.Run("member list scope hierarchy is validated", func(t *testing.T) {
+			testCases := []struct {
+				name        string
+				listScope   string
+				memberScope string
+				memberKind  string
+				wantErr     string
+			}{
+				{
+					name:        "unscoped list can be member of scoped list",
+					listScope:   "/eng/platform",
+					memberScope: "",
+					memberKind:  accesslist.MembershipKindList,
+				},
+				{
+					name:        "same scope member can be member of scoped list",
+					listScope:   "/eng/platform",
+					memberScope: "/eng/platform",
+					memberKind:  accesslist.MembershipKindScopedList,
+				},
+				{
+					name:        "ancestor scope member can be member of scoped list",
+					listScope:   "/eng/platform",
+					memberScope: "/eng",
+					memberKind:  accesslist.MembershipKindScopedList,
+				},
+				{
+					name:        "descendant scope member is rejected",
+					listScope:   "/eng/platform",
+					memberScope: "/eng/platform/team",
+					memberKind:  accesslist.MembershipKindScopedList,
+					wantErr:     "because it is not at an equal or ancestor scope",
+				},
+				{
+					name:        "sibling scope member is rejected",
+					listScope:   "/eng/platform",
+					memberScope: "/eng/infra",
+					memberKind:  accesslist.MembershipKindScopedList,
+					wantErr:     "because it is not at an equal or ancestor scope",
+				},
+				{
+					name:        "unscoped list cannot have scoped member",
+					listScope:   "",
+					memberScope: "/eng",
+					memberKind:  accesslist.MembershipKindScopedList,
+					wantErr:     "because scoped access lists cannot be members or owners of unscoped access lists",
+				},
+			}
+
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					parentList := newScopedAccessList("parent-list")
+					parentList.Scope = tc.listScope
+					memberList := newScopedAccessList("member-list")
+					memberList.Scope = tc.memberScope
+
+					parentListName := ScopeQualifiedName(parentList)
+					memberName := ScopeQualifiedName(memberList)
+
+					memberResource, err := accesslist.NewAccessListMemberWithScope(
+						header.Metadata{
+							Name: memberName.String(),
+						},
+						accesslist.AccessListMemberSpec{
+							AccessList:     parentListName.String(),
+							Name:           memberName.String(),
+							MembershipKind: tc.memberKind,
+							Joined:         clock.Now().UTC(),
+							Expires:        clock.Now().UTC().Add(24 * time.Hour),
+							Reason:         "because",
+							AddedBy:        "tester",
+						},
+						tc.listScope,
+					)
+					require.NoError(t, err)
+
+					getter := &mockAccessListAndMembersGetter{
+						accessLists: mockAccessLists(parentList, memberList),
+					}
+					err = ValidateAccessListWithMembers(
+						ctx,
+						nil, // existingList
+						parentList,
+						[]*accesslist.AccessListMember{memberResource},
+						getter,
+					)
+					if tc.wantErr != "" {
+						require.ErrorContains(t, err, tc.wantErr)
+						return
+					}
+					require.NoError(t, err)
+				})
+			}
+		})
+
+		t.Run("owner list scope hierarchy is validated", func(t *testing.T) {
+			testCases := []struct {
+				name       string
+				listScope  string
+				ownerScope string
+				ownerKind  string
+				wantErr    string
+			}{
+				{
+					name:       "unscoped owner can own scoped list",
+					listScope:  "/eng/platform",
+					ownerScope: "",
+					ownerKind:  accesslist.MembershipKindList,
+				},
+				{
+					name:       "same scope owner can own scoped list",
+					listScope:  "/eng/platform",
+					ownerScope: "/eng/platform",
+					ownerKind:  accesslist.MembershipKindScopedList,
+				},
+				{
+					name:       "ancestor scope owner can own scoped list",
+					listScope:  "/eng/platform",
+					ownerScope: "/eng",
+					ownerKind:  accesslist.MembershipKindScopedList,
+				},
+				{
+					name:       "descendant scope owner is rejected",
+					listScope:  "/eng/platform",
+					ownerScope: "/eng/platform/team",
+					ownerKind:  accesslist.MembershipKindScopedList,
+					wantErr:    "because it is not at an equal or ancestor scope",
+				},
+				{
+					name:       "sibling scope owner is rejected",
+					listScope:  "/eng/platform",
+					ownerScope: "/eng/infra",
+					ownerKind:  accesslist.MembershipKindScopedList,
+					wantErr:    "because it is not at an equal or ancestor scope",
+				},
+				{
+					name:       "unscoped list cannot name scoped owner",
+					listScope:  "",
+					ownerScope: "/eng",
+					ownerKind:  accesslist.MembershipKindScopedList,
+					wantErr:    "because scoped access lists cannot be members or owners of unscoped access lists",
+				},
+			}
+
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					accessList := newScopedAccessList("test_scoped_access_list_owner_scope")
+					accessList.Scope = tc.listScope
+					ownerList := newScopedAccessList("owner-list")
+					ownerList.Scope = tc.ownerScope
+
+					accessList.Spec.Owners = []accesslist.Owner{{
+						Name:           ScopeQualifiedName(ownerList).String(),
+						MembershipKind: tc.ownerKind,
+					}}
+
+					getter := &mockAccessListAndMembersGetter{
+						accessLists: mockAccessLists(accessList, ownerList),
+					}
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, getter)
+					if tc.wantErr != "" {
+						require.ErrorContains(t, err, tc.wantErr)
+						return
+					}
+					require.NoError(t, err)
+				})
+			}
+		})
+
 		t.Run("owner scoped role grant scope must be equal or descendant", func(t *testing.T) {
 			accessList := newScopedAccessList("test_scoped_access_list_owner_grant_scope")
 			accessList.Scope = "/eng/platform"
@@ -383,28 +553,76 @@ func TestAccessListValidateWithMembers_basic(t *testing.T) {
 			require.ErrorContains(t, err, "scoped access lists cannot grant traits")
 		})
 
-		t.Run("nested list owners are rejected", func(t *testing.T) {
-			accessList := newScopedAccessList("test_scoped_access_list_owner_list")
-			accessList.Spec.Owners = []accesslist.Owner{{Name: "owner-list", MembershipKind: accesslist.MembershipKindList}}
-
-			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
-			require.ErrorContains(t, err, "access list owners are not yet supported for scoped access lists")
-		})
-
-		t.Run("scoped list owners are rejected", func(t *testing.T) {
-			accessList := newScopedAccessList("test_scoped_access_list_scoped_owner_list")
-			accessList.Spec.Owners = []accesslist.Owner{{Name: "/eng::owner-list", MembershipKind: accesslist.MembershipKindScopedList}}
-
-			err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
-			require.ErrorContains(t, err, "access list owners are not yet supported for scoped access lists")
-		})
-
-		t.Run("members are rejected", func(t *testing.T) {
+		t.Run("mismatched member scope is rejected", func(t *testing.T) {
 			accessList := newScopedAccessList("test_scoped_access_list_members")
 			member := newAccessListMember(t, accessList.GetName(), "alice", accesslist.MembershipKindUser, clock)
+			member.Scope = "/other/scope"
 
 			err := ValidateAccessListWithMembers(ctx, nil, accessList, []*accesslist.AccessListMember{member}, &mockAccessListAndMembersGetter{})
-			require.ErrorContains(t, err, "scoped access list members are not yet supported")
+			require.ErrorContains(t, err, `member resource scope "/other/scope" must be equal to parent list scope "/eng"`)
+		})
+
+		t.Run("mismatched member access list scope is rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_members")
+			member, err := accesslist.NewAccessListMemberWithScope(
+				header.Metadata{Name: "alice"},
+				accesslist.AccessListMemberSpec{
+					AccessList:     "/other::" + accessList.GetName(),
+					Name:           "alice",
+					MembershipKind: accesslist.MembershipKindUser,
+					Joined:         clock.Now().UTC(),
+					Expires:        clock.Now().UTC().Add(24 * time.Hour),
+					Reason:         "because",
+					AddedBy:        "tester",
+				},
+				accessList.GetScope(),
+			)
+			require.NoError(t, err)
+
+			err = ValidateAccessListWithMembers(ctx, nil, accessList, []*accesslist.AccessListMember{member}, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, `member spec.access_list "/other::test_scoped_access_list_members" must match parent list name "/eng::test_scoped_access_list_members"`)
+		})
+
+		t.Run("plain list kind with scoped member name is rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_members")
+			member, err := accesslist.NewAccessListMemberWithScope(
+				header.Metadata{Name: "/eng::member-list"},
+				accesslist.AccessListMemberSpec{
+					AccessList:     ScopeQualifiedName(accessList).String(),
+					Name:           "/eng::member-list",
+					MembershipKind: accesslist.MembershipKindList,
+					Joined:         clock.Now().UTC(),
+					Expires:        clock.Now().UTC().Add(24 * time.Hour),
+					Reason:         "because",
+					AddedBy:        "tester",
+				},
+				accessList.GetScope(),
+			)
+			require.NoError(t, err)
+
+			err = ValidateAccessListWithMembers(ctx, nil, accessList, []*accesslist.AccessListMember{member}, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, `access list /eng::member-list not found`)
+		})
+
+		t.Run("scoped list kind with plain member name is rejected", func(t *testing.T) {
+			accessList := newScopedAccessList("test_scoped_access_list_members")
+			member, err := accesslist.NewAccessListMemberWithScope(
+				header.Metadata{Name: "member-list"},
+				accesslist.AccessListMemberSpec{
+					AccessList:     ScopeQualifiedName(accessList).String(),
+					Name:           "member-list",
+					MembershipKind: accesslist.MembershipKindScopedList,
+					Joined:         clock.Now().UTC(),
+					Expires:        clock.Now().UTC().Add(24 * time.Hour),
+					Reason:         "because",
+					AddedBy:        "tester",
+				},
+				accessList.GetScope(),
+			)
+			require.NoError(t, err)
+
+			err = ValidateAccessListWithMembers(ctx, nil, accessList, []*accesslist.AccessListMember{member}, &mockAccessListAndMembersGetter{})
+			require.ErrorContains(t, err, `scope-qualified name "member-list" missing "::" separator`)
 		})
 	})
 

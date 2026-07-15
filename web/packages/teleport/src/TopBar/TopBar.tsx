@@ -31,7 +31,6 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { Notifications } from 'teleport/Notifications';
-import useTeleport from 'teleport/useTeleport';
 
 export function TopBar({
   CustomLogo,
@@ -40,7 +39,6 @@ export function TopBar({
   CustomLogo?: () => React.ReactElement;
   scopePickerMode?: boolean;
 }) {
-  const ctx = useTeleport();
   const location = useLocation();
   const features = useFeatures();
   const { currentWidth } = useLayout();
@@ -66,10 +64,7 @@ export function TopBar({
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
           <Notifications iconSize={iconSize} />
-          <UserMenuNav
-            username={ctx.storeUser.state.username}
-            hideFeatures={feature instanceof FeatureScopes}
-          />
+          <UserMenuNav hideFeatures={feature instanceof FeatureScopes} />
         </Flex>
       )}
     </TopBarContainer>

@@ -134,6 +134,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -10453,20 +10454,15 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	if cfg.serviceType == kubeproxy.KubeService {
 		proxySigner = nil
 	}
-	clock := clockwork.NewRealClock()
-	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: component,
-			Client:    client,
-			Clock:     clock,
-		},
-		KubernetesServerGetter: client,
+	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(ctx, kubewatcher.ProxyKubeServerWatcherConfig{
+		AccessPoint:    client,
+		FallbackGetter: client,
 	})
 	require.NoError(t, err)
-	t.Cleanup(watcher.Close)
+	t.Cleanup(kubeServersWatcher.Close)
 
 	// wait for the watcher to init before continuing
-	require.NoError(t, watcher.WaitInitialization())
+	require.NoError(t, kubeServersWatcher.WaitInitialization())
 
 	healthCheckManager, err := healthcheck.NewManager(
 		ctx,
@@ -10550,7 +10546,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		GetRotation:              func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		ResourceMatchers:         nil,
 		OnReconcile:              func(kc types.KubeClusters) {},
-		KubernetesServersWatcher: watcher,
+		KubernetesServersWatcher: kubeServersWatcher,
 		InventoryHandle:          inventoryHandle,
 		ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
 		HealthCheckManager:       healthCheckManager,

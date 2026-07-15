@@ -46,7 +46,9 @@ func runTest(ctx context.Context, charts []Chart, updateSnapshots bool) error {
 
 func testHelm(ctx context.Context, chart Chart, updateSnapshots bool) error {
 	fmt.Println("Running tests for chart:", chart.Name)
-	args := []string{"unittest", "-3", "--with-subchart=false", chart.Path}
+	// helm-unittest v1.x removed the `-3` (helm 3 mode) flag -- it is now the
+	// only mode -- and rejects it as an unknown flag.
+	args := []string{"unittest", "--with-subchart=false", chart.Path}
 	if updateSnapshots {
 		args = append(args, "-u")
 	}

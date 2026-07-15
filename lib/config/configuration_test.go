@@ -2404,6 +2404,7 @@ uQM=
 			desc:        "NOK - invalid label key for LDAP attribute",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery.BaseDN = "*"
 				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
 			},
 		},
@@ -2474,6 +2475,19 @@ uQM=
 			},
 		},
 		{
+			desc:        "OK -  new discovery specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{BaseDN: "something"},
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr:   "something",
+					Domain: "example.com",
+				}
+			},
+		},
+		{
 			desc:        "OK - discovery not specified and ldap not specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
@@ -2510,6 +2524,30 @@ uQM=
 				}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute mode",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN:             "*",
+						LabelAttributes:    []string{"foo"},
+						LabelAttributeMode: "invalid",
+					},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute  (legacy)",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN:             "*",
+					LabelAttributes:    []string{"foo"},
+					LabelAttributeMode: "invalid",
 				}
 			},
 		},

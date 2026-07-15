@@ -904,6 +904,7 @@ type ConnectionActivated struct {
 	UserChannelId uint32                 `protobuf:"varint,2,opt,name=user_channel_id,json=userChannelId,proto3" json:"user_channel_id,omitempty"`
 	ScreenWidth   uint32                 `protobuf:"varint,3,opt,name=screen_width,json=screenWidth,proto3" json:"screen_width,omitempty"`
 	ScreenHeight  uint32                 `protobuf:"varint,4,opt,name=screen_height,json=screenHeight,proto3" json:"screen_height,omitempty"`
+	ShareId       uint32                 `protobuf:"varint,5,opt,name=share_id,json=shareId,proto3" json:"share_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -961,6 +962,13 @@ func (x *ConnectionActivated) GetScreenHeight() uint32 {
 	return 0
 }
 
+func (x *ConnectionActivated) GetShareId() uint32 {
+	if x != nil {
+		return x.ShareId
+	}
+	return 0
+}
+
 func (x *ConnectionActivated) SetIoChannelId(v uint32) {
 	x.IoChannelId = v
 }
@@ -977,6 +985,10 @@ func (x *ConnectionActivated) SetScreenHeight(v uint32) {
 	x.ScreenHeight = v
 }
 
+func (x *ConnectionActivated) SetShareId(v uint32) {
+	x.ShareId = v
+}
+
 type ConnectionActivated_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -984,6 +996,7 @@ type ConnectionActivated_builder struct {
 	UserChannelId uint32
 	ScreenWidth   uint32
 	ScreenHeight  uint32
+	ShareId       uint32
 }
 
 func (b0 ConnectionActivated_builder) Build() *ConnectionActivated {
@@ -994,6 +1007,7 @@ func (b0 ConnectionActivated_builder) Build() *ConnectionActivated {
 	x.UserChannelId = b.UserChannelId
 	x.ScreenWidth = b.ScreenWidth
 	x.ScreenHeight = b.ScreenHeight
+	x.ShareId = b.ShareId
 	return m0
 }
 
@@ -5862,12 +5876,13 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\vFastPathPDU\x12\x10\n" +
 	"\x03pdu\x18\x01 \x01(\fR\x03pdu\",\n" +
 	"\x0eRDPResponsePDU\x12\x1a\n" +
-	"\bresponse\x18\x01 \x01(\fR\bresponse\"\xa9\x01\n" +
+	"\bresponse\x18\x01 \x01(\fR\bresponse\"\xc4\x01\n" +
 	"\x13ConnectionActivated\x12\"\n" +
 	"\rio_channel_id\x18\x01 \x01(\rR\vioChannelId\x12&\n" +
 	"\x0fuser_channel_id\x18\x02 \x01(\rR\ruserChannelId\x12!\n" +
 	"\fscreen_width\x18\x03 \x01(\rR\vscreenWidth\x12#\n" +
-	"\rscreen_height\x18\x04 \x01(\rR\fscreenHeight\"\xb0\x01\n" +
+	"\rscreen_height\x18\x04 \x01(\rR\fscreenHeight\x12\x19\n" +
+	"\bshare_id\x18\x05 \x01(\rR\ashareId\"\xb0\x01\n" +
 	"\bSyncKeys\x12.\n" +
 	"\x13scroll_lock_pressed\x18\x01 \x01(\bR\x11scrollLockPressed\x12$\n" +
 	"\x0enum_lock_state\x18\x02 \x01(\bR\fnumLockState\x12&\n" +

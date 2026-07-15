@@ -33,6 +33,8 @@ test('undefined values in context response gives proper default values', async (
   const mockContext = {
     authType: 'local',
     userName: 'foo',
+    displayPrimary: 'Foo User',
+    displaySecondary: 'foo@example.com',
     cluster: {
       name: 'aws',
       lastConnected: new Date('2020-09-26T17:30:23.512876876Z'),
@@ -401,6 +403,8 @@ test('undefined values in context response gives proper default values', async (
 
   expect(response).toEqual({
     username: 'foo',
+    displayPrimary: 'Foo User',
+    displaySecondary: 'foo@example.com',
     authType: 'local',
     acl,
     cluster: {
