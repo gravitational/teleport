@@ -2098,6 +2098,12 @@ func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
 		}
 
 		for _, dc := range dcs {
+			// Synthetic discovery configs mirror the static configuration
+			// already running on their publisher and must never be consumed
+			// as dynamic matchers.
+			if dc.IsSynthetic() {
+				continue
+			}
 			if dc.GetDiscoveryGroup() != s.DiscoveryGroup {
 				continue
 			}
@@ -2133,6 +2139,13 @@ func (s *Server) startDynamicWatcherUpdater(ctx context.Context, dynamicMatcherW
 				dc, ok := event.Resource.(*discoveryconfig.DiscoveryConfig)
 				if !ok {
 					s.Log.WarnContext(ctx, "Skipping unexpected resource type", "expected", logutils.TypeAttr(dc), "got", logutils.TypeAttr(event.Resource))
+					continue
+				}
+
+				// Synthetic discovery configs mirror the static configuration
+				// already running on their publisher and must never be
+				// consumed as dynamic matchers.
+				if dc.IsSynthetic() {
 					continue
 				}
 
