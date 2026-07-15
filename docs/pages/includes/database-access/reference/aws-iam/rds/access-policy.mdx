@@ -42,7 +42,7 @@ The Teleport Database Service uses `rds:ModifyDBInstance` and
 on RDS instances and Aurora clusters, respectively.
 
 <Admonition type="warning" title="Production databases">
-Granting `RDSAutoEnableIAMAuth` allows the Database Service to modify your
+Granting `RDSAutoEnableIAMAuth` allows the Teleport Database Service to modify your
 RDS instance or Aurora cluster configuration directly. Enabling IAM
 authentication does not cause downtime by itself. However, the Database
 Service applies the change immediately, which also applies any other
