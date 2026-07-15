@@ -59,6 +59,11 @@ const (
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
 	// to avoid excess resource size and to keep our options open for the future.
 	maxAssignableScopes = 16
+
+	// invalidChars are the special characters that should not be allowed in certain keys or values.
+	invalidChars = "{}^$*"
+	// invalidLabelChars are the special characters that should not be allowed in label keys or values.
+	invalidLabelChars = "{}^$"
 )
 
 // RoleIsAssignableToScopeOfEffect checks if the given role is assignable to the given scope of effect. For example,
@@ -201,8 +206,6 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	const invalidChars = "{}^$*"
-	const invalidLabelChars = "{}^$"
 	// verify that ssh logins are well-formed
 	if login := validateDoesNotContain(role.GetSpec().GetSsh().GetLogins(), invalidChars); login != "" {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
@@ -239,11 +242,6 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	if s := role.GetSpec().GetDefaults().GetClientIdleTimeout(); s != "" {
 		if _, err := time.ParseDuration(s); err != nil {
 			return trace.BadParameter("scoped role %q has invalid defaults.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
-		}
-	}
-	if s := role.GetSpec().GetApp().GetClientIdleTimeout(); s != "" {
-		if _, err := time.ParseDuration(s); err != nil {
-			return trace.BadParameter("scoped role %q has invalid app.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
 		}
 	}
 
@@ -300,13 +298,6 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// verify that lock.Mode is a recognized value for App
-	if lock := role.GetSpec().GetApp().GetLock(); lock != nil {
-		if err := validateLock(lock); err != nil {
-			return trace.BadParameter("scoped role %q has invalid app.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
-		}
-	}
-
 	// verify that kube labels are well-formed
 	for _, label := range role.GetSpec().GetKube().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
@@ -321,26 +312,8 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// verify that app labels are well formed
-	// label expressions are evaluated in write time as of right now in lib/services/local/scoped_access.go
-	if app := role.GetSpec().GetApp(); app != nil {
-		labels := app.GetLabels()
-		if len(labels) == 0 && app.GetLabelExpression() == "" {
-			return trace.BadParameter("Scoped role %q has empty labels and label expressions for apps. No apps will be matched", role.GetMetadata().GetName())
-		}
-
-		for _, label := range labels {
-			// we currently don't support any form of wildcard/regex/substitution in scoped role
-			// app labels. we likely will support such things in the future, but its best to disallow
-			// them until that has landed.
-
-			if strings.ContainsAny(label.GetName(), invalidLabelChars) {
-				return trace.BadParameter("scoped role %q has invalid app label name %q", role.GetMetadata().GetName(), label.GetName())
-			}
-			if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
-				return trace.BadParameter("scoped role %q has invalid app label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
-			}
-		}
+	if err := validateAppBlock(role.GetSpec().GetApp()); err != nil {
+		return trace.BadParameter("scoped role %q has %s", role.GetMetadata().GetName(), err)
 	}
 
 	// verify that kube groups are well-formed
@@ -391,6 +364,46 @@ func validateDoesNotContain(values []string, invalidSet string) string {
 	}
 
 	return ""
+}
+
+func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
+	if app == nil {
+		return nil
+	}
+
+	labels := app.GetLabels()
+	if len(labels) == 0 && app.GetLabelExpression() == "" {
+		return trace.BadParameter("empty labels and label expressions for apps. Please add at least one label entry or a label expression")
+	}
+
+	// verify that app labels are well formed
+	// label expressions are evaluated in write time as of right now in lib/services/local/scoped_access.go
+	for _, label := range labels {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// app labels. we likely will support such things in the future, but its best to disallow
+		// them until that has landed.
+
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
+			return trace.BadParameter("invalid app label name %q", label.GetName())
+		}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("invalid app label value %q for label %q", value, label.GetName())
+		}
+	}
+
+	// verify that lock.Mode is a recognized value for App
+	if lock := app.GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("invalid app.lock.mode %q", lock.GetMode())
+		}
+	}
+
+	if s := app.GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("invalid app.client_idle_timeout %q: %v", s, err)
+		}
+	}
+	return nil
 }
 
 func validateLock(lock *scopedaccessv1.Lock) error {
