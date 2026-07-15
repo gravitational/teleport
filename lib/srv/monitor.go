@@ -175,14 +175,15 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 	}, conn)
 }
 
-type ScopedSessionControls interface {
-	AdjustClientIdleTimeout(time.Duration) (time.Duration, error)
-	AdjustDisconnectExpiredCert(bool) bool
-	LockingMode(constants.LockingMode) constants.LockingMode
-}
-
 // MonitorConnScoped is the scoped-identity variant of [ConnectionMonitor.MonitorConn].
-func (c *ConnectionMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *authz.ScopedContext, granting ScopedSessionControls, conn net.Conn) (context.Context, net.Conn, error) {
+// Session controls are read from the scoped context, where the authorizing service
+// stores the granting role's controls after its access decision.
+func (c *ConnectionMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *authz.ScopedContext, conn net.Conn) (context.Context, net.Conn, error) {
+	controls := scopedCtx.SessionControls
+	if controls == nil {
+		return ctx, conn, trace.BadParameter("missing session controls in scoped authorization context (this is a bug)")
+	}
+
 	authPref, err := c.cfg.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return ctx, conn, trace.Wrap(err)
@@ -192,20 +193,20 @@ func (c *ConnectionMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *au
 		return ctx, conn, trace.Wrap(err)
 	}
 
-	idleTimeout, err := granting.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+	idleTimeout, err := controls.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 	if err != nil {
 		return ctx, conn, trace.Wrap(err)
 	}
 
 	var disconnectExpiredCert time.Time
-	if granting.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+	if controls.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
 		disconnectExpiredCert = scopedCtx.GetDisconnectCertExpiryTime()
 	}
 
 	identity := scopedCtx.Identity.GetIdentity()
 	return c.monitorConn(ctx, monitorParams{
 		lockTargets:           scopedCtx.LockTargets(),
-		lockingMode:           granting.LockingMode(authPref.GetLockingMode()),
+		lockingMode:           controls.LockingMode(authPref.GetLockingMode()),
 		disconnectExpiredCert: disconnectExpiredCert,
 		clientIdleTimeout:     idleTimeout,
 		teleportUser:          identity.Username,

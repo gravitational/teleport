@@ -66,7 +66,7 @@ import (
 // ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConnScoped(ctx context.Context, scopedCtx *authz.ScopedContext, granting srv.ScopedSessionControls, conn net.Conn) (context.Context, net.Conn, error)
+	MonitorConnScoped(ctx context.Context, scopedCtx *authz.ScopedContext, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ConnectionsHandlerConfig is the configuration for a ConnectionsHandler.
@@ -476,7 +476,7 @@ func (c *ConnectionsHandler) Close(ctx context.Context) []error {
 func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// Extract the identity and application being requested from the certificate
 	// and check if the caller has access.
-	authCtx, _, app, err := c.authorizeContext(r.Context())
+	authCtx, app, err := c.authorizeContext(r.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -562,22 +562,22 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 
 // authorizeContext will check if the context carries identity information and
 // runs authorization checks on it.
-func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.ScopedContext, *services.ScopedAccessChecker, types.Application, error) {
+func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.ScopedContext, types.Application, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType, err := authz.UserFromContext(ctx)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	switch userType.(type) {
 	case authz.LocalUser, authz.RemoteUser:
 	default:
-		return nil, nil, nil, trace.BadParameter("invalid identity: %T", userType)
+		return nil, nil, trace.BadParameter("invalid identity: %T", userType)
 	}
 
 	authContext, err := c.cfg.Authorizer.AuthorizeScoped(ctx)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
 
@@ -588,7 +588,7 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Scope
 		identity.RouteToApp.PublicAddr,
 	)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// When accessing AWS management console, check permissions to assume
@@ -618,40 +618,39 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Scope
 
 	state, err := authContext.CheckerContext.AccessStateFromTLSIdentity(ctx, &identity, c.cfg.AccessPoint)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// Identity Center account apps are currently not supported for scoped applications.
 	// TODO (williamo/scopes) - potentially look into adding account_assignments into scoped roles.
 	if _, isUnscoped := authContext.UnscopedContext(); !isUnscoped && app.GetSubKind() == types.KindIdentityCenterAccount {
-		return nil, nil, nil, trace.AccessDenied("identity center account apps are not supported for scoped identities")
+		return nil, nil, trace.AccessDenied("identity center account apps are not supported for scoped identities")
 	}
 
 	// Capture the checker that grants access so its per-role session controls (idle
 	// timeout, locking mode, disconnect on expired cert) can be applied to connection
 	// monitoring. For unscoped callers this wraps the classic checker.
-	var checker *services.ScopedAccessChecker
 	switch err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(check *services.ScopedAccessChecker) error {
 		if err := check.App().CheckAccessToApp(app, state, matchers...); err != nil {
 			return trace.Wrap(err)
 		}
-		checker = check
+		authContext.SessionControls = check.App()
 		return nil
 	}); {
 	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
 		// When access is denied due to trusted device or session MFA requirements, these specific errors
 		// are returned directly to provide clarity to the client about the additional authentication steps needed.
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	case err != nil:
 		// Other access denial errors are wrapped and obfuscated to prevent leaking sensitive details.
 		c.log.WarnContext(c.closeContext, "Access denied to application.",
 			"app", app.GetName(),
 			"error", err,
 		)
-		return nil, nil, nil, utils.OpaqueAccessDenied(err)
+		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
 
-	return authContext, checker, app, nil
+	return authContext, app, nil
 }
 
 func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {
@@ -691,7 +690,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 
 	ctx = authz.ContextWithUser(ctx, user)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
-	authCtx, checker, _, err := c.authorizeContext(ctx)
+	authCtx, _, err := c.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
@@ -714,7 +713,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 			c.setConnAuth(tlsConn, err)
 		}
 	} else {
-		ctx, _, err = c.cfg.ConnectionMonitor.MonitorConnScoped(ctx, authCtx, checker.App(), tc)
+		ctx, _, err = c.cfg.ConnectionMonitor.MonitorConnScoped(ctx, authCtx, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

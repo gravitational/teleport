@@ -461,7 +461,8 @@ func TestMonitorScoped(t *testing.T) {
 			ServerID:       "test",
 		})
 		require.NoError(t, err)
-		monitorCtx, _, err := monitor.MonitorConnScoped(ctx, scopedCtx, mockScopedControls{}, conn)
+		scopedCtx.SessionControls = mockScopedControls{}
+		monitorCtx, _, err := monitor.MonitorConnScoped(ctx, scopedCtx, conn)
 		require.NoError(t, err)
 		require.NoError(t, monitorCtx.Err())
 
@@ -503,8 +504,8 @@ func TestMonitorScoped(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, _, err = m.MonitorConnScoped(ctx, idleCtx,
-			mockScopedControls{idleTimeout: time.Minute}, conn)
+		idleCtx.SessionControls = mockScopedControls{idleTimeout: time.Minute}
+		_, _, err = m.MonitorConnScoped(ctx, idleCtx, conn)
 		require.NoError(t, err)
 
 		clock.BlockUntilContext(t.Context(), 1)
@@ -538,8 +539,8 @@ func TestMonitorScoped(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, _, err = m.MonitorConnScoped(ctx, expiredCtx,
-			mockScopedControls{disconnectExpired: true}, conn)
+		expiredCtx.SessionControls = mockScopedControls{disconnectExpired: true}
+		_, _, err = m.MonitorConnScoped(ctx, expiredCtx, conn)
 		require.NoError(t, err)
 
 		select {
@@ -615,8 +616,8 @@ func TestMonitorScoped(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			_, _, err = m.MonitorConnScoped(ctx, authCtx,
-				mockScopedControls{lockingMode: tc.lockingMode}, conn)
+			authCtx.SessionControls = mockScopedControls{lockingMode: tc.lockingMode}
+			_, _, err = m.MonitorConnScoped(ctx, authCtx, conn)
 			require.NoError(t, err)
 			select {
 			case <-conn.closedC:

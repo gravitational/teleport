@@ -208,6 +208,9 @@ type ScopedContext struct {
 	// purpose to [services.AccessChecker] but requires different usage patterns to accommodate the more complex
 	// scoped decision model.
 	CheckerContext *services.ScopedAccessCheckerContext
+	// SessionControls holds the per-protocol session controls of the role that
+	// granted access for a connection.
+	SessionControls services.ScopedSessionControls
 	// unscopedContext is the context derived from unscoped authorization, if available. This will be nil
 	// if the calling identity was scoped.
 	unscopedContext *Context

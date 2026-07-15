@@ -35,6 +35,8 @@ type AppAccessChecker struct {
 	checker *ScopedAccessChecker
 }
 
+var _ ScopedSessionControls = &AppAccessChecker{}
+
 // CheckAccessToApp checks access to an application.
 func (c *AppAccessChecker) CheckAccessToApp(target types.Application, state AccessState, matchers ...RoleMatcher) error {
 	if !c.checker.isScoped() {
