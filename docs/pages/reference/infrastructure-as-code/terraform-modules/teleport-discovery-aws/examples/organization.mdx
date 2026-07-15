@@ -12,7 +12,6 @@ description: Configure Teleport to discover resources in accounts within an AWS 
 */}
 
 Source Code: [github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws/examples/organization](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws/examples/organization)
-
 ## Teleport AWS Organization Discovery Example
 
 Configuration in this directory creates AWS and Teleport resources necessary for Teleport to discover resources in multiple AWS accounts under the same Organization.
@@ -22,6 +21,54 @@ Currently, only EC2 discovery is supported when doing organization-wide discover
 Run Terraform with credentials from the AWS Organization management account or a delegated administrator account. The Discovery Service and Auth Service must use credentials from one of these accounts to call the required AWS Organizations APIs.
 
 After applying, you have to manually create an IAM Role in each target account using the details provided in the `aws_child_account_iam_role_template` output, which you can get by running `terraform output`. When the root or `*` is included, this also includes the management or delegated administrator account.
+
+Use the following template, obtained from `terraform output`, to create the IAM role in each target account.
+```hcl
+{
+  "aws_child_account_iam_role_template" = {
+    "assume_role_policy" = <<-EOT
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "sts:AssumeRole",
+          "Principal": {
+            "AWS": "arn:aws:iam::<aws-root-account-id>:role/teleport-discovery-<timestamp>"
+          },
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalOrgID": "<aws-organization-id>"
+            }
+          }
+        }
+      ]
+    }
+    EOT
+    "policy" = <<-EOT
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "ssm:SendCommand",
+            "ssm:ListCommandInvocations",
+            "ssm:GetCommandInvocation",
+            "ssm:DescribeInstanceInformation",
+            "ec2:DescribeInstances",
+            "account:ListRegions"
+          ],
+          "Resource": "*"
+        }
+      ]
+    }
+    EOT
+    "role_name" = "teleport-organization-discovery-child-account-role"
+  }
+  # ...
+}
+```
 
 When not using the AWS OIDC integration, you also have to create two extra IAM Roles in a management or delegated administrator account:
 

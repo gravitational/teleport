@@ -32,11 +32,14 @@ locals {
   assume_role = (
     local.organization_deployment
     ? {
-      role_name = var.aws_child_account_iam_role_name
+      role_name   = var.aws_child_account_iam_role_name
+      role_arn    = null
+      external_id = null
     }
     : var.discovery_service_iam_credential_source.trust_role != null
     ? {
-      role_arn = one(aws_iam_role.teleport_discovery_service[*].arn)
+      role_name = null
+      role_arn  = one(aws_iam_role.teleport_discovery_service[*].arn)
       external_id = (
         var.discovery_service_iam_credential_source.trust_role.external_id != ""
         ? var.discovery_service_iam_credential_source.trust_role.external_id
