@@ -380,10 +380,10 @@ const (
 	// When using per-session MFA, this ensures the TTL of the certificate (and thus the AWS session) is the same as the Teleport identity session.
 	// AWS credentials should not be written to disk when this requester is used, but may be exported as env variables through stdout.
 	UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS UserCertsRequest_Requester = 6
-	// TSH_KUBE_LOCAL_PROXY_MULTI is set when the request was sent by a tsh kube local proxy operating in multi-cluster mode
-	// (a single `tsh proxy kube` run fanning out across many Kubernetes clusters).
-	// Like TSH_DB_EXEC, requests from this requester allow reuse of the MFA session response so
-	// a single MFA ceremony can authorize per-cluster certificates, but the TTL is limited to single use TTL.
+	// TSH_KUBE_LOCAL_PROXY_MULTI is set when the request was sent by a tsh kube local proxy
+	// fanning out across multiple Kubernetes clusters. Like TSH_DB_EXEC, it allows reuse of the
+	// MFA session response so one ceremony can authorize per-cluster certificates. Like the other
+	// kube local proxy requesters, the in-memory certificates are not limited to the single use TTL.
 	UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI UserCertsRequest_Requester = 7
 )
 
