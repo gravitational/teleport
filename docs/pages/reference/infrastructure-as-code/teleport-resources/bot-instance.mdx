@@ -228,6 +228,7 @@ kubernetes: # [...]
 oracle: # [...]
 azure_devops: # [...]
 env0: # [...]
+generic_oidc: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -238,6 +239,7 @@ env0: # [...]
 |circleci|Attributes that are specific to the CircleCI (`circleci`) join method.|[Join Attrs CircleCI](#join-attrs-circleci)|
 |env0|Attributes that are specific to the Env0 (`env0`) join method.|[Join Attrs Env0](#join-attrs-env0)|
 |gcp|Attributes that are specific to the GCP (`gcp`) join method.|[Join Attrs GCP](#join-attrs-gcp)|
+|generic_oidc|Attributes that are specific to the generic OIDC (`generic_oidc`) join method.|[Join Attrs Generic OIDC](#join-attrs-generic-oidc)|
 |github|Attributes that are specific to the GitHub (`github`) join method.|[Join Attrs GitHub](#join-attrs-github)|
 |gitlab|Attributes that are specific to the GitLab (`gitlab`) join method.|[Join Attrs GitLab](#join-attrs-gitlab)|
 |iam|Attributes that are specific to the AWS IAM (`iam`) join method.|[Join Attrs AWS IAM](#join-attrs-aws-iam)|
@@ -459,6 +461,21 @@ project: "string"
 |name|The name of the GCE instance that the joining entity is running on.|string|
 |project|The project ID of the GCP project that the instance is running within.|string|
 |zone|The zone of the GCE instance that the joining entity is running on.|string|
+
+## Join Attrs Generic OIDC
+
+Attributes that are specific to the generic OIDC (`generic_oidc`) join method.
+
+
+Example:
+
+```yaml
+claims: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|claims|A complete set of token claims.||
 
 ## Join Attrs GitHub
 
