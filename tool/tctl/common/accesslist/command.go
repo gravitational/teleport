@@ -310,7 +310,7 @@ func (c *Command) initSharedResourceAccessFlags(cmd *kingpin.CmdClause) {
 	// GitHub
 	cmd.Flag("github-orgs", "Selects git servers members may access by GitHub organization name.").PlaceHolder("org1,org2,...").IsSetByUser(&c.gitHubOrgsSet).StringVar(&c.gitHubOrgs)
 	// AWS IC
-	cmd.Flag("aws-ic-assignments", "Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID:permissionSetARN' pairs).").PlaceHolder("accountID:permSetARN,...").IsSetByUser(&c.awsicAssignmentsSet).StringVar(&c.awsicAssignments)
+	cmd.Flag("aws-ic-assignments", "Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID^permissionSetARN' pairs).").PlaceHolder("accountID^permSetARN,...").IsSetByUser(&c.awsicAssignmentsSet).StringVar(&c.awsicAssignments)
 }
 
 func (c *Command) initSharedOwnerMemberFlags(cmd *kingpin.CmdClause) {

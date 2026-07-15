@@ -127,7 +127,7 @@ Flags:
 |`--app-labels`|*no default*|Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.|
 |`--audit-day`|`1`|Day of month for audit (1, 15, or 31).|
 |`--audit-frequency`|`6`|Audit recurrence in months (1, 3, 6, or 12).|
-|`--aws-ic-assignments`|*no default*|Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID:permissionSetARN' pairs).|
+|`--aws-ic-assignments`|*no default*|Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID^permissionSetARN' pairs).|
 |`--aws-role-arns`|*no default*|AWS role ARNs members may assume via matched apps.|
 |`--azure-identities`|*no default*|Azure managed identities members may assume via matched apps.|
 |`--db-labels`|*no default*|Selects databases members may access by label match.|
@@ -311,7 +311,7 @@ Flags:
 |`--app-labels`|*no default*|Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.|
 |`--audit-day`|*no default*|Day of month for audit (1, 15, or 31). Changing this resets the next audit date to now + frequency.|
 |`--audit-frequency`|*no default*|Audit recurrence in months (1, 3, 6, or 12). Changing this resets the next audit date to now + frequency.|
-|`--aws-ic-assignments`|*no default*|Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID:permissionSetARN' pairs).|
+|`--aws-ic-assignments`|*no default*|Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID^permissionSetARN' pairs).|
 |`--aws-role-arns`|*no default*|AWS role ARNs members may assume via matched apps.|
 |`--azure-identities`|*no default*|Azure managed identities members may assume via matched apps.|
 |`--db-labels`|*no default*|Selects databases members may access by label match.|
@@ -3220,4 +3220,3 @@ Flags:
 |---|---|---|
 |`--creation-mode`|`same`|How the attributes of the issuer are encoded in the CSR: "same", "empty".|
 |`-f`, `--[no-]force`|`false`|Attempt to sign as many CSRs as possible even in the presence of errors.|
-
