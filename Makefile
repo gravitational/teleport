@@ -20,6 +20,7 @@ DOCKER_IMAGE ?= teleport
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 HELM_UNITTEST_VERSION := $(shell cat $(MAKE_DIR)/build.assets/helm-unittest.version)
+HELM_UNITTEST_SHA256 := $(shell grep '^$(HELM_UNITTEST_VERSION) macos arm64 ' $(MAKE_DIR)/build.assets/helm-unittest.sha256 | cut -d' ' -f4)
 
 # If set to 1, webassets are not built.
 WEBASSETS_SKIP_BUILD ?= 0
@@ -953,6 +954,9 @@ test: test-helm test-sh test-api test-go test-rust test-operator test-terraform-
 $(TEST_LOG_DIR):
 	mkdir -p $(TEST_LOG_DIR)
 
+# Install the release archive directly instead of using `helm plugin install`.
+# The Helm installer executes plugin-provided hooks, which duplicates setup and
+# would require separately verifying those scripts.
 .PHONY: helmunit/installed
 helmunit/installed:
 	@if ! command -v helm >/dev/null 2>&1; then \
@@ -971,15 +975,22 @@ helmunit/installed:
 	required="$(HELM_UNITTEST_VERSION:v%=%)"; \
 	if [ -z "$$actual" ]; then \
 		printf '%s\n' \
-			'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/helm-unittest/helm-unittest --version $(HELM_UNITTEST_VERSION) --verify-false` to install it'; \
+			'Helm unittest plugin is required to test Helm charts. Run:' \
+			'  plugin_dir="$${HELM_PLUGINS:-$$HOME/.local/share/helm/plugins}/helm-unittest"' \
+			'  mkdir -p "$$plugin_dir"' \
+			'  curl -fsSL https://github.com/helm-unittest/helm-unittest/releases/download/$(HELM_UNITTEST_VERSION)/helm-unittest-macos-arm64-$(HELM_UNITTEST_VERSION:v%=%).tgz | tar -xz -C "$$plugin_dir"' \
+			'  echo "$(HELM_UNITTEST_SHA256)  $$plugin_dir/untt" | shasum -a 256 -c -'; \
 		exit 1; \
 	fi; \
 	if [ "$$(printf '%s\n' "$$actual" "$$required" | sort -V | head -n1)" != "$$required" ]; then \
 		printf '%s\n' \
 			"Helm unittest plugin $$actual is too old; version $(HELM_UNITTEST_VERSION) or newer is required." \
 			'Run:' \
-			'  helm plugin uninstall unittest' \
-			'  helm plugin install https://github.com/helm-unittest/helm-unittest --version $(HELM_UNITTEST_VERSION) --verify-false'; \
+			'  plugin_dir="$${HELM_PLUGINS:-$$HOME/.local/share/helm/plugins}/helm-unittest"' \
+			'  rm -rf "$$plugin_dir"' \
+			'  mkdir -p "$$plugin_dir"' \
+			'  curl -fsSL https://github.com/helm-unittest/helm-unittest/releases/download/$(HELM_UNITTEST_VERSION)/helm-unittest-macos-arm64-$(HELM_UNITTEST_VERSION:v%=%).tgz | tar -xz -C "$$plugin_dir"' \
+			'  echo "$(HELM_UNITTEST_SHA256)  $$plugin_dir/untt" | shasum -a 256 -c -'; \
 		exit 1; \
 	fi
 

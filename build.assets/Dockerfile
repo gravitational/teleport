@@ -98,9 +98,11 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     DEBIAN_FRONTEND="noninteractive"
 
-# BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
-# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+# BUILDARCH and TARGETARCH are automatically set by Docker when building the
+# image with BuildKit. See:
+# https://docs.docker.com/reference/dockerfile/#automatic-platform-args-in-the-global-scope
 ARG BUILDARCH
+ARG TARGETARCH
 
 # Install packages.
 # Latest git 2.18+ is required for GitHub actions.
@@ -264,24 +266,21 @@ RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
-COPY helm-unittest.version /tmp/helm-unittest.version
-# Install the helm-unittest plugin for the ci user. Both consumers --
-# `make test-helm` (via build.assets/Makefile) and the unit-tests-helm GitHub
-# workflow -- set HELM_PLUGINS=/home/ci/.local/share/helm/plugins.
-#
-# The workflow intentionally re-checks this same path and may reinstall the
-# pinned plugin version at runtime. Without that, plugin upgrades that involve
-# breaking changes are impossible -- upgrading the buildbox first fails because
-# our unittests would break with the new plugin version, but upgrading the
-# unittests first fails because the buildbox doesn't yet have the new version.
-# The workflow must therefore ensure the expected version. Installing it here
-# too means the workflow can short-circuit the download once the buildbox is
-# updated and republished.
-RUN helm plugin install https://github.com/helm-unittest/helm-unittest --version "$(cat /tmp/helm-unittest.version)" && \
-    mkdir -p /home/ci/.local/share/helm && \
-    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
-    chown -R ci /home/ci/.local/share/helm && \
-    HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
+COPY helm-unittest.sha256 /tmp/helm-unittest.sha256
+# Extract the release archive directly instead of using `helm plugin install`.
+# The Helm installer executes plugin-provided hooks, which duplicates setup and
+# would require separately verifying those scripts.
+RUN plugin_arch="${TARGETARCH:-$BUILDARCH}" && \
+    plugin_version="$(grep " linux ${plugin_arch} " /tmp/helm-unittest.sha256 | head -n 1 | cut -d' ' -f1)" && \
+    test -n "$plugin_version" && \
+    plugin_dir=/home/ci/.local/share/helm/plugins/helm-unittest && \
+    checksum="$(grep "^${plugin_version} linux ${plugin_arch} " /tmp/helm-unittest.sha256 | cut -d' ' -f4)" && \
+    test -n "$checksum" && \
+    mkdir -p "$plugin_dir" && \
+    curl -fsSL "https://github.com/helm-unittest/helm-unittest/releases/download/${plugin_version}/helm-unittest-linux-${plugin_arch}-${plugin_version#v}.tgz" \
+      | tar -xz -C "$plugin_dir" && \
+    echo "$checksum  $plugin_dir/untt" | sha256sum -c - && \
+    chown -R ci /home/ci/.local/share/helm
 
 # Install JS gRPC tools.
 ARG NODE_GRPC_TOOLS_VERSION # eg, "1.12.4"
