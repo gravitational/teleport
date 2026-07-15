@@ -3321,6 +3321,7 @@ type eksClustersEnroller interface {
 
 type discoveryConfigClient interface {
 	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
+	UpsertDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
 	services.DiscoveryConfigsGetter
 }
 

@@ -1012,6 +1012,11 @@ type DiscoveryAccessPoint interface {
 	// UpdateDiscoveryConfigStatus updates the status of a discovery config.
 	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
 
+	// UpsertDiscoveryConfig creates or updates a discovery config. The backend
+	// only allows Discovery Services to upsert their own synthetic discovery
+	// config; all other writes are rejected.
+	UpsertDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
+
 	// UpsertUserTask creates or updates an User Task
 	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 }
@@ -1892,6 +1897,13 @@ func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error)
 // UpdateDiscoveryConfigStatus updates the status of a discovery config.
 func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
 	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
+}
+
+// UpsertDiscoveryConfig creates or updates a discovery config. The backend
+// only allows Discovery Services to upsert their own synthetic discovery
+// config; all other writes are rejected.
+func (w *DiscoveryWrapper) UpsertDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	return w.NoCache.UpsertDiscoveryConfig(ctx, dc)
 }
 
 // GetDiscoveryConfig retrieves a discovery config by name.
