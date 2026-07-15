@@ -22,8 +22,12 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -265,7 +269,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 
 	switch req.Integration.GetSubKind() {
 	case types.IntegrationSubKindGitHub:
-		if err := s.checkGitHubEnterpriseLicense(req.Integration); err != nil {
+		if err := s.checkGitHubEnterpriseLicense(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// Save the ClientID before createGitHubCredentials replaces
@@ -343,7 +347,7 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 	}
 
 	if req.Integration.GetSubKind() == types.IntegrationSubKindGitHub {
-		if err := s.checkGitHubEnterpriseLicense(req.Integration); err != nil {
+		if err := s.checkGitHubEnterpriseLicense(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if err := s.maybeCreateGitHubSSHCA(ctx, req.Integration); err != nil {
@@ -487,10 +491,11 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 
 // checkGitHubEnterpriseLicense checks if the integration requires a Teleport
 // Enterprise license. SSH protocol always requires Enterprise (for SSH CA).
-// HTTP-only integrations are allowed on any license; the actual GitHub
-// Enterprise org check happens during the OAuth flow, matching the behavior
-// of GitHub SSO connectors.
-func (s *Service) checkGitHubEnterpriseLicense(ig types.Integration) error {
+// For HTTP-only integrations, the org's SSO status is checked. If the org
+// uses SAML SSO (a GitHub Enterprise feature), Teleport Enterprise is
+// required. This matches the behavior of GitHub SSO connectors. The check
+// is also performed during the OAuth flow in case the org enables SSO later.
+func (s *Service) checkGitHubEnterpriseLicense(ctx context.Context, ig types.Integration) error {
 	if s.modules.BuildType() == modules.BuildEnterprise {
 		return nil
 	}
@@ -501,7 +506,39 @@ func (s *Service) checkGitHubEnterpriseLicense(ig types.Integration) error {
 	if slices.Contains(spec.AllowProtocols, types.GitProtocolSSH) {
 		return trace.AccessDenied("GitHub SSH proxy requires a Teleport Enterprise license")
 	}
+	usesSSO, err := orgUsesExternalSSO(ctx, spec.Organization)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to check GitHub org SSO status", "org", spec.Organization, "error", err)
+		return nil
+	}
+	if usesSSO {
+		return trace.AccessDenied(
+			"GitHub organization %s uses external SSO, please purchase a Teleport Enterprise license",
+			spec.Organization,
+		)
+	}
 	return nil
+}
+
+// orgUsesExternalSSO checks if a GitHub organization uses external SSO by
+// probing the public /orgs/<org>/sso page. No authentication required.
+func orgUsesExternalSSO(ctx context.Context, org string) (bool, error) {
+	ssoURL := fmt.Sprintf("https://github.com/orgs/%s/sso", url.PathEscape(org))
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ssoURL, nil)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+
+	return resp.StatusCode == http.StatusOK, nil
 }
 
 // cleanupGitHubCredentials removes all user credentials associated with a
