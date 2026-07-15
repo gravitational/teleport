@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -633,6 +634,73 @@ func (a *fakeMFAAuthenticator) ValidateMFAAuthResponse(ctx context.Context, resp
 		return nil, trace.AccessDenied("invalid MFA")
 	}
 	return mfaData, nil
+}
+
+// TestAuthorizer_Authorize_remoteUserBeamID verifies that BeamID is propagated
+// through the authorizeRemoteUser path. A remote user whose original identity
+// carries a BeamID should have that BeamID preserved in the mapped identity and
+// in the resulting auth context's user metadata.
+func TestAuthorizer_Authorize_remoteUserBeamID(t *testing.T) {
+	t.Parallel()
+	client, watcher, _ := newTestResources(t)
+	_, localRole, err := authtest.CreateUserAndRole(client, "local-user", []string{"local-user"}, nil)
+	require.NoError(t, err, "CreateUserAndRole")
+
+	remoteClusterName := "remote-cluster"
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: remoteClusterName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+				PublicKey:  []byte(fixtures.SSHCAPublicKey),
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: []byte(fixtures.TLSCACertPEM),
+				Key:  []byte(fixtures.TLSCAKeyPEM),
+			}},
+		},
+		RoleMap: types.RoleMap{{
+			Remote: localRole.GetName(),
+			Local:  []string{localRole.GetName()},
+		}},
+	})
+	require.NoError(t, err, "NewCertAuthority failed")
+	require.NoError(t, client.UpsertCertAuthority(t.Context(), ca), "UpsertCertAuthority failed")
+
+	testBeamID := "test-beam-id-123"
+
+	remoteUser := authz.RemoteUser{
+		Username:    "remote-user",
+		ClusterName: remoteClusterName,
+		RemoteRoles: []string{localRole.GetName()},
+		Principals:  []string{"remote-user"},
+		Identity: tlsca.Identity{
+			Username: "remote-user",
+			Groups:   []string{localRole.GetName()},
+			BeamID:   testBeamID,
+		},
+	}
+
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: client,
+		LockWatcher: watcher,
+	})
+	require.NoError(t, err, "NewAuthorizer failed")
+
+	userCtx := authz.ContextWithUser(t.Context(), remoteUser)
+	authCtx, err := authorizer.Authorize(userCtx)
+	require.NoError(t, err, "Authorize failed")
+
+	// Verify BeamID is preserved in the mapped identity
+	assert.Equal(t, testBeamID, authCtx.Identity.GetIdentity().BeamID,
+		"BeamID should be preserved in the mapped identity")
+
+	// Verify BeamID is included in user metadata
+	metadata := authCtx.GetUserMetadata()
+	assert.Equal(t, testBeamID, metadata.BeamID,
+		"BeamID should be included in user metadata for audit events")
 }
 
 func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
@@ -1225,9 +1293,21 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 					if r.GetName() == constants.DefaultImplicitRole {
 						continue
 					}
+					allowedResourceKinds := make(map[string]bool)
+					for _, rule := range r.GetRules(types.Allow) {
+						for _, resource := range rule.Resources {
+							allowedResourceKinds[resource] = true
+						}
+					}
+					// ensure required resource kinds are present
+					requiredKinds := []string{types.KindKubernetesCluster}
+					for _, kind := range requiredKinds {
+						assert.True(t, allowedResourceKinds[kind], "expected RoleKube to allow resource kind %s", kind)
+					}
+
+					// ensure resource kinds not yet supporting scopes are not present
 					for _, rule := range r.GetRules(types.Allow) {
 						assert.NotContains(t, rule.Resources, types.KindKubeServer)
-						assert.NotContains(t, rule.Resources, types.KindKubernetesCluster)
 						assert.NotContains(t, rule.Resources, types.KindKubeWaitingContainer)
 					}
 				}
@@ -1243,6 +1323,29 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
 					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
 				}
+			},
+		},
+		{
+			name:        "Scoped RoleApp is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleApp},
+			isScoped:    true,
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				allowedResourceKinds := make(map[string]bool)
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+					if r.GetName() == constants.DefaultImplicitRole {
+						continue
+					}
+					for _, rule := range r.GetRules(types.Allow) {
+						for _, resource := range rule.Resources {
+							allowedResourceKinds[resource] = true
+						}
+					}
+				}
+				assert.True(t, allowedResourceKinds[types.KindApp], "expected scoped RoleApp to allow reading apps")
+				assert.True(t, allowedResourceKinds[scopedaccess.KindScopedRole], "expected scoped RoleApp to allow reading scoped roles")
 			},
 		},
 		{
@@ -1702,6 +1805,104 @@ func TestScopedContextLockTargets(t *testing.T) {
 		}
 		require.ElementsMatch(t, want, scopedCtx.LockTargets())
 	})
+}
+
+func TestScopedContextDisplayName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		scopedCtx *authz.ScopedContext
+		want      string
+	}{
+		{
+			name: "user identity uses the user name",
+			scopedCtx: &authz.ScopedContext{
+				User:     &types.UserV2{Metadata: types.Metadata{Name: "alice"}},
+				Identity: authz.LocalUser{Identity: tlsca.Identity{Username: "alice-identity"}},
+			},
+			want: "alice",
+		},
+		{
+			name: "agent identity falls back to the identity username",
+			scopedCtx: &authz.ScopedContext{
+				Identity: authz.ScopedBuiltinRole{Identity: tlsca.Identity{Username: "alice-identity"}},
+			},
+			want: "alice-identity",
+		},
+		{
+			name:      "empty when neither user nor identity is set",
+			scopedCtx: &authz.ScopedContext{},
+			want:      "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.scopedCtx.DisplayName())
+		})
+	}
+}
+
+func TestScopedIsLocalOrRemoteService(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		want      bool
+		scopedCtx *authz.ScopedContext
+	}{
+		{name: "builtin role (unscoped agent)",
+			want:      true,
+			scopedCtx: &authz.ScopedContext{Identity: authz.BuiltinRole{}},
+		},
+		{
+			name:      "remote builtin role",
+			want:      true,
+			scopedCtx: &authz.ScopedContext{Identity: authz.RemoteBuiltinRole{}},
+		},
+		{
+			name:      "scoped builtin role",
+			want:      true,
+			scopedCtx: &authz.ScopedContext{Identity: authz.ScopedBuiltinRole{}},
+		},
+		{
+			name:      "local user",
+			want:      false,
+			scopedCtx: &authz.ScopedContext{Identity: authz.LocalUser{}},
+		},
+		{
+			name:      "remote user",
+			want:      false,
+			scopedCtx: &authz.ScopedContext{Identity: authz.RemoteUser{}},
+		},
+		{
+			name:      "unauthenticated",
+			want:      false,
+			scopedCtx: &authz.ScopedContext{Identity: authz.UnauthenticatedRole{}},
+		},
+		// Unscoped-wrapped contexts (unscopedContext != nil) delegate to
+		// IsLocalOrRemoteService rather than hitting the identity switch.
+		{
+			name:      "unscoped-wrapped builtin role",
+			want:      true,
+			scopedCtx: authz.ScopedContextFromUnscopedContext(&authz.Context{UnmappedIdentity: authz.BuiltinRole{}}),
+		},
+		{
+			name:      "unscoped-wrapped remote builtin role",
+			want:      true,
+			scopedCtx: authz.ScopedContextFromUnscopedContext(&authz.Context{UnmappedIdentity: authz.RemoteBuiltinRole{}}),
+		},
+		{
+			name:      "unscoped-wrapped local user",
+			want:      false,
+			scopedCtx: authz.ScopedContextFromUnscopedContext(&authz.Context{UnmappedIdentity: authz.LocalUser{}}),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, authz.ScopedIsLocalOrRemoteService(tt.scopedCtx))
+		})
+	}
 }
 
 // brokenScopedRoleReader is a minimal ScopedRoleReader for use in tests that need a non-nil reader

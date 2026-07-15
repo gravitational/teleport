@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/tls_identity.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package decisionpb
 
@@ -83,6 +83,8 @@ type TLSIdentity struct {
 	xxx_hidden_ScopePin                 *v11.Pin                   `protobuf:"bytes,37,opt,name=scope_pin,json=scopePin,proto3"`
 	xxx_hidden_AllowedResourceAccessIds *[]*types.ResourceAccessID `protobuf:"bytes,38,rep,name=allowed_resource_access_ids,json=allowedResourceAccessIds,proto3"`
 	xxx_hidden_DelegationSessionId      string                     `protobuf:"bytes,39,opt,name=delegation_session_id,json=delegationSessionId,proto3"`
+	xxx_hidden_BeamId                   string                     `protobuf:"bytes,40,opt,name=beam_id,json=beamId,proto3"`
+	xxx_hidden_BotScope                 string                     `protobuf:"bytes,41,opt,name=bot_scope,json=botScope,proto3"`
 	unknownFields                       protoimpl.UnknownFields
 	sizeCache                           protoimpl.SizeCache
 }
@@ -391,6 +393,20 @@ func (x *TLSIdentity) GetDelegationSessionId() string {
 	return ""
 }
 
+func (x *TLSIdentity) GetBeamId() string {
+	if x != nil {
+		return x.xxx_hidden_BeamId
+	}
+	return ""
+}
+
+func (x *TLSIdentity) GetBotScope() string {
+	if x != nil {
+		return x.xxx_hidden_BotScope
+	}
+	return ""
+}
+
 func (x *TLSIdentity) SetUsername(v string) {
 	x.xxx_hidden_Username = v
 }
@@ -545,6 +561,14 @@ func (x *TLSIdentity) SetAllowedResourceAccessIds(v []*types.ResourceAccessID) {
 
 func (x *TLSIdentity) SetDelegationSessionId(v string) {
 	x.xxx_hidden_DelegationSessionId = v
+}
+
+func (x *TLSIdentity) SetBeamId(v string) {
+	x.xxx_hidden_BeamId = v
+}
+
+func (x *TLSIdentity) SetBotScope(v string) {
+	x.xxx_hidden_BotScope = v
 }
 
 func (x *TLSIdentity) HasExpires() bool {
@@ -723,6 +747,12 @@ type TLSIdentity_builder struct {
 	AllowedResourceAccessIds []*types.ResourceAccessID
 	// Delegation session this TLS identity is associated with.
 	DelegationSessionId string
+	// Beam this TLS identity is associated with, derived from the delegation
+	// session's beam ID label.
+	BeamId string
+	// BotScope is the scope of the Machine ID bot this identity was issued to,
+	// if any. Empty for unscoped bots and non-bot identities.
+	BotScope string
 }
 
 func (b0 TLSIdentity_builder) Build() *TLSIdentity {
@@ -768,6 +798,8 @@ func (b0 TLSIdentity_builder) Build() *TLSIdentity {
 	x.xxx_hidden_ScopePin = b.ScopePin
 	x.xxx_hidden_AllowedResourceAccessIds = &b.AllowedResourceAccessIds
 	x.xxx_hidden_DelegationSessionId = b.DelegationSessionId
+	x.xxx_hidden_BeamId = b.BeamId
+	x.xxx_hidden_BotScope = b.BotScope
 	return m0
 }
 
@@ -1305,7 +1337,7 @@ var File_teleport_decision_v1alpha1_tls_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x97\x0e\n" +
+	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xcd\x0e\n" +
 	"\vTLSIdentity\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\"\n" +
 	"\fimpersonator\x18\x02 \x01(\tR\fimpersonator\x12\x16\n" +
@@ -1352,7 +1384,9 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"join_token\x18$ \x01(\tR\tjoinToken\x124\n" +
 	"\tscope_pin\x18% \x01(\v2\x17.teleport.scopes.v1.PinR\bscopePin\x12V\n" +
 	"\x1ballowed_resource_access_ids\x18& \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\x122\n" +
-	"\x15delegation_session_id\x18' \x01(\tR\x13delegationSessionId\"\xfb\x02\n" +
+	"\x15delegation_session_id\x18' \x01(\tR\x13delegationSessionId\x12\x17\n" +
+	"\abeam_id\x18( \x01(\tR\x06beamId\x12\x1b\n" +
+	"\tbot_scope\x18) \x01(\tR\bbotScope\"\xfb\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x1d\n" +
 	"\n" +

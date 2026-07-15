@@ -24,10 +24,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
@@ -82,11 +82,7 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	// Fetch a specific AccessMonitoringRule.
 	rule, err := service.GetAccessMonitoringRule(ctx, AccessMonitoringRule2.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rule, AccessMonitoringRule2,
-		cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRule{}),
-		cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRuleSpec{}),
-		cmpopts.IgnoreUnexported(v1.Metadata{}),
-	))
+	require.Empty(t, cmp.Diff(rule, AccessMonitoringRule2, protocmp.Transform()))
 
 	// Try to fetch a AccessMonitoringRule that doesn't exist.
 	_, err = service.GetAccessMonitoringRule(ctx, "doesnotexist")
@@ -327,11 +323,7 @@ func TestListAccessMonitoringRules(t *testing.T) {
 		fetchedAccessMonitoringRules = append(fetchedAccessMonitoringRules, page2...)
 		fetchedAccessMonitoringRules = append(fetchedAccessMonitoringRules, page3...)
 
-		require.Empty(t, cmp.Diff(insertedAccessMonitoringRules, fetchedAccessMonitoringRules,
-			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRule{}),
-			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRuleSpec{}),
-			cmpopts.IgnoreUnexported(v1.Metadata{}),
-		))
+		require.Empty(t, cmp.Diff(insertedAccessMonitoringRules, fetchedAccessMonitoringRules, protocmp.Transform()))
 	})
 
 	t.Run("single", func(t *testing.T) {
@@ -339,10 +331,6 @@ func TestListAccessMonitoringRules(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, nextKey)
 
-		require.Empty(t, cmp.Diff(insertedAccessMonitoringRules, fetchedAccessMonitoringRules,
-			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRule{}),
-			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRuleSpec{}),
-			cmpopts.IgnoreUnexported(v1.Metadata{}),
-		))
+		require.Empty(t, cmp.Diff(insertedAccessMonitoringRules, fetchedAccessMonitoringRules, protocmp.Transform()))
 	})
 }

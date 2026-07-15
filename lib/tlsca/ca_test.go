@@ -219,6 +219,7 @@ func TestJoinAttributes(t *testing.T) {
 		Groups:        []string{"bot-bernard"},
 		BotName:       "bernard",
 		BotInstanceID: "1234-5678",
+		BotScope:      "/foo",
 		BotInternal:   true,
 		Expires:       expires,
 		JoinAttributes: workloadidentityv1pb.JoinAttrs_builder{
@@ -798,6 +799,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				Username:      "bot-alpaca",
 				BotName:       "alpaca",
 				BotInstanceID: "123-123",
+				BotScope:      "/staging",
 				ScopePin: scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/staging",
@@ -811,10 +813,11 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				}.Build(),
 			},
 			want: apievents.UserMetadata{
-				User:          "bot-alpaca",
-				UserKind:      apievents.UserKind_USER_KIND_BOT,
-				BotName:       "alpaca",
-				BotInstanceID: "123-123",
+				User:             "bot-alpaca",
+				UserKind:         apievents.UserKind_USER_KIND_BOT,
+				BotName:          "alpaca",
+				BotInstanceID:    "123-123",
+				BotScopeOfOrigin: "/staging",
 				ScopePin: &apievents.ScopePin{
 					Scope: "/staging",
 					Assignments: map[string]*apievents.ScopePinnedAssignments{
@@ -952,6 +955,43 @@ func TestDelegationSessionID(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, out.IsDelegationSession())
 	require.False(t, out.Renewable)
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+}
+
+func TestBeamID(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:          "alice@example.com",
+		Groups:            []string{"admin"},
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
+		Expires:           expires,
+		BeamID:            "beam-id",
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, "beam-id", out.BeamID)
 	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
 }
 

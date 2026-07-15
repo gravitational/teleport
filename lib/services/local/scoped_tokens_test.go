@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -49,7 +50,7 @@ import (
 func TestScopedTokenService(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(bk)
+	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -160,7 +161,7 @@ func TestScopedTokenService(t *testing.T) {
 func TestScopedTokenList(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(bk)
+	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -247,8 +248,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens assigning scope descendant of /test",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				AssignedScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
 				}.Build(),
 				WithSecrets: true,
@@ -258,8 +259,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens assigning scope descendant of /test/aa",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				AssignedScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test/aa",
 				}.Build(),
 				WithSecrets: true,
@@ -269,8 +270,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens assigning scope ancestor to /test/bb",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				AssignedScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_ANCESTORS,
 					Scope: "/test/bb",
 				}.Build(),
 				WithSecrets: true,
@@ -280,8 +281,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens descendants of /test",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
 				}.Build(),
 				WithSecrets: true,
@@ -291,8 +292,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens descendants of /test/aa",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test/aa",
 				}.Build(),
 				WithSecrets: true,
@@ -302,8 +303,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens ancestor to /test/bb",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_ANCESTORS,
 					Scope: "/test/bb",
 				}.Build(),
 				WithSecrets: true,
@@ -313,12 +314,12 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens descendant of /stage assigning /stage/aa",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage",
 				}.Build(),
-				AssignedScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
 				}.Build(),
 				WithSecrets: true,
@@ -328,12 +329,12 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens descendant of /stage/aa assigning /stage/aa",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
 				}.Build(),
-				AssignedScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
 				}.Build(),
 				WithSecrets: true,
@@ -343,8 +344,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens in /test scope applying auth role",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
 				}.Build(),
 				Roles:       []string{types.RoleAuth.String()},
@@ -355,8 +356,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens in /test scope filtered by label",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
 				}.Build(),
 				Roles: []string{types.RoleNode.String()},
@@ -406,7 +407,7 @@ func TestScopedTokenList(t *testing.T) {
 func TestScopedTokenNameCollisions(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(bk)
+	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	provisioningService := local.NewProvisioningService(bk)
@@ -513,7 +514,7 @@ func TestScopedTokenUse(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		bk, err := memory.New(memory.Config{})
 		require.NoError(t, err)
-		service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+		service, err := local.NewScopedTokenService(backend.NewSanitizer(bk), scopes.Features{Enabled: true})
 		require.NoError(t, err)
 
 		ctx := t.Context()
@@ -606,8 +607,7 @@ func newBoundKeypairToken() *joiningv1.ScopedToken {
 		Scope: "/test",
 		Spec: joiningv1.ScopedTokenSpec_builder{
 			AssignedScope: "",
-			BotName:       "example",
-			BotScope:      "/test",
+			Bot:           scopes.QualifiedName{Scope: "/test", Name: "example"}.String(),
 			JoinMethod:    string(types.JoinMethodBoundKeypair),
 			Roles:         []string{types.RoleBot.String()},
 			UsageMode:     string(joining.TokenUsageModeBot),
@@ -620,7 +620,7 @@ func TestScopedTokenUpdate(t *testing.T) {
 	t.Parallel()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk), scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -729,7 +729,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 	t.Parallel()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk), scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -1000,7 +1000,7 @@ func TestScopedTokenCreate(t *testing.T) {
 	t.Parallel()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk), scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()

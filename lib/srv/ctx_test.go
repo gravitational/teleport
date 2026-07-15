@@ -263,6 +263,7 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				Login:         "alpaca1",
 				BotName:       "alpaca",
 				BotInstanceID: "123-123-123",
+				BotScope:      "/staging",
 				UnmappedIdentity: &sshca.Identity{
 					ScopePin: scopesv1.Pin_builder{
 						Kind:  scopesv1.PinKind_PIN_KIND_USER,
@@ -278,11 +279,12 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				},
 			},
 			want: apievents.UserMetadata{
-				User:          "bot-alpaca",
-				Login:         "alpaca1",
-				UserKind:      apievents.UserKind_USER_KIND_BOT,
-				BotName:       "alpaca",
-				BotInstanceID: "123-123-123",
+				User:             "bot-alpaca",
+				Login:            "alpaca1",
+				UserKind:         apievents.UserKind_USER_KIND_BOT,
+				BotName:          "alpaca",
+				BotInstanceID:    "123-123-123",
+				BotScopeOfOrigin: "/staging",
 				ScopePin: &apievents.ScopePin{
 					Scope: "/staging",
 					Assignments: map[string]*apievents.ScopePinnedAssignments{

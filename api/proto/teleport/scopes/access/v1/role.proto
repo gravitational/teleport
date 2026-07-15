@@ -77,6 +77,13 @@ message ScopedRoleSpec {
 
   // The kubernetes specific configuration for a scoped role.
   ScopedRoleKube kube = 8;
+
+  // WorkloadIdentity specifies controls that govern issuance using
+  // WorkloadIdentity resources.
+  ScopedRoleWorkloadIdentity workload_identity = 9;
+
+  // The App Access specific configuration for a scoped role.
+  ScopedRoleApp app = 10;
 }
 
 // ScopedRoleDefaults provides fallback values for controls shared across multiple protocols.
@@ -182,6 +189,30 @@ message ScopedRoleKube {
 
   // Lock configures the role's locking behavior for kubernetes sessions.
   Lock lock = 7;
+}
+
+// ScopedRoleWorkloadIdentity groups all scoped role fields relevant to issuing
+// SVIDs using WorkloadIdentity resources. These controls govern ISSUANCE (the
+// act of obtaining an SVID from a WorkloadIdentity), which is distinct from the
+// administration of WorkloadIdentity resources (create/read/update/delete/list)
+// granted via the rules block.
+message ScopedRoleWorkloadIdentity {
+  // Labels is the set of WorkloadIdentity labels used to dynamically select
+  // which WorkloadIdentity resources this role permits issuance with. Issuance
+  // additionally requires the caller to hold read_no_secrets (and, for the
+  // multi-issue RPC, list) rules for the workload_identity kind in the relevant
+  // scope.
+  repeated teleport.label.v1.Label labels = 1;
+}
+
+// ScopedRoleApp groups all scoped role fields relevant to application access.
+message ScopedRoleApp {
+  // The set of application labels used for RBAC.
+  repeated teleport.label.v1.Label labels = 1;
+
+  // LabelExpression is an optional predicate expression evaluated against an
+  // application's labels.
+  string label_expression = 2;
 }
 
 // ScopedRule maps resources to verbs. This is the underlying type used to describe

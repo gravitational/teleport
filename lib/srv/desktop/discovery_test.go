@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -88,12 +89,16 @@ func TestAppliesLDAPLabels(t *testing.T) {
 		attrCommonName:        {"foo"},
 		"bar":                 {"baz"},
 		"quux":                {""},
+		"multi":               {"value1", "value2"},
+		"someempty":           {"", "  ", "nonempty", "     "},
+		"allempty":            {"", "  ", ""},
+		"reallybig":           {strings.Repeat("a", 200), strings.Repeat("b", 200), strings.Repeat("c", 200)},
 	})
 
 	s := new(WindowsService)
 	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
 		BaseDN:          "*",
-		LabelAttributes: []string{"bar"},
+		LabelAttributes: []string{"bar", "multi"},
 	})
 
 	// check default labels
@@ -109,6 +114,49 @@ func TestAppliesLDAPLabels(t *testing.T) {
 	// check custom labels
 	require.Equal(t, "baz", l["ldap/bar"])
 	require.Empty(t, l["ldap/quux"])
+	require.Equal(t, "value1", l["ldap/multi"]) // take first value by default
+
+	// Verify multi-valued attributes
+	clear(l)
+	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
+		BaseDN:                      "*",
+		LabelAttributes:             []string{"multi", "someempty", "allempty"},
+		LabelAttributeMode:          "join",
+		LabelAttributeJoinSeparator: "_",
+	})
+	require.Equal(t, "value1_value2", l["ldap/multi"])
+	// in "join" mode, empty/whitespace values are omitted,
+	// so we expect only the non-empty value
+	require.Equal(t, "nonempty", l["ldap/someempty"])
+	require.NotContains(t, l, "ldap/allempty")
+
+	clear(l)
+	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
+		BaseDN:             "*",
+		LabelAttributes:    []string{"someempty", "allempty"},
+		LabelAttributeMode: "first",
+	})
+	// in "first" mode, we only look at the first value, so if the first
+	// value is empty then we expec the label won't exist at all
+	require.NotContains(t, l, "ldap/someempty")
+	require.NotContains(t, l, "ldap/allempty")
+
+	clear(l)
+	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
+		BaseDN:             "*",
+		LabelAttributes:    []string{"multi"},
+		LabelAttributeMode: "join",
+	})
+	require.Equal(t, "value1|value2", l["ldap/multi"]) // default separator
+
+	// labels exceeding the limit are not included
+	clear(l)
+	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
+		BaseDN:             "*",
+		LabelAttributes:    []string{"reallybig"},
+		LabelAttributeMode: "join",
+	})
+	require.NotContains(t, l, "ldap/reallybig")
 }
 
 func TestDNToDomain(t *testing.T) {

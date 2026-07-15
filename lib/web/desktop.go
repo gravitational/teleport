@@ -60,6 +60,37 @@ const (
 	protocolTDP        = "teleport-tdp"
 )
 
+// GET /webapi/sites/:site/linuxdesktops/:desktopName/connect?username=<username>
+func (h *Handler) linuxDesktopConnectHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	cluster reversetunnelclient.Cluster,
+	ws *websocket.Conn,
+) (any, error) {
+	desktopName := p.ByName("desktopName")
+	if desktopName == "" {
+		return nil, trace.BadParameter("missing desktopName in request URL")
+	}
+
+	log := sctx.cfg.Log.With(
+		"desktop_name", desktopName,
+		"cluster_name", cluster.GetName(),
+	)
+	log.DebugContext(r.Context(), "New desktop access websocket connection")
+
+	if err := h.createDesktopConnection(r, desktopName, log, sctx, cluster, ws, desktop.ConnectToLinuxService, proto.UserCertsRequest_LinuxDesktop); err != nil {
+		// createDesktopConnection makes a best-effort attempt to send an error to the user
+		// (via websocket) before terminating the connection. We log the error here, but
+		// return nil because our HTTP middleware will try to write the returned error in JSON
+		// format, and this will fail since the HTTP connection has been upgraded to websockets.
+		log.ErrorContext(r.Context(), "creating desktop connection failed", "error", err)
+	}
+
+	return nil, nil
+}
+
 // GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>
 func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
@@ -80,8 +111,8 @@ func (h *Handler) desktopConnectHandle(
 	)
 	log.DebugContext(r.Context(), "New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws); err != nil {
-		// createDesktopConnection makes a best effort attempt to send an error to the user
+	if err := h.createDesktopConnection(r, desktopName, log, sctx, cluster, ws, desktop.ConnectToWindowsService, proto.UserCertsRequest_WindowsDesktop); err != nil {
+		// createDesktopConnection makes a best-effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
 		// format, and this will fail since the HTTP connection has been upgraded to websockets.
@@ -154,14 +185,14 @@ func (t *tdpHandshaker) sendError(ctx context.Context, log *slog.Logger, err err
 		err = errors.New("an unknown error has occurred")
 	}
 
-	return trace.Wrap(t.connection.WriteMessage((&legacy.Alert{
+	return trace.Wrap(t.connection.WriteMessage(&legacy.Alert{
 		Message:  err.Error(),
 		Severity: legacy.SeverityError,
-	})))
+	}))
 }
 
 func (t *tdpHandshaker) getPromptBuilder(log *slog.Logger) mfaPromptBuilder {
-	return mfaPromptBuilder(legacy.NewTDPMFAPrompt(t.connection, &t.withheld, log))
+	return legacy.NewTDPMFAPrompt(t.connection, &t.withheld, log)
 }
 
 func (t *tdpHandshaker) performInitialHandshake(ctx context.Context, log *slog.Logger) error {
@@ -260,10 +291,10 @@ func (t *tdpbHandshaker) sendError(ctx context.Context, log *slog.Logger, err er
 		err = errors.New("an unknown error has occurred")
 	}
 
-	return trace.Wrap(t.connection.WriteMessage((&tdpb.Alert{
+	return trace.Wrap(t.connection.WriteMessage(&tdpb.Alert{
 		Message:  err.Error(),
 		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
-	})))
+	}))
 }
 
 func (t *tdpbHandshaker) getPromptBuilder(log *slog.Logger) mfaPromptBuilder {
@@ -354,17 +385,22 @@ func newHandshaker(protocol string, ws *websocket.Conn) handshaker {
 
 type mfaPromptBuilder func(string) mfa.PromptFunc
 
+type connectorFunc func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)
+
 func (h *Handler) createDesktopConnection(
 	r *http.Request,
 	desktopName string,
-	clusterName string,
 	log *slog.Logger,
 	sctx *SessionContext,
 	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
+	connectFunc connectorFunc,
+	certUsage proto.UserCertsRequest_CertUsage,
 ) error {
 	defer ws.Close()
 	ctx := r.Context()
+
+	clusterName := cluster.GetName()
 
 	// Client may speak TDP or TDPB. We'll know based on the existence of the 'tdpb' query parameter.
 	// - If the 'tdpb' query parameter is present, then we'll need to send an upgrade message to the client
@@ -402,7 +438,7 @@ func (h *Handler) createDesktopConnection(
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
-	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username)
+	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username, certUsage)
 	if err != nil {
 		return handshaker.sendError(ctx, log, err)
 	}
@@ -426,7 +462,7 @@ func (h *Handler) createDesktopConnection(
 
 	log.DebugContext(ctx, "Attempting to connect to agent")
 	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
-	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
+	serviceConn, version, err := connectFunc(ctx, &desktop.ConnectionConfig{
 		Log:            log,
 		DesktopsGetter: clt,
 		Cluster:        cluster,
@@ -462,7 +498,7 @@ func (h *Handler) createDesktopConnection(
 	default:
 		err = trace.BadParameter("Unknown desktop agent protocol %v", serverProtocol)
 	}
-	log.InfoContext(ctx, "Connected to windows_desktop_service", "agent_protocol", serverProtocol)
+	log.InfoContext(ctx, "Connected to agent", "protocol", serverProtocol)
 
 	if err != nil {
 		return handshaker.sendError(ctx, log, err)
@@ -494,13 +530,7 @@ const (
 	SNISuffix = ".desktop." + constants.APIDomain
 )
 
-func createUserCertsRequest(
-	sctx *SessionContext,
-	publicKey crypto.PublicKey,
-	desktopName,
-	username,
-	siteName string,
-) (*proto.UserCertsRequest, error) {
+func createUserCertsRequest(sctx *SessionContext, publicKey crypto.PublicKey, desktopName, username, siteName string, certUsage proto.UserCertsRequest_CertUsage) (*proto.UserCertsRequest, error) {
 	tlsCert, err := sctx.GetX509Certificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -516,11 +546,20 @@ func createUserCertsRequest(
 		Username:       tlsCert.Subject.CommonName,
 		Expires:        tlsCert.NotAfter,
 		RouteToCluster: siteName,
-		Usage:          proto.UserCertsRequest_WindowsDesktop,
-		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
+	}
+
+	certsReq.Usage = certUsage
+
+	if certUsage == proto.UserCertsRequest_LinuxDesktop {
+		certsReq.RouteToLinuxDesktop = proto.RouteToLinuxDesktop{
+			LinuxDesktop: desktopName,
+			Login:        username,
+		}
+	} else {
+		certsReq.RouteToWindowsDesktop = proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
 			Login:          username,
-		},
+		}
 	}
 
 	return &certsReq, nil
@@ -534,19 +573,31 @@ func (h *Handler) prepareForCertIssuance(
 	cluster reversetunnelclient.Cluster,
 	publicKey crypto.PublicKey,
 	desktopName, username string,
+	certUsage proto.UserCertsRequest_CertUsage,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
 	// Check if MFA is required for this user/desktop combination.
-	mfaRequired, err = h.checkMFARequired(ctx, &IsMFARequiredRequest{
-		WindowsDesktop: &isMFARequiredWindowsDesktop{
-			DesktopName: desktopName,
-			Login:       username,
-		},
-	}, sctx, cluster)
+	var mfaRequest *IsMFARequiredRequest
+	if certUsage == proto.UserCertsRequest_LinuxDesktop {
+		mfaRequest = &IsMFARequiredRequest{
+			LinuxDesktop: &isMFARequiredLinuxDesktop{
+				DesktopName: desktopName,
+				Login:       username,
+			},
+		}
+	} else {
+		mfaRequest = &IsMFARequiredRequest{
+			WindowsDesktop: &isMFARequiredWindowsDesktop{
+				DesktopName: desktopName,
+				Login:       username,
+			},
+		}
+	}
+	mfaRequired, err = h.checkMFARequired(ctx, mfaRequest, sctx, cluster)
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
 
-	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, cluster.GetName())
+	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, cluster.GetName(), certUsage)
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
@@ -786,9 +837,13 @@ func (p desktopWebsocketProxy) run(ctx context.Context) error {
 		p.wds.Close()
 	}()
 
-	latencySupported, err := utils.MinVerWithoutPreRelease(p.version, "17.5.0")
-	if err != nil {
-		return trace.Wrap(err)
+	var err error
+	latencySupported := p.serverProtocol == tdpb.ProtocolName
+	if !latencySupported {
+		latencySupported, err = utils.MinVerWithoutPreRelease(p.version, "17.5.0")
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Create a single pair of legacy.Conn instances. legacy.Conn protects the underlying

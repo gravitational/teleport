@@ -1619,7 +1619,7 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	clusterName := "example.com"
-	out, err := clt.GetTunnelConnections(clusterName)
+	out, err := clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Empty(t, out)
 
@@ -1634,12 +1634,12 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	err = clt.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
-	out, err = clt.GetTunnelConnections(clusterName)
+	out, err = clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	out, err = clt.GetAllTunnelConnections()
+	out, err = clt.GetAllTunnelConnections(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1650,13 +1650,13 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	err = clt.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
-	out, err = clt.GetTunnelConnections(clusterName)
+	out, err = clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete all to reset test environment
-	out, err = clt.GetAllTunnelConnections()
+	out, err = clt.GetAllTunnelConnections(ctx)
 	require.NoError(t, err)
 	for _, tc := range out {
 		err := testSrv.Auth().DeleteTunnelConnection(ctx, tc.GetClusterName(), tc.GetName())
@@ -1667,7 +1667,7 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	err = clt.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
-	out, err = clt.GetTunnelConnections(clusterName)
+	out, err = clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1675,9 +1675,32 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	err = clt.DeleteTunnelConnection(ctx, clusterName, conn.GetName())
 	require.NoError(t, err)
 
-	out, err = clt.GetTunnelConnections(clusterName)
+	out, err = clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Empty(t, out)
+
+	// Exercise the direct gRPC ListTunnelConnections RPC, including the filter.
+	for i := 0; i < 3; i++ {
+		c, err := types.NewTunnelConnection(fmt.Sprintf("grpc-conn-%d", i), types.TunnelConnectionSpecV2{
+			ClusterName:   clusterName,
+			ProxyName:     fmt.Sprintf("p%d", i),
+			LastHeartbeat: dt,
+		})
+		require.NoError(t, err)
+		require.NoError(t, clt.UpsertTunnelConnection(ctx, c))
+	}
+
+	resp, err := clt.TrustClient().ListTunnelConnections(ctx, trustpb.ListTunnelConnectionsRequest_builder{
+		Filter: trustpb.ListTunnelConnectionsFilter_builder{ClusterName: clusterName}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Len(t, resp.GetTunnelConnections(), 3)
+
+	resp, err = clt.TrustClient().ListTunnelConnections(ctx, trustpb.ListTunnelConnectionsRequest_builder{
+		Filter: trustpb.ListTunnelConnectionsFilter_builder{ClusterName: "other.example.com"}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, resp.GetTunnelConnections())
 }
 
 // TestTunnelConnectionsLegacyHTTP exercises the legacy HTTP handlers for
@@ -1708,15 +1731,36 @@ func TestTunnelConnectionsLegacyHTTP(t *testing.T) {
 	}{TunnelConnection: data})
 	require.NoError(t, err)
 
-	stored, err := clt.GetTunnelConnections(clusterName)
+	stored, err := clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, stored, 1)
 	require.Equal(t, conn.GetName(), stored[0].GetName())
 
+	// Exercise the legacy HTTP GET endpoints directly, so they stay covered
+	// during the v19→v20 fallback window.
+	readFromHTTP := func(path ...string) []types.TunnelConnection {
+		out, err := clt.HTTPClient.Get(ctx, clt.HTTPClient.Endpoint(path...), url.Values{})
+		require.NoError(t, err)
+		var items []json.RawMessage
+		require.NoError(t, json.Unmarshal(out.Bytes(), &items))
+		result := make([]types.TunnelConnection, len(items))
+		for i, raw := range items {
+			c, err := services.UnmarshalTunnelConnection(raw)
+			require.NoError(t, err)
+			result[i] = c
+		}
+		return result
+	}
+	byCluster := readFromHTTP("tunnelconnections", clusterName)
+	require.Len(t, byCluster, 1)
+	require.Equal(t, conn.GetName(), byCluster[0].GetName())
+	all := readFromHTTP("tunnelconnections")
+	require.Len(t, all, 1)
+
 	_, err = clt.HTTPClient.Delete(ctx, clt.HTTPClient.Endpoint("tunnelconnections", clusterName, conn.GetName()))
 	require.NoError(t, err)
 
-	stored, err = clt.GetTunnelConnections(clusterName)
+	stored, err = clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Empty(t, stored)
 }
@@ -2195,6 +2239,26 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, ns)
+
+	// Extending also works calling the gRPC RPC directly.
+	grpcResp, err := web.APIClient.ExtendWebSession(ctx, &proto.ExtendWebSessionRequest{
+		User:          user,
+		PrevSessionId: ws.GetName(),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, grpcResp.GetSession())
+
+	// Extending also works calling the legacy HTTP endpoint directly.
+	// TODO(strideynet): DELETE IN v20.0.0 - remove alongside the legacy HTTP
+	// endpoint.
+	out, err := web.HTTPClient.PostJSON(ctx, web.HTTPClient.Endpoint("users", user, "web", "sessions"), authclient.WebSessionReq{
+		User:          user,
+		PrevSessionID: ws.GetName(),
+	})
+	require.NoError(t, err)
+	httpSess, err := services.UnmarshalWebSession(out.Bytes())
+	require.NoError(t, err)
+	require.NotNil(t, httpSess)
 
 	// Requesting forbidden action for user fails
 	err = web.DeleteUser(ctx, user)
@@ -4476,12 +4540,12 @@ func TestEventsNodePresence(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-
+	nodeName := "node1." + testSrv.ClusterName()
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      "node1",
+			Name:      nodeName,
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.ServerSpecV2{
@@ -4492,7 +4556,7 @@ func TestEventsNodePresence(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
-			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, testSrv.ClusterName()),
+			Username: nodeName,
 		},
 	})
 	require.NoError(t, err)
@@ -5042,7 +5106,7 @@ func TestEvents(t *testing.T) {
 				err = testSrv.Auth().UpsertTunnelConnection(ctx, conn)
 				require.NoError(t, err)
 
-				out, err := testSrv.Auth().GetTunnelConnections("example.com")
+				out, err := testSrv.Auth().GetTunnelConnections(ctx, "example.com")
 				require.NoError(t, err)
 
 				err = testSrv.Auth().DeleteTunnelConnection(ctx, conn.GetClusterName(), conn.GetName())
@@ -5289,6 +5353,27 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 			Kinds: []types.WatchKind{{
 				Kind:        types.KindCertAuthority,
 				LoadSecrets: false,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case e := <-watcher.Events():
+			require.Equal(t, types.OpInit, e.Type)
+		case <-watcher.Done():
+			t.Fatalf("watcher closed unexpectedly: %v", watcher.Error())
+		}
+	})
+
+	t.Run("spiffe_federation", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "spiffe-federation-watch",
+			Kinds: []types.WatchKind{{
+				Kind: types.KindSPIFFEFederation,
 			}},
 		})
 		require.NoError(t, err)
@@ -6226,6 +6311,7 @@ type testTLSServerOptions struct {
 	bufconnListener bool
 	modules         *modulestest.Modules
 	scopesFeatures  scopes.Features
+	emitter         eventtypes.Emitter
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -6266,6 +6352,14 @@ func withScopesFeatures(scopesFeatures scopes.Features) testTLSServerOption {
 	}
 }
 
+// withEmitter replaces the audit event emitter before the server starts
+// serving, which is the only time it is safe to do so.
+func withEmitter(emitter eventtypes.Emitter) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.emitter = emitter
+	}
+}
+
 // newTestTLSServer is a helper that returns a *authtest.TLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs. For more advanced
 // use-cases, NewTestTLSServer to provide a more detailed configuration.
@@ -6291,6 +6385,10 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	if options.emitter != nil {
+		as.AuthServer.SetEmitter(options.emitter)
+	}
 
 	var tlsServerOpts []authtest.TestTLSServerOption
 	if options.accessGraph != nil {

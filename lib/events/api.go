@@ -262,9 +262,10 @@ const (
 	SubsystemError = "exitError"
 
 	// X11 forwarding event
-	X11ForwardEvent   = "x11-forward"
-	X11ForwardSuccess = "success"
-	X11ForwardErr     = "error"
+	X11ForwardEvent = "x11-forward"
+
+	// Agent forwarding event
+	AgentForwardEvent = "agent-forward"
 
 	// Port forwarding event
 	PortForwardEvent           = "port"
@@ -373,6 +374,15 @@ const (
 	// also known as Join Token. See [types.ProvisionToken].
 	ProvisionTokenCreateEvent = "join_token.create"
 
+	// ScopedTokenCreateEvent is the event for creating a scoped token.
+	ScopedTokenCreateEvent = "scoped_token.create"
+	// ScopedTokenUpsertEvent is the event for upserting a scoped token.
+	ScopedTokenUpsertEvent = "scoped_token.upsert"
+	// ScopedTokenUpdateEvent is the event for updating a scoped token.
+	ScopedTokenUpdateEvent = "scoped_token.update"
+	// ScopedTokenDeleteEvent is the event for deleting a scoped token.
+	ScopedTokenDeleteEvent = "scoped_token.delete"
+
 	// GithubConnectorCreatedEvent fires when a Github connector is created.
 	GithubConnectorCreatedEvent = "github.created"
 	// GithubConnectorUpdatedEvent fires when a Github connector is updated.
@@ -429,6 +439,14 @@ const (
 	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
 	// is sent and fails.
 	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
+	// AppSessionHTTPRequestEvent is emitted when a proxied HTTP request is received.
+	AppSessionHTTPRequestEvent = "http.request"
+	// AppSessionHTTPRequestBodyChunkEvent is emitted for each chunk of a proxied HTTP request body.
+	AppSessionHTTPRequestBodyChunkEvent = "http.request.body_chunk"
+	// AppSessionHTTPResponseEvent is emitted when a proxied HTTP response is received.
+	AppSessionHTTPResponseEvent = "http.response"
+	// AppSessionHTTPResponseBodyChunkEvent is emitted for each chunk of a proxied HTTP response body.
+	AppSessionHTTPResponseBodyChunkEvent = "http.response.body_chunk"
 
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
@@ -598,6 +616,13 @@ const (
 	// WindowsDesktopSessionEndEvent is emitted when a user disconnects
 	// from a desktop.
 	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
+
+	// LinuxDesktopSessionStartEvent is emitted when a user attempts
+	// to connect to a desktop.
+	LinuxDesktopSessionStartEvent = "linux.desktop.session.start"
+	// LinuxDesktopSessionEndEvent is emitted when a user disconnects
+	// from a desktop.
+	LinuxDesktopSessionEndEvent = "linux.desktop.session.end"
 
 	// CertificateCreateEvent is emitted when a certificate is issued.
 	CertificateCreateEvent = "cert.create"
@@ -1038,6 +1063,13 @@ const (
 	// RetrievalModelDeleteEvent is emitted when a retrieval model resource is deleted.
 	RetrievalModelDeleteEvent = "retrieval_model.delete"
 
+	// ClassifierCreateEvent is emitted when a classifier resource is created.
+	ClassifierCreateEvent = "classifier.create"
+	// ClassifierUpdateEvent is emitted when a classifier resource is updated.
+	ClassifierUpdateEvent = "classifier.update"
+	// ClassifierDeleteEvent is emitted when a classifier resource is deleted.
+	ClassifierDeleteEvent = "classifier.delete"
+
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"
 
@@ -1053,6 +1085,13 @@ const (
 	// CertAuthOverrideDeleteEvent is the delete event for cert_auth_override
 	// resources.
 	CertAuthOverrideDeleteEvent = "cert_auth_override.delete"
+
+	// BeamsConfigCreateEvent is emitted when a Beams config resource is created.
+	BeamsConfigCreateEvent = "beams.config.create"
+	// BeamsConfigUpdateEvent is emitted when a Beams config resource is updated.
+	BeamsConfigUpdateEvent = "beams.config.update"
+	// BeamsConfigDeleteEvent is emitted when a Beams config resource is deleted.
+	BeamsConfigDeleteEvent = "beams.config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -1076,6 +1115,7 @@ const (
 var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
+	LinuxDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
 
 	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.

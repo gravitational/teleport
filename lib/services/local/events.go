@@ -144,6 +144,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAppServerV3Parser()
 		case types.KindBeam:
 			parser = newBeamParser()
+		case types.KindBeamsConfig:
+			parser = newBeamsConfigParser()
 		case types.KindWebSession:
 			switch kind.SubKind {
 			case types.KindSnowflakeSession:
@@ -291,12 +293,14 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newInferencePolicyParser()
 		case types.KindInferenceSecret:
 			parser = newInferenceSecretParser()
+		case types.KindClassifier:
+			parser = newClassifierParser()
 		case types.KindRetrievalModel:
 			parser = newRetrievalModelParser()
 		case types.KindCertAuthorityOverride:
 			parser = newCertAuthorityOverrideParser()
 		case types.KindValidatedMFAChallenge:
-			parser = newValidatedMFAChallengeParser()
+			parser = newValidatedMFAChallengeParser(kind.Filter)
 		default:
 			if watch.AllowPartialSuccess {
 				continue

@@ -90,6 +90,8 @@ type SessionContext struct {
 	UserRoles []string
 	// UserTraits are the traits assigned to the user.
 	UserTraits wrappers.Traits
+	// BeamID is the identifier of the Beam this session was created for.
+	BeamID string
 
 	// AuditSessionID is the audit session ID that should be the same
 	// for all processes in an SSH session. It is used to correlate

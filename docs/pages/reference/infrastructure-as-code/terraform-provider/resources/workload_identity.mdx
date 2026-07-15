@@ -51,6 +51,7 @@ resource "teleport_workload_identity" "example" {
 ### Optional
 
 - `metadata` (Attributes) Common metadata that all resources share. (see [below for nested schema](#nested-schema-for-metadata))
+- `scope` (String) The scope of the WorkloadIdentity. If unset, the WorkloadIdentity is unscoped (classic behavior). If set, the WorkloadIdentity is scoped and the SPIFFE ID defined in spec.spiffe.id must be a scoped SPIFFE ID prefixed with this scope. The scope of a WorkloadIdentity cannot be changed after creation.
 - `spec` (Attributes) The configured properties of the WorkloadIdentity (see [below for nested schema](#nested-schema-for-spec))
 - `sub_kind` (String) Differentiates variations of the same kind. All resources should contain one, even if it is never populated.
 - `version` (String) The version of the resource being represented.

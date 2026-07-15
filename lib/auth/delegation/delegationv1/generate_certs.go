@@ -247,7 +247,14 @@ func (s *SessionService) generateCertificates(
 
 		BotName:             callerIdentity.BotName,
 		BotInstanceID:       callerIdentity.BotInstanceID,
+		BotScope:            callerIdentity.BotScope,
 		DelegationSessionID: session.GetMetadata().GetName(),
+	}
+
+	// If the delegation session is associated with a Beam, carry its ID through
+	// to the issued certificate so downstream services can attribute usage.
+	if beamID := session.GetMetadata().GetLabels()[types.BeamIDLabel]; beamID != "" {
+		certReq.BeamID = beamID
 	}
 
 	// Add the protocol-specific routing hints to the certificate.
@@ -278,6 +285,7 @@ func (s *SessionService) generateCertificates(
 				RequestedResourceAccessIDs: resourceIDs,
 				AttestWebSession:           true,
 				DelegationSessionID:        session.GetMetadata().GetName(),
+				BeamID:                     certReq.BeamID,
 			},
 			PublicAddr:        certReq.AppPublicAddr,
 			ClusterName:       certReq.AppClusterName,
@@ -291,6 +299,7 @@ func (s *SessionService) generateCertificates(
 			AppTargetPort: certReq.AppTargetPort,
 			BotName:       callerIdentity.BotName,
 			BotInstanceID: certReq.BotInstanceID,
+			BotScope:      callerIdentity.BotScope,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

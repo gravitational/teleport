@@ -44,9 +44,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -122,6 +125,22 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 	if app.GetTLS() != nil {
 		if err := validateAppTLS(app); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+
+	if region := app.GetAWSRegion(); region != "" {
+		if err := aws.IsValidRegion(region); err != nil {
+			return trace.BadParameter(
+				"Application %q is configured with an invalid AWS region (%q)",
+				app.GetName(),
+				region,
+			)
+		}
+	}
+
+	if scope := app.GetScope(); scope != "" {
+		if !scopedapp.ScopedAppPublicAddrValid(scope, app.GetName(), app.GetPublicAddr()) {
+			return trace.BadParameter("scoped app %q public address %q does not match its derived address for scope %q", app.GetName(), app.GetPublicAddr(), scope)
 		}
 	}
 
@@ -297,7 +316,25 @@ func ValidateAppServer(server types.AppServer, proxyGetter ProxyGetter) error {
 	if errs := validation.IsDNS1123SubdomainWithUnderscore(server.GetName()); len(errs) > 0 {
 		return trace.BadParameter("app server name %q must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', must start and end with alphanumeric, max 253 chars): %s", server.GetName(), strings.Join(errs, ", "))
 	}
-	return trace.Wrap(ValidateApp(server.GetApp(), proxyGetter))
+
+	app := server.GetApp()
+
+	if app != nil && !AppServerScopesEqual(server.GetScope(), app.GetScope()) {
+		return trace.BadParameter("app server %q scope %q does not match its embedded app scope %q", server.GetName(), server.GetScope(), app.GetScope())
+	}
+
+	return trace.Wrap(ValidateApp(app, proxyGetter))
+}
+
+// AppServerScopesEqual reports whether an app server's scope and its embedded
+// app's scope are equivalent.
+func AppServerScopesEqual(serverScope, appScope string) bool {
+	// Empty string comparison is treated as orthogonal in scopes.Compare.
+	// If server scope is empty (unscoped), we should make sure the app's scope is also empty, and vice versa.
+	if serverScope == "" || appScope == "" {
+		return serverScope == appScope
+	}
+	return scopes.Compare(serverScope, appScope) == scopes.Equivalent
 }
 
 // ValidatePublicAddr requires a lowercase DNS-1123 hostname. An

@@ -38,6 +38,10 @@ export interface UserContext {
   authType: AuthType;
   acl: Acl;
   username: string;
+  /** Human-readable name resolved server-side, empty if not distinct from username. */
+  displayPrimary: string;
+  /** Supporting context resolved server-side, usually email. */
+  displaySecondary: string;
   cluster: Cluster;
   accessStrategy: AccessStrategy;
   accessCapabilities: AccessCapabilities;
@@ -71,6 +75,10 @@ export interface Access {
 
 export interface AccessWithUse extends Access {
   use: boolean;
+}
+
+export interface MobileDeviceAccess {
+  createEnrollToken: boolean;
 }
 
 export interface Acl {
@@ -130,6 +138,7 @@ export interface Acl {
   inferenceModel: Access;
   inferenceSecret: Access;
   beam: Access;
+  mobileDevice: MobileDeviceAccess;
 }
 
 // AllTraits represent all the traits defined for a user.

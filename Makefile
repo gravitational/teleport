@@ -19,6 +19,7 @@ DOCKER_IMAGE ?= teleport
 
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+HELM_UNITTEST_VERSION := $(shell cat $(MAKE_DIR)/build.assets/helm-unittest.version)
 
 # If set to 1, webassets are not built.
 WEBASSETS_SKIP_BUILD ?= 0
@@ -556,6 +557,11 @@ export ironrdp_package_json
 
 IRONRDP_SKIP_BUILD ?= 0
 
+# wasm-bindgen CLI binary to invoke. Overridden to a per-version path under
+# target/ when WASM_BINDGEN_ISOLATE=1 (see ensure-wasm-bindgen); otherwise the
+# shared binary resolved from $$PATH (typically ~/.cargo/bin).
+WASM_BINDGEN ?= wasm-bindgen
+
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
 ifeq ($(IRONRDP_SKIP_BUILD),1)
@@ -565,7 +571,7 @@ else
 build-ironrdp-wasm: ensure-wasm-deps
 	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
-	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
+	$(WASM_BINDGEN) target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
 endif
 
@@ -950,12 +956,12 @@ $(TEST_LOG_DIR):
 .PHONY: helmunit/installed
 helmunit/installed:
 	@if ! helm unittest -h >/dev/null; then \
-		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11` to install it'; \
+		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/helm-unittest/helm-unittest --version $(HELM_UNITTEST_VERSION)` to install it'; \
 		exit 1; \
 	fi
 
 # The CI environment is responsible for setting HELM_PLUGINS to a directory where
-# quintish/helm-unittest is installed.
+# helm-unittest/helm-unittest is installed.
 #
 # Github Actions build uses /workspace as homedir and Helm can't pick up plugins by default there,
 # so override the plugin location via environemnt variable when running in CI. Github Actions provide CI=true
@@ -1637,7 +1643,7 @@ GODERIVE := $(TOOLINGDIR)/bin/goderive
 .PHONY: derive
 derive:
 	cd $(TOOLINGDIR) && go build -o $(GODERIVE) ./cmd/goderive/main.go
-	$(GODERIVE) ./api/types ./api/types/discoveryconfig ./api/types/accesslist ./api/types/userloginstate
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig ./api/types/accesslist ./api/types/userloginstate ./lib/config/
 
 # derive-up-to-date checks if the generated derived functions are up to date.
 .PHONY: derive-up-to-date
@@ -1912,12 +1918,39 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: ensure-llvm-macos rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+
+.PHONY: ensure-llvm-macos
+ifeq ("$(OS)-$(ARCH)","darwin-arm64")
+BREW_DIR = $(shell brew --prefix)
+LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
+LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
+CC = $(LLVM_DIR)/bin/clang
+AR = $(LLVM_DIR)/bin/llvm-ar
+ensure-llvm-macos:
+	@if [[ "${BREW_DIR}" = "${LLVM_DIR}" ]]; then \
+		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
+		exit 1; \
+	fi
+
+else
+ensure-llvm-macos:
+endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
   in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
 ' Cargo.lock)
+
+# Opt-in isolation (WASM_BINDGEN_ISOLATE=1): install and run the wasm-bindgen CLI
+# from a per-version path under target/ rather than the shared ~/.cargo/bin. 
+WASM_BINDGEN_ISOLATE ?= 0
+WASM_BINDGEN_INSTALL_FLAGS =
+ifeq ($(WASM_BINDGEN_ISOLATE),1)
+WASM_BINDGEN_INSTALL_ROOT = $(CURDIR)/target/wasm-bindgen-cli/$(WASM_BINDGEN_VERSION)
+WASM_BINDGEN := $(WASM_BINDGEN_INSTALL_ROOT)/bin/wasm-bindgen
+WASM_BINDGEN_INSTALL_FLAGS = --root "$(WASM_BINDGEN_INSTALL_ROOT)"
+endif
 
 .PHONY: print-wasm-bindgen-version
 print-wasm-bindgen-version:
@@ -1930,11 +1963,11 @@ print-rust-toolchain-version:
 	@echo $(RUST_TOOLCHAIN_VERSION)
 
 ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
-ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
+ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell $(WASM_BINDGEN) --version 2>/dev/null))
 ensure-wasm-bindgen:
 	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
 	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)", \
+		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)" $(WASM_BINDGEN_INSTALL_FLAGS), \
 		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
 	)
 endif

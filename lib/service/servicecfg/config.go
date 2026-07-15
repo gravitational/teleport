@@ -127,6 +127,9 @@ type Config struct {
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
+	// LinuxDesktop defines the Linux desktop service configuration.
+	LinuxDesktop LinuxDesktopConfig
+
 	// Discovery defines the discovery service configuration.
 	Discovery DiscoveryConfig
 
@@ -289,11 +292,6 @@ type Config struct {
 	// This is private to avoid external packages reading the value - the value should be obtained
 	// using Token()
 	token string
-
-	// tokenSecret is either the secret needed to join with the token defined for the config, or
-	// a path that contains the secret. This is private to avoid external packages reading the
-	// value - the value should be obtained using TokenSecret()
-	tokenSecret string
 
 	// v1, v2 -
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
@@ -460,6 +458,7 @@ func DisableLongRunningServices(cfg *Config) {
 	cfg.Kube.Enabled = false
 	cfg.Apps.Enabled = false
 	cfg.WindowsDesktop.Enabled = false
+	cfg.LinuxDesktop.Enabled = false
 	cfg.Databases.Enabled = false
 	cfg.Okta.Enabled = false
 }
@@ -468,6 +467,7 @@ func DisableLongRunningServices(cfg *Config) {
 type JoinParams struct {
 	Azure        AzureJoinParams
 	BoundKeypair BoundKeypairParams
+	GenericOIDC  GenericOIDCParams
 }
 
 // AzureJoinParams is the parameters specific to the azure join method.
@@ -492,6 +492,23 @@ type BoundKeypairParams struct {
 	// do not support automatic keypair rotation, and must be used with a token
 	// set to use `insecure` recovery mode.
 	StaticPrivateKeyPath string
+}
+
+// GenericOIDCParams contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout"`
 }
 
 // RegistrationSecret returns the currently configured bound keypair
@@ -583,6 +600,8 @@ func (cfg *Config) CheckServicesForSELinux() bool {
 		fallthrough
 	case cfg.Proxy.Enabled:
 		fallthrough
+	case cfg.LinuxDesktop.Enabled:
+		fallthrough
 	case cfg.WindowsDesktop.Enabled:
 		return false
 
@@ -634,34 +653,11 @@ func (cfg *Config) Token() (string, error) {
 	return token, nil
 }
 
-// TokenSecret returns token secret needed to join the auth server with the configured token
-//
-// If the value stored points to a file, it will attempt to read the token secret from the file
-// and return an error if it wasn't successful.
-// If the value stored doesn't point to a file, it'll return the value stored.
-// If the secret hasn't been set, an empty string will be returned
-func (cfg *Config) TokenSecret() (string, error) {
-	secret, err := utils.TryReadValueAsFile(cfg.tokenSecret)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return secret, nil
-}
-
 // SetToken stores the value for --token or auth_token in the config
 //
 // This can be either the token or an absolute path to a file containing the token.
 func (cfg *Config) SetToken(token string) {
 	cfg.token = token
-}
-
-// SetTokenSecret stores the value for --token-secret or join_params.token_secret in the
-// config.
-//
-// This can be either the secret or an absolute path to a file containing the secret.
-func (cfg *Config) SetTokenSecret(secret string) {
-	cfg.tokenSecret = secret
 }
 
 // HasToken gives the ability to check if there has been a token value stored
@@ -819,6 +815,10 @@ func ApplyDefaults(cfg *Config) {
 	// Windows desktop service is disabled by default.
 	cfg.WindowsDesktop.Enabled = false
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
+
+	// Linux desktop service is disabled by default.
+	cfg.LinuxDesktop.Enabled = false
+	defaults.ConfigureLimiter(&cfg.LinuxDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
 	cfg.AuthConnectionConfig = *DefaultRatioAuthConnectionConfig(defaults.MaxWatcherBackoff)
@@ -1006,6 +1006,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
 		cfg.WindowsDesktop.Enabled,
+		cfg.LinuxDesktop.Enabled,
 		cfg.Discovery.Enabled,
 		cfg.Okta.Enabled,
 		cfg.Jamf.Enabled(),
@@ -1019,7 +1020,7 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service",
+		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, linux_desktop_service, discovery_service, okta_service or jamf_service",
 	)
 }
 

@@ -26,8 +26,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	scopespb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache"
 )
@@ -89,41 +87,9 @@ func (c *RoleCache) ListScopedRolesWithFilter(ctx context.Context, req *scopedac
 		pageSize = maxPageSize
 	}
 
-	if req.GetResourceScope() != nil && req.GetAssignableScope() != nil {
-		return nil, trace.BadParameter("cannot filter by both resource scope and assignable scope simultaneously")
-	}
-
 	cursor, err := cache.DecodeStringCursor(req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// resources subject to policy scope root is basically the scoped resource equivalent
-	// of a "get all". this is a reasonable default for most queries.
-	getter := c.cache.ResourcesSubjectToPolicyScope
-	scope := scopes.Root
-
-	// if a resource scope filter has been provided, the user has specified a custom scope/mode to
-	// query by.
-	if req.GetResourceScope() != nil {
-		// a resource-scope based filter has been provided
-		switch req.GetResourceScope().GetMode() {
-		case scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
-			getter = c.cache.ResourcesSubjectToPolicyScope
-		case scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
-			getter = c.cache.PoliciesApplicableToResourceScope
-		default:
-			return nil, trace.BadParameter("unsupported or unspecified scoping mode %q in scoped role resource scope filter", req.GetResourceScope().GetMode())
-		}
-		scope = req.GetResourceScope().GetScope()
-	}
-
-	if req.GetAssignableScope() != nil {
-		// NOTE: we eventually want to be able to query roles by the scopes at which they are assignable,
-		// instead of just resource scope. this is important for introspection/auditing but not necessary for
-		// the core funcationality of teleport, so implementation has been deferred. (will require implementation
-		// of a more complex caching structure where each resource will be associable with multiple scopes)
-		return nil, trace.NotImplemented("assignable scope filtering for scoped role roles is not yet supported")
 	}
 
 	finalFilter := filter
@@ -133,10 +99,16 @@ func (c *RoleCache) ListScopedRolesWithFilter(ctx context.Context, req *scopedac
 		}
 	}
 
+	// the primary scope filter selects the cache traversal strategy.
+	resources, err := c.cache.ResourcesMatchingScopeFilter(req.GetScopeFilter(), c.cache.WithCursor(cursor), c.cache.WithFilter(finalFilter))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var out []*scopedaccessv1.ScopedRole
 	var nextCursor cache.Cursor[string]
 Outer:
-	for scope := range getter(scope, c.cache.WithCursor(cursor), c.cache.WithFilter(finalFilter)) {
+	for scope := range resources {
 		for role := range scope.Items() {
 			if len(out) == pageSize {
 				nextCursor = cache.Cursor[string]{

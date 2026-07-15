@@ -102,6 +102,43 @@ type GitlabParams struct {
 	EnvVarName string
 }
 
+// GenericOIDCParams has parameters specific to the `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// EnvVarName is the name of an environment variable to extract a JWT.
+	// Mutually exclusive with `Command`.
+	EnvVarName string
+
+	// Command is the command (and arguments) to run to fetch the JWT. The
+	// stdout must consist exclusively of a valid JWT and it must return with a
+	// 0 exit code. Mutually exclusive with `EnvVarName`.
+	Command []string
+
+	// Timeout is the timeout for a command token fetch. If unset, a timeout of
+	// 1 minute is used.
+	Timeout time.Duration
+}
+
+// Validate does basic sanity checks against a GenericOIDCParams.
+func (p *GenericOIDCParams) Validate() error {
+	if p.EnvVarName == "" && len(p.Command) == 0 {
+		return trace.BadParameter("generic_oidc: must set one of `env` or `command`")
+	}
+
+	if p.EnvVarName != "" && len(p.Command) > 0 {
+		return trace.BadParameter("generic_oidc: cannot set both `env` and `command`")
+	}
+
+	return nil
+}
+
+// VersionInfo contains version information advertised by a cluster during join.
+type VersionInfo struct {
+	// ServerVersion is the Teleport version advertised by the cluster.
+	ServerVersion string
+	// MinClientVersion is the minimum client version advertised by the cluster.
+	MinClientVersion string
+}
+
 // RegisterParams specifies parameters
 // for first time register operation with auth server
 type RegisterParams struct {
@@ -179,6 +216,8 @@ type RegisterParams struct {
 	TerraformCloudAudienceTag string
 	// GitlabParams is the parameters specific to the gitlab join method.
 	GitlabParams GitlabParams
+	// GenericOIDCParams contains parameters specific to generic_oidc joining.
+	GenericOIDCParams GenericOIDCParams
 	// BoundKeypairState contains the bound keypair client state, which must
 	// always be present when joining with the bound keypair join method, even
 	// at first join.
@@ -201,6 +240,10 @@ type RegisterParams struct {
 	// Log is the logger to use for emitting log messages.
 	// If not specified, this defaults to the global logger.
 	Log *slog.Logger
+	// OnVersionCallback, if non-nil, is invoked during a join after fetching
+	// version information from the cluster. Returning a non-nil error aborts
+	// the join; returning nil allows it to proceed.
+	OnVersionCallback func(ctx context.Context, info VersionInfo) error
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {

@@ -269,6 +269,9 @@ const (
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
 
+	// ComponentLinuxDesktop is a Linux desktop access server.
+	ComponentLinuxDesktop = "linux_desktop"
+
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
 
@@ -301,6 +304,9 @@ const (
 
 	// ComponentMCP represents the MCP server handler.
 	ComponentMCP = "mcp"
+
+	// ComponentLLM represents the LLM server handler.
+	ComponentLLM = "llm"
 
 	// ComponentRecordingEncryption represents recording encryption
 	ComponentRecordingEncryption = "recording-encryption"
@@ -541,12 +547,19 @@ const (
 	// Machine ID bot instance, if any. This identifier is persisted through
 	// certificate renewals.
 	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
+	// CertExtensionBotScope indicates the scope of the Machine ID bot this
+	// certificate was issued to, if any.
+	CertExtensionBotScope = "bot-scope@goteleport.com"
 	// CertExtensionJoinToken is the name of the join token used to join this
 	// bot, if any.
 	CertExtensionJoinToken = "join-token@goteleport.com"
 	// CertExtensionDelegationSessionID contains the identifier of the
 	// Delegation Session this certificate was created for.
 	CertExtensionDelegationSessionID = "delegation-session-id@goteleport.com"
+	// CertExtensionBeamID contains the identifier of the Beam this certificate
+	// was created for, derived from the delegation session's
+	// types.BeamIDLabel label.
+	CertExtensionBeamID = "beam-id@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -923,6 +936,10 @@ const (
 	// UsageWindowsDesktopOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Windows desktop access
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
+
+	// UsageLinuxDesktopOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Linux desktop access
+	UsageLinuxDesktopOnly = "usage:linux_desktop"
 
 	// UsageAccessGraphAPIOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Access Graph API access.

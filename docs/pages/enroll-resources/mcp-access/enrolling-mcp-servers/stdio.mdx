@@ -6,6 +6,7 @@ tags:
 - how-to
 - mcp
 - zero-trust
+page_type: how-to
 ---
 
 Teleport can provide secure access to MCP servers with stdio transport.
@@ -63,7 +64,8 @@ app_service:
       # Args to execute with the command.
       args: ["run", "-i", "--rm", "mcp/everything"]
       # Name of the host user account under which the command will be
-      # executed. Required for stdio-based MCP servers.
+      # executed. Required for stdio-based MCP servers. The user account must
+      # exist on the host before you run the Teleport Application Service.
       run_as_host_user: "docker"
 ```
 
