@@ -1,9 +1,12 @@
 package internal
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -14,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_RetryTunnelInitialization(t *testing.T) {
+func TestRetryTunnelInitialization(t *testing.T) {
 	t.Parallel()
 
 	var initCalled bool
@@ -23,19 +26,25 @@ func Test_RetryTunnelInitialization(t *testing.T) {
 		return nil
 	}
 
+	var loggerContents bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&loggerContents, nil))
+
 	registry := readyz.NewRegistry()
 	reporter := registry.AddService("application-tunnel", "test")
 
-	err := RetryTunnelInitialization(t.Context(), logtest.NewLogger(), reporter, init)
+	err := RetryTunnelInitialization(t.Context(), logger, reporter, init)
 	require.NoError(t, err)
 	require.True(t, initCalled)
 
 	status, ok := registry.ServiceStatus("test")
 	require.True(t, ok)
 	require.Equal(t, readyz.Initializing, status.Status)
+
+	// It should never show recovery logs if it succeeds at first attempt.
+	require.NotContains(t, loggerContents.String(), "Tunnel initialization recovered")
 }
 
-func Test_RetryTunnelInitialization_Retries(t *testing.T) {
+func TestRetryTunnelInitialization_Retries(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -59,11 +68,19 @@ func Test_RetryTunnelInitialization_Retries(t *testing.T) {
 		retryCtx, cancelCtx := context.WithCancel(t.Context())
 		defer cancelCtx()
 
-		deterministicJitter := func(d time.Duration) time.Duration { return d / 2 }
+		var jitterCallCount atomic.Int32
+		deterministicJitter := func(d time.Duration) time.Duration {
+			jitterCallCount.Add(1)
+			return d / 2
+		}
+
+		var loggerContents bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&loggerContents, nil))
+
 		go func() {
 			result <- retryTunnelInitialization(
 				retryCtx,
-				logtest.NewLogger(),
+				logger,
 				reporter,
 				deterministicJitter,
 				init)
@@ -96,6 +113,8 @@ func Test_RetryTunnelInitialization_Retries(t *testing.T) {
 		for i, d := range backoffs {
 			before, after := int32(i+1), int32(i+2)
 
+			require.Equal(t, i+1, int(jitterCallCount.Load()))
+
 			// Just before the backoff value: no new attempt yet.
 			time.Sleep(d - time.Nanosecond)
 			synctest.Wait()
@@ -127,6 +146,10 @@ func Test_RetryTunnelInitialization_Retries(t *testing.T) {
 			require.Fail(t, "timed out waiting for RetryTunnelInitialization to return")
 		}
 
+		// Validate that log reporting is correct
+		require.Equal(t, 7, strings.Count(loggerContents.String(), "Tunnel initialization failed, will retry"))
+		require.Equal(t, 1, strings.Count(loggerContents.String(), "Tunnel initialization recovered"))
+
 		// There should have been 7 failed attempts, plus one successful.
 		require.Equal(t, int32(8), initCallCount.Load())
 
@@ -138,7 +161,7 @@ func Test_RetryTunnelInitialization_Retries(t *testing.T) {
 	})
 }
 
-func Test_RetryTunnelInitialization_ContextCancellation(t *testing.T) {
+func TestRetryTunnelInitialization_ContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	t.Run("starting with a canceled context", func(t *testing.T) {
@@ -147,6 +170,12 @@ func Test_RetryTunnelInitialization_ContextCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
+		var initCalled bool
+		init := func(_ context.Context) error {
+			initCalled = true
+			return nil
+		}
+
 		registry := readyz.NewRegistry()
 		reporter := registry.AddService("application-tunnel", "test")
 
@@ -154,7 +183,7 @@ func Test_RetryTunnelInitialization_ContextCancellation(t *testing.T) {
 			ctx,
 			logtest.NewLogger(),
 			reporter,
-			func(ctx context.Context) error { return nil })
+			init)
 
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.Canceled)
@@ -163,6 +192,8 @@ func Test_RetryTunnelInitialization_ContextCancellation(t *testing.T) {
 		status, ok := registry.ServiceStatus("test")
 		require.True(t, ok)
 		require.Equal(t, readyz.Initializing, status.Status)
+
+		require.False(t, initCalled, "the init function was called when it shouldn't")
 	})
 
 	t.Run("mid-init cancellation", func(t *testing.T) {

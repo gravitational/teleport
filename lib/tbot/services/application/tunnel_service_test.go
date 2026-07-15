@@ -315,7 +315,7 @@ func TestE2E_ApplicationTunnelService_Leeway(t *testing.T) {
 	require.EqualValues(t, 2, certsIssued.Load())
 }
 
-func Test_TunnelService_Run_CancellationDuringRetry(t *testing.T) {
+func TestTunnelService_Run_CancellationDuringRetry(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		pinger := &fakePinger{err: errors.New("proxy unreachable")}
 		registry := readyz.NewRegistry()

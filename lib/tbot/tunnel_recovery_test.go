@@ -161,7 +161,7 @@ func waitForTunnelRecoveryServiceStatus(
 			return nil, fmt.Errorf("tbot exited before %q became %s: %w", serviceName, want, run.err)
 		case <-ctx.Done():
 			return nil, fmt.Errorf(
-				"waiting for %q to become %s (last status: %v, last error: %v): %w",
+				"waiting for %q to become %s (last status: %v, last error: %w): %w",
 				serviceName,
 				want,
 				lastStatus,
@@ -442,5 +442,4 @@ func TestBotTunnelServicesRecoverWhenServersAppear(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, appStatus.Reason)
 	run.requireRunning(t)
-
 }
