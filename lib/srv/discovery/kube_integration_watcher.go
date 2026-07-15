@@ -233,7 +233,9 @@ func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
 	awsResultGroups := libslices.FilterMapUnique(
 		allFetchers,
 		func(f common.Fetcher) (awsResourceGroup, bool) {
-			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
+			// Static matchers (empty discovery config name) report their
+			// status into the synthetic discovery config.
+			include := f.IntegrationName() != ""
 			resourceGroup := awsResourceGroup{
 				discoveryConfigName: f.GetDiscoveryConfigName(),
 				integration:         f.IntegrationName(),

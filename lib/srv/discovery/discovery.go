@@ -723,12 +723,13 @@ func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC
 	awsResultGroups := libslices.FilterMapUnique(
 		fetchers,
 		func(f server.Fetcher[*server.EC2Instances]) (awsResourceGroup, bool) {
-			include := f.GetDiscoveryConfigName() != ""
+			// Static matchers (empty discovery config name) report their
+			// status into the synthetic discovery config.
 			resourceGroup := awsResourceGroup{
 				discoveryConfigName: f.GetDiscoveryConfigName(),
 				integration:         f.IntegrationName(),
 			}
-			return resourceGroup, include
+			return resourceGroup, true
 		},
 	)
 	syncStarted := s.clock.Now()

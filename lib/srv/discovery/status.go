@@ -48,9 +48,8 @@ type FetcherStatus interface {
 	// Status reports the last known status of the fetcher.
 	Status() (uint64, error)
 	// DiscoveryConfigName returns the name of the Discovery Config.
+	// Empty for fetchers created from the static (file-based) configuration.
 	DiscoveryConfigName() string
-	// IsFromDiscoveryConfig returns true if the fetcher is associated with a Discovery Config.
-	IsFromDiscoveryConfig() bool
 }
 
 // updateDiscoveryConfigStatus updates the DiscoveryConfig Status field with the current in-memory status.
@@ -61,10 +60,17 @@ type FetcherStatus interface {
 // - AWS EKS Auto Discover status
 func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 	for _, discoveryConfigName := range discoveryConfigNames {
-		// Static configurations (ie those in `teleport.yaml/discovery_config.<cloud>.matchers`) do not have a DiscoveryConfig resource.
-		// Those are discarded because there's no Status to update.
-		if discoveryConfigName == "" {
-			continue
+		// resourceName is the name of the DiscoveryConfig resource that receives the status update.
+		resourceName := discoveryConfigName
+		// Static configurations (ie those in `teleport.yaml/discovery_config.<cloud>.matchers`) do not
+		// have a regular DiscoveryConfig resource: their status is reported into the synthetic
+		// DiscoveryConfig self-published by this service, as long as it is known to exist (older Auth
+		// servers reject the synthetic config, in which case there's no resource to update).
+		if discoveryConfigName == noDiscoveryConfig {
+			if !s.syntheticDiscoveryConfigPublished.Load() {
+				continue
+			}
+			resourceName = discoveryconfig.SyntheticName(s.ServerID)
 		}
 
 		discoveryConfigStatus := discoveryconfig.Status{
@@ -92,8 +98,8 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
 		discoveryConfigStatus.ErrorMessage = truncateErrorMessage(discoveryConfigStatus)
 
-		if err := s.newDiscoveryConfigStatusUpdaterFromServer().update(s.ctx, discoveryConfigName, discoveryConfigStatus); err != nil {
-			s.Log.WarnContext(s.ctx, "Failed to update discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+		if err := s.newDiscoveryConfigStatusUpdaterFromServer().update(s.ctx, resourceName, discoveryConfigStatus); err != nil {
+			s.Log.WarnContext(s.ctx, "Failed to update discovery config status", "discovery_config_name", resourceName, "error", err)
 		}
 	}
 }
@@ -144,11 +150,6 @@ func (d *tagSyncStatus) syncFinished(fetcher FetcherStatus, pushErr error, lastU
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// Only update the status for fetchers that are from the discovery config.
-	if !fetcher.IsFromDiscoveryConfig() {
-		return
-	}
-
 	count, statusErr := fetcher.Status()
 	statusAndPushErr := trace.NewAggregate(statusErr, pushErr)
 
@@ -181,10 +182,6 @@ func (d *tagSyncStatus) discoveryConfigs() []string {
 func (d *tagSyncStatus) syncStarted(fetcher FetcherStatus, lastUpdate time.Time) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	// Only update the status for fetchers that are from the discovery config.
-	if !fetcher.IsFromDiscoveryConfig() {
-		return
-	}
 
 	fetcherResult := tagSyncResult{
 		state:        discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
@@ -360,10 +357,6 @@ func (ars *awsResourcesStatus) incrementFound(g awsResourceGroup, count int) {
 }
 
 func (ars *awsResourcesStatus) incrementField(g awsResourceGroup, f func(groupStats *awsResourceGroupResult)) {
-	if g.discoveryConfigName == "" {
-		return
-	}
-
 	ars.mu.Lock()
 	defer ars.mu.Unlock()
 	groupStats, ok := ars.awsResourcesResults[g]
