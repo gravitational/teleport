@@ -19,7 +19,9 @@
 package filesessions
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -29,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -77,4 +80,101 @@ func TestStreams(t *testing.T) {
 	t.Run("DownloadNotFound", func(t *testing.T) {
 		test.DownloadNotFound(t, handler)
 	})
+}
+
+// TestReplayObjectRoundTripAndRange verifies that replay objects can be
+// uploaded and read back in full or in byte ranges, and that reading a
+// nonexistent replay object returns a "not found" error.
+func TestReplayObjectRoundTripAndRange(t *testing.T) {
+	dir := t.TempDir()
+
+	handler, err := NewHandler(Config{
+		Directory: dir,
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+	defer handler.Close()
+
+	ctx := context.Background()
+	sid := session.ID("beam-1")
+
+	_, err = handler.UploadReplayObject(ctx, sid, "blob.0", bytes.NewReader([]byte("0123456789")))
+	require.NoError(t, err)
+
+	rc, err := handler.StreamReplayObjectRange(ctx, sid, "blob.0", 0, 0)
+	require.NoError(t, err)
+	got, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.NoError(t, rc.Close())
+	require.Equal(t, "0123456789", string(got))
+
+	rc, err = handler.StreamReplayObjectRange(ctx, sid, "blob.0", 3, 4)
+	require.NoError(t, err)
+	got, err = io.ReadAll(rc)
+	require.NoError(t, err)
+	require.NoError(t, rc.Close())
+	require.Equal(t, "3456", string(got))
+
+	// "blob.99" is a well-formed replay object name (matches the naming
+	// scheme ValidateReplayObjectName enforces) that was simply never
+	// uploaded -- distinct from a malformed name, which
+	// TestReplayObjectNameRejectsPathTraversal covers below.
+	_, err = handler.StreamReplayObjectRange(ctx, sid, "blob.99", 0, 0)
+	require.True(t, trace.IsNotFound(err))
+}
+
+// TestReplayObjectNameRejectsPathTraversal asserts that UploadReplayObject
+// and StreamReplayObjectRange reject any object name outside the
+// well-known manifest/index/blob naming scheme used by ReplaySink --
+// crucially, names containing path traversal segments, which would
+// otherwise resolve straight through filepath.Join(l.Directory, ...) in
+// replayPath to read or write files outside the beam's own replay
+// artifact.
+func TestReplayObjectNameRejectsPathTraversal(t *testing.T) {
+	dir := t.TempDir()
+
+	handler, err := NewHandler(Config{
+		Directory: dir,
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+	defer handler.Close()
+
+	ctx := context.Background()
+	sid := session.ID("beam-1")
+
+	badNames := []string{
+		"../x",
+		"blob.0/../manifest",
+		"/../../etc/passwd",
+		"..",
+		"blob.-1",
+		"blob",
+		"manifest.json",
+		"",
+	}
+	for _, name := range badNames {
+		t.Run(name, func(t *testing.T) {
+			_, err := handler.UploadReplayObject(ctx, sid, name, bytes.NewReader([]byte("x")))
+			require.True(t, trace.IsBadParameter(err), "UploadReplayObject(%q): got %v", name, err)
+
+			_, err = handler.StreamReplayObjectRange(ctx, sid, name, 0, 0)
+			require.True(t, trace.IsBadParameter(err), "StreamReplayObjectRange(%q): got %v", name, err)
+		})
+	}
+
+	goodNames := []string{"manifest", "index.0", "index.12", "blob.0", "blob.12"}
+	for _, name := range goodNames {
+		t.Run(name, func(t *testing.T) {
+			_, err := handler.UploadReplayObject(ctx, sid, name, bytes.NewReader([]byte("ok")))
+			require.NoError(t, err)
+
+			rc, err := handler.StreamReplayObjectRange(ctx, sid, name, 0, 0)
+			require.NoError(t, err)
+			got, err := io.ReadAll(rc)
+			require.NoError(t, err)
+			require.NoError(t, rc.Close())
+			require.Equal(t, "ok", string(got))
+		})
+	}
 }

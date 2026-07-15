@@ -344,6 +344,18 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return path, trace.Wrap(err)
 }
 
+// UploadReplayObject reads the content of a named beam-replay artifact object
+// from a reader and uploads it to an S3 bucket. If successful, it returns URL
+// of the uploaded object. This function can be called only once for a given
+// sessionID and name; subsequent calls will return an error.
+func (h *Handler) UploadReplayObject(ctx context.Context, sessionID session.ID, name string, reader io.Reader) (string, error) {
+	if err := events.ValidateReplayObjectName(name); err != nil {
+		return "", trace.Wrap(err)
+	}
+	path, err := h.uploadFile(ctx, h.replayPath(sessionID, name), reader)
+	return path, trace.Wrap(err)
+}
+
 // UploadMetadata reads the content of a session's metadata from a reader and
 // uploads it to an S3 bucket. If successful, it returns URL of the uploaded
 // object.
@@ -458,6 +470,45 @@ func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.
 // summary is not found or is not final.
 func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.downloadFileRetrier(ctx, h.summaryPath(sessionID), nil /* versionID */)
+}
+
+// StreamReplayObjectRange downloads a ranged portion of a named beam-replay
+// artifact object from an S3 bucket and returns a ReadCloser for the content.
+// A length <= 0 reads to the end of the object. Returns trace.NotFound error
+// if the object is not found.
+func (h *Handler) StreamReplayObjectRange(ctx context.Context, sessionID session.ID, name string, offset, length int64) (io.ReadCloser, error) {
+	if err := events.ValidateReplayObjectName(name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	path := h.replayPath(sessionID, name)
+
+	// Check existence and fetch content-length upfront so that NotFound is
+	// returned before the caller attempts any reads.
+	headOutput, err := h.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(h.Bucket),
+		Key:    aws.String(path),
+	})
+	if err != nil {
+		return nil, awsutils.ConvertS3Error(err)
+	}
+
+	contentLength := aws.ToInt64(headOutput.ContentLength)
+
+	end := contentLength - 1
+	if length > 0 {
+		end = offset + length - 1
+	}
+	rangeStr := fmt.Sprintf("bytes=%d-%d", offset, end)
+
+	output, err := h.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(h.Bucket),
+		Key:    aws.String(path),
+		Range:  aws.String(rangeStr),
+	})
+	if err != nil {
+		return nil, awsutils.ConvertS3Error(err)
+	}
+	return output.Body, nil
 }
 
 // StreamSessionMetadata downloads a session's metadata from an S3 bucket and
@@ -607,6 +658,13 @@ func (h *Handler) summaryPath(sessionID session.ID) string {
 		return string(sessionID) + ".summary.json"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), "/")
+}
+
+func (h *Handler) replayPath(sessionID session.ID, name string) string {
+	if h.Path == "" {
+		return string(sessionID) + ".replay." + name
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".replay."+name), "/")
 }
 
 func (h *Handler) metadataPath(sessionID session.ID) string {
