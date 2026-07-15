@@ -674,6 +674,27 @@ func TestValidateRole(t *testing.T) {
 			weakOk:   true,
 		},
 		{
+			name: "app block without labels or label_expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: string(constants.LockingModeStrict),
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
 			name: "valid App.lock.mode",
 			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
@@ -684,6 +705,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression: `labels["env"] == "staging"`,
 						Lock: scopedaccessv1.Lock_builder{
 							Mode: string(constants.LockingModeStrict),
 						}.Build(),
@@ -705,6 +727,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression: `labels["env"] == "staging"`,
 						Lock: scopedaccessv1.Lock_builder{
 							Mode: "",
 						}.Build(),
@@ -726,6 +749,12 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					App: scopedaccessv1.ScopedRoleApp_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{
+								Name:   "test",
+								Values: []string{"test"},
+							}.Build(),
+						},
 						Lock: scopedaccessv1.Lock_builder{
 							Mode: "invalid",
 						}.Build(),
@@ -747,6 +776,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression:   `labels["env"] == "staging"`,
 						ClientIdleTimeout: "not-a-duration",
 					}.Build(),
 				}.Build(),
@@ -766,6 +796,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression:   `labels["env"] == "staging"`,
 						ClientIdleTimeout: "1h",
 					}.Build(),
 				}.Build(),

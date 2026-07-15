@@ -310,7 +310,7 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	// verify that kube labels are well-formed
 	for _, label := range role.GetSpec().GetKube().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
-		// node labels. we likely will support such things in the future, but its best to disallow
+		// kube labels. we likely will support such things in the future, but its best to disallow
 		// them until that has landed.
 
 		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
@@ -320,17 +320,23 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 			return trace.BadParameter("scoped role %q has invalid kube label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
 		}
 	}
-
-	for _, label := range role.GetSpec().GetApp().GetLabels() {
-		// we currently don't support any form of wildcard/regex/substitution in scoped role
-		// node labels. we likely will support such things in the future, but its best to disallow
-		// them until that has landed.
-
-		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
-			return trace.BadParameter("scoped role %q has invalid kube label name %q", role.GetMetadata().GetName(), label.GetName())
+	if app := role.GetSpec().GetApp(); app != nil {
+		labels := app.GetLabels()
+		if len(labels) == 0 && app.GetLabelExpression() == "" {
+			return trace.BadParameter("Scoped role %q has empty labels and label expressions for apps. No apps will be matched", role.GetMetadata().GetName())
 		}
-		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
-			return trace.BadParameter("scoped role %q has invalid app label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
+
+		for _, label := range labels {
+			// we currently don't support any form of wildcard/regex/substitution in scoped role
+			// app labels. we likely will support such things in the future, but its best to disallow
+			// them until that has landed.
+
+			if strings.ContainsAny(label.GetName(), invalidLabelChars) {
+				return trace.BadParameter("scoped role %q has invalid kube label name %q", role.GetMetadata().GetName(), label.GetName())
+			}
+			if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+				return trace.BadParameter("scoped role %q has invalid app label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
+			}
 		}
 	}
 
