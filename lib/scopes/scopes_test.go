@@ -135,6 +135,85 @@ func TestValidateSegment(t *testing.T) {
 	}
 }
 
+// TestStrongValidateResourceName tests the StrongValidateResourceName function. Resource names follow
+// the same character restrictions as scope segments, but are not subject to the maximum segment length.
+func TestStrongValidateResourceName(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name  string
+		rname string
+		ok    bool
+	}{
+		{
+			name:  "valid name",
+			rname: "aa",
+			ok:    true,
+		},
+		{
+			name:  "valid name with symbols",
+			rname: "aa-bb_cc.dd",
+			ok:    true,
+		},
+		{
+			name:  "valid name longer than max segment size",
+			rname: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			ok:    true,
+		},
+		{
+			name:  "empty name",
+			rname: "",
+			ok:    false,
+		},
+		{
+			name:  "name too short",
+			rname: "a",
+			ok:    false,
+		},
+		{
+			name:  "name with leading symbol",
+			rname: ".aa",
+			ok:    false,
+		},
+		{
+			name:  "name with trailing symbol",
+			rname: "aa_",
+			ok:    false,
+		},
+		{
+			name:  "name with reserved symbol",
+			rname: "aa@bb",
+			ok:    false,
+		},
+		{
+			name:  "name with whitespace",
+			rname: "aa bb",
+			ok:    false,
+		},
+		{
+			name:  "name with separator",
+			rname: "aa/bb",
+			ok:    false,
+		},
+		{
+			name:  "name with uppercase",
+			rname: "aAa",
+			ok:    false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			err := StrongValidateResourceName(tt.rname)
+			if tt.ok {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+}
+
 // TestStrongValidate tests the StrongValidate function for various combinations of scopes.
 func TestStrongValidate(t *testing.T) {
 	t.Parallel()

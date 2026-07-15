@@ -486,10 +486,8 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	if expected, actual := "", token.GetSubKind(); expected != actual {
 		return trace.BadParameter("expected sub_kind %v, got %q", expected, actual)
 	}
-	if name := token.GetMetadata().GetName(); name == "" {
-		return trace.BadParameter("missing name")
-	} else if strings.Contains(name, ":") {
-		return trace.BadParameter("scoped token names cannot contain colons")
+	if err := scopes.StrongValidateResourceName(token.GetMetadata().GetName()); err != nil {
+		return trace.Wrap(err, "validating scoped token name")
 	}
 
 	if token.GetScope() == "" {
