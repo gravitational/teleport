@@ -20,8 +20,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMarshalMessage(t *testing.T) {
@@ -40,8 +41,8 @@ func TestMarshalMessage(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			res := MarshalMessage(tc.in)
-			require.True(t, strings.HasPrefix(res, "\""), "expected result to include surounding \"")
-			require.True(t, strings.HasSuffix(res, "\""), "expected result to include surounding \"")
+			require.True(t, strings.HasPrefix(res, "\""), "expected result to include surrounding \"")
+			require.True(t, strings.HasSuffix(res, "\""), "expected result to include surrounding \"")
 
 			var decRes string
 			require.NoError(t, utils.FastUnmarshal([]byte(res), &decRes))

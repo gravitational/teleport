@@ -90,7 +90,7 @@ func newResponsesFailedError(seqNumber int, err error) *responsesFailedSSEEvent 
 		Type:           responsesFailedEventName,
 		SequenceNumber: seqNumber,
 		// `responses.failed` contents needed is only the `error` key.
-		// Instead of definining a dedicated struct for this we reuse the
+		// Instead of defining a dedicated struct for this we reuse the
 		// `errorEvenlope`, but since the response doesn't have the `type` field
 		// we must not define here (and cannot use the `newErrorEnvelope`
 		// function).
