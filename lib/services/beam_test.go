@@ -31,14 +31,15 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestValidateBeam(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, services.ValidateBeam(testBeam("beam-alias")))
+	require.NoError(t, services.ValidateBeam(testBeam(withBeamAlias("beam-alias"))))
 
-	unrestrictedBeam := testBeam("beam-alias")
+	unrestrictedBeam := testBeam(withBeamAlias("beam-alias"))
 	unrestrictedBeam.Spec.Egress = beamsv1.EgressMode_EGRESS_MODE_UNRESTRICTED
 	unrestrictedBeam.Spec.AllowedDomains = nil
 	require.NoError(t, services.ValidateBeam(unrestrictedBeam))
@@ -53,126 +54,126 @@ func TestValidateBeam(t *testing.T) {
 			err:  "beam must not be nil",
 		},
 		"wrong version": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Version = ""
 			},
 			err: `version: only supports version "v1", got ""`,
 		},
 		"wrong kind": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Kind = ""
 			},
 			err: `kind: must be "beam", got ""`,
 		},
 		"missing metadata": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Metadata = nil
 			},
 			err: "metadata: is required",
 		},
 		"missing metadata name": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Metadata.Name = ""
 			},
 			err: "metadata.name: is required",
 		},
 		"missing spec": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec = nil
 			},
 			err: "spec: is required",
 		},
 		"unspecified egress": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.Egress = beamsv1.EgressMode_EGRESS_MODE_UNSPECIFIED
 			},
 			err: "spec.egress: must be EGRESS_MODE_RESTRICTED or EGRESS_MODE_UNRESTRICTED",
 		},
 		"invalid egress": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.Egress = beamsv1.EgressMode(42)
 			},
 			err: "spec.egress: must be EGRESS_MODE_RESTRICTED or EGRESS_MODE_UNRESTRICTED",
 		},
 		"allowed domains with unrestricted egress": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.Egress = beamsv1.EgressMode_EGRESS_MODE_UNRESTRICTED
 			},
 			err: "spec.allowed_domains: may only be set when spec.egress is EGRESS_MODE_RESTRICTED",
 		},
 		"empty allowed domain": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.AllowedDomains = []string{""}
 			},
 			err: `spec.allowed_domains[0]: "" must be a fully qualified domain name ending with '.'`,
 		},
 		"invalid allowed domain": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.AllowedDomains = []string{"Example.COM."}
 			},
 			err: `spec.allowed_domains[0]: "Example.COM." is invalid`,
 		},
 		"wildcard allowed domain": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.AllowedDomains = []string{"*.example.com."}
 			},
 			err: `spec.allowed_domains[0]: "*.example.com." is invalid`,
 		},
 		"allowed domain missing trailing dot": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.AllowedDomains = []string{"example.com"}
 			},
 			err: `spec.allowed_domains[0]: "example.com" must be a fully qualified domain name ending with '.'`,
 		},
 		"allowed domain is not fqdn": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.AllowedDomains = []string{"localhost."}
 			},
 			err: `spec.allowed_domains[0]: "localhost." must be a fully qualified domain name ending with '.'`,
 		},
 		"invalid publish port": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.Publish.Port = 9090
 			},
 			err: `spec.publish.port: must be 8080`,
 		},
 		"invalid publish protocol": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.Publish.Protocol = beamsv1.Protocol(9999)
 			},
 			err: `spec.publish.protocol: must be HTTP or TCP`,
 		},
 		"missing expires": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Spec.Expires = nil
 			},
 			err: "spec.expires: is required",
 		},
 		"missing status": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Status = nil
 			},
 			err: "status: is required",
 		},
 		"invalid alias": {
-			beam: testBeam("beam-alias"),
+			beam: testBeam(withBeamAlias("beam-alias")),
 			modFn: func(b *beamsv1.Beam) {
 				b.Status.Alias = "beam-123"
 			},
@@ -194,8 +195,101 @@ func TestValidateBeam(t *testing.T) {
 	}
 }
 
-func testBeam(alias string) *beamsv1.Beam {
-	return &beamsv1.Beam{
+func TestMakeBeamFilterFunc(t *testing.T) {
+	testCases := []struct {
+		name     string
+		options  *services.ListBeamsRequestOptions
+		beam     *beamsv1.Beam
+		expected bool
+	}{
+		{
+			name: "filter users",
+			options: &services.ListBeamsRequestOptions{
+				FilterUsers: set.New("user-1"),
+				FilterFn: func(b *beamsv1.Beam) bool {
+					return true
+				},
+			},
+			beam:     testBeam(withBeamUser("user-2")),
+			expected: false,
+		},
+		{
+			name: "filter users match",
+			options: &services.ListBeamsRequestOptions{
+				FilterUsers: set.New("user-1"),
+				FilterFn: func(b *beamsv1.Beam) bool {
+					return true
+				},
+			},
+			beam:     testBeam(withBeamUser("user-1")),
+			expected: true,
+		},
+		{
+			name: "filter users empty",
+			options: &services.ListBeamsRequestOptions{
+				FilterUsers: set.NewWithCapacity[string](0),
+				FilterFn: func(b *beamsv1.Beam) bool {
+					return true
+				},
+			},
+			beam:     testBeam(withBeamUser("user-1")),
+			expected: true,
+		},
+		{
+			name: "filter fn",
+			options: &services.ListBeamsRequestOptions{
+				FilterFn: func(b *beamsv1.Beam) bool {
+					return false
+				},
+				FilterUsers: set.New("user-1"),
+			},
+			beam:     testBeam(withBeamUser("user-1")),
+			expected: false,
+		},
+		{
+			name: "filter fn match",
+			options: &services.ListBeamsRequestOptions{
+				FilterFn: func(b *beamsv1.Beam) bool {
+					return true
+				},
+				FilterUsers: set.New("user-1"),
+			},
+			beam:     testBeam(withBeamUser("user-1")),
+			expected: true,
+		},
+		{
+			name:     "zero filters",
+			options:  &services.ListBeamsRequestOptions{},
+			beam:     testBeam(),
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fn := services.MakeBeamFilterFunc(tc.options)
+			actual := fn(tc.beam)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+type testBeamOption = func(*beamsv1.Beam)
+
+func withBeamAlias(alias string) testBeamOption {
+	return func(beam *beamsv1.Beam) {
+		beam.Status.Alias = alias
+	}
+}
+
+func withBeamUser(user string) testBeamOption {
+	return func(beam *beamsv1.Beam) {
+		beam.Status.User = user
+	}
+}
+
+func testBeam(options ...testBeamOption) *beamsv1.Beam {
+	beam := &beamsv1.Beam{
 		Kind:    types.KindBeam,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
@@ -212,7 +306,11 @@ func testBeam(alias string) *beamsv1.Beam {
 		},
 		Status: &beamsv1.BeamStatus{
 			User:  "alice",
-			Alias: alias,
+			Alias: "beam",
 		},
 	}
+	for _, opt := range options {
+		opt(beam)
+	}
+	return beam
 }

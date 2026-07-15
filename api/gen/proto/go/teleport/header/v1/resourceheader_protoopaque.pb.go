@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/header/v1/resourceheader.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package headerv1
 

@@ -75,4 +75,6 @@ type Token interface {
 	GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair
 	// GetBoundKeypairStatus returns bound keypair status for this token.
 	GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair
+	// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+	GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error)
 }

@@ -163,6 +163,11 @@ type suiteConfig struct {
 	// ManualStart skips calling Start() automatically so the
 	// caller can inject state before starting the server.
 	ManualStart bool
+	// OverrideCAs are cert authorities to upsert into the test cluster after
+	// the auth server starts.
+	OverrideCAs []types.CertAuthority
+	// InsecureMode sets service to insecure mode.
+	InsecureMode bool
 }
 
 type fakeConnMonitor struct{}
@@ -211,6 +216,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	t.Cleanup(func() {
 		s.tlsServer.Close()
 	})
+
+	for _, ca := range config.OverrideCAs {
+		require.NoError(t, s.tlsServer.Auth().UpsertCertAuthority(s.closeContext, ca))
+	}
 
 	// Set up the host cert pool.
 	rootCA, err := s.tlsServer.Auth().GetCertAuthority(context.Background(), types.CertAuthID{
@@ -380,6 +389,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		ConnectionMonitor: fakeConnMonitor{},
 		CipherSuites:      utils.DefaultCipherSuites(),
 		ServiceComponent:  teleport.ComponentApp,
+		InsecureMode:      config.InsecureMode,
 		AWSConfigOptions: []awsconfig.OptionsFn{
 			awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
 				return &mocks.STSClient{}

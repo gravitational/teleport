@@ -1705,6 +1705,104 @@ func TestScopedContextLockTargets(t *testing.T) {
 	})
 }
 
+func TestScopedContextDisplayName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		scopedCtx *authz.ScopedContext
+		want      string
+	}{
+		{
+			name: "user identity uses the user name",
+			scopedCtx: &authz.ScopedContext{
+				User:     &types.UserV2{Metadata: types.Metadata{Name: "alice"}},
+				Identity: authz.LocalUser{Identity: tlsca.Identity{Username: "alice-identity"}},
+			},
+			want: "alice",
+		},
+		{
+			name: "agent identity falls back to the identity username",
+			scopedCtx: &authz.ScopedContext{
+				Identity: authz.ScopedBuiltinRole{Identity: tlsca.Identity{Username: "alice-identity"}},
+			},
+			want: "alice-identity",
+		},
+		{
+			name:      "empty when neither user nor identity is set",
+			scopedCtx: &authz.ScopedContext{},
+			want:      "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.scopedCtx.DisplayName())
+		})
+	}
+}
+
+func TestScopedIsLocalOrRemoteService(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		want      bool
+		scopedCtx *authz.ScopedContext
+	}{
+		{name: "builtin role (unscoped agent)",
+			want:      true,
+			scopedCtx: &authz.ScopedContext{Identity: authz.BuiltinRole{}},
+		},
+		{
+			name:      "remote builtin role",
+			want:      true,
+			scopedCtx: &authz.ScopedContext{Identity: authz.RemoteBuiltinRole{}},
+		},
+		{
+			name:      "scoped builtin role",
+			want:      true,
+			scopedCtx: &authz.ScopedContext{Identity: authz.ScopedBuiltinRole{}},
+		},
+		{
+			name:      "local user",
+			want:      false,
+			scopedCtx: &authz.ScopedContext{Identity: authz.LocalUser{}},
+		},
+		{
+			name:      "remote user",
+			want:      false,
+			scopedCtx: &authz.ScopedContext{Identity: authz.RemoteUser{}},
+		},
+		{
+			name:      "unauthenticated",
+			want:      false,
+			scopedCtx: &authz.ScopedContext{Identity: authz.UnauthenticatedRole{}},
+		},
+		// Unscoped-wrapped contexts (unscopedContext != nil) delegate to
+		// IsLocalOrRemoteService rather than hitting the identity switch.
+		{
+			name:      "unscoped-wrapped builtin role",
+			want:      true,
+			scopedCtx: authz.ScopedContextFromUnscopedContext(&authz.Context{UnmappedIdentity: authz.BuiltinRole{}}),
+		},
+		{
+			name:      "unscoped-wrapped remote builtin role",
+			want:      true,
+			scopedCtx: authz.ScopedContextFromUnscopedContext(&authz.Context{UnmappedIdentity: authz.RemoteBuiltinRole{}}),
+		},
+		{
+			name:      "unscoped-wrapped local user",
+			want:      false,
+			scopedCtx: authz.ScopedContextFromUnscopedContext(&authz.Context{UnmappedIdentity: authz.LocalUser{}}),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, authz.ScopedIsLocalOrRemoteService(tt.scopedCtx))
+		})
+	}
+}
+
 // brokenScopedRoleReader is a minimal ScopedRoleReader for use in tests that need a non-nil reader
 // but aren't expected to actually need any scoped roles.
 type brokenScopedRoleReader struct{}

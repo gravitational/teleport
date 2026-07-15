@@ -369,6 +369,42 @@ func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 	return false
 }
 
+// hasBuiltinRole checks that the attached identity is a builtin role and
+// whether any of the given roles match the role set.
+func (a *ScopedServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
+	unscopedCtx, isUnscoped := a.scopedContext.UnscopedContext()
+	if isUnscoped {
+		for _, role := range roles {
+			if authz.HasBuiltinRole(*unscopedCtx, string(role)) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// since we check if the underlying SWR is unscoped, and defer to the
+	// unscoped behavior if it is, the only valid role type at this point
+	// will be a [authz.ScopedBuiltinRole].
+	role, isBuiltin := a.scopedContext.Identity.(authz.ScopedBuiltinRole)
+	if !isBuiltin {
+		return false
+	}
+	// for service certs, the additional system roles will be empty so we only check if the
+	// primary role is included in the given roles
+	if primary := types.SystemRole(role.ScopePin.GetSystemRoles().GetPrimary()); primary != types.RoleInstance {
+		return types.SystemRoles(roles).Include(primary)
+	}
+	// for instance certs, we check if there is any overlap between the given roles and the
+	// additional system roles included in the scope pin
+	existingRoles := role.ScopePin.GetSystemRoles().GetAdditional()
+	for _, role := range roles {
+		if slices.Contains(existingRoles, string(role)) {
+			return true
+		}
+	}
+	return false
+}
+
 // HasBuiltinRole checks if the identity is a builtin role with the matching
 // name.
 // Deprecated: use authz.HasBuiltinRole instead.
@@ -703,14 +739,28 @@ func (a *ScopedServerWithRoles) GetClusterCACert(ctx context.Context) (*proto.Ge
 
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
+func (a *ScopedServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
 	clusterName, err := a.authServer.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// username is hostID + cluster name, so make sure server requests new keys for itself
-	if a.context.User.GetName() != utils.HostFQDN(req.HostID, clusterName) {
-		return nil, trace.AccessDenied("username mismatch %q and %q", a.context.User.GetName(), utils.HostFQDN(req.HostID, clusterName))
+
+	var existingRoles []string
+	var serverFQDN string
+	switch role := a.scopedContext.Identity.(type) {
+	case authz.ScopedBuiltinRole:
+		serverFQDN = role.ServerFQDN
+		existingRoles = role.ScopePin.GetSystemRoles().GetAdditional()
+	case authz.BuiltinRole:
+		serverFQDN = a.scopedContext.User.GetName()
+		existingRoles = a.scopedContext.User.GetRoles()
+	default:
+		return nil, trace.AccessDenied("cannot generate host cert as non-builtin role")
+	}
+
+	// serverFQDN is hostID + cluster name, so make sure server requests new keys for itself
+	if serverFQDN != utils.HostFQDN(req.HostID, clusterName) {
+		return nil, trace.AccessDenied("server FQDN mismatch %q and %q", serverFQDN, utils.HostFQDN(req.HostID, clusterName))
 	}
 
 	if req.Role == types.RoleInstance {
@@ -723,16 +773,20 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		}
 	}
 
-	existingRoles, err := types.NewTeleportRoles(a.context.User.GetRoles())
+	existingServerRoles, err := types.NewTeleportRoles(existingRoles)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "parsing existing server roles")
 	}
 
 	// prohibit privilege escalations through role changes (except the instance cert exception, handled above).
 	if !a.hasBuiltinRole(req.Role) && req.Role != types.RoleInstance {
-		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
+		return nil, trace.AccessDenied(
+			"roles do not match: %v and %v",
+			existingServerRoles,
+			req.Role,
+		)
 	}
-	identity := a.context.Identity.GetIdentity()
+	identity := a.scopedContext.Identity.GetIdentity()
 	return a.authServer.GenerateHostCerts(ctx, HostCertsParams{
 		Req:                req,
 		AgentScope:         identity.GetAgentScope(),
@@ -742,10 +796,10 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 }
 
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
-func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
+func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
 	// ensure requesting cert's primary role is a server role.
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	_, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	if !isServer {
 		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
 	}
 
@@ -826,10 +880,10 @@ func (a *ServerWithRoles) AssertSystemRole(ctx context.Context, req proto.System
 // RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
 // the auth server's main control logic. We also return the post-auth hello message back up to the grpcserver layer in order to
 // use it for metrics purposes.
-func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
+func (a *ScopedServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
 	// Ensure that caller is a teleport server
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	serverID, isBuiltinServer := getBuiltinServerID(a.scopedContext.Identity)
+	if !isBuiltinServer {
 		return nil, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
 
@@ -850,8 +904,8 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	}
 
 	// verify that server is creating stream on behalf of itself.
-	if hello.GetServerID() != role.GetServerID() {
-		return nil, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), hello.GetServerID())
+	if hello.GetServerID() != serverID {
+		return nil, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", serverID, hello.GetServerID())
 	}
 
 	// in order to reduce sensitivity to downgrades/misconfigurations, we simply filter out
@@ -861,7 +915,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 		if !a.hasBuiltinRole(types.SystemRole(service)) {
 			a.authServer.logger.WarnContext(a.CloseContext(), "Omitting unknown or unauthorized service for instance control stream",
 				"omitted_service", service,
-				"instance", role.GetServerID(),
+				"instance", serverID,
 			)
 			continue
 		}
@@ -873,12 +927,12 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	// If the hello message's scope is non-empty, we can verify that it matches the authenticated
 	// scope in the identity. Otherwise, in order to support agents unaware of scopes, we fall back
 	// to the authenticated identity's scope.
-	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
-	if hello.Scope != "" && hello.Scope != agentScope {
-		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
+	agentScope := a.scopedContext.Identity.GetIdentity().GetAgentScope()
+	if hello.GetScope() != "" && hello.GetScope() != agentScope {
+		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.GetScope(), agentScope)
 	}
-	hello.Scope = agentScope
-	labelHash := a.context.Identity.GetIdentity().ImmutableLabelHash
+	hello.SetScope(agentScope)
+	labelHash := a.scopedContext.Identity.GetIdentity().ImmutableLabelHash
 	if labels := hello.GetImmutableLabels(); labels != nil || labelHash != "" {
 		if !joining.VerifyImmutableLabelsHash(labels, labelHash) {
 			return nil, trace.AccessDenied("immutable labels do not match their agent identity")
@@ -1076,30 +1130,27 @@ func (a *ServerWithRoles) ClearAlertAcks(ctx context.Context, req proto.ClearAle
 	return a.authServer.ClearAlertAcks(ctx, req)
 }
 
-func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	ruleCtx := a.scopedContext.RuleContext()
 	// Note: UpsertNode doesn't allow any namespaces but "default".
-	if err := a.authorizeAction(types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
+	// The Decision API only checks on the default namespace.
+	if err := a.scopedContext.CheckerContext.Decision(ctx, s.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindNode, types.VerbCreate, types.VerbUpdate)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
+	agentScope := a.scopedContext.Identity.GetIdentity().GetAgentScope()
 	if nodeScope := s.GetScope(); agentScope != "" {
 		if nodeScope != agentScope {
 			return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
 		}
+	}
 
-		if a.hasBuiltinRole(types.RoleNode) {
-			clusterName, err := a.GetDomainName(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			callerID, err := ExtractHostID(a.context.User.GetName(), clusterName)
-			if err != nil {
-				return nil, trace.AccessDenied("access denied")
-			}
-			if s.GetName() != callerID {
-				return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
-			}
+	if a.hasBuiltinRole(types.RoleNode) {
+		callerID, _ := getBuiltinServerID(a.scopedContext.Identity)
+		if s.GetName() != callerID {
+			return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
 		}
 	}
 
@@ -1216,6 +1267,7 @@ func (a *ScopedServerWithRoles) NewStream(ctx context.Context, watch types.Watch
 	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return a.authServer.NewStream(ctx, watch)
 }
 
@@ -1292,7 +1344,12 @@ func (a *ScopedServerWithRoles) authorizeWatchRequest(ctx context.Context, watch
 	if len(validKinds) == 0 {
 		return trace.BadParameter("none of the requested kinds can be watched")
 	}
+
 	watch.Kinds = validKinds
+	if a.hasBuiltinRole(types.RoleNode) {
+		watch.QueueSize = defaults.NodeQueueSize
+	}
+
 	return nil
 }
 
@@ -3767,6 +3824,17 @@ func getBotName(user services.UserState) string {
 	return ""
 }
 
+// getBotScope returns the scope of the bot embedded in the user metadata, if
+// any. For unscoped bots and non-bot users, returns "".
+func getBotScope(user services.UserState) string {
+	scope, ok := user.GetLabel(types.BotScopeLabel)
+	if ok {
+		return scope
+	}
+
+	return ""
+}
+
 func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
 	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
@@ -4100,7 +4168,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
 
-			BotName: getBotName(user),
+			BotName:  getBotName(user),
+			BotScope: getBotScope(user),
 			// Always pass through a bot instance ID if available. Legacy bots
 			// joining without an instance ID may have one generated when
 			// `updateBotInstance()` is called below, and this (empty) value will be
@@ -4156,6 +4225,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		ActiveRequests:         req.AccessRequests,
 		ConnectionDiagnosticID: req.ConnectionDiagnosticID,
 		BotName:                getBotName(user),
+		BotScope:               getBotScope(user),
 
 		// Always pass through a bot instance ID if available. Legacy bots
 		// joining without an instance ID may have one generated when
@@ -5027,16 +5097,17 @@ func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.
 }
 
 // EmitAuditEvent emits a single audit event
-func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (a *ScopedServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	ctx = context.WithoutCancel(ctx)
-	if err := a.authorizeAction(types.KindEvent, types.VerbCreate); err != nil {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedEmitEvent(ctx, &ruleCtx); err != nil {
 		return trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	if !isServer {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
-	err := events.ValidateServerMetadata(event, role.GetServerID(), a.hasBuiltinRole(types.RoleProxy))
+	err := events.ValidateServerMetadata(event, serverID, a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
 		// notifying about access violation
@@ -5045,7 +5116,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 		a.authServer.logger.WarnContext(ctx, msg,
 			"event_type", event.GetType(),
 			"event_id", event.GetID(),
-			"server_id", role.GetServerID(),
+			"server_id", serverID,
 			"error", err)
 		// this message is sparse on purpose to avoid conveying extra data to an attacker
 		return trace.AccessDenied("failed to validate event metadata")
@@ -5054,12 +5125,13 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 }
 
 // CreateAuditStream creates audit event stream
-func (a *ServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	if err := a.authorizeAction(types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
+func (a *ScopedServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	if !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
 	stream, err := a.authServer.CreateAuditStream(ctx, sid)
@@ -5069,17 +5141,18 @@ func (a *ServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID)
 	return &streamWithRoles{
 		stream:   stream,
 		a:        a,
-		serverID: role.GetServerID(),
+		serverID: serverID,
 	}, nil
 }
 
 // ResumeAuditStream resumes the stream that has been created
-func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	if err := a.authorizeAction(types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
+func (a *ScopedServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	if !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
 	stream, err := a.authServer.ResumeAuditStream(ctx, sid, uploadID)
@@ -5089,12 +5162,12 @@ func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID,
 	return &streamWithRoles{
 		stream:   stream,
 		a:        a,
-		serverID: role.GetServerID(),
+		serverID: serverID,
 	}, nil
 }
 
 type streamWithRoles struct {
-	a        *ServerWithRoles
+	a        *ScopedServerWithRoles
 	serverID string
 	stream   apievents.Stream
 }
@@ -5449,6 +5522,19 @@ func checkRoleFeatureSupport(role types.Role) error {
 	}
 }
 
+// GetRole returns a role by name, supporting both scoped and unscoped callers.
+func (a *ScopedServerWithRoles) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.GetRole(ctx, name)
+	}
+
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadRole, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetRole(ctx, name)
+}
+
 // GetRole returns role by name
 func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role, error) {
 	// Current-user exception: we always allow users to read roles
@@ -5515,8 +5601,9 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 // GetClusterName gets the name of the cluster.
 // TODO(noah): DELETE IN v19.0.0 - when the apiserver getClusterName method is also
 // deleted.
-func (a *ServerWithRoles) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	if err := a.authorizeAction(types.KindClusterName, types.VerbRead); err != nil {
+func (a *ScopedServerWithRoles) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadClusterName, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetClusterName(ctx)
@@ -5740,12 +5827,18 @@ func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context) (types.Clus
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	if err := a.authorizeAction(types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
-		if err2 := a.authorizeAction(types.KindClusterConfig, types.VerbRead); err2 != nil {
+func (a *ScopedServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadClusterNetworkingConfig, &ruleCtx); err != nil {
+		unscopedCtx, isUnscoped := a.scopedContext.UnscopedContext()
+		if !isUnscoped {
+			return nil, trace.Wrap(err)
+		}
+		if err2 := unscopedCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5868,9 +5961,14 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
-	if err := a.authorizeAction(types.KindSessionRecordingConfig, types.VerbRead); err != nil {
-		if err2 := a.authorizeAction(types.KindClusterConfig, types.VerbRead); err2 != nil {
+func (a *ScopedServerWithRoles) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSessionRecordingConfig, &ruleCtx); err != nil {
+		unscopedCtx, isUnscoped := a.scopedContext.UnscopedContext()
+		if !isUnscoped {
+			return nil, trace.Wrap(err)
+		}
+		if err2 := unscopedCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -6701,6 +6799,10 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 }
 
 func (a *ServerWithRoles) Close() error {
+	return a.authServer.Close()
+}
+
+func (a *ScopedServerWithRoles) Close() error {
 	return a.authServer.Close()
 }
 
@@ -8872,4 +8974,17 @@ func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks ser
 	}
 
 	return okta.CheckAccess(authzCtx, existingLock, verb)
+}
+
+// getBuiltinServerID returns the builtin server ID associated with the identity.
+// If the identity is not a builtin server role, and empty string and false are returned.
+func getBuiltinServerID(identityGetter authz.IdentityGetter) (serverID string, isBuiltinServer bool) {
+	switch role := identityGetter.(type) {
+	case authz.BuiltinRole:
+		return role.GetServerID(), role.IsServer()
+	case authz.ScopedBuiltinRole:
+		return role.GetServerID(), role.IsServer()
+	}
+
+	return "", false
 }

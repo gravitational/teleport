@@ -26,7 +26,9 @@ use crate::{
 use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
-use ironrdp_connector::connection_activation::ConnectionActivationState;
+use ironrdp_connector::connection_activation::{
+    ConnectionActivationFactory, ConnectionActivationState,
+};
 use ironrdp_connector::credssp::KerberosConfig;
 use ironrdp_connector::{
     Config, ConnectorError, ConnectorErrorKind, Credentials, DesktopSize, SmartCardIdentity,
@@ -52,7 +54,7 @@ use ironrdp_pdu::rdp::client_info::{PerformanceFlags, TimezoneInfo};
 use ironrdp_pdu::PduError;
 use ironrdp_pdu::PduResult;
 use ironrdp_pdu::{encode_err, pdu_other_err};
-use ironrdp_rdpdr::pdu::efs::{ClientDeviceListAnnounce, ClientDeviceListRemove};
+use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
@@ -102,6 +104,7 @@ pub struct Client {
     function_receiver: Option<FunctionReceiver>,
     x224_processor: Arc<Mutex<x224::Processor>>,
     pending_resize: Arc<Mutex<PendingResize>>,
+    activation_factory: ConnectionActivationFactory,
 }
 
 /// A global, static tokio runtime for use by `Client`.
@@ -269,8 +272,8 @@ impl Client {
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
+            connection_result.message_channel_id,
             connection_result.share_id,
-            connection_result.connection_activation,
         )));
 
         Ok(Self {
@@ -281,6 +284,7 @@ impl Client {
             function_receiver,
             x224_processor,
             pending_resize,
+            activation_factory: connection_result.activation_factory,
         })
     }
 
@@ -323,6 +327,7 @@ impl Client {
             read_stream,
             self.x224_processor.clone(),
             self.client_handle.clone(),
+            self.activation_factory.clone(),
         );
 
         let write_loop_handle = Client::run_write_loop(
@@ -349,6 +354,7 @@ impl Client {
         mut read_stream: RdpReadStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_requester: ClientHandle,
+        activation_factory: ConnectionActivationFactory,
     ) -> ClientResult<Option<DisconnectDescription>> {
         loop {
             let (action, mut frame) = read_stream.read_pdu().await?;
@@ -377,15 +383,16 @@ impl Client {
                             ProcessorOutput::Disconnect(reason) => {
                                 return Ok(Some(reason));
                             }
-                            ProcessorOutput::DeactivateAll(mut sequence) => {
+                            ProcessorOutput::DeactivateAll => {
                                 // Execute the Deactivation-Reactivation Sequence:
                                 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432
                                 debug!("Received Server Deactivate All PDU, executing Deactivation-Reactivation Sequence");
+                                let mut sequence = activation_factory.create();
                                 let mut buf = WriteBuf::new();
                                 loop {
                                     let written = single_sequence_step_read(
                                         &mut read_stream,
-                                        sequence.as_mut(),
+                                        &mut sequence,
                                         &mut buf,
                                     )
                                     .await?;
@@ -397,8 +404,6 @@ impl Client {
                                     }
 
                                     if let ConnectionActivationState::Finalized {
-                                        io_channel_id,
-                                        user_channel_id,
                                         desktop_size,
                                         ..
                                     } = sequence.connection_activation_state()
@@ -408,8 +413,8 @@ impl Client {
                                         // connection result in [`Self::connect`].
                                         Self::send_connection_activated(
                                             cgo_handle,
-                                            io_channel_id,
-                                            user_channel_id,
+                                            activation_factory.io_channel_id(),
+                                            activation_factory.user_channel_id(),
                                             desktop_size,
                                         )
                                         .await?;
@@ -710,6 +715,27 @@ impl Client {
         Ok(())
     }
 
+    async fn write_rdpdr_pdus(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        pdus: Vec<RdpdrPdu>,
+    ) -> ClientResult<()> {
+        debug!("sending rdp: {:?}", pdus);
+
+        let svc_messages: Vec<SvcMessage> = pdus.into_iter().map(SvcMessage::from).collect();
+
+        // Process the RDPDR PDU.
+        let encoded = Client::x224_process_svc_messages(
+            x224_processor,
+            SvcProcessorMessages::<Rdpdr>::new(svc_messages),
+        )
+        .await?;
+
+        // Write the RDPDR PDU to the RDP server.
+        write_stream.write_all(&encoded).await?;
+        Ok(())
+    }
+
     async fn write_rdpdr(
         write_stream: &mut RdpWriteStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
@@ -841,24 +867,12 @@ impl Client {
         sdr: tdp::SharedDirectoryRemove,
     ) -> ClientResult<()> {
         debug!("received tdp: {:?}", sdr);
-        let pdu = Self::remove_drive(x224_processor.clone(), sdr.directory_id).await;
 
-        match pdu {
-            Ok(remove) => {
-                Self::write_rdpdr(
-                    write_stream,
-                    x224_processor,
-                    RdpdrPdu::ClientDeviceListRemove(remove),
-                )
-                .await?;
-                Ok(())
-            }
-            Err(ClientError::UnknownDevice(id)) => {
-                warn!("attempted to remove unknown device id: {:?}", id);
-                Ok(())
-            }
-            Err(other) => Err(other),
-        }
+        let cancel_pdus = Self::remove_drive(x224_processor.clone(), sdr.directory_id)?;
+
+        // Bulk send any cancellations for pending I/O requests.
+        Self::write_rdpdr_pdus(write_stream, x224_processor.clone(), cancel_pdus).await?;
+        Ok(())
     }
 
     async fn handle_tdp_sd_info_response(
@@ -979,26 +993,47 @@ impl Client {
     ) -> ClientResult<ClientDeviceListAnnounce> {
         task::spawn_blocking(move || {
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
-            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-            let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
-            Ok(pdu)
+            // Make sure the teleport backend knows about this new drive.
+            Self::rdpdr_backend(&mut x224_processor)?.add_device(sda.directory_id)?;
+            // The Base Rdpdr instance must also know about the device.
+            Ok(Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?
+                .add_drive(sda.directory_id, sda.name))
         })
         .await?
     }
 
-    async fn remove_drive(
+    fn remove_drive(
         x224_processor: Arc<Mutex<x224::Processor>>,
         device_id: u32,
-    ) -> ClientResult<ClientDeviceListRemove> {
-        task::spawn_blocking(move || {
-            let mut x224_processor = Self::x224_lock(&x224_processor)?;
-            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-            if let Some(pdu) = rdpdr.remove_device(device_id) {
-                return Ok(pdu);
-            }
-            Err(ClientError::UnknownDevice(device_id))
-        })
-        .await?
+    ) -> ClientResult<Vec<RdpdrPdu>> {
+        // Lock the x224 processor before calling "remove_drive" so that the read loop
+        // doesn't try to process an inbound message for a device that we're in the process
+        // of removing.
+        let mut processor = Self::x224_lock(&x224_processor)?;
+        let backend = Self::rdpdr_backend(&mut processor)?;
+
+        // Attempt to remove the device from the Teleport Rdpdr backend
+        let (mut cancel_pdus, remove_complete) = backend
+            .remove_device(device_id)
+            .inspect_err(|e| warn!("could not remove device from teleport backend: {}", e))
+            .map_err(ClientError::PduError)?;
+
+        if remove_complete {
+            // If the device was successfully removed from the backend, then remove it from
+            // the top level rdpdr instance and send the device remove pdu. Otherwise,
+            // do nothing. The the rdpdr backend will synthesize another TDP shared directory remove
+            // message once the instance is ready for deletion (leading us right back here again to retry).
+            let remove_pdu = processor
+                .get_svc_processor_mut::<Rdpdr>()
+                .ok_or(ClientError::UnknownDevice(device_id))?
+                .remove_device(device_id)
+                .ok_or(ClientError::UnknownDevice(device_id))?;
+
+            // Make sure the remove PDU is pushed last.
+            cancel_pdus.push(RdpdrPdu::ClientDeviceListRemove(remove_pdu))
+        }
+
+        Ok(cancel_pdus)
     }
 
     /// Processes an x224 frame on a blocking thread.
@@ -1591,7 +1626,7 @@ impl Display for ClientError {
             ClientError::InternalError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::EncodeError(e) => Display::fmt(e, f),
-            ClientError::PduError(e) => Display::fmt(e, f),
+            ClientError::PduError(e) => Display::fmt(&e.report(), f),
             ClientError::UrlError(e) => Display::fmt(e, f),
             ClientError::UnknownDevice(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]

@@ -26,8 +26,6 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 )
 
-const cloudAzure = "Azure"
-
 // azureInfo holds Azure-specific instance metadata.
 type azureInfo struct {
 	VMID           string `json:"vm_id"`

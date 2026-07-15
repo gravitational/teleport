@@ -75,6 +75,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -144,6 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -178,6 +180,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -374,6 +377,7 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 		clusterName: clientIdentity.ClusterName,
 		hostID:      clientIdentity.ID.HostUUID,
 		scope:       clientIdentity.GetAgentScope(),
+		scopePin:    clientIdentity.ScopePin,
 		role:        clientIdentity.ID.Role,
 	}
 	c.clientState.Store(clientState)
@@ -442,6 +446,7 @@ type Connector struct {
 	clusterName string
 	hostID      string
 	scope       string
+	scopePin    *scopesv1.Pin
 	role        types.SystemRole
 
 	// clientState contains the current connector state for outbound connections
@@ -478,6 +483,11 @@ func (c *Connector) HostUUID() string {
 // Scope returns the host's AgentScope
 func (c *Connector) Scope() string {
 	return c.scope
+}
+
+// ScopePin returns the host's ScopePin
+func (c *Connector) ScopePin() *scopesv1.Pin {
+	return c.scopePin
 }
 
 func (c *Connector) Role() types.SystemRole {
@@ -3068,6 +3078,11 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
+
+	if err := subca.RegisterMetrics(process.metricsRegistry); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -5552,6 +5567,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ConnectionMonitor: connMonitor,
 			CipherSuites:      cfg.CipherSuites,
 			ServiceComponent:  teleport.ComponentWebProxy,
+			InsecureMode:      lib.IsInsecureDevMode(),
 			AWSConfigOptions: []awsconfig.OptionsFn{
 				awsconfig.WithOIDCIntegrationClient(conn.Client),
 				awsconfig.WithRolesAnywhereIntegrationClient(conn.Client),
@@ -6032,13 +6048,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// kubeServerWatcher is used to watch for changes in the Kubernetes servers
 		// and feed them to the kube proxy server so it can route the requests to
 		// the correct kubernetes server.
-		kubeServerWatcher, err := services.NewKubeServerWatcher(process.ExitContext(), services.KubeServerWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: component,
-				Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-				Client:    accessPoint,
-			},
-			KubernetesServerGetter: accessPoint,
+		kubeServerWatcher, err := kubewatcher.NewProxyKubeServerWatcher(process.ExitContext(), kubewatcher.ProxyKubeServerWatcherConfig{
+			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			AccessPoint:    accessPoint,
+			FallbackGetter: conn.Client, // use auth client as a fallback
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6970,6 +6983,7 @@ func (process *TeleportProcess) initApps() {
 			ServiceComponent:  teleport.ComponentApp,
 			Logger:            logger,
 			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
+			InsecureMode:      lib.IsInsecureDevMode(),
 		})
 		if err != nil {
 			return trace.Wrap(err)

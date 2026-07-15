@@ -171,6 +171,10 @@ message TLSIdentity {
 
   // Delegation session this TLS identity is associated with.
   string delegation_session_id = 39;
+
+  // BotScope is the scope of the Machine ID bot this identity was issued to,
+  // if any. Empty for unscoped bots and non-bot identities.
+  string bot_scope = 41;
 }
 
 // RouteToApp holds routing information for applications.

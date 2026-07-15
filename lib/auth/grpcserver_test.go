@@ -6954,8 +6954,7 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 						},
 						Scope: c.scope,
 						Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-							BotName:  bot.GetMetadata().GetName(),
-							BotScope: c.scope,
+							Bot: scopes.QualifiedName{Scope: c.scope, Name: bot.GetMetadata().GetName()}.String(),
 							Assignments: []*scopedaccessv1.Assignment{
 								{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope},
 							},
@@ -6986,6 +6985,71 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 				c.expect(t, err)
 			} else {
 				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestScopedWatchEvents(t *testing.T) {
+	t.Parallel()
+	ts := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+	const (
+		hostID = "test-server"
+		scope  = "/test"
+		role   = types.RoleNode
+	)
+
+	scopedClient, err := ts.NewClient(authtest.TestScopedHost(ts.ClusterName(), "scoped-host", scope, role))
+	require.NoError(t, err)
+	t.Cleanup(func() { scopedClient.Close() })
+
+	scopePinnedClient, err := ts.NewClient(authtest.TestScopePinnedHost(ts.ClusterName(), "scope-pinned-host", scope, role))
+	require.NoError(t, err)
+	t.Cleanup(func() { scopePinnedClient.Close() })
+
+	tt := []struct {
+		name          string
+		client        *authclient.Client
+		kind          string
+		expectFailure bool
+	}{
+		{
+			name:   "scoped host watching allowed kind",
+			client: scopedClient,
+			kind:   types.KindCertAuthority,
+		},
+		{
+			name:          "scoped host watching disallowed kind",
+			client:        scopedClient,
+			kind:          types.KindNode,
+			expectFailure: true,
+		},
+		{
+			name:   "scope pinned host watching allowed kind",
+			client: scopePinnedClient,
+			kind:   types.KindCertAuthority,
+		},
+		{
+			name:          "scope pinned host watching disallowed kind",
+			client:        scopePinnedClient,
+			kind:          types.KindNode,
+			expectFailure: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			w, err := tc.client.NewWatcher(t.Context(), types.Watch{Kinds: []types.WatchKind{
+				{Kind: tc.kind},
+			}})
+			require.NoError(t, err)
+
+			select {
+			case <-w.Done():
+				require.True(t, tc.expectFailure, "expected watcher to fail")
+			case <-w.Events():
+				require.False(t, tc.expectFailure, "expected watcher to succeed")
+				w.Close()
 			}
 		})
 	}

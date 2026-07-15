@@ -36,6 +36,7 @@ message ServerHello {
   // Field number 5 matches master. v18 doesn't use fields 3 and 4
   // (directory_remove_supported and sessions on master).
   bool hidpi_supported = 5;
+  bool multidirectory_sharing_supported = 6;
 }
 
 // Defines the boundaries that PNG frame will update.
@@ -256,6 +257,7 @@ message SharedDirectoryResponse {
   // Common fields used for all response types.
   uint32 completion_id = 1;
   uint32 error_code = 2;
+  uint32 directory_id = 11;
 
   // Info response.
   message Info {

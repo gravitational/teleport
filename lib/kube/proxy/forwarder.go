@@ -19,6 +19,7 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
@@ -82,6 +84,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -181,8 +185,10 @@ type ForwarderConfig struct {
 	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 	// It is used to determine if the cluster is licensed for Kubernetes usage.
 	ClusterFeatures ClusterFeaturesGetter
-	// Scope that the forwarder is pinned to.
+	// Scope is the scope the forwarder is pinned to if a full scope pin is not present.
 	Scope string
+	// ScopePin is the scope and scoped role assignments the forwarder is pinned to.
+	ScopePin *scopesv1.Pin
 }
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
@@ -282,7 +288,26 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.log == nil {
 		f.log = slog.Default()
 	}
+
+	if f.ScopePin != nil {
+		if err := pinning.WeakValidate(f.ScopePin); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if f.Scope != "" {
+		if err := scopes.WeakValidate(f.Scope); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if f.ScopePin.GetScope() != "" && f.Scope != "" {
+		return trace.BadParameter("either a scope pin or a bare scope must be set for a scoped kube forwarder, not both")
+	}
 	return nil
+}
+
+// GetScope returns the scope the forwarder is pinned to whether it's a bare scope or a scope pin.
+func (f *ForwarderConfig) GetScope() string {
+	return cmp.Or(f.ScopePin.GetScope(), f.Scope)
 }
 
 // transportCacheTTL is the TTL for the transport cache.
@@ -1786,7 +1811,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 		}
 	}()
 
-	executor, err := f.getExecutor(sess, req)
+	executor, executorCleanup, err := f.getExecutor(sess, req)
 	if err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
@@ -1794,6 +1819,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 		f.log.WarnContext(f.ctx, "Failed creating executor", "error", err)
 		return trace.Wrap(err)
 	}
+	defer executorCleanup()
 
 	streamOptions := proxy.options()
 	err = executor.StreamWithContext(req.Context(), streamOptions)
@@ -1967,11 +1993,12 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 // remoteExec forwards an exec request to a remote cluster.
 func (f *Forwarder) remoteExec(req *http.Request, sess *clusterSession, proxy *remoteCommandProxy) error {
-	executor, err := f.getExecutor(sess, req)
+	executor, executorCleanup, err := f.getExecutor(sess, req)
 	if err != nil {
 		f.log.WarnContext(req.Context(), "Failed creating executor", "error", err)
 		return trace.Wrap(err)
 	}
+	defer executorCleanup()
 	streamOptions := proxy.options()
 	err = executor.StreamWithContext(req.Context(), streamOptions)
 	if err != nil {
@@ -2027,10 +2054,11 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		return nil, trace.Wrap(err)
 	}
 
-	dialer, err := f.getPortForwardDialer(sess, req)
+	dialer, dialerCleanup, err := f.getPortForwardDialer(sess, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer dialerCleanup()
 
 	auditSent := map[string]bool{} // Set of `addr`. Can be multiple ports on single call. Using bool to simplify the check.
 	var auditSentMu sync.Mutex
@@ -2396,10 +2424,10 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 
 // getWebsocketRestConfig builds a [*rest.Config] configuration to be
 // used when upgrading requests via websocket.
-func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Request) (*rest.Config, error) {
+func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Request) (_ *rest.Config, cleanup func(), _ error) {
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	upgradeRoundTripper := NewWebsocketRoundTripperWithDialer(roundTripperConfig{
@@ -2417,7 +2445,8 @@ func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Reque
 		var err error
 		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			upgradeRoundTripper.Cleanup()
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 	rt = tracehttp.NewTransport(rt)
@@ -2435,35 +2464,41 @@ func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Reque
 			return rt
 		},
 	}
-	return cfg, nil
+	return cfg, upgradeRoundTripper.Cleanup, nil
 }
 
-func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request) (_ remotecommand.Executor, cleanup func(), _ error) {
 	f.log.DebugContext(req.Context(), "Creating websocket remote executor for request",
 		"request_method", req.Method,
 		"request_uri", req.RequestURI,
 	)
-	cfg, err := f.getWebsocketRestConfig(sess, req)
+	cfg, wsCleanup, err := f.getWebsocketRestConfig(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "unable to create websocket executor")
+		return nil, nil, trace.Wrap(err, "unable to create websocket executor")
 	}
-	return remotecommand.NewWebSocketExecutor(cfg, req.Method, req.URL.String())
+	executor, err := remotecommand.NewWebSocketExecutor(cfg, req.Method, req.URL.String())
+	if err != nil {
+		wsCleanup()
+		return nil, nil, trace.Wrap(err, "unable to create websocket executor")
+	}
+	return executor, wsCleanup, nil
 }
 
 func isRelevantWebsocketError(err error) bool {
 	return err != nil && !strings.Contains(err.Error(), "next reader: EOF")
 }
 
-func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	wsExec, err := f.getWebsocketExecutor(sess, req)
+func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (_ remotecommand.Executor, cleanup func(), _ error) {
+	wsExec, wsCleanup, err := f.getWebsocketExecutor(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "unable to create websocket executor")
+		return nil, nil, trace.Wrap(err, "unable to create websocket executor")
 	}
-	spdyExec, err := f.getSPDYExecutor(sess, req)
+	spdyExec, spdyCleanup, err := f.getSPDYExecutor(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "unable to create spdy executor")
+		wsCleanup()
+		return nil, nil, trace.Wrap(err, "unable to create spdy executor")
 	}
-	return remotecommand.NewFallbackExecutor(
+	executor, err := remotecommand.NewFallbackExecutor(
 		wsExec,
 		spdyExec,
 		func(err error) bool {
@@ -2473,9 +2508,15 @@ func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remote
 				kubeerrors.IsForbidden(err) ||
 				isTeleportUpgradeFailure(err)
 		})
+	if err != nil {
+		wsCleanup()
+		spdyCleanup()
+		return nil, nil, trace.Wrap(err, "unable to create fallback executor")
+	}
+	return executor, func() { wsCleanup(); spdyCleanup() }, nil
 }
 
-func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (_ remotecommand.Executor, cleanup func(), _ error) {
 	f.log.DebugContext(req.Context(), "Creating SPDY remote executor for request",
 		"request_method", req.Method,
 		"request_uri", req.RequestURI,
@@ -2483,7 +2524,7 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (re
 
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
@@ -2501,23 +2542,31 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (re
 		var err error
 		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			upgradeRoundTripper.Cleanup()
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 	rt = tracehttp.NewTransport(rt)
 
-	return remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
-}
-
-func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
-	wsDialer, err := f.getWebsocketDialer(sess, req)
+	executor, err := remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		upgradeRoundTripper.Cleanup()
+		return nil, nil, trace.Wrap(err)
 	}
 
-	spdyDialer, err := f.getSPDYDialer(sess, req)
+	return executor, upgradeRoundTripper.Cleanup, nil
+}
+
+func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request) (_ httpstream.Dialer, cleanup func(), _ error) {
+	wsDialer, wsCleanup, err := f.getWebsocketDialer(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
+	}
+
+	spdyDialer, spdyCleanup, err := f.getSPDYDialer(sess, req)
+	if err != nil {
+		wsCleanup()
+		return nil, nil, trace.Wrap(err)
 	}
 
 	return portforward.NewFallbackDialer(wsDialer, spdyDialer, func(err error) bool {
@@ -2526,17 +2575,17 @@ func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request
 			httpstream.IsHTTPSProxyError(err) ||
 			kubeerrors.IsForbidden(err) ||
 			isTeleportUpgradeFailure(err)
-	}), nil
+	}), func() { wsCleanup(); spdyCleanup() }, nil
 }
 
 // getSPDYDialer returns a dialer that can be used to upgrade the connection
 // to SPDY protocol.
 // SPDY is a deprecated protocol, but it is still used by kubectl to manage data streams.
 // The dialer uses an HTTP1.1 connection to upgrade to SPDY.
-func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
+func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (_ httpstream.Dialer, cleanup func(), _ error) {
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	req = createSPDYRequest(req, PortForwardProtocolV1Name)
@@ -2555,23 +2604,24 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (http
 		var err error
 		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			upgradeRoundTripper.Cleanup()
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 	client := &http.Client{
 		Transport: tracehttp.NewTransport(rt),
 	}
 
-	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
+	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), upgradeRoundTripper.Cleanup, nil
 }
 
-func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
-	cfg, err := f.getWebsocketRestConfig(sess, req)
+func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) (_ httpstream.Dialer, cleanup func(), _ error) {
+	cfg, wsCleanup, err := f.getWebsocketRestConfig(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "unable to retrieve *rest.Config for websocket")
+		return nil, nil, trace.Wrap(err, "unable to retrieve *rest.Config for websocket")
 	}
 	dialer, err := portforward.NewSPDYOverWebsocketDialer(req.URL, cfg)
-	return dialer, trace.Wrap(err)
+	return dialer, wsCleanup, trace.Wrap(err)
 }
 
 // createSPDYRequest modifies the passed request to remove

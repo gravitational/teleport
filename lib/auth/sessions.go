@@ -516,6 +516,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		// Pass along bot details to ensure audit logs are correct.
 		BotName:             req.BotName,
 		BotInstanceID:       req.BotInstanceID,
+		BotScope:            req.BotScope,
 		DelegationSessionID: req.DelegationSessionID,
 	})
 	if err != nil {

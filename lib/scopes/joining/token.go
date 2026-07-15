@@ -300,16 +300,17 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
 	spec := token.GetSpec()
 
-	if spec.GetBotName() == "" {
-		return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+	if spec.GetBot() == "" {
+		return trace.BadParameter("expected non-empty bot for a scoped bot token")
 	}
 
-	if spec.GetBotScope() == "" {
-		return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+	bot, err := scopes.ParseQualifiedName(spec.GetBot())
+	if err != nil {
+		return trace.Wrap(err, "validating scoped token bot")
 	}
 
-	if err := scopes.StrongValidate(spec.GetBotScope()); err != nil {
-		return trace.Wrap(err, "validating scoped token bot_scope")
+	if err := bot.StrongValidate(); err != nil {
+		return trace.Wrap(err, "validating scoped token bot")
 	}
 
 	if spec.GetUsageMode() != TokenUsageModeBot {
@@ -320,8 +321,8 @@ func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRole
 		return trace.BadParameter("roles must only be '[Bot]' for a scoped bot token")
 	}
 
-	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.GetBotScope()) {
-		return trace.BadParameter("scoped token bot_scope must be a descendant of or equivalent to its resource scope")
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(bot.Scope) {
+		return trace.BadParameter("scoped token bot scope must be a descendant of or equivalent to its resource scope")
 	}
 
 	if spec.AssignedScope != "" {
@@ -340,12 +341,8 @@ func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRole
 func validateNonBotToken(token *joiningv1.ScopedToken) error {
 	spec := token.GetSpec()
 
-	if spec.GetBotName() != "" {
-		return trace.BadParameter("bot_name cannot be set for a non-bot token")
-	}
-
-	if spec.GetBotScope() != "" {
-		return trace.BadParameter("bot_scope cannot be set for a non-bot token")
+	if spec.GetBot() != "" {
+		return trace.BadParameter("bot cannot be set for a non-bot token")
 	}
 
 	if spec.GetUsageMode() == TokenUsageModeBot {
@@ -363,10 +360,11 @@ func validateNonBotToken(token *joiningv1.ScopedToken) error {
 	return nil
 }
 
-// validateBotRef weak-validates the bot reference fields of a scoped token
-// spec and returns the referenced bot's name and scope. Bot tokens must carry
-// both components. For non-bot tokens the bot fields are ignored and empty
-// values are returned: stray bot fields on a non-bot token are rejected by
+// validateBotRef weak-validates the bot reference of a scoped token spec and
+// returns the referenced bot's name and scope, parsed from the
+// scope-qualified name in the bot field. Bot tokens must carry a well-formed
+// scope-qualified name. For non-bot tokens the bot field is ignored and empty
+// values are returned: a stray bot field on a non-bot token is rejected by
 // strong validation at write time, but tolerated here to match weak
 // validation's posture toward existing resources.
 func validateBotRef(spec *joiningv1.ScopedTokenSpec, isBotToken bool) (name, scope string, err error) {
@@ -374,17 +372,18 @@ func validateBotRef(spec *joiningv1.ScopedTokenSpec, isBotToken bool) (name, sco
 		return "", "", nil
 	}
 
-	if spec.GetBotName() == "" {
-		return "", "", trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+	if spec.GetBot() == "" {
+		return "", "", trace.BadParameter("expected non-empty bot for a scoped bot token")
 	}
-	if spec.GetBotScope() == "" {
-		return "", "", trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+	bot, err := scopes.ParseQualifiedName(spec.GetBot())
+	if err != nil {
+		return "", "", trace.Wrap(err, "validating scoped token bot")
 	}
-	if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
-		return "", "", trace.Wrap(err, "validating scoped token bot_scope")
+	if err := bot.WeakValidate(); err != nil {
+		return "", "", trace.Wrap(err, "validating scoped token bot")
 	}
 
-	return spec.GetBotName(), spec.GetBotScope(), nil
+	return bot.Name, bot.Scope, nil
 }
 
 // StrongValidateToken checks if the scoped token is well-formed according to
@@ -595,10 +594,10 @@ type Token struct {
 // NewToken returns the wrapped version of the given [joiningv1.ScopedToken].
 // It will return an error if the configured join method is not a valid
 // [types.JoinMethod], if any of the configured roles are not a valid
-// [types.SystemRole], or if the bot_name/bot_scope fields are inconsistent
-// with the configured roles. The validated join method, roles, and bot
-// reference are cached on the [Token] wrapper itself so they can be read
-// without repeating validation.
+// [types.SystemRole], or if the bot field is inconsistent with the configured
+// roles. The validated join method, roles, and bot reference are cached on
+// the [Token] wrapper itself so they can be read without repeating
+// validation.
 func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
 	joinMethod := types.JoinMethod(token.GetSpec().GetJoinMethod())
 	if err := types.ValidateJoinMethod(joinMethod); err != nil {
@@ -840,6 +839,81 @@ func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
 // token.
 func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
 	return BoundKeypairStatusFromScopedToken(t.scoped)
+}
+
+// convertGenericOIDCCondition converts a scoped generic_oidc condition to a
+// ProvisionTokenV2-style condition (with gogoproto semantics).
+func convertGenericOIDCCondition(c *joiningv1.GenericOIDC_Condition) (*types.ProvisionTokenSpecV2GenericOIDC_Condition, error) {
+	v := &types.ProvisionTokenSpecV2GenericOIDC_Condition{
+		Attribute: c.GetAttribute(),
+	}
+
+	switch {
+	case c.GetEq() != nil:
+		v.Eq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionEq{
+			Value: c.GetEq().GetValue(),
+		}
+	case c.GetNotEq() != nil:
+		v.NotEq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotEq{
+			Value: c.GetNotEq().GetValue(),
+		}
+	case c.GetIn() != nil:
+		v.In = &types.ProvisionTokenSpecV2GenericOIDC_ConditionIn{
+			Values: c.GetIn().GetValues(),
+		}
+	case c.GetNotIn() != nil:
+		v.NotIn = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotIn{
+			Values: c.GetNotIn().GetValues(),
+		}
+	default:
+		return nil, trace.BadParameter("an operator is required but found none")
+	}
+
+	return v, nil
+}
+
+// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+func (t *Token) GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error) {
+	spec := t.scoped.GetSpec().GetGenericOidc()
+
+	var globalMatchers *types.Struct
+	if gm := spec.GetMustMatchFields(); gm != nil {
+		gogo, err := convertStructPB(spec.GetMustMatchFields())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		globalMatchers = gogo
+	}
+
+	allow := make([]*types.ProvisionTokenSpecV2GenericOIDC_Rule, len(spec.GetAllowAny()))
+	for i, rule := range spec.GetAllowAny() {
+		conditions := make([]*types.ProvisionTokenSpecV2GenericOIDC_Condition, len(rule.GetConditions()))
+		for j, condition := range rule.GetConditions() {
+			converted, err := convertGenericOIDCCondition(condition)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			conditions[j] = converted
+		}
+
+		allow[i] = &types.ProvisionTokenSpecV2GenericOIDC_Rule{
+			Expression: rule.GetExpression(),
+			Conditions: conditions,
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GenericOIDC{
+		Issuer:                  spec.GetIssuer(),
+		InsecureAllowHTTPIssuer: spec.GetInsecureAllowHttpIssuer(),
+		Audience:                spec.GetAudience(),
+		StaticJWKS:              spec.GetStaticJwks(),
+		TLSCA:                   spec.GetTlsCa(),
+
+		MustMatchFields: globalMatchers,
+		AllowAny:        allow,
+	}, nil
 }
 
 // GetScoped returns the inner scoped token wrapped by this [provision.Token].
