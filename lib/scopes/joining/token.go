@@ -841,6 +841,81 @@ func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypai
 	return BoundKeypairStatusFromScopedToken(t.scoped)
 }
 
+// convertGenericOIDCCondition converts a scoped generic_oidc condition to a
+// ProvisionTokenV2-style condition (with gogoproto semantics).
+func convertGenericOIDCCondition(c *joiningv1.GenericOIDC_Condition) (*types.ProvisionTokenSpecV2GenericOIDC_Condition, error) {
+	v := &types.ProvisionTokenSpecV2GenericOIDC_Condition{
+		Attribute: c.GetAttribute(),
+	}
+
+	switch {
+	case c.GetEq() != nil:
+		v.Eq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionEq{
+			Value: c.GetEq().GetValue(),
+		}
+	case c.GetNotEq() != nil:
+		v.NotEq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotEq{
+			Value: c.GetNotEq().GetValue(),
+		}
+	case c.GetIn() != nil:
+		v.In = &types.ProvisionTokenSpecV2GenericOIDC_ConditionIn{
+			Values: c.GetIn().GetValues(),
+		}
+	case c.GetNotIn() != nil:
+		v.NotIn = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotIn{
+			Values: c.GetNotIn().GetValues(),
+		}
+	default:
+		return nil, trace.BadParameter("an operator is required but found none")
+	}
+
+	return v, nil
+}
+
+// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+func (t *Token) GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error) {
+	spec := t.scoped.GetSpec().GetGenericOidc()
+
+	var globalMatchers *types.Struct
+	if gm := spec.GetMustMatchFields(); gm != nil {
+		gogo, err := convertStructPB(spec.GetMustMatchFields())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		globalMatchers = gogo
+	}
+
+	allow := make([]*types.ProvisionTokenSpecV2GenericOIDC_Rule, len(spec.GetAllowAny()))
+	for i, rule := range spec.GetAllowAny() {
+		conditions := make([]*types.ProvisionTokenSpecV2GenericOIDC_Condition, len(rule.GetConditions()))
+		for j, condition := range rule.GetConditions() {
+			converted, err := convertGenericOIDCCondition(condition)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			conditions[j] = converted
+		}
+
+		allow[i] = &types.ProvisionTokenSpecV2GenericOIDC_Rule{
+			Expression: rule.GetExpression(),
+			Conditions: conditions,
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GenericOIDC{
+		Issuer:                  spec.GetIssuer(),
+		InsecureAllowHTTPIssuer: spec.GetInsecureAllowHttpIssuer(),
+		Audience:                spec.GetAudience(),
+		StaticJWKS:              spec.GetStaticJwks(),
+		TLSCA:                   spec.GetTlsCa(),
+
+		MustMatchFields: globalMatchers,
+		AllowAny:        allow,
+	}, nil
+}
+
 // GetScoped returns the inner scoped token wrapped by this [provision.Token].
 func (t *Token) GetScoped() *joiningv1.ScopedToken {
 	return t.scoped
