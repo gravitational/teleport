@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -108,8 +109,20 @@ func (s *TunnelService) Run(ctx context.Context) error {
 		}()
 	}
 
-	lpCfg, err := s.buildLocalProxyConfig(ctx)
+	var lpCfg alpnproxy.LocalProxyConfig
+	err := internal.RetryTunnelInitialization(ctx, s.log, s.statusReporter, func(ctx context.Context) error {
+		var proxyErr error
+		lpCfg, proxyErr = s.buildLocalProxyConfig(ctx)
+		return proxyErr
+	})
 	if err != nil {
+		// If the context got canceled do not to pollute
+		// the shutdown with that error. Similar to what is
+		// being done at the end of this function.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil
+		}
+
 		return trace.Wrap(err, "building local proxy config")
 	}
 	lpCfg.Listener = l
