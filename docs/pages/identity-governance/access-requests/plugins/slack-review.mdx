@@ -348,6 +348,17 @@ directly within Slack.
 
 (!docs/pages/includes/plugins/slack-review-config.mdx!)
 
+### Invite the plugin to your Slack app
+
+Once you have configured the channels that the Slack plugin will notify when it
+receives an Access Request, you will need to ensure that the plugin can post in
+those channels.
+
+You have already configured the plugin to send direct messages as Slackbot. For
+any other channel you mention in your `role_to_recipients` map, you will need
+to invite the plugin to that channel. Navigate to each channel and enter `/invite
+@teleport` in the message box.
+
 <details>
 <summary>Suggested reviewers</summary>
 
@@ -364,17 +375,6 @@ address and post a message in that channel.
 
 </details>
 
-### Invite the plugin to your Slack app
-
-Once you have configured the channels that the Slack plugin will notify when it
-receives an Access Request, you will need to ensure that the plugin can post in
-those channels.
-
-You have already configured the plugin to send direct messages as Slackbot. For
-any other channel you mention in your `role_to_recipients` map, you will need
-to invite the plugin to that channel. Navigate to each channel and enter `/invite
-@teleport` in the message box.
-
 ### Start the plugin
 
 Start the plugin by following the instructions below.
@@ -386,9 +386,14 @@ $ teleport-slack start --config teleport-slack.toml
 ```
 </TabItem>
 <TabItem label="Docker">
+
 ```code
-$ docker run -v teleport-slack.toml:/etc/teleport-slack.toml public.ecr.aws/gravitational/teleport-plugin-slack:(=teleport.version=) start
+$ docker run \
+  -v $(pwd)/teleport-slack.toml:/etc/teleport-slack.toml \
+  -v <Var name="/var/lib/teleport/plugins/slack" />:<Var name="/var/lib/teleport/plugins/slack" /> \
+  public.ecr.aws/gravitational/teleport-plugin-slack:(=teleport.version=) start
 ```
+
 </TabItem>
 <TabItem label="Helm Chart">
 ```code
