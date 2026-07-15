@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 var (
@@ -140,8 +142,8 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	if err != nil {
 		return trace.Wrap(err, "checking existence of VNet NRPT registry key under group policy path")
 	}
-	if !slices.Equal(cfg.dnsZones, state.configuredDNSZones) ||
-		!slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) ||
+	if !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones) ||
+		!utils.ContainSameUniqueElements(cfg.dnsAddrs, state.configuredDNSAddrs) ||
 		doesGroupPolicyKeyExist != state.configuredGroupPolicyKey ||
 		(doesGroupPolicyKeyExist && !vnetGroupPolicyNRPTKeyExists && len(cfg.dnsZones) > 0) {
 		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs, doesGroupPolicyKeyExist); err != nil {
