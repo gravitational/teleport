@@ -10,30 +10,40 @@ import type { Acl } from 'teleport/services/user/types';
 
 let originalIdentitySecurityLicensed: boolean;
 let originalHideInaccessibleFeatures: boolean;
+let originalSessionSummarizerEnabled: boolean;
 
 beforeEach(() => {
   localStorage.clear();
 
   originalIdentitySecurityLicensed = cfg.oss.identitySecurity.licensed;
   originalHideInaccessibleFeatures = cfg.oss.hideInaccessibleFeatures;
+  originalSessionSummarizerEnabled = cfg.oss.sessionSummarizerEnabled;
 
   cfg.oss.identitySecurity.licensed = true;
   cfg.oss.hideInaccessibleFeatures = false;
+  cfg.oss.sessionSummarizerEnabled = false;
 });
 
 afterEach(() => {
   cfg.oss.identitySecurity.licensed = originalIdentitySecurityLicensed;
   cfg.oss.hideInaccessibleFeatures = originalHideInaccessibleFeatures;
+  cfg.oss.sessionSummarizerEnabled = originalSessionSummarizerEnabled;
 });
 
-function renderCta(overrideAcl?: Partial<Acl>) {
+function renderCta(
+  overrideAcl?: Partial<Acl>,
+  { resourceCount = 1, isFilterApplied = false } = {}
+) {
   const ctx = createTeleportContextE({
     customAcl: { ...allAccessAcl, ...overrideAcl },
   });
 
   return render(
     <TeleportProviderBasicE teleportCtx={ctx}>
-      <SessionSummariesUnifiedResourcesCta />
+      <SessionSummariesUnifiedResourcesCta
+        resourceCount={resourceCount}
+        isFilterApplied={isFilterApplied}
+      />
     </TeleportProviderBasicE>
   );
 }
@@ -76,6 +86,36 @@ test('does not render when user lacks session summaries permissions', () => {
     inferenceModel: noAccess,
     inferenceSecret: noAccess,
   });
+
+  expect(
+    screen.queryByText(
+      /Speed up audit reviews with Session Recording Summaries/
+    )
+  ).not.toBeInTheDocument();
+});
+
+test('does not render when the cluster is empty and no filter is applied', () => {
+  renderCta(undefined, { resourceCount: 0, isFilterApplied: false });
+
+  expect(
+    screen.queryByText(
+      /Speed up audit reviews with Session Recording Summaries/
+    )
+  ).not.toBeInTheDocument();
+});
+
+test('renders when there are no results but a filter is applied', () => {
+  renderCta(undefined, { resourceCount: 0, isFilterApplied: true });
+
+  expect(
+    screen.getByText(/Speed up audit reviews with Session Recording Summaries/)
+  ).toBeInTheDocument();
+});
+
+test('does not render when the session summarizer is already enabled', () => {
+  cfg.oss.sessionSummarizerEnabled = true;
+
+  renderCta();
 
   expect(
     screen.queryByText(

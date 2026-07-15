@@ -41,7 +41,17 @@ import {
 } from 'teleport/SessionRecordings/svg';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-export function SessionSummariesUnifiedResourcesCta() {
+interface SessionSummariesUnifiedResourcesCtaProps {
+  /** The number of resources currently displayed in the list. */
+  resourceCount: number;
+  /** Whether a filter or search is currently narrowing the list. */
+  isFilterApplied: boolean;
+}
+
+export function SessionSummariesUnifiedResourcesCta({
+  resourceCount,
+  isFilterApplied,
+}: SessionSummariesUnifiedResourcesCtaProps) {
   const { clusterId } = useStickyClusterId();
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
@@ -51,10 +61,17 @@ export function SessionSummariesUnifiedResourcesCta() {
     false
   );
 
+  // Only suppress the CTA when the cluster is genuinely empty. An empty list
+  // caused by an active filter or search isn't conclusive (the cluster may
+  // still have resources), so the CTA should still show in that case.
+  const isClusterEmpty = resourceCount === 0 && !isFilterApplied;
+
   if (
     !cfg.oss.identitySecurity.licensed ||
     cfg.oss.hideInaccessibleFeatures ||
-    !flags.sessionSummaries
+    !flags.sessionSummaries ||
+    isClusterEmpty ||
+    cfg.oss.sessionSummarizerEnabled
   ) {
     return null;
   }

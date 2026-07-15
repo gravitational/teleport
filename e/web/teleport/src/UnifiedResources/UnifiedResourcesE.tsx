@@ -241,6 +241,12 @@ export function UnifiedResourcesE() {
                   : null
               }
               showCheckout={showCheckout}
+              ctaSlot={({ resourceCount, isFilterApplied }) => (
+                <SessionSummariesUnifiedResourcesCta
+                  resourceCount={resourceCount}
+                  isFilterApplied={isFilterApplied}
+                />
+              )}
             />
           </SamlAppActionProvider>
         </ResizingResourceWrapper>
@@ -305,8 +311,6 @@ export function UnifiedResourcesE() {
           }}
         />
       </Flex>
-
-      <SessionSummariesUnifiedResourcesCta />
     </FeatureBox>
   );
 }
