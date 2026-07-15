@@ -321,6 +321,9 @@ func checkAndSetEventFields(event apievents.AuditEvent, clock clockwork.Clock, u
 	}
 	if event.GetID() == "" && event.GetType() != SessionPrintEvent && event.GetType() != DesktopRecordingEvent {
 		event.SetID(uid.New())
+		if event.GetIndex() == 0 {
+			event.SetIndex(clock.Now().UnixNano())
+		}
 	}
 	if event.GetTime().IsZero() {
 		event.SetTime(clock.Now().UTC().Round(time.Millisecond))
