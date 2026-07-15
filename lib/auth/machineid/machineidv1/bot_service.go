@@ -369,6 +369,11 @@ func (bs *BotService) CreateBot(
 		}
 	}
 
+	// Delegation is server-controlled.
+	if status := req.GetBot().GetStatus(); status != nil {
+		status.ClearDelegation()
+	}
+
 	var bot *pb.Bot
 	if req.GetBot().GetScope() != "" {
 		bot, err = bs.createScopedBot(ctx, authCtx, req.GetBot())
@@ -512,6 +517,11 @@ func UpsertBot(
 		}
 	}
 
+	// Delegation is server-controlled.
+	if status := bot.GetStatus(); status != nil {
+		status.ClearDelegation()
+	}
+
 	// Create User (and maybe Role if unscoped) from the Bot.
 	var user types.User
 	var role types.Role
@@ -526,10 +536,10 @@ func UpsertBot(
 			return nil, trace.Wrap(err, "converting unscoped bot to resources")
 		}
 	}
-	// If the bot already exists, we need to copy across the generation label.
-	// TODO(noah): When we fully deprecate generation labels, we also need to
-	// remove this - https://github.com/gravitational/teleport/issues/64484
 	if existingUser != nil {
+		// If the bot already exists, we need to copy across the generation label.
+		// TODO(noah): When we fully deprecate generation labels, we also need to
+		// remove this - https://github.com/gravitational/teleport/issues/64484
 		if existingGeneration, ok := existingUser.GetLabel(types.BotGenerationLabel); ok {
 			meta := user.GetMetadata()
 			meta.Labels[types.BotGenerationLabel] = existingGeneration
@@ -537,6 +547,9 @@ func UpsertBot(
 		} else {
 			return nil, trace.BadParameter("unable to determine existing generation for bot due to missing label")
 		}
+
+		// Preserve the existing bot's delegation.
+		user.SetDelegation(existingUser.GetDelegation())
 	}
 
 	user, err = backend.UpsertUser(ctx, user)
@@ -999,8 +1012,9 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 			Description: user.GetMetadata().Description,
 		}.Build(),
 		Status: pb.BotStatus_builder{
-			UserName: user.GetName(),
-			RoleName: role.GetName(),
+			UserName:   user.GetName(),
+			RoleName:   role.GetName(),
+			Delegation: user.GetDelegation(),
 		}.Build(),
 		Spec: pb.BotSpec_builder{
 			Roles:         role.GetImpersonateConditions(types.Allow).Roles,
@@ -1155,6 +1169,7 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 		User: types.UserRef{Name: createdBy},
 		Time: now,
 	})
+	user.SetDelegation(bot.GetStatus().GetDelegation())
 
 	return user, role, nil
 }

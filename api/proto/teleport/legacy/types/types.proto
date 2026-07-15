@@ -22,6 +22,7 @@ import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
+import "teleport/legacy/types/delegation.proto";
 import "teleport/legacy/types/metadata.proto";
 import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
@@ -4783,6 +4784,9 @@ message UserStatusV2 {
   // mfa_weakest_device reflects what the system knows about the user's weakest MFA device.
   // Note that this is a "best effort" property, in that it can be UNSPECIFIED.
   MFADeviceKind mfa_weakest_device = 2 [(gogoproto.jsontag) = "mfa_weakest_device,omitempty"];
+  // Delegation describes the relationship between this user and the identity
+  // who delegated their access to them.
+  Delegation Delegation = 3 [(gogoproto.jsontag) = "delegation,omitempty"];
 }
 
 // PasswordState indicates what is known about existence of user's password.
